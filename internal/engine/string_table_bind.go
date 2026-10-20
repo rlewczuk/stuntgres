@@ -26,58 +26,58 @@ func nestedFromSetError(pos parser.Position) error {
 }
 
 func (b *expressionBinder) BindFunctionSource(raw parser.FunctionExpr) (expr.Expr, error) {
-	before := b.clause.fromSetObservation
-	node, err := b.bindFunction(raw)
+	before := b.Clause.fromSetObservation
+	node, err := b.BindFunction(raw)
 	if err != nil {
 		return nil, err
 	}
 	if inquiry, ok := node.(expr.SnapshotDemander); ok {
 		demand, _, _ := inquiry.SnapshotDemand(plan.NullLiteral)
-		b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
+		b.Consumer.CatalogSnapshot = b.Consumer.CatalogSnapshot || demand
 	}
-	if !exec.SourceReturnsSet(node) && b.clause.fromSetObservation != before {
-		return nil, nestedFromSetError(b.clause.fromSetObservation.pos)
+	if !exec.SourceReturnsSet(node) && b.Clause.fromSetObservation != before {
+		return nil, nestedFromSetError(b.Clause.fromSetObservation.pos)
 	}
 	return node, nil
 }
 
 func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {
-	kind := b.clause.aggregateClause
-	if b.consumer.defaultConsumer {
+	kind := b.Clause.AggregateClause
+	if b.Consumer.DefaultConsumer {
 		kind = "DEFAULT expressions"
 	}
-	if b.consumer.checkConsumer {
+	if b.Consumer.CheckConsumer {
 		kind = "check constraints"
 	}
-	if b.target.generatedOwner != nil {
+	if b.Target.GeneratedOwner != nil {
 		kind = "column generation expressions"
 	}
-	if b.consumer.indexConsumer {
+	if b.Consumer.IndexConsumer {
 		kind = "index expressions"
 	}
-	if b.consumer.indexPredicateConsumer {
+	if b.Consumer.IndexPredicateConsumer {
 		kind = "index predicates"
 	}
 	hint := ""
-	if b.clause.stringSetGuard != "" {
-		kind = b.clause.stringSetGuard
+	if b.Clause.StringSetGuard != "" {
+		kind = b.Clause.StringSetGuard
 		hint = "You might be able to move the set-returning function into a LATERAL FROM item."
 	}
 	message := "set-returning functions are not allowed in " + kind
-	if b.grouping.argumentOwner.active && kind != "FILTER" {
+	if b.Grouping.ArgumentOwner.Active && kind != "FILTER" {
 		message = "aggregate function calls cannot contain set-returning function calls"
-		if b.grouping.argumentOwner.window {
+		if b.Grouping.ArgumentOwner.Window {
 			message = "window function calls cannot contain set-returning function calls"
 		}
 		hint = "You might be able to move the set-returning function into a LATERAL FROM item."
-	} else if b.clause.stringSetGuard == "" {
+	} else if b.Clause.StringSetGuard == "" {
 		switch kind {
 		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions", "FROM":
 			return nil
 		case "window RANGE", "window GROUPS", "window ROWS":
 			message = "set-returning functions are not allowed in window definitions"
 		case "INSERT VALUES":
-			if b.clause.stringSingleInsert {
+			if b.Clause.stringSingleInsert {
 				return nil
 			}
 			message = "set-returning functions are not allowed in VALUES"
@@ -97,16 +97,16 @@ func stringLateralError(q queryQualifier, pos parser.Position, target bool) erro
 	return err
 }
 func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node, queryNamespace, error) {
-	old, clause := b.query.namespace, b.clause.aggregateClause
-	if b.query.namespace == nil {
-		b.query.namespace = &queryNamespace{}
+	old, clause := b.Query.Namespace, b.Clause.AggregateClause
+	if b.Query.Namespace == nil {
+		b.Query.Namespace = &queryNamespace{}
 	}
-	b.clause.aggregateClause = "FROM"
-	defer func() { b.query.namespace, b.clause.aggregateClause = old, clause }()
+	b.Clause.AggregateClause = "FROM"
+	defer func() { b.Query.Namespace, b.Clause.AggregateClause = old, clause }()
 	calls := make([]expr.Expr, len(raw.Calls))
 	schema := make(plan.QuerySchema, len(calls))
-	ordinal := b.stored.functionCount
-	b.stored.functionCount += len(raw.Calls)
+	ordinal := b.Stored.functionCount
+	b.Stored.functionCount += len(raw.Calls)
 	for i, call := range raw.Calls {
 		bound, err := b.BindFunctionSource(call)
 		if err != nil {
@@ -121,14 +121,14 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 		}
 		calls[i] = bound
 		schema[i] = catalog.Column{Name: "string_to_table", Usage: bound.ResultUsage()}
-		if b.params.noParameters || b.consumer.materializedDefinition {
-			if err := b.captureViewLiterals(call, bound, analyze.ViewFunctionLiteral, ordinal+i); err != nil {
+		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+			if err := b.CaptureViewLiterals(call, bound, analyze.ViewFunctionLiteral, ordinal+i); err != nil {
 				return nil, queryNamespace{}, err
 			}
 		}
 	}
 	if raw.Ordinality {
-		schema = append(schema, catalog.Column{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
+		schema = append(schema, catalog.Column{Name: "ordinality", Usage: b.Type(sqltype.Int8).Usage()})
 	}
 	columns := make([]queryColumn, len(schema))
 	for i, col := range schema {
@@ -138,7 +138,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 	// One scalar call remains scalar even in ROWS FROM; ordinality and
 	// multiple calls declare tuples independently of their exposed labels.
 	qualifier := queryQualifier{Name: name, Original: name, Columns: columns, ScalarAlias: len(calls) == 1 && !raw.Ordinality}
-	b.query.hidden = append(b.query.hidden, qualifier)
+	b.Query.Hidden = append(b.Query.Hidden, qualifier)
 	captures := b.functionCaptures(calls)
 	node := &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.FrameID(), ViewOrdinal: ordinal, Captures: captures}
 	return node, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: schema}, nil
@@ -147,7 +147,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 // Only local expressions are rewritten; expression-owned queries retain their
 // own stage/frame ownership through the existing mapper.
 func (b *expressionBinder) MapQuerySetStage(bound expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
-	return b.host.MapBoundExpression(b.bindingCatalog(), nil, bound, true, func(e expr.Expr) (expr.Expr, bool, error) {
+	return b.Host.MapBoundExpression(b.BindingCatalog(), nil, bound, true, func(e expr.Expr) (expr.Expr, bool, error) {
 		// Window slots are assigned through shared binder-owned pointers. A
 		// local SRF rewrite must not clone them before their final slot shift.
 		if _, ok := e.(*plan.WindowExpr); ok {
@@ -178,11 +178,11 @@ func stringForbiddenColumn(ns queryNamespace, slot int, pos parser.Position) err
 }
 
 func (b *expressionBinder) stringFromContext() bool {
-	if b.clause.aggregateClause == "FROM" {
+	if b.Clause.AggregateClause == "FROM" {
 		return true
 	}
-	for _, scope := range b.query.scopes {
-		if scope.clause == "FROM" {
+	for _, scope := range b.Query.Scopes {
+		if scope.Clause == "FROM" {
 			return true
 		}
 	}
@@ -199,7 +199,7 @@ func (b *expressionBinder) functionCaptures(calls []expr.Expr) []plan.FunctionCo
 					return
 				}
 				name := ""
-				for _, qualifier := range b.query.namespace.Qualifiers {
+				for _, qualifier := range b.Query.Namespace.Qualifiers {
 					for _, candidate := range qualifier.Columns {
 						if candidate.Slot == column.Slot {
 							name = qualifier.Name

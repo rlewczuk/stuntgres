@@ -25,12 +25,12 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"pg_blocking_pids", "pg_safe_snapshot_blocking_pids"} {
 		raw := datetimeMakeRaw(name, datetimeMakeInteger(0))
-		bound, err := b.bindFunctionProvider(raw)
+		bound, err := b.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
 		n := bound.(functions.BlockingInquiry)
-		if err := b.captureViewLiterals(raw, n, analyze.ViewTargetLiteral, 0); err != nil {
+		if err := b.CaptureViewLiterals(raw, n, analyze.ViewTargetLiteral, 0); err != nil {
 			t.Fatal("literal recipe pairing", err)
 		}
 		if got, err := (scalarRenderer{owner: owner}).sql(ctx, catalog, n); err != nil || !strings.Contains(got, "pg_catalog."+name+"(") {
@@ -45,12 +45,12 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if got, err := (boundTree{n}).StructuralOutput(ctx); err != nil || !strings.Contains(got, "BlockingInquiry") {
 			t.Fatal("structural recipe", got, err)
 		}
-		if !b.sameGroupExpression(n, n) || generationImmutable(n) || exec.PlannedVolatility(n) != expr.Volatile {
+		if !b.SameGroupExpression(n, n) || generationImmutable(n) || exec.PlannedVolatility(n) != expr.Volatile {
 			t.Fatal("lost intrinsic live volatility")
 		}
 		other := n
 		other.Kind = functions.BlockingKind(1 - int(n.Kind))
-		if b.sameGroupExpression(n, other) {
+		if b.SameGroupExpression(n, other) {
 			t.Fatal("different inquiries collapsed")
 		}
 		for _, rewrite := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
@@ -80,7 +80,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if n.Validate() != nil {
 			t.Fatal("retag mutated original")
 		}
-		column := plan.ColumnExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
+		column := plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
 		n.Arg = column
 		n.Property.RowDependent = true
 		visited := 0
@@ -92,7 +92,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if visited != 1 {
 			t.Fatal("dependency walk lost argument", visited)
 		}
-		grouped, err := b.rewriteGroup(n, []expr.Expr{column})
+		grouped, err := b.RewriteGroup(n, []expr.Expr{column})
 		if err != nil || !grouped.Properties().StageDependent || grouped.Properties().Volatility != expr.Volatile {
 			t.Fatal("aggregate rewrite", grouped, err)
 		}
@@ -118,7 +118,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			t.Fatal("lost intrinsic volatility accepted")
 		}
 		bad = n
-		bad.Usage = b.typ(sqltype.Int4).Usage()
+		bad.Usage = b.Type(sqltype.Int4).Usage()
 		if bad.Validate() == nil {
 			t.Fatal("scalar result accepted")
 		}

@@ -61,13 +61,13 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 				case "check":
 					checks = []catalog.CheckConstraint{{Expression: node}}
 				}
-				if err := b.captureRetainedWriteInput(defaults, generations, checks); err != nil {
+				if err := b.CaptureRetainedWriteInput(defaults, generations, checks); err != nil {
 					t.Fatal(err)
 				}
-				if named && b.input.TypeDiagnosticName(pair.ID()) != "retained-name" {
+				if named && b.Input.TypeDiagnosticName(pair.ID()) != "retained-name" {
 					t.Fatal("catalog input capture replaced existing diagnostic authority")
 				}
-				actual, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: b.input}})
+				actual, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: b.Input}})
 				if err != nil {
 					t.Fatal("retained coercion lost catalog input authority", err)
 				}
@@ -163,33 +163,33 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		}
 		expected := StatementDescription{regtypes: &regtypeAnalysis{constants: cells}}
 		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &expected)
-		b.query.auth = &auth
+		b.Query.Auth = &auth
 		pos := parser.Position{Offset: 7, Character: 8}
 		fresh := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-		fresh.query.auth = &auth
-		freshValue, err := fresh.routineConstant(`("abs(integer)","public.#=#(routine_types.secret,integer)",integer)`, c.Value.Type().Usage(), pos)
-		if err != nil || !sqltype.SameDatum(freshValue, c.Value) || len(fresh.prepared.RegtypeConstants) != 1 {
-			t.Fatal("fresh mixed capture at shared occurrence", freshValue, err, fresh.prepared.RegtypeConstants)
+		fresh.Query.Auth = &auth
+		freshValue, err := fresh.RoutineConstant(`("abs(integer)","public.#=#(routine_types.secret,integer)",integer)`, c.Value.Type().Usage(), pos)
+		if err != nil || !sqltype.SameDatum(freshValue, c.Value) || len(fresh.Prepared.RegtypeConstants) != 1 {
+			t.Fatal("fresh mixed capture at shared occurrence", freshValue, err, fresh.Prepared.RegtypeConstants)
 		}
-		assertDependencies(fresh.dependencies)
-		if !reflect.DeepEqual(fresh.prepared.RegtypeConstants[0], cells[0]) {
-			t.Fatal("fresh capture differs from retained occurrence", fresh.prepared.RegtypeConstants[0], cells[0])
+		assertDependencies(fresh.Dependencies)
+		if !reflect.DeepEqual(fresh.Prepared.RegtypeConstants[0], cells[0]) {
+			t.Fatal("fresh capture differs from retained occurrence", fresh.Prepared.RegtypeConstants[0], cells[0])
 		}
-		value, err := b.routineConstant("not a composite", c.Value.Type().Usage(), pos)
+		value, err := b.RoutineConstant("not a composite", c.Value.Type().Usage(), pos)
 		if err != nil || !sqltype.SameDatum(value, c.Value) {
 			t.Fatal("retained mixed datum was reparsed or cross-selected", value, err)
 		}
-		assertDependencies(b.dependencies)
-		if len(b.prepared.RegtypeConstants) != 1 || !reflect.DeepEqual(b.prepared.RegtypeConstants[0], cells[0]) {
-			t.Fatal("retained mixed capture lost qualification or operand stamps", b.prepared.RegtypeConstants)
+		assertDependencies(b.Dependencies)
+		if len(b.Prepared.RegtypeConstants) != 1 || !reflect.DeepEqual(b.Prepared.RegtypeConstants[0], cells[0]) {
+			t.Fatal("retained mixed capture lost qualification or operand stamps", b.Prepared.RegtypeConstants)
 		}
 		operator, _ := auth.Catalog.LookupType(sqltype.Regoperator)
-		value, err = b.operatorConstant("missing operator", operator, pos)
+		value, err = b.OperatorConstant("missing operator", operator, pos)
 		oid, oidErr := value.OperatorOID()
 		if err != nil || oidErr != nil || oid != 551 {
 			t.Fatal("retained operator cross-selected routine cell", oid, err, oidErr)
 		}
-		value, err = b.regtypeConstant("missing type", pos)
+		value, err = b.RegtypeConstant("missing type", pos)
 		id, idErr := value.TypeOID()
 		if err != nil || idErr != nil || id != 23 {
 			t.Fatal("standalone REGTYPE cross-selected mixed cell", id, err, idErr)

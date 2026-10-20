@@ -47,9 +47,9 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
-			binder.query.auth, binder.target.ref = &auth, ref
-			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
-			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+			binder.Query.Auth, binder.Target.Ref = &auth, ref
+			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
+			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal("actual TID operator selection", err)
@@ -72,7 +72,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			}
 			wantRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 			procedures := 0
-			for _, dependency := range binder.dependencies {
+			for _, dependency := range binder.Dependencies {
 				if dependency.Ref.Address.ClassID != ids.ProcedureClassID {
 					continue
 				}
@@ -82,16 +82,16 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				}
 			}
 			if procedures != 1 {
-				t.Fatal("exact original routine manifest", binder.dependencies)
+				t.Fatal("exact original routine manifest", binder.Dependencies)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority", err)
 			}
 			foreign := New()
 			for _, mode := range []string{"missing", "foreign", "stale epoch", "stale revision"} {
 				var checks []catalog.ExpressionDependency
-				for _, dependency := range binder.dependencies {
+				for _, dependency := range binder.Dependencies {
 					if dependency.Ref.Address == address {
 						switch mode {
 						case "missing":
@@ -122,7 +122,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("foreign retag manufactured original lifetime")
 			}
-			evaluation.RoutineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.Dependencies
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("negative probes changed source authority", err)
 			}

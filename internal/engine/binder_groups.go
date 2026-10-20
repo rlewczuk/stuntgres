@@ -23,52 +23,52 @@ import (
 // expressions may use for it. DML, rule and generated-column binding set it;
 // column resolution, RETURNING and target-use tracking read it.
 type targetContext struct {
-	relation              *catalog.Relation
-	insertTarget          *catalog.Relation // Diagnostic candidate only, never a source.
-	ref                   ids.ObjectRef
-	ruleNamespace         *analyze.RuleNamespace
-	generatedOwner        *catalog.Relation
+	Relation              *catalog.Relation
+	InsertTarget          *catalog.Relation // Diagnostic candidate only, never a source.
+	Ref                   ids.ObjectRef
+	RuleNamespace         *analyze.RuleNamespace
+	GeneratedOwner        *catalog.Relation
 	deleteTarget          bool
 	deleteUsingSources    bool
 	mergeWhen             bool
 	mergeInput            bool
-	name                  string
+	Name                  string
 	alias                 string
 	returningAliases      *returningAliases
 	returningReadRequired bool
-	uses                  []int // Target column slots read by bound expressions.
+	Uses                  []int // Target column slots read by bound expressions.
 }
 
 // parameterState holds parameter inference: the inferred usages by number,
 // the declared formals, and the statement's parameter rules.
 type parameterState struct {
-	parameters            map[int]sqltype.Usage
+	Parameters            map[int]sqltype.Usage
 	formalParameters      []sqltype.Usage
-	closedRoutineFormals  bool // SQL body slots are declarations, not inferred public parameters.
-	executeParameters     bool
-	updateParameters      bool
+	ClosedRoutineFormals  bool // SQL body slots are declarations, not inferred public parameters.
+	ExecuteParameters     bool
+	UpdateParameters      bool
 	updateInputParameters map[int]sqltype.Usage
-	anyParameters         []plan.ParameterExpr
-	noParameters          bool
+	AnyParameters         []plan.ParameterExpr
+	NoParameters          bool
 }
 
 // consumerContext names the definition an expression is bound for (default,
 // check, policy, index, partition, materialized view) and records the
 // snapshot demands found while binding it.
 type consumerContext struct {
-	defaultConsumer  bool
-	defaultTemporary ids.SessionToken
+	DefaultConsumer  bool
+	DefaultTemporary ids.SessionToken
 	// Selected timezone/calendar operand analysis owns its released rejection
 	// diagnostic without admitting additional explicit cast providers.
-	datetimeZoneOperands    bool
-	checkConsumer           bool
-	policyConsumer          bool
-	indexConsumer           bool
-	indexPredicateConsumer  bool
-	partitionConsumer       string
-	checkDefinitionEquality bool
-	visibilitySnapshot      bool
-	catalogSnapshot         bool // Demanded inquiry nodes after STRICT folding.
+	DatetimeZoneOperands    bool
+	CheckConsumer           bool
+	PolicyConsumer          bool
+	IndexConsumer           bool
+	IndexPredicateConsumer  bool
+	PartitionConsumer       string
+	CheckDefinitionEquality bool
+	VisibilitySnapshot      bool
+	CatalogSnapshot         bool // Demanded inquiry nodes after STRICT folding.
 	// Materialized definitions need frozen renderer metadata while retaining
 	// their distinct, post-analysis bound-parameter diagnostic.
 	materializedDefinition bool
@@ -81,10 +81,10 @@ type consumerContext struct {
 type storedSyntaxState struct {
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
-	checkLiterals []plan.LiteralExpr
+	CheckLiterals []plan.LiteralExpr
 	// Frozen syntax retains analyzed lowering without changing prepared source.
 	// Analysis-only templates never enter executable nodes or prepared frames.
-	syntax        map[storedExpressionSyntaxKey]parser.Expr
+	Syntax        map[storedExpressionSyntaxKey]parser.Expr
 	valuesCount   int
 	joinCount     int
 	functionCount int
@@ -95,21 +95,21 @@ type storedSyntaxState struct {
 // selected-call context of an operator or SQL routine occurrence. Clause
 // binders save it, set it and restore it around their children.
 type clauseState struct {
-	aggregateClause     string
-	stringSetGuard      string
+	AggregateClause     string
+	StringSetGuard      string
 	stringFromForbidden bool
 	stringSingleInsert  bool
-	queryHasTargetSet   bool
+	QueryHasTargetSet   bool
 	fromSetObservation  fromSetObservation
-	regexpClause        string
-	jsonbRecordBase     bool // Scope named cast identity to selected base trees.
-	domainValueUsage    *sqltype.Usage
-	functionProjection  functionProjectionScope
+	RegexpClause        string
+	JSONBRecordBase     bool // Scope named cast identity to selected base trees.
+	DomainValueUsage    *sqltype.Usage
+	FunctionProjection  functionProjectionScope
 	// Selected operator and SQL routine calls bind their arguments once and
 	// expose them to provider binding through these slots.
-	selectedOperatorArgs   []expr.Expr
-	selectedOperatorSyntax []parser.Expr
-	selectedCallArguments  bool              // Known arguments remain reusable throughout provider binding.
+	SelectedOperatorArgs   []expr.Expr
+	SelectedOperatorSyntax []parser.Expr
+	SelectedCallArguments  bool              // Known arguments remain reusable throughout provider binding.
 	selectedCallReentry    bool              // Only the immediate selected occurrence skips selection once.
 	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
 }
@@ -118,14 +118,14 @@ type clauseState struct {
 // the query level being bound, with the window definitions they resolve
 // against.
 type groupingState struct {
-	aggregates        []plan.AggregateCall
+	Aggregates        []plan.AggregateCall
 	active            bool
-	groupSets         [][]int
+	GroupSets         [][]int
 	groupSubquery     bool
 	windowRaw         []parser.WindowDefinition
 	windowDefinitions map[string]plan.WindowSpec
-	windowCalls       []plan.WindowCall
-	argumentOwner     argumentWindowOwner
+	WindowCalls       []plan.WindowCall
+	ArgumentOwner     argumentWindowOwner
 }
 
 // queryScopeState is the query level being bound: its authorization view,
@@ -133,15 +133,15 @@ type groupingState struct {
 // frame numbering, and the scope stack of enclosing levels. Subquery and
 // FROM binders save it and restore it around nested levels.
 type queryScopeState struct {
-	auth                  analyze.Authority
-	sources               []exec.Leaf
+	Auth                  analyze.Authority
+	Sources               []exec.Leaf
 	lockAdmission         *queryLockAdmission
-	namespace             *queryNamespace
-	hidden                []queryQualifier
-	nonLateral            bool
-	frame, nextQueryFrame uint32
+	Namespace             *queryNamespace
+	Hidden                []queryQualifier
+	NonLateral            bool
+	Frame, NextQueryFrame uint32
 	resolvedQueryFrame    uint32
-	scopes                []queryBindingScope
+	Scopes                []queryBindingScope
 	presenceFrames        map[uint32]int
 	suppressWholePresence bool
 	rowDiagnosticMode     lock.Mode // Clause diagnostics only; tuple authority is plan.RowMark.

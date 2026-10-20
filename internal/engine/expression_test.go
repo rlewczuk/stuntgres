@@ -133,11 +133,11 @@ func TestExpressionScalarBehaviorAndSparseDiagnostics(t *testing.T) {
 		r.Rows.Close()
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	_, err := binder.bind(parser.ParameterExpr{Number: 2147483647, Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext})
+	_, err := binder.Bind(parser.ParameterExpr{Number: 2147483647, Pos: parser.Position{Character: 8}}, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = binder.finish()
+	_, err = binder.Finish()
 	state(t, err, "42P18")
 }
 
@@ -146,27 +146,27 @@ func TestExpressionOccurrenceSensitiveFallback(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Bool, sqltype.Text} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}
-		target, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		target, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if target.ResultUsage().Type != nil {
 			t.Fatal("target inferred before context")
 		}
-		expected := b.typ(id).Usage()
-		later, err := b.bind(raw, expressionPolicy{context: projectionContext, expected: expected})
+		expected := b.Type(id).Usage()
+		later, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext, Expected: expected})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if later.ResultUsage() != expected || target.ResultUsage().Type != nil {
 			t.Fatal("later slot constraint rewrote earlier occurrence")
 		}
-		output, err := b.finalizeProjection(target)
+		output, err := b.FinalizeProjection(target)
 		if id == sqltype.Text {
 			if err != nil || output.ResultUsage() != expected {
 				t.Fatal(output, err)
 			}
-			info, err := b.finish()
+			info, err := b.Finish()
 			if err != nil || info.Count != 1 || info.Types[0] != expected {
 				t.Fatal(info, err)
 			}

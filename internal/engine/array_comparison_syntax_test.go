@@ -16,8 +16,8 @@ func TestArrayCompareVisitorsStoredSyntax(t *testing.T) {
 		Args: []parser.Expr{left, item}, Pos: position,
 	}
 	b := &expressionBinder{
-		stored: storedSyntaxState{syntax: map[storedExpressionSyntaxKey]parser.Expr{
-			{frame: 1, position: position}: lowered,
+		Stored: storedSyntaxState{Syntax: map[storedExpressionSyntaxKey]parser.Expr{
+			{Frame: 1, Position: position}: lowered,
 		}},
 	}
 	childQuery := &parser.Select{Targets: []parser.Expr{in}}
@@ -27,7 +27,7 @@ func TestArrayCompareVisitorsStoredSyntax(t *testing.T) {
 		Window: &parser.WindowSpec{Partition: []parser.Expr{in}, Order: []parser.OrderKey{{Expr: in}},
 			Frame: &parser.WindowFrame{Start: parser.FrameBound{Offset: in}, End: parser.FrameBound{Offset: in}}},
 	}
-	next, changed := b.normalizeInListExpression(raw)
+	next, changed := b.NormalizeInListExpression(raw)
 	if !changed {
 		t.Fatal("nested IN was not normalized")
 	}
@@ -50,10 +50,10 @@ func TestArrayCompareVisitorsStoredSyntax(t *testing.T) {
 	if !reflect.DeepEqual(raw.Args[1].(parser.CastExpr).Child, in) || !reflect.DeepEqual(raw.Window.Partition[0], in) || !reflect.DeepEqual(raw.Window.Frame.Start.Offset, in) {
 		t.Fatal("normalization mutated original ancestors")
 	}
-	if again, changed := b.normalizeInListExpression(call); changed || !reflect.DeepEqual(again, call) {
+	if again, changed := b.NormalizeInListExpression(call); changed || !reflect.DeepEqual(again, call) {
 		t.Fatal("canonical syntax was not stable", changed)
 	}
-	if _, changed := (&expressionBinder{}).normalizeInListExpression(raw); changed {
+	if _, changed := (&expressionBinder{}).NormalizeInListExpression(raw); changed {
 		t.Fatal("missing analysis template changed syntax")
 	}
 
@@ -70,7 +70,7 @@ func TestArrayCompareVisitorsStoredSyntax(t *testing.T) {
 	originalTargets := query.Targets
 	originalGroup := query.GroupBy
 	originalFrom := query.From.(*parser.JoinReference)
-	b.normalizeStoredQuerySyntax(query)
+	b.NormalizeStoredQuerySyntax(query)
 	for _, expr := range []parser.Expr{
 		query.Targets[0], query.Where, query.Having, query.From.(*parser.JoinReference).On,
 		query.GroupBy.Items[0].Items[0].Expr, query.Order.Keys[0].Expr,

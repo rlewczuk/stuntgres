@@ -16,14 +16,14 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
-	b.params.parameters[1], b.params.parameters[2] = text.Usage(), integer.Usage()
+	b.Clause.AggregateClause = "SELECT"
+	b.Params.Parameters[1], b.Params.Parameters[2] = text.Usage(), integer.Usage()
 	for _, absent := range []bool{false, true} {
 		for _, unique := range []bool{false, true} {
 			for range 2 {
 				target := parser.TypeName{Name: "text"}
 				raw := parser.AggregateExpr{Name: "json_objectagg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}, JSON: &parser.JSONAggregateOptions{Absent: absent, Unique: unique, Returning: &target}, Pos: parser.Position{Character: 8}}
-				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -37,10 +37,10 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 			}
 		}
 	}
-	if len(b.grouping.aggregates) != 4 {
-		t.Fatal("policies lost or duplicate ownership", len(b.grouping.aggregates))
+	if len(b.Grouping.Aggregates) != 4 {
+		t.Fatal("policies lost or duplicate ownership", len(b.Grouping.Aggregates))
 	}
-	for _, call := range b.grouping.aggregates {
+	for _, call := range b.Grouping.Aggregates {
 		if !call.IncludeNulls {
 			t.Fatal("executor dropped NULL keys")
 		}

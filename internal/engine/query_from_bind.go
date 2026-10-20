@@ -55,7 +55,7 @@ func (b *expressionBinder) QueryColumnAt(c queryColumn, pos parser.Position) exp
 		origin = b.useColumnOf(b.queryTargetRelation(), c.Physical)
 		relation = b.queryTargetRelation()
 	} else if c.Leaf >= 0 {
-		leaf := &b.query.sources[c.Leaf]
+		leaf := &b.Query.Sources[c.Leaf]
 		relation = leaf.Relation
 		origin = leaf.Ref
 		origin.Address.SubID = leaf.Relation.Attributes[c.Physical]
@@ -71,9 +71,9 @@ func (b *expressionBinder) QueryColumnAt(c queryColumn, pos parser.Position) exp
 			leaf.Uses = append(leaf.Uses, c.Physical)
 		}
 	}
-	column := plan.ColumnExpr{Info: b.info(c.Descriptor.Usage, pos, expr.Properties{RowDependent: true}), Origin: origin, Scope: 1, Frame: b.FrameID(), Slot: c.Slot}
+	column := plan.ColumnExpr{Info: b.Info(c.Descriptor.Usage, pos, expr.Properties{RowDependent: true}), Origin: origin, Scope: 1, Frame: b.FrameID(), Slot: c.Slot}
 	column.MergeSource = c.Leaf != analyze.QueryTargetLeaf && b.mergeReturningFrame(b.FrameID())
-	if b.target.generatedOwner == nil {
+	if b.Target.GeneratedOwner == nil {
 		column = column.WithGeneration(relation, c.Physical, c.Slot-c.Physical)
 		if column.Virtual != nil && c.Leaf >= 0 {
 			column.QueryOccurrence = c.Leaf + 1
@@ -85,8 +85,8 @@ func (b *expressionBinder) QueryColumnAt(c queryColumn, pos parser.Position) exp
 func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Position) (*queryQualifier, error) {
 	label := name.Parts[len(name.Parts)-1].Text
 	var match *queryQualifier
-	for i := range b.query.namespace.Qualifiers {
-		q := &b.query.namespace.Qualifiers[i]
+	for i := range b.Query.Namespace.Qualifiers {
+		q := &b.Query.Namespace.Qualifiers[i]
 		if q.Name != label || len(name.Parts) == 2 && (q.Alias != "" || q.Schema != name.Parts[0].Text) {
 			continue
 		}
@@ -96,14 +96,14 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		match = q
 	}
 	if match != nil {
-		if b.clause.aggregateClause == "FROM" && b.clause.stringFromForbidden {
+		if b.Clause.AggregateClause == "FROM" && b.Clause.stringFromForbidden {
 			return nil, stringLateralError(*match, pos, false)
 		}
-		b.query.resolvedQueryFrame = b.FrameID()
+		b.Query.resolvedQueryFrame = b.FrameID()
 		return match, nil
 	}
-	for i := len(b.query.scopes) - 1; i >= 0; i-- {
-		scope := &b.query.scopes[i]
+	for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+		scope := &b.Query.Scopes[i]
 		if !scope.allowed || scope.namespace == nil {
 			continue
 		}
@@ -121,11 +121,11 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 			if scope.stringFromForbidden {
 				return nil, stringLateralError(*match, pos, false)
 			}
-			b.query.resolvedQueryFrame = scope.frame
+			b.Query.resolvedQueryFrame = scope.frame
 			return match, nil
 		}
 	}
-	hidden := append(append([]queryQualifier(nil), b.query.hidden...), b.query.outerQualifiers()...)
+	hidden := append(append([]queryQualifier(nil), b.Query.Hidden...), b.Query.outerQualifiers()...)
 	for _, q := range hidden {
 		if q.Original != label && q.Name != label {
 			continue
@@ -169,7 +169,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 		}
 	}
 	name := parts[len(parts)-1].Text
-	columns := b.query.namespace.Columns
+	columns := b.Query.Namespace.Columns
 	frame := b.FrameID()
 	if len(parts) > 1 {
 		q, err := b.queryQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
@@ -177,7 +177,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			return nil, err
 		}
 		columns = q.Columns
-		frame = b.query.resolvedQueryFrame
+		frame = b.Query.resolvedQueryFrame
 	}
 	var match *queryColumn
 	for i := range columns {
@@ -188,29 +188,29 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			return nil, expr.ErrorAt("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
 		}
 		match = &columns[i]
-		if b.clause.aggregateClause == "FROM" && b.clause.stringFromForbidden {
-			return nil, stringForbiddenColumn(*b.query.namespace, match.Slot, raw.Pos)
+		if b.Clause.AggregateClause == "FROM" && b.Clause.stringFromForbidden {
+			return nil, stringForbiddenColumn(*b.Query.Namespace, match.Slot, raw.Pos)
 		}
 	}
 	if match != nil {
-		if demand := b.query.namespace.IdentityValuesOrderDemand; len(demand) != 0 {
+		if demand := b.Query.Namespace.IdentityValuesOrderDemand; len(demand) != 0 {
 			demand[match.Slot] = true
 		}
 		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
 	}
-	if b.target.mergeWhen && b.FrameID() == 1 && name != "tableoid" && catalog.IsSystemColumn(name) {
-		for _, q := range b.query.namespace.Qualifiers {
+	if b.Target.mergeWhen && b.FrameID() == 1 && name != "tableoid" && catalog.IsSystemColumn(name) {
+		for _, q := range b.Query.Namespace.Qualifiers {
 			if len(parts) > 1 && (q.Name != parts[len(parts)-2].Text || len(parts) == 3 && q.Schema != parts[0].Text) {
 				continue
 			}
-			if relation, ok := b.authorityRelation(b.query.auth, q.Ref.Address); ok && relation.RelationKind == catalog.TableRelation {
+			if relation, ok := b.authorityRelation(b.Query.Auth, q.Ref.Address); ok && relation.RelationKind == catalog.TableRelation {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
 			}
 		}
 	}
 	if len(parts) == 1 {
-		for i := len(b.query.scopes) - 1; i >= 0; i-- {
-			scope := &b.query.scopes[i]
+		for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+			scope := &b.Query.Scopes[i]
 			if !scope.allowed || scope.namespace == nil {
 				continue
 			}
@@ -236,13 +236,13 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 		if scope, newValues := b.outerReturningScope(raw.Name); scope != nil {
 			return b.outerReturningWholeRow(scope, raw.Pos, newValues)
 		}
-		for _, q := range b.query.namespace.Qualifiers {
+		for _, q := range b.Query.Namespace.Qualifiers {
 			if q.Name == name {
 				return b.wholeRow(raw.Name, raw.Pos, true)
 			}
 		}
-		for i := len(b.query.scopes) - 1; i >= 0; i-- {
-			scope := b.query.scopes[i]
+		for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+			scope := b.Query.Scopes[i]
 			if !scope.allowed || scope.namespace == nil {
 				continue
 			}
@@ -256,14 +256,14 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			}
 		}
 	}
-	if b.query.namespace.Values && len(parts) == 1 {
-		return nil, valuesOrderColumnError(b.query.namespace.Frame, name, raw.Pos)
+	if b.Query.Namespace.Values && len(parts) == 1 {
+		return nil, ValuesOrderColumnError(b.Query.Namespace.Frame, name, raw.Pos)
 	}
 	qualifier := ""
 	if len(parts) > 1 {
 		qualifier = parts[len(parts)-2].Text
 	}
-	hidden := append(append([]queryQualifier(nil), b.query.hidden...), b.query.outerQualifiers()...)
+	hidden := append(append([]queryQualifier(nil), b.Query.Hidden...), b.Query.outerQualifiers()...)
 	if b.stringFromContext() {
 		for _, q := range hidden {
 			if !q.LateralForbidden {
@@ -276,7 +276,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			}
 		}
 	}
-	detail, hint, err := analyze.QueryColumnDiagnostic(hidden, qualifier, name, raw.Pos, b.query.nonLateral)
+	detail, hint, err := analyze.QueryColumnDiagnostic(hidden, qualifier, name, raw.Pos, b.Query.NonLateral)
 	if err != nil {
 		return nil, err
 	}
@@ -308,21 +308,21 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 	}()
 	ordinal := -1
-	if (b.params.noParameters || b.consumer.materializedDefinition) && item != nil {
-		ordinal = len(b.capture.Namespaces)
-		b.capture.Namespaces = append(b.capture.Namespaces, viewNamespace{})
+	if (b.Params.NoParameters || b.Consumer.materializedDefinition) && item != nil {
+		ordinal = len(b.Capture.Namespaces)
+		b.Capture.Namespaces = append(b.Capture.Namespaces, viewNamespace{})
 		defer func() {
 			if failure == nil {
-				b.capture.Namespaces[ordinal].Frame = b.FrameID()
-				b.capture.Namespaces[ordinal].Node, b.capture.Namespaces[ordinal].Ordinal = analyze.FrozenNamespaceNode(root)
-				b.capture.Namespaces[ordinal].Columns = b.query.freezeViewColumns(namespace.Columns)
+				b.Capture.Namespaces[ordinal].Frame = b.FrameID()
+				b.Capture.Namespaces[ordinal].Node, b.Capture.Namespaces[ordinal].Ordinal = analyze.FrozenNamespaceNode(root)
+				b.Capture.Namespaces[ordinal].Columns = b.Query.freezeViewColumns(namespace.Columns)
 				for _, q := range namespace.Qualifiers {
-					b.capture.Namespaces[ordinal].Qualifiers = append(b.capture.Namespaces[ordinal].Qualifiers, viewNamespaceQualifier{Name: q.Name, Columns: b.query.freezeViewColumns(q.Columns)})
+					b.Capture.Namespaces[ordinal].Qualifiers = append(b.Capture.Namespaces[ordinal].Qualifiers, viewNamespaceQualifier{Name: q.Name, Columns: b.Query.freezeViewColumns(q.Columns)})
 				}
 			}
 		}()
 	}
-	if err := b.ctx.Err(); err != nil {
+	if err := b.Ctx.Err(); err != nil {
 		return nil, queryNamespace{}, err
 	}
 	switch n := item.(type) {
@@ -348,10 +348,10 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		for i, column := range schema {
 			columns[i] = queryColumn{Descriptor: column, Slot: i, Leaf: -1}
 		}
-		b.query.hidden = append(b.query.hidden, queryQualifier{Name: "unnamed_subquery", Columns: columns})
+		b.Query.Hidden = append(b.Query.Hidden, queryQualifier{Name: "unnamed_subquery", Columns: columns})
 		return &plan.DerivedNode{QuerySchema: schema, Query: query, ScanFrame: b.FrameID()}, queryNamespace{Columns: columns, Frame: schema}, nil
 	case *parser.ValuesQuery:
-		query, err := b.bindValues(n, false)
+		query, err := b.BindValues(n, false)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -360,7 +360,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		for i, column := range schema {
 			columns[i] = queryColumn{Descriptor: column, Slot: i, Leaf: -1, Physical: -1}
 		}
-		b.query.hidden = append(b.query.hidden, queryQualifier{Name: "unnamed_subquery", Columns: columns})
+		b.Query.Hidden = append(b.Query.Hidden, queryQualifier{Name: "unnamed_subquery", Columns: columns})
 		return query.Root, queryNamespace{Columns: columns, Frame: schema}, nil
 	case *parser.TableReference:
 		if len(n.Name.Parts) == 1 {
@@ -371,16 +371,16 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				}
 			}
 		}
-		ref, err := b.host.AdmittedReference(b.query.auth, n.Name, b.query.lockAdmission.TableQueries[n].Ref)
+		ref, err := b.Host.AdmittedReference(b.Query.Auth, n.Name, b.Query.lockAdmission.TableQueries[n].Ref)
 		if err != nil {
-			return nil, queryNamespace{}, analyze.FutureCTEError(err, b.query.lockAdmission.FutureCTE[n])
+			return nil, queryNamespace{}, analyze.FutureCTEError(err, b.Query.lockAdmission.FutureCTE[n])
 		}
-		relation, _ := b.authorityRelation(b.query.auth, ref.Address)
+		relation, _ := b.authorityRelation(b.Query.Auth, ref.Address)
 		if relation.RelationKind == catalog.CompositeRelation {
 			return nil, queryNamespace{}, typedef.CompositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
 		if relation.RelationKind == catalog.IndexRelation {
-			if b.target.deleteUsingSources {
+			if b.Target.deleteUsingSources {
 				err := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), n.Name.Parts[0].Pos).(*sqlstate.Error)
 				err.Detail = "This operation is not supported for indexes."
 				return nil, queryNamespace{}, err
@@ -392,15 +392,15 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				return nil, queryNamespace{}, err
 			}
 		}
-		leaf := len(b.query.sources)
-		b.query.sources = append(b.query.sources, exec.Leaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.host.AuthorizationStorage(b.query.auth, ref.Address), Mark: b.query.lockAdmission.TableMark(n), Table: n, Query: b.query.lockAdmission.TableQueries[n].Query, DeleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
+		leaf := len(b.Query.Sources)
+		b.Query.Sources = append(b.Query.Sources, exec.Leaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.Host.AuthorizationStorage(b.Query.Auth, ref.Address), Mark: b.Query.lockAdmission.TableMark(n), Table: n, Query: b.Query.lockAdmission.TableQueries[n].Query, DeleteReference: b.Target.deleteUsingSources && len(b.Query.Scopes) == 0})
 		columns := make([]queryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{Descriptor: c, Slot: i, Leaf: leaf, Physical: i}
 		}
-		namespace, _ := b.authorityDescriptor(b.query.auth, relation.Namespace())
+		namespace, _ := b.authorityDescriptor(b.Query.Auth, relation.Namespace())
 		q := queryQualifier{Name: relation.Name(), Original: relation.Name(), Schema: namespace.Name(), Ref: ref, Columns: columns}
-		b.query.hidden = append(b.query.hidden, q)
+		b.Query.Hidden = append(b.Query.Hidden, q)
 		return &plan.SourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name()}, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{q}, Frame: relation.Columns}, nil
 	case *parser.AliasReference:
 		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
@@ -461,33 +461,33 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		q := queryQualifier{Name: n.Name.Text, Alias: n.Name.Text, Columns: ns.Columns}
 		if _, table := n.Input.(*parser.TableReference); table {
 			q.Ref, q.Schema, q.Original = ns.Qualifiers[0].Ref, ns.Qualifiers[0].Schema, ns.Qualifiers[0].Original
-			b.query.hidden[len(b.query.hidden)-1] = q
+			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, values := n.Input.(*parser.ValuesQuery); values {
-			b.query.hidden[len(b.query.hidden)-1] = q
+			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, derived := n.Input.(*parser.DerivedQuery); derived {
-			b.query.hidden[len(b.query.hidden)-1] = q
+			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionTable); function {
 			q.ScalarAlias = ns.Qualifiers[0].ScalarAlias
-			b.query.hidden[len(b.query.hidden)-1] = q
+			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionFrom); function {
 			q.ScalarAlias = ns.Qualifiers[0].ScalarAlias
-			b.query.hidden[len(b.query.hidden)-1] = q
+			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else {
 			q.ExcludeColumnDiagnostics = true
-			b.query.hidden = append(b.query.hidden, q)
+			b.Query.Hidden = append(b.Query.Hidden, q)
 		}
 		ns.Qualifiers = []queryQualifier{q}
 		return root, ns, nil
 	case *parser.JoinReference:
-		joinOrdinal := b.stored.joinCount
-		inherited := b.query.namespace
-		b.stored.joinCount++
+		joinOrdinal := b.Stored.joinCount
+		inherited := b.Query.Namespace
+		b.Stored.joinCount++
 		left, lns, err := b.BindFrom(n.Left)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		oldStringForbidden := b.clause.stringFromForbidden
-		oldNamespace := b.query.namespace
+		oldStringForbidden := b.Clause.stringFromForbidden
+		oldNamespace := b.Query.Namespace
 		rightNamespace := lns
 		prefix := 0
 		if inherited != nil {
@@ -497,11 +497,11 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				return nil, queryNamespace{}, err
 			}
 		}
-		b.clause.stringFromForbidden = oldStringForbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
-		b.query.namespace = &rightNamespace
+		b.Clause.stringFromForbidden = oldStringForbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
+		b.Query.Namespace = &rightNamespace
 		right, rns, err := b.BindFrom(n.Right)
-		b.query.namespace = oldNamespace
-		b.clause.stringFromForbidden = oldStringForbidden
+		b.Query.Namespace = oldNamespace
+		b.Clause.stringFromForbidden = oldStringForbidden
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -536,24 +536,24 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			return nil, queryNamespace{}, e
 		}
 		if prefix != 0 && !inheritedDemand {
-			right, err = RebaseFunctionCorrelation(b.host, b.bindingCatalog(), right, b.FrameID(), prefix)
+			right, err = RebaseFunctionCorrelation(b.Host, b.BindingCatalog(), right, b.FrameID(), prefix)
 			if err != nil {
 				return nil, queryNamespace{}, err
 			}
 			prefix = 0
 		}
 		join := &plan.JoinNode{QuerySchema: ns.Frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.Frame), RightWidth: len(rns.Frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.FrameID(), CorrelationPrefix: prefix, Captures: captures}
-		old := b.query.namespace
-		b.query.namespace = &ns
-		defer func() { b.query.namespace = old }()
+		old := b.Query.Namespace
+		b.Query.Namespace = &ns
+		defer func() { b.Query.Namespace = old }()
 		if n.On != nil {
-			b.clause.aggregateClause = "JOIN conditions"
-			join.Predicate, err = b.bindBoolean(n.On, filterContext, "JOIN/ON")
+			b.Clause.AggregateClause = "JOIN conditions"
+			join.Predicate, err = b.BindBoolean(n.On, FilterContext, "JOIN/ON")
 			if err != nil {
 				return nil, queryNamespace{}, err
 			}
-			if b.params.noParameters || b.consumer.materializedDefinition {
-				if err := b.captureViewLiterals(n.On, join.Predicate, analyze.ViewJoinLiteral, joinOrdinal); err != nil {
+			if b.Params.NoParameters || b.Consumer.materializedDefinition {
+				if err := b.CaptureViewLiterals(n.On, join.Predicate, analyze.ViewJoinLiteral, joinOrdinal); err != nil {
 					return nil, queryNamespace{}, err
 				}
 			}
@@ -571,7 +571,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 		if ordinal >= 0 {
 			for _, key := range keys {
-				b.capture.Namespaces[ordinal].Keys = append(b.capture.Namespaces[ordinal].Keys, key.Text)
+				b.Capture.Namespaces[ordinal].Keys = append(b.Capture.Namespaces[ordinal].Keys, key.Text)
 			}
 		}
 		if len(keys) > 0 {
@@ -593,17 +593,17 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				pos := parser.Position{Offset: -1}
 				le, re := b.QueryColumnAt(l, pos), b.QueryColumnAt(r, pos)
 				raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}
-				eq, err := b.bindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{node: le}, comparisonOperand{node: re})
+				eq, err := b.BindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{Node: le}, comparisonOperand{Node: re})
 				if err != nil {
 					return nil, queryNamespace{}, err
 				}
 				if join.Predicate == nil {
 					join.Predicate = eq
 				} else {
-					join.Predicate = plan.LogicalExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, expr.Properties{RowDependent: true}), Op: parser.LogicalAnd, Left: join.Predicate, Right: eq}
+					join.Predicate = plan.LogicalExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), pos, expr.Properties{RowDependent: true}), Op: parser.LogicalAnd, Left: join.Predicate, Right: eq}
 				}
-				operands := []comparisonOperand{{node: le}, {node: re}}
-				usage, err := commonExpressionUsage(operands, b.typ(sqltype.Text).Usage(), "JOIN/USING")
+				operands := []comparisonOperand{{Node: le}, {Node: re}}
+				usage, err := CommonExpressionUsage(operands, b.Type(sqltype.Text).Usage(), "JOIN/USING")
 				if err != nil {
 					return nil, queryNamespace{}, err
 				}
@@ -618,17 +618,17 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				if n.Kind == parser.JoinFull || column.Descriptor.Usage != usage {
 					var value expr.Expr
 					if n.Kind == parser.JoinFull {
-						lv, err := b.coerceConditional(comparisonOperand{node: le}, usage, "JOIN/USING")
+						lv, err := b.CoerceConditional(comparisonOperand{Node: le}, usage, "JOIN/USING")
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						rv, err := b.coerceConditional(comparisonOperand{node: re}, usage, "JOIN/USING")
+						rv, err := b.CoerceConditional(comparisonOperand{Node: re}, usage, "JOIN/USING")
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						value = plan.ConditionalExpr{Info: b.info(usage, pos, expr.Properties{RowDependent: true}), Kind: parser.Coalesce, Args: []expr.Expr{lv, rv}}
+						value = plan.ConditionalExpr{Info: b.Info(usage, pos, expr.Properties{RowDependent: true}), Kind: parser.Coalesce, Args: []expr.Expr{lv, rv}}
 					} else {
-						value, err = b.coerceConditional(comparisonOperand{node: chosen}, usage, "JOIN/USING")
+						value, err = b.CoerceConditional(comparisonOperand{Node: chosen}, usage, "JOIN/USING")
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
@@ -637,7 +637,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						// A same-type common key can still lose its typmod.
 						// Publish that relabel in the recipe as well as the slot.
 						input, annotations := analyze.DomainCoercionInput(value, usage)
-						info, err := b.coercionInfo(b.info(usage, pos, input.Properties()), input)
+						info, err := b.coercionInfo(b.Info(usage, pos, input.Properties()), input)
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
@@ -740,15 +740,15 @@ func usingQueryColumn(columns []queryColumn, name, side string) (queryColumn, er
 }
 
 func (b *expressionBinder) queryAliasVisible(name string, ref ids.ObjectRef) bool {
-	if b.query.namespace != nil {
-		for _, q := range b.query.namespace.Qualifiers {
+	if b.Query.Namespace != nil {
+		for _, q := range b.Query.Namespace.Qualifiers {
 			if q.Name == name && q.Ref == ref {
 				return true
 			}
 		}
 	}
-	for i := len(b.query.scopes) - 1; i >= 0; i-- {
-		scope := &b.query.scopes[i]
+	for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+		scope := &b.Query.Scopes[i]
 		if !scope.allowed || scope.namespace == nil {
 			continue
 		}
@@ -762,11 +762,11 @@ func (b *expressionBinder) queryAliasVisible(name string, ref ids.ObjectRef) boo
 }
 
 func (b *expressionBinder) queryQualifierNeedsLateral(q queryQualifier) bool {
-	if b.query.nonLateral {
+	if b.Query.NonLateral {
 		return true
 	}
-	for i := len(b.query.scopes) - 1; i >= 0; i-- {
-		scope := &b.query.scopes[i]
+	for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+		scope := &b.Query.Scopes[i]
 		if scope.allowed && !scope.nonLateral {
 			continue
 		}
@@ -911,28 +911,28 @@ func RebaseFunctionCorrelation(host analyzeHost, view catalog.Read, root plan.No
 func (b *expressionBinder) BindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (plan.Node, queryNamespace, error) {
 	calls := make([]expr.Expr, len(rawCalls))
 	schema := make([]catalog.Column, 0, len(calls))
-	oldClause := b.clause.aggregateClause
-	b.clause.aggregateClause = "FROM"
-	defer func() { b.clause.aggregateClause = oldClause }()
+	oldClause := b.Clause.AggregateClause
+	b.Clause.AggregateClause = "FROM"
+	defer func() { b.Clause.AggregateClause = oldClause }()
 	// Selected calls diagnose actual P/L captures after binding, rather
 	// than inheriting the string family's blanket FROM lookup guard.
-	oldForbidden := b.clause.stringFromForbidden
-	b.clause.stringFromForbidden = false
-	defer func() { b.clause.stringFromForbidden = oldForbidden }()
+	oldForbidden := b.Clause.stringFromForbidden
+	b.Clause.stringFromForbidden = false
+	defer func() { b.Clause.stringFromForbidden = oldForbidden }()
 	// FROM arguments are query expressions even before a local FROM
 	// namespace exists. An empty local frame still permits lexical outer
 	// references through queryScopes, including nested correlated SRFs.
-	if b.query.namespace == nil {
-		b.query.namespace = &queryNamespace{}
-		defer func() { b.query.namespace = nil }()
+	if b.Query.Namespace == nil {
+		b.Query.Namespace = &queryNamespace{}
+		defer func() { b.Query.Namespace = nil }()
 	}
 	for i, raw := range rawCalls {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		if name == "string_to_table" {
-			b.clause.stringFromForbidden = oldForbidden
+			b.Clause.stringFromForbidden = oldForbidden
 		}
 		expr, err := b.BindFunctionSource(raw)
-		b.clause.stringFromForbidden = false
+		b.Clause.stringFromForbidden = false
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -958,7 +958,7 @@ func (b *expressionBinder) BindMixedFunctionTable(rawCalls []parser.FunctionExpr
 			}
 			columns = definitions
 		}
-		node, err := b.completeFunctionDefinitions(raw, calls[i], columns)
+		node, err := b.CompleteFunctionDefinitions(raw, calls[i], columns)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -980,7 +980,7 @@ func (b *expressionBinder) BindMixedFunctionTable(rawCalls []parser.FunctionExpr
 
 	}
 	if ordinality {
-		schema = append(schema, catalog.Column{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
+		schema = append(schema, catalog.Column{Name: "ordinality", Usage: b.Type(sqltype.Int8).Usage()})
 	}
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
@@ -993,13 +993,13 @@ func (b *expressionBinder) BindMixedFunctionTable(rawCalls []parser.FunctionExpr
 			bound := calls[i]
 			path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewFunctionLiteral, Source: ordinal, Target: i}
 			at := 0
-			if err := b.captureViewLiteralTree(raw, bound, path, &at); err != nil {
+			if err := b.CaptureViewLiteralTree(raw, bound, path, &at); err != nil {
 				return nil, queryNamespace{}, err
 			}
 		}
 	}
 	captures := b.functionCaptures(calls)
-	b.query.hidden = append(b.query.hidden, q)
+	b.Query.Hidden = append(b.Query.Hidden, q)
 	return &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: ordinality, Frame: b.FrameID(), Correlated: len(captures) != 0, Captures: captures, RegexpNamespace: true, ViewOrdinal: ordinal}, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{q}, Frame: schema}, nil
 }
 
@@ -1008,7 +1008,7 @@ func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespa
 	for i, c := range columns {
 		out[i] = viewNamespaceColumn{Name: c.Descriptor.Name, Slot: c.Slot, Leaf: c.Leaf}
 		if c.Leaf >= 0 {
-			out[i].Attribute = q.sources[c.Leaf].Relation.Attributes[c.Physical]
+			out[i].Attribute = q.Sources[c.Leaf].Relation.Attributes[c.Physical]
 		}
 	}
 	return out

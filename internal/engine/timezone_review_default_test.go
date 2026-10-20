@@ -26,7 +26,7 @@ func TestTimezoneReviewStoredStableDefaultValidation(t *testing.T) {
 	} {
 		t.Run(expression, func(t *testing.T) {
 			binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			node, err := binder.bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{context: projectionContext})
+			node, err := binder.Bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,7 +50,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 		{Volatility: expr.Stable, StageDependent: true},
 	} {
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		node, err := binder.bind(castTarget(t, "SELECT TRUE FROM t"), expressionPolicy{context: projectionContext})
+		node, err := binder.Bind(castTarget(t, "SELECT TRUE FROM t"), expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +67,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 			t.Fatal("missing int4")
 		}
 		column := catalog.Column{Name: "v", Usage: typ.Usage()}
-		if _, err := binder.bindDefault(castTarget(t, "SELECT "+expression+" FROM t"), column); err == nil {
+		if _, err := binder.BindDefault(castTarget(t, "SELECT "+expression+" FROM t"), column); err == nil {
 			t.Fatalf("accepted unsupported default %s", expression)
 		}
 	}

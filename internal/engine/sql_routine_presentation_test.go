@@ -21,11 +21,11 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			}
 			ctx := context.Background()
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			b.params.noParameters = true
-			b.clause.aggregateClause = "SELECT"
+			b.Params.NoParameters = true
+			b.Clause.AggregateClause = "SELECT"
 			syntax := statement(t, "SELECT "+call).(*parser.Select)
 			raw := syntax.Targets[0]
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -33,10 +33,10 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if !ok {
 				t.Fatalf("not a scalar SQL provider: %T", node)
 			}
-			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			frozen, ok := b.normalizeStoredExpression(raw).(parser.FunctionExpr)
+			frozen, ok := b.NormalizeStoredExpression(raw).(parser.FunctionExpr)
 			if !ok || !frozen.StoredSQLRoutine {
 				t.Fatal("missing owned SQL routine lowering")
 			}
@@ -46,7 +46,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			ownedSyntax := *syntax
 			ownedSyntax.Targets = []parser.Expr{frozen}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: &ownedSyntax}
-			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: &ownedSyntax, dependencies: b.dependencies, routineRefs: b.capture.RoutineRefs, literals: b.capture.Literals, castUsages: b.capture.CastUsages}
+			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: &ownedSyntax, dependencies: b.Dependencies, routineRefs: b.Capture.RoutineRefs, literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			read := e.CatalogRead()
 			if err := definition.validateLiterals(read); err != nil {

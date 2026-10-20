@@ -94,17 +94,17 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: 3, Scalar: 86400123000},
 	}
 	desc := StatementDescription{temporals: captures}
-	b.expected = expectedOf(&desc)
+	b.Expected = expectedOf(&desc)
 	before := append([]temporalConstant(nil), captures...)
 	for _, expected := range captures {
-		usage := b.typ(expected.TypeID).Usage()
+		usage := b.Type(expected.TypeID).Usage()
 		usage.Typmod = expected.Typmod
 		for range 2 {
-			got, found, err := b.captured(7, usage)
+			got, found, err := b.Captured(7, usage)
 			if err != nil || !found || got != expected {
 				t.Fatal(got, found, err, expected)
 			}
-			value, err := b.inputConstant("invalid input must not be reparsed", usage, parser.Position{Offset: 7})
+			value, err := b.InputConstant("invalid input must not be reparsed", usage, parser.Position{Offset: 7})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -119,25 +119,25 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 			}
 		}
 	}
-	missing := b.typ(sqltype.Timestamp).Usage()
+	missing := b.Type(sqltype.Timestamp).Usage()
 	missing.Typmod = 2
-	if _, _, err := b.captured(7, missing); err == nil {
+	if _, _, err := b.Captured(7, missing); err == nil {
 		t.Fatal("missing contextual key accepted")
 	}
-	if _, err := b.inputConstant("2000-01-02", missing, parser.Position{Offset: 7}); err == nil {
+	if _, err := b.InputConstant("2000-01-02", missing, parser.Position{Offset: 7}); err == nil {
 		t.Fatal("missing key silently reparsed")
 	}
-	if _, _, err := b.captureAt(7); err == nil {
+	if _, _, err := b.CaptureAt(7); err == nil {
 		t.Fatal("ambiguous typed-literal metadata accepted")
 	}
-	if _, found, err := b.captured(8, missing); err != nil || found {
+	if _, found, err := b.Captured(8, missing); err != nil || found {
 		t.Fatal(found, err)
 	}
-	if !reflect.DeepEqual(before, desc.temporals) || len(b.prepared.Temporals) != 0 {
-		t.Fatal("capture contract mutated", desc.temporals, b.prepared.Temporals)
+	if !reflect.DeepEqual(before, desc.temporals) || len(b.Prepared.Temporals) != 0 {
+		t.Fatal("capture contract mutated", desc.temporals, b.Prepared.Temporals)
 	}
-	b.expected = expectedOf(&StatementDescription{temporals: []temporalConstant{captures[2], captures[4]}})
-	if got, found, err := b.captureAt(7); err != nil || !found || got != captures[2] {
+	b.Expected = expectedOf(&StatementDescription{temporals: []temporalConstant{captures[2], captures[4]}})
+	if got, found, err := b.CaptureAt(7); err != nil || !found || got != captures[2] {
 		t.Fatal("uniform frozen metadata rejected", got, found, err)
 	}
 }

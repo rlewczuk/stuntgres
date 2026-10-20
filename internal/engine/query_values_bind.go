@@ -16,5 +16,5 @@ func (b *expressionBinder) captureValuesViewLiteral(raw parser.Expr, bound expr.
 		}
 	}
 	ordinal := 0
-	return b.captureViewLiteralTree(raw, bound, path, &ordinal)
+	return b.CaptureViewLiteralTree(raw, bound, path, &ordinal)
 }

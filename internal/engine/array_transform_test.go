@@ -49,7 +49,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if err := restoreScalar(withParameter, false); err == nil {
 			t.Fatal(tc.name, "restore admitted nested parameter")
 		}
-		node, err := b.bindFunctionProvider(raw)
+		node, err := b.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
@@ -66,7 +66,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			if d == nil {
 				return nil
 			}
-			return tb.typ(d.ID())
+			return tb.Type(d.ID())
 		})
 		if err != nil || !changed {
 			t.Fatal(tc.name, changed, err)
@@ -128,7 +128,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	flag := parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}
 	raw := arrayInspectUnitRaw("array_sort", flag, arrayInspectUnitArray("{2,NULL,1}"))
 	raw.ArgNames = []parser.Identifier{{Text: "descending"}, {Text: "array"}}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 		t.Fatal("preflight lost formal child precedence", order, err)
 	}
 	rawOperator := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "||"}}}, Args: []parser.Expr{arrayInspectUnitArray("{1,2}"), parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}
-	node, err = b.bindStringConcat(rawOperator)
+	node, err = b.BindStringConcat(rawOperator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	tb := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
-	array := b.typ(b.typ(sqltype.Text).AssociatedArray())
+	array := b.Type(b.Type(sqltype.Text).AssociatedArray())
 	usage := array.Usage()
 	from, err := sqltype.RegisteredCollation(950, 950)
 	if err != nil {
@@ -203,9 +203,9 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := functions.ArrayTransform{
-		Info: b.info(usage, parser.Position{}, expr.Properties{}),
+		Info: b.Info(usage, parser.Position{}, expr.Properties{}),
 		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: arraySortPlan,
-		Args: []expr.Expr{plan.LiteralExpr{Info: b.info(usage, parser.Position{}, expr.Properties{}), Value: value}},
+		Args: []expr.Expr{plan.LiteralExpr{Info: b.Info(usage, parser.Position{}, expr.Properties{}), Value: value}},
 	}
 	originalSQL, err := defaultSQL(ctx, source.CatalogRead(), old)
 	if err != nil {
@@ -216,7 +216,7 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 			if d == nil {
 				return nil
 			}
-			return tb.typ(d.ID())
+			return tb.Type(d.ID())
 		}, func(ref sqltype.CollationRef) (sqltype.CollationRef, error) {
 			if ref == from {
 				return to, nil

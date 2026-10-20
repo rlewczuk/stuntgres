@@ -49,7 +49,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 			}
 			continue
 		}
-		x, err := b.bind(r, expressionPolicy{context: projectionContext})
+		x, err := b.Bind(r, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +78,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 				continue
 			}
 			input := arg.ResultUsage()
-			target := b.typ(s.args[i])
+			target := b.Type(s.args[i])
 			id := input.Type.BaseType().ID()
 			if _, err := sqltype.PlanCoercion(input, target.Usage(), sqltype.Implicit); err != nil {
 				viable = false
@@ -105,10 +105,10 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 		if !u || len(candidates) < 2 {
 			continue
 		}
-		category := sqltype.CommonTypeCategory(b.typ(candidates[0].args[i]))
+		category := sqltype.CommonTypeCategory(b.Type(candidates[0].args[i]))
 		consistent, hasString := true, false
 		for _, s := range candidates {
-			cat := sqltype.CommonTypeCategory(b.typ(s.args[i]))
+			cat := sqltype.CommonTypeCategory(b.Type(s.args[i]))
 			consistent = consistent && cat == category
 			hasString = hasString || cat == 'S'
 		}
@@ -119,11 +119,11 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 		}
 		preferred := false
 		for _, s := range candidates {
-			preferred = preferred || sqltype.CommonTypeCategory(b.typ(s.args[i])) == category && seriesPreferred(s.args[i])
+			preferred = preferred || sqltype.CommonTypeCategory(b.Type(s.args[i])) == category && seriesPreferred(s.args[i])
 		}
 		filtered := candidates[:0]
 		for _, s := range candidates {
-			if sqltype.CommonTypeCategory(b.typ(s.args[i])) == category && (!preferred || seriesPreferred(s.args[i])) {
+			if sqltype.CommonTypeCategory(b.Type(s.args[i])) == category && (!preferred || seriesPreferred(s.args[i])) {
 				filtered = append(filtered, s)
 			}
 		}
@@ -148,7 +148,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 				viable := true
 				for i, u := range unknown {
 					if u {
-						if _, err := sqltype.PlanCoercion(b.typ(known).Usage(), b.typ(s.args[i]).Usage(), sqltype.Implicit); err != nil {
+						if _, err := sqltype.PlanCoercion(b.Type(known).Usage(), b.Type(s.args[i]).Usage(), sqltype.Implicit); err != nil {
 							viable = false
 						}
 					}
@@ -166,10 +166,10 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	s := candidates[0]
 	properties := expr.Properties{Volatility: expr.Immutable, StageDependent: true}
 	for i, arg := range args {
-		u := b.typ(s.args[i]).Usage()
+		u := b.Type(s.args[i]).Usage()
 		if unknown[i] {
 			var err error
-			args[i], err = b.bind(raw.Args[i], expressionPolicy{context: functionArgumentContext, expected: u, mode: sqltype.Implicit})
+			args[i], err = b.Bind(raw.Args[i], expressionPolicy{Context: FunctionArgumentContext, Expected: u, Mode: sqltype.Implicit})
 			if err != nil {
 				return nil, err
 			}
@@ -178,7 +178,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 			if err != nil {
 				return nil, err
 			}
-			args[i] = plan.CoercionExpr{Info: b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), Child: arg, Plan: coercionPlan, Mode: sqltype.Implicit}
+			args[i] = plan.CoercionExpr{Info: b.Info(u, raw.Args[i].SourcePosition(), arg.Properties()), Child: arg, Plan: coercionPlan, Mode: sqltype.Implicit}
 		}
 		p := args[i].Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
@@ -199,13 +199,13 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	if decoration != "" {
 		return nil, expr.ErrorAt("42809", decoration+" specified, but generate_series is "+message, raw.Pos)
 	}
-	if b.params.executeParameters {
+	if b.Params.ExecuteParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
-	if b.consumer.policyConsumer && b.query.frame == 0 {
+	if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
-	if b.clause.aggregateClause == "INSERT VALUES" {
+	if b.Clause.AggregateClause == "INSERT VALUES" {
 		return nil, expr.ErrorAt("0A000", "generate_series is unsupported in INSERT VALUES", raw.Pos)
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
@@ -214,11 +214,11 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	if s.result != sqltype.Int4 && s.result != sqltype.Int8 && s.result != sqltype.Numeric {
 		return nil, expr.ErrorAt("0A000", "generate_series with temporal arguments is unsupported", raw.Pos)
 	}
-	switch b.clause.aggregateClause {
+	switch b.Clause.AggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.clause.queryHasTargetSet = true
+		b.Clause.QueryHasTargetSet = true
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(s.result).Usage(), raw.Pos, properties), functions.SeriesRoutineProvider, "generate_series", s.args[:s.arity]...)
+	info, err := b.builtinRoutineInfo(b.Info(b.Type(s.result).Usage(), raw.Pos, properties), functions.SeriesRoutineProvider, "generate_series", s.args[:s.arity]...)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func (b *expressionBinder) seriesSignatureError(raw parser.FunctionExpr, args []
 	for i, arg := range args {
 		name := "unknown"
 		if !unknown[i] && arg.ResultUsage().Type != nil {
-			name = b.diagnosticTypeName(arg.ResultUsage().Type)
+			name = b.DiagnosticTypeName(arg.ResultUsage().Type)
 		}
 		names[i] = functions.NamedArgumentType(raw, i, name)
 	}

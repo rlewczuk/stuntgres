@@ -28,14 +28,14 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error
 	if returning.Type == nil {
 		return node, nil
 	}
-	if err = b.captureTypeDiagnosticInput(returning.Type); err != nil {
+	if err = b.CaptureTypeDiagnosticInput(returning.Type); err != nil {
 		return nil, err
 	}
 	coercionPlan, err := functions.JSONReturningCoercion(node.ResultUsage(), returning, raw.Output)
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.coercionInfo(b.info(returning, raw.Pos, analyze.CoercionProperties(node, coercionPlan)), node)
+	info, err := b.coercionInfo(b.Info(returning, raw.Pos, analyze.CoercionProperties(node, coercionPlan)), node)
 	if err != nil {
 		return nil, err
 	}

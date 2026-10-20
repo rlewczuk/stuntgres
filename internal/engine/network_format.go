@@ -39,7 +39,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr
 		for i, arg := range operands {
 			if kind == sqltype.NetworkSetMasklen && i == 1 {
 				if arg.Usage.Type != nil {
-					if _, err := sqltype.PlanCoercion(arg.Usage, b.typ(sqltype.Int4).Usage(), sqltype.Implicit); err != nil {
+					if _, err := sqltype.PlanCoercion(arg.Usage, b.Type(sqltype.Int4).Usage(), sqltype.Implicit); err != nil {
 						valid = false
 					}
 				}
@@ -53,7 +53,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr
 		for i, arg := range operands {
 			names[i] = "unknown"
 			if arg.Usage.Type != nil {
-				names[i] = b.diagnosticTypeName(arg.Usage.Type)
+				names[i] = b.DiagnosticTypeName(arg.Usage.Type)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
@@ -63,7 +63,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr
 		return nil, err
 	}
 	formal := sqltype.Inet
-	if (kind == sqltype.NetworkAbbrev || kind == sqltype.NetworkSetMasklen) && operands[0].Usage.Type != nil && operands[0].Usage.Type.BaseType() == b.typ(sqltype.Cidr) {
+	if (kind == sqltype.NetworkAbbrev || kind == sqltype.NetworkSetMasklen) && operands[0].Usage.Type != nil && operands[0].Usage.Type.BaseType() == b.Type(sqltype.Cidr) {
 		formal = sqltype.Cidr
 	}
 	var args [2]expr.Expr
@@ -74,14 +74,14 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr
 		if kind == sqltype.NetworkSetMasklen && i == 1 {
 			argumentType = sqltype.Int4
 		}
-		args[i], err = b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: b.typ(argumentType).Usage(), Label: name})
+		args[i], err = b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: b.Type(argumentType).Usage(), Label: name})
 		if err != nil {
 			return nil, err
 		}
 		formals[i] = argumentType
 		properties = expr.MergeProperties(properties, args[i].Properties())
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(kind.ResultFor(formal)).Usage(), raw.Pos, properties), functions.NetworkRoutineProvider, name, formals[:kind.Arity()]...)
+	info, err := b.builtinRoutineInfo(b.Info(b.Type(kind.ResultFor(formal)).Usage(), raw.Pos, properties), functions.NetworkRoutineProvider, name, formals[:kind.Arity()]...)
 	if err != nil {
 		return nil, err
 	}

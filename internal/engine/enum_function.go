@@ -20,7 +20,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		operands[i] = operand
 		names[i] = "unknown"
 		if typ := operand.Usage.Type; typ != nil {
-			names[i] = b.diagnosticTypeName(typ)
+			names[i] = b.DiagnosticTypeName(typ)
 		}
 		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
@@ -49,7 +49,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 	for _, arg := range args {
 		properties = expr.MergeProperties(properties, arg.Properties())
 	}
-	if err := b.captureTypeDiagnosticInput(selected); err != nil {
+	if err := b.CaptureTypeDiagnosticInput(selected); err != nil {
 		return nil, err
 	}
 	result := selected.Usage()
@@ -60,8 +60,8 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		}
 		result = array.Usage()
 	}
-	info := b.info(result, raw.Pos, properties)
-	node, err := functions.NewEnum(info, name, args, b.diagnosticTypeName(selected))
+	info := b.Info(result, raw.Pos, properties)
+	node, err := functions.NewEnum(info, name, args, b.DiagnosticTypeName(selected))
 	if err != nil {
 		return nil, err
 	}

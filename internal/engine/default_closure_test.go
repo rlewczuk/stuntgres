@@ -232,7 +232,7 @@ func TestConditionalDefaultClosurePolicyPrecedence(t *testing.T) {
 
 	e, _ := uuidOsspUnitInstalled(t)
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	node, err := b.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}})
+	node, err := b.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

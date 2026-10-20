@@ -382,13 +382,13 @@ func copyRelationKind(relation *catalog.Relation, from bool) error {
 
 func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth AuthorizationView) error {
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
-	binder.query.auth = &auth
-	binder.target.insertTarget = b.Relation
+	binder.Query.Auth = &auth
+	binder.Target.InsertTarget = b.Relation
 	BindInsertDefaults(e.catalog.owner(), b, auth.Catalog, parser.OverrideSystem)
-	if err := binder.captureRetainedWriteInput(b.Insert.Defaults, b.Relation.ColumnMeta.Generations, b.Relation.Constraints.Check); err != nil {
+	if err := binder.CaptureRetainedWriteInput(b.Insert.Defaults, b.Relation.ColumnMeta.Generations, b.Relation.Constraints.Check); err != nil {
 		return err
 	}
-	s.input = binder.input
+	s.input = binder.Input
 	for _, target := range b.Targets {
 		var err error
 		usage := b.Relation.Columns[target].Usage
@@ -418,20 +418,20 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 			s.input.RegTS, err = e.captureRegTSInput(auth)
 		}
 		if err == nil {
-			err = binder.captureTypeDiagnosticInput(usage.Type)
+			err = binder.CaptureTypeDiagnosticInput(usage.Type)
 		}
 		if err != nil {
 			return err
 		}
 	}
-	if binder.input.ACLItem != nil {
-		s.input.ACLItem = binder.input.ACLItem
+	if binder.Input.ACLItem != nil {
+		s.input.ACLItem = binder.Input.ACLItem
 	}
-	if binder.input.FTS != nil {
-		s.input.FTS = binder.input.FTS
+	if binder.Input.FTS != nil {
+		s.input.FTS = binder.Input.FTS
 	}
-	if binder.input.TypeDiagnosticName != nil {
-		s.input.TypeDiagnosticName = binder.input.TypeDiagnosticName
+	if binder.Input.TypeDiagnosticName != nil {
+		s.input.TypeDiagnosticName = binder.Input.TypeDiagnosticName
 	}
 	return nil
 }

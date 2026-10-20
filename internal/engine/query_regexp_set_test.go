@@ -99,7 +99,7 @@ func regexpSetUnitLower(engine *Engine, root plan.Node, expressions []expr.Expr,
 		return root, expressions, nil
 	}
 	outputs := append([]expr.Expr(nil), expressions...)
-	b := &expressionBinder{host: engine.analysisHost(nil), ctx: context.Background(), query: queryScopeState{frame: frame}}
+	b := &expressionBinder{Host: engine.analysisHost(nil), Ctx: context.Background(), Query: queryScopeState{Frame: frame}}
 	root, err := b.LowerQuerySets(root, outputs, nil, false)
 	return root, outputs, err
 }
@@ -525,7 +525,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 
 func TestFunctionSourceMixedRows(t *testing.T) {
 	engine, view, text := regexpSetUnitEngineTypes(t)
-	b := &expressionBinder{host: engine.analysisHost(nil), ctx: context.Background(), query: queryScopeState{frame: 1}}
+	b := &expressionBinder{Host: engine.analysisHost(nil), Ctx: context.Background(), Query: queryScopeState{Frame: 1}}
 	integer, _ := view.LookupType(sqltype.Int4)
 	bigint, _ := view.LookupType(sqltype.Int8)
 	for _, tc := range []struct {
@@ -588,7 +588,7 @@ func TestQuerySetMixedAttemptOwnership(t *testing.T) {
 	engine, _, text := regexpSetUnitEngineTypes(t)
 	for _, upper := range []bool{false, true} {
 		t.Run(map[bool]string{false: "bare-terminal-attempt", true: "upper-wrapper-emitted-only"}[upper], func(t *testing.T) {
-			b := &expressionBinder{host: engine.analysisHost(nil), ctx: context.Background(), query: queryScopeState{frame: 1}}
+			b := &expressionBinder{Host: engine.analysisHost(nil), Ctx: context.Background(), Query: queryScopeState{Frame: 1}}
 			stringCall := stringSplitMarker(t, b, 40, regexpSetUnitLiteral(text, "a,b"), regexpSetUnitLiteral(text, ","))
 			regexpCall := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x_y_z"), "_")}
 			draws := 0

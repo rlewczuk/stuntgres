@@ -26,7 +26,7 @@ func TestArrayExpressionCommonTypeAndExplicitTarget(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.ArrayExpr{Elements: []parser.Expr{arrayUnitInteger(1), parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, arrayUnitInteger(2147483648)}}
-	node, err := b.bindArray(raw, sqltype.Usage{})
+	node, err := b.BindArray(raw, sqltype.Usage{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,15 +34,15 @@ func TestArrayExpressionCommonTypeAndExplicitTarget(t *testing.T) {
 		t.Fatal(node.ResultUsage(), node.Properties())
 	}
 	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
-	if err != nil || value.ArrayLen() != 3 || !value.ArrayElement(1).IsNull() || value.ArrayElement(1).Type() != b.typ(sqltype.Int8) {
+	if err != nil || value.ArrayLen() != 3 || !value.ArrayElement(1).IsNull() || value.ArrayElement(1).Type() != b.Type(sqltype.Int8) {
 		t.Fatal(value, err)
 	}
-	_, err = b.bindArray(parser.ArrayExpr{Pos: parser.Position{Character: 8}}, sqltype.Usage{})
+	_, err = b.BindArray(parser.ArrayExpr{Pos: parser.Position{Character: 8}}, sqltype.Usage{})
 	var state interface{ SQLState() string }
 	if !errors.As(err, &state) || state.SQLState() != "42P18" {
 		t.Fatal(err)
 	}
-	empty, err := b.bindArray(parser.ArrayExpr{}, b.typ(b.typ(sqltype.Int4).AssociatedArray()).Usage())
+	empty, err := b.BindArray(parser.ArrayExpr{}, b.Type(b.Type(sqltype.Int4).AssociatedArray()).Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,14 +55,14 @@ func TestArrayExpressionCommonTypeAndExplicitTarget(t *testing.T) {
 func TestArrayExpressionParameterManifestAndTraversal(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	intArray := b.typ(b.typ(sqltype.Int4).AssociatedArray())
+	intArray := b.Type(b.Type(sqltype.Int4).AssociatedArray())
 	base := parser.CastExpr{Child: arrayUnitParameter(1), TypeName: parser.TypeName{Name: "integer", ArrayBounds: []int32{0}}, Syntax: parser.PostfixCast}
 	raw := parser.SubscriptExpr{Base: base, Subscripts: []parser.ArraySubscript{{Lower: arrayUnitParameter(2), Upper: arrayUnitParameter(3), Slice: true}}}
-	node, err := b.bindSubscript(raw)
+	node, err := b.BindSubscript(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := b.finish()
+	manifest, err := b.Finish()
 	if err != nil || manifest.Count != 3 || manifest.Types[0].Type != intArray || manifest.Types[1].Type.ID() != sqltype.Int4 || manifest.Types[2].Type.ID() != sqltype.Int4 {
 		t.Fatal(manifest, err)
 	}
@@ -82,8 +82,8 @@ func TestArrayExpressionParameterManifestAndTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lower, _ := sqltype.Integer(b.typ(sqltype.Int4), 0)
-	upper, _ := sqltype.Integer(b.typ(sqltype.Int4), 1)
+	lower, _ := sqltype.Integer(b.Type(sqltype.Int4), 0)
+	upper, _ := sqltype.Integer(b.Type(sqltype.Int4), 1)
 	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{input, lower, upper}}})
 	if err != nil {
 		t.Fatal(err)
@@ -98,13 +98,13 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.SubscriptExpr{Base: parser.ArrayExpr{Elements: []parser.Expr{arrayUnitInteger(7), arrayUnitInteger(8)}}, Subscripts: []parser.ArraySubscript{{Upper: arrayUnitInteger(1)}}}
-	original, err := b.bindSubscript(raw)
+	original, err := b.BindSubscript(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
 	node := original.(plan.SubscriptExpr)
 	saved := node.Subscripts[0].Upper
-	replacement := plan.LiteralExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(b.typ(sqltype.Int4))}
+	replacement := plan.LiteralExpr{Info: b.Info(b.Type(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(b.Type(sqltype.Int4))}
 	mapped, changed, err := plan.MapSubscript(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == saved {
 			return replacement, true, nil
@@ -153,8 +153,8 @@ func (n arrayDemandExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	typ := b.typ(sqltype.Int4)
-	arr := b.typ(typ.AssociatedArray())
+	typ := b.Type(sqltype.Int4)
+	arr := b.Type(typ.AssociatedArray())
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	one, _ := sqltype.Integer(typ, 1)
 	input, err := arr.Input(ctx.Context, "{{7}}", -1)
@@ -163,9 +163,9 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	}
 	var order []string
 	child := func(label string, value sqltype.Value) expr.Expr {
-		return arrayDemandExpression{b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), func(*exec.Context) (sqltype.Value, error) { order = append(order, label); return value, nil }}
+		return arrayDemandExpression{b.Info(value.Type().Usage(), parser.Position{}, expr.Properties{}), func(*exec.Context) (sqltype.Value, error) { order = append(order, label); return value, nil }}
 	}
-	node := plan.SubscriptExpr{Info: b.info(arr.Usage(), parser.Position{}, expr.Properties{}), Base: child("base", input), Slice: true, Subscripts: []plan.BoundArraySubscript{{Lower: child("l1", one), Upper: child("u1", one), Slice: true}, {Lower: child("l2", one), Upper: child("u2", one), Slice: true}}}
+	node := plan.SubscriptExpr{Info: b.Info(arr.Usage(), parser.Position{}, expr.Properties{}), Base: child("base", input), Slice: true, Subscripts: []plan.BoundArraySubscript{{Lower: child("l1", one), Upper: child("u1", one), Slice: true}, {Lower: child("l2", one), Upper: child("u2", one), Slice: true}}}
 	if _, err := node.Eval(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	}
 	order = nil
 	stop := errors.New("lower evaluation failed")
-	target.Node.Subscripts[1].Lower = arrayDemandExpression{b.info(typ.Usage(), parser.Position{}, expr.Properties{}), func(*exec.Context) (sqltype.Value, error) { order = append(order, "l2"); return sqltype.Value{}, stop }}
+	target.Node.Subscripts[1].Lower = arrayDemandExpression{b.Info(typ.Usage(), parser.Position{}, expr.Properties{}), func(*exec.Context) (sqltype.Value, error) { order = append(order, "l2"); return sqltype.Value{}, stop }}
 	_, err = target.ApplyExpression(ctx, input, child("rhs", input))
 	if !errors.Is(err, stop) || !reflect.DeepEqual(order, []string{"u1", "u2", "l1", "l2"}) {
 		t.Fatal("bound error must precede NULL check and RHS", order, err)
@@ -208,29 +208,29 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	intArray := b.typ(b.typ(sqltype.Int4).AssociatedArray())
-	b.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: intArray.Usage()}, {Name: "hidden", Usage: b.typ(sqltype.Int4).Usage()}}, Attributes: []int32{3, 7}, Index: map[string]int{"a": 0, "hidden": 1}}
+	intArray := b.Type(b.Type(sqltype.Int4).AssociatedArray())
+	b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: intArray.Usage()}, {Name: "hidden", Usage: b.Type(sqltype.Int4).Usage()}}, Attributes: []int32{3, 7}, Index: map[string]int{"a": 0, "hidden": 1}}
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}
 	raw := []parser.ArraySubscript{{Upper: column("hidden")}}
-	node, err := b.bindSubscript(parser.SubscriptExpr{Base: column("a"), Subscripts: raw})
+	node, err := b.BindSubscript(parser.SubscriptExpr{Base: column("a"), Subscripts: raw})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(b.target.uses, []int{0, 1}) {
-		t.Fatal("base and bound must contribute actual SELECT uses", b.target.uses)
+	if !reflect.DeepEqual(b.Target.Uses, []int{0, 1}) {
+		t.Fatal("base and bound must contribute actual SELECT uses", b.Target.Uses)
 	}
 	if _, physical := node.(plan.ColumnExpr); physical {
 		t.Fatal("derived access has physical origin")
 	}
-	b.target.uses = nil
-	target, err := b.bindArrayTarget(b.target.relation.Columns[0], raw, parser.Position{})
+	b.Target.Uses = nil
+	target, err := b.BindArrayTarget(b.Target.Relation.Columns[0], raw, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(b.target.uses, []int{1}) {
-		t.Fatal("partial target must read bounds, not the implicit old container", b.target.uses)
+	if !reflect.DeepEqual(b.Target.Uses, []int{1}) {
+		t.Fatal("partial target must read bounds, not the implicit old container", b.Target.Uses)
 	}
 	var slots []int
 	var storage [13]expr.Expr
@@ -280,7 +280,7 @@ func TestArrayExpressionNullCountComposition(t *testing.T) {
 	} {
 		array := parser.ArrayExpr{Pos: parser.Position{Character: tc.character}, Elements: []parser.Expr{arrayUnitInteger(1), parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: []parser.Expr{array}}
-		node, err := b.bindFunction(raw)
+		node, err := b.BindFunction(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -289,14 +289,14 @@ func TestArrayExpressionNullCountComposition(t *testing.T) {
 			t.Fatal(err)
 		}
 		count, err := value.Integer()
-		if err != nil || count != tc.count || value.Type() != b.typ(sqltype.Int4) {
+		if err != nil || count != tc.count || value.Type() != b.Type(sqltype.Int4) {
 			t.Fatal(count, value.Type(), err)
 		}
 		raw.Variadic = true
-		_, err = b.bindFunction(raw)
+		_, err = b.BindFunction(raw)
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "0A000", Message: "VARIADIC arrays in null-count arguments are unsupported", Position: tc.position})
 		raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Pos: array.Pos}}}
-		_, err = b.bindFunction(raw)
+		_, err = b.BindFunction(raw)
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42804", Message: "VARIADIC argument must be an array", Position: tc.position})
 	}
 }

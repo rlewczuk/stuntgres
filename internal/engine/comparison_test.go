@@ -106,18 +106,18 @@ func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	p := plan.ParameterExpr{Info: expr.Info{Pos: parser.Position{Character: 8}, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
-	b.params.parameters[1] = b.typ(sqltype.Int4).Usage()
-	_, err := b.coerceParameter(p, b.typ(sqltype.Text).Usage())
+	b.Params.Parameters[1] = b.Type(sqltype.Int4).Usage()
+	_, err := b.CoerceParameter(p, b.Type(sqltype.Text).Usage())
 	state(t, err, "42P08")
 	// A concrete occurrence never invokes unknown coercion or assignment policy.
 	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2147483648}}}}
-	node, err := b.bindComparison(raw)
+	node, err := b.BindComparison(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
 	c := node.(plan.ComparisonExpr)
-	if c.Left.ResultUsage().Type.ID() != sqltype.Int4 || c.Right.ResultUsage().Type.ID() != sqltype.Int8 || b.params.parameters[1].Type.ID() != sqltype.Int4 {
-		t.Fatal(c, b.params.parameters)
+	if c.Left.ResultUsage().Type.ID() != sqltype.Int4 || c.Right.ResultUsage().Type.ID() != sqltype.Int8 || b.Params.Parameters[1].Type.ID() != sqltype.Int4 {
+		t.Fatal(c, b.Params.Parameters)
 	}
 }
 

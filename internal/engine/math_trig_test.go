@@ -32,7 +32,7 @@ func TestMathTrigBinding(t *testing.T) {
 			t.Run(query, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 				raw := statement(t, query).(*parser.Select).Targets[0]
-				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -47,8 +47,8 @@ func TestMathTrigBinding(t *testing.T) {
 				}
 				if args == "$1" || args == "$1,$2" {
 					for i := 1; i <= arity; i++ {
-						if b.params.parameters[i] != node.ResultUsage() {
-							t.Fatal("held inference", b.params.parameters)
+						if b.Params.Parameters[i] != node.ResultUsage() {
+							t.Fatal("held inference", b.Params.Parameters)
 						}
 					}
 				}
@@ -60,7 +60,7 @@ func TestMathTrigBinding(t *testing.T) {
 func TestMathTrigEvaluationPhase(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT acos(2)").(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal("binding executed a provider", err)
 	}
@@ -78,7 +78,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 	}
 	for _, query := range []string{"SELECT atan2(NULL,asin(2))", "SELECT atan2d(NULL,asind(2))", "SELECT atan2(NULL,sin('Infinity'))", "SELECT atan2d(NULL,sind('Infinity'))"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		node, err := b.bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal("binding demanded constant sibling", err)
 		}
@@ -92,7 +92,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+name+"('Infinity')").(*parser.Select).Targets[0]
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal("binding executed direct provider", err)
 			}

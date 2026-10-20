@@ -50,7 +50,7 @@ func TestBinaryBasicTypedMetadataAndConsumers(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT length(1)").(*parser.Select).Targets[0]
-	if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil {
+	if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err == nil {
 		t.Fatal("integer signature accepted")
 	}
 }

@@ -38,9 +38,9 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, admin, nil)
-			binder.query.auth, binder.target.ref = &auth, ref
-			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
-			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+			binder.Query.Auth, binder.Target.Ref = &auth, ref
+			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
+			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -54,7 +54,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 				t.Fatal("released declaration", d)
 			}
 			found := map[ids.OID]bool{}
-			for _, dep := range binder.dependencies {
+			for _, dep := range binder.Dependencies {
 				if dep.Ref.Address.ClassID == ids.ProcedureClassID {
 					found[dep.Ref.Address.ObjectID] = true
 				}
@@ -62,14 +62,14 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.oid: true}) {
 				t.Fatal("wrong dependency identities", found)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}
 			foreign := New()
 			for _, mode := range []string{"missing", "foreign", "stale"} {
 				var checks []catalog.ExpressionDependency
-				for _, dep := range binder.dependencies {
+				for _, dep := range binder.Dependencies {
 					if dep.Ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.oid}) {
 						switch mode {
 						case "missing":
@@ -108,7 +108,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("retag fabricated authority")
 			}
-			evaluation.RoutineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.Dependencies
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority changed", err)
 			}
@@ -136,7 +136,7 @@ func TestNetworkMaskStoredLiteralIdentity(t *testing.T) {
 		t.Run(tc.expression, func(t *testing.T) {
 			node, b, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 			raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0]
-			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal("literal pairing", err)
 			}
 			want := make(map[literalIdentity]int)
@@ -144,9 +144,9 @@ func TestNetworkMaskStoredLiteralIdentity(t *testing.T) {
 				want[identity]++
 			}
 			got := make(map[literalIdentity]int)
-			for _, literal := range b.capture.Literals {
+			for _, literal := range b.Capture.Literals {
 				value, err := literal.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
-				if err != nil || value.IsNull() || value.Type() != literal.ResultUsage().Type || value.Type() != b.typ(value.Type().ID()) {
+				if err != nil || value.IsNull() || value.Type() != literal.ResultUsage().Type || value.Type() != b.Type(value.Type().ID()) {
 					t.Fatal("lost exact literal authority", value, err)
 				}
 				text, err := value.Type().Output(context.Background(), value)
@@ -182,7 +182,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 			setParameters := func(inputs []string) {
 				evaluation.Parameters = make([]sqltype.Value, len(inputs))
 				for i, input := range inputs {
-					value, err := b.params.parameters[i+1].Type.Input(context.Background(), input, -1)
+					value, err := b.Params.Parameters[i+1].Type.Input(context.Background(), input, -1)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -213,7 +213,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 	}
 	for _, expression := range []string{"set_masklen($1::inet,v)", "set_masklen($1::cidr,v)"} {
 		node, b, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-		input, err := b.params.parameters[1].Type.Input(context.Background(), "192.168.1.0/24", -1)
+		input, err := b.Params.Parameters[1].Type.Input(context.Background(), "192.168.1.0/24", -1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -231,7 +231,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 	} {
 		t.Run("known_null/"+expression, func(t *testing.T) {
 			node, b, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 			// A known-NULL strict call must disappear before planning admission.
 			// Deliberately omit its routine manifest: no provider can be invoked.
 			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
@@ -244,15 +244,15 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 				t.Fatal("typed strict NULL result", value, err)
 			}
 			input := "::1"
-			if b.params.parameters[1].Type.ID() == sqltype.Int4 {
+			if b.Params.Parameters[1].Type.ID() == sqltype.Int4 {
 				input = "16"
 			}
-			nonnull, err := b.params.parameters[1].Type.Input(context.Background(), input, -1)
+			nonnull, err := b.Params.Parameters[1].Type.Input(context.Background(), input, -1)
 			if err != nil {
 				t.Fatal(err)
 			}
 			evaluation.Parameters[0] = nonnull
-			evaluation.RoutineChecks = b.dependencies
+			evaluation.RoutineChecks = b.Dependencies
 			again, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil {
 				t.Fatal("known NULL changed original expression authority", err)

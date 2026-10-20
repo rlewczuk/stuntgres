@@ -381,8 +381,8 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 		t.Fatal("coherent committed root did not attach")
 	}
 	auth := AuthorizationView{View: access.View{Catalog: f.e.CatalogRead()}}
-	binder := expressionBinder{query: queryScopeState{auth: &auth}}
-	if binder.query.PartialIndexCandidate(leaf.Ref, f.predicate) != f.index {
+	binder := expressionBinder{Query: queryScopeState{Auth: &auth}}
+	if binder.Query.PartialIndexCandidate(leaf.Ref, f.predicate) != f.index {
 		t.Fatal("bound caller did not select candidate")
 	}
 	calls := 0
@@ -485,10 +485,10 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 	}
 	f := newPartialIndexFixture(t)
 	auth := AuthorizationView{View: access.View{Catalog: f.e.CatalogRead()}}
-	b := expressionBinder{query: queryScopeState{auth: &auth}}
+	b := expressionBinder{Query: queryScopeState{Auth: &auth}}
 	param := plan.ParameterExpr{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
-	if b.query.PartialIndexCandidate(ref, param) != nil {
+	if b.Query.PartialIndexCandidate(ref, param) != nil {
 		t.Fatal("unresolved parameter selected root")
 	}
 }

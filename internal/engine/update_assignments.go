@@ -18,11 +18,11 @@ import (
 // The caller owns namespace and clause ordering; UPDATE, MERGE and conflict
 // UPDATE share target, coercion and partial-assignment analysis.
 func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []parser.UpdateAssignment, u *boundUpdate) error {
-	wasUpdateParameters := binder.params.updateParameters
-	binder.params.updateParameters = true
+	wasUpdateParameters := binder.Params.UpdateParameters
+	binder.Params.UpdateParameters = true
 	defer func() {
-		binder.params.updateParameters = wasUpdateParameters
-		binder.params.updateInputParameters = nil
+		binder.Params.UpdateParameters = wasUpdateParameters
+		binder.Params.updateInputParameters = nil
 	}()
 	var err error
 	assignments, err = prepareUpdateAssignments(b, binder, assignments, u)
@@ -38,9 +38,9 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 				return expr.ErrorAt("0A000", fmt.Sprintf(`cannot assign to system column "%s"`, a.Target.Text), a.Target.Pos)
 			}
 			diagnostic := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.Relation.Name()), a.Target.Pos).(*sqlstate.Error)
-			visible := binder.target.name
-			if binder.target.alias != "" {
-				visible = binder.target.alias
+			visible := binder.Target.Name
+			if binder.Target.alias != "" {
+				visible = binder.Target.alias
 			}
 			if len(a.Steps) != 0 && a.Steps[0].Field != nil && a.Target.Text == visible {
 				diagnostic.Hint = "SET target columns cannot be qualified with the relation name."
@@ -74,7 +74,7 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 		}
 		var target *plan.ArrayAssignmentTarget
 		if partial {
-			target, err = binder.bindAssignmentTarget(dest, a.Steps, a.Target.Pos)
+			target, err = binder.BindAssignmentTarget(dest, a.Steps, a.Target.Pos)
 			if err != nil {
 				return err
 			}
@@ -87,7 +87,7 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 		if source.ResultUsage() != dest.Usage {
 			// Prebound tuple outputs bypass scalar source binding, but still need
 			// the same captured destination diagnostic-name authority.
-			if err := binder.captureTypeDiagnosticInput(dest.Usage.Type); err != nil {
+			if err := binder.CaptureTypeDiagnosticInput(dest.Usage.Type); err != nil {
 				return err
 			}
 			if row, ok := source.(plan.RowExpr); ok && row.Usage.Type.ID() == 2249 && dest.Usage.Type.BaseType().IsComposite() {
@@ -99,7 +99,7 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 				continue
 			}
 			input, annotations := analyze.DomainCoercionInput(source, dest.Usage)
-			info, err := analyze.StorageCoercionInfo(binder.bindingCatalog(), binder.info(dest.Usage, sourcePos, input.Properties()), input)
+			info, err := analyze.StorageCoercionInfo(binder.BindingCatalog(), binder.Info(dest.Usage, sourcePos, input.Properties()), input)
 			if err != nil {
 				return err
 			}
@@ -114,12 +114,12 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 					if source.ResultUsage().Type.BaseType().IsComposite() {
 						pos = source.SourcePosition()
 					}
-					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, dest.Name, binder.diagnosticTypeName(dest.Usage.Type), binder.diagnosticTypeName(source.ResultUsage().Type)), Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(pos.Character)}
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, dest.Name, binder.DiagnosticTypeName(dest.Usage.Type), binder.DiagnosticTypeName(source.ResultUsage().Type)), Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(pos.Character)}
 				}
 				return err
 			}
 			if coercionPlan.RequiresCatalogOutput() {
-				binder.prepared.RegclassConcat = true
+				binder.Prepared.RegclassConcat = true
 			}
 			info.Property = analyze.CoercionProperties(input, coercionPlan)
 			source = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
@@ -132,7 +132,7 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 	}
 	b.Update = u
 	if u.DefaultOrigins != nil {
-		return binder.captureRetainedWriteInput(u.Assignments, nil, nil)
+		return binder.CaptureRetainedWriteInput(u.Assignments, nil, nil)
 	}
 	return nil
 }

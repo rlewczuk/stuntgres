@@ -20,19 +20,13 @@ import (
 // binder's existing private services; they add no state of their own.
 var _ functions.AggregateBinder = (*expressionBinder)(nil)
 
-func (b *expressionBinder) Type(id sqltype.ID) *sqltype.Descriptor { return b.typ(id) }
-
 // OriginalArgument recovers syntax only through the same private slot that
 // supplies an already-analyzed operand. It never binds or matches source keys.
 func (b *expressionBinder) OriginalArgument(raw parser.Expr) (parser.Expr, bool) {
-	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.clause.selectedOperatorSyntax) {
-		return b.clause.selectedOperatorSyntax[-slot.Number-1], true
+	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.Clause.SelectedOperatorSyntax) {
+		return b.Clause.SelectedOperatorSyntax[-slot.Number-1], true
 	}
 	return raw, false
-}
-
-func (b *expressionBinder) Info(u sqltype.Usage, pos parser.Position, p expr.Properties) expr.Info {
-	return b.info(u, pos, p)
 }
 
 func (b *expressionBinder) BuiltinVisible(name parser.ObjectName) (bool, error) {
@@ -47,20 +41,16 @@ func (b *expressionBinder) BuiltinRoutineReference(provider functions.RoutinePro
 	return b.builtinRoutineReference(provider, name, inputs...)
 }
 
-func (b *expressionBinder) DiagnosticTypeName(typ *sqltype.Descriptor) string {
-	return b.diagnosticTypeName(typ)
-}
-
 func (b *expressionBinder) SignatureError(name parser.ObjectName, pos parser.Position, types []string) error {
 	return b.functionSignatureErrorForTypes(name, pos, types)
 }
 
 func (b *expressionBinder) AnalyzeFilter(filter parser.Expr) error {
-	_, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: filter})
+	_, err := b.BindAggregateFilter(parser.AggregateExpr{Filter: filter})
 	return err
 }
 
-func (b *expressionBinder) DefaultConsumer() bool { return b.consumer.defaultConsumer }
+func (b *expressionBinder) DefaultConsumer() bool { return b.Consumer.DefaultConsumer }
 
 func (b *expressionBinder) ArrayType(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
 	return b.definitionArray(element)
@@ -70,9 +60,9 @@ func (b *expressionBinder) ArrayType(element *sqltype.Descriptor) (*sqltype.Desc
 // contribute their usages.
 func (b *expressionBinder) CommonUsage(usages []sqltype.Usage) sqltype.Usage {
 	operand := func(i int) comparisonOperand {
-		return comparisonOperand{node: plan.LiteralExpr{Info: expr.Info{Usage: usages[i]}}}
+		return comparisonOperand{Node: plan.LiteralExpr{Info: expr.Info{Usage: usages[i]}}}
 	}
-	common, _ := selectCommonUsage(len(usages), operand, b.typ(sqltype.Text).Usage(), "", b.diagnosticTypeName)
+	common, _ := selectCommonUsage(len(usages), operand, b.Type(sqltype.Text).Usage(), "", b.DiagnosticTypeName)
 	return common
 }
 
@@ -81,24 +71,20 @@ func (b *expressionBinder) ComparisonInfo(left, right expr.Expr) (expr.Info, err
 }
 
 func (b *expressionBinder) Literal(value sqltype.Value, pos parser.Position) expr.Expr {
-	return plan.LiteralExpr{Info: b.info(value.Type().Usage(), pos, expr.Properties{Volatility: expr.Immutable}), Value: value}
+	return plan.LiteralExpr{Info: b.Info(value.Type().Usage(), pos, expr.Properties{Volatility: expr.Immutable}), Value: value}
 }
 
-func (b *expressionBinder) Context() context.Context { return b.ctx }
+func (b *expressionBinder) Context() context.Context { return b.Ctx }
 
 func (b *expressionBinder) AdmitSetReturning(pos parser.Position) error {
 	if err := b.stringSetAllowed(pos); err != nil {
 		return err
 	}
-	switch b.clause.aggregateClause {
+	switch b.Clause.AggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.clause.queryHasTargetSet = true
+		b.Clause.QueryHasTargetSet = true
 	}
 	return nil
-}
-
-func (b *expressionBinder) CollatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
-	return b.collatedInfo(info, inputs...)
 }
 
 func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) bool {
@@ -106,12 +92,12 @@ func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) bool {
 	if !ok || parameter.Usage.Type != nil {
 		return false
 	}
-	b.params.anyParameters = append(b.params.anyParameters, parameter)
+	b.Params.AnyParameters = append(b.Params.AnyParameters, parameter)
 	return true
 }
 
-func (b *expressionBinder) NoteCatalogText()     { b.prepared.RegclassConcat = true }
-func (b *expressionBinder) NoteCatalogSnapshot() { b.consumer.catalogSnapshot = true }
+func (b *expressionBinder) NoteCatalogText()     { b.Prepared.RegclassConcat = true }
+func (b *expressionBinder) NoteCatalogSnapshot() { b.Consumer.CatalogSnapshot = true }
 
 func (b *expressionBinder) BuiltinOperatorRoutineInfo(info expr.Info, operator string, left, right sqltype.ID) (expr.Info, error) {
 	return b.builtinOperatorRoutineInfo(info, operator, left, right)
@@ -122,7 +108,7 @@ func (b *expressionBinder) CaptureComparisonInput(typ *sqltype.Descriptor) error
 }
 
 func (b *expressionBinder) CaptureTypeInput(typ *sqltype.Descriptor) error {
-	if err := b.captureTypeDiagnosticInput(typ); err != nil {
+	if err := b.CaptureTypeDiagnosticInput(typ); err != nil {
 		return err
 	}
 	if typ.ContainsCatalogIdentifier() {
@@ -146,7 +132,7 @@ func (b *expressionBinder) CallSignatureError(raw parser.FunctionExpr) error {
 
 func (b *expressionBinder) LiteralNull(arg expr.Expr) bool { return exec.RandomLiteralNull(arg) }
 
-func (b *expressionBinder) NoteVisibilitySnapshot() { b.consumer.visibilitySnapshot = true }
+func (b *expressionBinder) NoteVisibilitySnapshot() { b.Consumer.VisibilitySnapshot = true }
 
 func (b *expressionBinder) Frame() uint32 { return b.FrameID() }
 
@@ -155,9 +141,9 @@ func (b *expressionBinder) CapturePolymorphicBody(node expr.Expr) error {
 }
 
 func (b *expressionBinder) TargetSet() {
-	switch b.clause.aggregateClause {
+	switch b.Clause.AggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.clause.queryHasTargetSet = true
+		b.Clause.QueryHasTargetSet = true
 	}
 }
 
@@ -166,7 +152,7 @@ func (b *expressionBinder) RegexpSetPlacement(call functions.RegexpCall) error {
 }
 
 func (b *expressionBinder) AnalyzeAggregateFilter(raw parser.AggregateExpr) (expr.Expr, error) {
-	return b.bindAggregateFilter(raw)
+	return b.BindAggregateFilter(raw)
 }
 
 func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functions.AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
@@ -186,7 +172,7 @@ func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functi
 	}
 	// ORDER BY matching may have resolved an UNKNOWN target; only an actual
 	// remaining ANY occurrence joins the unresolved-parameter guard.
-	b.RetainUntypedParameter(b.grouping.aggregates[result.(plan.AggregateExpr).Slot].Argument)
+	b.RetainUntypedParameter(b.Grouping.Aggregates[result.(plan.AggregateExpr).Slot].Argument)
 	return result, nil
 }
 
@@ -206,11 +192,11 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 	if !typ.IsDomain() {
 		return typ.DiagnosticName(), nil
 	}
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return "", err
 	}
-	path, err := b.host.LookupPath(auth, analyze.TypeLookup)
+	path, err := b.Host.LookupPath(auth, analyze.TypeLookup)
 	if err != nil {
 		return "", err
 	}
@@ -219,7 +205,7 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 }
 
 func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage, error) {
-	return b.host.ResolveAnnotationTypeInput(raw, false, false, true, true, false)
+	return b.Host.ResolveAnnotationTypeInput(raw, false, false, true, true, false)
 }
 
 // SequenceArgument shares regclass input, with its prepared sequence-literal
@@ -227,7 +213,7 @@ func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage
 // non-NULL captured literal provider.
 func (b *expressionBinder) SequenceArgument(raw parser.Expr) (expr.Expr, ids.ObjectRef, error) {
 	node, ref, err := b.bindRegclass(raw)
-	if err == nil && b.consumer.defaultConsumer {
+	if err == nil && b.Consumer.DefaultConsumer {
 		literal, ok := node.(plan.LiteralExpr)
 		if !ok || literal.Value.IsNull() || ref == (ids.ObjectRef{}) {
 			return nil, ref, expr.ErrorAt("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
@@ -238,17 +224,17 @@ func (b *expressionBinder) SequenceArgument(raw parser.Expr) (expr.Expr, ids.Obj
 
 func (b *expressionBinder) SequenceTemporary(ref ids.ObjectRef, pos parser.Position) (ids.SessionToken, error) {
 	var temporary ids.SessionToken
-	for _, constant := range b.prepared.SequenceConstants {
+	for _, constant := range b.Prepared.SequenceConstants {
 		if constant.Ref == ref {
 			temporary = constant.Temporary
 		}
 	}
-	if b.consumer.defaultConsumer {
-		if err := sequence.ValidateDefaultTemporaryProvider(temporary, b.consumer.defaultTemporary, pos); err != nil {
+	if b.Consumer.DefaultConsumer {
+		if err := sequence.ValidateDefaultTemporaryProvider(temporary, b.Consumer.DefaultTemporary, pos); err != nil {
 			return temporary, err
 		}
 		// Stored defaults do not enter call-site prepared literal reanalysis.
-		b.prepared.SequenceConstants = nil
+		b.Prepared.SequenceConstants = nil
 	}
 	return temporary, nil
 }
@@ -275,8 +261,8 @@ func (b *expressionBinder) CollationName(id uint32) string { return b.collationN
 
 func (b *expressionBinder) CommonArgumentUsage(operands []functions.Argument, label string) (sqltype.Usage, error) {
 	return selectCommonUsage(len(operands), func(i int) comparisonOperand {
-		return comparisonOperand{node: operands[i].Expression, raw: operands[i].Raw}
-	}, b.typ(sqltype.Text).Usage(), label, (*sqltype.Descriptor).DiagnosticName)
+		return comparisonOperand{Node: operands[i].Expression, raw: operands[i].Raw}
+	}, b.Type(sqltype.Text).Usage(), label, (*sqltype.Descriptor).DiagnosticName)
 }
 
 func (b *expressionBinder) CollationRelabel(child expr.Expr, info expr.Info) expr.Expr {

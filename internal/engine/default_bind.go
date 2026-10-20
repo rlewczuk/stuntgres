@@ -12,17 +12,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (expr.Expr, error) {
+func (b *expressionBinder) BindDefault(raw parser.Expr, column catalog.Column) (expr.Expr, error) {
 	// Recursive binding carries this consumer policy through Boolean and
 	// comparison children, preserving their ordinary diagnostic order.
-	previous := b.consumer.defaultConsumer
-	b.consumer.defaultConsumer = true
-	defer func() { b.consumer.defaultConsumer = previous }()
+	previous := b.Consumer.DefaultConsumer
+	b.Consumer.DefaultConsumer = true
+	defer func() { b.Consumer.DefaultConsumer = previous }()
 	inputUsage := column.Usage.Type.Usage()
 	if inputUsage.Type.ID() == sqltype.Interval {
 		inputUsage = column.Usage
 	}
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext, expected: inputUsage})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext, Expected: inputUsage})
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (
 	}
 	if node.ResultUsage() != column.Usage {
 		input, annotations := analyze.DomainCoercionInput(node, column.Usage)
-		info, err := analyze.StorageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
+		info, err := analyze.StorageCoercionInfo(b.BindingCatalog(), b.Info(column.Usage, parser.Position{}, input.Properties()), input)
 		if err != nil {
 			return nil, err
 		}

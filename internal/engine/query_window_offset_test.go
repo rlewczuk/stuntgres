@@ -53,7 +53,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		t.Fatal(node.Calls)
 	}
 	first, second := node.Calls[0], node.Calls[1]
-	if (&expressionBinder{}).sameWindowCall(first, second) {
+	if (&expressionBinder{}).SameWindowCall(first, second) {
 		t.Fatal("different defaults matched")
 	}
 	var found [3]bool
@@ -110,17 +110,17 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		{"SELECT lead(1,0,missing) OVER()", "42703"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause, b.query.frame = "SELECT", 1
-		if _, err := b.bind(statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext}); err != nil {
+		b.Clause.AggregateClause, b.Query.Frame = "SELECT", 1
+		if _, err := b.Bind(statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext}); err != nil {
 			t.Fatal(err)
 		}
-		before := b.grouping.windowCalls[:len(b.grouping.windowCalls):len(b.grouping.windowCalls)]
-		b.grouping.windowCalls = before
+		before := b.Grouping.WindowCalls[:len(b.Grouping.WindowCalls):len(b.Grouping.WindowCalls)]
+		b.Grouping.WindowCalls = before
 		values := append([]plan.WindowCall(nil), before...)
-		_, err := b.bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != tc.code || len(b.grouping.windowCalls) != len(before) || cap(b.grouping.windowCalls) != cap(before) || &b.grouping.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.grouping.windowCalls) || b.grouping.argumentOwner != (argumentWindowOwner{}) {
-			t.Fatal("registration unwind", tc.q, err, b.grouping.windowCalls)
+		if !errors.As(err, &d) || d.Code != tc.code || len(b.Grouping.WindowCalls) != len(before) || cap(b.Grouping.WindowCalls) != cap(before) || &b.Grouping.WindowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.Grouping.WindowCalls) || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) {
+			t.Fatal("registration unwind", tc.q, err, b.Grouping.WindowCalls)
 		}
 	}
 }

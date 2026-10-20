@@ -15,9 +15,9 @@ import (
 
 func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONEach {
 	t.Helper()
-	b.clause.aggregateClause = "SELECT"
-	b.query.namespace = &queryNamespace{}
-	node, err := b.bindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
+	b.Clause.AggregateClause = "SELECT"
+	b.Query.Namespace = &queryNamespace{}
+	node, err := b.BindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,10 +42,10 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			valueID = sqltype.Text
 		}
 		shape := original.ResultUsage().Type
-		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.typ(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.typ(valueID) || !validExpressionUsage(view, original.ResultUsage()) {
+		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.Type(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.Type(valueID) || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("analysis shape", shape)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !exec.SourceReturnsSet(original) || exec.QuerySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.Clause.QueryHasTargetSet || !exec.SourceReturnsSet(original) || exec.QuerySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -92,7 +92,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("symbolic rendering", text, err)
 		}
 		other := jsonEachUnitMarker(t, b, name, `{"x":2}`)
-		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, Frame: 1}
+		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Name: "key", Usage: b.Type(sqltype.Text).Usage()}, {Name: "value", Usage: b.Type(valueID).Usage()}}, Frame: 1}
 		rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
@@ -109,7 +109,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal(err)
 		}
 		broken := *root
-		broken.QuerySchema = plan.QuerySchema{{Usage: b.typ(sqltype.Text).Usage()}, {Usage: b.typ(sqltype.Int4).Usage()}}
+		broken.QuerySchema = plan.QuerySchema{{Usage: b.Type(sqltype.Text).Usage()}, {Usage: b.Type(sqltype.Int4).Usage()}}
 		if err := exec.ValidateFunctionFromLayout(&broken); err == nil {
 			t.Fatal("invalid leaf span accepted")
 		}
@@ -121,7 +121,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"json_each", "json_each_text", "jsonb_each", "jsonb_each_text"} {
 		marker := jsonEachUnitMarker(t, b, name, `{"a":null}`)
-		series, err := b.bindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 8}}))
+		series, err := b.BindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 8}}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -141,7 +141,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal("record presence/null conflated", row)
 		}
 		present, err = invocation.NextFrom(context.Background(), calls, row)
-		if err != nil || !present || !row[1].IsNull() || !row[2].IsNull() || row[1].Type() != b.typ(sqltype.Text) || row[2].Type() != marker.ResultUsage().Type.CompositeMember(1).Usage.Type {
+		if err != nil || !present || !row[1].IsNull() || !row[2].IsNull() || row[1].Type() != b.Type(sqltype.Text) || row[2].Type() != marker.ResultUsage().Type.CompositeMember(1).Usage.Type {
 			t.Fatal("incorrect record padding", row, present, err)
 		}
 		number, _ = row[0].Integer()

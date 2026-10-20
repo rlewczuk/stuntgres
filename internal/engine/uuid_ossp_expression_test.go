@@ -29,7 +29,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}}
-	node, err := binder.bindFunctionProvider(raw)
+	node, err := binder.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal("installed UUID plan validation", err)
 	}
 	found := false
-	for _, d := range binder.dependencies {
+	for _, d := range binder.Dependencies {
 		if d.Ref == n.Ref && d.Revision == n.Procedure.Revision() {
 			found = true
 		}
@@ -154,11 +154,11 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}}
-	node, err := binder.bindFunctionProvider(raw)
+	node, err := binder.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	grouped, err := binder.rewriteGroup(node, nil)
+	grouped, err := binder.RewriteGroup(node, nil)
 	if err != nil {
 		t.Fatal("actual grouping rewrite", err)
 	}
@@ -229,7 +229,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err != nil || captured != n.Procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != catalog.FunctionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.Ref.Domain() != e.catalog.Domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
-	original := slices.Clone(binder.dependencies)
+	original := slices.Clone(binder.Dependencies)
 	routines := 0
 	for _, dep := range original {
 		if dep.Ref.Address.ClassID == ids.ProcedureClassID {
@@ -386,7 +386,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err := admitRoutineCall(&probe, foreignNode, true, false); err == nil {
 		t.Fatal("foreign same-OID retag acquired original authority")
 	}
-	if !reflect.DeepEqual(binder.dependencies, original) || expr.InfoOf(node).RoutineReference != captured || n.Procedure != captured || n.Ref.Address != ext.Members[0] {
+	if !reflect.DeepEqual(binder.Dependencies, original) || expr.InfoOf(node).RoutineReference != captured || n.Procedure != captured || n.Ref.Address != ext.Members[0] {
 		t.Fatal("authority probes mutated original")
 	}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
@@ -407,7 +407,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		t.Fatal("installed raw ACL must be NULL/default", original.ACL)
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}})
+	node, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -434,7 +434,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !routine.SameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
 		err = admitRoutineCall(&evaluation, node, true, false)
 		if tc.execute {
 			if err != nil {

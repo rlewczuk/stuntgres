@@ -62,7 +62,7 @@ func (b *expressionBinder) bindDistinctGrouping(expression expr.Expr) (plan.Grou
 			return plan.Grouping{}, err
 		}
 		if signature.Left != usage.Type.BaseType().ID() {
-			target := b.typ(signature.Left).Usage()
+			target := b.Type(signature.Left).Usage()
 			target.Collation = usage.Collation
 			group.Conversion, err = sqltype.PlanCoercion(usage, target, sqltype.Implicit)
 			if err != nil {

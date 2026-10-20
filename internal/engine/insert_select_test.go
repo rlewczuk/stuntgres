@@ -96,7 +96,7 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 		{[]sqltype.ID{sqltype.Inet, sqltype.Cidr}, sqltype.Inet},
 		{[]sqltype.ID{sqltype.Unknown, sqltype.Cidr}, sqltype.Cidr},
 	} {
-		got, err := commonValuesUsage(nodes(tc.ids...), nil, 0, usage(sqltype.Text))
+		got, err := CommonValuesUsage(nodes(tc.ids...), nil, 0, usage(sqltype.Text))
 		if err != nil || got.Type.ID() != tc.want {
 			t.Fatal(tc, got, err)
 		}
@@ -108,7 +108,7 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 			if a == b {
 				continue
 			}
-			_, err := commonValuesUsage(nodes(a, b), nil, 0, usage(sqltype.Text))
+			_, err := CommonValuesUsage(nodes(a, b), nil, 0, usage(sqltype.Text))
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "42804" {
 				t.Fatal(a, b, err)
@@ -124,7 +124,7 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 			if j > i {
 				want = b
 			}
-			got, err := commonValuesUsage(nodes(a, b), nil, 0, usage(sqltype.Text))
+			got, err := CommonValuesUsage(nodes(a, b), nil, 0, usage(sqltype.Text))
 			if err != nil || got.Type.ID() != want {
 				t.Fatal(a, b, got, err, want)
 			}

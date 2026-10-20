@@ -23,18 +23,18 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 		return nil, err
 	}
 	constructor.Usage = shape.Usage()
-	if b.stored.syntax == nil {
-		b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
+	if b.Stored.Syntax == nil {
+		b.Stored.Syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 	}
-	b.stored.syntax[storedExpressionSyntaxKey{frame: b.FrameID(), position: raw.SourcePosition()}] = *constructor.Raw
+	b.Stored.Syntax[storedExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}] = *constructor.Raw
 	return constructor, nil
 }
 
 // Quantified and residual IN constructors share source slots, expansion
 // associations and synthetic member casts; only frozen capture needs this walk.
 func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count int, fieldAt func(int) expr.Expr, expansions map[int]plan.CompositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
-	if memberCasts && b.capture.CastUsages == nil {
-		b.capture.CastUsages = make(map[viewLiteralPath]sqltype.Usage)
+	if memberCasts && b.Capture.CastUsages == nil {
+		b.Capture.CastUsages = make(map[viewLiteralPath]sqltype.Usage)
 	}
 	slot := 0
 	for source, field := range raw.Fields {
@@ -47,7 +47,7 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 			if memberCasts {
 				for i := range expansion.Fields {
 					key.Argument = i + 1
-					b.capture.CastUsages[key] = fieldAt(slot + i).ResultUsage()
+					b.Capture.CastUsages[key] = fieldAt(slot + i).ResultUsage()
 				}
 			}
 			if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
@@ -62,7 +62,7 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 		if memberCasts {
 			key := path
 			key.Argument = source + 1
-			b.capture.CastUsages[key] = fieldAt(slot).ResultUsage()
+			b.Capture.CastUsages[key] = fieldAt(slot).ResultUsage()
 		}
 		if err := b.captureNormalizedViewLiteralTree(field, fieldAt(slot), path, ordinal); err != nil {
 			return err

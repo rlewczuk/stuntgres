@@ -231,7 +231,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	if analyze.CanSimplifyExists(b.Query) {
 		t.Fatal("set presence discarded key demand")
 	}
-	if _, discard := pruneIdentityQueryProducer(n, project.Expressions[0]); discard {
+	if _, discard := PruneIdentityQueryProducer(n, project.Expressions[0]); discard {
 		t.Fatal("identity pruning discarded set key")
 	}
 }

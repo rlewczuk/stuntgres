@@ -29,7 +29,7 @@ func bitwiseName(name string) bool {
 	return name == "<<" || name == ">>"
 }
 
-func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (expr.Expr, error) {
+func (b *expressionBinder) BindBitwise(raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid bitwise expression")
 	}
@@ -37,7 +37,7 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (expr.Expr, erro
 	if err != nil {
 		return nil, err
 	}
-	policy := expressionPolicy{context: projectionContext}
+	policy := expressionPolicy{Context: ProjectionContext}
 	left, err := b.comparisonOperandPolicy(raw.Args[0], policy)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 			lt != nil && !sqltype.IsNetwork(lt.ID()) || rt != nil && !sqltype.IsNetwork(rt.ID()) {
 			return nil, missing()
 		}
-		target, rightTarget = b.typ(sqltype.Inet), b.typ(sqltype.Inet)
+		target, rightTarget = b.Type(sqltype.Inet), b.Type(sqltype.Inet)
 		if op == sqltype.BitwiseNot {
 			rightTarget = nil
 		}
@@ -123,14 +123,14 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 			if !bitStringType(lt) || rt != nil && rt.ID() != sqltype.Int2 && rt.ID() != sqltype.Int4 {
 				return nil, missing()
 			}
-			rightTarget = b.typ(sqltype.Int4)
+			rightTarget = b.Type(sqltype.Int4)
 		default:
 			if lt != nil && !bitStringType(lt) || rt != nil && !bitStringType(rt) {
 				return nil, missing()
 			}
-			rightTarget = b.typ(sqltype.Bit)
+			rightTarget = b.Type(sqltype.Bit)
 		}
-		target = b.typ(sqltype.Bit)
+		target = b.Type(sqltype.Bit)
 	} else {
 		if lt != nil && !integralBitwiseType(lt) || rt != nil && !integralBitwiseType(rt) {
 			return nil, missing()
@@ -150,7 +150,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 				}
 				target = rt
 			}
-			rightTarget = b.typ(sqltype.Int4)
+			rightTarget = b.Type(sqltype.Int4)
 		} else {
 			if target == nil {
 				target = rt
@@ -187,7 +187,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 			if err != nil {
 				return nil, err
 			}
-			n = plan.CoercionExpr{Info: b.info(t.Usage(), n.SourcePosition(), n.Properties()), Child: n, Plan: coercionPlan, Mode: sqltype.Implicit}
+			n = plan.CoercionExpr{Info: b.Info(t.Usage(), n.SourcePosition(), n.Properties()), Child: n, Plan: coercionPlan, Mode: sqltype.Implicit}
 		}
 		return n, nil
 	}
@@ -235,7 +235,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 	} else {
 		formalRight = rightTarget.ID()
 	}
-	selectedInfo, err := b.builtinOperatorRoutineInfo(b.info(target.Usage(), parser.ExpressionStart(raw), p), name, formalLeft, formalRight)
+	selectedInfo, err := b.builtinOperatorRoutineInfo(b.Info(target.Usage(), parser.ExpressionStart(raw), p), name, formalLeft, formalRight)
 	if err != nil {
 		return nil, err
 	}

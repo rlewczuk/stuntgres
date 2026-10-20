@@ -132,7 +132,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("select_producer_ownership", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		random, err := binder.bind(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "random"}}}}, expressionPolicy{context: projectionContext})
+		random, err := binder.Bind(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "random"}}}}, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,9 +190,9 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("pseudo_metadata_namespace", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		binder.query.auth = &auth
-		binder.target.ruleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
-		binder.query.frame, binder.query.nextQueryFrame = 1, 1
+		binder.Query.Auth = &auth
+		binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
+		binder.Query.Frame, binder.Query.NextQueryFrame = 1, 1
 		statements, err := parser.Parse("SELECT NEW.id,NEW.v")
 		if err != nil {
 			t.Fatal(err)
@@ -210,7 +210,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 				t.Fatal("pseudo scope identity erased during analysis")
 			}
 		}
-		row, matched, err := binder.ruleColumn(parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "new"}}}})
+		row, matched, err := binder.RuleColumn(parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "new"}}}})
 		if err != nil || !matched {
 			t.Fatalf("typed NEW whole row: matched=%v error=%v", matched, err)
 		}
@@ -236,13 +236,13 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("generic_function_properties", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		binder.target.ruleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
+		binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
 		statements, err := parser.Parse("SELECT abs(NEW.v),random(1,2),format('%s',NEW.v)")
 		if err != nil {
 			t.Fatal(err)
 		}
 		bind := func(index int) expr.Expr {
-			node, err := binder.bind(statements[0].(*parser.Select).Targets[index], expressionPolicy{context: projectionContext})
+			node, err := binder.Bind(statements[0].(*parser.Select).Targets[index], expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

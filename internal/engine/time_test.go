@@ -21,18 +21,18 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	stamp := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp", Pos: parser.Position{Offset: 30, Character: 31}}, Text: "now", Pos: parser.Position{Offset: 40, Character: 41}}
 	b := newTestExpressionBinder(t, ctx, e, first, nil)
 	for _, expr := range []parser.Expr{raw, stamp} {
-		if _, err := b.bind(expr, expressionPolicy{context: projectionContext}); err != nil {
+		if _, err := b.Bind(expr, expressionPolicy{Context: ProjectionContext}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	desc := StatementDescription{temporals: b.prepared.Temporals}
+	desc := StatementDescription{temporals: b.Prepared.Temporals}
 	before := append([]temporalConstant(nil), desc.temporals...)
 	if err := e.Reset(ctx); err != nil {
 		t.Fatal(err)
 	}
 	current, _ := e.CatalogRead().LookupType(sqltype.Time)
 	b = newTestExpressionBinder(t, ctx, e, later, &desc)
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 		t.Fatal(out)
 	}
 	dest, _, _ := current.ResolveModifiers(0)
-	node, err = b.bind(raw, expressionPolicy{context: assignmentContext, expected: dest, mode: sqltype.Assignment})
+	node, err = b.Bind(raw, expressionPolicy{Context: AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil || out != "04:05:07" {
 		t.Fatal(out, err)
 	}
-	node, err = b.bind(stamp, expressionPolicy{context: projectionContext})
+	node, err = b.Bind(stamp, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,15 +68,15 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	}
 	// Contextual UNKNOWN inputs freeze; actual parameters never become captures.
 	contextual := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "now", Pos: parser.Position{Offset: 3, Character: 4}}}
-	policy := expressionPolicy{context: assignmentContext, expected: current.Usage(), mode: sqltype.Assignment}
+	policy := expressionPolicy{Context: AssignmentContext, Expected: current.Usage(), Mode: sqltype.Assignment}
 	b = newTestExpressionBinder(t, ctx, e, first, nil)
-	node, err = b.bind(contextual, policy)
+	node, err = b.Bind(contextual, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	contextDesc := StatementDescription{temporals: b.prepared.Temporals}
+	contextDesc := StatementDescription{temporals: b.Prepared.Temporals}
 	b = newTestExpressionBinder(t, ctx, e, later, &contextDesc)
-	node, err = b.bind(contextual, policy)
+	node, err = b.Bind(contextual, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,19 +86,19 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	b = newTestExpressionBinder(t, ctx, e, later, &contextDesc)
-	_, err = b.bind(parser.ParameterExpr{Number: 1}, policy)
+	_, err = b.Bind(parser.ParameterExpr{Number: 1}, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	parameters, err := b.finish()
-	if err != nil || parameters.Types[0].Type != current || parameters.Types[0].Typmod != -1 || len(b.prepared.Temporals) != 0 {
+	parameters, err := b.Finish()
+	if err != nil || parameters.Types[0].Type != current || parameters.Types[0].Typmod != -1 || len(b.Prepared.Temporals) != 0 {
 		t.Fatal(parameters, err)
 	}
 	// A TIME capture cannot silently reconstruct through a TIMESTAMP descriptor.
 	foreign := stamp
 	foreign.Pos = raw.Pos
 	b = newTestExpressionBinder(t, ctx, e, later, &desc)
-	if _, err = b.bind(foreign, expressionPolicy{context: projectionContext}); err == nil {
+	if _, err = b.Bind(foreign, expressionPolicy{Context: ProjectionContext}); err == nil {
 		t.Fatal("capture type changed")
 	}
 }

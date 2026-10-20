@@ -34,7 +34,7 @@ func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 
 func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarations []createColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
 	var defaults map[int32]catalog.ColumnDefault
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarati
 		if raw == nil {
 			continue
 		}
-		node, err := b.bindDefault(raw, columns[slot])
+		node, err := b.BindDefault(raw, columns[slot])
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +52,7 @@ func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarati
 			continue
 		}
 		definition := catalog.ColumnDefault{Expression: node}
-		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.host.CatalogOwner(), roles: b.host.Roles(auth)}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.ctx, view, node)
+		_, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: capturedACLItemOutput{owner: b.Host.CatalogOwner(), roles: b.Host.Roles(auth)}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.Ctx, view, node)
 		if err != nil {
 			return nil, err
 		}

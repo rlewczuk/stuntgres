@@ -28,7 +28,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 	view := engine.CatalogRead()
 	binder := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 	for id := range types {
-		types[id] = binder.typ(id)
+		types[id] = binder.Type(id)
 	}
 	for _, texts := range [][]string{{"[-2:1]={a,1,b,2}"}, {"[-2:-1]={a,b}", "[7:8]={1,2}"}} {
 		args := make([]expr.Expr, len(texts))
@@ -111,7 +111,7 @@ func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	}
 	bound := functions.Binary{Info: expr.Info{Usage: types[sqltype.JSON].Usage()}, Plan: binaryPlan, Args: []expr.Expr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	rewritten, err := binder.rewriteGroup(bound, []expr.Expr{column})
+	rewritten, err := binder.RewriteGroup(bound, []expr.Expr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,13 +148,13 @@ func TestJSONObjectBinderSignatureBoundaries(t *testing.T) {
 		{"json_object", []parser.Expr{unknown, unknown, unknown}},
 	} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: tc.name, Pos: pos}}}, Args: tc.args, Pos: pos}
-		if _, err := binder.bindFunctionProvider(raw); err == nil {
+		if _, err := binder.BindFunctionProvider(raw); err == nil {
 			t.Fatal("admitted incompatible or adjacent signature", tc.name)
 		}
 	}
 	for _, variadic := range []bool{false, true} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: "json_object", Pos: pos}}}, Args: []parser.Expr{unknown}, Variadic: variadic, Pos: pos}
-		node, err := binder.bindFunctionProvider(raw)
+		node, err := binder.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}

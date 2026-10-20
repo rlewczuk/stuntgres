@@ -35,7 +35,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 	} {
 		for _, defaults := range []bool{false, true} {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			b.consumer.defaultConsumer = defaults
+			b.Consumer.DefaultConsumer = defaults
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: tc.args}
 			var node expr.Expr
 			var err error
@@ -105,15 +105,15 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "substring"}}}, Args: []parser.Expr{bit("10110"), parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}}
 	node, err := functions.BindBinary(b, raw, true)
-	if err != nil || !node.Properties().ParameterDependent || b.params.parameters[1].Type.ID() != sqltype.Int4 || b.params.parameters[2].Type.ID() != sqltype.Int4 {
-		t.Fatal(node, err, b.params.parameters)
+	if err != nil || !node.Properties().ParameterDependent || b.Params.Parameters[1].Type.ID() != sqltype.Int4 || b.Params.Parameters[2].Type.ID() != sqltype.Int4 {
+		t.Fatal(node, err, b.Params.Parameters)
 	}
 	raw.Name.Parts[0].Text = "substr"
 	if _, err := functions.BindBinary(b, raw, true); err == nil {
 		t.Fatal("substr bit admitted")
 	}
 	// BYTEA defaults retain their preexisting capability boundary.
-	b.consumer.defaultConsumer = true
+	b.Consumer.DefaultConsumer = true
 	raw.Name.Parts[0].Text = "length"
 	raw.Args = []parser.Expr{parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x01"}}, TypeName: parser.TypeName{Name: "bytea"}}}
 	_, err = functions.BindString(b, raw, true)
@@ -126,7 +126,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 	for _, name := range []string{"bit_count", "length", "bit_length", "octet_length", "substring", "overlay", "position"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		sourceUsage := b.typ(sqltype.Bit).Usage()
+		sourceUsage := b.Type(sqltype.Bit).Usage()
 		sourceUsage.Typmod = 3
 		sourceValue, err := sqltype.BitString(sourceUsage.Type, "101")
 		if err != nil {
@@ -138,7 +138,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 			operands = append(operands, operands[0])
 		}
 		if name == "overlay" || name == "substring" {
-			usage := b.typ(sqltype.Int4).Usage()
+			usage := b.Type(sqltype.Int4).Usage()
 			value, err := sqltype.Integer(usage.Type, 2)
 			if err != nil {
 				t.Fatal(err)

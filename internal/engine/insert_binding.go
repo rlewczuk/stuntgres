@@ -20,7 +20,7 @@ import (
 // shared with the containing statement, including parameter/source authority.
 func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authority, s *parser.Insert) error {
 	if s.Source == nil {
-		binder.clause.aggregateClause = "INSERT VALUES"
+		binder.Clause.AggregateClause = "INSERT VALUES"
 	}
 	var firstList expandedExpressionList
 	if len(s.Targets) == 0 && s.Source == nil {
@@ -47,33 +47,33 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 		if len(target.Steps) == 0 {
 			continue
 		}
-		if binder.target.mergeInput {
+		if binder.Target.mergeInput {
 			return expr.ErrorAt("0A000", "MERGE partial insertion targets are unsupported", target.Pos)
 		}
 		if b.ArrayTargets == nil {
 			b.ArrayTargets = make([]*plan.ArrayAssignmentTarget, len(b.Targets))
 		}
-		partial, err := binder.bindAssignmentTarget(b.Relation.Columns[b.Targets[i]], target.Steps, target.Pos)
+		partial, err := binder.BindAssignmentTarget(b.Relation.Columns[b.Targets[i]], target.Steps, target.Pos)
 		if err != nil {
 			return err
 		}
 		b.ArrayTargets[i] = partial
 	}
-	domainScheduling := BindInsertDefaults(binder.host.CatalogOwner(), b, auth.ReadCatalog(), s.Override)
+	domainScheduling := BindInsertDefaults(binder.Host.CatalogOwner(), b, auth.ReadCatalog(), s.Override)
 	if s.Source != nil {
 		if err := bindInsertSource(b, binder, auth, s); err != nil {
 			return err
 		}
-		return binder.captureRetainedWriteInput(b.Insert.Defaults, nil, nil)
+		return binder.CaptureRetainedWriteInput(b.Insert.Defaults, nil, nil)
 	}
-	binder.clause.aggregateClause = "INSERT VALUES"
-	binder.clause.stringSingleInsert = len(s.Rows) == 1 && !binder.target.mergeInput
+	binder.Clause.AggregateClause = "INSERT VALUES"
+	binder.Clause.stringSingleInsert = len(s.Rows) == 1 && !binder.Target.mergeInput
 	// Keep aggregate signature/child error precedence independent of the
 	// stricter multi-row VALUES placement rule for set-returning functions.
-	oldRegexpClause := binder.clause.regexpClause
-	defer func() { binder.clause.regexpClause = oldRegexpClause }()
+	oldRegexpClause := binder.Clause.RegexpClause
+	defer func() { binder.Clause.RegexpClause = oldRegexpClause }()
 	if len(s.Rows) > 1 {
-		binder.clause.regexpClause = "VALUES"
+		binder.Clause.RegexpClause = "VALUES"
 	}
 	b.Expressions = make([][]expr.Expr, len(s.Rows))
 	b.Insert.Rows = s.Rows
@@ -113,7 +113,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 			return insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 		}
 		b.Expressions[rowIndex] = make([]expr.Expr, len(row))
-		stringRow := binder.target.mergeInput
+		stringRow := binder.Target.mergeInput
 		for _, v := range row {
 			stringRow = stringRow || parser.ContainsStringExpression(v)
 		}
@@ -121,7 +121,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 			// Analyze source occurrences once before destination types constrain
 			// shared parameters. Unknown literals retain destination authority.
 			for j, v := range row {
-				if captured, handled, err := binder.host.ReplayDomainCell(b, s, rowIndex, j); handled || err != nil {
+				if captured, handled, err := binder.Host.ReplayDomainCell(b, s, rowIndex, j); handled || err != nil {
 					if err != nil {
 						return err
 					}
@@ -146,11 +146,11 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 					b.Expressions[rowIndex][j] = plan.UnknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, Raw: v}
 					continue
 				}
-				context := assignmentContext
-				if binder.target.mergeInput {
-					context = projectionContext
+				context := AssignmentContext
+				if binder.Target.mergeInput {
+					context = ProjectionContext
 				}
-				plan, err := binder.bind(v, expressionPolicy{context: context, deferAssignment: true})
+				plan, err := binder.Bind(v, expressionPolicy{Context: context, deferAssignment: true})
 				if err != nil {
 					return err
 				}
@@ -180,7 +180,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 			}
 			var plan expr.Expr
 			var err error
-			if captured, handled, captureErr := binder.host.ReplayDomainCell(b, s, rowIndex, j); handled || captureErr != nil {
+			if captured, handled, captureErr := binder.Host.ReplayDomainCell(b, s, rowIndex, j); handled || captureErr != nil {
 				plan, err = captured, captureErr
 			} else if expanded != nil && expanded[j] != nil {
 				plan, err = binder.assignOutput(expanded[j], c)
@@ -192,7 +192,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 					err = &copy
 				}
 			} else {
-				plan, err = binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: sqltype.Assignment, column: c.Name})
+				plan, err = binder.Bind(v, expressionPolicy{Context: AssignmentContext, Expected: c.Usage, Mode: sqltype.Assignment, Column: c.Name})
 			}
 			if err != nil {
 				if partial != nil {
@@ -202,7 +202,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 					}
 					return binder.arrayAssignmentDiagnostic(partial, err, source)
 				}
-				if plan == nil && containsValuesAggregateAnalysis(v) {
+				if plan == nil && ContainsValuesAggregateAnalysis(v) {
 					return err
 				}
 				var source *sqltype.Descriptor
@@ -251,7 +251,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 			b.Insert.Defaults = nil
 		}
 	}
-	if binder.clause.stringSingleInsert {
+	if binder.Clause.stringSingleInsert {
 		if err := binder.lowerStringInsert(b); err != nil {
 			return err
 		}
@@ -265,7 +265,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 			b.Insert.Projection[target] = i
 		}
 	}
-	return binder.captureRetainedWriteInput(b.Insert.Defaults, nil, nil)
+	return binder.CaptureRetainedWriteInput(b.Insert.Defaults, nil, nil)
 }
 
 // INSERT, COPY and foreign actions share catalog-owned default/identity plans.

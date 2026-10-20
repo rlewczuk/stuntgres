@@ -21,17 +21,17 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 	if cast, ok := raw.(parser.RegclassExpr); ok {
 		return b.bindRegclass(cast.Child)
 	}
-	typ := b.typ(sqltype.Regclass)
+	typ := b.Type(sqltype.Regclass)
 	if literal, ok := raw.(parser.LiteralExpr); ok && literal.Value.Kind == parser.StringValue {
 		ref := ids.ObjectRef{}
 		found := false
 		var temporary ids.SessionToken
-		auth, err := b.bindingAuthorization()
+		auth, err := b.BindingAuthorization()
 		if err != nil {
 			return nil, ref, err
 		}
-		if b.expected.Sequences != nil {
-			for _, constant := range b.expected.Sequences.Constants {
+		if b.Expected.Sequences != nil {
+			for _, constant := range b.Expected.Sequences.Constants {
 				if constant.Offset == literal.Value.Pos.Offset {
 					ref, temporary, found = constant.Ref, constant.Temporary, true
 					break
@@ -41,12 +41,12 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		if !found {
 			// Resolve only uncaptured literals; held constants retain their exact
 			// provider identity rather than following a later name replacement.
-			ref, err = b.host.Regclass(auth, literal.Value.Text)
+			ref, err = b.Host.Regclass(auth, literal.Value.Text)
 			if err != nil {
-				return nil, ref, sequenceInputError(err, literal.Value.Pos, "", 0)
+				return nil, ref, SequenceInputError(err, literal.Value.Pos, "", 0)
 			}
 			if d, ok := b.authorityRelation(auth, ref.Address); ok {
-				if ns, ok := b.authorityNamespace(auth, d.Namespace()); ok && ns.Temporary == bindingSessionToken(b.host) {
+				if ns, ok := b.authorityNamespace(auth, d.Namespace()); ok && ns.Temporary == bindingSessionToken(b.Host) {
 					temporary = ns.Temporary
 				}
 			}
@@ -56,11 +56,11 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		// temporary lifetime, never from a different published catalog.
 		d, represented := b.authorityRelation(auth, ref.Address)
 		if represented {
-			stamp = b.host.DefinitionStamp(auth, d)
+			stamp = b.Host.DefinitionStamp(auth, d)
 		}
-		b.prepared.SequenceConstants = append(b.prepared.SequenceConstants, sequence.Constant{Offset: literal.Value.Pos.Offset, Ref: ref, Temporary: temporary, Stamp: stamp, Represented: represented})
+		b.Prepared.SequenceConstants = append(b.Prepared.SequenceConstants, sequence.Constant{Offset: literal.Value.Pos.Offset, Ref: ref, Temporary: temporary, Stamp: stamp, Represented: represented})
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
-		info := b.info(typ.Usage(), literal.Value.Pos, expr.Properties{})
+		info := b.Info(typ.Usage(), literal.Value.Pos, expr.Properties{})
 		if _, ok := b.authorityRelation(auth, ref.Address); ok {
 			info.RegclassRef = ref
 		}
@@ -68,7 +68,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 	}
 	// This legacy provider also owns explicit REGCLASS annotations and sequence
 	// inputs. New contextual inquiry coercions must not widen its public boundary.
-	node, err := b.bind(raw, expressionPolicy{context: functionArgumentContext, expected: typ.Usage(), mode: sqltype.Implicit, deferAssignment: true})
+	node, err := b.Bind(raw, expressionPolicy{Context: FunctionArgumentContext, Expected: typ.Usage(), Mode: sqltype.Implicit, deferAssignment: true})
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
@@ -82,7 +82,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
-	info, err := b.collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), node)
+	info, err := b.CollatedInfo(b.Info(typ.Usage(), raw.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), node)
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
@@ -103,21 +103,21 @@ func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position
 	if err := b.captureElementInput(); err != nil {
 		return nil, err
 	}
-	target := b.typ(sqltype.Regclass).Usage()
-	child, err := b.bind(raw, expressionPolicy{context: projectionContext, expected: target, deferAssignment: true})
+	target := b.Type(sqltype.Regclass).Usage()
+	child, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext, Expected: target, deferAssignment: true})
 	if err != nil {
 		return nil, err
 	}
 	coercionPlan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Explicit)
 	if err != nil {
-		return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to regclass", b.diagnosticTypeName(child.ResultUsage().Type)), pos)
+		return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to regclass", b.DiagnosticTypeName(child.ResultUsage().Type)), pos)
 	}
 	if child.ResultUsage() == target {
 		return child, nil
 	}
-	return plan.CoercionExpr{Info: b.info(target, raw.SourcePosition(), analyze.CoercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}, nil
+	return plan.CoercionExpr{Info: b.Info(target, raw.SourcePosition(), analyze.CoercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}, nil
 }
-func sequenceInputError(err error, pos parser.Position, context string, parameter int) error {
+func SequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	if d, ok := err.(*sqlstate.Error); ok {
 		copy := *d
 		copy.Position = ""

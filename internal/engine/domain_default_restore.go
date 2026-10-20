@@ -209,22 +209,22 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *Operation, auth Aut
 	}
 	e.mu.Lock()
 	binder := newExpressionBinder(c.Context, e, c.Input, op, nil)
-	binder.query.auth = &auth
-	binder.query.namespace = &queryNamespace{}
-	binder.params.noParameters = true
-	node, err := binder.bindDefault(raw, catalog.Column{Name: "native captured cell", Usage: u})
+	binder.Query.Auth = &auth
+	binder.Query.Namespace = &queryNamespace{}
+	binder.Params.NoParameters = true
+	node, err := binder.BindDefault(raw, catalog.Column{Name: "native captured cell", Usage: u})
 	if err == nil {
-		err = binder.captureRetainedWriteInput([]expr.Expr{node}, nil, nil)
+		err = binder.CaptureRetainedWriteInput([]expr.Expr{node}, nil, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return sqltype.Value{}, 0, err
 	}
 	local := *c
-	local.Input = binder.input
+	local.Input = binder.Input
 	local.Input.DomainChecks = &local
 	local.RoutineRecipe = true
-	local.RoutineChecks = binder.dependencies
+	local.RoutineChecks = binder.Dependencies
 	local.RoutineReferences = nil
 	local.RoutineConsumer = nil
 	node, _, err = preflightCoercionsWithPolicy(&local, node, false)

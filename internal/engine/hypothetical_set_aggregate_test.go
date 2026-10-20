@@ -166,7 +166,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			b.clause.aggregateClause = "SELECT"
+			b.Clause.AggregateClause = "SELECT"
 			position := parser.Position{Character: 8}
 			raw := parser.AggregateExpr{Name: tc.name, Within: true, Pos: position}
 			for i := range 49 {
@@ -174,11 +174,11 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 				raw.Args = append(raw.Args, expr)
 				raw.Order = append(raw.Order, parser.OrderKey{Expr: expr, Pos: position})
 			}
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := b.grouping.aggregates[node.(plan.AggregateExpr).Slot]
+			call := b.Grouping.Aggregates[node.(plan.AggregateExpr).Slot]
 			if len(call.Direct) != 49 || len(call.Order) != 49 || call.StageWidth != 51 || call.Argument != nil || !call.IncludeNulls {
 				t.Fatal("full tuple layout", call)
 			}
@@ -187,7 +187,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 					t.Fatal("independent key cache", i, key)
 				}
 			}
-			if node.ResultUsage() != b.typ(tc.id).Usage() || node.ResultUsage().Collation.ID != 0 {
+			if node.ResultUsage() != b.Type(tc.id).Usage() || node.ResultUsage().Collation.ID != 0 {
 				t.Fatal("result authority", node.ResultUsage())
 			}
 			child := &plan.ValuesNode{Rows: [][]expr.Expr{{}}}
@@ -203,7 +203,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if err != nil || !ok {
 				t.Fatal(ok, err)
 			}
-			if out[0].Type() != b.typ(tc.id) || out[0].IsNull() {
+			if out[0].Type() != b.Type(tc.id) || out[0].IsNull() {
 				t.Fatal("49-key result type", out[0].Type())
 			}
 			value, err := out[0].Type().Output(context.Background(), out[0])
@@ -213,12 +213,12 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			other := call
 			other.Direct = append([]expr.Expr(nil), call.Direct...)
 			other.Direct[48] = call.Direct[0]
-			if b.sameAggregateCall(call, other) {
+			if b.SameAggregateCall(call, other) {
 				t.Fatal("later direct identity omitted")
 			}
 			// Copy-on-change must not alter the original direct slice.
 			rewritten, err := plan.RewriteQueryExpressions(aggregate, func(expr expr.Expr) (expr.Expr, bool, error) {
-				if b.sameGroupExpression(expr, call.Direct[48]) {
+				if b.SameGroupExpression(expr, call.Direct[48]) {
 					return call.Direct[0], true, nil
 				}
 				return expr, false, nil
@@ -226,7 +226,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !b.sameGroupExpression(rewritten.(*plan.AggregateNode).Calls[0].Direct[48], call.Direct[0]) || !b.sameGroupExpression(aggregate.Calls[0].Direct[48], call.Direct[48]) {
+			if !b.SameGroupExpression(rewritten.(*plan.AggregateNode).Calls[0].Direct[48], call.Direct[0]) || !b.SameGroupExpression(aggregate.Calls[0].Direct[48], call.Direct[48]) {
 				t.Fatal("rewrite aliased direct slice")
 			}
 			// Every direct/key/result descriptor must belong to the destination catalog.

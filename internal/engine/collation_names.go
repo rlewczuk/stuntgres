@@ -5,9 +5,9 @@ import (
 )
 
 func (b *expressionBinder) collationName(id uint32) string {
-	view := b.host.CurrentCatalog()
-	if b.query.auth != nil {
-		view = b.query.auth.ReadCatalog()
+	view := b.Host.CurrentCatalog()
+	if b.Query.Auth != nil {
+		view = b.Query.Auth.ReadCatalog()
 	}
 	return typedef.CollationName(view, id)
 }

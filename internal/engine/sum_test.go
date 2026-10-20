@@ -168,7 +168,7 @@ func TestSumAnalysisStructure(t *testing.T) {
 		{"outer_left_non_sum", parser.SubqueryExpr{Left: one, Query: &parser.Select{Targets: []parser.Expr{sum}}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := containsValuesAggregateAnalysis(tc.raw); got != tc.want {
+			if got := ContainsValuesAggregateAnalysis(tc.raw); got != tc.want {
 				t.Fatalf("structural VALUES aggregate containment = %v, want %v", got, tc.want)
 			}
 		})
@@ -185,17 +185,17 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 		for _, outcome := range []string{"success", "filter_failure", "missing_target_column"} {
 			t.Run(map[bool]string{false: "nil_namespace", true: "existing_namespace"}[existingNamespace]+"/"+outcome, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-				b.clause.aggregateClause, b.target.insertTarget = "INSERT VALUES", target
+				b.Clause.AggregateClause, b.Target.InsertTarget = "INSERT VALUES", target
 				hidden := []queryQualifier{{Name: "earlier_hidden", Columns: []queryColumn{{Descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
 				beforeHidden := append([]queryQualifier(nil), hidden...)
 				beforeHidden[0].Columns = append([]queryColumn(nil), hidden[0].Columns...)
-				b.query.hidden = hidden
+				b.Query.Hidden = hidden
 				var namespace *queryNamespace
 				var beforeColumns []queryColumn
 				if existingNamespace {
 					namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}}
 					beforeColumns = append([]queryColumn(nil), namespace.Columns...)
-					b.query.namespace = namespace
+					b.Query.Namespace = namespace
 				}
 				raw := parser.AggregateExpr{Name: "sum", Pos: parser.Position{Character: 10}, Args: []parser.Expr{one}}
 				switch outcome {
@@ -205,15 +205,15 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 					raw.Args = []parser.Expr{parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "i"}}}, Pos: parser.Position{Character: 20}}}
 				}
 				definition, _ := functions.LookupAggregate("sum")
-				node, _, err := b.bindRegisteredAggregate(raw, name, definition)
-				if b.query.namespace != namespace || len(b.query.hidden) != len(hidden) || &b.query.hidden[0] != &hidden[0] || !reflect.DeepEqual(b.query.hidden, beforeHidden) {
-					t.Fatal("SUM leaked or replaced namespace/hidden candidates", b.query.namespace, b.query.hidden)
+				node, _, err := b.BindRegisteredAggregate(raw, name, definition)
+				if b.Query.Namespace != namespace || len(b.Query.Hidden) != len(hidden) || &b.Query.Hidden[0] != &hidden[0] || !reflect.DeepEqual(b.Query.Hidden, beforeHidden) {
+					t.Fatal("SUM leaked or replaced namespace/hidden candidates", b.Query.Namespace, b.Query.Hidden)
 				}
 				if namespace != nil && !reflect.DeepEqual(namespace.Columns, beforeColumns) {
 					t.Fatal("SUM mutated the incumbent source namespace", namespace.Columns)
 				}
-				if b.clause.aggregateClause != "INSERT VALUES" || b.target.insertTarget != target || len(b.target.uses) != 0 {
-					t.Fatal("SUM changed clause/target or read diagnostic-only destination", b.clause.aggregateClause, b.target.insertTarget, b.target.uses)
+				if b.Clause.AggregateClause != "INSERT VALUES" || b.Target.InsertTarget != target || len(b.Target.Uses) != 0 {
+					t.Fatal("SUM changed clause/target or read diagnostic-only destination", b.Clause.AggregateClause, b.Target.InsertTarget, b.Target.Uses)
 				}
 				if outcome == "success" {
 					if err != nil || node == nil || node.ResultUsage().Type.ID() != sqltype.Int8 {
@@ -247,15 +247,15 @@ func TestSumAnalysisAssignmentBoundary(t *testing.T) {
 	sum := parser.AggregateExpr{Name: "sum", Pos: parser.Position{Character: 10}, Args: []parser.Expr{boolean}, Filter: one}
 	wrapped := parser.CastExpr{Child: parser.CastExpr{Child: sum, TypeName: parser.TypeName{Name: "integer"}}, TypeName: parser.TypeName{Name: "integer"}}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "INSERT VALUES"
-	policy := expressionPolicy{context: assignmentContext, expected: integer.Usage(), mode: sqltype.Assignment, column: column.Name}
-	node, err := b.bind(wrapped, policy)
+	b.Clause.AggregateClause = "INSERT VALUES"
+	policy := expressionPolicy{Context: AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: column.Name}
+	node, err := b.Bind(wrapped, policy)
 	wantAnalysis := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "argument of FILTER must be type boolean, not type integer", Position: "30"}
-	if node != nil || !containsValuesAggregateAnalysis(wrapped) || !reflect.DeepEqual(err, wantAnalysis) {
+	if node != nil || !ContainsValuesAggregateAnalysis(wrapped) || !reflect.DeepEqual(err, wantAnalysis) {
 		t.Fatalf("wrapped nil-source analysis = %v / %#v, want %#v", node, err, wantAnalysis)
 	}
-	node, err = b.bind(boolean, policy)
-	if node == nil || err == nil || node.ResultUsage().Type.ID() != sqltype.Bool || containsValuesAggregateAnalysis(boolean) {
+	node, err = b.Bind(boolean, policy)
+	if node == nil || err == nil || node.ResultUsage().Type.ID() != sqltype.Bool || ContainsValuesAggregateAnalysis(boolean) {
 		t.Fatal("genuine assignment must retain its resolved source", node, err)
 	}
 	diagnostic := analyze.InsertValueError(e.CatalogRead(), err, column, boolean, node.ResultUsage().Type)
@@ -263,7 +263,7 @@ func TestSumAnalysisAssignmentBoundary(t *testing.T) {
 	if !reflect.DeepEqual(diagnostic, wantAssignment) {
 		t.Fatalf("bound-source assignment = %#v, want %#v", diagnostic, wantAssignment)
 	}
-	if b.query.namespace != nil || len(b.query.hidden) != 0 || b.clause.aggregateClause != "INSERT VALUES" {
+	if b.Query.Namespace != nil || len(b.Query.Hidden) != 0 || b.Clause.AggregateClause != "INSERT VALUES" {
 		t.Fatal("failed wrapped analysis changed subsequent assignment scope")
 	}
 }

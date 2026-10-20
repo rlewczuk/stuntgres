@@ -27,7 +27,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	}
 	raw := arrayInspectUnitRaw(name, args...)
 	raw.Pos = parser.Position{Offset: 7, Character: 8}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,8 +141,8 @@ func TestArrayRelationalSampleCounts(t *testing.T) {
 func arrayRelationalUnitUnnest(t *testing.T, input string) plan.UnnestExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
-	node, err := b.bindUnnest(arrayInspectUnitRaw("unnest", arrayInspectUnitArray(input)))
+	b.Clause.AggregateClause = "SELECT"
+	node, err := b.BindUnnest(arrayInspectUnitRaw("unnest", arrayInspectUnitArray(input)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,8 +408,8 @@ func TestArrayRelationalUsage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, name := range []string{"array_sample", "array_shuffle", "unnest"} {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
-				b.clause.aggregateClause = "SELECT"
-				b.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: tc.input}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
+				b.Clause.AggregateClause = "SELECT"
+				b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: tc.input}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
 				var input parser.Expr = parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "a"}}}}
 				position := parser.Position{Character: 20}
 				if tc.collated {
@@ -422,9 +422,9 @@ func TestArrayRelationalUsage(t *testing.T) {
 				var node expr.Expr
 				var err error
 				if name == "unnest" {
-					node, err = b.bindUnnest(raw)
+					node, err = b.BindUnnest(raw)
 				} else {
-					node, err = b.bindFunctionProvider(raw)
+					node, err = b.BindFunctionProvider(raw)
 				}
 				if err != nil {
 					t.Fatal(name, err)
@@ -486,7 +486,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), source, sqltype.InputEnvironment{}, nil)
 	raw := arrayInspectUnitRaw("array_sample", arrayInspectUnitArray("[-2:0][5:6]={{1,NULL},{2,20},{3,30}}"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
 	raw.Pos = parser.Position{Offset: 7, Character: 8}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +494,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 		if d == nil {
 			return nil
 		}
-		return tb.typ(d.ID())
+		return tb.Type(d.ID())
 	}
 	mapped, changed, err := retagBoundTypes(target.CatalogRead(), node, remap)
 	if err != nil || !changed {

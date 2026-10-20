@@ -32,11 +32,11 @@ func TestStringReplacementFormalInference(t *testing.T) {
 			if i >= 2 {
 				id = sqltype.Int4
 			}
-			if b.params.parameters[i+1].Type != b.typ(id) || n.Plan.ArgumentUsage(i).Type != b.typ(id) || n.Textual[i] != (i < 2) {
-				t.Fatal(i, b.params.parameters, n.Plan.ArgumentUsage(i))
+			if b.Params.Parameters[i+1].Type != b.Type(id) || n.Plan.ArgumentUsage(i).Type != b.Type(id) || n.Textual[i] != (i < 2) {
+				t.Fatal(i, b.Params.Parameters, n.Plan.ArgumentUsage(i))
 			}
 		}
-		if !n.Properties().ParameterDependent || n.ResultUsage() != b.typ(sqltype.Text).Usage() {
+		if !n.Properties().ParameterDependent || n.ResultUsage() != b.Type(sqltype.Text).Usage() {
 			t.Fatal(n)
 		}
 	}
@@ -50,14 +50,14 @@ func TestStringReplacementFormalInference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := node.(functions.String).Args[2].(plan.CoercionExpr); !ok || node.(functions.String).Plan.ArgumentUsage(2).Type != b.typ(sqltype.Int4) {
+	if _, ok := node.(functions.String).Args[2].(plan.CoercionExpr); !ok || node.(functions.String).Plan.ArgumentUsage(2).Type != b.Type(sqltype.Int4) {
 		t.Fatal("INT2 implicit formal", node)
 	}
 }
 
 func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
+	text, integer := b.Type(sqltype.Text), b.Type(sqltype.Int4)
 	two, _ := sqltype.Integer(integer, 2)
 	one, _ := sqltype.Integer(integer, 1)
 	args := []expr.Expr{
@@ -66,7 +66,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 		plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Value: two},
 		plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{Volatility: expr.Volatile, StageDependent: true}}, Value: one},
 	}
-	bound, err := b.stringNode("overlay", text.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OverlayStringSyntax)
+	bound, err := b.StringNode("overlay", text.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OverlayStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,20 +106,20 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 
 func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	text, boolean := b.typ(sqltype.Text), b.typ(sqltype.Bool)
+	text, boolean := b.Type(sqltype.Text), b.Type(sqltype.Bool)
 	args := []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "abc")}, plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "a")}}
-	function, err := b.stringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
+	function, err := b.StringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operator, err := b.stringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.PrefixStringSyntax)
-	if err != nil || !b.sameGroupExpression(function, operator) {
+	operator, err := b.StringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.PrefixStringSyntax)
+	if err != nil || !b.SameGroupExpression(function, operator) {
 		t.Fatal("syntax changed semantic grouping", operator, err)
 	}
 	left, right := text.Usage(), text.Usage()
 	left.Collation.ID, right.Collation.ID = 950, 951
 	args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: left}, Value: sqltype.String(text, "")}, plan.LiteralExpr{Info: expr.Info{Usage: right}, Value: sqltype.String(text, "")}}
-	conflict, err := b.stringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.PrefixStringSyntax)
+	conflict, err := b.StringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.PrefixStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}

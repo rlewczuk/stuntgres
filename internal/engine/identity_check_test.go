@@ -5,13 +5,13 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"stuntgres/internal/engine/analyze"
+	"testing"
+
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
@@ -294,19 +294,19 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	auth.Catalog = e.stageRead(stage)
 	auth.Recapture(auth.Catalog)
 	binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	binder.query.auth = &auth
+	binder.Query.Auth = &auth
 	if _, err := functions.BindSequenceCall(binder, ast.Targets[0].(parser.CallExpr)); err != nil {
 		t.Fatal(err)
 	}
-	if len(binder.prepared.SequenceConstants) != 1 {
-		t.Fatal(binder.prepared.SequenceConstants)
+	if len(binder.Prepared.SequenceConstants) != 1 {
+		t.Fatal(binder.Prepared.SequenceConstants)
 	}
-	constant := binder.prepared.SequenceConstants[0]
+	constant := binder.Prepared.SequenceConstants[0]
 	if constant.Ref.Address != address || constant.Ref.Domain() != e.catalog.Domain || constant.Ref.Epoch != read.Epoch() || constant.Stamp != candidate.SequencePlanStamp {
 		t.Fatal("regclass resolution/stamp mixed candidate and published authority", constant)
 	}
 	qualified := statement(t, `SELECT candidate_schema.nextval('candidate_only')`).(*parser.Select).Targets[0].(parser.CallExpr)
-	if visible, err := binder.builtinVisible(qualified.Name, analyze.FunctionLookup); err != nil || visible {
+	if visible, err := binder.BuiltinVisible(qualified.Name); err != nil || visible {
 		t.Fatal("builtin namespace lookup ignored candidate authority", visible, err)
 	}
 	if e.catalog.state != read.State() || e.catalog.state.Get(address) != original || e.storage.Sequences[address].Called {

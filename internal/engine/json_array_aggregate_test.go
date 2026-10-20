@@ -26,11 +26,11 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 	ctx := context.Background()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
-	b.params.parameters[1] = integer.Usage()
+	b.Clause.AggregateClause = "SELECT"
+	b.Params.Parameters[1] = integer.Usage()
 	for _, name := range []string{"json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_agg"} {
 		raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -50,25 +50,25 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 			t.Fatal("result descriptor", node.ResultUsage())
 		}
 	}
-	if len(b.grouping.aggregates) != 4 {
-		t.Fatal("incompatible operations shared a slot", len(b.grouping.aggregates))
+	if len(b.Grouping.Aggregates) != 4 {
+		t.Fatal("incompatible operations shared a slot", len(b.Grouping.Aggregates))
 	}
-	for _, call := range b.grouping.aggregates {
+	for _, call := range b.Grouping.Aggregates {
 		if !call.IncludeNulls {
 			t.Fatal("presence lost before provider")
 		}
 	}
 	for _, absent := range []bool{true, false, true} {
 		raw := parser.AggregateExpr{Name: "json_arrayagg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, JSON: &parser.JSONAggregateOptions{Absent: absent}}
-		if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err != nil {
+		if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if len(b.grouping.aggregates) != 6 {
-		t.Fatal("NULL policy identity", len(b.grouping.aggregates))
+	if len(b.Grouping.Aggregates) != 6 {
+		t.Fatal("NULL policy identity", len(b.Grouping.Aggregates))
 	}
 	schemaBinder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	schemaBinder.params.parameters[1] = integer.Usage()
+	schemaBinder.Params.Parameters[1] = integer.Usage()
 	targets := []parser.Expr{}
 	for _, name := range []string{"json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg"} {
 		call := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}}
@@ -264,15 +264,15 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 	ctx := context.Background()
 	raw := statement(t, "SELECT json_arrayagg('[1]'::text FORMAT JSON NULL ON NULL RETURNING varchar(10) FORMAT JSON)").(*parser.Select).Targets[0]
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
-	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	b.Clause.AggregateClause = "SELECT"
+	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.captureViewLiterals(raw, bound, analyze.ViewTargetLiteral, 0); err != nil {
+	if err = b.CaptureViewLiterals(raw, bound, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := newViewRenderer(&viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages})
+	renderer := newViewRenderer(&viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages})
 	renderer.frame = b.FrameID()
 	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {

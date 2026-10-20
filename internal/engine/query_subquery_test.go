@@ -257,14 +257,14 @@ func TestQuerySubqueryFrames(t *testing.T) {
 	if present, err := rows.Next(context.Background(), scratch); present || err != nil {
 		t.Fatal("grandparent query did not end", present, err)
 	}
-	binder := expressionBinder{query: queryScopeState{namespace: &queryNamespace{}, frame: 7}, clause: clauseState{aggregateClause: "RETURNING"}}
-	original := binder.query.namespace
+	binder := expressionBinder{Query: queryScopeState{Namespace: &queryNamespace{}, Frame: 7}, Clause: clauseState{AggregateClause: "RETURNING"}}
+	original := binder.Query.Namespace
 	restore := binder.EnterQuery(false)
-	if binder.query.namespace != nil || binder.FrameID() == 7 || len(binder.query.scopes) != 1 {
+	if binder.Query.Namespace != nil || binder.FrameID() == 7 || len(binder.Query.Scopes) != 1 {
 		t.Fatal("scope entry")
 	}
 	restore()
-	if binder.query.namespace != original || binder.FrameID() != 7 || binder.clause.aggregateClause != "RETURNING" || len(binder.query.scopes) != 0 {
+	if binder.Query.Namespace != original || binder.FrameID() != 7 || binder.Clause.AggregateClause != "RETURNING" || len(binder.Query.Scopes) != 0 {
 		t.Fatal("scope restoration")
 	}
 }
@@ -368,7 +368,7 @@ func TestQuerySubqueryAggregateOwnership(t *testing.T) {
 		sql := "SELECT count((SELECT count(a.k))) FROM a"
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(binderOperation(binder))
-		binder.query.auth = &auth
+		binder.Query.Auth = &auth
 		if err == nil {
 			_, err = binder.BindSelect(statement(t, sql).(*parser.Select), false)
 		}
@@ -459,26 +459,26 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			run(t, e, "CREATE TABLE target(k INT)")
 			run(t, e, "INSERT INTO target VALUES(77)")
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			b.target.ref = roleTableRef(t, e, "target")
-			b.target.relation = e.CatalogRead().MustRelation(b.target.ref.Address)
-			b.target.name = "target"
+			b.Target.Ref = roleTableRef(t, e, "target")
+			b.Target.Relation = e.CatalogRead().MustRelation(b.Target.Ref.Address)
+			b.Target.Name = "target"
 			e.mu.Lock()
 			auth, authErr := e.authorizationLocked(binderOperation(b))
 			e.mu.Unlock()
 			if authErr != nil {
 				t.Fatal(authErr)
 			}
-			b.query.auth = &auth
-			b.params.updateParameters = true
-			b.clause.aggregateClause = "RETURNING"
+			b.Query.Auth = &auth
+			b.Params.UpdateParameters = true
+			b.Clause.AggregateClause = "RETURNING"
 			_, err := b.BindSelect(statement(t, sql).(*parser.Select), false)
 			if (sql == "SELECT missing") != (err != nil) {
 				t.Fatal(err)
 			}
-			if b.query.namespace != nil || b.query.frame != 0 || b.clause.aggregateClause != "RETURNING" || len(b.query.scopes) != 0 {
+			if b.Query.Namespace != nil || b.Query.Frame != 0 || b.Clause.AggregateClause != "RETURNING" || len(b.Query.Scopes) != 0 {
 				t.Fatal("synthesized ancestor leaked after binding", err)
 			}
-			if b.target.relation.Name() != "target" {
+			if b.Target.Relation.Name() != "target" {
 				t.Fatal("target relation changed")
 			}
 		})

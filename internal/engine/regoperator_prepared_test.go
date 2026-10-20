@@ -118,7 +118,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		{Offset: 8, Operator: sqltype.Regoper, ID: 597},
 	}}}
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &shared)
-	b.query.auth = &auth
+	b.Query.Auth = &auth
 	for i, id := range ids {
 		pos := parser.Position{Offset: 7, Character: 8}
 		if i == 3 {
@@ -128,9 +128,9 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		var value sqltype.Value
 		var failure error
 		if id == sqltype.Regtype {
-			value, failure = b.regtypeConstant("no_such_type", pos)
+			value, failure = b.RegtypeConstant("no_such_type", pos)
 		} else {
-			value, failure = b.operatorConstant("no_such_operator", typ, pos)
+			value, failure = b.OperatorConstant("no_such_operator", typ, pos)
 		}
 		if failure != nil || value.Type().ID() != id || !sqltype.SameDatum(value, values[i]) {
 			e.mu.Unlock()

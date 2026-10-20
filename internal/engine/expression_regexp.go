@@ -7,11 +7,11 @@ import (
 )
 
 func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
-	context := b.clause.regexpClause
+	context := b.Clause.RegexpClause
 	hint := context == "CASE" || context == "COALESCE"
-	if context == "" && b.grouping.argumentOwner.active {
+	if context == "" && b.Grouping.ArgumentOwner.Active {
 		message := "aggregate function calls cannot contain set-returning function calls"
-		if b.grouping.argumentOwner.window {
+		if b.Grouping.ArgumentOwner.Window {
 			message = "window function calls cannot contain set-returning function calls"
 		}
 		err := expr.ErrorAt("0A000", message, call.SourcePosition()).(*sqlstate.Error)
@@ -20,24 +20,24 @@ func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
 	}
 	if context == "" {
 		switch {
-		case b.params.executeParameters:
+		case b.Params.ExecuteParameters:
 			context = "EXECUTE parameters"
-		case b.target.generatedOwner != nil:
+		case b.Target.GeneratedOwner != nil:
 			context = "column generation expressions"
-		case b.consumer.indexPredicateConsumer:
+		case b.Consumer.IndexPredicateConsumer:
 			context = "index predicates"
-		case b.consumer.indexConsumer:
+		case b.Consumer.IndexConsumer:
 			context = "index expressions"
-		case b.consumer.checkConsumer:
+		case b.Consumer.CheckConsumer:
 			context = "check constraints"
 		case b.DefaultConsumer():
 			context = "DEFAULT expressions"
-		case b.consumer.policyConsumer && b.query.frame == 0:
+		case b.Consumer.PolicyConsumer && b.Query.Frame == 0:
 			return sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 		default:
-			switch b.clause.aggregateClause {
+			switch b.Clause.AggregateClause {
 			case "WHERE", "HAVING", "FILTER", "JOIN conditions", "LIMIT", "OFFSET", "UPDATE", "RETURNING", "VALUES", "window RANGE", "window ROWS", "window GROUPS":
-				context = b.clause.aggregateClause
+				context = b.Clause.AggregateClause
 				if context == "window RANGE" || context == "window ROWS" || context == "window GROUPS" {
 					context = "window definitions"
 				}

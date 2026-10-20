@@ -518,7 +518,7 @@ func fullJoinCondition(c *exec.Context, join *plan.JoinNode, bound expr.Expr, ne
 		binder := expressionBinder{}
 		for _, left := range a.keys {
 			for _, right := range b.keys {
-				if binder.sameGroupExpression(left.left, right.left) && binder.sameGroupExpression(left.right, right.right) {
+				if binder.SameGroupExpression(left.left, right.left) && binder.SameGroupExpression(left.right, right.right) {
 					common = append(common, left)
 					break
 				}

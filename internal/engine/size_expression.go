@@ -36,13 +36,13 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (expr
 	var types functions.SizeTypes
 	demand := functions.NeededSizeTypes(name, visible, len(raw.Args), operand.Usage)
 	if demand&functions.SizeText != 0 {
-		types.Text = b.typ(sqltype.Text)
+		types.Text = b.Type(sqltype.Text)
 	}
 	if demand&functions.SizeInt8 != 0 {
-		types.Int8 = b.typ(sqltype.Int8)
+		types.Int8 = b.Type(sqltype.Int8)
 	}
 	if demand&functions.SizeNumeric != 0 {
-		types.Numeric = b.typ(sqltype.Numeric)
+		types.Numeric = b.Type(sqltype.Numeric)
 	}
 	target, resolution := functions.SelectSize(name, visible, len(raw.Args), operand.Usage, types)
 	if resolution != functions.Resolved {
@@ -68,9 +68,9 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (expr
 		resultType = types.Int8
 	}
 	if resultType == nil {
-		resultType = b.typ(id)
+		resultType = b.Type(id)
 	}
-	info := b.info(resultType.Usage(), raw.Pos, arg.Properties())
+	info := b.Info(resultType.Usage(), raw.Pos, arg.Properties())
 	node, err := functions.NewSize(info, name, arg, target.Usage())
 	if err != nil {
 		return nil, err

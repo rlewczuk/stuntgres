@@ -34,7 +34,7 @@ func TestMathGcdLcmBinding(t *testing.T) {
 			t.Run(name+"("+tc.args+")", func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 				raw := statement(t, "SELECT "+name+"("+tc.args+")").(*parser.Select).Targets[0]
-				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -55,8 +55,8 @@ func TestMathGcdLcmBinding(t *testing.T) {
 					t.Fatal("merged immutable properties", properties)
 				}
 				for i, id := range tc.parameters {
-					if b.params.parameters[i+1].Type == nil || b.params.parameters[i+1].Type.ID() != id {
-						t.Fatal("contextual parameter", b.params.parameters)
+					if b.Params.Parameters[i+1].Type == nil || b.Params.Parameters[i+1].Type.ID() != id {
+						t.Fatal("contextual parameter", b.Params.Parameters)
 					}
 				}
 			})
@@ -69,7 +69,7 @@ func TestMathGcdLcmBinding(t *testing.T) {
 		} {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+name+"("+tc.args+")").(*parser.Select).Targets[0]
-			_, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			message := "function " + name + "(" + tc.signature + ") does not exist"
 			hint := "No function matches the given name and argument types. You might need to add explicit type casts."
 			if tc.code == "42725" {
@@ -95,7 +95,7 @@ func TestMathGcdLcmBindingExecutionPhase(t *testing.T) {
 		"SELECT lcm(NULL::integer,lcm(2147483647,2))",
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		node, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		node, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal("binding invoked provider", q, err)
 		}
@@ -117,7 +117,7 @@ func TestMathGcdLcmBindingQuotedNames(t *testing.T) {
 	for _, name := range []string{"GCD", "LCM"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, `SELECT "`+name+`"(12,18)`).(*parser.Select).Targets[0]
-		_, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		want := sqlstate.Error{
 			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883",
 			Message:  "function " + name + "(integer, integer) does not exist",

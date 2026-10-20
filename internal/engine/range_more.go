@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error) {
+func (b *expressionBinder) BindUnnest(raw parser.FunctionExpr) (expr.Expr, error) {
 	var small [1]functions.Argument
 	var operands []functions.Argument
 	if len(raw.Args) <= len(small) {
@@ -62,27 +62,27 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 	if err != nil {
 		return nil, err
 	}
-	if b.params.executeParameters {
+	if b.Params.ExecuteParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
-	if b.consumer.policyConsumer && b.query.frame == 0 {
+	if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
 	}
-	switch b.clause.aggregateClause {
+	switch b.Clause.AggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.clause.queryHasTargetSet = true
+		b.Clause.QueryHasTargetSet = true
 	}
 	properties := expr.MergeProperties(expr.Properties{Volatility: expr.Immutable, StageDependent: true}, arg.Properties())
 	usage := result.Usage()
 	if input.IsArray() {
 		usage.Collation = target.Collation
 	}
-	info := b.info(usage, raw.Pos, properties)
+	info := b.Info(usage, raw.Pos, properties)
 	if usage.Collation.ID != 0 {
-		info, err = b.collatedInfo(info, arg)
+		info, err = b.CollatedInfo(info, arg)
 		if err != nil {
 			return nil, err
 		}

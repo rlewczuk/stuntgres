@@ -588,7 +588,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	}
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, installer, nil)
 	name := e.catalog.state.Get(ext.TargetNamespace).Name()
-	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}, {Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
+	node, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}, {Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@ import (
 func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	var storage [100]comparisonOperand
 	for i, arg := range raw.Args {
-		o, err := b.comparisonOperandPolicy(arg, expressionPolicy{context: projectionContext})
+		o, err := b.comparisonOperandPolicy(arg, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			return nil, err
 		}
@@ -43,11 +43,11 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	if !valid {
 		return nil, signature()
 	}
-	targets[1], targets[2] = b.typ(sqltype.Int4).Usage(), b.typ(sqltype.Bool).Usage()
+	targets[1], targets[2] = b.Type(sqltype.Int4).Usage(), b.Type(sqltype.Bool).Usage()
 	// Probe all known implicit edges before contextual input conversion.
 	for i, o := range operands {
 		if o.descriptor() != nil {
-			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), targets[i], sqltype.Implicit); err != nil {
+			if _, err := sqltype.PlanCoercion(o.Node.ResultUsage(), targets[i], sqltype.Implicit); err != nil {
 				return nil, signature()
 			}
 		}
@@ -58,7 +58,7 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	args := make([]expr.Expr, len(operands))
 	properties := expr.Properties{Volatility: expr.Immutable, StageDependent: true}
 	for i, o := range operands {
-		arg, err := b.coerceConditional(o, targets[i], "generate_subscripts")
+		arg, err := b.CoerceConditional(o, targets[i], "generate_subscripts")
 		if err != nil {
 			return nil, err
 		}
@@ -82,24 +82,24 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	if decoration != "" {
 		return nil, expr.ErrorAt("42809", decoration+" specified, but generate_subscripts is "+message, raw.Pos)
 	}
-	if b.params.executeParameters {
+	if b.Params.ExecuteParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
-	if b.consumer.policyConsumer && b.query.frame == 0 {
+	if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
-	if b.clause.aggregateClause == "INSERT VALUES" {
+	if b.Clause.AggregateClause == "INSERT VALUES" {
 		return nil, expr.ErrorAt("0A000", "generate_subscripts is unsupported in INSERT VALUES", raw.Pos)
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
 	}
-	switch b.clause.aggregateClause {
+	switch b.Clause.AggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.clause.queryHasTargetSet = true
+		b.Clause.QueryHasTargetSet = true
 	}
 	formal := [3]sqltype.ID{sqltype.ID(2277), sqltype.Int4, sqltype.Bool}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), functions.SubscriptRoutineProvider, "generate_subscripts", formal[:len(args)]...)
+	info, err := b.builtinRoutineInfo(b.Info(b.Type(sqltype.Int4).Usage(), raw.Pos, properties), functions.SubscriptRoutineProvider, "generate_subscripts", formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}

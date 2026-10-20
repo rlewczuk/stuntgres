@@ -8,7 +8,7 @@ import (
 // Inspect selected SUM/bitwise/JSON scalar composition without crossing a child query's frame.
 // Only failed analysis (nil bound source) uses this check; assignment failures
 // with an actual source retain the destination's ordinary diagnostic.
-func containsValuesAggregateAnalysis(raw parser.Expr) bool {
+func ContainsValuesAggregateAnalysis(raw parser.Expr) bool {
 	var children []parser.Expr
 	switch e := raw.(type) {
 	case parser.AggregateExpr:
@@ -16,22 +16,22 @@ func containsValuesAggregateAnalysis(raw parser.Expr) bool {
 			return true
 		}
 		for _, key := range e.Order {
-			if containsValuesAggregateAnalysis(key.Expr) {
+			if ContainsValuesAggregateAnalysis(key.Expr) {
 				return true
 			}
 		}
-		if containsValuesAggregateAnalysis(e.Filter) {
+		if ContainsValuesAggregateAnalysis(e.Filter) {
 			return true
 		}
 		children = e.Args
 	case parser.CastExpr:
-		return containsValuesAggregateAnalysis(e.Child)
+		return ContainsValuesAggregateAnalysis(e.Child)
 	case parser.CollateExpr:
-		return containsValuesAggregateAnalysis(e.Child)
+		return ContainsValuesAggregateAnalysis(e.Child)
 	case parser.RegclassExpr:
-		return containsValuesAggregateAnalysis(e.Child)
+		return ContainsValuesAggregateAnalysis(e.Child)
 	case parser.TimeZoneExpr:
-		return containsValuesAggregateAnalysis(e.Value) || !e.Local && containsValuesAggregateAnalysis(e.Zone)
+		return ContainsValuesAggregateAnalysis(e.Value) || !e.Local && ContainsValuesAggregateAnalysis(e.Zone)
 	case parser.SQLJSONExpr:
 		children = e.Args
 	case parser.JSONPredicateExpr:
@@ -41,48 +41,48 @@ func containsValuesAggregateAnalysis(raw parser.Expr) bool {
 	case parser.CallExpr:
 		children = e.Args
 	case parser.InListExpr:
-		if containsValuesAggregateAnalysis(e.Left) {
+		if ContainsValuesAggregateAnalysis(e.Left) {
 			return true
 		}
 		children = e.Items
 	case parser.ArrayComparisonExpr:
-		return containsValuesAggregateAnalysis(e.Left) || containsValuesAggregateAnalysis(e.Right)
+		return ContainsValuesAggregateAnalysis(e.Left) || ContainsValuesAggregateAnalysis(e.Right)
 	case parser.ArrayExpr:
 		children = e.Elements
 	case parser.SubscriptExpr:
 		var storage [13]parser.Expr
 		for _, child := range e.Children(&storage) {
-			if containsValuesAggregateAnalysis(child) {
+			if ContainsValuesAggregateAnalysis(child) {
 				return true
 			}
 		}
 		return false
 	case parser.FieldExpr:
-		return containsValuesAggregateAnalysis(e.Base)
+		return ContainsValuesAggregateAnalysis(e.Base)
 	case parser.RowExpr:
 		children = e.Fields
 	case parser.SubqueryExpr:
-		return containsValuesAggregateAnalysis(e.Left)
+		return ContainsValuesAggregateAnalysis(e.Left)
 	case parser.OperatorExpr:
 		children = e.Args
 	case parser.ConditionalExpr:
 		children = e.Args
 	case parser.LogicalExpr:
-		return containsValuesAggregateAnalysis(e.Left) || containsValuesAggregateAnalysis(e.Right)
+		return ContainsValuesAggregateAnalysis(e.Left) || ContainsValuesAggregateAnalysis(e.Right)
 	case parser.PredicateExpr:
-		return containsValuesAggregateAnalysis(e.Left) || containsValuesAggregateAnalysis(e.Right)
+		return ContainsValuesAggregateAnalysis(e.Left) || ContainsValuesAggregateAnalysis(e.Right)
 	case parser.CaseExpr:
-		if containsValuesAggregateAnalysis(e.Test) || containsValuesAggregateAnalysis(e.Else) {
+		if ContainsValuesAggregateAnalysis(e.Test) || ContainsValuesAggregateAnalysis(e.Else) {
 			return true
 		}
 		for _, arm := range e.Arms {
-			if containsValuesAggregateAnalysis(arm.Condition) || containsValuesAggregateAnalysis(arm.Result) {
+			if ContainsValuesAggregateAnalysis(arm.Condition) || ContainsValuesAggregateAnalysis(arm.Result) {
 				return true
 			}
 		}
 	}
 	for _, child := range children {
-		if containsValuesAggregateAnalysis(child) {
+		if ContainsValuesAggregateAnalysis(child) {
 			return true
 		}
 	}

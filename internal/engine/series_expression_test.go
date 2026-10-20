@@ -72,27 +72,27 @@ func seriesUnitRead(t *testing.T, e plan.SeriesExpr) []int64 {
 
 func TestSeriesBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	lit := func(n int64) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: n}}
 	}
-	x, err := b.bindFunction(nullCountRaw("generate_series", lit(1), lit(3)))
+	x, err := b.BindFunction(nullCountRaw("generate_series", lit(1), lit(3)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	e, ok := x.(plan.SeriesExpr)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.clause.queryHasTargetSet || !exec.SourceAdmitted(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.Clause.QueryHasTargetSet || !exec.SourceAdmitted(e) {
 		t.Fatal(x)
 	}
 	if _, err = e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("scalar consumed set")
 	}
-	_, err = b.bindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}))
+	_, err = b.BindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}))
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42725" {
 		t.Fatal(err)
 	}
-	_, err = b.bindFunction(nullCountRaw("generate_series",
+	_, err = b.BindFunction(nullCountRaw("generate_series",
 		parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "date"}, Text: "2020-01-01"},
 		parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "date"}, Text: "2020-01-02"},
 		parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "interval"}, Text: "1 day"}))

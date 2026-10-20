@@ -37,7 +37,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+tc.source+" FROM t").(*parser.Select).Targets[0]
-			bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

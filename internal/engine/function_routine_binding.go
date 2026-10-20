@@ -43,7 +43,7 @@ func (b *expressionBinder) selectedBuiltinRoutineInfo(info expr.Info, declaratio
 }
 
 func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *catalog.BuiltinRoutineDeclaration) (*catalog.Procedure, ids.ObjectRef, error) {
-	view := b.bindingCatalog()
+	view := b.BindingCatalog()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID}
 	d, ok := view.Procedure(address)
 	if !ok || d.Builtin != declaration {

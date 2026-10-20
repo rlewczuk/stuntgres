@@ -75,7 +75,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.base >= 0 {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || exec.SourceReturnsSet(call) != tc.set || !exec.SourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || exec.SourceReturnsSet(call) != tc.set || !exec.SourceAdmitted(call) || binder.Clause.QueryHasTargetSet != tc.set {
 				t.Fatal("physical arity/base/defined/source/project identity", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || call.Properties().DomainDependent || call.Properties().RuntimeDomainConversion {
@@ -106,7 +106,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if evaluation.Catalog.Get(address) != captured {
 				t.Fatal("call did not borrow the original owned descriptor")
 			}
-			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			selected := 0
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -132,15 +132,15 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				// retain the exact original selected declaration, not select again.
 				raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0].(parser.FunctionExpr)
 				_, sourceBinder, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
-				sourceBinder.clause.aggregateClause = "FROM"
-				sourceBinder.query.namespace = &queryNamespace{}
+				sourceBinder.Clause.AggregateClause = "FROM"
+				sourceBinder.Query.Namespace = &queryNamespace{}
 				e.mu.Lock()
 				source, sourceErr := sourceBinder.BindFunctionSource(raw)
 				e.mu.Unlock()
 				if sourceErr != nil {
 					t.Fatal("actual function source binding", sourceErr)
 				}
-				completed, err := sourceBinder.completeFunctionDefinitions(raw, source, []parser.FunctionColumnDefinition{
+				completed, err := sourceBinder.CompleteFunctionDefinitions(raw, source, []parser.FunctionColumnDefinition{
 					{Name: parser.Identifier{Text: "a"}, Type: parser.TypeName{Name: "strict_null_checked"}},
 					{Name: parser.Identifier{Text: "b"}, Type: parser.TypeName{Name: "text"}},
 				})
@@ -230,7 +230,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed nil routine carrier admitted")
 			}
-			if !reflect.DeepEqual(call, before) || !reflect.DeepEqual(binder.dependencies, original) {
+			if !reflect.DeepEqual(call, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("completion/probes mutated original node or manifest")
 			}
 			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
@@ -243,7 +243,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		ref := roleTableRef(t, e, "json_authority_recipe")
 		recipe := view.MustRelation(ref.Address)
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "json_to_record('{}'::json)")
-		original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+		original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 		call := node.(functions.JSONRecord)
 		identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
 		grafted, _, err := mapBoundExpression(view, call, identity, nil, recipe, nil)
@@ -267,7 +267,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			t.Fatal("graft changed more than original node/child recipe provenance", grafted)
 		}
 		raw := statement(t, "SELECT json_to_record('{}'::json)").(*parser.Select).Targets[0].(parser.FunctionExpr)
-		completed, err := binder.completeFunctionDefinitions(raw, grafted, []parser.FunctionColumnDefinition{
+		completed, err := binder.CompleteFunctionDefinitions(raw, grafted, []parser.FunctionColumnDefinition{
 			{Name: parser.Identifier{Text: "a"}, Type: parser.TypeName{Name: "integer"}},
 			{Name: parser.Identifier{Text: "b"}, Type: parser.TypeName{Name: "text"}},
 		})
@@ -302,7 +302,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("actual original stored recipe admission", err)
 			}
 		}
-		if call.Info.RoutineRecipeReference != nil || call.Defined || !call.ResultUsage().Type.IsDeferredRecord() || !reflect.DeepEqual(binder.dependencies, original) {
+		if call.Info.RoutineRecipeReference != nil || call.Defined || !call.ResultUsage().Type.IsDeferredRecord() || !reflect.DeepEqual(binder.Dependencies, original) {
 			t.Fatal("graft/completion changed original node or manifest")
 		}
 	})
@@ -311,19 +311,19 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 func TestJSONRecordRoutineFailedConstructor(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "FROM"
+	b.Clause.AggregateClause = "FROM"
 	// A retained physical usage with an invalid integer typmod reaches the
 	// genuine constructor's validation; no alternate provider or fake call is used.
-	usage := b.typ(sqltype.Int4).Usage()
+	usage := b.Type(sqltype.Int4).Usage()
 	usage.Typmod = 0
 	column := catalog.Column{Name: "base", Usage: usage}
-	b.query.namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
+	b.Query.Namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
 	raw := statement(t, "SELECT json_populate_record(base,'{}'::json)").(*parser.Select).Targets[0].(parser.FunctionExpr)
 	_, err := b.BindFunctionSource(raw)
 	if err == nil || err.Error() != "invalid JSON record plan" {
 		t.Fatal("original constructor error not propagated", err)
 	}
-	for _, dependency := range b.dependencies {
+	for _, dependency := range b.Dependencies {
 		if dependency.Ref.Address == (ids.ObjectAddress{ids.ProcedureClassID, 3960, 0}) {
 			t.Fatal("failed constructor captured the unselected outer declaration", dependency)
 		}

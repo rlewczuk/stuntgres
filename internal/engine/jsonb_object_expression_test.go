@@ -21,7 +21,7 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 	view := engine.CatalogRead()
 	binder := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 	for id := range types {
-		types[id] = binder.typ(id)
+		types[id] = binder.Type(id)
 	}
 	for _, texts := range [][]string{{"[-2:1]={a,1,b,2}"}, {"[-2:-1]={a,b}", "[7:8]={1,2}"}} {
 		args := make([]expr.Expr, len(texts))
@@ -104,7 +104,7 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 	}
 	bound := functions.Binary{Info: expr.Info{Usage: types[sqltype.JSONB].Usage()}, Plan: binaryPlan, Args: []expr.Expr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	rewritten, err := binder.rewriteGroup(bound, []expr.Expr{column})
+	rewritten, err := binder.RewriteGroup(bound, []expr.Expr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,13 +141,13 @@ func TestJSONBObjectBinderSignatureBoundaries(t *testing.T) {
 		{"jsonb_object", []parser.Expr{unknown, unknown, unknown}},
 	} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: tc.name, Pos: pos}}}, Args: tc.args, Pos: pos}
-		if _, err := binder.bindFunctionProvider(raw); err == nil {
+		if _, err := binder.BindFunctionProvider(raw); err == nil {
 			t.Fatal("admitted incompatible or adjacent signature", tc.name)
 		}
 	}
 	for _, variadic := range []bool{false, true} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: "jsonb_object", Pos: pos}}}, Args: []parser.Expr{unknown}, Variadic: variadic, Pos: pos}
-		node, err := binder.bindFunctionProvider(raw)
+		node, err := binder.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,7 +162,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 	for _, query := range []string{"SELECT jsonb_object($1)", "SELECT jsonb_object($1,$2)", "SELECT jsonb_object($1,$1)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
@@ -170,19 +170,19 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 		if call.Plan.Name() != "jsonb_object" || node.ResultUsage().Type.ID() != sqltype.JSONB || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 			t.Fatal(query, node.Properties())
 		}
-		for _, usage := range b.params.parameters {
+		for _, usage := range b.Params.Parameters {
 			if usage.Type.ID() != 1009 || usage.Typmod != -1 {
 				t.Fatal("lost TEXT[] inference", usage)
 			}
 		}
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	array := b.typ(1009).Usage()
-	b.target.relation = &catalog.Relation{
+	array := b.Type(1009).Usage()
+	b.Target.Relation = &catalog.Relation{
 		Columns:    []catalog.Column{{Name: "a", Usage: array}, {Name: "v", Usage: array}},
 		Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "v": 1},
 	}
-	node, err := b.bind(statement(t, "SELECT jsonb_object(a,v)").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+	node, err := b.Bind(statement(t, "SELECT jsonb_object(a,v)").(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 	if err != nil || !node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 		t.Fatal(node, err)
 	}
@@ -198,9 +198,9 @@ func TestJSONBObjectBinderStageAndVolatility(t *testing.T) {
 		{"SELECT jsonb_object(ARRAY['k',clock_timestamp()::text])", expr.Properties{Volatility: expr.Volatile}},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
+		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.query, err)
 		}

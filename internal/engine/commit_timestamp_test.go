@@ -302,7 +302,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		if name != "pg_last_committed_xact" {
 			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
 		}
-		bound, err := b.bindFunctionProvider(raw)
+		bound, err := b.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -334,7 +334,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		}
 		if len(n.(expr.Composite).Children()) != 0 {
 			column := plan.ColumnExpr{
-				Info:   b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, expr.Properties{RowDependent: true}),
+				Info:   b.Info(b.Type(sqltype.Xid).Usage(), parser.Position{}, expr.Properties{RowDependent: true}),
 				Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
 			}
 			info := expr.InfoOf(n)
@@ -366,7 +366,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			if d.IsComposite() {
 				return d
 			}
-			return fb.typ(d.ID())
+			return fb.Type(d.ID())
 		})
 		if err != nil || mapped.(expr.StoredProvider).ValidateStoredProvider() != nil {
 			t.Fatal("retagged provider", err)

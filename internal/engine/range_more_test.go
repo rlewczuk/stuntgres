@@ -115,7 +115,7 @@ func TestRangeMoreExpressionHooks(t *testing.T) {
 
 func TestRangeMoreBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	for _, tc := range []struct {
 		input, output sqltype.ID
 		text, want    string
@@ -124,7 +124,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		{sqltype.Int8Range, sqltype.Int8Multirange, "[1,4]", "{[1,5)}"},
 		{sqltype.NumRange, sqltype.NumMultirange, "(1.00,2.000]", "{(1.00,2.000]}"},
 	} {
-		d := b.typ(tc.input)
+		d := b.Type(tc.input)
 		value, err := d.Input(context.Background(), tc.text, -1)
 		if err != nil {
 			t.Fatal(err)
@@ -132,7 +132,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		arg := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
 		raw := nullCountRaw("multirange")
 		node, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
-		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {
+		if err != nil || node.ResultUsage().Type != b.Type(tc.output) {
 			t.Fatal(node, err)
 		}
 		got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
@@ -146,12 +146,12 @@ func TestRangeMoreBinding(t *testing.T) {
 	}
 	raw := nullCountRaw("unnest", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}})
 	raw.Pos = parser.Position{Character: 8}
-	_, err := b.bindUnnest(raw)
+	_, err := b.BindUnnest(raw)
 	inspectBindingDiagnostic(t, err, "42725", "function unnest(unknown) is not unique", "8")
 	for _, id := range []sqltype.ID{sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange} {
 		raw := nullCountRaw("multirange")
 		raw.Pos = parser.Position{Character: 8}
-		d := b.typ(id)
+		d := b.Type(id)
 		_, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Usage: d.Usage()}})
 		inspectBindingDiagnostic(t, err, "0A000", "temporal multirange construction is unsupported", "8")
 	}

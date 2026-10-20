@@ -101,7 +101,7 @@ func TestRowComparisonAnalysis(t *testing.T) {
 			{row(arrayUnitInteger(1)), row(arrayUnitInteger(1), arrayUnitInteger(2)), "42601"},
 			{row(arrayUnitInteger(1), arrayUnitInteger(2)), row(arrayUnitInteger(2), parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}), "42883"},
 		} {
-			_, err := b.bindRowPredicate(raw, sqltype.CompareEqual, tc.left, tc.right, mode)
+			_, err := b.BindRowPredicate(raw, sqltype.CompareEqual, tc.left, tc.right, mode)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 				t.Fatal(mode, tc.code, err)
@@ -109,7 +109,7 @@ func TestRowComparisonAnalysis(t *testing.T) {
 		}
 	}
 	unknown := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "1"}}
-	node, err := b.bindRowPredicate(raw, sqltype.CompareEqual, row(unknown), row(arrayUnitInteger(1)), "IS NOT DISTINCT FROM")
+	node, err := b.BindRowPredicate(raw, sqltype.CompareEqual, row(unknown), row(arrayUnitInteger(1)), "IS NOT DISTINCT FROM")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestRowComparisonAnalysis(t *testing.T) {
 	for i := range fields {
 		fields[i] = arrayUnitInteger(1)
 	}
-	_, _, err = b.rowComparisonOperands(row(fields...))
+	_, _, err = b.RowComparisonOperands(row(fields...))
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "54011" || diagnostic.Position != "8" {
 		t.Fatal(err)
@@ -138,7 +138,7 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 			fields[i] = arrayUnitInteger(int64(i + 1))
 		}
 		row := parser.RowExpr{Fields: fields, Explicit: true}
-		node, err := b.bindRowPredicate(raw, sqltype.CompareEqual, row, row, "IS NOT DISTINCT FROM")
+		node, err := b.BindRowPredicate(raw, sqltype.CompareEqual, row, row, "IS NOT DISTINCT FROM")
 		if err != nil {
 			t.Fatal(err)
 		}

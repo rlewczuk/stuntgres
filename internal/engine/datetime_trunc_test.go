@@ -29,7 +29,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		{"time", "24:00", sqltype.Interval, expr.Immutable},
 	} {
 		raw := datetimeMakeRaw("date_trunc", datetimeMakeString("day"), ageFiniteTyped(tc.typ, tc.source))
-		node, err := b.bindFunctionProvider(raw)
+		node, err := b.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -45,7 +45,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		if len(children) != 2 {
 			t.Fatal(children)
 		}
-		if !b.sameGroupExpression(e, e) {
+		if !b.SameGroupExpression(e, e) {
 			t.Fatal("structural equality")
 		}
 		replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -70,17 +70,17 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := datetimeMakeRaw("date_trunc", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3})
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.params.parameters[1].Type.ID() != sqltype.Text || b.params.parameters[2].Type.ID() != sqltype.Timestamptz || b.params.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || exec.PlannedVolatility(node) != expr.Immutable {
-		t.Fatal(node.Properties(), b.params.parameters)
+	if b.Params.Parameters[1].Type.ID() != sqltype.Text || b.Params.Parameters[2].Type.ID() != sqltype.Timestamptz || b.Params.Parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || exec.PlannedVolatility(node) != expr.Immutable {
+		t.Fatal(node.Properties(), b.Params.Parameters)
 	}
 	e := node.(functions.DatetimeTrunc)
 	for _, i := range []int{0, 1, 2} {
 		n := e
-		n.Args[i] = plan.LiteralExpr{Info: b.info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(n.Args[i].ResultUsage().Type)}
+		n.Args[i] = plan.LiteralExpr{Info: b.Info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(n.Args[i].ResultUsage().Type)}
 		simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, n, false)
 		if err != nil || !changed || exec.PlannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)
@@ -101,7 +101,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 		if tc.zone {
 			args = append(args, datetimeMakeString("UTC"))
 		}
-		_, err := b.bindFunctionProvider(datetimeMakeRaw("date_trunc", args...))
+		_, err := b.BindFunctionProvider(datetimeMakeRaw("date_trunc", args...))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal(tc, err)

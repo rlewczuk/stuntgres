@@ -19,7 +19,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT routine_unit_stored(1)").(*parser.Select).Targets[0]
-	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 		{"missing-carrier", func(n *plan.SQLRoutineExpr) { n.RoutineReference = nil }},
 		{"missing-argument", func(n *plan.SQLRoutineExpr) { n.Args = nil }},
 		{"nil-argument", func(n *plan.SQLRoutineExpr) { n.Args = []expr.Expr{nil} }},
-		{"wrong-result", func(n *plan.SQLRoutineExpr) { n.Usage = b.typ(sqltype.Int8).Usage() }},
+		{"wrong-result", func(n *plan.SQLRoutineExpr) { n.Usage = b.Type(sqltype.Int8).Usage() }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			bad := original
@@ -92,7 +92,7 @@ func TestSQLRoutineDefaultClosureBoundary(t *testing.T) {
 	} {
 		t.Run(test.expression, func(t *testing.T) {
 			raw := statement(t, "SELECT "+test.expression).(*parser.Select).Targets[0]
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

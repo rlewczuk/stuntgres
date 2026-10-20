@@ -134,9 +134,9 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				var err error
 				if executable {
 					b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-					b.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
+					b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
 					if left != nil {
-						b.target.relation.Columns[0].Usage = left.Usage()
+						b.Target.Relation.Columns[0].Usage = left.Usage()
 					}
 					column := func(name string) parser.Expr {
 						return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
@@ -146,7 +146,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 						args = []parser.Expr{column("l"), column("r")}
 					}
 					raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: candidate[2]}}}, Args: args}
-					bound, err = b.bind(raw, expressionPolicy{context: projectionContext})
+					bound, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 					executable = err == nil
 				}
 				if executable {

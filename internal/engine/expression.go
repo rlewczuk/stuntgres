@@ -22,17 +22,17 @@ import (
 type expressionContext uint8
 
 const (
-	projectionContext expressionContext = iota
-	filterContext
-	assignmentContext
-	functionArgumentContext
+	ProjectionContext expressionContext = iota
+	FilterContext
+	AssignmentContext
+	FunctionArgumentContext
 )
 
 type expressionPolicy struct {
-	context          expressionContext
-	expected         sqltype.Usage
-	mode             sqltype.CoercionContext
-	column           string
+	Context          expressionContext
+	Expected         sqltype.Usage
+	Mode             sqltype.CoercionContext
+	Column           string
 	booleanConstruct string
 	// Selected textual function roles admit internal CHAR annotations.
 	stringInput bool
@@ -50,33 +50,33 @@ type expressionPolicy struct {
 // and op with a host seam); dependencies is the statement's dependency
 // manifest. Everything else lives in the value groups of binder_groups.go.
 type expressionBinder struct {
-	host         analyzeHost
-	ctx          context.Context
-	expected     analyze.Expected
-	input        sqltype.InputEnvironment
-	dependencies []catalog.ExpressionDependency
+	Host         analyzeHost
+	Ctx          context.Context
+	Expected     analyze.Expected
+	Input        sqltype.InputEnvironment
+	Dependencies []catalog.ExpressionDependency
 
-	target   targetContext
-	params   parameterState
-	consumer consumerContext
-	capture  viewCapture
-	stored   storedSyntaxState
-	prepared preparedCaptures
-	clause   clauseState
-	grouping groupingState
-	query    queryScopeState
+	Target   targetContext
+	Params   parameterState
+	Consumer consumerContext
+	Capture  viewCapture
+	Stored   storedSyntaxState
+	Prepared preparedCaptures
+	Clause   clauseState
+	Grouping groupingState
+	Query    queryScopeState
 	cte      cteState
 }
 
-func newHostedBinder(ctx context.Context, host analyzeHost, input sqltype.InputEnvironment, expected analyze.Expected) *expressionBinder {
-	b := &expressionBinder{host: host, ctx: ctx, params: parameterState{parameters: make(map[int]sqltype.Usage)}, input: input, expected: expected}
-	host.CaptureEnumOperationSafety(&b.input)
+func NewBinder(ctx context.Context, host analyzeHost, input sqltype.InputEnvironment, expected analyze.Expected) *expressionBinder {
+	b := &expressionBinder{Host: host, Ctx: ctx, Params: parameterState{Parameters: make(map[int]sqltype.Usage)}, Input: input, Expected: expected}
+	host.CaptureEnumOperationSafety(&b.Input)
 	if expected.Held {
-		b.seedParameters(expected.Parameters.Types)
+		b.SeedParameters(expected.Parameters.Types)
 		if expected.RefreshTemporals {
 			for _, capture := range expected.Temporals {
 				if !analyze.RefreshableTemporal(capture) {
-					b.prepared.Temporals = append(b.prepared.Temporals, capture)
+					b.Prepared.Temporals = append(b.Prepared.Temporals, capture)
 				}
 			}
 		}
@@ -84,96 +84,96 @@ func newHostedBinder(ctx context.Context, host analyzeHost, input sqltype.InputE
 	return b
 }
 
-func (b *expressionBinder) seedParameters(types []sqltype.Usage) {
-	b.params.formalParameters = types
-	currentType := analyze.RecordTypeMapper(func(t *sqltype.Descriptor) *sqltype.Descriptor { return b.typ(t.ID()) })
+func (b *expressionBinder) SeedParameters(types []sqltype.Usage) {
+	b.Params.formalParameters = types
+	currentType := analyze.RecordTypeMapper(func(t *sqltype.Descriptor) *sqltype.Descriptor { return b.Type(t.ID()) })
 	for i, usage := range types {
 		if usage.Type != nil {
 			usage.Type = currentType(usage.Type)
 		}
-		b.params.parameters[i+1] = usage
+		b.Params.Parameters[i+1] = usage
 	}
 }
 
 // Binding must retain the caller's catalog/path authority, including a private
 // CREATE candidate, read through the operation's definition reader. Execution
 // still opens providers through live authorization.
-func (b *expressionBinder) bindingAuthorization() (analyze.Authority, error) {
-	return b.host.BindingAuthority(b.query.auth)
+func (b *expressionBinder) BindingAuthorization() (analyze.Authority, error) {
+	return b.Host.BindingAuthority(b.Query.Auth)
 }
-func (b *expressionBinder) typ(id sqltype.ID) *sqltype.Descriptor {
+func (b *expressionBinder) Type(id sqltype.ID) *sqltype.Descriptor {
 	d, _ := b.definitionType(id)
 	return d
 }
 func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.DefinitionRevision) {
-	for _, d := range b.dependencies {
+	for _, d := range b.Dependencies {
 		if d.Ref == ref {
 			return
 		}
 	}
-	b.dependencies = append(b.dependencies, catalog.ExpressionDependency{ref, revision})
+	b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{ref, revision})
 }
-func (b *expressionBinder) bindingCatalog() catalog.Read {
-	if b.query.auth != nil {
-		return b.query.auth.ReadCatalog()
+func (b *expressionBinder) BindingCatalog() catalog.Read {
+	if b.Query.Auth != nil {
+		return b.Query.Auth.ReadCatalog()
 	}
-	return b.host.CurrentCatalog()
+	return b.Host.CurrentCatalog()
 }
 
-func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p expr.Properties) expr.Info {
-	view := b.bindingCatalog()
+func (b *expressionBinder) Info(u sqltype.Usage, pos parser.Position, p expr.Properties) expr.Info {
+	view := b.BindingCatalog()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}
 	revision := ids.DefinitionRevision(1)
 	if descriptor, ok := b.definitionDescriptor(address); ok {
 		revision = descriptor.Revision()
 	}
-	b.dependency(b.host.CatalogOwner().Domain.Ref(view.Epoch(), address), revision)
+	b.dependency(b.Host.CatalogOwner().Domain.Ref(view.Epoch(), address), revision)
 	if u.Collation.ID != 0 {
 		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}
 		if d, ok := b.definitionDescriptor(address); ok {
-			b.dependency(b.host.CatalogOwner().Domain.Ref(view.Epoch(), address), d.Revision())
+			b.dependency(b.Host.CatalogOwner().Domain.Ref(view.Epoch(), address), d.Revision())
 		}
 	}
 	return expr.Info{Usage: u, Pos: pos, Property: p}
 }
-func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position) error {
-	if n <= 0 || b.params.closedRoutineFormals && n > len(b.params.formalParameters) {
+func (b *expressionBinder) Constrain(n int, u sqltype.Usage, pos parser.Position) error {
+	if n <= 0 || b.Params.ClosedRoutineFormals && n > len(b.Params.formalParameters) {
 		return expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", n), pos)
 	}
-	if old, ok := b.params.parameters[n]; ok && old.Type != nil && old.Type != u.Type {
-		if b.params.updateParameters {
+	if old, ok := b.Params.Parameters[n]; ok && old.Type != nil && old.Type != u.Type {
+		if b.Params.UpdateParameters {
 			// UPDATE uses occurrence-sensitive inference diagnostics; other
 			// assignment consumers retain their selected 0A000 boundary.
-			_, err := b.coerceParameter(plan.ParameterExpr{Info: expr.Info{Pos: pos}, Number: n}, u)
+			_, err := b.CoerceParameter(plan.ParameterExpr{Info: expr.Info{Pos: pos}, Number: n}, u)
 			return err
 		}
 		return sqlError("0A000", "parameter reused with different destination types")
 	}
-	b.params.parameters[n] = u.Type.Usage()
+	b.Params.Parameters[n] = u.Type.Usage()
 	return nil
 }
-func (b *expressionBinder) finish() (ParameterInfo, error) {
+func (b *expressionBinder) Finish() (ParameterInfo, error) {
 	// Retained unknown ANY and null-test occurrences share binding order.
 	// Diagnose occurrence mismatches before gaps or unresolved shared slots.
-	for _, p := range b.params.anyParameters {
-		if b.params.parameters[p.Number].Type != nil {
+	for _, p := range b.Params.AnyParameters {
+		if b.Params.Parameters[p.Number].Type != nil {
 			return ParameterInfo{}, expr.ErrorAt("42P08", fmt.Sprintf("could not determine data type of parameter $%d", p.Number), p.Pos)
 		}
 	}
-	keys := make([]int, 0, len(b.params.parameters))
-	for n := range b.params.parameters {
+	keys := make([]int, 0, len(b.Params.Parameters))
+	for n := range b.Params.Parameters {
 		keys = append(keys, n)
 	}
 	sort.Ints(keys)
 	for i, n := range keys {
-		if n != i+1 || b.params.parameters[n].Type == nil {
+		if n != i+1 || b.Params.Parameters[n].Type == nil {
 			return ParameterInfo{}, sqlError("42P18", fmt.Sprintf("could not determine data type of parameter $%d", i+1))
 		}
 	}
 	info := ParameterInfo{Count: len(keys), Types: make([]sqltype.Usage, len(keys))}
 	for i, n := range keys {
-		info.Types[i] = b.params.parameters[n]
-		if err := b.captureTypeDiagnosticInput(info.Types[i].Type); err != nil {
+		info.Types[i] = b.Params.Parameters[n]
+		if err := b.CaptureTypeDiagnosticInput(info.Types[i].Type); err != nil {
 			return ParameterInfo{}, err
 		}
 	}
@@ -182,25 +182,25 @@ func (b *expressionBinder) finish() (ParameterInfo, error) {
 
 // Output fallback belongs to an unresolved occurrence, not its subsequently
 // constrained shared slot. These private provisional nodes never escape describe.
-func (b *expressionBinder) finalizeProjection(node expr.Expr) (expr.Expr, error) {
+func (b *expressionBinder) FinalizeProjection(node expr.Expr) (expr.Expr, error) {
 	p, ok := node.(plan.ParameterExpr)
 	if !ok || p.Usage.Type != nil {
 		return node, nil
 	}
-	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
+	return b.CoerceParameter(p, b.Type(sqltype.Text).Usage())
 }
-func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
-	if b.clause.domainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
-		return plan.DomainValueExpr{Info: b.info(*b.clause.domainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
+func (b *expressionBinder) Column(raw parser.ColumnExpr) (expr.Expr, error) {
+	if b.Clause.DomainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
+		return plan.DomainValueExpr{Info: b.Info(*b.Clause.DomainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
 	}
-	if b.target.generatedOwner != nil {
+	if b.Target.GeneratedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-		owner := b.target.generatedOwner
-		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.query.namespace.Qualifiers[0].Schema
+		owner := b.Target.GeneratedOwner
+		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.Query.Namespace.Qualifiers[0].Schema
 		if qualified {
 			if name == "tableoid" {
-				ref := b.query.sources[0].Ref
-				return plan.TableOIDExpr{Info: b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), Owner: ref}, nil
+				ref := b.Query.Sources[0].Ref
+				return plan.TableOIDExpr{Info: b.Info(b.Type(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), Owner: ref}, nil
 			}
 			if catalog.IsSystemColumn(name) {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in column generation expression`, name), raw.Pos)
@@ -231,45 +231,45 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 		}
 		return node, nil
 	}
-	if b.consumer.checkConsumer && b.clause.domainValueUsage == nil && len(raw.Name.Parts) > 0 {
+	if b.Consumer.CheckConsumer && b.Clause.DomainValueUsage == nil && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		switch name {
 		case "ctid", "xmin", "cmin", "xmax", "cmax":
 			return nil, expr.ErrorAt("42P10", `system column "`+name+`" reference in check constraint is invalid`, raw.Pos)
 		}
 	}
-	if b.target.returningAliases != nil {
+	if b.Target.returningAliases != nil {
 		return b.returningColumn(raw)
 	}
-	if b.query.namespace != nil {
+	if b.Query.Namespace != nil {
 		return b.queryColumn(raw)
 	}
-	if len(raw.Name.Parts) == 2 && !b.target.deleteTarget {
+	if len(raw.Name.Parts) == 2 && !b.Target.deleteTarget {
 		return nil, expr.ErrorAt("0A000", "qualified column references are unsupported", raw.Pos)
 	}
 	if len(raw.Name.Parts) == 0 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if b.target.relation == nil {
+	if b.Target.Relation == nil {
 		return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
 	}
 	if len(raw.Name.Parts) == 2 {
 		qualifier := raw.Name.Parts[0].Text
-		visible := b.target.name
-		if b.target.alias != "" {
-			visible = b.target.alias
+		visible := b.Target.Name
+		if b.Target.alias != "" {
+			visible = b.Target.alias
 		}
 		if qualifier != visible {
-			if qualifier == b.target.name && b.target.alias != "" {
+			if qualifier == b.Target.Name && b.Target.alias != "" {
 				err := expr.ErrorAt("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, qualifier), raw.Pos).(*sqlstate.Error)
-				err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.target.alias)
+				err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.Target.alias)
 				return nil, err
 			}
 			return nil, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, qualifier), raw.Pos)
 		}
 	}
-	i, ok := b.target.relation.Index[name]
+	i, ok := b.Target.Relation.Index[name]
 	if !ok {
 		if len(raw.Name.Parts) == 2 {
 			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", raw.Name.Parts[0].Text, name), raw.Pos)
@@ -279,56 +279,56 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	return b.columnAt(i, raw.Pos), nil
 }
 func (b *expressionBinder) useColumn(i int) ids.ObjectRef {
-	return b.useColumnOf(b.target.relation, i)
+	return b.useColumnOf(b.Target.Relation, i)
 }
 
 func (b *expressionBinder) useColumnOf(relation *catalog.Relation, i int) ids.ObjectRef {
-	ref := b.target.ref
+	ref := b.Target.Ref
 	ref.Address.SubID = relation.Attributes[i]
 	b.dependency(ref, relation.Revision())
 	used := false
-	for _, slot := range b.target.uses {
+	for _, slot := range b.Target.Uses {
 		if slot == i {
 			used = true
 			break
 		}
 	}
 	if !used {
-		b.target.uses = append(b.target.uses, i)
+		b.Target.Uses = append(b.Target.Uses, i)
 	}
-	b.info(relation.Columns[i].Usage, parser.Position{Offset: -1}, expr.Properties{})
+	b.Info(relation.Columns[i].Usage, parser.Position{Offset: -1}, expr.Properties{})
 	return ref
 }
 func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
-	return b.columnAtOf(b.target.relation, i, pos)
+	return b.columnAtOf(b.Target.Relation, i, pos)
 }
 
 func (b *expressionBinder) columnAtOf(relation *catalog.Relation, i int, pos parser.Position) expr.Expr {
 	ref := b.useColumnOf(relation, i)
 	column := plan.ColumnExpr{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: i}
-	if b.target.generatedOwner == nil {
+	if b.Target.GeneratedOwner == nil {
 		column = column.WithGeneration(relation, i, 0)
 	}
 	return column
 }
-func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (boundResult expr.Expr, bindError error) {
-	if policy.context == filterContext && !policy.operand && policy.booleanConstruct == "" {
-		return b.bindBoolean(raw, policy.context, "WHERE")
+func (b *expressionBinder) Bind(raw parser.Expr, policy expressionPolicy) (boundResult expr.Expr, bindError error) {
+	if policy.Context == FilterContext && !policy.operand && policy.booleanConstruct == "" {
+		return b.BindBoolean(raw, policy.Context, "WHERE")
 	}
-	if err := b.ctx.Err(); err != nil {
+	if err := b.Ctx.Err(); err != nil {
 		return nil, err
 	}
 	if raw == nil {
 		return nil, fmt.Errorf("stuntgres: missing scalar expression")
 	}
-	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.clause.selectedOperatorArgs) {
-		node := b.clause.selectedOperatorArgs[-slot.Number-1]
-		if b.grouping.argumentOwner.active && !b.grouping.argumentOwner.found {
+	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.Clause.SelectedOperatorArgs) {
+		node := b.Clause.SelectedOperatorArgs[-slot.Number-1]
+		if b.Grouping.ArgumentOwner.Active && !b.Grouping.ArgumentOwner.Found {
 			// Selection analyzed this operand before the winning argument
 			// owner existed. Preserve its lexical occurrence even if the
 			// signature does not retain an executable argument.
-			if nested := windowOccurrence(node); nested != nil && nested.Frame == b.FrameID() {
-				b.grouping.argumentOwner.first, b.grouping.argumentOwner.found = nested.Pos, true
+			if nested := WindowOccurrence(node); nested != nil && nested.Frame == b.FrameID() {
+				b.Grouping.ArgumentOwner.First, b.Grouping.ArgumentOwner.Found = nested.Pos, true
 			}
 		}
 		return node, nil
@@ -337,11 +337,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if bindError != nil || boundResult == nil {
 			return
 		}
-		if policy.context == assignmentContext && !policy.deferAssignment {
+		if policy.Context == AssignmentContext && !policy.deferAssignment {
 			bindError = rejectRegexpSets(boundResult, "UPDATE", false)
 		}
-		if policy.context == filterContext {
-			clause := b.clause.aggregateClause
+		if policy.Context == FilterContext {
+			clause := b.Clause.AggregateClause
 			if clause == "" || clause == "SELECT" {
 				clause = "WHERE"
 			}
@@ -352,35 +352,35 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		}
 	}()
 	var node expr.Expr
-	if selected, handled, err := b.bindSQLRoutineSyntax(raw, policy); handled {
+	if selected, handled, err := b.BindSQLRoutineSyntax(raw, policy); handled {
 		if err != nil {
 			return nil, err
 		}
 		node = selected
 	}
-	if node == nil && b.consumer.partitionConsumer != "" {
+	if node == nil && b.Consumer.PartitionConsumer != "" {
 		switch r := raw.(type) {
 		case parser.ColumnExpr:
-			if b.consumer.partitionConsumer == "partition bound" {
+			if b.Consumer.PartitionConsumer == "partition bound" {
 				return nil, expr.ErrorAt("0A000", "cannot use column reference in partition bound expression", r.Pos)
 			}
 		case parser.IndexSubqueryExpr:
-			return nil, b.consumer.partitionExpressionError("0A000", "cannot use subquery in "+b.consumer.partitionConsumer, r.Pos)
+			return nil, b.Consumer.partitionExpressionError("0A000", "cannot use subquery in "+b.Consumer.PartitionConsumer, r.Pos)
 		case parser.SubqueryExpr:
-			return nil, b.consumer.partitionExpressionError("0A000", "cannot use subquery in "+b.consumer.partitionConsumer, r.Pos)
+			return nil, b.Consumer.partitionExpressionError("0A000", "cannot use subquery in "+b.Consumer.PartitionConsumer, r.Pos)
 		case parser.AggregateExpr:
 			if r.Window == nil && r.Name != "row_number" && r.Name != "ntile" && !functions.WindowValueName(r.Name) && !functions.WindowOffsetName(r.Name) {
 				for _, arg := range r.Args {
-					if _, err := b.bind(arg, expressionPolicy{context: projectionContext}); err != nil {
+					if _, err := b.Bind(arg, expressionPolicy{Context: ProjectionContext}); err != nil {
 						return nil, err
 					}
 				}
-				return nil, b.consumer.partitionExpressionError("42803", "aggregate functions are not allowed in "+b.consumer.partitionContextPlural(), r.Pos)
+				return nil, b.Consumer.partitionExpressionError("42803", "aggregate functions are not allowed in "+b.Consumer.partitionContextPlural(), r.Pos)
 			}
 		}
 	}
-	if node == nil && b.clause.functionProjection.matches(raw) {
-		node = b.clause.functionProjection.operand
+	if node == nil && b.Clause.FunctionProjection.matches(raw) {
+		node = b.Clause.FunctionProjection.Operand
 	}
 	if node == nil {
 		switch r := raw.(type) {
@@ -391,12 +391,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.IndexSubqueryExpr:
-			if b.consumer.indexPredicateConsumer {
+			if b.Consumer.IndexPredicateConsumer {
 				return nil, expr.ErrorAt("0A000", "cannot use subquery in index predicate", r.Pos)
 			}
 			return nil, expr.ErrorAt("0A000", "cannot use subquery in index expression", r.Pos)
 		case parser.SubqueryExpr:
-			if b.params.executeParameters {
+			if b.Params.ExecuteParameters {
 				return nil, expr.ErrorAt("0A000", "cannot use subquery in EXECUTE parameter", r.Pos)
 			}
 			var err error
@@ -406,7 +406,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.RowExpr:
 			var err error
-			node, err = b.bindRow(r, policy.expected, policy.mode, r.Pos)
+			node, err = b.BindRow(r, policy.Expected, policy.Mode, r.Pos)
 			if err != nil {
 				return nil, err
 			}
@@ -437,8 +437,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			// A held description already analyzed this syntax. Execute must
 			// still bind fresh descriptors and evaluate fresh values.
-			if warning != nil && !b.expected.Held {
-				b.host.EmitWarning(*warning)
+			if warning != nil && !b.Expected.Held {
+				b.Host.EmitWarning(*warning)
 			}
 		case parser.ForbiddenGenerationExpr:
 			return nil, expr.ErrorAt(r.Code, r.Message, r.Pos)
@@ -452,7 +452,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if r.Window == nil && b.cte.recursiveFrames[b.FrameID()] {
 				return nil, expr.ErrorAt("42P19", "aggregate functions are not allowed in a recursive query's recursive term", r.Pos)
 			}
-			if b.params.executeParameters {
+			if b.Params.ExecuteParameters {
 				if r.Window != nil {
 					return nil, expr.ErrorAt("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
 				}
@@ -463,16 +463,16 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 			}
 			diagnosticName := name
-			if len(b.clause.selectedWindowCallee.Parts) != 0 {
+			if len(b.Clause.selectedWindowCallee.Parts) != 0 {
 				// Consume before Signature binds any children. Nested calls
 				// must retain their own lexical diagnostic spelling.
-				diagnosticName = b.clause.selectedWindowCallee
-				b.clause.selectedWindowCallee = parser.ObjectName{}
+				diagnosticName = b.Clause.selectedWindowCallee
+				b.Clause.selectedWindowCallee = parser.ObjectName{}
 			}
-			parentAggregates, parentWindows := b.grouping.aggregates, b.grouping.windowCalls
+			parentAggregates, parentWindows := b.Grouping.Aggregates, b.Grouping.WindowCalls
 			defer func() {
 				if bindError != nil {
-					b.grouping.aggregates, b.grouping.windowCalls = parentAggregates, parentWindows
+					b.Grouping.Aggregates, b.Grouping.WindowCalls = parentAggregates, parentWindows
 				}
 			}()
 			if functions.HypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 && r.Window != nil {
@@ -501,28 +501,28 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				return nil, expr.ErrorAt("42809", "window function "+catalog.ObjectNameText(diagnosticName)+" requires an OVER clause", r.Pos)
 			}
-			parentOwner := b.grouping.argumentOwner
-			b.grouping.argumentOwner = argumentWindowOwner{active: true}
-			defer func() { b.grouping.argumentOwner = parentOwner }()
-			if b.target.generatedOwner != nil {
+			parentOwner := b.Grouping.ArgumentOwner
+			b.Grouping.ArgumentOwner = argumentWindowOwner{Active: true}
+			defer func() { b.Grouping.ArgumentOwner = parentOwner }()
+			if b.Target.GeneratedOwner != nil {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in column generation expressions", r.Pos)
 			}
-			if b.consumer.indexPredicateConsumer {
+			if b.Consumer.IndexPredicateConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in index predicates", r.Pos)
 			}
-			if b.consumer.indexConsumer {
+			if b.Consumer.IndexConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in index expressions", r.Pos)
 			}
-			if b.clause.aggregateClause == "VALUES" || b.clause.aggregateClause == "INSERT VALUES" && (r.Name == "string_agg" || r.Name == "array_agg") {
+			if b.Clause.AggregateClause == "VALUES" || b.Clause.AggregateClause == "INSERT VALUES" && (r.Name == "string_agg" || r.Name == "array_agg") {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in VALUES", r.Pos)
 			}
-			if b.consumer.checkConsumer {
+			if b.Consumer.CheckConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 			}
 			var err error
 			var returning sqltype.Usage
 			if definition, ok := functions.LookupAggregate(r.Name); ok {
-				node, returning, err = b.bindRegisteredAggregate(r, name, definition)
+				node, returning, err = b.BindRegisteredAggregate(r, name, definition)
 			} else if r.Name == "int_array_aggregate" {
 				node, err = b.bindIntaggAggregate(r, name)
 			} else {
@@ -567,20 +567,20 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.FunctionExpr:
-			if b.params.executeParameters && r.Window != nil {
+			if b.Params.ExecuteParameters && r.Window != nil {
 				return nil, expr.ErrorAt("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
 			}
 			var err error
-			node, err = b.bindFunction(r)
+			node, err = b.BindFunction(r)
 			if err != nil {
 				return nil, err
 			}
 			switch inquiry := node.(type) {
 			case plan.ExtensionPathsExpr:
-				b.consumer.catalogSnapshot = true
+				b.Consumer.CatalogSnapshot = true
 			case expr.SnapshotDemander:
 				demand, _, _ := inquiry.SnapshotDemand(plan.NullLiteral)
-				b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
+				b.Consumer.CatalogSnapshot = b.Consumer.CatalogSnapshot || demand
 			}
 			if r.Window != nil {
 				return nil, expr.ErrorAt("42809", "OVER specified, but "+catalog.ObjectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
@@ -594,16 +594,16 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		case parser.ArrayExpr:
 			var err error
 			var target sqltype.Usage
-			if policy.mode == sqltype.Explicit {
-				target = policy.expected
+			if policy.Mode == sqltype.Explicit {
+				target = policy.Expected
 			}
-			node, err = b.bindArray(r, target)
+			node, err = b.BindArray(r, target)
 			if err != nil {
 				return nil, err
 			}
 		case parser.SubscriptExpr:
 			var err error
-			node, err = b.bindSubscript(r)
+			node, err = b.BindSubscript(r)
 			if err != nil {
 				return nil, err
 			}
@@ -614,88 +614,88 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.ColumnExpr:
-			if pseudo, matched, err := b.ruleColumn(r); matched {
+			if pseudo, matched, err := b.RuleColumn(r); matched {
 				if err != nil {
 					return nil, err
 				}
 				node = pseudo
 				break
 			}
-			if b.consumer.defaultConsumer {
+			if b.Consumer.DefaultConsumer {
 				return nil, expr.ErrorAt("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
 			}
-			if policy.context == assignmentContext {
+			if policy.Context == AssignmentContext {
 				return nil, expr.ErrorAt("0A000", "column references outside SELECT are unsupported", r.Pos)
 			}
 			var err error
-			node, err = b.column(r)
+			node, err = b.Column(r)
 			if err != nil {
 				return nil, err
 			}
 		case parser.ParameterExpr:
-			if b.stored.checkLiterals != nil {
-				if r.Number <= 0 || r.Number > len(b.stored.checkLiterals) {
+			if b.Stored.CheckLiterals != nil {
+				if r.Number <= 0 || r.Number > len(b.Stored.CheckLiterals) {
 					return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 				}
-				node = b.stored.checkLiterals[r.Number-1]
+				node = b.Stored.CheckLiterals[r.Number-1]
 				break
 			}
-			if b.params.noParameters || b.consumer.defaultConsumer || r.Number <= 0 || b.params.closedRoutineFormals && r.Number > len(b.params.formalParameters) {
+			if b.Params.NoParameters || b.Consumer.DefaultConsumer || r.Number <= 0 || b.Params.ClosedRoutineFormals && r.Number > len(b.Params.formalParameters) {
 				return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 			}
-			u := policy.expected
-			if established := b.params.updateInputParameters[r.Number]; established.Type != nil {
+			u := policy.Expected
+			if established := b.Params.updateInputParameters[r.Number]; established.Type != nil {
 				u = established
 			}
-			retained := r.Number <= len(b.params.formalParameters) && b.params.formalParameters[r.Number-1].Type != nil
+			retained := r.Number <= len(b.Params.formalParameters) && b.Params.formalParameters[r.Number-1].Type != nil
 			if retained {
-				u = b.params.formalParameters[r.Number-1]
+				u = b.Params.formalParameters[r.Number-1]
 			}
 			// Retained parameter contracts keep their logical input type, but their
 			// codec must come from the admitted catalog, including private generations.
-			if b.expected.Held && r.Number <= len(b.expected.Parameters.Types) {
-				u = b.expected.Parameters.Types[r.Number-1]
+			if b.Expected.Held && r.Number <= len(b.Expected.Parameters.Types) {
+				u = b.Expected.Parameters.Types[r.Number-1]
 				retained = u.Type != nil
 			}
 			if retained {
-				catalog := b.bindingCatalog()
-				if b.expected.Held && analyze.StatementCatalogType(u.Type) && b.expected.CatalogOwner != nil &&
-					(b.expected.CatalogOwner != catalog.Owner() || b.expected.CatalogEpoch != catalog.Epoch()) {
+				catalog := b.BindingCatalog()
+				if b.Expected.Held && analyze.StatementCatalogType(u.Type) && b.Expected.CatalogOwner != nil &&
+					(b.Expected.CatalogOwner != catalog.Owner() || b.Expected.CatalogEpoch != catalog.Epoch()) {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				current, _ := catalog.LookupType(u.Type.ID())
 				if u.Type.IsDeferredRecord() || u.Type.ID() == 2249 && u.Type.IsComposite() {
 					// Anonymous shapes and deferred RECORD are formal occurrence
 					// authorities, never catalog's lookup-only RECORD identity.
-					current = b.params.parameters[r.Number].Type
+					current = b.Params.Parameters[r.Number].Type
 				}
 				if current == nil && analyze.StatementCatalogType(u.Type) {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				u.Type = current
-				b.params.parameters[r.Number] = u
+				b.Params.Parameters[r.Number] = u
 			}
 			if u.Type == nil {
-				u = b.params.parameters[r.Number]
+				u = b.Params.Parameters[r.Number]
 			}
 			if u.Type == nil {
-				b.params.parameters[r.Number] = sqltype.Usage{}
+				b.Params.Parameters[r.Number] = sqltype.Usage{}
 				node = plan.ParameterExpr{Info: expr.Info{Pos: r.Pos, Property: expr.Properties{ParameterDependent: true}}, Number: r.Number}
 			} else {
-				if err := b.constrain(r.Number, u, r.Pos); err != nil {
+				if err := b.Constrain(r.Number, u, r.Pos); err != nil {
 					return nil, err
 				}
-				node = plan.ParameterExpr{Info: b.info(u.Type.Usage(), r.Pos, expr.Properties{ParameterDependent: true}), Number: r.Number}
+				node = plan.ParameterExpr{Info: b.Info(u.Type.Usage(), r.Pos, expr.Properties{ParameterDependent: true}), Number: r.Number}
 			}
 		case parser.LiteralExpr:
 			v := r.Value
-			u := policy.expected
+			u := policy.Expected
 			var value sqltype.Value
 			var err error
 			switch v.Kind {
 			case parser.NullValue:
 				if u.Type == nil {
-					u = b.typ(sqltype.Text).Usage()
+					u = b.Type(sqltype.Text).Usage()
 				}
 				if u.Type.IsDomain() {
 					// Fresh NULL is an unconstrained physical input. The outer
@@ -704,10 +704,10 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				value = sqltype.Null(u.Type)
 			case parser.BitStringValue:
-				value, err = b.inputConstant(v.Text, b.typ(sqltype.Bit).Usage(), v.Pos)
+				value, err = b.InputConstant(v.Text, b.Type(sqltype.Bit).Usage(), v.Pos)
 			case parser.StringValue:
 				if u.Type == nil {
-					u = b.typ(sqltype.Text).Usage()
+					u = b.Type(sqltype.Text).Usage()
 				}
 				inputUsage := u.Type.Usage()
 				if u.Type.ID() == sqltype.Interval {
@@ -719,17 +719,17 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 						inputUsage = inputUsage.Type.Usage()
 					}
 				}
-				value, err = b.inputConstant(v.Text, inputUsage, v.Pos)
+				value, err = b.InputConstant(v.Text, inputUsage, v.Pos)
 			case parser.NumericValue:
-				value, err = b.inputConstant(v.Text, b.typ(sqltype.Numeric).Usage(), v.Pos)
+				value, err = b.InputConstant(v.Text, b.Type(sqltype.Numeric).Usage(), v.Pos)
 			case parser.IntegerValue:
 				id := sqltype.Int4
 				if v.Integer < -2147483648 || v.Integer > 2147483647 {
 					id = sqltype.Int8
 				}
-				value, err = sqltype.Integer(b.typ(id), v.Integer)
+				value, err = sqltype.Integer(b.Type(id), v.Integer)
 			case parser.BooleanValue:
-				value = sqltype.Boolean(b.typ(sqltype.Bool), v.Boolean)
+				value = sqltype.Boolean(b.Type(sqltype.Bool), v.Boolean)
 			default:
 				return nil, fmt.Errorf("stuntgres: invalid scalar literal")
 			}
@@ -740,7 +740,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if v.Kind == parser.StringValue && u.Type.BaseType().ID() == sqltype.Interval {
 				literalUsage = u.BaseUsage()
 			}
-			info := b.info(literalUsage, v.Pos, expr.Properties{})
+			info := b.Info(literalUsage, v.Pos, expr.Properties{})
 			node = plan.LiteralExpr{Info: info, Value: value}
 			if literalUsage.Type.ID() == sqltype.Regclass && !value.IsNull() {
 				text, _ := value.Text()
@@ -748,25 +748,25 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if err != nil {
 					return nil, err
 				}
-				auth, err := b.bindingAuthorization()
+				auth, err := b.BindingAuthorization()
 				if err != nil {
 					return nil, err
 				}
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 				if descriptor, exists := auth.ReadCatalog().Descriptor(address); exists {
-					b.dependency(b.host.CatalogOwner().Domain.Ref(auth.ReadCatalog().Epoch(), address), descriptor.Revision())
+					b.dependency(b.Host.CatalogOwner().Domain.Ref(auth.ReadCatalog().Epoch(), address), descriptor.Revision())
 				}
 			}
 		case parser.TypedLiteralExpr:
 			rawType := r.TypeName
-			saved, found, err := b.captureAt(r.Pos.Offset)
+			saved, found, err := b.CaptureAt(r.Pos.Offset)
 			if err != nil {
 				return nil, err
 			}
 			if found {
 				rawType.Modifiers = nil
 			}
-			u, err := b.host.ResolveType(rawType)
+			u, err := b.Host.ResolveType(rawType)
 			if err != nil {
 				return nil, err
 			}
@@ -783,49 +783,49 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if inputUsage.Type.ID() != sqltype.Interval {
 				inputUsage = inputUsage.Type.Usage()
 			}
-			value, err := b.inputConstant(r.Text, inputUsage, r.Pos)
+			value, err := b.InputConstant(r.Text, inputUsage, r.Pos)
 			if err != nil {
 				return nil, analyze.InputErrorAt(err, r.Pos)
 			}
 			if b.collectTemporalConstants() {
-				for i := range b.prepared.Temporals {
-					if b.prepared.Temporals[i].Offset == r.Pos.Offset && b.prepared.Temporals[i].TypeID == u.Type.ID() {
-						b.prepared.Temporals[i].Typed = true
-						b.prepared.Temporals[i].TypedTypmod = u.Typmod
+				for i := range b.Prepared.Temporals {
+					if b.Prepared.Temporals[i].Offset == r.Pos.Offset && b.Prepared.Temporals[i].TypeID == u.Type.ID() {
+						b.Prepared.Temporals[i].Typed = true
+						b.Prepared.Temporals[i].TypedTypmod = u.Typmod
 					}
 				}
 			}
-			literalInfo := b.info(inputUsage, r.Pos, expr.Properties{})
+			literalInfo := b.Info(inputUsage, r.Pos, expr.Properties{})
 			node = plan.LiteralExpr{Info: literalInfo, Value: value}
 			if inputUsage != u {
 				coercionPlan, err := sqltype.PlanCoercion(inputUsage, u, sqltype.Explicit)
 				if err != nil {
 					return nil, err
 				}
-				info, err := b.coercionInfo(b.info(u, r.Pos, analyze.CoercionProperties(node, coercionPlan)), node)
+				info, err := b.coercionInfo(b.Info(u, r.Pos, analyze.CoercionProperties(node, coercionPlan)), node)
 				if err != nil {
 					return nil, err
 				}
 				node = plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Explicit}
 			}
 		case parser.CollateExpr:
-			child, err := b.bind(r.Child, policy)
+			child, err := b.Bind(r.Child, policy)
 			if err != nil {
 				return nil, err
 			}
 			name := r.Name
 			name.Parts = append([]parser.Identifier(nil), name.Parts...)
 			name.Parts[0].Pos = r.Pos
-			usage, err := b.host.ResolveColumnCollation(child.ResultUsage(), &name)
+			usage, err := b.Host.ResolveColumnCollation(child.ResultUsage(), &name)
 			if err != nil {
 				return nil, err
 			}
-			info := b.info(usage, r.Pos, child.Properties())
+			info := b.Info(usage, r.Pos, child.Properties())
 			info.CollationExplicit = r.Pos
 			node = plan.CollationExpr{Info: info, Child: child}
 		case parser.CastExpr:
 			var err error
-			node, err = b.cast(r, policy)
+			node, err = b.Cast(r, policy)
 			if err != nil {
 				return nil, err
 			}
@@ -837,16 +837,16 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.LogicalExpr:
 			var err error
-			node, err = b.bindLogical(r, policy.context)
+			node, err = b.bindLogical(r, policy.Context)
 			if err != nil {
 				return nil, err
 			}
 		case parser.PredicateExpr:
-			if policy.context == assignmentContext {
+			if policy.Context == AssignmentContext {
 				return nil, fmt.Errorf("stuntgres: predicate in assignment scalar")
 			}
 			var err error
-			node, err = b.bindPredicate(r, policy.context)
+			node, err = b.bindPredicate(r, policy.Context)
 			if err != nil {
 				return nil, err
 			}
@@ -864,7 +864,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.OperatorExpr:
 			var err error
-			node, err = b.bindCatalogOperator(r, policy)
+			node, err = b.BindCatalogOperator(r, policy)
 			if err != nil {
 				return nil, err
 			}
@@ -872,12 +872,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			return nil, fmt.Errorf("stuntgres: unsupported scalar node")
 		}
 	}
-	if b.clause.functionProjection.matches(raw) && b.clause.functionProjection.operand == nil && node.ResultUsage().Type != nil && node.ResultUsage().Type.Concrete() && node.ResultUsage().Type.BaseType().IsComposite() {
-		b.clause.functionProjection.operand = node
+	if b.Clause.FunctionProjection.matches(raw) && b.Clause.FunctionProjection.Operand == nil && node.ResultUsage().Type != nil && node.ResultUsage().Type.Concrete() && node.ResultUsage().Type.BaseType().IsComposite() {
+		b.Clause.FunctionProjection.Operand = node
 	}
 	if policy.booleanConstruct != "" && node.ResultUsage().Type.IsDomain() && node.ResultUsage().Type.BaseType().ID() == sqltype.Bool {
 		var err error
-		node, err = b.coerceConditional(comparisonOperand{node: node}, b.typ(sqltype.Bool).Usage(), policy.booleanConstruct)
+		node, err = b.CoerceConditional(comparisonOperand{Node: node}, b.Type(sqltype.Bool).Usage(), policy.booleanConstruct)
 		if err != nil {
 			return nil, err
 		}
@@ -896,32 +896,32 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must not return a set", policy.booleanConstruct), parser.ExpressionStart(raw))
 		}
 	}
-	if !policy.deferAssignment && (policy.context == assignmentContext || policy.context == functionArgumentContext) && node.ResultUsage() != policy.expected {
-		if err := b.captureTypeDiagnosticInput(policy.expected.Type); err != nil {
+	if !policy.deferAssignment && (policy.Context == AssignmentContext || policy.Context == FunctionArgumentContext) && node.ResultUsage() != policy.Expected {
+		if err := b.CaptureTypeDiagnosticInput(policy.Expected.Type); err != nil {
 			return nil, err
 		}
-		if policy.expected.Type.ContainsCatalogIdentifier() {
+		if policy.Expected.Type.ContainsCatalogIdentifier() {
 			if err := b.captureElementInput(); err != nil {
 				return nil, err
 			}
 		}
-		input, annotations := analyze.DomainCoercionInput(node, policy.expected)
-		info := b.info(policy.expected, raw.SourcePosition(), input.Properties())
+		input, annotations := analyze.DomainCoercionInput(node, policy.Expected)
+		info := b.Info(policy.Expected, raw.SourcePosition(), input.Properties())
 		var err error
-		if policy.context == assignmentContext {
-			info, err = analyze.StorageCoercionInfo(b.bindingCatalog(), info, input)
+		if policy.Context == AssignmentContext {
+			info, err = analyze.StorageCoercionInfo(b.BindingCatalog(), info, input)
 		} else {
 			info, err = b.coercionInfo(info, input)
 		}
 		if err != nil {
 			return nil, err
 		}
-		coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, policy.mode)
+		coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, policy.Mode)
 		if err != nil {
 			// Retain the resolved source for the assignment caller's diagnostic.
-			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && policy.column != "" {
+			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && policy.Column != "" {
 				copy := *d
-				copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", policy.column, b.diagnosticTypeName(policy.expected.Type), b.diagnosticTypeName(node.ResultUsage().Type))
+				copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", policy.Column, b.DiagnosticTypeName(policy.Expected.Type), b.DiagnosticTypeName(node.ResultUsage().Type))
 				copy.Hint = "You will need to rewrite or cast the expression."
 				copy.Position = strconv.Itoa(parser.ExpressionStart(raw).Character)
 				return node, &copy
@@ -929,7 +929,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			return node, err
 		}
 		if coercionPlan.RequiresCatalogOutput() {
-			b.prepared.RegclassConcat = true
+			b.Prepared.RegclassConcat = true
 		}
 		info.Property = analyze.CoercionProperties(input, coercionPlan)
 		if folded, ok, err := b.foldRegtypeConstant(input, coercionPlan, info); ok || err != nil {
@@ -938,11 +938,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			node = analyze.RestoreDomainCastCollations(annotations, folded)
 		} else {
-			node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: policy.mode})
+			node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: policy.Mode})
 		}
-		if policy.context == assignmentContext {
+		if policy.Context == AssignmentContext {
 			var err error
-			node, err = analyze.StorageDestination(node, policy.expected, raw.SourcePosition())
+			node, err = analyze.StorageDestination(node, policy.Expected, raw.SourcePosition())
 			if err != nil {
 				return nil, err
 			}
@@ -966,11 +966,11 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 	return d
 }
 
-func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolicy) (expr.Expr, error) {
+func (b *expressionBinder) Cast(raw parser.CastExpr, outerPolicy expressionPolicy) (expr.Expr, error) {
 	if raw.Syntax == parser.FunctionCast && legacyFunctionCastPredicate(raw.Child) {
 		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
-	if !b.consumer.defaultConsumer && b.query.namespace == nil && b.target.returningAliases == nil && b.target.ruleNamespace == nil {
+	if !b.Consumer.DefaultConsumer && b.Query.Namespace == nil && b.Target.returningAliases == nil && b.Target.RuleNamespace == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
 		}
@@ -990,7 +990,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if raw.Syntax == parser.FunctionCast && (!visible || raw.Callee != "oid" && raw.Callee != "xid" && raw.Callee != "cid" && raw.Callee != "xid8" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool") {
 		source := "unknown"
 		if literal, ok := raw.Child.(parser.LiteralExpr); !ok || (literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue) {
-			child, err := b.bind(raw.Child, expressionPolicy{context: projectionContext})
+			child, err := b.Bind(raw.Child, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				return nil, err
 			}
@@ -1005,40 +1005,40 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	var target sqltype.Usage
 	var err error
 	annotation := raw.TypeName
-	if b.clause.jsonbRecordBase {
-		annotation, err = b.jsonbRecordCastAnnotation(raw)
+	if b.Clause.JSONBRecordBase {
+		annotation, err = b.JSONBRecordCastAnnotation(raw)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if outerPolicy.thresholdArrayInput {
-		target, err = b.host.ResolveAnnotationTypeInput(annotation, unknownNull, false, false, false, true)
+		target, err = b.Host.ResolveAnnotationTypeInput(annotation, unknownNull, false, false, false, true)
 	} else if outerPolicy.stringInput {
-		target, err = b.host.ResolveStringAnnotationType(annotation, unknownNull)
+		target, err = b.Host.ResolveStringAnnotationType(annotation, unknownNull)
 	} else {
-		target, err = b.host.ResolveAnnotationType(annotation, unknownNull)
+		target, err = b.Host.ResolveAnnotationType(annotation, unknownNull)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if b.clause.jsonbRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
-		b.prepared.CaptureComposite(preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: analyze.CompositeRecordArgument}, target, nil)
+	if b.Clause.JSONBRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
+		b.Prepared.CaptureComposite(preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: analyze.CompositeRecordArgument}, target, nil)
 	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.
-		return b.bind(raw.Child, outerPolicy)
+		return b.Bind(raw.Child, outerPolicy)
 	}
 	if row, ok := raw.Child.(parser.RowExpr); ok && target.Type.BaseType().IsComposite() {
-		return b.bindRow(row, target, sqltype.Explicit, raw.Pos)
+		return b.BindRow(row, target, sqltype.Explicit, raw.Pos)
 	}
 	if target.Type.ID() == sqltype.Regclass {
 		return b.bindRegclassCast(raw.Child, raw.Pos)
 	}
 	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !target.Type.IsDeferredRecord() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
-	if unsupportedTarget && !b.consumer.datetimeZoneOperands {
+	if unsupportedTarget && !b.Consumer.DatetimeZoneOperands {
 		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
-	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
+	if err := b.CaptureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
 	if target.Type.ContainsCatalogIdentifier() {
@@ -1046,43 +1046,43 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 			return nil, err
 		}
 	}
-	policy := expressionPolicy{context: projectionContext, thresholdArrayInput: outerPolicy.thresholdArrayInput}
+	policy := expressionPolicy{Context: ProjectionContext, thresholdArrayInput: outerPolicy.thresholdArrayInput}
 	switch child := raw.Child.(type) {
 	case parser.LiteralExpr:
 		if child.Value.Kind == parser.StringValue || child.Value.Kind == parser.NullValue {
-			policy.expected = target
+			policy.Expected = target
 			if target.Type.IsDomain() {
-				policy.expected = target.Type.BaseType().Usage()
-				if policy.expected.Type.ID() == sqltype.Interval {
-					policy.expected = target.BaseUsage()
+				policy.Expected = target.Type.BaseType().Usage()
+				if policy.Expected.Type.ID() == sqltype.Interval {
+					policy.Expected = target.BaseUsage()
 				}
 			}
 		}
 	case parser.ArrayExpr:
-		policy.expected = target
-		policy.mode = sqltype.Explicit
+		policy.Expected = target
+		policy.Mode = sqltype.Explicit
 	case parser.CastExpr:
 		if unknownNullSyntax(child) {
-			policy.expected = target
+			policy.Expected = target
 		}
 	case parser.ParameterExpr:
-		if b.stored.checkLiterals != nil {
+		if b.Stored.CheckLiterals != nil {
 			break // bind resolves the captured literal without parameter inference.
 		}
-		if b.params.noParameters || b.consumer.defaultConsumer {
+		if b.Params.NoParameters || b.Consumer.DefaultConsumer {
 			return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", child.Number), child.Pos)
 		}
-		if b.params.parameters[child.Number].Type == nil {
+		if b.Params.Parameters[child.Number].Type == nil {
 			if raw.Syntax == parser.FunctionCast && target.Type.ID() != sqltype.Text {
 				if child.Number <= 0 {
 					return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", child.Number), child.Pos)
 				}
 				return nil, functionCastError(raw, "unknown", true)
 			}
-			policy.expected = target
+			policy.Expected = target
 		}
 	}
-	child, err := b.bind(raw.Child, policy)
+	child, err := b.Bind(raw.Child, policy)
 	if err != nil {
 		return nil, err
 	}
@@ -1103,7 +1103,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if start := child.SourcePosition(); start.Character > 0 && (pos.Character <= 0 || start.Character < pos.Character) {
 		pos = start
 	}
-	info, err := b.coercionInfo(b.info(target, pos, child.Properties()), child)
+	info, err := b.coercionInfo(b.Info(target, pos, child.Properties()), child)
 	if err != nil {
 		return nil, err
 	}
@@ -1111,16 +1111,16 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	coercionPlan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
 		if sqltype.IsFTS(source.Type.BaseType().ID()) || sqltype.IsFTS(target.Type.BaseType().ID()) {
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 		}
 		if source.Type.BaseType().ID() == sqltype.Tid || target.Type.BaseType().ID() == sqltype.Tid {
 			if raw.Syntax == parser.FunctionCast {
 				return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
 			}
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 		}
 		if sqltype.IsRoutineAlias(source.Type.BaseType().ID()) || sqltype.IsRoutineAlias(target.Type.BaseType().ID()) {
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 		}
 		// A rejected cast from an existing stored scalar to an existing array is
 		// a type mismatch, not an unimplemented scalar provider. This only
@@ -1129,12 +1129,12 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 			if raw.Syntax == parser.FunctionCast {
 				return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
 			}
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 		}
 		if source.Type.BaseType().IsCube() || target.Type.BaseType().IsCube() {
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 		}
-		if !source.Type.BaseType().IsQueryInt() && !target.Type.BaseType().IsQueryInt() && !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.consumer.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && source.Type.BaseType().ID() != sqltype.Regrole && target.Type.BaseType().ID() != sqltype.Regrole && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !source.Type.BaseType().IsQueryInt() && !target.Type.BaseType().IsQueryInt() && !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.Consumer.DatetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && source.Type.BaseType().ID() != sqltype.Regrole && target.Type.BaseType().ID() != sqltype.Regrole && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			if !sqltype.IsOperatorAlias(source.Type.BaseType().ID()) && !sqltype.IsOperatorAlias(target.Type.BaseType().ID()) && !sqltype.IsRegTS(source.Type.BaseType().ID()) && !sqltype.IsRegTS(target.Type.BaseType().ID()) {
 				return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 			}
@@ -1142,13 +1142,13 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		if raw.Syntax == parser.FunctionCast {
 			return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
 		}
-		return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+		return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 	}
 	if unsupportedTarget {
 		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	if coercionPlan.RequiresCatalogOutput() {
-		b.prepared.RegclassConcat = true
+		b.Prepared.RegclassConcat = true
 	}
 	if source == target {
 		return child, nil
@@ -1260,22 +1260,22 @@ func literalInputError(err error, raw parser.LiteralExpr) error {
 // Full analysis invalidation recollects temporal scalar/array captures while the
 // candidate still supplies fixed signatures and immutable native logical values.
 func (b *expressionBinder) collectTemporalConstants() bool {
-	if !b.expected.Held || b.expected.RefreshTemporals {
+	if !b.Expected.Held || b.Expected.RefreshTemporals {
 		return true
 	}
-	owner, generation, ok := b.host.PlanOwner()
-	return ok && b.expected.PlanOwner == owner && b.expected.PlanGeneration != generation
+	owner, generation, ok := b.Host.PlanOwner()
+	return ok && b.Expected.PlanOwner == owner && b.Expected.PlanGeneration != generation
 }
 
 // Explicit typed literals use this only to discover their frozen modifier
 // before resolving the raw declaration again. Scalar reconstruction must use
 // captured with the complete contextual usage.
-func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error) {
-	if b.expected.Held {
-		captures := b.expected.Temporals
+func (b *expressionBinder) CaptureAt(offset int) (temporalConstant, bool, error) {
+	if b.Expected.Held {
+		captures := b.Expected.Temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
 		if i < len(captures) && captures[i].Offset == offset {
-			if b.expected.RefreshTemporals && analyze.RefreshableTemporal(captures[i]) {
+			if b.Expected.RefreshTemporals && analyze.RefreshableTemporal(captures[i]) {
 				return temporalConstant{}, false, nil
 			}
 			saved := captures[i]
@@ -1291,12 +1291,12 @@ func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error)
 	return temporalConstant{}, false, nil
 }
 
-func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalConstant, bool, error) {
-	if b.expected.Held {
-		captures := b.expected.Temporals
+func (b *expressionBinder) Captured(offset int, usage sqltype.Usage) (temporalConstant, bool, error) {
+	if b.Expected.Held {
+		captures := b.Expected.Temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
 		if i < len(captures) && captures[i].Offset == offset {
-			if b.expected.RefreshTemporals && analyze.RefreshableTemporal(captures[i]) {
+			if b.Expected.RefreshTemporals && analyze.RefreshableTemporal(captures[i]) {
 				return temporalConstant{}, false, nil
 			}
 			for ; i < len(captures) && captures[i].Offset == offset; i++ {
@@ -1310,24 +1310,24 @@ func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalCo
 	}
 	return temporalConstant{}, false, nil
 }
-func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
-	if err := b.captureTypeDiagnosticInput(u.Type); err != nil {
+func (b *expressionBinder) InputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
+	if err := b.CaptureTypeDiagnosticInput(u.Type); err != nil {
 		return sqltype.Value{}, err
 	}
 	if u.Type.ContainsRegObject() {
 		return b.regObjectConstant(text, u, pos)
 	}
 	if u.Type.ContainsRegproc() {
-		return b.routineConstant(text, u, pos)
+		return b.RoutineConstant(text, u, pos)
 	}
 	if u.Type.ID() == sqltype.Regtype {
-		return b.regtypeConstant(text, pos)
+		return b.RegtypeConstant(text, pos)
 	}
 	if u.Type.ContainsRegTS() {
-		return b.regTSConstant(text, u, pos)
+		return b.RegTSConstant(text, u, pos)
 	}
 	if sqltype.IsOperatorAlias(u.Type.ID()) {
-		return b.operatorConstant(text, u.Type, pos)
+		return b.OperatorConstant(text, u.Type, pos)
 	}
 	if u.Type.ContainsOperatorAlias() {
 		return b.operatorCompoundConstant(text, u, pos)
@@ -1343,14 +1343,14 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}
-		c, found, err := b.captured(pos.Offset, u)
+		c, found, err := b.Captured(pos.Offset, u)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if found {
-			catalog := b.bindingCatalog()
-			if hasEnumInput(u.Type) && (b.expected.CatalogOwner != catalog.Owner() || b.expected.CatalogEpoch != catalog.Epoch()) {
-				if err := b.expected.CheckLifetime(catalog.Owner(), catalog.Epoch()); err != nil {
+			catalog := b.BindingCatalog()
+			if hasEnumInput(u.Type) && (b.Expected.CatalogOwner != catalog.Owner() || b.Expected.CatalogEpoch != catalog.Epoch()) {
+				if err := b.Expected.CheckLifetime(catalog.Owner(), catalog.Epoch()); err != nil {
 					return sqltype.Value{}, err
 				}
 				return sqltype.Value{}, ids.ErrCatalogReplaced
@@ -1362,7 +1362,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 				return sqltype.Value{}, err
 			}
 		}
-		value, err := b.decodeLiteralInput(text, u.Type, -1, b.input.LiteralInput(pos.Character))
+		value, err := b.decodeLiteralInput(text, u.Type, -1, b.Input.LiteralInput(pos.Character))
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && pos.Character > 0 {
 				copy := *diagnostic
@@ -1372,17 +1372,17 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			return sqltype.Value{}, err
 		}
 		if b.collectTemporalConstants() {
-			i := sort.Search(len(b.prepared.Temporals), func(i int) bool { return b.prepared.Temporals[i].Offset >= pos.Offset })
-			b.prepared.Temporals = append(b.prepared.Temporals, temporalConstant{})
-			copy(b.prepared.Temporals[i+1:], b.prepared.Temporals[i:])
-			b.prepared.Temporals[i] = temporalConstant{Offset: pos.Offset, Typmod: u.Typmod, TypeID: u.Type.ID(), Value: value}
+			i := sort.Search(len(b.Prepared.Temporals), func(i int) bool { return b.Prepared.Temporals[i].Offset >= pos.Offset })
+			b.Prepared.Temporals = append(b.Prepared.Temporals, temporalConstant{})
+			copy(b.Prepared.Temporals[i+1:], b.Prepared.Temporals[i:])
+			b.Prepared.Temporals[i] = temporalConstant{Offset: pos.Offset, Typmod: u.Typmod, TypeID: u.Type.ID(), Value: value}
 		}
 		return value, nil
 	}
 	if u.Type.ID() != sqltype.Interval && u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
-		return b.decodeLiteralInput(text, u.Type, -1, b.input)
+		return b.decodeLiteralInput(text, u.Type, -1, b.Input)
 	}
-	c, found, err := b.captured(pos.Offset, u)
+	c, found, err := b.Captured(pos.Offset, u)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -1405,12 +1405,12 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	if u.Type.ID() == sqltype.Interval {
 		inputTypmod = u.Typmod
 	}
-	v, err := b.decodeLiteralInput(text, u.Type, inputTypmod, b.input)
+	v, err := b.decodeLiteralInput(text, u.Type, inputTypmod, b.Input)
 	if err == nil && u.Typmod >= 0 {
 		var p sqltype.CoercionPlan
 		p, err = sqltype.PlanCoercion(u.Type.Usage(), u, sqltype.Assignment)
 		if err == nil {
-			v, err = p.Apply(b.ctx, v, b.input, sqltype.OutputEnvironment{Zone: b.input.Zone, DateStyle: b.input.DateStyle, IntervalStyle: b.input.IntervalStyle})
+			v, err = p.Apply(b.Ctx, v, b.Input, sqltype.OutputEnvironment{Zone: b.Input.Zone, DateStyle: b.Input.DateStyle, IntervalStyle: b.Input.IntervalStyle})
 		}
 	}
 	if err != nil {
@@ -1434,9 +1434,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		// Symmetric comparison can contextualize an earlier unknown literal
 		// after its right operand. Keep captures ordered for rebind lookup.
-		i := sort.Search(len(b.prepared.Temporals), func(i int) bool { return b.prepared.Temporals[i].Offset >= pos.Offset })
-		b.prepared.Temporals = append(b.prepared.Temporals, temporalConstant{})
-		copy(b.prepared.Temporals[i+1:], b.prepared.Temporals[i:])
+		i := sort.Search(len(b.Prepared.Temporals), func(i int) bool { return b.Prepared.Temporals[i].Offset >= pos.Offset })
+		b.Prepared.Temporals = append(b.Prepared.Temporals, temporalConstant{})
+		copy(b.Prepared.Temporals[i+1:], b.Prepared.Temporals[i:])
 		west := int32(0)
 		if u.Type.ID() == sqltype.Timetz {
 			west, err = v.TimeZoneOffset()
@@ -1444,47 +1444,47 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 				return sqltype.Value{}, err
 			}
 		}
-		b.prepared.Temporals[i] = temporalConstant{Offset: pos.Offset, Scalar: n, Typmod: u.Typmod, TypeID: u.Type.ID(), West: west, Months: months, Days: days}
+		b.Prepared.Temporals[i] = temporalConstant{Offset: pos.Offset, Scalar: n, Typmod: u.Typmod, TypeID: u.Type.ID(), West: west, Months: months, Days: days}
 	}
 	return v, nil
 }
 
 func (b *expressionBinder) captureElementInput() error {
-	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil && b.input.Operator != nil && b.input.Regproc != nil && b.input.Regcollation != nil && b.input.Regnamespace != nil && b.input.RegTS != nil {
+	if b.Input.Regclass != nil && b.Input.Regtype != nil && b.Input.Regrole != nil && b.Input.Operator != nil && b.Input.Regproc != nil && b.Input.Regcollation != nil && b.Input.Regnamespace != nil && b.Input.RegTS != nil {
 		return nil
 	}
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return err
 	}
-	return b.host.CaptureElementInput(auth, &b.input)
+	return b.Host.CaptureElementInput(auth, &b.Input)
 }
 
 // Unknown state exists only during analysis. It never becomes an executable Value.
 type comparisonOperand struct {
-	node expr.Expr
+	Node expr.Expr
 	raw  parser.Expr
 }
 
 func (o comparisonOperand) descriptor() *sqltype.Descriptor {
-	if o.node == nil {
+	if o.Node == nil {
 		return nil
 	}
-	return o.node.ResultUsage().Type
+	return o.Node.ResultUsage().Type
 }
 
 // operandArgument hands an analyzed comparison operand to functions bind
 // code; CoerceArgument rebuilds the operand from Expression and Raw.
 func operandArgument(o comparisonOperand) functions.Argument {
-	argument := functions.Argument{Expression: o.node, Raw: o.raw}
-	if o.node != nil {
-		argument.Usage = o.node.ResultUsage()
+	argument := functions.Argument{Expression: o.Node, Raw: o.raw}
+	if o.Node != nil {
+		argument.Usage = o.Node.ResultUsage()
 	}
 	return argument
 }
 
 func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand, error) {
-	return b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext})
+	return b.comparisonOperandPolicy(raw, expressionPolicy{Context: ProjectionContext})
 }
 
 // AnalyzeArgument retains generic binding and occurrence-owned unknown inference.
@@ -1496,47 +1496,47 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 	case functions.ComparisonArgument:
 		operand, err = b.comparisonOperand(raw)
 	case functions.ThresholdArrayArgument:
-		operand, err = b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext, thresholdArrayInput: true})
+		operand, err = b.comparisonOperandPolicy(raw, expressionPolicy{Context: ProjectionContext, thresholdArrayInput: true})
 	case functions.ZoneArgument:
 		// Only explicit casts read the flag; restoring it keeps nested and
 		// adjacent calls unaffected.
-		previous := b.consumer.datetimeZoneOperands
-		b.consumer.datetimeZoneOperands = true
+		previous := b.Consumer.DatetimeZoneOperands
+		b.Consumer.DatetimeZoneOperands = true
 		operand, err = b.comparisonOperand(raw)
-		b.consumer.datetimeZoneOperands = previous
+		b.Consumer.DatetimeZoneOperands = previous
 	case functions.StringTextArgument, functions.StringOtherArgument:
-		operand, err = b.stringOperand(raw, request.Intent == functions.StringTextArgument)
+		operand, err = b.StringOperand(raw, request.Intent == functions.StringTextArgument)
 	case functions.RecordBaseArgument:
-		previous := b.clause.jsonbRecordBase
-		b.clause.jsonbRecordBase = true
-		operand, err = b.stringOperand(raw, false)
-		b.clause.jsonbRecordBase = previous
+		previous := b.Clause.JSONBRecordBase
+		b.Clause.JSONBRecordBase = true
+		operand, err = b.StringOperand(raw, false)
+		b.Clause.JSONBRecordBase = previous
 	case functions.StringProjectionArgument, functions.ProjectionArgument:
-		operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext, stringInput: request.Intent == functions.StringProjectionArgument})
+		operand.Node, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext, stringInput: request.Intent == functions.StringProjectionArgument})
 		operand.raw = raw
 		if err == nil && unknownNullSyntax(raw) {
-			if literal, ok := operand.node.(plan.LiteralExpr); ok {
+			if literal, ok := operand.Node.(plan.LiteralExpr); ok {
 				literal.UnknownNull = true
-				operand.node = literal
+				operand.Node = literal
 			}
 		}
 	case functions.BareProjectionArgument:
-		operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext})
+		operand.Node, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		operand.raw = raw
 	case functions.DirectDeferredArgument:
 		if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 			operand.raw = raw
 		} else {
-			operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext})
+			operand.Node, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			operand.raw = raw
 		}
 	default:
 		return functions.Argument{}, fmt.Errorf("stuntgres: invalid function argument analysis")
 	}
 	original, _ := b.OriginalArgument(operand.raw)
-	argument := functions.Argument{Expression: operand.node, Raw: original}
-	if operand.node != nil {
-		argument.Usage = operand.node.ResultUsage()
+	argument := functions.Argument{Expression: operand.Node, Raw: original}
+	if operand.Node != nil {
+		argument.Usage = operand.Node.ResultUsage()
 		if argument.Usage.Type == nil {
 			argument.Kind = functions.UnresolvedParameterArgument
 		}
@@ -1549,7 +1549,7 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 }
 
 func (b *expressionBinder) CoerceArgument(argument functions.Argument, request functions.CoercionRequest) (expr.Expr, error) {
-	operand := comparisonOperand{node: argument.Expression, raw: argument.Raw}
+	operand := comparisonOperand{Node: argument.Expression, raw: argument.Raw}
 	switch request.Intent {
 	case functions.FinalizeArgument:
 		return b.finalizeOperand(operand, request.Target.Type)
@@ -1558,7 +1558,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 	case functions.RecordFormalArgument:
 		var record *sqltype.Descriptor
 		if parameter, ok := argument.Expression.(plan.ParameterExpr); ok {
-			record = b.params.parameters[parameter.Number].Type
+			record = b.Params.Parameters[parameter.Number].Type
 		}
 		if record == nil {
 			var err error
@@ -1576,7 +1576,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		if node.ResultUsage() == request.Target {
 			return node, nil
 		}
-		info, err := b.coercionInfo(b.info(request.Target, node.SourcePosition(), node.Properties()), node)
+		info, err := b.coercionInfo(b.Info(request.Target, node.SourcePosition(), node.Properties()), node)
 		if err != nil {
 			return nil, err
 		}
@@ -1587,10 +1587,10 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		info.Property = analyze.CoercionProperties(node, coercionPlan)
 		return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}, nil
 	case functions.ConditionalArgument:
-		return b.coerceConditional(operand, request.Target, request.Label)
+		return b.CoerceConditional(operand, request.Target, request.Label)
 	case functions.JSONFormattedArgument:
 		node := argument.Expression
-		info, err := b.coercionInfo(b.info(request.Target, node.SourcePosition(), analyze.CoercionProperties(node, request.Plan)), node)
+		info, err := b.coercionInfo(b.Info(request.Target, node.SourcePosition(), analyze.CoercionProperties(node, request.Plan)), node)
 		if err != nil {
 			return nil, err
 		}
@@ -1604,14 +1604,14 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		if request.PreserveProperties {
 			properties = node.Properties()
 		}
-		return plan.CoercionExpr{Info: b.info(request.Target, argument.Raw.SourcePosition(), properties), Child: node, Plan: request.Plan, Mode: sqltype.Implicit}, nil
+		return plan.CoercionExpr{Info: b.Info(request.Target, argument.Raw.SourcePosition(), properties), Child: node, Plan: request.Plan, Mode: sqltype.Implicit}, nil
 	case functions.AssignmentFormalArgument:
-		if !b.clause.selectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
-			return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
+		if !b.Clause.SelectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
+			return b.Bind(argument.Raw, expressionPolicy{Context: AssignmentContext, Expected: request.Target, Mode: sqltype.Implicit})
 		}
 	case functions.DirectFormalArgument:
 		if argument.Usage.Type == nil {
-			return b.bind(argument.Raw, expressionPolicy{context: functionArgumentContext, expected: request.Target, mode: sqltype.Implicit})
+			return b.Bind(argument.Raw, expressionPolicy{Context: FunctionArgumentContext, Expected: request.Target, Mode: sqltype.Implicit})
 		}
 	case functions.ExactFormalArgument, functions.TextFormalArgument, functions.CollatedTextFormalArgument:
 		node, err := b.finalizeOperand(operand, request.Target.Type)
@@ -1645,10 +1645,10 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 	if request.AtRaw {
 		pos = argument.Raw.SourcePosition()
 	}
-	info := b.info(request.Target, pos, properties)
+	info := b.Info(request.Target, pos, properties)
 	switch {
 	case request.Intent == functions.CollatedTextFormalArgument:
-		info, err = b.collatedInfo(info, node)
+		info, err = b.CollatedInfo(info, node)
 	case request.Intent == functions.TextFormalArgument && request.Target.Type.ID() == sqltype.Text:
 		info, err = b.coercionInfo(info, node)
 	}
@@ -1669,11 +1669,11 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		var target sqltype.Usage
 		var err error
 		if policy.thresholdArrayInput {
-			target, err = b.host.ResolveAnnotationTypeInput(annotation.TypeName, true, false, false, false, true)
+			target, err = b.Host.ResolveAnnotationTypeInput(annotation.TypeName, true, false, false, false, true)
 		} else if policy.stringInput {
-			target, err = b.host.ResolveStringAnnotationType(annotation.TypeName, true)
+			target, err = b.Host.ResolveStringAnnotationType(annotation.TypeName, true)
 		} else {
-			target, err = b.host.ResolveAnnotationType(annotation.TypeName, true)
+			target, err = b.Host.ResolveAnnotationType(annotation.TypeName, true)
 		}
 		if err != nil {
 			return comparisonOperand{}, err
@@ -1690,34 +1690,34 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
-	node, err := b.bind(raw, policy)
-	return comparisonOperand{node: node, raw: raw}, err
+	node, err := b.Bind(raw, policy)
+	return comparisonOperand{Node: node, raw: raw}, err
 }
 
-func (b *expressionBinder) coerceParameter(p plan.ParameterExpr, u sqltype.Usage) (expr.Expr, error) {
-	if existing := b.params.parameters[p.Number]; existing.Type != nil && existing.Type != u.Type {
+func (b *expressionBinder) CoerceParameter(p plan.ParameterExpr, u sqltype.Usage) (expr.Expr, error) {
+	if existing := b.Params.Parameters[p.Number]; existing.Type != nil && existing.Type != u.Type {
 		d := expr.ErrorAt("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.Number), p.Pos).(*sqlstate.Error)
 		d.Detail = fmt.Sprintf("%s versus %s", existing.Type.DiagnosticName(), u.Type.DiagnosticName())
 		return nil, d
 	}
-	b.params.parameters[p.Number] = u.Type.Usage()
-	return plan.ParameterExpr{Info: b.info(u.Type.Usage(), p.Pos, p.Property), Number: p.Number}, nil
+	b.Params.Parameters[p.Number] = u.Type.Usage()
+	return plan.ParameterExpr{Info: b.Info(u.Type.Usage(), p.Pos, p.Property), Number: p.Number}, nil
 }
 
 func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Descriptor) (expr.Expr, error) {
 	if o.descriptor() != nil {
-		return o.node, nil
+		return o.Node, nil
 	}
-	if p, ok := o.node.(plan.ParameterExpr); ok {
-		return b.coerceParameter(p, typ.Usage())
+	if p, ok := o.Node.(plan.ParameterExpr); ok {
+		return b.CoerceParameter(p, typ.Usage())
 	}
 	if o.raw == nil {
 		return nil, fmt.Errorf("stuntgres: missing unknown comparison operand")
 	}
-	return b.bind(o.raw, expressionPolicy{context: projectionContext, expected: typ.Usage()})
+	return b.Bind(o.raw, expressionPolicy{Context: ProjectionContext, Expected: typ.Usage()})
 }
 
-func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (expr.Expr, error) {
+func (b *expressionBinder) BindComparison(raw parser.OperatorExpr) (expr.Expr, error) {
 	return b.bindComparisonCandidates(raw, nil)
 }
 
@@ -1746,7 +1746,7 @@ func (b *expressionBinder) bindComparisonCandidates(raw parser.OperatorExpr, can
 	return b.bindComparisonOperandCandidates(raw, operator, left, right, candidates)
 }
 
-func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right comparisonOperand) (expr.Expr, error) {
+func (b *expressionBinder) BindComparisonOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right comparisonOperand) (expr.Expr, error) {
 	return b.bindComparisonOperandCandidates(raw, operator, left, right, nil)
 }
 
@@ -1764,9 +1764,9 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 	// literal still owns its original concrete usage for stored CHECK replay.
 	// Keep that source node and put the conversion on this occurrence.
 	contextualize := func(operand comparisonOperand, source, target *sqltype.Descriptor) (comparisonOperand, error) {
-		if operand.node == nil && source != nil && source.BaseType().ID() == sqltype.VarChar && target.ID() == sqltype.Text {
+		if operand.Node == nil && source != nil && source.BaseType().ID() == sqltype.VarChar && target.ID() == sqltype.Text {
 			node, err := b.finalizeOperand(operand, source.BaseType())
-			operand.node = node
+			operand.Node = node
 			return operand, err
 		}
 		return operand, nil
@@ -1779,11 +1779,11 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 	if err != nil {
 		return nil, err
 	}
-	l, err := b.coerceConditional(left, lt.Usage(), name)
+	l, err := b.CoerceConditional(left, lt.Usage(), name)
 	if err != nil {
 		return nil, err
 	}
-	r, err := b.coerceConditional(right, rt.Usage(), name)
+	r, err := b.CoerceConditional(right, rt.Usage(), name)
 	if err != nil {
 		return nil, err
 	}
@@ -1791,7 +1791,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 	if err != nil {
 		return nil, err
 	}
-	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
+	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.Type(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, functions.ComparisonError(b, err, left.descriptor(), right.descriptor(), raw)
 	}
@@ -1811,7 +1811,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p)
+	info := b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, p)
 	if declaration != nil {
 		info, err = b.selectedBuiltinRoutineInfo(info, declaration)
 		if err != nil {
@@ -1835,7 +1835,7 @@ func symbolicArithmeticName(name string) bool {
 	}
 	return true
 }
-func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (expr.Expr, error) {
+func (b *expressionBinder) BindArithmetic(raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid arithmetic expression")
 	}
@@ -1852,7 +1852,7 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (expr.Expr, e
 					break
 				}
 				literal.Value.Pos = raw.Pos
-				return b.bind(literal, expressionPolicy{context: projectionContext})
+				return b.Bind(literal, expressionPolicy{Context: ProjectionContext})
 			case parser.NumericValue:
 				if name == "-" {
 					if strings.HasPrefix(literal.Value.Text, "-") {
@@ -1861,7 +1861,7 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (expr.Expr, e
 						literal.Value.Text = "-" + literal.Value.Text
 					}
 				}
-				return b.bind(literal, expressionPolicy{context: projectionContext})
+				return b.Bind(literal, expressionPolicy{Context: ProjectionContext})
 			}
 		}
 	}
@@ -1908,11 +1908,11 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 	if err != nil {
 		return nil, functions.OperatorError(err, lt, rt, raw)
 	}
-	typ := b.typ(signature.Result)
-	leftType := b.typ(signature.Left)
+	typ := b.Type(signature.Result)
+	leftType := b.Type(signature.Left)
 	var rightType *sqltype.Descriptor
 	if len(raw.Args) == 2 {
-		rightType = b.typ(signature.Right)
+		rightType = b.Type(signature.Right)
 	}
 	provider, err := sqltype.BindArithmetic(operator, leftType, rightType, typ)
 	if err != nil {
@@ -1932,7 +1932,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 			if err != nil {
 				return nil, err
 			}
-			info, err := b.coercionRoutineInfo(b.info(target.Usage(), n.SourcePosition(), analyze.CoercionProperties(n, coercionPlan)), n)
+			info, err := b.coercionRoutineInfo(b.Info(target.Usage(), n.SourcePosition(), analyze.CoercionProperties(n, coercionPlan)), n)
 			if err != nil {
 				return nil, err
 			}
@@ -1983,7 +1983,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 	if len(raw.Args) == 1 {
 		formalLeft, formalRight = 0, signature.Left
 	}
-	info, err := b.builtinOperatorRoutineInfo(b.info(typ.Usage(), pos, p), name, formalLeft, formalRight)
+	info, err := b.builtinOperatorRoutineInfo(b.Info(typ.Usage(), pos, p), name, formalLeft, formalRight)
 	if err != nil {
 		return nil, err
 	}

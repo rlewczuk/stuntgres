@@ -45,7 +45,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 			}
 			return ageFiniteTyped(typ, value)
 		}
-		node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("1 day"), arg(tc.source, "2000-01-02"), arg(tc.origin, "2000-01-01")))
+		node, err := b.BindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("1 day"), arg(tc.source, "2000-01-02"), arg(tc.origin, "2000-01-01")))
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -64,7 +64,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 		{ageFiniteTyped("text", "1 day"), ageFiniteTyped("timestamp", "2000-01-02"), ageFiniteTyped("timestamp", "2000-01-01")},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
-		_, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", args...))
+		_, err := b.BindFunctionProvider(datetimeMakeRaw("date_bin", args...))
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42883" || d.Position != "8" || d.Hint != "No function matches the given name and argument types. You might need to add explicit type casts." {
 			t.Fatal(err)
@@ -75,15 +75,15 @@ func TestDatetimeBinBinding(t *testing.T) {
 func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 	utc, _ := sqltype.ResolveZone("UTC")
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
-	node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3}))
+	node, err := b.BindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.params.parameters[1].Type.ID() != sqltype.Interval || b.params.parameters[2].Type.ID() != sqltype.Timestamptz || b.params.parameters[3].Type.ID() != sqltype.Timestamptz || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
-		t.Fatal(node.Properties(), b.params.parameters)
+	if b.Params.Parameters[1].Type.ID() != sqltype.Interval || b.Params.Parameters[2].Type.ID() != sqltype.Timestamptz || b.Params.Parameters[3].Type.ID() != sqltype.Timestamptz || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
+		t.Fatal(node.Properties(), b.Params.Parameters)
 	}
 	for _, id := range []string{"timestamp", "timestamptz"} {
-		node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped(id, "2000-01-01 00:02:29.999999"), ageFiniteTyped(id, "2000-01-01 00:02:30")))
+		node, err := b.BindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped(id, "2000-01-01 00:02:29.999999"), ageFiniteTyped(id, "2000-01-01 00:02:30")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,7 +112,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		}
 		for i := range e.Args {
 			null := e
-			null.Args[i] = plan.LiteralExpr{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(e.Args[i].ResultUsage().Type)}
+			null.Args[i] = plan.LiteralExpr{Info: b.Info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(e.Args[i].ResultUsage().Type)}
 			simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, null, false)
 			if err != nil || !changed || !generationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
@@ -120,9 +120,9 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		}
 	}
 	flags := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
-	flags.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "z", Usage: flags.typ(sqltype.Timestamptz).Usage()}}, Attributes: []int32{1}, Index: map[string]int{"z": 0}}
+	flags.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "z", Usage: flags.Type(sqltype.Timestamptz).Usage()}}, Attributes: []int32{1}, Index: map[string]int{"z": 0}}
 	column := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "z"}}}}
-	volatile, err := flags.bindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, column, datetimeMakeRaw("clock_timestamp")))
+	volatile, err := flags.BindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, column, datetimeMakeRaw("clock_timestamp")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +130,8 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Volatile || exec.PlannedVolatility(volatile) != expr.Volatile || generationImmutable(volatile) {
 		t.Fatal(p)
 	}
-	flags.clause.aggregateClause = "SELECT"
-	stage, err := flags.bind(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.AggregateExpr{Name: "min", Args: []parser.Expr{column}}, column), expressionPolicy{context: projectionContext})
+	flags.Clause.AggregateClause = "SELECT"
+	stage, err := flags.Bind(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.AggregateExpr{Name: "min", Args: []parser.Expr{column}}, column), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,25 +143,25 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 
 func TestDatetimeBinStoredTraversal(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped("timestamp", "2000-01-02"), ageFiniteTyped("timestamp", "2000-01-01")))
+	node, err := b.BindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped("timestamp", "2000-01-02"), ageFiniteTyped("timestamp", "2000-01-01")))
 	if err != nil {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeBin)
-	column := plan.ColumnExpr{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
+	column := plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
 	e.Args[1] = column
 	e.Property.RowDependent = true
 	var children []expr.Expr
 	plan.ExpressionChildren(e, func(arg expr.Expr) { children = append(children, arg) })
-	if len(children) != 3 || children[1] != column || !b.sameGroupExpression(e, e) {
+	if len(children) != 3 || children[1] != column || !b.SameGroupExpression(e, e) {
 		t.Fatal(children)
 	}
 	different := e
 	different.Args[1] = e.Args[2]
-	if b.sameGroupExpression(e, different) {
+	if b.SameGroupExpression(e, different) {
 		t.Fatal("distinct children treated as equal")
 	}
-	rewritten, err := b.rewriteGroup(e, []expr.Expr{column})
+	rewritten, err := b.RewriteGroup(e, []expr.Expr{column})
 	if err != nil || !rewritten.Properties().StageDependent {
 		t.Fatal(rewritten, err)
 	}
@@ -178,12 +178,12 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	}
 	// Preflight must traverse a child codec conversion rather than attempting
 	// date_bin on a mismatched descriptor or bypassing coercion failures.
-	text := plan.LiteralExpr{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
-	coercionPlan, err := sqltype.PlanCoercion(text.ResultUsage(), b.typ(sqltype.Timestamp).Usage(), sqltype.Explicit)
+	text := plan.LiteralExpr{Info: b.Info(b.Type(sqltype.Text).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(b.Type(sqltype.Text), "not-a-timestamp")}
+	coercionPlan, err := sqltype.PlanCoercion(text.ResultUsage(), b.Type(sqltype.Timestamp).Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.Args[1] = plan.CoercionExpr{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Child: text, Plan: coercionPlan, Mode: sqltype.Explicit}
+	e.Args[1] = plan.CoercionExpr{Info: b.Info(b.Type(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Child: text, Plan: coercionPlan, Mode: sqltype.Explicit}
 	_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {

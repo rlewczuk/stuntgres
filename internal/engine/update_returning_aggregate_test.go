@@ -12,7 +12,7 @@ import (
 func TestUpdateReturningMalformedSumShape(t *testing.T) {
 	e := New()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	binder.clause.aggregateClause = "RETURNING"
+	binder.Clause.AggregateClause = "RETURNING"
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, raw := range []parser.AggregateExpr{
@@ -20,7 +20,7 @@ func TestUpdateReturningMalformedSumShape(t *testing.T) {
 		{Name: "sum", Star: true},
 		{Name: "sum", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}}}},
 	} {
-		node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		var diagnostic *sqlstate.Error
 		message := "function sum() does not exist"
 		if len(raw.Args) == 2 {

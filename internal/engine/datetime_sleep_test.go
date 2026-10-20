@@ -23,19 +23,19 @@ func TestDatetimeSleepBinding(t *testing.T) {
 		id   sqltype.ID
 	}{{"pg_sleep", sqltype.Float8}, {"pg_sleep_for", sqltype.Interval}, {"pg_sleep_until", sqltype.Timestamptz}} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		x, err := b.bindFunction(datetimeMakeRaw(tc.name, parser.ParameterExpr{Number: 1}))
+		x, err := b.BindFunction(datetimeMakeRaw(tc.name, parser.ParameterExpr{Number: 1}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		n := x.(functions.DatetimeSleep)
-		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != expr.Volatile || !n.Properties().ParameterDependent || b.params.parameters[1].Type.ID() != tc.id || !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
+		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != expr.Volatile || !n.Properties().ParameterDependent || b.Params.Parameters[1].Type.ID() != tc.id || !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			t.Fatalf("binding %s: %#v", tc.name, n)
 		}
 		if generationImmutable(n) {
 			t.Fatal("sleep admitted as immutable")
 		}
 		b = newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		x, err = b.bindFunction(datetimeMakeRaw(tc.name, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}))
+		x, err = b.BindFunction(datetimeMakeRaw(tc.name, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -94,7 +94,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 			t.Fatal(err)
 		}
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		wait, err := binder.bindFunction(datetimeMakeRaw("pg_sleep", ageFiniteTyped("float8", "Infinity")))
+		wait, err := binder.BindFunction(datetimeMakeRaw("pg_sleep", ageFiniteTyped("float8", "Infinity")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -140,7 +140,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 func TestDatetimeSleepStored(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	node, err := b.bindFunction(datetimeMakeRaw("pg_sleep", datetimeMakeInteger(0)))
+	node, err := b.BindFunction(datetimeMakeRaw("pg_sleep", datetimeMakeInteger(0)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if analyze.ClosedTransactionTimeDefault(bad) {
 		t.Fatal("dependent default accepted")
 	}
-	interval, err := b.bindFunction(datetimeMakeRaw("pg_sleep_for", ageFiniteTyped("interval", "0")))
+	interval, err := b.BindFunction(datetimeMakeRaw("pg_sleep_for", ageFiniteTyped("interval", "0")))
 	if err != nil {
 		t.Fatal(err)
 	}

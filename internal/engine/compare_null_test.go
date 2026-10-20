@@ -20,13 +20,13 @@ import (
 func TestExpressionCompareNullTypedEval(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	boolType := b.typ(sqltype.Bool)
-	intType := b.typ(sqltype.Int4)
+	boolType := b.Type(sqltype.Bool)
+	intType := b.Type(sqltype.Int4)
 	evalContext := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	boolInfo := b.info(boolType.Usage(), parser.Position{Character: 8}, expr.Properties{})
+	boolInfo := b.Info(boolType.Usage(), parser.Position{Character: 8}, expr.Properties{})
 	integer, _ := sqltype.Integer(intType, 1)
 	for _, v := range []sqltype.Value{sqltype.Null(intType), integer, sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
-		child := plan.LiteralExpr{Info: b.info(v.Type().Usage(), parser.Position{}, expr.Properties{}), Value: v}
+		child := plan.LiteralExpr{Info: b.Info(v.Type().Usage(), parser.Position{}, expr.Properties{}), Value: v}
 		for _, not := range []bool{false, true} {
 			node := plan.NullTestExpr{Info: boolInfo, Child: child, Not: not}
 			got, err := node.Eval(evalContext)
@@ -57,8 +57,8 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	for i, a := range values {
 		for j, c := range values {
-			left := plan.LiteralExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{}), Value: a}
-			right := plan.LiteralExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{}), Value: c}
+			left := plan.LiteralExpr{Info: b.Info(intType.Usage(), parser.Position{}, expr.Properties{}), Value: a}
+			right := plan.LiteralExpr{Info: b.Info(intType.Usage(), parser.Position{}, expr.Properties{}), Value: c}
 			for _, not := range []bool{false, true} {
 				node := plan.DistinctExpr{Info: boolInfo, Left: left, Right: right, Equality: equality, Not: not}
 				got, err := node.Eval(evalContext)
@@ -73,8 +73,8 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	if err != nil || strict.Type() != boolType || !strict.IsNull() {
 		t.Fatal("ordinary equality lost UNKNOWN", strict, err)
 	}
-	column := plan.ColumnExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: 0}
-	parameter := plan.ParameterExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), Number: 1}
+	column := plan.ColumnExpr{Info: b.Info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: 0}
+	parameter := plan.ParameterExpr{Info: b.Info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), Number: 1}
 	nodes := []expr.Expr{plan.NullTestExpr{Info: boolInfo, Child: column}, plan.TruthTestExpr{Info: boolInfo, Child: column, Truth: plan.True}, plan.DistinctExpr{Info: boolInfo, Left: column, Right: parameter, Equality: equality}}
 	invalid := []*exec.Context{nil, {EvalStatement: exec.EvalStatement{Context: evalContext.Context}, EvalFrame: exec.EvalFrame{Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}, {EvalStatement: exec.EvalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}, {EvalStatement: exec.EvalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}}}}
 	for _, node := range nodes {
@@ -128,31 +128,31 @@ func TestExpressionCompareNullOccurrenceTyping(t *testing.T) {
 		{q: "SELECT $1 IS DISTINCT FROM v,$1 IS TRUE FROM t", code: "42804", message: "argument of IS TRUE must be type boolean, not type integer", position: "30"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "v", Usage: b.typ(sqltype.Int4).Usage()}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}}
+		b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "v", Usage: b.Type(sqltype.Int4).Usage()}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}}
 		s := statement(t, tc.q).(*parser.Select)
 		targets := []expr.Expr{}
 		var err error
 		for _, raw := range s.Targets {
 			var node expr.Expr
-			node, err = b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				break
 			}
 			targets = append(targets, node)
 		}
 		if err == nil && s.Where != nil {
-			_, err = b.bind(s.Where, expressionPolicy{context: filterContext, expected: b.typ(sqltype.Bool).Usage()})
+			_, err = b.Bind(s.Where, expressionPolicy{Context: FilterContext, Expected: b.Type(sqltype.Bool).Usage()})
 		}
 		if err == nil {
 			for _, node := range targets {
-				if _, err = b.finalizeProjection(node); err != nil {
+				if _, err = b.FinalizeProjection(node); err != nil {
 					break
 				}
 			}
 		}
 		var info ParameterInfo
 		if err == nil {
-			info, err = b.finish()
+			info, err = b.Finish()
 		}
 		if tc.code != "" {
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Detail: tc.detail, Position: tc.position}
@@ -240,7 +240,7 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 	ctx := context.Background()
 	for _, q := range []string{"SELECT NULL IS NULL FROM t", "SELECT TRUE IS NOT FALSE FROM t", "SELECT 1 IS DISTINCT FROM 2 FROM t"} {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		node, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		node, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -250,14 +250,14 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT $1 IS TRUE FROM t").(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if node.Properties().RowDependent || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 		t.Fatal(node.Properties())
 	}
-	boolType := b.typ(sqltype.Bool)
+	boolType := b.Type(sqltype.Bool)
 	for i, value := range []sqltype.Value{sqltype.Boolean(boolType, true), sqltype.Boolean(boolType, false), sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
 		got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{value}}})
 		truth, truthErr := plan.TruthOf(got)

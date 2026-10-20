@@ -20,7 +20,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp", Modifiers: []parser.TypeModifier{{Integer: &p}}, Pos: parser.Position{Offset: 7, Character: 8}}, Text: "now", Pos: parser.Position{Offset: 20, Character: 21}}
 	first := sqltype.InputEnvironment{TransactionStart: time.Date(2024, 12, 31, 23, 59, 59, 123456000, time.UTC)}
 	b := newTestExpressionBinder(t, ctx, e, first, nil)
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	n, _ := v.Timestamp()
-	wantDesc := StatementDescription{temporals: b.prepared.Temporals}
+	wantDesc := StatementDescription{temporals: b.Prepared.Temporals}
 	before := append([]temporalConstant(nil), wantDesc.temporals...)
 	old := v.Type()
 	if err = e.Reset(ctx); err != nil {
@@ -41,7 +41,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	}
 	later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(24 * time.Hour)}
 	b = newTestExpressionBinder(t, ctx, e, later, &wantDesc)
-	node, err = b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	}
 	dest, _, _ := current.ResolveModifiers(0)
 	b = newTestExpressionBinder(t, ctx, e, later, &wantDesc)
-	node, err = b.bind(raw, expressionPolicy{context: assignmentContext, expected: dest, mode: sqltype.Assignment})
+	node, err = b.Bind(raw, expressionPolicy{Context: AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,18 +64,18 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	// An unrelated current contextual target is not forced to the old type.
 	contextual := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "now", Pos: raw.Pos}}
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
-	node, err = b.bind(contextual, expressionPolicy{context: assignmentContext, expected: text.Usage(), mode: sqltype.Assignment})
+	node, err = b.Bind(contextual, expressionPolicy{Context: AssignmentContext, Expected: text.Usage(), Mode: sqltype.Assignment})
 	if err != nil || node.ResultUsage().Type != text {
 		t.Fatal(node, err)
 	}
 	// Parameters carry no capture and retain unsized type identity.
 	b = newTestExpressionBinder(t, ctx, e, later, &wantDesc)
-	node, err = b.bind(parser.ParameterExpr{Number: 1}, expressionPolicy{context: assignmentContext, expected: dest, mode: sqltype.Assignment})
+	node, err = b.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}
-	info, err := b.finish()
-	if err != nil || info.Types[0].Type != current || info.Types[0].Typmod != -1 || len(b.prepared.Temporals) != 0 {
+	info, err := b.Finish()
+	if err != nil || info.Types[0].Type != current || info.Types[0].Typmod != -1 || len(b.Prepared.Temporals) != 0 {
 		t.Fatal(info, err)
 	}
 }
@@ -199,9 +199,9 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 	later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(48 * time.Hour)}
 	for _, text := range []string{"today", "tomorrow", "yesterday"} {
 		raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: text, Pos: parser.Position{Offset: 7, Character: 8}}}
-		policy := expressionPolicy{context: assignmentContext, expected: typ.Usage(), mode: sqltype.Assignment}
+		policy := expressionPolicy{Context: AssignmentContext, Expected: typ.Usage(), Mode: sqltype.Assignment}
 		b := newTestExpressionBinder(t, ctx, e, first, nil)
-		node, err := b.bind(raw, policy)
+		node, err := b.Bind(raw, policy)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,9 +209,9 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		description := StatementDescription{temporals: b.prepared.Temporals}
+		description := StatementDescription{temporals: b.Prepared.Temporals}
 		b = newTestExpressionBinder(t, ctx, e, later, &description)
-		node, err = b.bind(raw, policy)
+		node, err = b.Bind(raw, policy)
 		if err != nil {
 			t.Fatal(err)
 		}

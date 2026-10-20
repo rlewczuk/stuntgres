@@ -19,7 +19,7 @@ import (
 
 func versionInformationUnitLeaf(t *testing.T, b *expressionBinder, kind functions.VersionInformationKind) functions.VersionInformation {
 	t.Helper()
-	node, err := b.bindFunction(parser.FunctionExpr{
+	node, err := b.BindFunction(parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: kind.Name()}}},
 		Pos:  parser.Position{Offset: 7, Character: 8},
 	})
@@ -46,7 +46,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		{functions.VersionInformationICU, 6099, expr.Immutable},
 	} {
 		leaf := versionInformationUnitLeaf(t, b, tc.kind)
-		if leaf.ResultUsage() != b.typ(sqltype.Text).Usage() || leaf.Property != (expr.Properties{Volatility: tc.volatility}) || leaf.RoutineReference == nil || leaf.RoutineReference.RoutineOID() != uint32(tc.oid) {
+		if leaf.ResultUsage() != b.Type(sqltype.Text).Usage() || leaf.Property != (expr.Properties{Volatility: tc.volatility}) || leaf.RoutineReference == nil || leaf.RoutineReference.RoutineOID() != uint32(tc.oid) {
 			t.Fatalf("incorrect binding: %#v", leaf)
 		}
 		declaration, err := routine.LookupBuiltinRoutineDeclaration(functions.CatalogRoutineProvider, tc.kind.Name(), nil)
@@ -62,12 +62,12 @@ func TestVersionInformationBinding(t *testing.T) {
 		if sides, err := plan.JoinExpressionSides(leaf, 0, 0); err != nil || sides != 0 {
 			t.Fatal("invented row source", sides, err)
 		}
-		if !b.sameGroupExpression(leaf, leaf) || !analyze.ClosedTransactionTimeDefault(leaf) {
+		if !b.SameGroupExpression(leaf, leaf) || !analyze.ClosedTransactionTimeDefault(leaf) {
 			t.Error("lost group/default leaf participation")
 		}
 		other := leaf
 		other.Kind = functions.VersionInformationUnicode
-		if tc.kind != other.Kind && b.sameGroupExpression(leaf, other) {
+		if tc.kind != other.Kind && b.SameGroupExpression(leaf, other) {
 			t.Error("distinct inquiries merged")
 		}
 		children := 0

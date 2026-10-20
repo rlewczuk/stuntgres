@@ -156,7 +156,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

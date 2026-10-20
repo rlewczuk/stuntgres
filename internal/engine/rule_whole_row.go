@@ -8,9 +8,9 @@ import (
 )
 
 func (b *expressionBinder) ruleWholeRow(side parser.Identifier, pos parser.Position) (expr.Expr, error) {
-	d := b.target.ruleNamespace.Relation
+	d := b.Target.RuleNamespace.Relation
 	fields := make([]expr.Expr, len(d.Columns))
-	typ, _ := b.bindingCatalog().LookupType(d.RowType)
+	typ, _ := b.BindingCatalog().LookupType(d.RowType)
 	var members []sqltype.CompositeMember
 	if typ == nil || !typ.Concrete() {
 		members = make([]sqltype.CompositeMember, len(d.Columns))
@@ -18,7 +18,7 @@ func (b *expressionBinder) ruleWholeRow(side parser.Identifier, pos parser.Posit
 	properties := expr.Properties{RowDependent: true}
 	for i, column := range d.Columns {
 		var err error
-		fields[i], _, err = b.ruleColumn(parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{side, {Text: column.Name, Pos: pos}}}, Pos: pos})
+		fields[i], _, err = b.RuleColumn(parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{side, {Text: column.Name, Pos: pos}}}, Pos: pos})
 		if err != nil {
 			return nil, err
 		}
@@ -38,5 +38,5 @@ func (b *expressionBinder) ruleWholeRow(side parser.Identifier, pos parser.Posit
 	if side.Text == "new" {
 		ruleSide = 2
 	}
-	return plan.RowExpr{Info: b.info(typ.Usage(), pos, properties), Fields: fields, RuleSide: ruleSide}, nil
+	return plan.RowExpr{Info: b.Info(typ.Usage(), pos, properties), Fields: fields, RuleSide: ruleSide}, nil
 }

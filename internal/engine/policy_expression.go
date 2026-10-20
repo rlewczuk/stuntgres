@@ -26,30 +26,30 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		Frame:      d.Columns,
 	}
 	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-	b.consumer.policyConsumer, b.params.noParameters = true, true
+	b.Consumer.PolicyConsumer, b.Params.NoParameters = true, true
 	// Query scopes carry this clause to the aggregate's semantic owner.
-	b.clause.aggregateClause = "policy expressions"
-	b.target.relation = d
-	b.query.auth, b.query.namespace = &auth, &ns
-	b.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
-	node, err := b.bindBoolean(raw, projectionContext, "POLICY")
+	b.Clause.AggregateClause = "policy expressions"
+	b.Target.Relation = d
+	b.Query.Auth, b.Query.Namespace = &auth, &ns
+	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
+	node, err := b.BindBoolean(raw, ProjectionContext, "POLICY")
 	if err != nil {
 		return nil, alterCookingError(err)
 	}
-	raw = b.normalizeStoredExpression(raw)
-	if err = b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+	raw = b.NormalizeStoredExpression(raw)
+	if err = b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 		return nil, err
 	}
 	source := &plan.SourceNode{QuerySchema: d.Columns, Ref: ref, Occurrence: 0}
 	root := &plan.ProjectNode{Child: source, Expressions: []expr.Expr{node}, Frame: 1, QuerySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
 	capture := binding{
 		Query:        &plan.Query{Root: root},
-		Dependencies: b.dependencies,
-		QuerySources: b.query.sources,
-		Capture:      b.capture,
+		Dependencies: b.Dependencies,
+		QuerySources: b.Query.Sources,
+		Capture:      b.Capture,
 		Prepared: preparedCaptures{
-			SequenceConstants: b.prepared.SequenceConstants,
-			RegtypeConstants:  b.prepared.RegtypeConstants,
+			SequenceConstants: b.Prepared.SequenceConstants,
+			RegtypeConstants:  b.Prepared.RegtypeConstants,
 		},
 	}
 	frozen, err := e.freezeQueryPresentationLocked(auth, nil, capture, false, false, 0, "", false)

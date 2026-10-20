@@ -42,11 +42,11 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 			usage.Typmod = 5
 		}
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
-		b.params.parameters[1] = usage
+		b.Clause.AggregateClause = "SELECT"
+		b.Params.Parameters[1] = usage
 		for _, name := range []string{"bit_and", "bit_or", "bit_xor", "bit_and"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
-			expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			expr, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -58,16 +58,16 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 				t.Fatal("aggregate result usage", expr.ResultUsage())
 			}
 		}
-		if len(b.grouping.aggregates) != 3 {
-			t.Fatal("operation dedup identity", len(b.grouping.aggregates))
+		if len(b.Grouping.Aggregates) != 3 {
+			t.Fatal("operation dedup identity", len(b.Grouping.Aggregates))
 		}
 		for i, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
-			if b.grouping.aggregates[i].Operation != op || b.grouping.aggregates[i].IncludeNulls {
-				t.Fatal("operation/strict identity", b.grouping.aggregates[i])
+			if b.Grouping.Aggregates[i].Operation != op || b.Grouping.Aggregates[i].IncludeNulls {
+				t.Fatal("operation/strict identity", b.Grouping.Aggregates[i])
 			}
 		}
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		binder.params.parameters[1] = usage
+		binder.Params.Parameters[1] = usage
 		targets := []parser.Expr{}
 		for _, name := range []string{"bit_and", "bit_or", "bit_xor"} {
 			targets = append(targets, parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}})
@@ -185,7 +185,7 @@ func TestBitwiseAggregateValuesAnalysis(t *testing.T) {
 	for _, name := range []string{"bit_and", "bit_or", "bit_xor"} {
 		for _, phase := range []string{"valid", "signature", "filter"} {
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			b.clause.aggregateClause = "INSERT VALUES"
+			b.Clause.AggregateClause = "INSERT VALUES"
 			raw := parser.AggregateExpr{Name: name, Pos: parser.Position{Character: 10}, Args: []parser.Expr{one}}
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42803", Message: "aggregate functions are not allowed in VALUES", Position: "10"}
 			if phase != "valid" {
@@ -197,13 +197,13 @@ func TestBitwiseAggregateValuesAnalysis(t *testing.T) {
 				want = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "argument of FILTER must be type boolean, not type integer", Position: "30"}
 			}
 			wrapped := parser.CastExpr{Child: raw, TypeName: parser.TypeName{Name: "integer"}}
-			if !containsValuesAggregateAnalysis(wrapped) {
+			if !ContainsValuesAggregateAnalysis(wrapped) {
 				t.Fatal("wrapped bitwise analysis omitted")
 			}
-			node, err := b.bind(wrapped, expressionPolicy{context: assignmentContext, expected: integer.Usage(), mode: sqltype.Assignment, column: "i"})
+			node, err := b.Bind(wrapped, expressionPolicy{Context: AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: "i"})
 			diagnostic, ok := err.(*sqlstate.Error)
-			if node != nil || !ok || *diagnostic != *want || len(b.grouping.aggregates) != 0 {
-				t.Fatal("VALUES precedence/registration rollback", phase, node, err, b.grouping.aggregates)
+			if node != nil || !ok || *diagnostic != *want || len(b.Grouping.Aggregates) != 0 {
+				t.Fatal("VALUES precedence/registration rollback", phase, node, err, b.Grouping.Aggregates)
 			}
 		}
 	}

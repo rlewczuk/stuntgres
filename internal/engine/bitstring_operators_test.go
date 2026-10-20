@@ -39,9 +39,9 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		var node expr.Expr
 		var err error
 		if tc.name == "||" {
-			node, err = b.bindStringConcat(raw)
+			node, err = b.BindStringConcat(raw)
 		} else {
-			node, err = b.bindBitwise(raw)
+			node, err = b.BindBitwise(raw)
 		}
 		if err != nil {
 			t.Fatal(tc.name, err)
@@ -50,7 +50,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		if tc.name == "||" {
 			id = sqltype.VarBit
 		}
-		if node.ResultUsage() != b.typ(id).Usage() || node.Properties() != (expr.Properties{}) {
+		if node.ResultUsage() != b.Type(id).Usage() || node.Properties() != (expr.Properties{}) {
 			t.Fatal(tc.name, node.ResultUsage(), node.Properties())
 		}
 		got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
@@ -62,7 +62,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		if err != nil || !strings.Contains(serialized, tc.name) || strings.Contains(serialized, "CAST(") {
 			t.Fatal(tc.name, serialized, err)
 		}
-		if !b.sameGroupExpression(node, node) {
+		if !b.SameGroupExpression(node, node) {
 			t.Fatal("structural equality rejected self")
 		}
 		replacement := New()
@@ -89,7 +89,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 			}
 			corrupt := original
 			corrupt.Bits = next.Bits
-			if b.sameGroupExpression(original, corrupt) {
+			if b.SameGroupExpression(original, corrupt) {
 				t.Fatal("structural equality ignored bit provider")
 			}
 		} else {
@@ -105,12 +105,12 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	node, err := b.bindBitwise(bitOperatorRaw("&", bitOperatorLiteral("10001"), bitOperatorLiteral("01101")))
+	node, err := b.BindBitwise(bitOperatorRaw("&", bitOperatorLiteral("10001"), bitOperatorLiteral("01101")))
 	if err != nil {
 		t.Fatal(err)
 	}
 	root := node.(plan.BitwiseExpr)
-	integral, err := sqltype.BindBitwise(sqltype.BitwiseAnd, b.typ(sqltype.Int4), b.typ(sqltype.Int4))
+	integral, err := sqltype.BindBitwise(sqltype.BitwiseAnd, b.Type(sqltype.Int4), b.Type(sqltype.Int4))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	}
 	// Signature selection remains analysis-only; width failures belong to the
 	// Execute preflight even if a later filter would discard every result.
-	bad, err := b.bindBitwise(bitOperatorRaw("&", bitOperatorLiteral("1"), bitOperatorLiteral("00")))
+	bad, err := b.BindBitwise(bitOperatorRaw("&", bitOperatorLiteral("1"), bitOperatorLiteral("00")))
 	if err != nil {
 		t.Fatal("width checked during analysis", err)
 	}
@@ -203,7 +203,7 @@ func TestBitStringOperatorsOperandEvaluation(t *testing.T) {
 func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Bit, sqltype.VarBit} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		usage := b.typ(id).Usage()
+		usage := b.Type(id).Usage()
 		usage.Typmod = 3
 		value, err := sqltype.BitString(usage.Type, "101")
 		if err != nil {
@@ -221,7 +221,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, arg := range binary.Args {
-			if arg.ResultUsage() != b.typ(sqltype.VarBit).Usage() {
+			if arg.ResultUsage() != b.Type(sqltype.VarBit).Usage() {
 				t.Fatal("bounded concat formal", arg.ResultUsage())
 			}
 		}

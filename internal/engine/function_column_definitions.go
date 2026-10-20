@@ -11,12 +11,12 @@ import (
 
 // Completion follows ordinary call/signature/SRF analysis, but precedes source
 // schema expansion. Explicit definitions are occurrence authorities, not aliases.
-func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, call expr.Expr, definitions []parser.FunctionColumnDefinition) (expr.Expr, error) {
+func (b *expressionBinder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.Expr, definitions []parser.FunctionColumnDefinition) (expr.Expr, error) {
 	record, isRecord := call.(functions.JSONRecord)
 	jsonb, isJSONB := call.(functions.JSONBRecord)
 	anonymous := (isRecord || isJSONB) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
-		if isRecord && anonymous || jsonbRecordUnresolved(call) {
+		if isRecord && anonymous || JSONBRecordUnresolved(call) {
 			return nil, expr.ErrorAt("42601", `a column definition list is required for functions returning "record"`, raw.Pos)
 		}
 		return call, nil
@@ -25,7 +25,7 @@ func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, 
 		return nil, expr.ErrorAt("42601", analyze.FunctionColumnDefinitionMessage(call), definitions[0].Name.Pos)
 	}
 	if isJSONB {
-		usage, err := b.bindJSONBRecordDefinition(definitions)
+		usage, err := b.BindJSONBRecordDefinition(definitions)
 		if err != nil {
 			return nil, err
 		}
@@ -63,11 +63,11 @@ func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, 
 // Both record providers resolve members through the same captured input
 // authority. Duplicate-name ordering remains with each provider's member loop.
 func (b *expressionBinder) resolveFunctionColumnUsage(definition parser.FunctionColumnDefinition, unknownNull bool) (sqltype.Usage, error) {
-	u, err := b.host.ResolveAnnotationType(definition.Type, unknownNull)
+	u, err := b.Host.ResolveAnnotationType(definition.Type, unknownNull)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	u, err = b.host.ResolveColumnCollation(u, definition.Collation)
+	u, err = b.Host.ResolveColumnCollation(u, definition.Collation)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
@@ -83,7 +83,7 @@ func functionDefinitionError(message, hint string, pos parser.Position) error {
 	return err
 }
 
-func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumnDefinition) (sqltype.Usage, error) {
+func (b *expressionBinder) BindJSONBRecordDefinition(raw []parser.FunctionColumnDefinition) (sqltype.Usage, error) {
 	if len(raw) > 1600 {
 		return sqltype.Usage{}, expr.ErrorAt("54011", "column definition lists can have at most 1600 entries", raw[0].Name.Pos)
 	}
@@ -101,7 +101,7 @@ func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumn
 		}
 		// Definition-only members remain dependencies even for empty/NULL calls
 		// and when their output is not projected by the surrounding query.
-		b.info(u, definition.Name.Pos, expr.Properties{})
+		b.Info(u, definition.Name.Pos, expr.Properties{})
 		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: definition.Name.Text, Usage: u}
 	}
 	if duplicate != "" {
@@ -114,7 +114,7 @@ func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumn
 	return shape.Usage(), nil
 }
 
-func jsonbRecordUnresolved(expr expr.Expr) bool {
+func JSONBRecordUnresolved(expr expr.Expr) bool {
 	call, ok := expr.(functions.JSONBRecord)
 	return ok && call.Unresolved && call.ResultUsage().Type.ID() == 2249
 }

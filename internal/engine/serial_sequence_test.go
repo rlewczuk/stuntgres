@@ -224,7 +224,7 @@ func TestSerialSequenceExpression(t *testing.T) {
 	for _, rawSQL := range []string{`SELECT pg_get_serial_sequence($1,$2)`, `SELECT pg_get_serial_sequence('t','id')`} {
 		raw := statement(t, rawSQL).(*parser.Select).Targets[0].(parser.FunctionExpr)
 		b := newTestExpressionBinder(t, context.Background(), f.engine, sqltype.InputEnvironment{}, nil)
-		bound, err := b.bindFunctionProvider(raw)
+		bound, err := b.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}

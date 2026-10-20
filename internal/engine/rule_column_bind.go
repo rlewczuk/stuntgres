@@ -11,15 +11,15 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, error) {
-	if b.target.ruleNamespace == nil || len(raw.Name.Parts) == 0 {
+func (b *expressionBinder) RuleColumn(raw parser.ColumnExpr) (expr.Expr, bool, error) {
+	if b.Target.RuleNamespace == nil || len(raw.Name.Parts) == 0 {
 		return nil, false, nil
 	}
 	side := raw.Name.Parts[0].Text
 	if side != "new" && side != "old" {
 		return nil, false, nil
 	}
-	ns := b.target.ruleNamespace
+	ns := b.Target.RuleNamespace
 	if side == "old" && ns.Event == "INSERT" || side == "new" && ns.Event == "DELETE" || ns.Event == "SELECT" {
 		return nil, true, sqlError("42P17", fmt.Sprintf("ON %s rule cannot use %s", ns.Event, strings.ToUpper(side)))
 	}
@@ -30,12 +30,12 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, e
 	if len(raw.Name.Parts) > 2 {
 		first := raw
 		first.Name.Parts = raw.Name.Parts[:2]
-		base, _, err := b.ruleColumn(first)
+		base, _, err := b.RuleColumn(first)
 		if err != nil {
 			return nil, true, err
 		}
 		for _, field := range raw.Name.Parts[2:] {
-			base, err = b.selectCompositeField(base, field.Text, field.Pos)
+			base, err = b.SelectCompositeField(base, field.Text, field.Pos)
 			if err != nil {
 				return nil, true, err
 			}
@@ -53,6 +53,6 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, e
 	if side == "new" {
 		frame = 2
 	}
-	b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: ns.Relation.Revision()})
-	return plan.ColumnExpr{Info: b.info(ns.Relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), Origin: ref, Scope: analyze.RulePseudoScope, Frame: frame, Slot: slot}, true, nil
+	b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: ns.Relation.Revision()})
+	return plan.ColumnExpr{Info: b.Info(ns.Relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), Origin: ref, Scope: analyze.RulePseudoScope, Frame: frame, Slot: slot}, true, nil
 }

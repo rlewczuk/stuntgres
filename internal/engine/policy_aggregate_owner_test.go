@@ -58,26 +58,26 @@ func TestRLSPolicyAggregateClauseRestoration(t *testing.T) {
 	e, op, done, d := policyUnitFixture(t)
 	defer done()
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	b.target.relation = d
-	b.clause.aggregateClause = "policy expressions"
+	b.Target.Relation = d
+	b.Clause.AggregateClause = "policy expressions"
 	for range 2 {
 		leaveChild := b.EnterQuery(false)
-		if b.clause.aggregateClause != "" || len(b.query.scopes) != 1 || b.query.scopes[0].clause != "policy expressions" {
-			t.Fatal("child did not capture policy owner", b.clause.aggregateClause, b.query.scopes)
+		if b.Clause.AggregateClause != "" || len(b.Query.Scopes) != 1 || b.Query.Scopes[0].Clause != "policy expressions" {
+			t.Fatal("child did not capture policy owner", b.Clause.AggregateClause, b.Query.Scopes)
 		}
-		b.clause.aggregateClause = "SELECT"
+		b.Clause.AggregateClause = "SELECT"
 		leaveGrandchild := b.EnterQuery(false)
-		if len(b.query.scopes) != 2 || b.query.scopes[0].clause != "policy expressions" || b.query.scopes[1].clause != "SELECT" {
-			t.Fatal("deep query lost lexical owner clauses", b.query.scopes)
+		if len(b.Query.Scopes) != 2 || b.Query.Scopes[0].Clause != "policy expressions" || b.Query.Scopes[1].Clause != "SELECT" {
+			t.Fatal("deep query lost lexical owner clauses", b.Query.Scopes)
 		}
-		b.clause.aggregateClause = "WHERE"
+		b.Clause.AggregateClause = "WHERE"
 		leaveGrandchild()
-		if b.clause.aggregateClause != "SELECT" || len(b.query.scopes) != 1 {
-			t.Fatal("grandchild failed to restore child clause", b.clause.aggregateClause, b.query.scopes)
+		if b.Clause.AggregateClause != "SELECT" || len(b.Query.Scopes) != 1 {
+			t.Fatal("grandchild failed to restore child clause", b.Clause.AggregateClause, b.Query.Scopes)
 		}
 		leaveChild()
-		if b.clause.aggregateClause != "policy expressions" || len(b.query.scopes) != 0 || b.query.frame != 0 {
-			t.Fatal("child failed to restore policy clause", b.clause.aggregateClause, b.query.scopes, b.query.frame)
+		if b.Clause.AggregateClause != "policy expressions" || len(b.Query.Scopes) != 0 || b.Query.Frame != 0 {
+			t.Fatal("child failed to restore policy clause", b.Clause.AggregateClause, b.Query.Scopes, b.Query.Frame)
 		}
 	}
 }

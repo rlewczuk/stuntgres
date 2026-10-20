@@ -141,25 +141,25 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 	ns := &analyze.RuleNamespace{Relation: d, Ref: ref, Event: r.event}
 	if s.Condition != nil {
 		binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-		binder.target.ruleNamespace = ns
-		binder.params.noParameters = true
-		binder.query.auth = &auth
-		binder.clause.aggregateClause = "WHERE"
-		binder.query.frame = 1
-		binder.query.nextQueryFrame = 1
+		binder.Target.RuleNamespace = ns
+		binder.Params.NoParameters = true
+		binder.Query.Auth = &auth
+		binder.Clause.AggregateClause = "WHERE"
+		binder.Query.Frame = 1
+		binder.Query.NextQueryFrame = 1
 		var err error
-		r.condition, err = binder.bind(s.Condition, expressionPolicy{context: filterContext})
+		r.condition, err = binder.Bind(s.Condition, expressionPolicy{Context: FilterContext})
 		if err != nil {
 			return r, err
 		}
-		normalizedCondition := binder.normalizeStoredExpression(s.Condition)
-		if err := binder.captureViewLiterals(normalizedCondition, r.condition, analyze.ViewTargetLiteral, 0); err != nil {
+		normalizedCondition := binder.NormalizeStoredExpression(s.Condition)
+		if err := binder.CaptureViewLiterals(normalizedCondition, r.condition, analyze.ViewTargetLiteral, 0); err != nil {
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
-		b := binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.FrameID(), Syntax: query}}, Dependencies: binder.dependencies, QuerySources: binder.query.sources, Capture: viewCapture{Columns: binder.capture.Columns, Literals: binder.capture.Literals, CastUsages: binder.capture.CastUsages, Composites: binder.capture.Composites, Collations: binder.capture.Collations, Namespaces: binder.capture.Namespaces}, Prepared: preparedCaptures{SequenceConstants: binder.prepared.SequenceConstants, RegtypeConstants: binder.prepared.RegtypeConstants}}
-		b.Capture.RoutineRefs = binder.capture.RoutineRefs
-		b.Capture.OperatorRefs = binder.capture.OperatorRefs
+		b := binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.FrameID(), Syntax: query}}, Dependencies: binder.Dependencies, QuerySources: binder.Query.Sources, Capture: viewCapture{Columns: binder.Capture.Columns, Literals: binder.Capture.Literals, CastUsages: binder.Capture.CastUsages, Composites: binder.Capture.Composites, Collations: binder.Capture.Collations, Namespaces: binder.Capture.Namespaces}, Prepared: preparedCaptures{SequenceConstants: binder.Prepared.SequenceConstants, RegtypeConstants: binder.Prepared.RegtypeConstants}}
+		b.Capture.RoutineRefs = binder.Capture.RoutineRefs
+		b.Capture.OperatorRefs = binder.Capture.OperatorRefs
 		for i := range b.QuerySources {
 			b.QuerySources[i].FrozenAttributes = slices.Clone(b.QuerySources[i].Relation.Attributes)
 		}

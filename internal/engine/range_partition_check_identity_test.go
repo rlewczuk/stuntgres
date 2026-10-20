@@ -27,7 +27,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	equality := expressionBinder{consumer: consumerContext{checkDefinitionEquality: true}}
+	equality := expressionBinder{Consumer: consumerContext{CheckDefinitionEquality: true}}
 	for _, test := range []struct {
 		expression string
 		equal      bool
@@ -43,7 +43,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(test, err)
 		}
-		if len(definition.Constraints.Check) != 1 || equality.sameGroupExpression(original, definition.Constraints.Check[0].Expression) != test.equal {
+		if len(definition.Constraints.Check) != 1 || equality.SameGroupExpression(original, definition.Constraints.Check[0].Expression) != test.equal {
 			t.Fatal("cooked tree comparison simplified or retargeted definition", test)
 		}
 	}
@@ -54,14 +54,14 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	implicit := plan.CoercionExpr{Info: binder.info(original.ResultUsage(), original.SourcePosition(), original.Properties()), Child: original, Plan: coercionPlan, Mode: sqltype.Implicit}
+	implicit := plan.CoercionExpr{Info: binder.Info(original.ResultUsage(), original.SourcePosition(), original.Properties()), Child: original, Plan: coercionPlan, Mode: sqltype.Implicit}
 	explicit := implicit
 	explicit.Mode = sqltype.Explicit
 	grouping := expressionBinder{}
-	if !equality.sameGroupExpression(implicit, explicit) || grouping.sameGroupExpression(implicit, explicit) {
+	if !equality.SameGroupExpression(implicit, explicit) || grouping.SameGroupExpression(implicit, explicit) {
 		t.Fatal("CHECK-only coercion identity changed grouping semantics")
 	}
-	if len(child.Constraints.Check) != 1 || !equality.sameGroupExpression(child.Constraints.Check[0].Expression, original) {
+	if len(child.Constraints.Check) != 1 || !equality.SameGroupExpression(child.Constraints.Check[0].Expression, original) {
 		t.Fatal("private equality binding mutated installed CHECK")
 	}
 }

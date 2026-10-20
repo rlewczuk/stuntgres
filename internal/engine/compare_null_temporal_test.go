@@ -17,7 +17,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 	for _, q := range []string{"SELECT 'now' IS DISTINCT FROM TIMESTAMP 'now' FROM t", "SELECT TIMESTAMP 'now' IS NOT DISTINCT FROM 'now' FROM t", "SELECT 'now' IS DISTINCT FROM TIME 'now' FROM t"} {
 		raw := statement(t, q).(*parser.Select).Targets[0]
 		b := newTestExpressionBinder(t, ctx, e, first, nil)
-		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -30,13 +30,13 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(b.prepared.Temporals) != 2 || b.prepared.Temporals[0].Offset >= b.prepared.Temporals[1].Offset {
-			t.Fatal("symmetric contextualization must retain sorted source captures", b.prepared.Temporals)
+		if len(b.Prepared.Temporals) != 2 || b.Prepared.Temporals[0].Offset >= b.Prepared.Temporals[1].Offset {
+			t.Fatal("symmetric contextualization must retain sorted source captures", b.Prepared.Temporals)
 		}
-		description := StatementDescription{temporals: b.prepared.Temporals}
+		description := StatementDescription{temporals: b.Prepared.Temporals}
 		later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(25 * time.Hour)}
 		rebound := newTestExpressionBinder(t, ctx, e, later, &description)
-		bound, err = rebound.bind(raw, expressionPolicy{context: projectionContext})
+		bound, err = rebound.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -49,7 +49,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, beforeLeft.Type(), afterLeft.Type(), b.typ(sqltype.Bool), sqltype.CollationRef{}, false)
+		equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, beforeLeft.Type(), afterLeft.Type(), b.Type(sqltype.Bool), sqltype.CollationRef{}, false)
 		if err != nil {
 			t.Fatal(err)
 		}

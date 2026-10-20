@@ -147,14 +147,14 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			return err
 		}
 		binder := newExpressionBinder(ctx, e, input, s.op, nil)
-		binder.query.auth, binder.params.noParameters, binder.params.executeParameters = &auth, true, true
+		binder.Query.Auth, binder.Params.NoParameters, binder.Params.ExecuteParameters = &auth, true, true
 		nodes := make([]expr.Expr, formal.Count)
 		for i, argument := range raw.Arguments {
-			node, err := binder.bind(argument, expressionPolicy{context: functionArgumentContext, expected: formal.Types[i], mode: sqltype.Assignment})
+			node, err := binder.Bind(argument, expressionPolicy{Context: FunctionArgumentContext, Expected: formal.Types[i], Mode: sqltype.Assignment})
 			if err != nil {
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && node != nil {
 					copy := *d
-					copy.Message = fmt.Sprintf("parameter $%d of type %s cannot be coerced to the expected type %s", i+1, binder.diagnosticTypeName(node.ResultUsage().Type), binder.diagnosticTypeName(formal.Types[i].Type))
+					copy.Message = fmt.Sprintf("parameter $%d of type %s cannot be coerced to the expected type %s", i+1, binder.DiagnosticTypeName(node.ResultUsage().Type), binder.DiagnosticTypeName(formal.Types[i].Type))
 					copy.Hint = "You will need to rewrite or cast the expression."
 					copy.Position = strconv.Itoa(parser.ExpressionStart(argument).Character)
 					return &copy
@@ -163,25 +163,25 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			}
 			nodes[i] = node
 		}
-		if binder.consumer.catalogSnapshot || binder.prepared.RegclassConcat {
+		if binder.Consumer.CatalogSnapshot || binder.Prepared.RegclassConcat {
 			if err := e.captureCommentSnapshotLocked(s); err != nil {
 				return err
 			}
 		}
-		if binder.consumer.visibilitySnapshot {
+		if binder.Consumer.VisibilitySnapshot {
 			s.inquiry.visibilityDemand = true
 			if err := e.captureVisibilitySnapshotLocked(s); err != nil {
 				return err
 			}
 		}
-		input = binder.input
+		input = binder.Input
 		e.mu.Unlock()
 		locked = false
 		// Actuals are their own executable recipe, not the prepared body's
 		// parameter-only binding. Borrow the original actual manifest without
 		// replacing the statement's main-query authority or dependencies.
 		var actualProgram routineAdmissionProgram
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Catalog: auth.Catalog, Input: input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies, RoutineProgram: &actualProgram}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Catalog: auth.Catalog, Input: input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies, RoutineProgram: &actualProgram}}
 		for _, node := range nodes {
 			if sqltype.ContainsDomainConstraints(node.ResultUsage().Type) {
 				evaluation.Input.DomainChecks = &evaluation
@@ -230,7 +230,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		if err != nil {
 			return err
 		}
-		if err := typedef.ValidateCapturedInputBinding(auth.Catalog, current.Catalog, binder.dependencies); err != nil {
+		if err := typedef.ValidateCapturedInputBinding(auth.Catalog, current.Catalog, binder.Dependencies); err != nil {
 			return err
 		}
 		e.mu.Unlock()

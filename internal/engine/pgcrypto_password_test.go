@@ -31,7 +31,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		{"gen_salt", []parser.Expr{literal("bf")}, expr.Volatile},
 	} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: v.name}}}, Args: v.args}
-		node, err := binder.bindFunctionProvider(raw)
+		node, err := binder.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,7 +45,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if !analyze.ClosedPgcryptoDefault(n) {
 			t.Fatal("closed installed crypto default rejected", v.name)
 		}
-		stored, err := binder.bindDefault(raw, catalog.Column{Name: "salt", Usage: binder.typ(sqltype.Text).Usage()})
+		stored, err := binder.BindDefault(raw, catalog.Column{Name: "salt", Usage: binder.Type(sqltype.Text).Usage()})
 		if err != nil {
 			t.Fatal("installed crypto DEFAULT admission", v.name, err)
 		}
@@ -90,7 +90,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(value, err)
 		}
 	}
-	random := functions.Random{Info: expr.Info{Usage: binder.typ(sqltype.Float8).Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
+	random := functions.Random{Info: expr.Info{Usage: binder.Type(sqltype.Float8).Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	if analyze.ClosedPgcryptoDefault(random) {
 		t.Fatal("unrelated volatile DEFAULT admitted")
 	}

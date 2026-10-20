@@ -25,21 +25,21 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		binder := expressionBinder{host: e.analysisHost(nil)}
+		binder := expressionBinder{Host: e.analysisHost(nil)}
 		base := plan.LiteralExpr{Info: expr.Info{Usage: current.Usage()}, Value: sqltype.Null(current)}
-		node := binder.retainedCompositeField(base, key, capture, parser.Position{})
+		node := binder.RetainedCompositeField(base, key, capture, parser.Position{})
 		literal, ok := node.(plan.LiteralExpr)
 		if !ok || !literal.Value.IsNull() || node.ResultUsage() != original.CompositeMember(1).Usage {
 			t.Fatal("retired field retargeted", node)
 		}
-		capture = binder.prepared.Composites[key]
+		capture = binder.Prepared.Composites[key]
 		if capture.Base.Type != original || capture.Attributes[0] != source.Attributes[1] {
 			t.Fatal("original capture overwritten")
 		}
 	}
-	binder := expressionBinder{host: e.analysisHost(nil)}
+	binder := expressionBinder{Host: e.analysisHost(nil)}
 	base := plan.LiteralExpr{Info: expr.Info{Usage: original.Usage()}, Value: sqltype.Null(original)}
-	if field, ok := binder.retainedCompositeField(base, key, capture, parser.Position{}).(plan.FieldExpr); !ok || field.Attribute != source.Attributes[1] {
+	if field, ok := binder.RetainedCompositeField(base, key, capture, parser.Position{}).(plan.FieldExpr); !ok || field.Attribute != source.Attributes[1] {
 		t.Fatal("live identity lost")
 	}
 }

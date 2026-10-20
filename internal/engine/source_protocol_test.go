@@ -79,7 +79,7 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 		}
 	}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	members, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_get_multixact_members"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}})
+	members, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_get_multixact_members"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,7 +369,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	}
 	call := substituted.(functions.JSONRecord)
 	requests := []expr.Expr{call}
-	b.query.frame = 1
+	b.Query.Frame = 1
 	root, err := b.LowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
 	if err != nil {
 		t.Fatal(err)

@@ -24,7 +24,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 	startBindings := len(b.cte.bindings)
 	for _, index := range analysis.Order {
 		raw := rawDefinitions[index]
-		start := len(b.query.sources)
+		start := len(b.Query.Sources)
 		definition := &plan.CTEDefinition{Owner: b.FrameID(), Hint: raw.Materialization, Position: raw.Name.Pos, Name: raw.Name.Text, Columns: raw.Columns, Recursive: analysis.Recursive[index]}
 		if raw.Search != nil {
 			definition.Search = &plan.SearchRecipe{Syntax: raw.Search}
@@ -55,10 +55,10 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			if err != nil {
 				return nil, err
 			}
-			for i := start; i < len(b.query.sources); i++ {
-				b.query.sources[i].AnalysisOnly = true
+			for i := start; i < len(b.Query.Sources); i++ {
+				b.Query.Sources[i].AnalysisOnly = true
 			}
-			viewVolatile, err := b.host.StoredViewVolatile(b.query.auth, query.Root)
+			viewVolatile, err := b.Host.StoredViewVolatile(b.Query.Auth, query.Root)
 			if err != nil {
 				return nil, err
 			}
@@ -134,7 +134,7 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 	}
 	name := table.Name.Parts[0].Text
 	qualifier := queryQualifier{Name: name, Original: name, Columns: columns}
-	b.query.hidden = append(b.query.hidden, qualifier)
+	b.Query.Hidden = append(b.Query.Hidden, qualifier)
 	return root, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: schema}, nil
 }
 

@@ -17,10 +17,10 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	varying := b.typ(sqltype.VarBit).Usage()
+	varying := b.Type(sqltype.VarBit).Usage()
 	varying.Typmod = 5
 	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "x0f", Pos: parser.Position{Offset: 7, Character: 8}}}
-	node, err := b.bind(raw, expressionPolicy{})
+	node, err := b.Bind(raw, expressionPolicy{})
 	if err != nil || node.ResultUsage().Type.ID() != sqltype.Bit || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation != (sqltype.CollationRef{}) {
 		t.Fatal(node, err)
 	}
@@ -37,7 +37,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 		t.Fatal(literal, err)
 	}
 	// A destination cannot reinterpret a known B/X constant as unknown text.
-	node, err = b.bind(parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "b001", Pos: raw.Value.Pos}}, expressionPolicy{expected: varying, context: assignmentContext})
+	node, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "b001", Pos: raw.Value.Pos}}, expressionPolicy{Expected: varying, Context: AssignmentContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,14 +49,14 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 	if err != nil || bits != "001" {
 		t.Fatal(bits, err)
 	}
-	fixed := b.typ(sqltype.Bit).Usage()
+	fixed := b.Type(sqltype.Bit).Usage()
 	fixed.Typmod = 3
 	for _, kind := range []parser.ValueKind{parser.BitStringValue, parser.StringValue} {
 		text := "2"
 		if kind == parser.BitStringValue {
 			text = "b2"
 		}
-		_, err = b.bind(parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: text, Pos: raw.Value.Pos}}, expressionPolicy{expected: fixed, context: assignmentContext})
+		_, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: text, Pos: raw.Value.Pos}}, expressionPolicy{Expected: fixed, Context: AssignmentContext})
 		var d *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `"2" is not a valid binary digit`, Position: "8"}
 		if !errors.As(err, &d) || *d != want {
@@ -74,7 +74,7 @@ func TestBitstringFormatLiteralReplay(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, tc := range []struct{ input, canonical string }{{"b001", "001"}, {"x0f", "00001111"}, {"b", ""}} {
 		raw := nullCountRaw("format", formatUnitLiteral("%s"), parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: tc.input}})
-		node, err := b.bind(raw, expressionPolicy{})
+		node, err := b.Bind(raw, expressionPolicy{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +85,7 @@ func TestBitstringFormatLiteralReplay(t *testing.T) {
 		}
 		// Rendering literal identity must not enable even an explicit BIT
 		// identity cast; serialization fixes the owning seam instead.
-		bit := b.typ(sqltype.Bit).Usage()
+		bit := b.Type(sqltype.Bit).Usage()
 		if _, err := sqltype.PlanCoercion(bit, bit, sqltype.Explicit); err == nil {
 			t.Fatal("BIT cast admission widened")
 		}

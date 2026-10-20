@@ -78,7 +78,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ext_acl"}, {Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	_, err := binder.bindFunctionProvider(raw)
+	_, err := binder.BindFunctionProvider(raw)
 	extensionUnitError(t, err, "42501")
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -96,14 +96,14 @@ func TestExtensionSchemaACL(t *testing.T) {
 	auth.settings.mu.Unlock()
 	binder = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	raw.Name.Parts = raw.Name.Parts[1:]
-	_, err = binder.bindFunctionProvider(raw)
+	_, err = binder.BindFunctionProvider(raw)
 	extensionUnitError(t, err, "42883")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), ns.Address()), acl); err != nil {
 		t.Fatal(err)
 	}
 	binder = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	node, err := binder.bindFunctionProvider(raw)
+	node, err := binder.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

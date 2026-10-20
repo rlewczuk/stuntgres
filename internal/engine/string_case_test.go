@@ -104,7 +104,7 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			e.mu.Lock()
 			defer e.mu.Unlock()
-			text := b.typ(sqltype.Text)
+			text := b.Type(sqltype.Text)
 			for _, collation := range []struct {
 				name string
 				id   uint32
@@ -123,10 +123,10 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 				}
 				bound := node.(functions.String)
 				input := bound.Args[0].(plan.CollationExpr)
-				if b.params.parameters[1] != text.Usage() || input.Child.ResultUsage() != text.Usage() ||
+				if b.Params.Parameters[1] != text.Usage() || input.Child.ResultUsage() != text.Usage() ||
 					input.ResultUsage().Collation.ID != collation.id || bound.ResultUsage().Collation.ID != collation.id ||
 					!bound.Properties().ParameterDependent {
-					t.Fatal("lost parameter type or occurrence collation", b.params.parameters, input, bound)
+					t.Fatal("lost parameter type or occurrence collation", b.Params.Parameters, input, bound)
 				}
 			}
 		})
@@ -139,7 +139,7 @@ func TestStringCaseCollatedTypedParameterDiagnostic(t *testing.T) {
 	expected := &StatementDescription{Parameters: ParameterInfo{Count: 1, Types: []sqltype.Usage{integer.Usage()}}}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	established := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, binderOperation(b), nil)
-	established.params.parameters[1] = integer.Usage()
+	established.Params.Parameters[1] = integer.Usage()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	raw := parser.FunctionExpr{

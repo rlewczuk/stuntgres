@@ -16,20 +16,20 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []plan.S
 	if raw.Offset == nil {
 		return bound, nil
 	}
-	old := b.clause.aggregateClause
-	aggregates, windows := b.grouping.aggregates, b.grouping.windowCalls
-	b.clause.aggregateClause = "window RANGE"
+	old := b.Clause.AggregateClause
+	aggregates, windows := b.Grouping.Aggregates, b.Grouping.WindowCalls
+	b.Clause.AggregateClause = "window RANGE"
 	defer func() {
-		b.clause.aggregateClause = old
-		b.grouping.aggregates = aggregates
-		b.grouping.windowCalls = windows
+		b.Clause.AggregateClause = old
+		b.Grouping.Aggregates = aggregates
+		b.Grouping.WindowCalls = windows
 	}()
 	if unit == parser.FrameGroups || unit == parser.FrameRows {
 		label := "GROUPS"
 		if unit == parser.FrameRows {
 			label = "ROWS"
 		}
-		b.clause.aggregateClause = "window " + label
+		b.Clause.AggregateClause = "window " + label
 		var err error
 		bound.Offset, err = b.bindQueryBound(raw.Offset, label, analyze.ViewWindowLiteral, false)
 		return bound, err
@@ -38,7 +38,7 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []plan.S
 	if err != nil {
 		return bound, err
 	}
-	support, usage, err := sqltype.BindRange(order[0].Expression.ResultUsage(), operand.descriptor(), b.typ, b.diagnosticTypeName)
+	support, usage, err := sqltype.BindRange(order[0].Expression.ResultUsage(), operand.descriptor(), b.Type, b.DiagnosticTypeName)
 	if err != nil {
 		if d, ok := err.(*sqlstate.Error); ok {
 			copy := *d
@@ -56,7 +56,7 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []plan.S
 		if err != nil {
 			return bound, err
 		}
-		node = plan.CoercionExpr{Info: b.info(usage, node.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}
+		node = plan.CoercionExpr{Info: b.Info(usage, node.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}
 	}
 	if analyze.ExpressionUsesFrame(node, b.FrameID()) {
 		return bound, expr.ErrorAt("42P10", "argument of RANGE must not contain variables", analyze.FirstQueryBoundFrameVariable(node, b.FrameID()))

@@ -24,35 +24,35 @@ func TestSQLRoutineClosedFormalBoundary(t *testing.T) {
 	defer e.mu.Unlock()
 	for _, count := range []int{0, 1, 2} {
 		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-		b.params.closedRoutineFormals = true
+		b.Params.ClosedRoutineFormals = true
 		inputs := make([]sqltype.Usage, count)
 		for i := range inputs {
 			inputs[i] = integer
 		}
-		b.seedParameters(inputs)
+		b.SeedParameters(inputs)
 		n := count + 1
-		_, err := b.bind(parser.ParameterExpr{Number: n, Pos: parser.Position{Character: 9}}, expressionPolicy{context: projectionContext, expected: integer})
+		_, err := b.Bind(parser.ParameterExpr{Number: n, Pos: parser.Position{Character: 9}}, expressionPolicy{Context: ProjectionContext, Expected: integer})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42P02" || d.Position != "9" || d.Message != fmt.Sprintf("there is no parameter $%d", n) {
 			t.Fatalf("count=%d: %v", count, err)
 		}
-		if len(b.params.parameters) != count {
+		if len(b.Params.Parameters) != count {
 			t.Fatal("out-of-range slot entered inference")
 		}
-		if err := b.constrain(n, integer, parser.Position{}); err == nil {
+		if err := b.Constrain(n, integer, parser.Position{}); err == nil {
 			t.Fatal("constraint escaped closed formals")
 		}
-		info, err := b.finish()
+		info, err := b.Finish()
 		if err != nil || info.Count != count {
 			t.Fatal("unused declared slots lost", info, err)
 		}
 	}
 	// Ordinary prepared input inference is deliberately still open.
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-	if _, err := b.bind(parser.ParameterExpr{Number: 1}, expressionPolicy{context: projectionContext, expected: integer}); err != nil {
+	if _, err := b.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: ProjectionContext, Expected: integer}); err != nil {
 		t.Fatal(err)
 	}
-	if info, err := b.finish(); err != nil || info.Count != 1 {
+	if info, err := b.Finish(); err != nil || info.Count != 1 {
 		t.Fatal(info, err)
 	}
 }

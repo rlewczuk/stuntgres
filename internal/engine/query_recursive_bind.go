@@ -139,7 +139,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinit
 		for slot := d.UserWidth; slot < len(d.Schema); slot++ {
 			scan.Demand[slot] = true
 			column := d.Schema[slot]
-			info := b.info(column.Usage, d.Position, expr.Properties{RowDependent: true})
+			info := b.Info(column.Usage, d.Position, expr.Properties{RowDependent: true})
 			right.Expressions = append(right.Expressions, plan.ColumnExpr{Info: info, Scope: 1, Frame: right.Frame, Slot: offset + slot})
 			right.QuerySchema = append(right.QuerySchema, column)
 			set.RightExpressions = append(set.RightExpressions, right.Expressions[len(right.Expressions)-1])
@@ -158,5 +158,5 @@ func (b *expressionBinder) recursiveUsageName(usage sqltype.Usage) string {
 			return name
 		}
 	}
-	return b.diagnosticTypeName(usage.Type)
+	return b.DiagnosticTypeName(usage.Type)
 }

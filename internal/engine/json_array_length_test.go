@@ -74,13 +74,13 @@ func TestJSONArrayLengthParameterProperties(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			pos := parser.Position{Offset: 7, Character: 8}
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name, Pos: pos}}}, Args: []parser.Expr{parser.ParameterExpr{Number: 1, Pos: parser.Position{Offset: 25, Character: 26}}}, Pos: pos}
-			bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
 			node, ok := bound.(functions.Binary)
-			if !ok || node.Plan.Name() != tc.name || bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || b.params.parameters[1].Type.ID() != tc.id {
-				t.Fatal(bound, b.params.parameters[1])
+			if !ok || node.Plan.Name() != tc.name || bound.ResultUsage() != b.Type(sqltype.Int4).Usage() || b.Params.Parameters[1].Type.ID() != tc.id {
+				t.Fatal(bound, b.Params.Parameters[1])
 			}
 			if !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Immutable {
 				t.Fatal(bound.Properties())
@@ -101,7 +101,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 		{sqltype.JSONB, "jsonb_array_length", ` ["it's",1] `, `'["it''s", 1]'::jsonb`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			typ := b.typ(tc.id)
+			typ := b.Type(tc.id)
 			value, err := typ.Input(context.Background(), tc.source, -1)
 			if err != nil {
 				t.Fatal(err)
@@ -112,7 +112,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 			if err != nil || got != tc.literal {
 				t.Fatalf("literal=%q err=%v want=%q", got, err, tc.literal)
 			}
-			usage := b.typ(sqltype.Int4).Usage()
+			usage := b.Type(sqltype.Int4).Usage()
 			plan, err := sqltype.BindBinary(tc.name, usage, typ.Usage())
 			if err != nil {
 				t.Fatal(err)

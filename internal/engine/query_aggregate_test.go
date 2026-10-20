@@ -276,23 +276,23 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	column := key.Left.(plan.ColumnExpr)
 	column.Pos.Character = 888
 	equivalent.Left = column
-	if !binder.sameGroupExpression(key, equivalent) {
+	if !binder.SameGroupExpression(key, equivalent) {
 		t.Fatal("positions changed semantic identity")
 	}
 	reversed := key
 	reversed.Left, reversed.Right = key.Right, key.Left
-	if binder.sameGroupExpression(key, reversed) {
+	if binder.SameGroupExpression(key, reversed) {
 		t.Fatal("algebraic identity admitted")
 	}
 	first := plan.ParameterExpr{Info: expr.Info{Usage: key.ResultUsage()}, Number: 1}
 	second := first
 	second.Number = 2
-	if binder.sameGroupExpression(first, second) {
+	if binder.SameGroupExpression(first, second) {
 		t.Fatal("different parameters equated")
 	}
 	differentUsage := first
 	differentUsage.Usage.Typmod = 4
-	if binder.sameGroupExpression(first, differentUsage) {
+	if binder.SameGroupExpression(first, differentUsage) {
 		t.Fatal("different typmods equated")
 	}
 	projected := query.Root.(*plan.ProjectNode).Expressions[0]

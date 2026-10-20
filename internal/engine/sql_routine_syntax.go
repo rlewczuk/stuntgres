@@ -10,9 +10,9 @@ import (
 // real SQL declaration; all negative paths retain existing aggregate/cast owners.
 // This runs before aggregate-only clause/recursive/partition gates, and never
 // changes shared syntax or registers a scalar call in b.aggregates.
-func (b *expressionBinder) bindSQLRoutineSyntax(raw parser.Expr, policy expressionPolicy) (expr.Expr, bool, error) {
-	if b.clause.selectedCallReentry {
-		b.clause.selectedCallReentry = false
+func (b *expressionBinder) BindSQLRoutineSyntax(raw parser.Expr, policy expressionPolicy) (expr.Expr, bool, error) {
+	if b.Clause.selectedCallReentry {
+		b.Clause.selectedCallReentry = false
 		return nil, false, nil
 	}
 	var call parser.FunctionExpr
@@ -52,7 +52,7 @@ func (b *expressionBinder) sqlFunctionCastShortcut(raw parser.CastExpr, operand 
 	// An unresolved external Param does not take the unknown-literal shortcut.
 	// Exact typed functions won already; literal/IO/relabel casts precede the
 	// ordinary implicit/unknown best-match phase (PostgreSQL10.3 step3).
-	target, err := b.host.ResolveAnnotationType(raw.TypeName, false)
+	target, err := b.Host.ResolveAnnotationType(raw.TypeName, false)
 	if err != nil {
 		return false
 	}
@@ -62,7 +62,7 @@ func (b *expressionBinder) sqlFunctionCastShortcut(raw parser.CastExpr, operand 
 	if operand.descriptor() == nil {
 		return false
 	}
-	plan, err := sqltype.PlanCoercion(operand.node.ResultUsage(), target, sqltype.Explicit)
+	plan, err := sqltype.PlanCoercion(operand.Node.ResultUsage(), target, sqltype.Explicit)
 	return err == nil && plan.FunctionCastShortcut()
 }
 

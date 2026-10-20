@@ -16,26 +16,26 @@ import (
 )
 
 func TestGroupingSetsExpansion(t *testing.T) {
-	key := func(i int) analyzedGroupItem { return analyzedGroupItem{kind: parser.GroupExpression, key: i} }
+	key := func(i int) analyzedGroupItem { return analyzedGroupItem{Kind: parser.GroupExpression, Key: i} }
 	rollup := func(items ...analyzedGroupItem) analyzedGroupItem {
-		return analyzedGroupItem{kind: parser.GroupRollup, items: items}
+		return analyzedGroupItem{Kind: parser.GroupRollup, Items: items}
 	}
 	items := []analyzedGroupItem{rollup(key(0), key(1)), rollup(key(0), key(2))}
-	sets, err := expandGroupingItems(context.Background(), items)
+	sets, err := ExpandGroupingItems(context.Background(), items)
 	want := [][]int{{0, 1, 2}, {0, 1}, {0, 1}, {0, 2}, {0}, {0}, {0, 2}, {0}, {}}
 	if err != nil || !reflect.DeepEqual(sets, want) {
 		t.Fatal(sets, err)
 	}
-	units := []analyzedGroupItem{{kind: parser.GroupList, items: []analyzedGroupItem{key(0), key(1)}}, key(2)}
-	sets, err = expandGroupingItems(context.Background(), []analyzedGroupItem{{kind: parser.GroupCube, items: units}})
+	units := []analyzedGroupItem{{Kind: parser.GroupList, Items: []analyzedGroupItem{key(0), key(1)}}, key(2)}
+	sets, err = ExpandGroupingItems(context.Background(), []analyzedGroupItem{{Kind: parser.GroupCube, Items: units}})
 	if err != nil || !reflect.DeepEqual(sets, [][]int{{}, {0, 1}, {2}, {0, 1, 2}}) {
 		t.Fatal(sets, err)
 	}
-	sets, err = expandGroupingItems(context.Background(), []analyzedGroupItem{{kind: parser.GroupSets, items: []analyzedGroupItem{key(0), {kind: parser.GroupSets, items: []analyzedGroupItem{{kind: parser.GroupEmpty}, key(1)}}}}})
+	sets, err = ExpandGroupingItems(context.Background(), []analyzedGroupItem{{Kind: parser.GroupSets, Items: []analyzedGroupItem{key(0), {Kind: parser.GroupSets, Items: []analyzedGroupItem{{Kind: parser.GroupEmpty}, key(1)}}}}})
 	if err != nil || !reflect.DeepEqual(sets, [][]int{{0}, {}, {1}}) {
 		t.Fatal(sets, err)
 	}
-	if union := groupingUnion([]int{0, 2}, []int{0, 1, 2}); !reflect.DeepEqual(union, []int{0, 1, 2}) {
+	if union := GroupingUnion([]int{0, 2}, []int{0, 1, 2}); !reflect.DeepEqual(union, []int{0, 1, 2}) {
 		t.Fatal(union)
 	}
 }
@@ -43,29 +43,29 @@ func TestGroupingSetsExpansion(t *testing.T) {
 func TestGroupingSetsRawLimits(t *testing.T) {
 	units := make([]analyzedGroupItem, 12)
 	for i := range units {
-		units[i] = analyzedGroupItem{kind: parser.GroupExpression, key: 0}
+		units[i] = analyzedGroupItem{Kind: parser.GroupExpression, Key: 0}
 	}
-	cube := analyzedGroupItem{kind: parser.GroupCube, items: units}
-	sets, err := expandGroupingItems(context.Background(), []analyzedGroupItem{cube})
+	cube := analyzedGroupItem{Kind: parser.GroupCube, Items: units}
+	sets, err := ExpandGroupingItems(context.Background(), []analyzedGroupItem{cube})
 	if err != nil || len(sets) != 4096 {
 		t.Fatal(len(sets), err)
 	}
-	cube.items = append(cube.items, units[0])
-	_, err = expandGroupingItems(context.Background(), []analyzedGroupItem{cube})
+	cube.Items = append(cube.Items, units[0])
+	_, err = ExpandGroupingItems(context.Background(), []analyzedGroupItem{cube})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "54011" {
 		t.Fatal(err)
 	}
-	cube.items = units
-	_, err = expandGroupingItems(context.Background(), []analyzedGroupItem{cube, {kind: parser.GroupCube, items: units[:1]}})
+	cube.Items = units
+	_, err = ExpandGroupingItems(context.Background(), []analyzedGroupItem{cube, {Kind: parser.GroupCube, Items: units[:1]}})
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "54001" || diagnostic.Position != "" {
 		t.Fatal(err)
 	}
 	empty := make([]analyzedGroupItem, 4097)
 	for i := range empty {
-		empty[i].kind = parser.GroupEmpty
+		empty[i].Kind = parser.GroupEmpty
 	}
-	_, err = expandGroupingItems(context.Background(), []analyzedGroupItem{{kind: parser.GroupSets, items: empty}})
+	_, err = ExpandGroupingItems(context.Background(), []analyzedGroupItem{{Kind: parser.GroupSets, Items: empty}})
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "54001" {
 		t.Fatal(err)
 	}
@@ -73,12 +73,12 @@ func TestGroupingSetsRawLimits(t *testing.T) {
 
 func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.query.frame = 1
-	b.grouping.groupSets = [][]int{{0}, {}}
-	usage := b.typ(sqltype.Int4).Usage()
+	b.Query.Frame = 1
+	b.Grouping.GroupSets = [][]int{{0}, {}}
+	usage := b.Type(sqltype.Int4).Usage()
 	key := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	operation := plan.GroupingExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, Frame: 1, Args: []expr.Expr{key, key}}
-	expression, err := b.rewriteGrouping(operation, []expr.Expr{key})
+	expression, err := b.RewriteGrouping(operation, []expr.Expr{key})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: ".expandGroupingItem"}
-	_, err := expandGroupingItems(probe, []analyzedGroupItem{{kind: parser.GroupCube, items: []analyzedGroupItem{{kind: parser.GroupExpression, key: 0}}}})
+	_, err := ExpandGroupingItems(probe, []analyzedGroupItem{{Kind: parser.GroupCube, Items: []analyzedGroupItem{{Kind: parser.GroupExpression, Key: 0}}}})
 	if !probe.entered || !errors.Is(err, context.Canceled) {
 		t.Fatal(probe.entered, err)
 	}

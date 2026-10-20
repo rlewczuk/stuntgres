@@ -162,7 +162,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 			args[i] = plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		}
 		procedure := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.oid})
-		node, err := b.bindSelectedOperatorRoutine(procedure, args, parser.Position{})
+		node, err := b.BindSelectedOperatorRoutine(procedure, args, parser.Position{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -178,7 +178,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 		if err != nil || n != tc.want {
 			t.Fatal("actual provider result", n, err)
 		}
-		if b.clause.selectedOperatorArgs != nil {
+		if b.Clause.SelectedOperatorArgs != nil {
 			t.Fatal("argument override leaked")
 		}
 	}
@@ -186,7 +186,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 	text, _ := view.LookupType(sqltype.Text)
 	arg := plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "ABC")}
 	routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 870})
-	node, err := b.bindSelectedOperatorRoutine(routine, []expr.Expr{arg}, parser.Position{})
+	node, err := b.BindSelectedOperatorRoutine(routine, []expr.Expr{arg}, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +357,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	three, _ := sqltype.Integer(integer, 3)
 	args := []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: two}, plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: three}}
 	routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 177})
-	provider, err := b.bindSelectedOperatorRoutine(routine, args, parser.Position{})
+	provider, err := b.BindSelectedOperatorRoutine(routine, args, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}

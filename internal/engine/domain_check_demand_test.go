@@ -35,13 +35,13 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 			t.Fatal(err)
 		}
 		b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-		b.query.auth = &auth
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		b.Query.Auth = &auth
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		return node, exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: b.input}}
+		return node, exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: b.Input}}
 	}
 	for _, query := range []string{
 		"SELECT 0::public.preflight_positive",

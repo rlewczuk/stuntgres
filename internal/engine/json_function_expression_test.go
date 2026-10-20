@@ -48,7 +48,7 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 		{"jsonb_array_length", `[]`, "", 0, sqltype.Int4},
 	} {
 		raw := nullCountRaw(tc.name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: tc.input}})
-		node, err := b.bindFunction(raw)
+		node, err := b.BindFunction(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 		// this owner test retains binding/property/result/shape phase assertions.
 	}
 	// Wrong-kind constants bind successfully; the shape error belongs to evaluation.
-	node, err := b.bindFunction(nullCountRaw("json_array_length", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}))
+	node, err := b.BindFunction(nullCountRaw("json_array_length", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}))
 	if err != nil {
 		t.Fatal("eager shape evaluation", err)
 	}
@@ -89,25 +89,25 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
-	b.query.namespace = &queryNamespace{}
+	b.Clause.AggregateClause = "SELECT"
+	b.Query.Namespace = &queryNamespace{}
 	for _, family := range []string{"json", "jsonb"} {
 		raw := nullCountRaw(family+"_object_keys", parser.ParameterExpr{Number: 1})
-		node, err := b.bindFunction(raw)
+		node, err := b.BindFunction(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
 		marker, ok := node.(functions.JSONKeys)
-		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !exec.SourceReturnsSet(marker) {
+		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != expr.Immutable || !b.Clause.QueryHasTargetSet || !exec.SourceReturnsSet(marker) {
 			t.Fatal(node)
 		}
 		// Each family owns its own parameter signature, never infers from a Go value.
 		b = newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
-		b.query.namespace = &queryNamespace{}
+		b.Clause.AggregateClause = "SELECT"
+		b.Query.Namespace = &queryNamespace{}
 	}
-	b.clause.aggregateClause = "WHERE"
-	_, err := b.bindFunction(nullCountRaw("json_object_keys", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}))
+	b.Clause.AggregateClause = "WHERE"
+	_, err := b.BindFunction(nullCountRaw("json_object_keys", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}))
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "set-returning functions are not allowed in WHERE" || d.Position != "8" {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 		{nullCountRaw("json_typeof"), "json_typeof()"},
 		{nullCountRaw("JSON_TYPEOF", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}), "JSON_TYPEOF(unknown)"},
 	} {
-		_, err := b.bindFunction(tc.raw)
+		_, err := b.BindFunction(tc.raw)
 		if !errors.As(err, &d) || d.Code != "42883" || d.Message != "function "+tc.signature+" does not exist" {
 			t.Fatal(err)
 		}
@@ -131,7 +131,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 	view := engine.CatalogRead()
-	original := jsonFunctionUnitMarker(t, b.typ(sqltype.JSON), b.typ(sqltype.Text), `{"b":1,"a":2}`, 20)
+	original := jsonFunctionUnitMarker(t, b.Type(sqltype.JSON), b.Type(sqltype.Text), `{"b":1,"a":2}`, 20)
 	fresh := jsonObjectUnitTypes()
 	mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
@@ -177,7 +177,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 		t.Fatal("symbolic rendering", text, err)
 	}
 	root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Usage: original.ResultUsage()}}, Frame: 1}
-	other := jsonFunctionUnitMarker(t, b.typ(sqltype.JSON), b.typ(sqltype.Text), `{"x":1}`, 21)
+	other := jsonFunctionUnitMarker(t, b.Type(sqltype.JSON), b.Type(sqltype.Text), `{"x":1}`, 21)
 	rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		if n == original.Args[0] {
 			return other.Args[0], true, nil

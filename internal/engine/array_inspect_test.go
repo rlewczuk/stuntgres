@@ -31,23 +31,23 @@ func TestArrayInspectResolver(t *testing.T) {
 		if kind.Arity() == 2 {
 			args = append(args, one)
 		}
-		node, err := b.bindFunctionProvider(arrayInspectUnitRaw(name, args...))
+		node, err := b.BindFunctionProvider(arrayInspectUnitRaw(name, args...))
 		if err != nil {
 			t.Fatal(name, err)
 		}
 		call := node.(functions.ArrayInspect)
-		if call.Kind != kind || call.ResultUsage().Type != b.typ(kind.Result()) || call.Validate() != nil {
+		if call.Kind != kind || call.ResultUsage().Type != b.Type(kind.Result()) || call.Validate() != nil {
 			t.Fatal(call)
 		}
-		for _, u := range []sqltype.Usage{b.typ(2277).Usage(), {Type: sqltype.LookupOnly(2277, "anyarray", 0), Typmod: -1}} {
+		for _, u := range []sqltype.Usage{b.Type(2277).Usage(), {Type: sqltype.LookupOnly(2277, "anyarray", 0), Typmod: -1}} {
 			// Exact catalog carrier is admissible; an identical-looking descriptor is not.
-			call.Args[0] = plan.ColumnExpr{Info: b.info(u, parser.Position{}, expr.Properties{RowDependent: true}), Slot: 0}
+			call.Args[0] = plan.ColumnExpr{Info: b.Info(u, parser.Position{}, expr.Properties{RowDependent: true}), Slot: 0}
 			if u.CatalogNullUsage() {
 				if err := call.Validate(); err != nil {
 					t.Fatal(err)
 				}
 				v, err := call.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Row: []sqltype.Value{sqltype.CatalogResultNull(u)}}})
-				if err != nil || !v.IsNull() || v.Type() != b.typ(kind.Result()) {
+				if err != nil || !v.IsNull() || v.Type() != b.Type(kind.Result()) {
 					t.Fatal(v, err)
 				}
 			} else if call.Validate() == nil {
@@ -63,7 +63,7 @@ func TestArrayInspectResolver(t *testing.T) {
 		{arrayInspectUnitRaw("cardinality", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}), "42804"},
 		{arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), parser.CastExpr{Child: one, TypeName: parser.TypeName{Name: "bigint"}}), "42883"},
 	} {
-		_, err := b.bindFunctionProvider(tc.raw)
+		_, err := b.BindFunctionProvider(tc.raw)
 		d, ok := err.(*sqlstate.Error)
 		if !ok || d.Code != tc.code {
 			t.Fatalf("error=%v want%s", err, tc.code)
@@ -77,7 +77,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	tb := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
 	raw := arrayInspectUnitRaw("array_length", arrayInspectUnitArray("[-2:-1][3:5]={{1,NULL,3},{4,5,6}}"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 		if d == nil {
 			return nil
 		}
-		return tb.typ(d.ID())
+		return tb.Type(d.ID())
 	})
 	if err != nil || !changed {
 		t.Fatal(changed, err)
@@ -95,7 +95,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	if err := next.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if old.Usage.Type != b.typ(sqltype.Int4) || next.Usage.Type != tb.typ(sqltype.Int4) || old.Args[0].ResultUsage().Type == next.Args[0].ResultUsage().Type || old.Args[1].ResultUsage().Type == next.Args[1].ResultUsage().Type {
+	if old.Usage.Type != b.Type(sqltype.Int4) || next.Usage.Type != tb.Type(sqltype.Int4) || old.Args[0].ResultUsage().Type == next.Args[0].ResultUsage().Type || old.Args[1].ResultUsage().Type == next.Args[1].ResultUsage().Type {
 		t.Fatal("lost generation ownership")
 	}
 	for _, call := range []expr.Expr{old, next} {
@@ -129,7 +129,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	}
 	// A changed child rebuilds on a fresh slice and leaves the source intact.
 	changedCall, did, err := expr.Map(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, child == old.Args[1], nil })
-	if err != nil || !did || &changedCall.(functions.ArrayInspect).Args[0] == &old.Args[0] || old.Args[1].ResultUsage().Type != b.typ(sqltype.Int4) {
+	if err != nil || !did || &changedCall.(functions.ArrayInspect).Args[0] == &old.Args[0] || old.Args[1].ResultUsage().Type != b.Type(sqltype.Int4) {
 		t.Fatal("child map mutated source", err)
 	}
 }
@@ -138,7 +138,7 @@ func TestArrayInspectClosedDefaults(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	for _, producer := range []string{"clock_timestamp", "uuidv4"} {
 		dimension := arrayInspectUnitRaw("num_nonnulls", arrayInspectUnitRaw(producer))
-		node, err := b.bindFunctionProvider(arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), dimension))
+		node, err := b.BindFunctionProvider(arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), dimension))
 		if err != nil {
 			t.Fatal(producer, err)
 		}

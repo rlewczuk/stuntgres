@@ -21,28 +21,28 @@ func intaggUnitRecipes(t *testing.T) {
 			e, ext := intaggUnitInstalled(t)
 			ctx := context.Background()
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			b.clause.aggregateClause = "SELECT"
+			b.Clause.AggregateClause = "SELECT"
 			syntax := statement(t, "SELECT "+call).(*parser.Select)
 			raw := syntax.Targets[0]
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
 			path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
 			name := extension.IntaggRecipeFunction(raw)
-			ref, ok := b.capture.RoutineRefs[path]
-			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.capture.RoutineRefs) != 1 {
-				t.Fatal("missing bound occurrence", b.capture.RoutineRefs)
+			ref, ok := b.Capture.RoutineRefs[path]
+			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.Capture.RoutineRefs) != 1 {
+				t.Fatal("missing bound occurrence", b.Capture.RoutineRefs)
 			}
 			var child plan.Node = &plan.SingletonNode{}
-			if len(b.grouping.aggregates) != 0 {
-				child = &plan.AggregateNode{Child: child, Calls: b.grouping.aggregates}
+			if len(b.Grouping.Aggregates) != 0 {
+				child = &plan.AggregateNode{Child: child, Calls: b.Grouping.Aggregates}
 			}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: syntax}
-			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.capture.RoutineRefs, literals: b.capture.Literals, castUsages: b.capture.CastUsages}
+			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, dependencies: b.Dependencies, routineRefs: b.Capture.RoutineRefs, literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			if err := definition.validateLiterals(e.CatalogRead()); err != nil {
 				t.Fatal(err)

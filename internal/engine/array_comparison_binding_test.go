@@ -28,7 +28,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		t.Run(tc.q, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, tc.q).(*parser.Select).Targets[0]
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,7 +39,7 @@ func TestArrayCompareBinding(t *testing.T) {
 			if node.ResultUsage().Type.ID() != 16 || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation.ID != 0 || node.Properties().RowDependent || !node.Properties().ParameterDependent || node.Properties().StageDependent || node.Properties().Volatility != expr.Immutable {
 				t.Fatal(node.ResultUsage(), node.Properties())
 			}
-			manifest, err := b.finish()
+			manifest, err := b.Finish()
 			if err != nil || manifest.Count != len(tc.types) {
 				t.Fatal(manifest, err)
 			}
@@ -60,7 +60,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		raw := statement(t, tc.q).(*parser.Select)
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(binderOperation(b))
-		b.query.auth = &auth
+		b.Query.Auth = &auth
 		if err == nil {
 			_, err = b.BindSelect(raw, false)
 		}
@@ -82,7 +82,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		raw := statement(t, tc.q).(*parser.Select)
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(binderOperation(b))
-		b.query.auth = &auth
+		b.Query.Auth = &auth
 		if err == nil {
 			_, err = b.BindSelect(raw, false)
 		}
@@ -101,24 +101,24 @@ func TestArrayCompareCommonType(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	integer := func(id sqltype.ID) comparisonOperand {
-		return comparisonOperand{node: plan.ParameterExpr{Info: b.info(b.typ(id).Usage(), parser.Position{}, expr.Properties{}), Number: 1}}
+		return comparisonOperand{Node: plan.ParameterExpr{Info: b.Info(b.Type(id).Usage(), parser.Position{}, expr.Properties{}), Number: 1}}
 	}
-	unknown := comparisonOperand{node: plan.ParameterExpr{Number: 1}}
-	common, err := commonExpressionUsage([]comparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.typ(sqltype.Text).Usage(), "")
-	if err != nil || common.Type.ID() != 20 || len(b.params.parameters) != 0 {
-		t.Fatal(common, err, b.params.parameters)
+	unknown := comparisonOperand{Node: plan.ParameterExpr{Number: 1}}
+	common, err := CommonExpressionUsage([]comparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.Type(sqltype.Text).Usage(), "")
+	if err != nil || common.Type.ID() != 20 || len(b.Params.Parameters) != 0 {
+		t.Fatal(common, err, b.Params.Parameters)
 	}
-	common, err = commonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.typ(sqltype.Text).Usage(), "")
+	common, err = CommonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "")
 	if err != nil || common.Type != nil {
 		t.Fatal("category mismatch must silently decline batching", common, err)
 	}
-	_, err = commonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.typ(sqltype.Text).Usage(), "ARRAY")
+	_, err = CommonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "ARRAY")
 	state(t, err, "42804")
 	// Lexical frame identity, not dependence flags, distinguishes Vars.
-	local := plan.ColumnExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Frame: b.FrameID()}
+	local := plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Frame: b.FrameID()}
 	other := local
 	other.Frame++
-	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}) {
+	if !b.InListHasVar(local) || b.InListHasVar(other) || b.InListHasVar(plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}) {
 		t.Fatal("IN Var classification lost lexical identity")
 	}
 }

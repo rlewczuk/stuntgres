@@ -77,10 +77,10 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		}
 		ordinal := start + offset
 		binder := newExpressionBinder(op.Context(), e, input, op, nil)
-		binder.consumer.checkConsumer, binder.params.noParameters = true, true
-		binder.query.auth = &auth
-		binder.query.namespace = &ns
-		binder.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
+		binder.Consumer.CheckConsumer, binder.Params.NoParameters = true, true
+		binder.Query.Auth = &auth
+		binder.Query.Namespace = &ns
+		binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
 		if altering {
 			e.mu.Lock()
 			if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
@@ -88,7 +88,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 				return ids.ErrCatalogReplaced
 			}
 		}
-		node, err := binder.bindBoolean(c.Expression, projectionContext, "CHECK")
+		node, err := binder.BindBoolean(c.Expression, ProjectionContext, "CHECK")
 		if altering {
 			e.mu.Unlock()
 		}
@@ -101,7 +101,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		name := c.Name.Text
 		if name == "" {
 			column := ""
-			uses := binder.query.sources[0].Uses
+			uses := binder.Query.Sources[0].Uses
 			if len(uses) == 1 {
 				column = d.Columns[uses[0]].Name
 			}
@@ -111,8 +111,8 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			return sqlError("42710", `check constraint "`+name+`" already exists`)
 		}
 		if ancestor, ok := inherited[name]; ok {
-			equality := expressionBinder{consumer: consumerContext{checkDefinitionEquality: true}}
-			if !equality.sameGroupExpression(node, ancestor.Expression) {
+			equality := expressionBinder{Consumer: consumerContext{CheckDefinitionEquality: true}}
+			if !equality.SameGroupExpression(node, ancestor.Expression) {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 			}
 			if c.NoInherit {

@@ -21,23 +21,23 @@ import (
 func intaggUnitAggregate(t *testing.T, e *Engine) (*expressionBinder, plan.AggregateCall) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	raw := parser.AggregateExpr{Name: "int_array_aggregate", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}}}}
-	if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err != nil {
+	if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.grouping.aggregates) != 1 {
-		t.Fatal("aggregate state slots", len(b.grouping.aggregates))
+	if len(b.Grouping.Aggregates) != 1 {
+		t.Fatal("aggregate state slots", len(b.Grouping.Aggregates))
 	}
-	return b, b.grouping.aggregates[0]
+	return b, b.Grouping.Aggregates[0]
 }
 
 func intaggUnitEnum(t *testing.T, e *Engine, input string) plan.UnnestExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "int_array_enum"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}}}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,24 +54,24 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	if call.Procedure != e.catalog.state.Get(ext.Members[0]) || call.Ref.Address != ext.Members[0] || !call.IncludeNulls || call.Operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
 		t.Fatal("fixed scalar wrapper authority", call)
 	}
-	if !b.sameAggregateCall(call, call) {
+	if !b.SameAggregateCall(call, call) {
 		t.Fatal("same installed aggregate unequal")
 	}
 	builtin := call
 	builtin.Procedure, builtin.Ref = nil, ids.ObjectRef{}
-	if b.sameAggregateCall(call, builtin) {
+	if b.SameAggregateCall(call, builtin) {
 		t.Fatal("wrapper/builtin identity collapsed")
 	}
 	changed := call
 	changed.Ref.Epoch++
-	if b.sameAggregateCall(call, changed) {
+	if b.SameAggregateCall(call, changed) {
 		t.Fatal("aggregate epoch collapsed")
 	}
 	proc := *call.Procedure
 	proc.ObjectRevision++
 	changed = call
 	changed.Procedure = &proc
-	if b.sameAggregateCall(call, changed) {
+	if b.SameAggregateCall(call, changed) {
 		t.Fatal("aggregate revision collapsed")
 	}
 	ctx := context.Background()

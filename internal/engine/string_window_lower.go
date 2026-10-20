@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func (b *expressionBinder) lowerStringWindowSpecs(root plan.Node, specs []plan.WindowSpec, calls []plan.WindowCall, companions [][]expr.Expr) (plan.Node, error) {
+func (b *expressionBinder) LowerStringWindowSpecs(root plan.Node, specs []plan.WindowSpec, calls []plan.WindowCall, companions [][]expr.Expr) (plan.Node, error) {
 	var requests []expr.Expr
 	for _, spec := range specs {
 		requests = append(requests, spec.Partition...)

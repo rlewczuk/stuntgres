@@ -16,7 +16,7 @@ func TestSQLRoutineProviderCallShapes(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.query.auth = &auth
+	b.Query.Auth = &auth
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, tc := range []struct {
 		name      string
@@ -79,19 +79,19 @@ func TestSQLRoutineProviderCallShapes(t *testing.T) {
 					continue
 				}
 				found = true
-				candidate, ok := sqlCallableShape(auth.Catalog, auth.definition, d, raw)
+				candidate, ok := SQLCallableShape(auth.Catalog, auth.definition, d, raw)
 				if !ok {
 					t.Fatal("metadata expansion rejected existing callable shape")
 				}
-				candidate.targets = append([]sqltype.Usage(nil), candidate.inputs...)
+				candidate.Targets = append([]sqltype.Usage(nil), candidate.Inputs...)
 				pseudo := false
-				for _, input := range candidate.inputs {
+				for _, input := range candidate.Inputs {
 					pseudo = pseudo || !input.Type.Concrete()
 				}
-				if pseudo && !b.probeSQLCallable(raw, operands, &candidate) {
+				if pseudo && !b.ProbeSQLCallable(raw, operands, &candidate) {
 					t.Fatal("family rejected existing callable shape")
 				}
-				for i, input := range candidate.inputs {
+				for i, input := range candidate.Inputs {
 					if input.Type.Concrete() {
 						if _, err := sqltype.PlanCoercion(operands[i].Usage, input, sqltype.Implicit); err != nil {
 							t.Fatal(err)
@@ -121,30 +121,30 @@ func TestSQLRoutineCallableShapeMasking(t *testing.T) {
 	}
 	input := []sqltype.Usage{integer.Usage()}
 	for _, reverse := range []bool{false, true} {
-		fixed := sqlCallable{inputs: input, path: 0}
-		variadic := sqlCallable{inputs: input, path: 0, variadic: true}
+		fixed := sqlCallable{Inputs: input, Path: 0}
+		variadic := sqlCallable{Inputs: input, Path: 0, Variadic: true}
 		first, second := fixed, variadic
 		if reverse {
 			first, second = second, first
 		}
-		got := appendSQLCallable([]sqlCallable{first}, second)
-		if len(got) != 1 || got[0].variadic {
+		got := AppendSQLCallable([]sqlCallable{first}, second)
+		if len(got) != 1 || got[0].Variadic {
 			t.Fatal("nonvariadic declaration did not win its namespace", reverse)
 		}
 	}
-	early := sqlCallable{inputs: input, path: 0, variadic: true}
-	later := sqlCallable{inputs: input, path: 1}
-	if got := appendSQLCallable([]sqlCallable{early}, later); len(got) != 1 || got[0].path != 0 {
+	early := sqlCallable{Inputs: input, Path: 0, Variadic: true}
+	later := sqlCallable{Inputs: input, Path: 1}
+	if got := AppendSQLCallable([]sqlCallable{early}, later); len(got) != 1 || got[0].Path != 0 {
 		t.Fatal("later namespace replaced identical expanded inputs")
 	}
-	later.inputs = []sqltype.Usage{wide.Usage()}
-	if got := appendSQLCallable([]sqlCallable{early}, later); len(got) != 2 {
+	later.Inputs = []sqltype.Usage{wide.Usage()}
+	if got := AppendSQLCallable([]sqlCallable{early}, later); len(got) != 2 {
 		t.Fatal("different input signature was masked")
 	}
 	// Equally defaultable declarations in one namespace do not get an
 	// iteration-order winner merely because omitted tails are different.
-	left := sqlCallable{inputs: input, path: 0}
-	if got := appendSQLCallable([]sqlCallable{left}, left); len(got) != 2 {
+	left := sqlCallable{Inputs: input, Path: 0}
+	if got := AppendSQLCallable([]sqlCallable{left}, left); len(got) != 2 {
 		t.Fatal("ambiguous supplied inputs got an arbitrary winner")
 	}
 }
@@ -153,12 +153,12 @@ func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.query.auth = &auth
+	b.Query.Auth = &auth
 	raw := statement(t, "SELECT 1+2").(*parser.Select).Targets[0]
 	node := &plan.LiteralExpr{Info: expr.Info{Usage: b.Type(sqltype.Int4).Usage()}}
-	b.clause.selectedOperatorArgs = []expr.Expr{node}
-	b.clause.selectedOperatorSyntax = []parser.Expr{raw}
-	b.clause.selectedCallArguments = true
+	b.Clause.SelectedOperatorArgs = []expr.Expr{node}
+	b.Clause.SelectedOperatorSyntax = []parser.Expr{raw}
+	b.Clause.SelectedCallArguments = true
 	carrier := parser.ParameterExpr{Number: -1, Pos: raw.SourcePosition()}
 	argument, err := b.AnalyzeArgument(carrier, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 	if err != nil || argument.Expression != node {
@@ -179,7 +179,7 @@ func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 	if err != nil || !issue.UnsupportedArithmetic {
 		t.Fatal("private carrier concealed native syntax boundary", issue, err)
 	}
-	if len(b.params.parameters) != 0 {
+	if len(b.Params.Parameters) != 0 {
 		t.Fatal("private carrier entered public parameter namespace")
 	}
 }
@@ -188,7 +188,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.query.auth = &auth
+	b.Query.Auth = &auth
 	raw := parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lag"}}},
 		Args: make([]parser.Expr, 3),
@@ -198,13 +198,13 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 	for d := range auth.definitionProceduresNamed(namespace, "lag") {
 		if d.Signature == "5077,23,5077" {
 			var ok bool
-			template, ok = sqlCallableShape(auth.Catalog, auth.definition, d, raw)
+			template, ok = SQLCallableShape(auth.Catalog, auth.definition, d, raw)
 			if !ok {
 				t.Fatal("missing declared window call shape")
 			}
 		}
 	}
-	if template.procedure == nil {
+	if template.Procedure == nil {
 		t.Fatal("missing checked lag declaration")
 	}
 	for _, tc := range []struct {
@@ -227,17 +227,17 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 				}
 			}
 			candidate := template
-			candidate.targets = append([]sqltype.Usage(nil), template.inputs...)
-			if got := b.probeSQLCallable(raw, operands[:], &candidate); got != tc.viable {
+			candidate.Targets = append([]sqltype.Usage(nil), template.Inputs...)
+			if got := b.ProbeSQLCallable(raw, operands[:], &candidate); got != tc.viable {
 				t.Fatalf("viability=%v, want %v", got, tc.viable)
 			}
-			if tc.viable && (candidate.targets[0].Type.ID() != tc.target || candidate.targets[2].Type.ID() != tc.target) {
-				t.Fatal("wrong shared value/default targets", candidate.targets)
+			if tc.viable && (candidate.Targets[0].Type.ID() != tc.target || candidate.Targets[2].Type.ID() != tc.target) {
+				t.Fatal("wrong shared value/default targets", candidate.Targets)
 			}
-			if candidate.inputs[0].Type.ID() != 5077 || candidate.inputs[2].Type.ID() != 5077 {
+			if candidate.Inputs[0].Type.ID() != 5077 || candidate.Inputs[2].Type.ID() != 5077 {
 				t.Fatal("resolved targets replaced declared ranking identities")
 			}
-			if len(b.params.parameters) != 0 {
+			if len(b.Params.Parameters) != 0 {
 				t.Fatal("applicability inferred public parameters")
 			}
 		})

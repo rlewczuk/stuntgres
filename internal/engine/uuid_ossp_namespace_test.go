@@ -25,7 +25,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 	for _, name := range []string{"uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500"} {
 		t.Run(name, func(t *testing.T) {
 			binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}})
+			node, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +67,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if _, err := (scalarRenderer{}).sql(context.Background(), view, foreign); err == nil {
 				t.Fatal("renderer accepted foreign-epoch constant")
 			}
-			grouped, err := binder.rewriteGroup(n, nil)
+			grouped, err := binder.RewriteGroup(n, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

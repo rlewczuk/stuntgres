@@ -18,7 +18,7 @@ func setOperand(arm *plan.ProjectNode, slot int) comparisonOperand {
 	if unknown, ok := expression.(plan.UnknownOutput); ok {
 		return comparisonOperand{raw: unknown.Raw}
 	}
-	operand := comparisonOperand{node: expression}
+	operand := comparisonOperand{Node: expression}
 	if arm.Syntax != nil && len(arm.Syntax.Targets) == len(arm.Expressions) {
 		operand.raw = arm.Syntax.Targets[slot]
 	}
@@ -28,20 +28,20 @@ func setOperand(arm *plan.ProjectNode, slot int) comparisonOperand {
 func (b *expressionBinder) finalizeSetOperand(arm *plan.ProjectNode, slot int, target sqltype.Usage, operation string) (expr.Expr, error) {
 	original := arm.Expressions[slot]
 	operand := setOperand(arm, slot)
-	oldFrame := b.query.frame
-	b.query.frame = arm.Frame
-	defer func() { b.query.frame = oldFrame }()
-	node, err := b.coerceConditional(operand, target, operation)
+	oldFrame := b.Query.Frame
+	b.Query.Frame = arm.Frame
+	defer func() { b.Query.Frame = oldFrame }()
+	node, err := b.CoerceConditional(operand, target, operation)
 	if err != nil {
 		return nil, err
 	}
 	if unknown, ok := original.(plan.UnknownOutput); ok {
 		arm.Expressions[slot] = node
 		arm.QuerySchema[slot].Usage = node.ResultUsage()
-		if b.params.noParameters || b.consumer.materializedDefinition {
+		if b.Params.NoParameters || b.Consumer.materializedDefinition {
 			for i, raw := range arm.Syntax.Targets {
 				if raw == unknown.Raw {
-					if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, i); err != nil {
+					if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, i); err != nil {
 						return nil, err
 					}
 					break
@@ -91,7 +91,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 	regclass := false
 	for i := range width {
 		operands := []comparisonOperand{setOperand(left, i), setOperand(right, i)}
-		common, err := selectCommonUsage(len(operands), func(i int) comparisonOperand { return operands[i] }, b.typ(sqltype.Text).Usage(), operation, b.diagnosticTypeName)
+		common, err := selectCommonUsage(len(operands), func(i int) comparisonOperand { return operands[i] }, b.Type(sqltype.Text).Usage(), operation, b.DiagnosticTypeName)
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +107,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		if operands[0].descriptor() == nil && operands[1].descriptor() != nil {
 			position = commonOperandStart(operands[1])
 		}
-		info, err := b.collatedInfo(b.info(common, position, expr.Properties{RowDependent: true}), l, r)
+		info, err := b.CollatedInfo(b.Info(common, position, expr.Properties{RowDependent: true}), l, r)
 		if err != nil {
 			return nil, err
 		}
@@ -137,14 +137,14 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 			if err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
 					copy := *diagnostic
-					copy.Message = fmt.Sprintf("could not identify an equality operator for type %s", b.diagnosticTypeName(common.Type))
+					copy.Message = fmt.Sprintf("could not identify an equality operator for type %s", b.DiagnosticTypeName(common.Type))
 					err = &copy
 				}
 				return nil, err
 			}
 		}
 	}
-	b.query.namespace = &namespace
+	b.Query.Namespace = &namespace
 	order, err := b.bindSetOrder(s.Order, projection, names, right.Schema())
 	if err != nil {
 		return nil, err
@@ -174,7 +174,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 	}
 	keys := make([]plan.SortKey, len(order.Keys))
 	for i, raw := range order.Keys {
-		slot, ordinal, err := orderOrdinal(raw.Expr, len(projection), "ORDER BY")
+		slot, ordinal, err := OrderOrdinal(raw.Expr, len(projection), "ORDER BY")
 		if err != nil {
 			return nil, err
 		}
@@ -201,7 +201,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 				}
 			}
 			if slot < 0 {
-				if _, err := b.bind(raw.Expr, expressionPolicy{context: projectionContext}); err != nil {
+				if _, err := b.Bind(raw.Expr, expressionPolicy{Context: ProjectionContext}); err != nil {
 					return nil, err
 				}
 				d := expr.ErrorAt("0A000", "invalid UNION/INTERSECT/EXCEPT ORDER BY clause", parser.ExpressionStart(raw.Expr)).(*sqlstate.Error)
@@ -210,8 +210,8 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 				return nil, d
 			}
 		}
-		if (b.params.noParameters || b.consumer.materializedDefinition) && !ordinal {
-			if err := b.captureViewLiterals(raw.Expr, projection[slot], analyze.ViewOrderLiteral, i); err != nil {
+		if (b.Params.NoParameters || b.Consumer.materializedDefinition) && !ordinal {
+			if err := b.CaptureViewLiterals(raw.Expr, projection[slot], analyze.ViewOrderLiteral, i); err != nil {
 				return nil, err
 			}
 		}
@@ -223,7 +223,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 // Only inline FROM edges propagate outer marks into set analysis. Stored views
 // are bound separately and deliberately have no such admission edge.
 func (b *expressionBinder) inheritedDerivedSetMode(query *parser.Select) string {
-	for _, admission := range b.query.lockAdmission.Ordered {
+	for _, admission := range b.Query.lockAdmission.Ordered {
 		parent := admission.SelectQuery
 		var alias string
 		found := false

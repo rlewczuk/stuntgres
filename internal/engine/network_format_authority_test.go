@@ -38,9 +38,9 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, admin, nil)
-			binder.query.auth, binder.target.ref = &auth, ref
-			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
-			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+			binder.Query.Auth, binder.Target.Ref = &auth, ref
+			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
+			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -54,7 +54,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal("released declaration", d)
 			}
 			found := map[ids.OID]bool{}
-			for _, dep := range binder.dependencies {
+			for _, dep := range binder.Dependencies {
 				if dep.Ref.Address.ClassID == ids.ProcedureClassID {
 					found[dep.Ref.Address.ObjectID] = true
 				}
@@ -62,14 +62,14 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.id: true}) {
 				t.Fatal("exact selected dependencies", found)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}
 			foreign := New()
 			for _, mode := range []string{"missing", "foreign", "stale"} {
 				var checks []catalog.ExpressionDependency
-				for _, dep := range binder.dependencies {
+				for _, dep := range binder.Dependencies {
 					if dep.Ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.id}) {
 						switch mode {
 						case "missing":
@@ -98,7 +98,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("retag manufactured authority")
 			}
-			evaluation.RoutineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.Dependencies
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("source authority mutated", err)
 			}
@@ -111,7 +111,7 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 	for _, expression := range []string{"text($1::inet)", "($1::inet)::text", "CAST($1::inet AS text)", "host($1::inet)", "abbrev($1::cidr)", "family($1::inet)", "masklen($1::inet)", "broadcast($1::inet)", "inet_same_family($1::inet,INET '::1')", "inet_same_family(INET '::1',$1::inet)"} {
 		t.Run(expression, func(t *testing.T) {
 			node, b, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 			// No original routine manifest is available for computation. A known-NULL
 			// formal must prune without invoking/admitting the selected routine.
 			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
@@ -123,14 +123,14 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 			if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type || planned.Properties() != node.Properties() {
 				t.Fatal(value, err)
 			}
-			input, err := b.params.parameters[1].Type.Input(context.Background(), "::1", -1)
+			input, err := b.Params.Parameters[1].Type.Input(context.Background(), "::1", -1)
 			if err != nil {
 				t.Fatal(err)
 			}
 			evaluation.Parameters[0] = input
 			// The original analyzed expression and its manifest are not replaced by
 			// the execution-local NULL result. Restoring authority permits real work.
-			evaluation.RoutineChecks = b.dependencies
+			evaluation.RoutineChecks = b.Dependencies
 			again, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil {
 				t.Fatal(err)
@@ -158,15 +158,15 @@ func TestNetworkFormatStoredLiteralIdentity(t *testing.T) {
 		t.Run(tc.expression, func(t *testing.T) {
 			node, b, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 			raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0]
-			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal("stored literal occurrence pairing", err)
 			}
-			if len(b.capture.Literals) != tc.literals {
-				t.Fatal("lost original literal occurrences", len(b.capture.Literals), tc.literals)
+			if len(b.Capture.Literals) != tc.literals {
+				t.Fatal("lost original literal occurrences", len(b.Capture.Literals), tc.literals)
 			}
 			// Captured leaves retain their declared network type, not the parent's
 			// TEXT/INT4/BOOL result or an erased function-call placeholder.
-			for _, literal := range b.capture.Literals {
+			for _, literal := range b.Capture.Literals {
 				if !sqltype.IsNetwork(literal.ResultUsage().Type.BaseType().ID()) {
 					t.Fatal("lost typed network literal", literal.ResultUsage())
 				}

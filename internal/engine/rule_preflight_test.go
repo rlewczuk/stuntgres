@@ -197,9 +197,9 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			}
 			statement := statements[0].(*parser.Select)
 			binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			binder.query.frame, binder.query.nextQueryFrame = 1, 1
+			binder.Query.Frame, binder.Query.NextQueryFrame = 1, 1
 			if rule {
-				binder.target.ruleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
+				binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
 			}
 			query, err := binder.BindSelect(statement, true)
 			if err != nil {

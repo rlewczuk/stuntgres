@@ -60,12 +60,12 @@ func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation
 // CREATE and ALTER share binding, security, coercion and provider capture.
 func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *queryNamespace) (catalog.ColumnGeneration, error) {
 	b := newExpressionBinder(op.Context(), e, input, op, nil)
-	b.target.generatedOwner = d
-	b.params.noParameters = true
-	b.query.auth = &auth
-	b.query.namespace = ns
+	b.Target.GeneratedOwner = d
+	b.Params.NoParameters = true
+	b.Query.Auth = &auth
+	b.Query.Namespace = ns
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	b.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
+	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	column := d.Columns[slot]
 	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
 	if kind == catalog.GenerationVirtual {
@@ -73,7 +73,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	node, err := b.bind(expression, expressionPolicy{context: projectionContext, expected: column.Usage.Type.Usage()})
+	node, err := b.Bind(expression, expressionPolicy{Context: ProjectionContext, Expected: column.Usage.Type.Usage()})
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
 	}
@@ -83,7 +83,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: b.input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: b.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
 	node, _, err = simplifyConditional(&evaluation, node, true)
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
@@ -93,7 +93,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 	}
 	if node.ResultUsage() != column.Usage {
 		input, annotations := analyze.DomainCoercionInput(node, column.Usage)
-		info, failure := analyze.StorageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
+		info, failure := analyze.StorageCoercionInfo(b.BindingCatalog(), b.Info(column.Usage, parser.Position{}, input.Properties()), input)
 		if failure != nil {
 			return catalog.ColumnGeneration{}, failure
 		}
@@ -106,7 +106,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 		info.Property = analyze.CoercionProperties(input, coercionPlan)
 		node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
 		analyzedInput, analyzedAnnotations := analyze.DomainCoercionInput(analyzed, column.Usage)
-		analyzedInfo, failure := analyze.StorageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
+		analyzedInfo, failure := analyze.StorageCoercionInfo(b.BindingCatalog(), b.Info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
 		if failure != nil {
 			return catalog.ColumnGeneration{}, failure
 		}

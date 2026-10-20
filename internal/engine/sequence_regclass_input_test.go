@@ -31,7 +31,7 @@ func sequenceInputExecute(t *testing.T, e *Engine, op *Operation, query string, 
 			}
 			value, err := info.Types[i].Type.InputWithEnvironment(ctx, fmt.Sprint(arg), -1, input)
 			if err != nil {
-				return sequenceInputError(err, parser.Position{}, "", i+1)
+				return SequenceInputError(err, parser.Position{}, "", i+1)
 			}
 			frame[i] = value
 		}

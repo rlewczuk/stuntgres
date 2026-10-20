@@ -78,7 +78,7 @@ func TestQueryAliasesSharedValuesDistance(t *testing.T) {
 		{"colümn1", `Perhaps you meant to reference the column "*VALUES*.column1".`},
 		{"no_such_column", ""},
 	} {
-		err := valuesOrderColumnError([]catalog.Column{{Name: "column1"}}, tc.name, parser.Position{Offset: -1})
+		err := ValuesOrderColumnError([]catalog.Column{{Name: "column1"}}, tc.name, parser.Position{Offset: -1})
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: `column "` + tc.name + `" does not exist`, Hint: tc.hint}
 		if !errors.As(err, &got) || *got != want {

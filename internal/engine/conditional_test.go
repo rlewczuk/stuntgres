@@ -107,14 +107,14 @@ func TestConditionalAnalysisOrderAndMetadata(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		ast := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select)
-		node, err := b.bind(ast.Targets[0], expressionPolicy{context: projectionContext})
+		node, err := b.Bind(ast.Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.expr, err)
 		}
 		if node.ResultUsage().Type.ID() != tc.id || node.ResultUsage().Typmod != -1 {
 			t.Fatal(tc, node.ResultUsage())
 		}
-		p, err := b.finish()
+		p, err := b.Finish()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -138,7 +138,7 @@ func TestConditionalAnalysisOrderAndMetadata(t *testing.T) {
 		var err error
 		for _, raw := range ast.Targets {
 			var node expr.Expr
-			node, err = b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				break
 			}
@@ -146,7 +146,7 @@ func TestConditionalAnalysisOrderAndMetadata(t *testing.T) {
 		}
 		if err == nil {
 			for _, node := range nodes {
-				_, err = b.finalizeProjection(node)
+				_, err = b.FinalizeProjection(node)
 				if err != nil {
 					break
 				}
@@ -164,7 +164,7 @@ func TestConditionalCoercionOperandPosition(t *testing.T) {
 	for _, q := range []string{"SELECT COALESCE(DATE '2000-01-01',TIME '00:00:00') FROM t", "SELECT CASE WHEN TRUE THEN TIME '00:00:00' ELSE DATE '2000-01-01' END FROM t"} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		_, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		var d *sqlstate.Error
 		// Typed literals retain the STRING token's location, not the type name.
 		wantPosition := "40"
@@ -191,7 +191,7 @@ func TestConditionalPlanningDemand(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,7 +206,7 @@ func TestConditionalPlanningDemand(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT CASE WHEN $1 THEN 1 ELSE CAST(CAST($2 AS TEXT) AS INTEGER) END FROM t").(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,9 +309,9 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 		{"CASE $1 WHEN 'same' THEN $1 ELSE 'other' END", "same", false},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.params.parameters[1] = name.Usage()
+		b.Params.Parameters[1] = name.Usage()
 		raw := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -357,10 +357,10 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		for number := 1; number <= 3; number++ {
-			b.params.parameters[number] = wrapped.Usage()
+			b.Params.Parameters[number] = wrapped.Usage()
 		}
 		raw := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.expr, err)
 		}
@@ -389,9 +389,9 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, context.Background(), source, sqltype.InputEnvironment{}, nil)
-	b.consumer.defaultConsumer = true
+	b.Consumer.DefaultConsumer = true
 	raw := statement(t, "SELECT CASE 2147483648 WHEN 2147483648 THEN COALESCE(NULL,NULLIF(2147483649,2147483650)) ELSE GREATEST(2147483651,2147483652) END FROM t").(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,9 +455,9 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 	bind := func(e *Engine, expression string) expr.Expr {
 		t.Helper()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		b.consumer.defaultConsumer = true
+		b.Consumer.DefaultConsumer = true
 		raw := statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

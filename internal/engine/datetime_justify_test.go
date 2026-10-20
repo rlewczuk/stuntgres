@@ -17,7 +17,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	var previous expr.Expr
 	for _, name := range []string{"justify_days", "justify_hours", "justify_interval"} {
-		node, err := b.bindFunctionProvider(datetimeMakeRaw(name, ageFiniteTyped("interval", "30 days")))
+		node, err := b.BindFunctionProvider(datetimeMakeRaw(name, ageFiniteTyped("interval", "30 days")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -25,7 +25,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		if e.ResultUsage().Type.ID() != sqltype.Interval || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != expr.Immutable || exec.PlannedVolatility(e) != expr.Immutable || !generationImmutable(e) {
 			t.Fatal(e.Properties(), e.ResultUsage())
 		}
-		if !b.sameGroupExpression(e, e) || previous != nil && b.sameGroupExpression(previous, e) {
+		if !b.SameGroupExpression(e, e) || previous != nil && b.SameGroupExpression(previous, e) {
 			t.Fatal("function identity lost")
 		}
 		previous = e
@@ -66,14 +66,14 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 	for _, name := range []string{"justify_days", "justify_hours", "justify_interval"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		node, err := b.bindFunctionProvider(datetimeMakeRaw(name, parser.ParameterExpr{Number: 1}))
+		node, err := b.BindFunctionProvider(datetimeMakeRaw(name, parser.ParameterExpr{Number: 1}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if b.params.parameters[1].Type.ID() != sqltype.Interval || !node.Properties().ParameterDependent {
-			t.Fatal(node.Properties(), b.params.parameters)
+		if b.Params.Parameters[1].Type.ID() != sqltype.Interval || !node.Properties().ParameterDependent {
+			t.Fatal(node.Properties(), b.Params.Parameters)
 		}
-		null, err := b.bindFunctionProvider(datetimeMakeRaw(name, ageFiniteTyped("interval", "0")))
+		null, err := b.BindFunctionProvider(datetimeMakeRaw(name, ageFiniteTyped("interval", "0")))
 		if err != nil {
 			t.Fatal(err)
 		}

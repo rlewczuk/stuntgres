@@ -30,7 +30,7 @@ func TestIdentifierLiteralSerializationStability(t *testing.T) {
 			}
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 			raw := parsed[0].(*parser.Select).Targets[0]
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -38,10 +38,10 @@ func TestIdentifierLiteralSerializationStability(t *testing.T) {
 			if err != nil || text != tc.want {
 				t.Fatal("identifier literal replay", tc.input, round, text, tc.want, err)
 			}
-			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
+			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 			text, err = renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || text != tc.want {
 				t.Fatal("identifier view replay", tc.input, round, text, tc.want, err)
@@ -60,7 +60,7 @@ func TestIdentifierArrayAnnotationAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			_, err = b.bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			_, err = b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
 				t.Fatal("identifier array annotation must reject before datum/NULL construction", typ, input, err)

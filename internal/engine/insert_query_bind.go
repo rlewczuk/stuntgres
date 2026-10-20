@@ -19,7 +19,7 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth analyze.Autho
 	var err error
 	if sel := s.Source.Select; sel != nil {
 		out.Insert.SubquerySource = true
-		binder.query.auth = auth
+		binder.Query.Auth = auth
 		// INSERT's target is an error namespace entry, not a correlation
 		// source. Keep it hidden when entering the shared SELECT binder.
 		columns := make([]queryColumn, len(out.Relation.Columns))
@@ -27,12 +27,12 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth analyze.Autho
 			columns[i] = queryColumn{Descriptor: descriptor, Slot: i, Leaf: analyze.QueryTargetLeaf, Physical: i}
 		}
 		target := queryQualifier{Name: out.Relation.Name(), Original: out.Relation.Name(), Ref: out.Ref, Columns: columns, Schema: auth.ReadCatalog().Get(out.Relation.Namespace()).Name(), LateralForbidden: true}
-		binder.query.hidden = append(binder.query.hidden, target)
+		binder.Query.Hidden = append(binder.Query.Hidden, target)
 		query, err = binder.BindSelect(sel, true)
-		out.QuerySources = binder.query.sources
+		out.QuerySources = binder.Query.Sources
 	} else {
 		out.Insert.SubquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
-		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.Relation.ColumnMeta.Identities) != 0)
+		query, err = binder.BindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.Relation.ColumnMeta.Identities) != 0)
 	}
 	if err != nil {
 		return err
@@ -110,7 +110,7 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth analyze.Autho
 				continue
 			}
 			var discard bool
-			project.Child, discard = pruneIdentityQueryProducer(project.Child, expression)
+			project.Child, discard = PruneIdentityQueryProducer(project.Child, expression)
 			if discard {
 				project.Expressions[i] = identityUnusedOutput(expression)
 			}
@@ -142,9 +142,9 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth analyze.Autho
 	return nil
 }
 
-func commonValuesUsage(nodes [][]expr.Expr, raw [][]parser.Expr, column int, text sqltype.Usage) (sqltype.Usage, error) {
+func CommonValuesUsage(nodes [][]expr.Expr, raw [][]parser.Expr, column int, text sqltype.Usage) (sqltype.Usage, error) {
 	return selectCommonUsage(len(nodes), func(i int) comparisonOperand {
-		operand := comparisonOperand{node: nodes[i][column]}
+		operand := comparisonOperand{Node: nodes[i][column]}
 		if raw != nil {
 			operand.raw = raw[i][column]
 		}
@@ -152,28 +152,28 @@ func commonValuesUsage(nodes [][]expr.Expr, raw [][]parser.Expr, column int, tex
 	}, text, "VALUES", (*sqltype.Descriptor).DiagnosticName)
 }
 
-func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscard bool) (*plan.Query, error) {
-	oldFrame := b.query.frame
+func (b *expressionBinder) BindValues(source *parser.ValuesQuery, identityDiscard bool) (*plan.Query, error) {
+	oldFrame := b.Query.Frame
 	if oldFrame == 0 {
-		b.query.frame = 1
-		if b.query.nextQueryFrame == 0 {
-			b.query.nextQueryFrame = 1
+		b.Query.Frame = 1
+		if b.Query.NextQueryFrame == 0 {
+			b.Query.NextQueryFrame = 1
 		}
 	}
-	defer func() { b.query.frame = oldFrame }()
-	oldNamespace, oldRelation, oldClause, oldNonLateral := b.query.namespace, b.target.relation, b.clause.aggregateClause, b.query.nonLateral
-	b.query.namespace, b.target.relation = &queryNamespace{}, nil
-	b.clause.aggregateClause, b.query.nonLateral = "VALUES", true
+	defer func() { b.Query.Frame = oldFrame }()
+	oldNamespace, oldRelation, oldClause, oldNonLateral := b.Query.Namespace, b.Target.Relation, b.Clause.AggregateClause, b.Query.NonLateral
+	b.Query.Namespace, b.Target.Relation = &queryNamespace{}, nil
+	b.Clause.AggregateClause, b.Query.NonLateral = "VALUES", true
 	defer func() {
-		b.query.namespace, b.target.relation, b.clause.aggregateClause, b.query.nonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
+		b.Query.Namespace, b.Target.Relation, b.Clause.AggregateClause, b.Query.NonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
 	}()
-	occurrence := b.stored.valuesCount
-	b.stored.valuesCount++
+	occurrence := b.Stored.valuesCount
+	b.Stored.valuesCount++
 	width := -1
 	nodes := make([][]expr.Expr, len(source.Rows))
 	rawRows := make([][]parser.Expr, len(source.Rows))
 	var lists []expandedExpressionList
-	if b.params.noParameters || b.consumer.materializedDefinition {
+	if b.Params.NoParameters || b.Consumer.materializedDefinition {
 		lists = make([]expandedExpressionList, len(source.Rows))
 	}
 	for i, written := range source.Rows {
@@ -214,18 +214,18 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	schema := make([]catalog.Column, width)
 	projection := make([]expr.Expr, width)
 	for j := range width {
-		common, err := commonValuesUsage(nodes, rawRows, j, b.typ(sqltype.Text).Usage())
+		common, err := CommonValuesUsage(nodes, rawRows, j, b.Type(sqltype.Text).Usage())
 		if err != nil {
 			return nil, err
 		}
-		info := b.info(common, parser.Position{Offset: -1}, expr.Properties{RowDependent: true})
+		info := b.Info(common, parser.Position{Offset: -1}, expr.Properties{RowDependent: true})
 		for i := range nodes {
-			node, err := b.coerceConditional(comparisonOperand{raw: rawRows[i][j], node: nodes[i][j]}, common, "VALUES")
+			node, err := b.CoerceConditional(comparisonOperand{raw: rawRows[i][j], Node: nodes[i][j]}, common, "VALUES")
 			if err != nil {
 				return nil, err
 			}
 			nodes[i][j] = node
-			info, err = b.collatedInfo(info, node)
+			info, err = b.CollatedInfo(info, node)
 			if err != nil {
 				return nil, err
 			}
@@ -265,7 +265,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		names[i] = column.Name
 		namespace.Columns = append(namespace.Columns, queryColumn{Descriptor: column, Slot: i, Leaf: -1, Physical: -1})
 	}
-	b.query.namespace = &namespace
+	b.Query.Namespace = &namespace
 	order, err := b.BindOrder(source.Order, projection, names, "ORDER BY")
 	if err != nil {
 		return nil, err
@@ -274,7 +274,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	if err != nil {
 		return nil, err
 	}
-	if b.params.noParameters || b.consumer.materializedDefinition {
+	if b.Params.NoParameters || b.Consumer.materializedDefinition {
 		if source.Order != nil {
 			for i, key := range source.Order.Keys {
 				if err := b.captureValuesViewLiteral(key.Expr, order[i].Expression, analyze.ViewValuesOrderLiteral, occurrence, 0, i); err != nil {
@@ -311,7 +311,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 // VALUES exposes generated ASCII column names in one synthetic namespace.
 // Match PostgreSQL's bounded, case-sensitive character-distance suggestions
 // without changing ordinary relation/projection name resolution.
-func valuesOrderColumnError(schema []catalog.Column, name string, pos parser.Position) error {
+func ValuesOrderColumnError(schema []catalog.Column, name string, pos parser.Position) error {
 	d := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), pos).(*sqlstate.Error)
 	if len(schema) == 0 {
 		return d
@@ -374,7 +374,7 @@ func identityUnusedOutput(expression expr.Expr) expr.Expr {
 // existing count/ORDER cache. Remove only that output's pure producer; ORDER
 // keys and multirow VALUES remain independent source consumers. Nodes are owned
 // by this fresh binding, never a published descriptor or held execution plan.
-func pruneIdentityQueryProducer(node plan.Node, expression expr.Expr) (plan.Node, bool) {
+func PruneIdentityQueryProducer(node plan.Node, expression expr.Expr) (plan.Node, bool) {
 	for {
 		coercion, ok := expression.(plan.CoercionExpr)
 		if !ok {
@@ -393,11 +393,11 @@ func pruneIdentityQueryProducer(node plan.Node, expression expr.Expr) (plan.Node
 		return n, false // ON keys and ordering determine source winners.
 	case *plan.LimitNode:
 		var discard bool
-		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
+		n.Child, discard = PruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
 	case *plan.RowLockNode:
 		var discard bool
-		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
+		n.Child, discard = PruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
 	case *plan.EvaluationNode:
 		if cached, ok := expression.(plan.CachedOrderExpr); ok && cached.Slot >= n.Base && cached.Slot < n.Base+len(n.Expressions) {
@@ -421,7 +421,7 @@ func pruneIdentityQueryProducer(node plan.Node, expression expr.Expr) (plan.Node
 			return n, true
 		}
 		var discard bool
-		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
+		n.Child, discard = PruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
 	case *plan.SortNode:
 		if cached, ok := expression.(plan.CachedOrderExpr); ok {
@@ -440,7 +440,7 @@ func pruneIdentityQueryProducer(node plan.Node, expression expr.Expr) (plan.Node
 			}
 		}
 		var discard bool
-		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
+		n.Child, discard = PruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
 	case *plan.ValuesNode:
 		column, ok := expression.(plan.ColumnExpr)

@@ -23,12 +23,12 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if typed {
 				raw = parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "date"}, Text: tc.text, Pos: pos}
 			}
-			policy := expressionPolicy{context: assignmentContext, expected: d.Usage(), mode: sqltype.Assignment}
+			policy := expressionPolicy{Context: AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment}
 			b := newTestExpressionBinder(t, ctx, e, first, nil)
-			if _, err := b.bind(raw, policy); err != nil {
+			if _, err := b.Bind(raw, policy); err != nil {
 				t.Fatal(err)
 			}
-			desc := StatementDescription{temporals: b.prepared.Temporals}
+			desc := StatementDescription{temporals: b.Prepared.Temporals}
 			before := append([]temporalConstant(nil), desc.temporals...)
 			if len(before) != 1 || before[0].TypeID != sqltype.Date {
 				t.Fatal(before)
@@ -37,9 +37,9 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 				t.Fatal(err)
 			}
 			d, _ = e.CatalogRead().LookupType(sqltype.Date)
-			policy.expected = d.Usage()
+			policy.Expected = d.Usage()
 			b = newTestExpressionBinder(t, ctx, e, later, &desc)
-			node, err := b.bind(raw, policy)
+			node, err := b.Bind(raw, policy)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -52,11 +52,11 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 				t.Fatal(out, err, desc.temporals)
 			}
 			b = newTestExpressionBinder(t, ctx, e, later, &desc)
-			if _, err = b.bind(parser.ParameterExpr{Number: 1}, policy); err != nil {
+			if _, err = b.Bind(parser.ParameterExpr{Number: 1}, policy); err != nil {
 				t.Fatal(err)
 			}
-			params, err := b.finish()
-			if err != nil || params.Types[0].Type != d || len(b.prepared.Temporals) != 0 {
+			params, err := b.Finish()
+			if err != nil || params.Types[0].Type != d || len(b.Prepared.Temporals) != 0 {
 				t.Fatal(params, err)
 			}
 			v, err = d.InputWithEnvironment(ctx, tc.text, -1, later)
@@ -70,7 +70,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			}
 			foreign := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp"}, Text: "now", Pos: pos}
 			b = newTestExpressionBinder(t, ctx, e, later, &desc)
-			if _, err = b.bind(foreign, expressionPolicy{context: projectionContext}); err == nil {
+			if _, err = b.Bind(foreign, expressionPolicy{Context: ProjectionContext}); err == nil {
 				t.Fatal("DATE capture reconstructed as TIMESTAMP")
 			}
 		}

@@ -19,21 +19,21 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 	key, _ := source.CatalogRead().LookupType(sqltype.Text)
 	input, _ := source.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
-	b.params.parameters[1], b.params.parameters[2] = key.Usage(), input.Usage()
+	b.Clause.AggregateClause = "SELECT"
+	b.Params.Parameters[1], b.Params.Parameters[2] = key.Usage(), input.Usage()
 	names := []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict"}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}, Pos: parser.Position{Character: 8}}
-			first, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			first, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
-			second, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			second, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil || first.(plan.AggregateExpr).Slot != second.(plan.AggregateExpr).Slot {
 				t.Fatal("identical call did not reuse slot", err)
 			}
-			call := b.grouping.aggregates[first.(plan.AggregateExpr).Slot]
+			call := b.Grouping.Aggregates[first.(plan.AggregateExpr).Slot]
 			p := call.Provider.(functions.JSONObjectAggregate)
 			id := sqltype.JSON
 			if strings.HasPrefix(name, "jsonb_") {
@@ -91,7 +91,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			}
 		})
 	}
-	if len(b.grouping.aggregates) != len(names) {
-		t.Fatal("different object policies share slots", len(b.grouping.aggregates))
+	if len(b.Grouping.Aggregates) != len(names) {
+		t.Fatal("different object policies share slots", len(b.Grouping.Aggregates))
 	}
 }

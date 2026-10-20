@@ -343,7 +343,7 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 
 func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	position := parser.Position{Character: 8}
 	for _, tc := range []struct {
 		name, input, result string
@@ -370,14 +370,14 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 			}
 		}
 		name := parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name, Pos: position}}}
-		node, _, err := b.bindRegisteredAggregate(raw, name, orderedSetDefinition())
+		node, _, err := b.BindRegisteredAggregate(raw, name, orderedSetDefinition())
 		if err != nil {
 			t.Fatal(tc, err)
 		}
 		if got := node.ResultUsage().Type.DiagnosticName(); got != tc.result {
 			t.Fatal(tc, got)
 		}
-		call := b.grouping.aggregates[node.(plan.AggregateExpr).Slot]
+		call := b.Grouping.Aggregates[node.(plan.AggregateExpr).Slot]
 		if call.Order[0].Slot != 0 || call.Order[0].Cache != 0 || call.StageWidth != 2 || (call.Direct == nil) != (tc.name == "mode") {
 			t.Fatal("uncached input/direct identity", tc, call)
 		}
@@ -386,7 +386,7 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 	var slots []int
 	for _, fraction := range []string{".25", ".75", ".25"} {
 		raw := parser.AggregateExpr{Name: "percentile_cont", Within: true, Pos: position, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NumericValue, Text: fraction, Pos: position}}}, Order: []parser.OrderKey{{Expr: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Pos: position}}, Pos: position}}}
-		node, _, err := b.bindRegisteredAggregate(raw, name, orderedSetDefinition())
+		node, _, err := b.BindRegisteredAggregate(raw, name, orderedSetDefinition())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -587,10 +587,10 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			b.query.auth = &auth
+			b.Query.Auth = &auth
 			// Resolve expectations and bind against this one coherent generation,
 			// not custom descriptor pointers retained from an external catalog read.
-			catalogView := b.bindingCatalog()
+			catalogView := b.BindingCatalog()
 			id := tc.id
 			if tc.custom != nil {
 				id = tc.custom.ID()
@@ -623,8 +623,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				usage.Typmod = 8
 				usage.Collation = sqltype.CollationRef{ID: 950}
 			}
-			b.clause.aggregateClause = "SELECT"
-			b.params.parameters[1] = usage
+			b.Clause.AggregateClause = "SELECT"
+			b.Params.Parameters[1] = usage
 			position := parser.Position{Character: 8}
 			var key parser.Expr = parser.ParameterExpr{Number: 1, Pos: position}
 			if tc.explicit {
@@ -647,13 +647,13 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				}
 				raw.Args = []parser.Expr{parser.TypedLiteralExpr{TypeName: direct, Text: text, Pos: position}}
 			}
-			result, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			result, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := b.grouping.aggregates[0]
+			call := b.Grouping.Aggregates[0]
 			argument := call.Argument
-			if b.bindingCatalog().State() != catalogView.State() || argument.ResultUsage().Type != input {
+			if b.BindingCatalog().State() != catalogView.State() || argument.ResultUsage().Type != input {
 				t.Fatal("input lost coherent binding generation", argument.ResultUsage(), input)
 			}
 			want := argument.ResultUsage()
@@ -759,7 +759,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	b.query.auth = &auth
+	b.Query.Auth = &auth
 	if err == nil {
 		_, err = b.BindSelect(raw, false)
 	}

@@ -16,7 +16,7 @@ import (
 
 func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, distinct bool) (*expressionBinder, *plan.CTEDefinition) {
 	t.Helper()
-	b := &expressionBinder{host: New().analysisHost(nil), ctx: context.Background()}
+	b := &expressionBinder{Host: New().analysisHost(nil), Ctx: context.Background()}
 	d := &plan.CTEDefinition{UserWidth: 1, Schema: plan.QuerySchema{{Name: "n", Usage: usage}}, Search: &plan.SearchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
 	if err := b.BindSearchShape(d); err != nil {
 		t.Fatal(err)
@@ -244,9 +244,9 @@ func TestQuerySearchCancellation(t *testing.T) {
 	}
 }
 func TestQuerySearchSignature(t *testing.T) {
-	binder := &expressionBinder{host: New().analysisHost(nil), ctx: context.Background()}
-	small := binder.typ(sqltype.Int4)
-	big := binder.typ(sqltype.Int8)
+	binder := &expressionBinder{Host: New().analysisHost(nil), Ctx: context.Background()}
+	small := binder.Type(sqltype.Int4)
+	big := binder.Type(sqltype.Int8)
 	for _, breadth := range []bool{true, false} {
 		a := &plan.CTEDefinition{UserWidth: 1, Schema: plan.QuerySchema{{Name: "n", Usage: small.Usage()}}, Search: &plan.SearchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
 		b := &plan.CTEDefinition{UserWidth: 1, Schema: plan.QuerySchema{{Name: "n", Usage: big.Usage()}}, Search: &plan.SearchRecipe{Syntax: a.Search.Syntax}}

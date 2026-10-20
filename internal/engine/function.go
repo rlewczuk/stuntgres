@@ -15,11 +15,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error) {
+func (b *expressionBinder) BindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
-	if node, handled, err := b.bindSQLCallable(raw); handled {
+	if node, handled, err := b.BindSQLCallable(raw); handled {
 		return node, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
@@ -56,7 +56,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		return b.bindSubscripts(raw, visible)
 	}
 	if strings.EqualFold(name, "unnest") {
-		return b.bindUnnest(raw)
+		return b.BindUnnest(raw)
 	}
 	if parser.NetworkFormatFunctionName(name) {
 		return b.bindNetworkFormat(raw)
@@ -131,7 +131,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 			properties.Volatility = p.Volatility
 		}
 		if parameter, ok := arg.(plan.ParameterExpr); ok && parameter.Usage.Type == nil {
-			b.params.anyParameters = append(b.params.anyParameters, parameter)
+			b.Params.AnyParameters = append(b.Params.AnyParameters, parameter)
 		}
 	}
 	if len(raw.Args) > 100 {
@@ -161,7 +161,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		}
 		return nil, expr.ErrorAt("42804", "VARIADIC argument must be an array", raw.Args[len(raw.Args)-1].SourcePosition())
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), functions.VariadicRoutineProvider, name, sqltype.ID(2276))
+	info, err := b.builtinRoutineInfo(b.Info(b.Type(sqltype.Int4).Usage(), raw.Pos, properties), functions.VariadicRoutineProvider, name, sqltype.ID(2276))
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (b *expressionBinder) sharedCallGates(raw parser.FunctionExpr, definition f
 func (b *expressionBinder) formatDiagnosticSignatureError(raw parser.FunctionExpr) error {
 	if len(raw.Args) > 100 {
 		for _, arg := range raw.Args {
-			if _, err := b.bind(arg, expressionPolicy{context: projectionContext}); err != nil {
+			if _, err := b.Bind(arg, expressionPolicy{Context: ProjectionContext}); err != nil {
 				return err
 			}
 		}
@@ -219,7 +219,7 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 		}
 		if selectedName {
 			for _, rawArg := range raw.Args {
-				if _, err := b.bind(rawArg, expressionPolicy{context: projectionContext}); err != nil {
+				if _, err := b.Bind(rawArg, expressionPolicy{Context: ProjectionContext}); err != nil {
 					return err
 				}
 			}
@@ -238,13 +238,13 @@ func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([
 	names := make([]string, len(raw.Args))
 	composite := false
 	for i, rawArg := range raw.Args {
-		arg, err := b.bind(rawArg, expressionPolicy{context: projectionContext})
+		arg, err := b.Bind(rawArg, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			return nil, false, err
 		}
 		names[i] = functionArgumentTypeName(rawArg, arg)
 		if typ := arg.ResultUsage().Type; typ != nil && names[i] != "unknown" {
-			names[i] = b.diagnosticTypeName(typ)
+			names[i] = b.DiagnosticTypeName(typ)
 			composite = composite || typ.BaseType().IsComposite()
 		}
 		names[i] = functions.NamedArgumentType(raw, i, names[i])
@@ -274,7 +274,7 @@ func (b *expressionBinder) functionSignatureErrorForTypes(name parser.ObjectName
 func (b *expressionBinder) functionResolutionErrorForTypes(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
 	err := functions.ResolutionError(name, pos, names, ambiguous)
 	if !ambiguous {
-		b.clause.noteFunctionSignature(name, pos, err)
+		b.Clause.noteFunctionSignature(name, pos, err)
 	}
 	return err
 }

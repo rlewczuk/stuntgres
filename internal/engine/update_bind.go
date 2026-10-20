@@ -10,18 +10,18 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	if s.CurrentOf != nil {
 		b.CurrentOf = s.CurrentOf.Text
 	}
-	binder.target.relation, binder.target.ref = b.Relation, b.Ref
-	binder.target.name = b.Relation.Name()
-	binder.target.alias = s.Alias.Text
-	binder.params.updateParameters = true
+	binder.Target.Relation, binder.Target.Ref = b.Relation, b.Ref
+	binder.Target.Name = b.Relation.Name()
+	binder.Target.alias = s.Alias.Text
+	binder.Params.UpdateParameters = true
 	defer func() {
-		binder.params.updateParameters = false
-		binder.params.updateInputParameters = nil
+		binder.Params.UpdateParameters = false
+		binder.Params.updateInputParameters = nil
 	}()
 	u := &boundUpdate{}
 	var err error
 	target := binder.mutationTargetNamespace()
-	binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
+	binder.Query.Hidden = append(binder.Query.Hidden, target.Qualifiers[0])
 	if s.From != nil {
 		var sources queryNamespace
 		u.From, sources, err = binder.BindFrom(s.From)
@@ -34,16 +34,16 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 			return err
 		}
 	}
-	binder.query.namespace = &target
-	binder.clause.aggregateClause = "UPDATE"
+	binder.Query.Namespace = &target
+	binder.Clause.AggregateClause = "UPDATE"
 	if s.Where != nil {
-		u.Predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
+		u.Predicate, err = binder.Bind(s.Where, expressionPolicy{Context: FilterContext})
 		if err != nil {
 			return err
 		}
 	}
 	if s.Returning != nil {
-		b.Returning, err = binder.bindReturning(s.Returning, returningUpdate)
+		b.Returning, err = binder.BindReturning(s.Returning, returningUpdate)
 		if err != nil {
 			return err
 		}
@@ -51,12 +51,12 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	if s.Returning != nil {
 		// Only WHERE and finalized RETURNING types precede SET inference.
 		// SET's own unresolved occurrences retain their contextual diagnostics.
-		for number, usage := range binder.params.parameters {
+		for number, usage := range binder.Params.Parameters {
 			if usage.Type != nil {
-				if binder.params.updateInputParameters == nil {
-					binder.params.updateInputParameters = make(map[int]sqltype.Usage, len(binder.params.parameters))
+				if binder.Params.updateInputParameters == nil {
+					binder.Params.updateInputParameters = make(map[int]sqltype.Usage, len(binder.Params.Parameters))
 				}
-				binder.params.updateInputParameters[number] = usage
+				binder.Params.updateInputParameters[number] = usage
 			}
 		}
 	}

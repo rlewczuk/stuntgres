@@ -137,7 +137,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 		t.Fatal(err)
 	}
 	add := plan.ArithmeticExpr{Info: expr.Info{Usage: typ.Usage()}, Left: left, Right: literal, Provider: provider, Operator: sqltype.ArithmeticAdd}
-	boolean := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil).typ(sqltype.Bool)
+	boolean := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil).Type(sqltype.Bool)
 	test := plan.NullTestExpr{Info: expr.Info{Usage: boolean.Usage()}, Child: right}
 	choice := plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Arms: []plan.CaseBranch{{Condition: test, Result: add}}, Otherwise: right}
 	outside := left

@@ -21,7 +21,7 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (expr
 		}
 	}
 	if raw.Filter != nil {
-		if _, err := b.bindBoolean(raw.Filter, projectionContext, "FILTER"); err != nil {
+		if _, err := b.BindBoolean(raw.Filter, ProjectionContext, "FILTER"); err != nil {
 			return nil, err
 		}
 	}
@@ -55,7 +55,7 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (expr
 		}
 		return nil, expr.ErrorAt("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
 	}
-	info := b.info(b.typ(sqltype.Text).Usage(), raw.Pos, expr.IntrinsicProperties(kind.IntrinsicRule()))
+	info := b.Info(b.Type(sqltype.Text).Usage(), raw.Pos, expr.IntrinsicProperties(kind.IntrinsicRule()))
 	info, err = b.builtinRoutineInfo(info, functions.CatalogRoutineProvider, name)
 	if err != nil {
 		return nil, err

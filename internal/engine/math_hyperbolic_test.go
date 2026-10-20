@@ -19,7 +19,7 @@ func TestMathHyperbolicBinding(t *testing.T) {
 			t.Run(name+"_"+input, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 				raw := statement(t, "SELECT "+name+"("+input+")").(*parser.Select).Targets[0]
-				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -31,8 +31,8 @@ func TestMathHyperbolicBinding(t *testing.T) {
 				if properties.Volatility != expr.Immutable || properties.RowDependent || properties.StageDependent || properties.ParameterDependent != (input == "$1") {
 					t.Fatal("immutable argument properties", properties)
 				}
-				if input == "$1" && b.params.parameters[1] != u {
-					t.Fatal("FLOAT8 parameter inference", b.params.parameters, u)
+				if input == "$1" && b.Params.Parameters[1] != u {
+					t.Fatal("FLOAT8 parameter inference", b.Params.Parameters, u)
 				}
 			})
 		}
@@ -44,7 +44,7 @@ func TestMathHyperbolicEvaluationPhase(t *testing.T) {
 	for _, query := range []string{"SELECT acosh(0)", "SELECT atanh(2)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal("binding evaluated provider", err)
 		}

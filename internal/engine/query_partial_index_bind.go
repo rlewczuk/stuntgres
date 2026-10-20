@@ -13,11 +13,11 @@ import (
 // source capture revalidates them rather than reopening names or substituting
 // prepared values. All candidates have RelationClassID and SubID zero.
 func (q *queryScopeState) PartialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *catalog.Relation {
-	if q.auth == nil {
+	if q.Auth == nil {
 		return nil
 	}
 	var chosen *catalog.Relation
-	for _, descriptor := range q.auth.ReadCatalog().Descriptors() {
+	for _, descriptor := range q.Auth.ReadCatalog().Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
 			continue

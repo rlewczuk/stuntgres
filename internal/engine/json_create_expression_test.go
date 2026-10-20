@@ -20,7 +20,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	engine := New()
 	binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	literal := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "x"}}
-	node, err := binder.bindFunctionProvider(nullCountRaw("json_build_array", literal))
+	node, err := binder.BindFunctionProvider(nullCountRaw("json_build_array", literal))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	if bound.Properties().Volatility != expr.Stable || bound.ResultUsage().Type.ID() != sqltype.JSON || bound.ResultUsage().Typmod != -1 || !bound.UnknownArgument(0) {
 		t.Fatal("signature/provenance lost", bound)
 	}
-	if _, err := binder.bindFunctionProvider(nullCountRaw("to_json", literal)); err == nil {
+	if _, err := binder.BindFunctionProvider(nullCountRaw("to_json", literal)); err == nil {
 		t.Fatal("polymorphic unknown string admitted")
 	} else {
 		var d *sqlstate.Error
@@ -45,7 +45,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 		t.Fatal("creation children hidden", visited)
 	}
 	types := formatUnitTypes()
-	fresh, changed, err := retagBoundTypes(binder.bindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	fresh, changed, err := retagBoundTypes(binder.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -71,15 +71,15 @@ func TestJSONCreateRecordParameterOccurrence(t *testing.T) {
 	engine := New()
 	binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	raw := nullCountRaw("row_to_json", parser.ParameterExpr{Number: 1})
-	first, err := binder.bindFunctionProvider(raw)
+	first, err := binder.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := binder.bindFunctionProvider(raw)
+	second, err := binder.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	signature, err := binder.finish()
+	signature, err := binder.Finish()
 	if err != nil || signature.Count != 1 || signature.Types[0].Type.ID() != 2249 || !signature.Types[0].Type.IsComposite() {
 		t.Fatal("RECORD formal lost occurrence-owned shape", signature, err)
 	}
@@ -93,12 +93,12 @@ func TestJSONCreateRecordParameterOccurrence(t *testing.T) {
 		t.Fatal("RECORD parameter NULL lost", got, err)
 	}
 	reanalysis := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
-	reanalysis.seedParameters(signature.Types)
-	rebound, err := reanalysis.bindFunctionProvider(raw)
+	reanalysis.SeedParameters(signature.Types)
+	rebound, err := reanalysis.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal("retained RECORD formal lost anonymous shape during reanalysis", err)
 	}
-	current, err := reanalysis.finish()
+	current, err := reanalysis.Finish()
 	if err != nil || !analyze.SameStatementUsage(signature.Types[0], current.Types[0]) || !current.Types[0].Type.IsComposite() {
 		t.Fatal("RECORD parameter signature changed", current, err)
 	}

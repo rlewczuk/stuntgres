@@ -17,7 +17,7 @@ type returningMode uint8
 const (
 	returningInsert returningMode = iota
 	returningUpdate
-	returningDelete
+	ReturningDelete
 	returningMerge
 )
 
@@ -28,11 +28,11 @@ type returningAliases struct {
 	mode     returningMode
 }
 
-func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMode) (*boundReturning, error) {
+func (b *expressionBinder) BindReturning(raw *parser.Returning, mode returningMode) (*boundReturning, error) {
 	aliases := returningAliases{old: "old", new: "new", mode: mode}
-	visible := b.target.name
-	if b.target.alias != "" {
-		visible = b.target.alias
+	visible := b.Target.Name
+	if b.Target.alias != "" {
+		visible = b.Target.alias
 	}
 	aliases.target = visible
 	var seenOld, seenNew bool
@@ -48,8 +48,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		if option.Alias.Text == visible {
 			return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 		}
-		if b.query.namespace != nil {
-			for _, qualifier := range b.query.namespace.Qualifiers {
+		if b.Query.Namespace != nil {
+			for _, qualifier := range b.Query.Namespace.Qualifiers {
 				if qualifier.Name == option.Alias.Text {
 					return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 				}
@@ -73,8 +73,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		}
 	}
 	// Actual target/FROM relation qualifiers mask only implicit pseudo names.
-	if b.query.namespace != nil {
-		for _, qualifier := range b.query.namespace.Qualifiers {
+	if b.Query.Namespace != nil {
+		for _, qualifier := range b.Query.Namespace.Qualifiers {
 			if !seenOld && qualifier.Name == aliases.old {
 				aliases.old = ""
 			}
@@ -83,24 +83,24 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			}
 		}
 	}
-	previous, clause := b.target.returningAliases, b.clause.aggregateClause
-	b.target.returningAliases, b.clause.aggregateClause = &aliases, "RETURNING"
-	defer func() { b.target.returningAliases, b.clause.aggregateClause = previous, clause }()
+	previous, clause := b.Target.returningAliases, b.Clause.AggregateClause
+	b.Target.returningAliases, b.Clause.AggregateClause = &aliases, "RETURNING"
+	defer func() { b.Target.returningAliases, b.Clause.AggregateClause = previous, clause }()
 	output := &boundReturning{}
 	appendOutput := func(expression expr.Expr, name string) {
 		descriptor := catalog.Column{Name: name, Usage: expression.ResultUsage()}
 		switch column := expression.(type) {
 		case plan.ColumnExpr:
-			if b.query.namespace != nil {
-				descriptor = b.query.namespace.Frame[column.Slot]
+			if b.Query.Namespace != nil {
+				descriptor = b.Query.Namespace.Frame[column.Slot]
 			} else {
-				descriptor = b.target.relation.Columns[column.Slot]
+				descriptor = b.Target.Relation.Columns[column.Slot]
 			}
 			if column.MergeSource {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
 		case plan.ReturningColumnExpr:
-			descriptor = b.target.relation.Columns[column.Slot]
+			descriptor = b.Target.Relation.Columns[column.Slot]
 			if mode == returningMerge || column.Absent || column.Old && mode == returningInsert {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
@@ -118,17 +118,17 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		output.Schema = append(output.Schema, descriptor)
 	}
 	for target, expression := range raw.Targets {
-		if err := b.ctx.Err(); err != nil {
+		if err := b.Ctx.Err(); err != nil {
 			return nil, err
 		}
 		if star, ok := expression.(parser.StarExpr); ok {
-			if b.query.namespace != nil {
-				if newValues, pseudo := b.target.returningPseudo(star.Qualifier); pseudo {
-					for slot, column := range b.target.relation.Columns {
+			if b.Query.Namespace != nil {
+				if newValues, pseudo := b.Target.returningPseudo(star.Qualifier); pseudo {
+					for slot, column := range b.Target.Relation.Columns {
 						appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 					}
 				} else {
-					columns := b.query.namespace.Columns
+					columns := b.Query.Namespace.Columns
 					if len(star.Qualifier.Parts) != 0 {
 						qualifier, err := b.queryQualifier(star.Qualifier, star.Pos)
 						if err != nil {
@@ -159,11 +159,11 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			if err != nil {
 				return nil, err
 			}
-			for slot, column := range b.target.relation.Columns {
+			for slot, column := range b.Target.Relation.Columns {
 				appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 			}
 		} else if field, ok := expression.(parser.FieldExpr); ok && field.Expansion {
-			expansion, err := b.expandComposite(field)
+			expansion, err := b.ExpandComposite(field)
 			if err != nil {
 				return nil, err
 			}
@@ -192,7 +192,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 	// Resolve output occurrences only after every target has constrained the
 	// shared parameter slots, matching ordinary scalar projection ordering.
 	for i, expr := range output.Expressions {
-		expr, err := b.finalizeProjection(expr)
+		expr, err := b.FinalizeProjection(expr)
 		if err != nil {
 			return nil, err
 		}
@@ -200,38 +200,38 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		output.Schema[i].Usage = expr.ResultUsage()
 		output.RegclassOutput = output.RegclassOutput || expr.ResultUsage().Type.ContainsCatalogIdentifier()
 	}
-	output.VisibilitySnapshot = b.consumer.visibilitySnapshot
+	output.VisibilitySnapshot = b.Consumer.VisibilitySnapshot
 	return output, nil
 }
 
 func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser.Position) (bool, error) {
 	if len(name.Parts) == 0 {
-		return b.target.returningAliases.mode != returningDelete, nil
+		return b.Target.returningAliases.mode != ReturningDelete, nil
 	}
-	visible := b.target.name
-	if b.target.alias != "" {
-		visible = b.target.alias
+	visible := b.Target.Name
+	if b.Target.alias != "" {
+		visible = b.Target.alias
 	}
 	label := name.Parts[len(name.Parts)-1].Text
 	if len(name.Parts) == 1 {
 		if label == visible {
-			return b.target.returningAliases.mode != returningDelete, nil
+			return b.Target.returningAliases.mode != ReturningDelete, nil
 		}
-		if label == b.target.returningAliases.old {
+		if label == b.Target.returningAliases.old {
 			return false, nil
 		}
-		if label == b.target.returningAliases.new {
+		if label == b.Target.returningAliases.new {
 			return true, nil
 		}
-	} else if len(name.Parts) == 2 && b.target.alias == "" && label == b.target.name {
-		namespace, _ := b.host.CurrentCatalog().Descriptor(b.target.relation.Namespace())
+	} else if len(name.Parts) == 2 && b.Target.alias == "" && label == b.Target.Name {
+		namespace, _ := b.Host.CurrentCatalog().Descriptor(b.Target.Relation.Namespace())
 		if namespace != nil && name.Parts[0].Text == namespace.Name() {
-			return b.target.returningAliases.mode != returningDelete, nil
+			return b.Target.returningAliases.mode != ReturningDelete, nil
 		}
 	}
-	if label == b.target.name && b.target.alias != "" {
+	if label == b.Target.Name && b.Target.alias != "" {
 		err := expr.ErrorAt("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
-		err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.target.alias)
+		err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.Target.alias)
 		return false, err
 	}
 	return false, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, label), pos)
@@ -239,17 +239,17 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 
 func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) expr.Expr {
 	column := b.columnAt(slot, pos).(plan.ColumnExpr)
-	if b.target.returningAliases.mode == returningMerge {
+	if b.Target.returningAliases.mode == returningMerge {
 		side := exec.MergeOldSide
 		if newValues {
 			side = exec.MergeNewSide
 		}
 		return plan.ReturningColumnExpr{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}
-	if !newValues && b.target.returningAliases.mode != returningDelete {
+	if !newValues && b.Target.returningAliases.mode != ReturningDelete {
 		return plan.ReturningColumnExpr{ColumnExpr: column, Old: true}
 	}
-	if newValues && b.target.returningAliases.mode == returningDelete {
+	if newValues && b.Target.returningAliases.mode == ReturningDelete {
 		return plan.ReturningColumnExpr{ColumnExpr: column, Absent: true}
 	}
 	return column
@@ -275,28 +275,28 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
 	if len(parts) == 1 {
-		_, column := b.target.relation.Index[parts[0].Text]
-		if b.query.namespace != nil {
-			for _, candidate := range b.query.namespace.Columns {
+		_, column := b.Target.Relation.Index[parts[0].Text]
+		if b.Query.Namespace != nil {
+			for _, candidate := range b.Query.Namespace.Columns {
 				column = column || candidate.Descriptor.Name == parts[0].Text
 			}
 		}
 		if !column {
-			if expr, found, err := b.returningWholeRow(parts[0].Text, b.target.relation, b.FrameID(), b.target.returningAliases, raw.Pos); found {
+			if expr, found, err := b.returningWholeRow(parts[0].Text, b.Target.Relation, b.FrameID(), b.Target.returningAliases, raw.Pos); found {
 				return expr, err
 			}
 		}
-		_, pseudo := b.target.returningPseudo(raw.Name)
-		visible := b.target.name
-		if b.target.alias != "" {
-			visible = b.target.alias
+		_, pseudo := b.Target.returningPseudo(raw.Name)
+		visible := b.Target.Name
+		if b.Target.alias != "" {
+			visible = b.Target.alias
 		}
 		if !column && (pseudo || parts[0].Text == visible) {
 			return b.wholeRow(raw.Name, raw.Pos, true)
 		}
 	}
-	if b.query.namespace != nil {
-		if _, pseudo := b.target.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
+	if b.Query.Namespace != nil {
+		if _, pseudo := b.Target.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
 			return b.queryColumn(raw)
 		}
 	}
@@ -305,7 +305,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 		return nil, err
 	}
 	name := parts[len(parts)-1].Text
-	slot, ok := b.target.relation.Index[name]
+	slot, ok := b.Target.Relation.Index[name]
 	if !ok {
 		if len(parts) > 1 {
 			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", parts[len(parts)-2].Text, name), raw.Pos)
@@ -323,15 +323,15 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 		return nil, false
 	}
 	label := name.Parts[0].Text
-	if b.query.namespace != nil {
-		for _, q := range b.query.namespace.Qualifiers {
+	if b.Query.Namespace != nil {
+		for _, q := range b.Query.Namespace.Qualifiers {
 			if q.Name == label {
 				return nil, false
 			}
 		}
 	}
-	for i := len(b.query.scopes) - 1; i >= 0; i-- {
-		scope := &b.query.scopes[i]
+	for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+		scope := &b.Query.Scopes[i]
 		if !scope.allowed {
 			continue
 		}
@@ -365,10 +365,10 @@ func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot
 		}
 		return plan.ReturningColumnExpr{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}
-	if !newValues && scope.returning.mode != returningDelete {
+	if !newValues && scope.returning.mode != ReturningDelete {
 		return plan.ReturningColumnExpr{ColumnExpr: column, Old: true}
 	}
-	if newValues && scope.returning.mode == returningDelete {
+	if newValues && scope.returning.mode == ReturningDelete {
 		return plan.ReturningColumnExpr{ColumnExpr: column, Absent: true}
 	}
 	return column
@@ -391,6 +391,6 @@ func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos 
 		fields[i] = b.outerReturningColumnAt(scope, i, pos, newValues)
 		props = expr.MergeProperties(props, fields[i].Properties())
 	}
-	typ, _ := b.bindingCatalog().LookupType(scope.relation.RowType)
-	return plan.RowExpr{Info: b.info(typ.Usage(), pos, props), Fields: fields, ReturningWhole: true, ReturningNull: scope.returning.mode == returningDelete && newValues}, nil
+	typ, _ := b.BindingCatalog().LookupType(scope.relation.RowType)
+	return plan.RowExpr{Info: b.Info(typ.Usage(), pos, props), Fields: fields, ReturningWhole: true, ReturningNull: scope.returning.mode == ReturningDelete && newValues}, nil
 }

@@ -27,8 +27,8 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.query.auth = &auth
-	b.query.frame = 1
+	b.Query.Auth = &auth
+	b.Query.Frame = 1
 	definition := []parser.FunctionColumnDefinition{
 		{Name: parser.Identifier{Text: "a"}, Type: parser.TypeName{Name: "integer"}},
 		{Name: parser.Identifier{Text: "b"}, Type: parser.TypeName{Name: "text"}},
@@ -110,7 +110,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal("missing source definition", err)
 	}
 	definition[1].Name.Text = "a"
-	if _, err := b.bindJSONBRecordDefinition(definition); !errors.As(err, &diagnostic) || diagnostic.Code != "42701" {
+	if _, err := b.BindJSONBRecordDefinition(definition); !errors.As(err, &diagnostic) || diagnostic.Code != "42701" {
 		t.Fatal("duplicate definition", err)
 	}
 	// Parsing ordinary ROWS FROM names for diagnostic precedence must not
@@ -190,16 +190,16 @@ func TestJSONBRecordExpansion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.query.auth = &auth
-	b.query.frame = 1
-	b.clause.aggregateClause = "SELECT"
+	b.Query.Auth = &auth
+	b.Query.Frame = 1
+	b.Clause.AggregateClause = "SELECT"
 	for _, name := range []string{"jsonb_to_record", "jsonb_to_recordset"} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}}}
-		base, err := b.bindCompositeBase(raw)
+		base, err := b.BindCompositeBase(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !jsonbRecordUnresolved(base) {
+		if !JSONBRecordUnresolved(base) {
 			t.Fatal("lost explicit unresolved marker", base)
 		}
 		original := base.(functions.JSONBRecord)
@@ -207,7 +207,7 @@ func TestJSONBRecordExpansion(t *testing.T) {
 		if err != nil || !rebuilt.Unresolved {
 			t.Fatal("reconstruction registered unknown layout", err)
 		}
-		_, err = b.expandComposite(parser.FieldExpr{Base: raw, Expansion: true})
+		_, err = b.ExpandComposite(parser.FieldExpr{Base: raw, Expansion: true})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42809" || diagnostic.Message != "record type has not been registered" || diagnostic.Position != "" || diagnostic.Severity != "ERROR" {
 			t.Fatal("unknown expansion did not reject before member capture", err)
@@ -217,13 +217,13 @@ func TestJSONBRecordExpansion(t *testing.T) {
 		parser.RowExpr{Explicit: true},
 		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}},
 	}}
-	_, err = b.expandComposite(parser.FieldExpr{Base: raw, Expansion: true})
+	_, err = b.ExpandComposite(parser.FieldExpr{Base: raw, Expansion: true})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42809" || diagnostic.Message != "record type has not been registered" {
 		t.Fatal("runtime ROW registration fabricated a static function layout", err)
 	}
-	base, err := b.bindCompositeBase(raw)
-	if err != nil || !jsonbRecordUnresolved(base) {
+	base, err := b.BindCompositeBase(raw)
+	if err != nil || !JSONBRecordUnresolved(base) {
 		t.Fatal(base, err)
 	}
 	value, err := base.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
@@ -265,13 +265,13 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	oldSource := []queryColumn{column("x", 5, first.Usage), column("y", 6, second.Usage)}
 	oldColumns := []queryColumn{left, oldSource[0], oldSource[1], column("n", 7, first.Usage)}
 	star := parser.StarExpr{Pos: parser.Position{Offset: 7}}
-	b := expressionBinder{host: e.analysisHost(nil), query: queryScopeState{auth: &AuthorizationView{View: access.View{Catalog: view}}}}
-	out, err := b.jsonbRecordCallStar(oldColumns, oldSource, star, callFor(original))
+	b := expressionBinder{Host: e.analysisHost(nil), Query: queryScopeState{Auth: &AuthorizationView{View: access.View{Catalog: view}}}}
+	out, err := b.JSONBRecordCallStar(oldColumns, oldSource, star, callFor(original))
 	if err != nil || len(out) != 4 {
 		t.Fatal("initial star", out, err)
 	}
 	key := preparedCompositeKey{Offset: 40, Kind: analyze.CompositeSourceExpansion, Projection: 7}
-	captured := b.prepared.Composites[key]
+	captured := b.Prepared.Composites[key]
 	if err := validateCompositeOccurrence(captured, view); err != nil {
 		t.Fatal(err)
 	}
@@ -279,8 +279,8 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if captured.Names[0] != "x" || captured.Attributes[0] != first.Attribute || captured.Attributes[1] != second.Attribute {
 		t.Fatal("capture borrowed mutable labels or lost stable attributes", captured)
 	}
-	b.expected = expectedOf(&StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: b.prepared.Composites})
-	b.prepared.Composites = nil
+	b.Expected = expectedOf(&StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: b.Prepared.Composites})
+	b.Prepared.Composites = nil
 	current, err := sqltype.Composite(original.ID(), original.Name(), original.SQLName(), original.AssociatedArray(), []sqltype.CompositeMember{first, second, {Attribute: 99, Name: "extra", Usage: first.Usage}})
 	if err != nil {
 		t.Fatal(err)
@@ -291,7 +291,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	call := callFor(current)
 	node := &plan.FunctionFromNode{Calls: []expr.Expr{call}, Ordinality: true, Frame: 3}
 	qualifier := queryQualifier{SourceRoot: node, Columns: append(append([]queryColumn(nil), currentSource...), ordinal)}
-	out, err = b.jsonbRecordStarColumns(currentColumns, 3, star, &qualifier)
+	out, err = b.JSONBRecordStarColumns(currentColumns, 3, star, &qualifier)
 	if err != nil || len(out) != 4 {
 		t.Fatal("retained projection", out, err)
 	}
@@ -308,7 +308,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	}
 	// A second lexical star has its own analyzed target list.
 	otherStar := parser.StarExpr{Pos: parser.Position{Offset: 20}}
-	out, err = b.jsonbRecordStarColumns(currentColumns, 3, otherStar, &qualifier)
+	out, err = b.JSONBRecordStarColumns(currentColumns, 3, otherStar, &qualifier)
 	if err != nil || len(out) != 5 {
 		t.Fatal("star occurrences aliased", out, err)
 	}
@@ -327,7 +327,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 		for i, member := range tc.members {
 			live[i] = column(member.Name, 5+i, member.Usage)
 		}
-		out, err := b.jsonbRecordCallStar(live, live, star, callFor(retired))
+		out, err := b.JSONBRecordCallStar(live, live, star, callFor(retired))
 		var diagnostic *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: tc.message}
 		if out != nil || !errors.As(err, &diagnostic) || *diagnostic != want {
@@ -353,7 +353,7 @@ func TestJSONBRecordReplay(t *testing.T) {
 			for round := range 3 {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, query).(*parser.Select).Targets[0]
-				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -365,10 +365,10 @@ func TestJSONBRecordReplay(t *testing.T) {
 				if err != nil || text != tc.want {
 					t.Fatal("replay changed conversion", round, text, err)
 				}
-				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+				if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
@@ -399,13 +399,13 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			original, _ := view.LookupType(source.RowType)
 			first := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, `SELECT jsonb_populate_record(`+tc.base+`,'{"id":1}'::jsonb)`).(*parser.Select).Targets[0].(parser.FunctionExpr)
-			if _, err := first.bind(raw, expressionPolicy{context: projectionContext}); err != nil {
+			if _, err := first.Bind(raw, expressionPolicy{Context: ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
-			if first.clause.jsonbRecordBase || len(first.prepared.Composites) == 0 {
+			if first.Clause.JSONBRecordBase || len(first.Prepared.Composites) == 0 {
 				t.Fatal("base capture escaped or was absent")
 			}
-			for _, captured := range first.prepared.Composites {
+			for _, captured := range first.Prepared.Composites {
 				if captured.Kind != analyze.CompositeRecordArgument || captured.Base.Type != original {
 					t.Fatal("wrong provider capture", captured)
 				}
@@ -425,10 +425,10 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				return expression
 			}
 			raw.Args[0] = oldSpelling(raw.Args[0])
-			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: first.prepared.Composites}
+			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: first.Prepared.Composites}
 			next := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, expected)
-			node, err := next.bind(raw, expressionPolicy{context: projectionContext})
-			if err != nil || next.clause.jsonbRecordBase {
+			node, err := next.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			if err != nil || next.Clause.JSONBRecordBase {
 				t.Fatal("retained base rebound by stale name or leaked scope", err)
 			}
 			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: view}})
@@ -440,13 +440,13 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				t.Fatal(text, err)
 			}
 			cast := raw.Args[0].(parser.CastExpr)
-			annotation, err := next.jsonbRecordCastAnnotation(cast)
+			annotation, err := next.JSONBRecordCastAnnotation(cast)
 			if err != nil || annotation.Name != "jbr_previous_pair" {
 				t.Fatal("capture affected unrelated cast scope", annotation, err)
 			}
-			next.clause.jsonbRecordBase = true
-			next.expected.CatalogEpoch++
-			annotation, err = next.jsonbRecordCastAnnotation(cast)
+			next.Clause.JSONBRecordBase = true
+			next.Expected.CatalogEpoch++
+			annotation, err = next.JSONBRecordCastAnnotation(cast)
 			if err != nil || annotation.Name != "jbr_previous_pair" {
 				t.Fatal("provider OID crossed catalog epoch", annotation, err)
 			}
@@ -455,7 +455,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 	engine, _, _ := typedUnitCatalog(t, false)
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, `SELECT jsonb_populate_record('(bad,x)'::pair,'{}'::jsonb)`).(*parser.Select).Targets[0]
-	if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil || b.clause.jsonbRecordBase {
+	if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err == nil || b.Clause.JSONBRecordBase {
 		t.Fatal("failed base analysis leaked its capture scope", err)
 	}
 }
@@ -470,9 +470,9 @@ func TestJSONBRecordLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.query.auth = &auth
-	b.query.frame = 1
-	b.clause.aggregateClause = "SELECT"
+	b.Query.Auth = &auth
+	b.Query.Frame = 1
+	b.Clause.AggregateClause = "SELECT"
 	for _, tc := range []struct {
 		query     string
 		nullInner bool
@@ -506,11 +506,11 @@ func TestJSONBRecordLayout(t *testing.T) {
 		}
 	}
 	raw := statement(t, `SELECT (jsonb_populate_record(jsonb_populate_record(jsonb_to_record('{}'::jsonb),'{}'::jsonb),'{}'::jsonb)).*`).(*parser.Select).Targets[0].(parser.FieldExpr)
-	if _, err := b.expandComposite(raw); err == nil {
+	if _, err := b.ExpandComposite(raw); err == nil {
 		t.Fatal("composed unresolved result fabricated empty expansion")
 	}
-	base, err := b.bindCompositeBase(raw.Base)
-	if err != nil || !jsonbRecordUnresolved(base) {
+	base, err := b.BindCompositeBase(raw.Base)
+	if err != nil || !JSONBRecordUnresolved(base) {
 		t.Fatal("lost transitive static layout state", base, err)
 	}
 	if _, err := base.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: auth.Catalog}}); err == nil {

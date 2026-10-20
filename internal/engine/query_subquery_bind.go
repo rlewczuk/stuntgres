@@ -10,22 +10,22 @@ import (
 )
 
 func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
-	if b.consumer.defaultConsumer {
+	if b.Consumer.DefaultConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in DEFAULT expression", raw.Pos)
 	}
-	if b.consumer.checkConsumer {
+	if b.Consumer.CheckConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in check constraint", raw.Pos)
 	}
-	if b.consumer.indexPredicateConsumer {
+	if b.Consumer.IndexPredicateConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in index predicate", raw.Pos)
 	}
-	if b.consumer.indexConsumer {
+	if b.Consumer.IndexConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in index expression", raw.Pos)
 	}
-	if b.target.generatedOwner != nil {
+	if b.Target.GeneratedOwner != nil {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in column generation expression", raw.Pos)
 	}
-	b.query.subqueryDemand = true
+	b.Query.subqueryDemand = true
 	var left []comparisonOperand
 	var leftExpansions map[int]plan.CompositeExpansionBinding
 	var leftConstructor expr.Expr
@@ -33,20 +33,20 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	if raw.Left != nil {
 		var err error
 		if row, ok := raw.Left.(parser.RowExpr); ok {
-			left, leftExpansions, err = b.rowComparisonOperands(row)
+			left, leftExpansions, err = b.RowComparisonOperands(row)
 		} else {
 			var operand comparisonOperand
 			operand, err = b.comparisonOperand(raw.Left)
-			if constructor, ok := operand.node.(plan.RowExpr); ok && constructor.Raw != nil && !constructor.Usage.Type.IsDomain() {
+			if constructor, ok := operand.Node.(plan.RowExpr); ok && constructor.Raw != nil && !constructor.Usage.Type.IsDomain() {
 				// A cast to a named composite can still analyze to a ROW
 				// constructor. Quantified subqueries compare its fields;
 				// a domain coercion or scalar subquery remains one value.
 				left = make([]comparisonOperand, len(constructor.Fields))
 				for i, field := range constructor.Fields {
-					left[i] = comparisonOperand{node: field}
+					left[i] = comparisonOperand{Node: field}
 				}
 				leftExpansions = constructor.Expansions
-				if b.params.noParameters || b.consumer.materializedDefinition {
+				if b.Params.NoParameters || b.Consumer.materializedDefinition {
 					erasedLeftType = constructor.Usage.Type.ID()
 					leftConstructor, err = b.normalizeQuantifiedConstructor(raw.Left, constructor)
 					if err != nil {
@@ -67,7 +67,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	}
 	project := query.Root.(*plan.ProjectNode)
 	width := len(project.Schema())
-	usage := b.typ(sqltype.Bool).Usage()
+	usage := b.Type(sqltype.Bool).Usage()
 	if raw.Kind == parser.SubqueryScalar {
 		if width != 1 {
 			return nil, expr.ErrorAt("42601", "subquery must return only one column", raw.Pos)
@@ -94,7 +94,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	}
 	properties := analyze.QueryDemandProperties(project, presenceOnly)
 	properties.StageDependent = true
-	e := plan.SubqueryExpr{Info: b.info(usage, raw.Pos, properties), Kind: raw.Kind, QueryPlan: query, Negate: raw.Negate, PresenceOnly: presenceOnly}
+	e := plan.SubqueryExpr{Info: b.Info(usage, raw.Pos, properties), Kind: raw.Kind, QueryPlan: query, Negate: raw.Negate, PresenceOnly: presenceOnly}
 	e.LeftExpansions = leftExpansions
 	e.LeftConstructor, e.ErasedLeftType = leftConstructor, erasedLeftType
 	if raw.Kind == parser.SubqueryScalar || raw.Kind == parser.SubqueryExists {
@@ -122,8 +122,8 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 		e.Ordering = make([]sqltype.Comparison, width)
 	}
 	for i, column := range project.Schema() {
-		right := plan.ColumnExpr{Info: b.info(column.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: i}
-		bound, err := b.bindComparisonOperands(parser.OperatorExpr{Name: raw.Operator, Pos: raw.Pos}, operator, left[i], comparisonOperand{node: right})
+		right := plan.ColumnExpr{Info: b.Info(column.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: i}
+		bound, err := b.BindComparisonOperands(parser.OperatorExpr{Name: raw.Operator, Pos: raw.Pos}, operator, left[i], comparisonOperand{Node: right})
 		if err != nil {
 			return nil, err
 		}

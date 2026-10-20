@@ -22,7 +22,7 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	raw := nullCountRaw("format", formatUnitLiteral("%d"))
-	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,14 +90,14 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	}
 	raw := script[0].(*parser.Select).Targets[0]
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	original, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	original, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := b.captureViewLiterals(raw, original, analyze.ViewTargetLiteral, 0); err != nil {
+	if err := b.CaptureViewLiterals(raw, original, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := newViewRenderer(&viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages})
+	renderer := newViewRenderer(&viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages})
 	renderer.frame = b.FrameID()
 	stored, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
@@ -111,7 +111,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	if !call.Variadic {
 		t.Fatalf("lost raw VARIADIC in %s", stored)
 	}
-	bound, err := b.bind(call, expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(call, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			node, err := binder.bind(script[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			node, err := binder.Bind(script[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -145,7 +145,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(stored, err)
 			}
-			rebound, err := binder.bind(replay[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			rebound, err := binder.Bind(replay[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(stored, err)
 			}
@@ -171,7 +171,7 @@ func TestFormatNullAndUnusedDoNotHideRealChildErrors(t *testing.T) {
 			parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}},
 			parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 0}},
 		}}
-		bound, err := b.bind(nullCountRaw("format", pattern, divide), expressionPolicy{context: projectionContext})
+		bound, err := b.Bind(nullCountRaw("format", pattern, divide), expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -183,23 +183,23 @@ func TestFormatNullAndUnusedDoNotHideRealChildErrors(t *testing.T) {
 func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	bound, err := b.bind(nullCountRaw("format", formatUnitLiteral("%s"), formatUnitLiteral("x")), expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(nullCountRaw("format", formatUnitLiteral("%s"), formatUnitLiteral("x")), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	node := bound.(functions.Format)
 	other := node
 	other.Variadic = true
-	if !b.sameGroupExpression(node, node) || b.sameGroupExpression(node, other) {
+	if !b.SameGroupExpression(node, node) || b.SameGroupExpression(node, other) {
 		t.Fatal("VARIADIC participates in grouping identity")
 	}
 	other = node
 	other.Args = []expr.Expr{node.Args[1], node.Args[0]}
-	if b.sameGroupExpression(node, other) {
+	if b.SameGroupExpression(node, other) {
 		t.Fatal("ordered argument identity")
 	}
 	types := formatUnitTypes()
-	retained, changed, err := retagBoundTypes(b.bindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := retagBoundTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -222,13 +222,13 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	raw := nullCountRaw("format", formatUnitLiteral("%2$s/%1$s"), parser.CastExpr{Child: formatUnitLiteral("{a,b}"), TypeName: parser.TypeName{Name: "name", ArrayBounds: []int32{0}}})
 	raw.Variadic = true
-	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	node := bound.(functions.Format)
 	types := formatUnitTypes()
-	retained, changed, err := retagBoundTypes(b.bindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := retagBoundTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -251,7 +251,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if generationImmutable(node) || analyze.FirstQueryBoundFrameVariable(node, b.FrameID()).Character != 99 {
 		t.Fatal("stable/variable descendants must remain visible")
 	}
-	rebound, err := b.rewriteGroup(node, []expr.Expr{column})
+	rebound, err := b.RewriteGroup(node, []expr.Expr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	}
 	aggregate := plan.AggregateExpr{Info: expr.Info{Usage: node.ResultUsage(), Property: expr.Properties{StageDependent: true}}, Slot: 7}
 	node.Args = []expr.Expr{node.Args[0], column, aggregate}
-	if found := aggregateOccurrence(node); found == nil || found.Slot != 7 {
+	if found := AggregateOccurrence(node); found == nil || found.Slot != 7 {
 		t.Fatal("all arguments must participate in aggregate traversal")
 	}
 }
@@ -272,7 +272,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 func TestFormatParameterDependence(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	bound, err := b.bind(nullCountRaw("format", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 1}), expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(nullCountRaw("format", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 1}), expressionPolicy{Context: ProjectionContext})
 	if err != nil || !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Stable {
 		t.Fatal(bound, err)
 	}

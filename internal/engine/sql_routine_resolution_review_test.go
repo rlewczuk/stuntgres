@@ -30,14 +30,14 @@ func TestSQLRoutineUnknownCategorySelection(t *testing.T) {
 					if reverse {
 						j = 1 - i
 					}
-					candidates[i].inputs = []sqltype.Usage{types[tc.inputs[j][0]].Usage(), types[tc.inputs[j][1]].Usage()}
+					candidates[i].Inputs = []sqltype.Usage{types[tc.inputs[j][0]].Usage(), types[tc.inputs[j][1]].Usage()}
 				}
-				got := selectSQLCallables(candidates, []comparisonOperand{{}, {}}, nil)
+				got := SelectSQLCallables(candidates, []comparisonOperand{{}, {}}, nil)
 				if len(got) != tc.want {
 					t.Fatalf("reverse=%v: got %d candidates, want %d", reverse, len(got), tc.want)
 				}
-				if tc.want == 1 && (got[0].inputs[0].Type != types[tc.inputs[0][0]] || got[0].inputs[1].Type != types[tc.inputs[0][1]]) {
-					t.Fatalf("reverse=%v: wrong winner %v", reverse, got[0].inputs)
+				if tc.want == 1 && (got[0].Inputs[0].Type != types[tc.inputs[0][0]] || got[0].Inputs[1].Type != types[tc.inputs[0][1]]) {
+					t.Fatalf("reverse=%v: wrong winner %v", reverse, got[0].Inputs)
 				}
 			}
 		})

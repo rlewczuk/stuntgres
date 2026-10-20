@@ -154,7 +154,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 	}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "hmac"}}}, Args: []parser.Expr{literal("what do ya want for nothing?"), literal("Jefe"), literal("sha256")}}
-	node, err := binder.bindFunctionProvider(raw)
+	node, err := binder.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	// A four-child call must retain IV/type children and its genuine installed
 	// procedure through the same generic walk, render, retag and remap seams.
 	aesRaw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "encrypt_iv"}}}, Args: []parser.Expr{literal("foo"), literal("0123456"), literal("abcd"), literal("aes")}}
-	aesNode, err := binder.bindFunctionProvider(aesRaw)
+	aesNode, err := binder.BindFunctionProvider(aesRaw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if v.name == "gen_random_bytes" {
 			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 16}}}
 		}
-		bound, err := binder.bindFunctionProvider(raw)
+		bound, err := binder.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(v.name, err)
 		}

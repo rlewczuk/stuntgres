@@ -21,7 +21,7 @@ func TestTimezoneReviewConditionalProperties(t *testing.T) {
 	} {
 		t.Run(expression, func(t *testing.T) {
 			binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-			node, err := binder.bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{context: projectionContext})
+			node, err := binder.Bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -55,7 +55,7 @@ func TestTimezoneReviewATVolatility(t *testing.T) {
 		} {
 			t.Run(tc.operand+" "+suffix, func(t *testing.T) {
 				binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-				node, err := binder.bind(castTarget(t, "SELECT ("+tc.operand+") "+suffix+" FROM t"), expressionPolicy{context: projectionContext})
+				node, err := binder.Bind(castTarget(t, "SELECT ("+tc.operand+") "+suffix+" FROM t"), expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -22,19 +22,19 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 	}
 	parameter := parser.ParameterExpr{Number: 1}
 	for _, name := range []string{"to_bin", "to_oct", "to_hex"} {
-		_, err := b.bind(call(name, parameter), expressionPolicy{context: projectionContext})
+		_, err := b.Bind(call(name, parameter), expressionPolicy{Context: ProjectionContext})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42725" || diagnostic.Position != "8" || diagnostic.Detail != "" || diagnostic.Hint != "Could not choose a best candidate function. You might need to add explicit type casts." {
 			t.Fatal(name, err)
 		}
-		if b.params.parameters[1].Type != nil {
+		if b.Params.Parameters[1].Type != nil {
 			t.Fatal("ambiguous call fixed parameter")
 		}
 	}
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Int8} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.params.parameters[1] = b.typ(id).Usage()
-		node, err := b.bind(call("to_hex", parameter), expressionPolicy{context: projectionContext})
+		b.Params.Parameters[1] = b.Type(id).Usage()
+		node, err := b.Bind(call("to_hex", parameter), expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,11 +42,11 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if !ok || selected.Plan.ArgumentUsage(0).Type.ID() != id || selected.ResultUsage().Type.ID() != sqltype.Text || selected.Properties().Volatility != expr.Immutable {
 			t.Fatal(node)
 		}
-		v, err := sqltype.Integer(b.typ(id), -1)
+		v, err := sqltype.Integer(b.Type(id), -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: b.typ(id).Usage()}, Value: v}
+		selected.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: b.Type(id).Usage()}, Value: v}
 		replacements := make(map[sqltype.ID]*sqltype.Descriptor)
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
@@ -74,7 +74,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if got.Type() != replacements[sqltype.Text] {
 			t.Fatal("retained result generation", got)
 		}
-		if selected.Plan.ArgumentUsage(0).Type != b.typ(id) {
+		if selected.Plan.ArgumentUsage(0).Type != b.Type(id) {
 			t.Fatal("source provider mutated")
 		}
 	}
@@ -83,10 +83,10 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	u := b.typ(sqltype.Text).Usage()
+	u := b.Type(sqltype.Text).Usage()
 	value := sqltype.String(u.Type, "abc")
 	arg := plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: value}
-	node, err := b.stringNode("md5", u, parser.Position{}, []expr.Expr{arg}, [4]bool{true}, parser.OrdinaryStringSyntax)
+	node, err := b.StringNode("md5", u, parser.Position{}, []expr.Expr{arg}, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 			for _, input := range []string{"-1", "NULL"} {
 				t.Run(tc.name+"/"+width+"/"+input, func(t *testing.T) {
 					b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-					column := catalog.Column{Name: "v", Usage: b.typ(sqltype.Text).Usage()}
+					column := catalog.Column{Name: "v", Usage: b.Type(sqltype.Text).Usage()}
 					parseDefault := func(expression string) parser.Expr {
 						t.Helper()
 						statements, err := parser.Parse("CREATE TABLE d(v TEXT DEFAULT (" + expression + "))")
@@ -134,7 +134,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 						}
 						return statements[0].(*parser.CreateTable).Elements[0].Column.Constraints[0].Default
 					}
-					original, err := b.bindDefault(parseDefault(tc.name+"("+input+"::"+width+")"), column)
+					original, err := b.BindDefault(parseDefault(tc.name+"("+input+"::"+width+")"), column)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -142,7 +142,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					replayed, err := b.bindDefault(parseDefault(canonical), column)
+					replayed, err := b.BindDefault(parseDefault(canonical), column)
 					if err != nil {
 						t.Fatal(canonical, err)
 					}
@@ -156,7 +156,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 							t.Fatal("replay changed selected width", canonical, selected.Plan.ArgumentUsage(0))
 						}
 						value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-						if err != nil || value.Type() != b.typ(sqltype.Text) || value.IsNull() != (input == "NULL") {
+						if err != nil || value.Type() != b.Type(sqltype.Text) || value.IsNull() != (input == "NULL") {
 							t.Fatal(value, err)
 						}
 						if input != "NULL" {
@@ -183,18 +183,18 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		}
 		cast := parser.CastExpr{Child: literal, TypeName: parser.TypeName{Name: "char", Quoted: true}}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "md5"}}}, Args: []parser.Expr{cast}}
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(null, err)
 		}
 		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-		if err != nil || value.Type() != b.typ(sqltype.Text) || value.IsNull() != null {
+		if err != nil || value.Type() != b.Type(sqltype.Text) || value.IsNull() != null {
 			t.Fatal(value, err)
 		}
 		// Exact CHAR MD5/NULL vectors are local; actual special-role admission,
 		// result/NULL identity and generic CHAR rejection stay in this owner test.
 		for _, textual := range []bool{false, true} {
-			_, err := b.stringOperand(cast, textual)
+			_, err := b.StringOperand(cast, textual)
 			if textual && err != nil {
 				t.Fatal("textual role rejected CHAR", err)
 			}
@@ -202,25 +202,25 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 				state(t, err, "0A000")
 			}
 		}
-		_, err = b.bind(cast, expressionPolicy{context: projectionContext})
+		_, err = b.Bind(cast, expressionPolicy{Context: ProjectionContext})
 		state(t, err, "0A000")
 		_, err = e.resolveType(cast.TypeName, binderOperation(b))
 		state(t, err, "0A000")
 	}
 	for _, established := range []bool{false, true} {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		char := b.typ(sqltype.Char).Usage()
+		char := b.Type(sqltype.Char).Usage()
 		if established {
-			b.params.parameters[1] = char
+			b.Params.Parameters[1] = char
 		}
 		cast := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "char", Quoted: true}}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "md5"}}}, Args: []parser.Expr{cast}}
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal("CHAR parameter annotation", established, err)
 		}
-		if node.ResultUsage().Type != b.typ(sqltype.Text) || b.params.parameters[1] != char {
-			t.Fatal("lost annotated CHAR parameter contract", established, node.ResultUsage(), b.params.parameters[1])
+		if node.ResultUsage().Type != b.Type(sqltype.Text) || b.Params.Parameters[1] != char {
+			t.Fatal("lost annotated CHAR parameter contract", established, node.ResultUsage(), b.Params.Parameters[1])
 		}
 		if _, err := sqltype.PlanCoercion(char, char, sqltype.Explicit); err == nil {
 			t.Fatal("textual input admission broadened general CHAR identity casts")

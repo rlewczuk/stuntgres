@@ -25,7 +25,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			raw.HasPrecision = true
 			raw.Precision = 3
 		}
-		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(raw, err)
 		}
@@ -72,12 +72,12 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if sides, err := plan.JoinExpressionSides(copy, 0, 0); err != nil || sides != 0 {
 			t.Fatal(sides, err)
 		}
-		if !b.sameGroupExpression(node, node) {
+		if !b.SameGroupExpression(node, node) {
 			t.Fatal("current leaf not semantically equal to itself")
 		}
 		other := node
 		other.Kind = parser.CurrentDate
-		if kind != parser.CurrentDate && b.sameGroupExpression(node, other) {
+		if kind != parser.CurrentDate && b.SameGroupExpression(node, other) {
 			t.Fatal("different current kinds equated")
 		}
 	}

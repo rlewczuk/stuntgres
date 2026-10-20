@@ -17,7 +17,7 @@ func likeName(name string) bool {
 	return name == "~~" || name == "!~~" || name == "~~*" || name == "!~~*"
 }
 
-func likeProperties(a, b expr.Expr) expr.Properties {
+func LikeProperties(a, b expr.Expr) expr.Properties {
 	p, q := a.Properties(), b.Properties()
 	p.Volatility = max(p.Volatility, q.Volatility)
 	p.RowDependent = p.RowDependent || q.RowDependent
@@ -28,12 +28,12 @@ func likeProperties(a, b expr.Expr) expr.Properties {
 	return p
 }
 
-func (b *expressionBinder) collatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
-	return analyze.CollatedInfo(b.bindingCatalog(), info, inputs...)
+func (b *expressionBinder) CollatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
+	return analyze.CollatedInfo(b.BindingCatalog(), info, inputs...)
 }
 
 func (b *expressionBinder) coercionInfo(info expr.Info, child expr.Expr) (expr.Info, error) {
-	info, err := analyze.CoercionInfo(b.bindingCatalog(), info, child)
+	info, err := analyze.CoercionInfo(b.BindingCatalog(), info, child)
 	if err != nil {
 		return expr.Info{}, err
 	}
@@ -64,7 +64,7 @@ func (b *expressionBinder) comparisonInfo(left, right expr.Expr) (expr.Info, err
 	if err := b.captureComparisonDiagnosticInput(right.ResultUsage().Type); err != nil {
 		return expr.Info{}, err
 	}
-	return comparisonInfo(b.bindingCatalog(), left, right)
+	return comparisonInfo(b.BindingCatalog(), left, right)
 }
 
 func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Descriptor) (expr.Expr, error) {
@@ -165,7 +165,7 @@ func bindLike(b functions.Binder, raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	info, err := b.BuiltinOperatorRoutineInfo(b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, likeProperties(l, r)), operator, lhs.ID(), rhs.ID())
+	info, err := b.BuiltinOperatorRoutineInfo(b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, LikeProperties(l, r)), operator, lhs.ID(), rhs.ID())
 	if err != nil {
 		return nil, err
 	}

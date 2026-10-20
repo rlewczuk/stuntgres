@@ -71,11 +71,11 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
-	b.params.parameters[1], b.params.parameters[2] = text.Usage(), integer.Usage()
+	b.Clause.AggregateClause = "SELECT"
+	b.Params.Parameters[1], b.Params.Parameters[2] = text.Usage(), integer.Usage()
 	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg"} {
 		raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}, Pos: parser.Position{Character: 8}}
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,22 +88,22 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 			t.Fatal("fixed computed descriptor", node.ResultUsage())
 		}
 	}
-	if len(b.grouping.aggregates) != 4 {
-		t.Fatal("incompatible object calls share slots", len(b.grouping.aggregates))
+	if len(b.Grouping.Aggregates) != 4 {
+		t.Fatal("incompatible object calls share slots", len(b.Grouping.Aggregates))
 	}
-	for _, call := range b.grouping.aggregates {
+	for _, call := range b.Grouping.Aggregates {
 		if !call.IncludeNulls || call.Argument.ResultUsage().Type != text || call.Separator.ResultUsage().Type != integer {
 			t.Fatal("two inputs/presence lost", call)
 		}
 	}
-	if _, err := b.bind(parser.AggregateExpr{Name: "json_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 2}}}, expressionPolicy{context: projectionContext}); err != nil {
+	if _, err := b.Bind(parser.AggregateExpr{Name: "json_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 2}}}, expressionPolicy{Context: ProjectionContext}); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.grouping.aggregates) != 5 {
+	if len(b.Grouping.Aggregates) != 5 {
 		t.Fatal("array/object slot collision")
 	}
 	schemaBinder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	schemaBinder.params.parameters[1], schemaBinder.params.parameters[2] = text.Usage(), integer.Usage()
+	schemaBinder.Params.Parameters[1], schemaBinder.Params.Parameters[2] = text.Usage(), integer.Usage()
 	targets := []parser.Expr{}
 	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict"} {
 		targets = append(targets, parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}})

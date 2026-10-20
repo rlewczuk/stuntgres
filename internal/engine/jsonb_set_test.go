@@ -19,7 +19,7 @@ import (
 func jsonbSetUnitBind(t *testing.T, b *expressionBinder, q string) expr.Expr {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(q, err)
 	}
@@ -33,8 +33,8 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 	e := node.(functions.JSONBSet)
 	ids := [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
 	for i, id := range ids {
-		if b.params.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
-			t.Fatal("lost formal inference", i, b.params.parameters)
+		if b.Params.Parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
+			t.Fatal("lost formal inference", i, b.Params.Parameters)
 		}
 	}
 	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || exec.PlannedVolatility(node) != expr.Immutable {
@@ -44,8 +44,8 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		args := []parser.Expr{datetimeMakeString("{}"), datetimeMakeString("{a}"), datetimeMakeString("2"), datetimeMakeString("true"), datetimeMakeString("use_json_null")}
 		args[slot] = parser.ParameterExpr{Number: 1}
-		n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_set_lax", args...))
-		if err != nil || !n.Properties().ParameterDependent || binder.params.parameters[1].Type.ID() != id {
+		n, err := binder.BindFunctionProvider(datetimeMakeRaw("jsonb_set_lax", args...))
+		if err != nil || !n.Properties().ParameterDependent || binder.Params.Parameters[1].Type.ID() != id {
 			t.Fatal("isolated formal property/inference lost", slot, n, err)
 		}
 	}
@@ -57,7 +57,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		if slot == 3 {
 			args[slot] = parser.CastExpr{Child: randomText, TypeName: parser.TypeName{Name: "boolean"}}
 		}
-		n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_set_lax", args...))
+		n, err := binder.BindFunctionProvider(datetimeMakeRaw("jsonb_set_lax", args...))
 		if err != nil {
 			t.Fatal(slot, err)
 		}
@@ -70,7 +70,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		`SELECT jsonb_set_lax('{}','{a}',NULL,missing,'return_target')`,
 	} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-		_, err := binder.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		_, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42703" {
 			t.Fatal("ordinary child analysis suppressed", q, err)
@@ -131,10 +131,10 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	raw := datetimeMakeRaw("jsonb_set_lax", rawArgs...)
 	raw.Args[0] = parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
 	raw.ArgNames = []parser.Identifier{{Text: "replacement"}, {Text: "jsonb_in"}, {Text: "path"}, {Text: "null_value_treatment"}}
-	if err := b.captureViewLiterals(raw, e, analyze.ViewTargetLiteral, 0); err != nil {
+	if err := b.CaptureViewLiterals(raw, e, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal("written/formal literal association", err)
 	}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
+	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 	replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
@@ -164,7 +164,7 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 			for round := range 3 {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, query).(*parser.Select).Targets[0]
-				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -176,10 +176,10 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 				if err != nil || text != tc.want {
 					t.Fatal("replay changed JSONB result", round, text, err)
 				}
-				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+				if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
@@ -201,7 +201,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 		e := base
 		column := plan.ColumnExpr{Info: expr.Info{Usage: e.Args[slot].ResultUsage(), Property: expr.Properties{RowDependent: true}}}
 		e.Args[slot] = column
-		rewritten, err := b.rewriteGroup(e, []expr.Expr{column})
+		rewritten, err := b.RewriteGroup(e, []expr.Expr{column})
 		if err != nil {
 			t.Fatal(slot, err)
 		}

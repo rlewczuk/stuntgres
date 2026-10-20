@@ -19,14 +19,14 @@ import (
 
 func stringSplitMarker(t *testing.T, b *expressionBinder, pos int, args ...expr.Expr) functions.String {
 	t.Helper()
-	expr, err := b.stringNode("string_to_table", b.typ(sqltype.Text).Usage(), parser.Position{Offset: pos, Character: pos + 1}, args, [4]bool{true, true, true}, parser.OrdinaryStringSyntax)
+	expr, err := b.StringNode("string_to_table", b.Type(sqltype.Text).Usage(), parser.Position{Offset: pos, Character: pos + 1}, args, [4]bool{true, true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return expr.(functions.String)
 }
 func stringSplitLiteral(b *expressionBinder, s string) expr.Expr {
-	text := b.typ(sqltype.Text)
+	text := b.Type(sqltype.Text)
 	return plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, s)}
 }
 func TestStringSplitExpansion(t *testing.T) {
@@ -52,12 +52,12 @@ func TestStringSplitExpansion(t *testing.T) {
 			} {
 				t.Run(prefix+"/"+scenario.name, func(t *testing.T) {
 					binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-					binder.clause.aggregateClause = "SELECT"
+					binder.Clause.AggregateClause = "SELECT"
 					raw := statement(t, query).(*parser.Select)
 					requests := make([]expr.Expr, len(raw.Targets))
 					for i, target := range raw.Targets {
 						var err error
-						requests[i], err = binder.bind(target, expressionPolicy{context: projectionContext})
+						requests[i], err = binder.Bind(target, expressionPolicy{Context: ProjectionContext})
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -67,7 +67,7 @@ func TestStringSplitExpansion(t *testing.T) {
 						t.Fatal(err)
 					}
 					node := root.(*plan.SetProjectNode)
-					text := binder.typ(sqltype.Text)
+					text := binder.Type(sqltype.Text)
 					var observed []int
 					node.Scalars[0] = mathObservedArgument{Info: expr.InfoOf(node.Scalars[0]), value: sqltype.String(text, "s"), order: &observed, index: 0, err: scenario.scalarError}
 					functionSetUnitArgument(t, node.Calls, 0, 0, mathObservedArgument{Info: expr.InfoOf(expr.Expr(node.Calls[0]).(expr.Composite).Children()[0]), value: sqltype.String(text, scenario.input), order: &observed, index: 1, err: scenario.sourceError})
@@ -139,7 +139,7 @@ func TestStringSplitExpansion(t *testing.T) {
 			} {
 				t.Run(prefix+"/"+scenario.name, func(t *testing.T) {
 					binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-					binder.clause.aggregateClause = "SELECT"
+					binder.Clause.AggregateClause = "SELECT"
 					shallow := "'p'||string_to_table('x',',')"
 					deep := "string_to_table(string_to_table('" + scenario.input + "',','),':')"
 					query := "SELECT " + shallow + "," + deep
@@ -151,7 +151,7 @@ func TestStringSplitExpansion(t *testing.T) {
 					schema := make(plan.QuerySchema, len(raw.Targets))
 					for i, target := range raw.Targets {
 						var err error
-						requests[i], err = binder.bind(target, expressionPolicy{context: projectionContext})
+						requests[i], err = binder.Bind(target, expressionPolicy{Context: ProjectionContext})
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -162,7 +162,7 @@ func TestStringSplitExpansion(t *testing.T) {
 						t.Fatal(err)
 					}
 					owner := &plan.ProjectNode{QuerySchema: schema, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
-					private, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: binder.bindingCatalog()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, owner)
+					private, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: binder.BindingCatalog()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -175,7 +175,7 @@ func TestStringSplitExpansion(t *testing.T) {
 					}
 					var observed []int
 					instrument := func(expression expr.Expr) (expr.Expr, error) {
-						next, _, err := mapBoundExpression(binder.bindingCatalog(), expression,
+						next, _, err := mapBoundExpression(binder.BindingCatalog(), expression,
 							func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ },
 							func(query plan.Node) (plan.Node, error) { return query, nil },
 							nil,
@@ -279,12 +279,12 @@ func TestStringSplitExpansion(t *testing.T) {
 	})
 	t.Run("interleaved_target_schedule", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		binder.clause.aggregateClause = "SELECT"
+		binder.Clause.AggregateClause = "SELECT"
 		raw := statement(t, "SELECT 's',string_to_table('a,b',','),'t',string_to_table('x',',')").(*parser.Select)
 		requests := make([]expr.Expr, len(raw.Targets))
 		for i, target := range raw.Targets {
 			var err error
-			requests[i], err = binder.bind(target, expressionPolicy{context: projectionContext})
+			requests[i], err = binder.Bind(target, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -322,7 +322,7 @@ func TestStringSplitExpansion(t *testing.T) {
 			t.Fatal("target events reordered or exhausted source reopened", rows, trace)
 		}
 	})
-	text := b.typ(sqltype.Text)
+	text := b.Type(sqltype.Text)
 	var order []int
 	input := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "a,b"), order: &order, index: 0}
 	delimiter := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, ","), order: &order, index: 1}
@@ -436,13 +436,13 @@ func TestStringSplitFrames(t *testing.T) {
 			"SELECT 7,string_to_table(string_to_table('a:b,c:d',','),':'),upper(string_to_table('x,y',','))",
 		} {
 			binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			binder.clause.aggregateClause = "SELECT"
+			binder.Clause.AggregateClause = "SELECT"
 			raw := statement(t, query).(*parser.Select)
 			requests := make([]expr.Expr, len(raw.Targets))
 			schema := make(plan.QuerySchema, len(raw.Targets))
 			for i, target := range raw.Targets {
 				var err error
-				requests[i], err = binder.bind(target, expressionPolicy{context: projectionContext})
+				requests[i], err = binder.Bind(target, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -495,7 +495,7 @@ func TestStringSplitFrames(t *testing.T) {
 		}
 	})
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.query.frame = 7
+	b.Query.Frame = 7
 	inner := stringSplitMarker(t, b, 11, stringSplitLiteral(b, "a:b,c:d"), stringSplitLiteral(b, ","))
 	outer := stringSplitMarker(t, b, 12, inner, stringSplitLiteral(b, ":"))
 	peer := stringSplitMarker(t, b, 13, stringSplitLiteral(b, "x,y,z"), stringSplitLiteral(b, ","))
@@ -545,9 +545,9 @@ func TestStringSplitFrames(t *testing.T) {
 }
 func TestStringSplitBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	for _, q := range []string{"SELECT string_to_table('a,b',',')", "SELECT string_to_array('a,b',',',NULL)", "SELECT split_part('a,b',',',-1)"} {
-		expr, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		expr, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}
@@ -567,26 +567,26 @@ func TestStringSplitBinding(t *testing.T) {
 			t.Fatal(q, err)
 		}
 	}
-	b.clause.stringSetGuard = "CASE"
-	b.clause.queryHasTargetSet = true
+	b.Clause.StringSetGuard = "CASE"
+	b.Clause.QueryHasTargetSet = true
 	restore := b.EnterQuery(false)
-	if b.clause.stringSetGuard != "" || b.clause.queryHasTargetSet {
+	if b.Clause.StringSetGuard != "" || b.Clause.QueryHasTargetSet {
 		t.Fatal("query guard/flag crossed boundary")
 	}
 	restore()
-	if b.clause.stringSetGuard != "CASE" || !b.clause.queryHasTargetSet {
+	if b.Clause.StringSetGuard != "CASE" || !b.Clause.QueryHasTargetSet {
 		t.Fatal("query guard/flag not restored")
 	}
-	b.clause.queryHasTargetSet = false
+	b.Clause.QueryHasTargetSet = false
 	child := b.EnterQuery(false)
-	b.clause.queryHasTargetSet = true
+	b.Clause.QueryHasTargetSet = true
 	child()
-	if b.clause.queryHasTargetSet {
+	if b.Clause.QueryHasTargetSet {
 		t.Fatal("child query set flag escaped owner")
 	}
-	b.clause.stringSetGuard = ""
+	b.Clause.StringSetGuard = ""
 	raw := statement(t, "SELECT replace(string_to_table('a,b',','),NULL,'x')").(*parser.Select)
-	bound, err := b.bind(raw.Targets[0], expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(raw.Targets[0], expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -595,10 +595,10 @@ func TestStringSplitBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal, ok := folded.(plan.LiteralExpr)
-	if !ok || !literal.Value.IsNull() || !b.clause.queryHasTargetSet {
+	if !ok || !literal.Value.IsNull() || !b.Clause.QueryHasTargetSet {
 		t.Fatal("lost original set analysis after strict folding", folded)
 	}
-	descriptor := &catalog.Relation{View: &viewDefinition{syntax: raw, query: &plan.Query{Root: &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{folded}, HasTargetSet: b.clause.queryHasTargetSet}}}}
+	descriptor := &catalog.Relation{View: &viewDefinition{syntax: raw, query: &plan.Query{Root: &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{folded}, HasTargetSet: b.Clause.QueryHasTargetSet}}}}
 	if _, _, _, reason := viewWriteShape(descriptor); reason != "Views that return set-returning functions are not automatically updatable." {
 		t.Fatal(reason)
 	}
@@ -615,11 +615,11 @@ func TestStringSplitLifecycle(t *testing.T) {
 		}
 		for _, kind := range []parser.ValueKind{parser.NullValue, parser.StringValue} {
 			stage := makeStage(plan.UnknownOutput{Raw: parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: "retained"}}})
-			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err != nil {
+			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err != nil {
 				t.Fatal("genuine contextual template root rejected", err)
 			}
 			for range 2 {
-				mapped, err := remapViewQuery(b.bindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+				mapped, err := remapViewQuery(b.BindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -635,12 +635,12 @@ func TestStringSplitLifecycle(t *testing.T) {
 		for _, program := range [][]plan.SetStep{nil, {{Kind: plan.SetStepKind(255), Index: 0}}, {{Kind: exec.QuerySetCallStep, Index: 1}}} {
 			stage := makeStage(plan.UnknownOutput{Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}})
 			stage.Steps = program
-			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
+			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
 				t.Fatal("stored executable schedule admitted malformed event", program)
 			}
 			stage.Steps = []plan.SetStep{{Kind: exec.QuerySetCallStep, Index: 0}}
 			stage.Template.Steps = program
-			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
+			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
 				t.Fatal("stored template schedule admitted malformed event", program)
 			}
 		}
@@ -650,7 +650,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 			{Info: expr.Info{Usage: call.ResultUsage()}, Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}},
 		} {
 			stage := makeStage(malformed)
-			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
+			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
 				t.Fatal("malformed contextual template accepted", err)
 			}
 		}
@@ -668,11 +668,11 @@ func TestStringSplitLifecycle(t *testing.T) {
 					Scalars: []expr.Expr{scalar}, ScalarRequests: []int{0}, Attempts: true, Steps: program}}
 		}
 		stage := makeStage()
-		if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err != nil {
+		if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err != nil {
 			t.Fatal("valid identity scalar reservation rejected", err)
 		}
 		for range 2 {
-			mapped, err := remapViewQuery(b.bindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+			mapped, err := remapViewQuery(b.BindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -683,13 +683,13 @@ func TestStringSplitLifecycle(t *testing.T) {
 		for _, slots := range [][]int{{}, {-1}, {1}} {
 			stage := makeStage()
 			stage.ScalarSlots = slots
-			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
+			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
 				t.Fatal("malformed stored explicit scalar reservation admitted", slots)
 			}
 		}
 		stage = makeStage()
 		stage.Template.ScalarRequests = []int{1}
-		if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
+		if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
 			t.Fatal("scalar candidate mapped to a call owner")
 		}
 	})
@@ -720,7 +720,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 			AnalysisExpressions: []expr.Expr{unknown},
 		}
 		definition := &viewDefinition{query: &plan.Query{Root: project}}
-		if err := validateViewLeaves(b.bindingCatalog(), definition); err != nil {
+		if err := validateViewLeaves(b.BindingCatalog(), definition); err != nil {
 			t.Fatal("retained contextual literal rejected", err)
 		}
 		foreignType := *value.ResultUsage().Type
@@ -739,19 +739,19 @@ func TestStringSplitLifecycle(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				private := *project
 				private.QuerySchema = plan.QuerySchema{{Usage: tc.usage}}
-				if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != tc.message {
+				if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != tc.message {
 					t.Fatal("malformed executable schema accepted", err)
 				}
 			})
 		}
 		private := *project
 		private.Expressions = []expr.Expr{unknown}
-		if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != "stuntgres: invalid view query usage" {
+		if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != "stuntgres: invalid view query usage" {
 			t.Fatal("unresolved executable output accepted", err)
 		}
 		private = *project
 		private.AnalysisExpressions = []expr.Expr{plan.UnknownOutput{Raw: parser.ColumnExpr{}}}
-		if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
+		if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
 			t.Fatal("nonliteral contextual placeholder accepted", err)
 		}
 	})
@@ -808,7 +808,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 func TestStringSplitPreflight(t *testing.T) {
 	t.Run("scalar_owner_boundary", func(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		text := b.typ(sqltype.Text)
+		text := b.Type(sqltype.Text)
 		info := expr.Info{Usage: text.Usage()}
 		lowered := plan.ColumnExpr{Info: info, Scope: 1, Frame: 1, Slot: 0}
 		reserved := plan.ColumnExpr{Info: info, Scope: 1, Frame: 1, Slot: 1}
@@ -851,12 +851,12 @@ func TestStringSplitPreflight(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-				b.clause.aggregateClause = "SELECT"
+				b.Clause.AggregateClause = "SELECT"
 				raw := statement(t, tc.query).(*parser.Select)
 				expressions := make([]expr.Expr, len(raw.Targets))
 				schema := make(plan.QuerySchema, len(raw.Targets))
 				for i, target := range raw.Targets {
-					expression, err := b.bind(target, expressionPolicy{context: projectionContext})
+					expression, err := b.Bind(target, expressionPolicy{Context: ProjectionContext})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -953,7 +953,7 @@ func TestStringSplitPreflight(t *testing.T) {
 	})
 	for _, peer := range []bool{false, true} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
+		b.Clause.AggregateClause = "SELECT"
 		query := "SELECT replace(string_to_table('a,b',','),NULL,'x') AS v"
 		if peer {
 			query += ",string_to_table('c,d,e',',') AS w"
@@ -962,7 +962,7 @@ func TestStringSplitPreflight(t *testing.T) {
 		projection := make([]expr.Expr, len(raw.Targets))
 		schema := make(plan.QuerySchema, len(raw.Targets))
 		for i, target := range raw.Targets {
-			expr, err := b.bind(target, expressionPolicy{context: projectionContext})
+			expr, err := b.Bind(target, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1032,9 +1032,9 @@ func TestStringSplitPreflight(t *testing.T) {
 
 func TestStringSplitPreflightSiblingError(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	raw := statement(t, "SELECT replace(string_to_table('a,b',','),NULL,split_part('x',',',0))").(*parser.Select)
-	bound, err := b.bind(raw.Targets[0], expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(raw.Targets[0], expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal("immutable sibling error moved into binding", err)
 	}

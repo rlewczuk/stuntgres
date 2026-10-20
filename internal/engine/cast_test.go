@@ -21,33 +21,33 @@ func castTarget(t *testing.T, q string) parser.Expr {
 func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	first, err := b.bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{context: projectionContext})
+	first, err := b.Bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	later, err := b.bind(castTarget(t, "SELECT $1::text FROM t"), expressionPolicy{context: projectionContext})
+	later, err := b.Bind(castTarget(t, "SELECT $1::text FROM t"), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	info, err := b.finish()
+	info, err := b.Finish()
 	if err != nil || info.Count != 1 || info.Types[0].Type.ID() != sqltype.Int4 || first.ResultUsage().Type.ID() != sqltype.Int4 || later.ResultUsage().Type.ID() != sqltype.Text || !later.Properties().ParameterDependent {
 		t.Fatal(info, first, later, err)
 	}
-	value, _ := sqltype.Integer(b.typ(sqltype.Int4), 2)
+	value, _ := sqltype.Integer(b.Type(sqltype.Int4), 2)
 	got, err := later.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}})
 	text, accessErr := got.Text()
 	if err != nil || accessErr != nil || text != "2" {
 		t.Fatal(got, err, accessErr)
 	}
 	earlierBinder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	earlier, err := earlierBinder.bind(castTarget(t, "SELECT $1 FROM t"), expressionPolicy{context: projectionContext})
+	earlier, err := earlierBinder.Bind(castTarget(t, "SELECT $1 FROM t"), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := earlierBinder.bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{context: projectionContext}); err != nil {
+	if _, err := earlierBinder.Bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{Context: ProjectionContext}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = earlierBinder.finalizeProjection(earlier)
+	_, err = earlierBinder.FinalizeProjection(earlier)
 	state(t, err, "42P08")
 	for _, tc := range []struct {
 		q, code, position string
@@ -61,7 +61,7 @@ func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 		{"SELECT bool(NULL::int8) FROM t", "42883", "8", false},
 	} {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		expr, err := binder.bind(castTarget(t, tc.q), expressionPolicy{context: projectionContext})
+		expr, err := binder.Bind(castTarget(t, tc.q), expressionPolicy{Context: ProjectionContext})
 		if tc.evaluation {
 			if err != nil {
 				t.Fatal(tc.q, err)

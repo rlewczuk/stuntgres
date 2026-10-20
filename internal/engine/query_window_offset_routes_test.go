@@ -36,17 +36,17 @@ func TestQueryWindowOffsetNestedComparison(t *testing.T) {
 
 func TestQueryWindowOffsetLowering(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.query.frame = 7
+	b.Query.Frame = 7
 	marker := stringSplitMarker(t, b, 11, stringSplitLiteral(b, "a,b"), stringSplitLiteral(b, ","))
 	peer := stringSplitMarker(t, b, 21, stringSplitLiteral(b, "x,y,z"), stringSplitLiteral(b, ","))
 	markerArgs := append([]expr.Expr(nil), expr.Expr(marker).(expr.Composite).Children()...)
 	peerArgs := append([]expr.Expr(nil), expr.Expr(peer).(expr.Composite).Children()...)
 	argument := stringSplitLiteral(b, "value")
-	offset, err := sqltype.Integer(b.typ(sqltype.Int4), 100)
+	offset, err := sqltype.Integer(b.Type(sqltype.Int4), 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordinal := plan.LiteralExpr{Info: expr.Info{Usage: b.typ(sqltype.Int4).Usage()}, Value: offset}
+	ordinal := plan.LiteralExpr{Info: expr.Info{Usage: b.Type(sqltype.Int4).Usage()}, Value: offset}
 	tail := stringSplitLiteral(b, "tail")
 	retainedCalls := []plan.WindowCall{
 		{Operation: plan.WindowLead, Argument: argument, Ordinal: ordinal, DefaultValue: marker},
@@ -60,7 +60,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	// This mechanics test supplies a real pre-lowering marker, not public SQL
 	// admitting an SRF inside a window call. The lowering contract must transform
 	// every owned request and corresponding companion without changing its inputs.
-	root, err := b.lowerStringWindowSpecs(&plan.SingletonNode{}, specs, calls, [][]expr.Expr{companion})
+	root, err := b.LowerStringWindowSpecs(&plan.SingletonNode{}, specs, calls, [][]expr.Expr{companion})
 	if err != nil {
 		t.Fatal(err)
 	}

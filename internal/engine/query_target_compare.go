@@ -23,7 +23,7 @@ type QueryTargetOccurrence struct {
 // Query target resolution can normalize independently analyzed child frames;
 // ordinary grouping comparison keeps its conservative identity contract.
 func (b *expressionBinder) SameQueryTarget(a, c expr.Expr) bool {
-	return b.sameGroupExpression(a, c) || b.SameSubqueryTarget(a, c)
+	return b.SameGroupExpression(a, c) || b.SameSubqueryTarget(a, c)
 }
 
 func (b *expressionBinder) SameSubqueryTarget(a, c expr.Expr) bool {

@@ -27,7 +27,7 @@ func levenshteinUnitExpression(t *testing.T, e *Engine) plan.InstalledLevenshtei
 	for _, n := range []int64{2, 3, 4, 20} {
 		args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: n}})
 	}
-	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "levenshtein_less_equal"}}}, Args: args})
+	node, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "levenshtein_less_equal"}}}, Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}

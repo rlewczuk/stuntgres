@@ -155,7 +155,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 || node.Schema()[0].Usage.Type.ID() != sqltype.Numeric {
 					t.Fatal("destination assignment mutated DISTINCT source schema", project.Schema(), node.Schema())
 				}
-				if next, discard := pruneIdentityQueryProducer(node, project.Expressions[0]); next != node || discard {
+				if next, discard := PruneIdentityQueryProducer(node, project.Expressions[0]); next != node || discard {
 					t.Fatal("identity pruning crossed DISTINCT boundary", next, discard)
 				}
 				original := expressions[0]

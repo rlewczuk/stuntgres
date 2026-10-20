@@ -30,7 +30,7 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -45,8 +45,8 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 		if n.Plan.ArgumentUsage(slot).Type.ID() != tc.formal || n.ResultUsage().Type.ID() != tc.result || n.Properties().Volatility != expr.Immutable || n.Plan.SessionDependent() {
 			t.Fatal("formal role/properties", tc, n)
 		}
-		if tc.parameter != 0 && (b.params.parameters[tc.parameter].Type.ID() != tc.formal || !n.Properties().ParameterDependent) {
-			t.Fatal("parameter source contract", tc, b.params.parameters)
+		if tc.parameter != 0 && (b.Params.Parameters[tc.parameter].Type.ID() != tc.formal || !n.Properties().ParameterDependent) {
+			t.Fatal("parameter source contract", tc, b.Params.Parameters)
 		}
 		if slot == 1 && n.Args[slot].ResultUsage().Type.ID() != tc.formal {
 			t.Fatal("formal conversion was not bound", tc, n.Args[slot])
@@ -54,7 +54,7 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 	}
 	for _, query := range []string{"SELECT chr(65::bigint)", "SELECT chr('65'::text)", "SELECT to_ascii('é',true)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		_, err := b.bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		_, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42883" {
 			t.Fatal("wrong source admitted", query, err)
@@ -65,7 +65,7 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	for _, query := range []string{"SELECT to_ascii('é','LATIN1'::text)", "SELECT to_ascii('é',8::smallint)", "SELECT chr(65)", "SELECT ascii('é')", "SELECT unicode_assigned('é')", "SELECT unistr('plain')"} {
-		node, err := b.bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,12 +97,12 @@ func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 
 func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	text, name := b.typ(sqltype.Text), b.typ(sqltype.Name)
+	text, name := b.Type(sqltype.Text), b.Type(sqltype.Name)
 	args := []expr.Expr{
 		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable, ParameterDependent: true}}, Value: sqltype.Null(text)},
 		plan.LiteralExpr{Info: expr.Info{Usage: name.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, Value: sqltype.String(name, "nope")},
 	}
-	node, err := b.stringNode("to_ascii", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
+	node, err := b.StringNode("to_ascii", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,14 +113,14 @@ func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	}
 	bind := func(query string) expr.Expr {
 		t.Helper()
-		node, err := b.bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return node
 	}
 	named := bind("SELECT to_ascii('é','LATIN1')")
-	if !b.sameGroupExpression(named, bind("SELECT to_ascii('é','LATIN1')")) || b.sameGroupExpression(named, bind("SELECT to_ascii('é',8)")) {
+	if !b.SameGroupExpression(named, bind("SELECT to_ascii('é','LATIN1')")) || b.SameGroupExpression(named, bind("SELECT to_ascii('é',8)")) {
 		t.Fatal("overload structural identity")
 	}
 	folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bind("SELECT unistr('plain')"))

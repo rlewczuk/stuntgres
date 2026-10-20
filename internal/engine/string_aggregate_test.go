@@ -13,7 +13,7 @@ import (
 
 func TestStringAggregateBindingIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	for i, tc := range []struct {
 		call string
 		slot int
@@ -24,12 +24,12 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 		{"string_agg('a',',')", 5}, {"string_agg('a'::bytea,','::bytea ORDER BY 1)", 6},
 	} {
 		raw := statement(t, "SELECT "+tc.call+" FROM t").(*parser.Select).Targets[0]
-		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		result, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(i, err)
 		}
 		if result.(plan.AggregateExpr).Slot != tc.slot {
-			t.Fatal("incomplete aggregate identity", i, result, b.grouping.aggregates)
+			t.Fatal("incomplete aggregate identity", i, result, b.Grouping.Aggregates)
 		}
 		u := result.ResultUsage()
 		if u.Typmod != -1 || !result.Properties().StageDependent {
@@ -38,9 +38,9 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 	}
 	for _, q := range []string{"SELECT string_agg($1,$2) FROM t", "SELECT string_agg($1,'x'::bytea) FROM t", "SELECT string_agg('x'::bytea,$1) FROM t"} {
 		binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		binder.clause.aggregateClause = "SELECT"
+		binder.Clause.AggregateClause = "SELECT"
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		result, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+		result, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}
@@ -48,8 +48,8 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 		if q == "SELECT string_agg($1,$2) FROM t" {
 			want = sqltype.Text
 		}
-		if result.ResultUsage().Type.ID() != want || binder.params.parameters[1].Type.ID() != want || !result.Properties().ParameterDependent {
-			t.Fatal(q, result.ResultUsage(), binder.params.parameters, result.Properties())
+		if result.ResultUsage().Type.ID() != want || binder.Params.Parameters[1].Type.ID() != want || !result.Properties().ParameterDependent {
+			t.Fatal(q, result.ResultUsage(), binder.Params.Parameters, result.Properties())
 		}
 	}
 }

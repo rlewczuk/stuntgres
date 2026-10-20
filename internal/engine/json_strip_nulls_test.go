@@ -17,7 +17,7 @@ import (
 func jsonStripUnitBind(t *testing.T, b *expressionBinder, q string) expr.Expr {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	node := jsonStripUnitBind(t, b, "SELECT json_strip_nulls(strip_in_arrays => $2,target => $1)")
 	e := node.(functions.JSONStripNulls)
 	for i, id := range []sqltype.ID{sqltype.JSON, sqltype.Bool} {
-		if b.params.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
+		if b.Params.Parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
 			t.Fatal("formal inference", i)
 		}
 	}
@@ -39,7 +39,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	}
 	for _, q := range []string{`SELECT json_strip_nulls(NULL,missing)`, `SELECT json_strip_nulls(missing,NULL)`} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-		if _, err := binder.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext}); err == nil {
+		if _, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext}); err == nil {
 			t.Fatal("strict NULL hid binding error", q)
 		}
 	}
@@ -60,7 +60,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	randomText := parser.CastExpr{Child: datetimeMakeRaw("random"), TypeName: parser.TypeName{Name: "text"}}
 	randomBool := parser.CastExpr{Child: randomText, TypeName: parser.TypeName{Name: "boolean"}}
-	volatile, err := binder.bindFunctionProvider(datetimeMakeRaw("json_strip_nulls", datetimeMakeString("{}"), randomBool))
+	volatile, err := binder.BindFunctionProvider(datetimeMakeRaw("json_strip_nulls", datetimeMakeString("{}"), randomBool))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(mapped, err)
 	}
 	different := e
-	different.Args[1] = plan.LiteralExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Boolean(b.typ(sqltype.Bool), false)}
+	different.Args[1] = plan.LiteralExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Boolean(b.Type(sqltype.Bool), false)}
 	if SameGroupExpression(e, different) {
 		t.Fatal("group identity ignored Boolean formal")
 	}
@@ -129,7 +129,7 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 		for round := range 3 {
 			b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, query).(*parser.Select).Targets[0]
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -141,10 +141,10 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 			if err != nil || text != tc.want {
 				t.Fatal(text, err)
 			}
-			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
+			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 			emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || round > 0 && emitted != previous {
 				t.Fatal(emitted, previous, err)

@@ -154,28 +154,28 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 				t.Fatal("missing private literal transport", pending)
 			}
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-			binder.consumer.checkConsumer, binder.params.noParameters, binder.stored.checkLiterals = true, true, pending.literals
+			binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Stored.CheckLiterals = true, true, pending.literals
 			for i, literal := range pending.literals {
 				if literal.ResultUsage().Type.ID() != tc.id || literal.Value.IsNull() != (i == 1) {
 					t.Fatal("lost concrete/NULL usage", i, literal)
 				}
-				node, err := binder.bind(parser.ParameterExpr{Number: i + 1}, expressionPolicy{context: projectionContext, expected: binder.typ(sqltype.Text).Usage()})
+				node, err := binder.Bind(parser.ParameterExpr{Number: i + 1}, expressionPolicy{Context: ProjectionContext, Expected: binder.Type(sqltype.Text).Usage()})
 				if err != nil || !reflect.DeepEqual(node, literal) {
 					t.Fatal("re-input/coercion changed captured literal", i, node, literal, err)
 				}
 			}
-			if len(binder.params.parameters) != 0 || len(binder.target.uses) != 0 || len(binder.params.anyParameters) != 0 {
+			if len(binder.Params.Parameters) != 0 || len(binder.Target.Uses) != 0 || len(binder.Params.AnyParameters) != 0 {
 				t.Fatal("transport leaked into parameter inference", binder)
 			}
 			for _, number := range []int{0, -1, 3} {
-				_, err := binder.bind(parser.ParameterExpr{Number: number}, expressionPolicy{context: projectionContext})
+				_, err := binder.Bind(parser.ParameterExpr{Number: number}, expressionPolicy{Context: ProjectionContext})
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {
 					t.Fatal("accepted unknown transport marker", number, err)
 				}
 			}
-			binder.stored.checkLiterals = nil
-			_, err = binder.bind(parser.ParameterExpr{Number: 1}, expressionPolicy{context: projectionContext})
+			binder.Stored.CheckLiterals = nil
+			_, err = binder.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: ProjectionContext})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {
 				t.Fatal("public CHECK parameter admission changed", err)

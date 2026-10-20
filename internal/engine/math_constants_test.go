@@ -20,7 +20,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	bind := func(text string) expr.Expr {
 		t.Helper()
 		raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
-		x, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		x, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -31,7 +31,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || exec.PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(node)
 	}
-	if !b.sameGroupExpression(node, bind("pg_catalog.pi()")) {
+	if !b.SameGroupExpression(node, bind("pg_catalog.pi()")) {
 		t.Fatal("zero-child grouping identity")
 	}
 	visits := 0
@@ -39,8 +39,8 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	if visits != 1 {
 		t.Fatal("zero-child traversal", visits)
 	}
-	rewritten, err := b.rewriteGroup(node, nil)
-	if err != nil || !b.sameGroupExpression(node, rewritten) {
+	rewritten, err := b.RewriteGroup(node, nil)
+	if err != nil || !b.SameGroupExpression(node, rewritten) {
 		t.Fatal("group rewrite", rewritten, err)
 	}
 	assert := func(x expr.Expr, owner *sqltype.Descriptor) {
@@ -100,9 +100,9 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || value.Type() != nil {
 		t.Fatal("pi cancellation publication", value, err)
 	}
-	b.consumer.defaultConsumer = true
+	b.Consumer.DefaultConsumer = true
 	raw := statement(t, "SELECT pi()").(*parser.Select).Targets[0]
-	if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil {
+	if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err == nil {
 		t.Fatal("widened default admission")
 	}
 }

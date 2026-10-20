@@ -18,11 +18,11 @@ import (
 // precede every signature diagnostic; the procedure lookup itself is pure.
 // A procedure installed by another provider is not the extension's routine.
 func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, family functions.Extension, signature string) (functions.InstalledRoutine, error) {
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return nil, err
 	}
-	path, err := b.host.LookupNamespacesSnapshot(auth, name, analyze.InstalledFunctionLookup)
+	path, err := b.Host.LookupNamespacesSnapshot(auth, name, analyze.InstalledFunctionLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (r installedExtensionRoutine) Validate() error {
 // Levenshtein, Metaphone and Soundex calls, which always appended.
 func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	p, b := r.procedure, r.binder
-	ref := b.host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
+	ref := b.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()}
 	switch c := call.(type) {
 	case functions.UUIDGeneration:
@@ -124,21 +124,21 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 			break
 		}
 		c.RoutineReference = p
-		b.dependencies = append(b.dependencies, appended)
+		b.Dependencies = append(b.Dependencies, appended)
 		return plan.InstalledLevenshteinExpr{Levenshtein: c, Procedure: p, Ref: ref}, nil
 	case functions.Metaphone:
 		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
-		b.dependencies = append(b.dependencies, appended)
+		b.Dependencies = append(b.Dependencies, appended)
 		return plan.InstalledMetaphoneExpr{Metaphone: c, Procedure: p, Ref: ref}, nil
 	case functions.Soundex:
 		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
-		b.dependencies = append(b.dependencies, appended)
+		b.Dependencies = append(b.Dependencies, appended)
 		return plan.InstalledSoundexExpr{Soundex: c, Procedure: p, Ref: ref}, nil
 	case functions.InstalledText:
 		return r.attachText(c, ref)

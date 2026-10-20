@@ -52,14 +52,14 @@ func numericSeriesUnitRead(t *testing.T, e plan.SeriesExpr) []sqltype.Value {
 
 func TestNumericSeriesBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	raw := nullCountRaw("generate_series", parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "0.1"}, parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "0.3"}, parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "0.1"})
-	x, err := b.bindFunction(raw)
+	x, err := b.BindFunction(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
 	e, ok := x.(plan.SeriesExpr)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Numeric || e.ResultUsage() != e.ResultUsage().Type.Usage() || !exec.SourceAdmitted(e) || !b.clause.queryHasTargetSet {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Numeric || e.ResultUsage() != e.ResultUsage().Type.Usage() || !exec.SourceAdmitted(e) || !b.Clause.QueryHasTargetSet {
 		t.Fatal(x)
 	}
 	want := numericSeriesUnit(t, e.ResultUsage().Type, "0.1", "0.3", "0.1")
@@ -131,8 +131,8 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
-	rebound, err := b.bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{context: functionArgumentContext, expected: b.typ(sqltype.Numeric).Usage()})
+	b.Clause.AggregateClause = "SELECT"
+	rebound, err := b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: FunctionArgumentContext, Expected: b.Type(sqltype.Numeric).Usage()})
 	if err != nil {
 		t.Fatal(err)
 	}

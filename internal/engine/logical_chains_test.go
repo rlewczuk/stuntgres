@@ -28,12 +28,12 @@ func TestLogicalLongBindingPositions(t *testing.T) {
 		raw := stmts[0].(*parser.Select).Targets[0].(parser.LogicalExpr)
 		operatorPosition := raw.Pos
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := parser.Position{Character: tc.character, Offset: tc.offset}
-		if node.SourcePosition() != want || node.ResultUsage() != b.typ(sqltype.Bool).Usage() {
+		if node.SourcePosition() != want || node.ResultUsage() != b.Type(sqltype.Bool).Usage() {
 			t.Fatal(node.SourcePosition(), want, node.ResultUsage())
 		}
 		if raw.Pos != operatorPosition {

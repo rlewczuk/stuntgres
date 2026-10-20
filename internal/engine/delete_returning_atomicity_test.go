@@ -56,7 +56,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			if phase == "sequence_error" {
 				e.mu.Lock()
 				binder := newExpressionBinder(ctx, e, scope.input, scope.op, nil)
-				output, err := binder.bindReturning(statement(t, "DELETE FROM t RETURNING nextval('seq')").(*parser.Delete).Returning, returningDelete)
+				output, err := binder.BindReturning(statement(t, "DELETE FROM t RETURNING nextval('seq')").(*parser.Delete).Returning, ReturningDelete)
 				e.mu.Unlock()
 				if err != nil {
 					t.Fatal(err)

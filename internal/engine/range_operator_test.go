@@ -28,14 +28,14 @@ func (e rangeOperatorProbe) Eval(expr.Context) (sqltype.Value, error) {
 func TestRangeOperatorCarrierEvaluation(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	d := b.typ(sqltype.Int4Range)
+	d := b.Type(sqltype.Int4Range)
 	v, err := d.Input(ctx, "[1,3)", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	counts := [2]int{}
-	args := [2]expr.Expr{rangeOperatorProbe{b.info(d.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), v, &counts[0], nil}, rangeOperatorProbe{b.info(d.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), v, &counts[1], nil}}
-	info := b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.MergeProperties(args[0].Properties(), args[1].Properties()))
+	args := [2]expr.Expr{rangeOperatorProbe{b.Info(d.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), v, &counts[0], nil}, rangeOperatorProbe{b.Info(d.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), v, &counts[1], nil}}
+	info := b.Info(b.Type(sqltype.Bool).Usage(), parser.Position{}, expr.MergeProperties(args[0].Properties(), args[1].Properties()))
 	e, err := functions.NewRangeOperator(info, sqltype.RangeContains, args, "")
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +49,7 @@ func TestRangeOperatorCarrierEvaluation(t *testing.T) {
 		t.Fatal("lost operand properties")
 	}
 	failure := errors.New("child failure")
-	args[0] = rangeOperatorProbe{b.info(d.Usage(), parser.Position{}, expr.Properties{}), v, &counts[0], failure}
+	args[0] = rangeOperatorProbe{b.Info(d.Usage(), parser.Position{}, expr.Properties{}), v, &counts[0], failure}
 	counts = [2]int{}
 	e, err = e.Reconstruct(info, args)
 	if err != nil {
@@ -58,7 +58,7 @@ func TestRangeOperatorCarrierEvaluation(t *testing.T) {
 	if _, err := e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); !errors.Is(err, failure) || counts != [2]int{1, 0} {
 		t.Fatal("child demand", counts, err)
 	}
-	args[1] = plan.LiteralExpr{Info: b.info(d.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(d)}
+	args[1] = plan.LiteralExpr{Info: b.Info(d.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(d)}
 	counts = [2]int{}
 	e, err = e.Reconstruct(info, args)
 	if err != nil {
@@ -74,23 +74,23 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	fresh := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
-	d := b.typ(sqltype.NumRange)
+	d := b.Type(sqltype.NumRange)
 	v, err := d.Input(ctx, "[1.0,2.00]", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := plan.LiteralExpr{Info: b.info(d.Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: v}
-	original, err := functions.NewRangeOperator(b.info(d.Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), sqltype.RangeUnion, [2]expr.Expr{arg, arg}, "pg_catalog")
+	arg := plan.LiteralExpr{Info: b.Info(d.Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: v}
+	original, err := functions.NewRangeOperator(b.Info(d.Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), sqltype.RangeUnion, [2]expr.Expr{arg, arg}, "pg_catalog")
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.typ(d.ID()) })
+	mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
 	next := mapped.(functions.RangeOperator)
 	value, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-	if err != nil || value.Type() != fresh.typ(sqltype.NumRange) {
+	if err != nil || value.Type() != fresh.Type(sqltype.NumRange) {
 		t.Fatal(value, err)
 	}
 	if original.Args[0].ResultUsage().Type != d || next.Namespace != "pg_catalog" {
@@ -107,7 +107,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 		t.Fatal(folded, did, err)
 	}
 	value, err = folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-	if err != nil || value.Type() != fresh.typ(sqltype.NumRange) {
+	if err != nil || value.Type() != fresh.Type(sqltype.NumRange) {
 		t.Fatal("folded generation", value, err)
 	}
 	forged := next

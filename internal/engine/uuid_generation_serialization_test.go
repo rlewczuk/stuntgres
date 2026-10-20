@@ -22,7 +22,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node, err := b.bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			node, err := b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -37,16 +37,16 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				node, err = b.bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+				node, err = b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
 				provider, ok := node.(functions.UUIDGeneration)
-				if !ok || provider.ResultUsage().Type != b.typ(sqltype.UUID) || len(provider.Args) != 1 || provider.Args[0].ResultUsage().Type != b.typ(sqltype.Interval) {
+				if !ok || provider.ResultUsage().Type != b.Type(sqltype.UUID) || len(provider.Args) != 1 || provider.Args[0].ResultUsage().Type != b.Type(sqltype.Interval) {
 					t.Fatalf("round%d lost selected UUID interval signature: %T", round, node)
 				}
 				value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-				if err != nil || !value.IsNull() || value.Type() != b.typ(sqltype.UUID) {
+				if err != nil || !value.IsNull() || value.Type() != b.Type(sqltype.UUID) {
 					t.Fatal("serialized strict NULL demand", value, err)
 				}
 			}

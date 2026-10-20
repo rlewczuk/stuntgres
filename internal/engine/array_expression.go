@@ -12,7 +12,7 @@ import (
 )
 
 // target is supplied only by explicit array casts, never ordinary assignment.
-func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Expr, error) {
+func (b *expressionBinder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Expr, error) {
 	operands := make([]comparisonOperand, len(raw.Elements))
 	var selected sqltype.Usage
 	explicit := target.Type != nil && target.Type.BaseType().IsArray()
@@ -25,11 +25,11 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 	multidimensional := false
 	for i, child := range raw.Elements {
 		if nested, ok := child.(parser.ArrayExpr); ok && explicit {
-			node, err := b.bindArray(nested, target)
+			node, err := b.BindArray(nested, target)
 			if err != nil {
 				return nil, err
 			}
-			operands[i] = comparisonOperand{node: node, raw: child}
+			operands[i] = comparisonOperand{Node: node, raw: child}
 		} else {
 			o, err := b.comparisonOperand(child)
 			if err != nil {
@@ -48,7 +48,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 	}
 	if !explicit {
 		var err error
-		selected, err = commonExpressionUsage(operands, b.typ(sqltype.Text).Usage(), "ARRAY")
+		selected, err = CommonExpressionUsage(operands, b.Type(sqltype.Text).Usage(), "ARRAY")
 		if err != nil {
 			return nil, err
 		}
@@ -80,7 +80,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 			if err == nil && node.ResultUsage() != childUsage {
 				input, annotations := analyze.DomainCoercionInput(node, childUsage)
 				var info expr.Info
-				info, err = b.coercionInfo(b.info(childUsage, node.SourcePosition(), input.Properties()), input)
+				info, err = b.coercionInfo(b.Info(childUsage, node.SourcePosition(), input.Properties()), input)
 				if err == nil {
 					var coercionPlan sqltype.CoercionPlan
 					coercionPlan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
@@ -91,7 +91,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 				}
 			}
 		} else {
-			node, err = b.coerceConditional(o, childUsage, "ARRAY")
+			node, err = b.CoerceConditional(o, childUsage, "ARRAY")
 		}
 		if err != nil {
 			return nil, err
@@ -99,7 +99,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 		elements[i] = node
 		properties = expr.MergeProperties(properties, node.Properties())
 	}
-	info, err := b.collatedInfo(b.info(target, raw.Pos, properties), elements...)
+	info, err := b.CollatedInfo(b.Info(target, raw.Pos, properties), elements...)
 	if err != nil {
 		return nil, err
 	}
@@ -120,18 +120,18 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.
 		if err != nil {
 			return nil, err
 		}
-		node, err := b.finalizeOperand(o, b.typ(sqltype.Int4))
+		node, err := b.finalizeOperand(o, b.Type(sqltype.Int4))
 		if err != nil {
 			return nil, err
 		}
-		if node.ResultUsage().Type == b.typ(sqltype.Int4) {
+		if node.ResultUsage().Type == b.Type(sqltype.Int4) {
 			return node, nil
 		}
-		coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), b.typ(sqltype.Int4).Usage(), sqltype.Assignment)
+		coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), b.Type(sqltype.Int4).Usage(), sqltype.Assignment)
 		if err != nil {
 			return nil, expr.ErrorAt("42804", "array subscript must have type integer", parser.ExpressionStart(raw))
 		}
-		return plan.CoercionExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
+		return plan.CoercionExpr{Info: b.Info(b.Type(sqltype.Int4).Usage(), node.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
 	}
 	for i, s := range raw {
 		lower, err := bind(s.Lower)
@@ -153,8 +153,8 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.
 	return subs, slice, nil
 }
 
-func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, error) {
-	base, err := b.bind(raw.Base, expressionPolicy{context: projectionContext})
+func (b *expressionBinder) BindSubscript(raw parser.SubscriptExpr) (expr.Expr, error) {
+	base, err := b.Bind(raw.Base, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, e
 	if !slice {
 		usage.Type = usage.Type.Element()
 	}
-	info, err := b.collatedInfo(b.info(usage, raw.Pos, properties), base)
+	info, err := b.CollatedInfo(b.Info(usage, raw.Pos, properties), base)
 	if err != nil {
 		return nil, err
 	}

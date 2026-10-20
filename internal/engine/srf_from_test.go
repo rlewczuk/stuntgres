@@ -72,15 +72,15 @@ func TestSRFFromBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.query.auth = &auth
-	b.query.frame = 1
+	b.Query.Auth = &auth
+	b.Query.Frame = 1
 	raw := nullCountRaw("generate_series", lit(2), lit(4))
 	node, ns, err := b.BindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}, Ordinality: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	source, ok := node.(*plan.FunctionFromNode)
-	if !ok || !source.RegexpNamespace || b.clause.queryHasTargetSet || len(ns.Columns) != 2 || ns.Columns[0].Descriptor.Name != "generate_series" || ns.Columns[1].Descriptor.Usage.Type.ID() != sqltype.Int8 {
+	if !ok || !source.RegexpNamespace || b.Clause.QueryHasTargetSet || len(ns.Columns) != 2 || ns.Columns[0].Descriptor.Name != "generate_series" || ns.Columns[1].Descriptor.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(node, ns)
 	}
 	if got := srfFromUnitRows(t, source); !reflect.DeepEqual(got, [][]any{{int64(2), int64(1)}, {int64(3), int64(2)}, {int64(4), int64(3)}}) {
@@ -241,14 +241,14 @@ func TestSRFFromOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.query.auth = &auth
-	b.clause.aggregateClause = "FROM"
+	b.Query.Auth = &auth
+	b.Clause.AggregateClause = "FROM"
 	parentCall := nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
 	parentCall.Pos = parser.Position{Character: 19, Offset: 18}
-	if _, err := b.bindFunction(parentCall); err != nil {
+	if _, err := b.BindFunction(parentCall); err != nil {
 		t.Fatal(err)
 	}
-	parent := b.clause.fromSetObservation
+	parent := b.Clause.fromSetObservation
 	childCall := parentCall
 	childCall.Pos = parser.Position{Character: 71, Offset: 70}
 	for _, fails := range []bool{false, true} {
@@ -257,8 +257,8 @@ func TestSRFFromOwnership(t *testing.T) {
 			target = nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: false}})
 		}
 		_, err := b.BindSelect(&parser.Select{From: &parser.FunctionTable{Calls: []parser.FunctionExpr{childCall}}, Targets: []parser.Expr{target}}, false)
-		if (err != nil) != fails || b.clause.fromSetObservation != parent || b.clause.aggregateClause != "FROM" {
-			t.Fatal("child query observation restoration", fails, b.clause.fromSetObservation, err)
+		if (err != nil) != fails || b.Clause.fromSetObservation != parent || b.Clause.AggregateClause != "FROM" {
+			t.Fatal("child query observation restoration", fails, b.Clause.fromSetObservation, err)
 		}
 	}
 }

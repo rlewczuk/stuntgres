@@ -29,11 +29,11 @@ func (b *expressionBinder) unavailableFunctionError(raw parser.FunctionExpr, vis
 		operands[i] = operand
 		names[i] = "unknown"
 		if typ := operand.descriptor(); typ != nil {
-			names[i] = b.diagnosticTypeName(typ)
+			names[i] = b.DiagnosticTypeName(typ)
 		}
 	}
 	for _, identity := range identities {
-		if unavailableSignatureMatches(identity.Signature, routine.IdentityDefaults(identity.ID), operands, b.typ) {
+		if unavailableSignatureMatches(identity.Signature, routine.IdentityDefaults(identity.ID), operands, b.Type) {
 			return expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 		}
 	}
@@ -62,7 +62,7 @@ func unavailableSignatureMatches(signature catalog.ProcedureSignature, defaults 
 			return false
 		}
 		if operands[i].descriptor() != nil {
-			if _, err := sqltype.PlanCoercion(operands[i].node.ResultUsage(), target.Usage(), sqltype.Implicit); err != nil {
+			if _, err := sqltype.PlanCoercion(operands[i].Node.ResultUsage(), target.Usage(), sqltype.Implicit); err != nil {
 				return false
 			}
 		}

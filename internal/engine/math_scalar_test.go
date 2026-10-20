@@ -24,7 +24,7 @@ func TestMathScalarBinding(t *testing.T) {
 		t.Run(tc.query, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			raw := statement(t, tc.query).(*parser.Select).Targets[0]
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -32,8 +32,8 @@ func TestMathScalarBinding(t *testing.T) {
 				t.Fatal(node.ResultUsage())
 			}
 			for i, id := range tc.parameters {
-				if b.params.parameters[i+1].Type == nil || b.params.parameters[i+1].Type.ID() != id {
-					t.Fatal("parameter contract", b.params.parameters)
+				if b.Params.Parameters[i+1].Type == nil || b.Params.Parameters[i+1].Type.ID() != id {
+					t.Fatal("parameter contract", b.Params.Parameters)
 				}
 			}
 		})

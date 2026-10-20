@@ -14,14 +14,14 @@ import (
 
 func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	text := b.typ(sqltype.Text)
+	text := b.Type(sqltype.Text)
 	usage := text.Usage()
 	operand := func(id uint32, position int) expr.Expr {
 		u := usage
 		u.Collation = sqltype.CollationRef{ID: id, Derivation: sqltype.Default}
-		return plan.LiteralExpr{Info: b.info(u, parser.Position{Character: position}, expr.Properties{}), Value: sqltype.Null(text)}
+		return plan.LiteralExpr{Info: b.Info(u, parser.Position{Character: position}, expr.Properties{}), Value: sqltype.Null(text)}
 	}
-	info, err := b.collatedInfo(b.info(usage, parser.Position{Character: 40}, expr.Properties{}), operand(950, 59), operand(951, 64))
+	info, err := b.CollatedInfo(b.Info(usage, parser.Position{Character: 40}, expr.Properties{}), operand(950, 59), operand(951, 64))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		}
 	}
 	assert("common", base)
-	coerced, err := b.coerceConditional(comparisonOperand{node: base}, b.typ(sqltype.VarChar).Usage(), "VALUES")
+	coerced, err := b.CoerceConditional(comparisonOperand{Node: base}, b.Type(sqltype.VarChar).Usage(), "VALUES")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,12 +44,12 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert("folded coercion", folded)
-	grouped, err := b.rewriteGroup(base, []expr.Expr{base})
+	grouped, err := b.RewriteGroup(base, []expr.Expr{base})
 	if err != nil {
 		t.Fatal(err)
 	}
 	assert("group", grouped)
-	retagged, _, err := retagBoundTypes(b.bindingCatalog(), base, func(old *sqltype.Descriptor) *sqltype.Descriptor { next := *old; return &next })
+	retagged, _, err := retagBoundTypes(b.BindingCatalog(), base, func(old *sqltype.Descriptor) *sqltype.Descriptor { next := *old; return &next })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,17 +72,17 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 			t.Fatal(err, diagnostic, want)
 		}
 	}
-	defaultC, err := b.collatedInfo(b.info(usage, parser.Position{}, expr.Properties{}), operand(100, 1), operand(950, 2))
+	defaultC, err := b.CollatedInfo(b.Info(usage, parser.Position{}, expr.Properties{}), operand(100, 1), operand(950, 2))
 	if err != nil || defaultC.CollationConflict || defaultC.Usage.Collation.ID != 950 {
 		t.Fatal(defaultC, err)
 	}
 	explicit := operand(950, 80).(plan.LiteralExpr)
 	explicit.CollationExplicit = parser.Position{Character: 80}
-	overridden, err := b.collatedInfo(info, explicit)
+	overridden, err := b.CollatedInfo(info, explicit)
 	if err != nil || overridden.CollationConflict || overridden.CollationLeft.ID != 0 || overridden.CollationRight.ID != 0 || overridden.CollationConflictPos != (parser.Position{}) || overridden.Usage.Collation.ID != 950 {
 		t.Fatal(overridden, err)
 	}
-	b.query.namespace = &queryNamespace{}
+	b.Query.Namespace = &queryNamespace{}
 	if _, err := b.BindOrder(order, []expr.Expr{plan.LiteralExpr{Info: overridden, Value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
 		t.Fatal("explicit override did not restore ordinary ordering", err)
 	}

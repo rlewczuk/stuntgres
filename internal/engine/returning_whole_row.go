@@ -27,12 +27,12 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 	default:
 		return nil, false, nil
 	}
-	view := b.bindingCatalog()
+	view := b.BindingCatalog()
 	descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 	if !ok || descriptor.OwningRelation != relation.Address() || descriptor.SQLType.CompositeLen() != len(relation.Columns) {
 		return nil, true, fmt.Errorf("stuntgres: RETURNING named row descriptor is missing")
 	}
-	b.target.returningReadRequired = true
+	b.Target.returningReadRequired = true
 	members := make([]expr.Expr, len(relation.Columns))
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {
@@ -44,6 +44,6 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 			members[i] = b.outerReturningColumnAt(scope, i, pos, !old)
 		}
 	}
-	info := b.info(sqltype.Usage{Type: descriptor.SQLType, Typmod: -1}, pos, expr.Properties{RowDependent: true})
+	info := b.Info(sqltype.Usage{Type: descriptor.SQLType, Typmod: -1}, pos, expr.Properties{RowDependent: true})
 	return plan.ReturningWholeRowExpr{Info: info, Members: members, Scope: 1, Frame: frame, Old: old, Merge: aliases.mode == returningMerge, Side: side}, true, nil
 }

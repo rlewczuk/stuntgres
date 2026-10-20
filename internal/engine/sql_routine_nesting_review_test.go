@@ -18,35 +18,35 @@ func TestSQLRoutineKnownArgumentWindowOwner(t *testing.T) {
 		frame uint32
 		found bool
 	}{
-		{"ordinary", argumentWindowOwner{active: true}, 1, true},
-		{"window", argumentWindowOwner{active: true, window: true}, 1, true},
+		{"ordinary", argumentWindowOwner{Active: true}, 1, true},
+		{"window", argumentWindowOwner{Active: true, Window: true}, 1, true},
 		{"scalar", argumentWindowOwner{}, 1, false},
-		{"foreign frame", argumentWindowOwner{active: true}, 2, false},
-		{"first occurrence", argumentWindowOwner{active: true, found: true, first: prior}, 1, true},
+		{"foreign frame", argumentWindowOwner{Active: true}, 2, false},
+		{"first occurrence", argumentWindowOwner{Active: true, Found: true, First: prior}, 1, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node := &plan.WindowExpr{Info: expr.Info{Pos: position}, Frame: tc.frame, Slot: -1, Call: -1}
 			b := &expressionBinder{
-				ctx:      context.Background(),
-				query:    queryScopeState{frame: 1},
-				clause:   clauseState{selectedOperatorArgs: []expr.Expr{node}},
-				grouping: groupingState{argumentOwner: tc.owner},
+				Ctx:      context.Background(),
+				Query:    queryScopeState{Frame: 1},
+				Clause:   clauseState{SelectedOperatorArgs: []expr.Expr{node}},
+				Grouping: groupingState{ArgumentOwner: tc.owner},
 			}
-			bound, err := b.bind(parser.ParameterExpr{Number: -1}, expressionPolicy{context: projectionContext})
+			bound, err := b.Bind(parser.ParameterExpr{Number: -1}, expressionPolicy{Context: ProjectionContext})
 			if err != nil || bound != node {
 				t.Fatalf("known argument was replaced or evaluated: %v, %v", bound, err)
 			}
 			want := tc.owner
-			if tc.found && !want.found {
-				want.first, want.found = position, true
+			if tc.found && !want.Found {
+				want.First, want.Found = position, true
 			}
-			if b.grouping.argumentOwner != want {
-				t.Fatalf("owner = %+v, want %+v", b.grouping.argumentOwner, want)
+			if b.Grouping.ArgumentOwner != want {
+				t.Fatalf("owner = %+v, want %+v", b.Grouping.ArgumentOwner, want)
 			}
 			// Reusing the same carrier must not change occurrence identity,
 			// register a second window, or replace the owner's first position.
-			bound, err = b.bind(parser.ParameterExpr{Number: -1}, expressionPolicy{context: projectionContext})
-			if err != nil || bound != node || b.grouping.argumentOwner != want || len(b.grouping.windowCalls) != 0 || len(b.grouping.aggregates) != 0 {
+			bound, err = b.Bind(parser.ParameterExpr{Number: -1}, expressionPolicy{Context: ProjectionContext})
+			if err != nil || bound != node || b.Grouping.ArgumentOwner != want || len(b.Grouping.WindowCalls) != 0 || len(b.Grouping.Aggregates) != 0 {
 				t.Fatal("carrier reuse changed bound identity or owner/registration state", err)
 			}
 		})

@@ -45,11 +45,11 @@ func TestStringSliceFormalInference(t *testing.T) {
 				if i == 0 {
 					id = sqltype.Text
 				}
-				if b.params.parameters[i+1].Type != b.typ(id) || n.Plan.ArgumentUsage(i).Type != b.typ(id) || n.Textual[i] != (i == 0) {
-					t.Fatal(name, i, b.params.parameters, n.Plan.ArgumentUsage(i))
+				if b.Params.Parameters[i+1].Type != b.Type(id) || n.Plan.ArgumentUsage(i).Type != b.Type(id) || n.Textual[i] != (i == 0) {
+					t.Fatal(name, i, b.Params.Parameters, n.Plan.ArgumentUsage(i))
 				}
 			}
-			if n.ResultUsage() != b.typ(sqltype.Text).Usage() || !n.Properties().ParameterDependent {
+			if n.ResultUsage() != b.Type(sqltype.Text).Usage() || !n.Properties().ParameterDependent {
 				t.Fatal(name, n)
 			}
 		}
@@ -73,8 +73,8 @@ func TestStringSliceFormalInference(t *testing.T) {
 			t.Fatal("unknown3 did not select SIMILAR", node)
 		}
 		for i := range arity {
-			if b.params.parameters[i+1].Type != b.typ(sqltype.Text) {
-				t.Fatal("regex parameter forced integer", arity, i, b.params.parameters)
+			if b.Params.Parameters[i+1].Type != b.Type(sqltype.Text) {
+				t.Fatal("regex parameter forced integer", arity, i, b.Params.Parameters)
 			}
 		}
 	}
@@ -82,7 +82,7 @@ func TestStringSliceFormalInference(t *testing.T) {
 
 func TestStringSliceDependencyChildren(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
+	text, integer := b.Type(sqltype.Text), b.Type(sqltype.Int4)
 	for _, name := range []string{"left", "right", "substring", "substr"} {
 		arity := 2
 		if name == "substring" || name == "substr" {
@@ -96,7 +96,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 			}
 			args[i] = plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Slot: i}
 		}
-		node, err := b.stringNode(name, text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
+		node, err := b.StringNode(name, text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,7 +118,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 
 func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
+	text, integer := b.Type(sqltype.Text), b.Type(sqltype.Int4)
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
 	args := []expr.Expr{
@@ -126,12 +126,12 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 		plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: two},
 		plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: one},
 	}
-	ordinary, err := b.stringNode("substring", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
+	ordinary, err := b.StringNode("substring", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	special, err := b.stringNode("substring", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.SubstringStringSyntax)
-	if err != nil || !b.sameGroupExpression(ordinary, special) || !b.sameGroupExpression(special, ordinary) {
+	special, err := b.StringNode("substring", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.SubstringStringSyntax)
+	if err != nil || !b.SameGroupExpression(ordinary, special) || !b.SameGroupExpression(special, ordinary) {
 		t.Fatal("presentation altered semantic identity", err)
 	}
 	fresh := map[sqltype.ID]*sqltype.Descriptor{}

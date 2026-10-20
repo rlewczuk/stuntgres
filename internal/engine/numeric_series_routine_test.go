@@ -34,7 +34,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
 			carrier, ok := node.(plan.SeriesExpr)
-			if !ok || len(carrier.Args) != tc.arity || !exec.SourceAdmitted(carrier) || !binder.clause.queryHasTargetSet {
+			if !ok || len(carrier.Args) != tc.arity || !exec.SourceAdmitted(carrier) || !binder.Clause.QueryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
 			captured, err := routine.ExpressionRoutineDescriptor(node)
@@ -56,7 +56,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if !ok || owned != captured {
 				t.Fatal("call did not capture original owned descriptor")
 			}
-			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			found := false
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -154,7 +154,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&reboundEvaluation, rebound, false, false); err != nil {
 				t.Fatal("genuine rebound source/project admission", err)
 			}
-			if !reflect.DeepEqual(carrier, before) || !reflect.DeepEqual(binder.dependencies, original) {
+			if !reflect.DeepEqual(carrier, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("probes mutated original args/info/reference/manifest")
 			}
 			if err := admitRoutineCall(&evaluation, node, false, false); err != nil {

@@ -12,14 +12,14 @@ import (
 )
 
 func (b *expressionBinder) retainedComposite(key preparedCompositeKey, base sqltype.Usage) (compositeOccurrence, bool, error) {
-	if !b.expected.Held {
+	if !b.Expected.Held {
 		return compositeOccurrence{}, false, nil
 	}
-	catalog := b.bindingCatalog()
-	if b.expected.CatalogOwner != catalog.Owner() || b.expected.CatalogEpoch != catalog.Epoch() {
+	catalog := b.BindingCatalog()
+	if b.Expected.CatalogOwner != catalog.Owner() || b.Expected.CatalogEpoch != catalog.Epoch() {
 		return compositeOccurrence{}, false, nil
 	}
-	captured, ok := b.expected.Composites[key]
+	captured, ok := b.Expected.Composites[key]
 	if !ok {
 		return captured, false, nil
 	}
@@ -44,10 +44,10 @@ func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion plan.CompositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
 	path.Node = *ordinal
 	(*ordinal)++
-	b.capture.CaptureViewComposite(path, analyze.CompositeExpansion, expansion.Base, expansion.Attributes)
+	b.Capture.CaptureViewComposite(path, analyze.CompositeExpansion, expansion.Base, expansion.Attributes)
 	switch expression := raw.(type) {
 	case parser.FieldExpr:
-		return b.captureViewLiteralTree(expression.Base, expansion.Base, path, ordinal)
+		return b.CaptureViewLiteralTree(expression.Base, expansion.Base, path, ordinal)
 	case parser.StarExpr:
 		return nil
 	default:
@@ -56,7 +56,7 @@ func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion 
 }
 
 func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedCompositeKey) (expr.Expr, error) {
-	node, err := b.bindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{raw.Field}}, Args: []parser.Expr{raw.Base}, Pos: raw.Pos})
+	node, err := b.BindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{raw.Field}}, Args: []parser.Expr{raw.Base}, Pos: raw.Pos})
 	if err != nil {
 		return nil, err
 	}
@@ -65,19 +65,19 @@ func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedComp
 		return nil, fmt.Errorf("stuntgres: invalid dot builtin resolution")
 	}
 	call.DotBuiltin = true
-	if b.prepared.Composites == nil {
-		b.prepared.Composites = make(map[preparedCompositeKey]compositeOccurrence)
+	if b.Prepared.Composites == nil {
+		b.Prepared.Composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.prepared.Composites[key] = compositeOccurrence{Kind: analyze.CompositeDotBuiltin, Base: call.Args[0].ResultUsage(), Function: call.Kind}
+	b.Prepared.Composites[key] = compositeOccurrence{Kind: analyze.CompositeDotBuiltin, Base: call.Args[0].ResultUsage(), Function: call.Kind}
 	return call, nil
 }
 
 func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame uint32) (plan.WholeRowSource, error) {
-	if !b.params.noParameters && !b.consumer.materializedDefinition {
+	if !b.Params.NoParameters && !b.Consumer.materializedDefinition {
 		return plan.WholeRowSource{}, nil
 	}
 	var source plan.WholeRowSource
-	for index, namespace := range b.capture.Namespaces {
+	for index, namespace := range b.Capture.Namespaces {
 		if namespace.Frame != frame {
 			continue
 		}
@@ -92,7 +92,7 @@ func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame 
 					matches = false
 					break
 				}
-				if column.Leaf >= 0 && captured.Attribute != b.query.sources[column.Leaf].Relation.Attributes[column.Physical] {
+				if column.Leaf >= 0 && captured.Attribute != b.Query.Sources[column.Leaf].Relation.Attributes[column.Physical] {
 					matches = false
 					break
 				}

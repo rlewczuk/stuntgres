@@ -17,22 +17,22 @@ func TestMathBinding(t *testing.T) {
 	bind := func(query string) expr.Expr {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
 		return node
 	}
 	first := bind("SELECT round(1.25,1)")
-	if !b.sameGroupExpression(first, bind("SELECT round(1.25,1)")) {
+	if !b.SameGroupExpression(first, bind("SELECT round(1.25,1)")) {
 		t.Fatal("equivalent selected math grouping expression lost structural identity")
 	}
-	if b.sameGroupExpression(first, bind("SELECT trunc(1.25,1)")) || b.sameGroupExpression(first, bind("SELECT round(1.25,2)")) {
+	if b.SameGroupExpression(first, bind("SELECT trunc(1.25,1)")) || b.SameGroupExpression(first, bind("SELECT round(1.25,2)")) {
 		t.Fatal("different math operation/scale shared grouping identity")
 	}
 	for _, query := range []string{"SELECT trunc(NULL)", "SELECT trunc('-0.5')", "SELECT trunc($1)"} {
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		_, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42725" || diagnostic.Message != "function trunc(unknown) is not unique" {
 			t.Fatal("released unknown trunc category ambiguity", query, err)

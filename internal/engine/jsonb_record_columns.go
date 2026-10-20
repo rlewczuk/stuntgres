@@ -12,14 +12,14 @@ import (
 
 // Only the analyzed projection is frozen. The function source keeps its current
 // complete schema and still converts every destination member before yielding.
-func (b *expressionBinder) jsonbRecordStarColumns(columns []queryColumn, frame uint32, star parser.StarExpr, qualified *queryQualifier) ([]queryColumn, error) {
+func (b *expressionBinder) JSONBRecordStarColumns(columns []queryColumn, frame uint32, star parser.StarExpr, qualified *queryQualifier) ([]queryColumn, error) {
 	if qualified != nil {
 		return b.jsonbRecordQualifierStar(columns, frame, star, *qualified)
 	}
-	if b.query.namespace == nil {
+	if b.Query.Namespace == nil {
 		return columns, nil
 	}
-	for _, qualifier := range b.query.namespace.Qualifiers {
+	for _, qualifier := range b.Query.Namespace.Qualifiers {
 		var err error
 		columns, err = b.jsonbRecordQualifierStar(columns, frame, star, qualifier)
 		if err != nil {
@@ -42,7 +42,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 				return nil, fmt.Errorf("stuntgres: invalid JSONB record source span")
 			}
 			var err error
-			columns, err = b.jsonbRecordCallStar(columns, qualifier.Columns[offset:offset+width], star, call)
+			columns, err = b.JSONBRecordCallStar(columns, qualifier.Columns[offset:offset+width], star, call)
 			if err != nil {
 				return nil, err
 			}
@@ -52,7 +52,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 	return columns, nil
 }
 
-func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord) ([]queryColumn, error) {
+func (b *expressionBinder) JSONBRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord) ([]queryColumn, error) {
 	usage := call.ResultUsage()
 	shape := usage.Type.BaseType()
 	key := preparedCompositeKey{Offset: call.SourcePosition().Offset, Kind: analyze.CompositeSourceExpansion, Projection: star.Pos.Offset}
@@ -77,10 +77,10 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 	if len(captured.Names) != len(captured.Attributes) {
 		return nil, fmt.Errorf("stuntgres: invalid retained JSONB record labels")
 	}
-	if b.prepared.Composites == nil {
-		b.prepared.Composites = make(map[preparedCompositeKey]compositeOccurrence)
+	if b.Prepared.Composites == nil {
+		b.Prepared.Composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.prepared.Composites[key] = captured
+	b.Prepared.Composites[key] = captured
 	if !retained {
 		return columns, nil
 	}
@@ -133,17 +133,17 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 // A retained base cast selects the current spelling of its original provider,
 // then goes through ordinary annotation resolution and privilege checks. Never
 // look up an old OID across a catalog owner/epoch boundary or retry a failed name.
-func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parser.TypeName, error) {
+func (b *expressionBinder) JSONBRecordCastAnnotation(raw parser.CastExpr) (parser.TypeName, error) {
 	annotation := raw.TypeName
-	if !b.clause.jsonbRecordBase || raw.Syntax == parser.FunctionCast || !b.expected.Held {
+	if !b.Clause.JSONBRecordBase || raw.Syntax == parser.FunctionCast || !b.Expected.Held {
 		return annotation, nil
 	}
-	view := b.bindingCatalog()
-	if b.expected.CatalogOwner != view.Owner() || b.expected.CatalogEpoch != view.Epoch() {
+	view := b.BindingCatalog()
+	if b.Expected.CatalogOwner != view.Owner() || b.Expected.CatalogEpoch != view.Epoch() {
 		return annotation, nil
 	}
 	key := preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: analyze.CompositeRecordArgument}
-	captured, found := b.expected.Composites[key]
+	captured, found := b.Expected.Composites[key]
 	if !found {
 		return annotation, nil
 	}

@@ -29,7 +29,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 		{"int4", sqltype.Int4}, {"int8", sqltype.Int8}, {"numeric", sqltype.Numeric}, {"float4", sqltype.Float4}, {"float8", sqltype.Float8}, {"int2", sqltype.Float8},
 	} {
 		input := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: c.source}, Text: "1"}
-		bound, err := b.bindFunctionProvider(raw("to_char", input, text("FM9.000000000000000000")))
+		bound, err := b.BindFunctionProvider(raw("to_char", input, text("FM9.000000000000000000")))
 		if err != nil {
 			t.Fatal(c, err)
 		}
@@ -38,7 +38,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 			t.Fatal("overload authority", c, bound)
 		}
 	}
-	bound, err := b.bindFunctionProvider(raw("to_number", text("12"), text("FM99")))
+	bound, err := b.BindFunctionProvider(raw("to_number", text("12"), text("FM99")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,14 +46,14 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 		t.Fatal(bound)
 	}
 	// An invalid constant mask belongs to demanded execution, not binding.
-	if _, err := b.bindFunctionProvider(raw("to_char", parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "12"}, text("9.9.9"))); err != nil {
+	if _, err := b.BindFunctionProvider(raw("to_char", parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "12"}, text("9.9.9"))); err != nil {
 		t.Fatal(err)
 	}
 }
 func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	numeric, text := b.typ(sqltype.Numeric), b.typ(sqltype.Text)
+	numeric, text := b.Type(sqltype.Numeric), b.Type(sqltype.Text)
 	mask := "9.9.9"
 	numericFormatPlan, err := sqltype.BindNumericFormat(ctx, "to_char", text.Usage(), numeric.Usage(), &mask)
 	if err != nil {
@@ -72,12 +72,12 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	if _, ok := simplified.(functions.NumericFormatting); !ok {
 		t.Fatal("STABLE demand lost through NULL folding", simplified)
 	}
-	if exec.PlannedVolatility(n) != expr.Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
+	if exec.PlannedVolatility(n) != expr.Stable || generationImmutable(n) || !b.SameGroupExpression(n, n) {
 		t.Fatal("intrinsic STABLE/semantic identity")
 	}
 	other := n
 	other.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "FM99")}
-	if b.sameGroupExpression(n, other) {
+	if b.SameGroupExpression(n, other) {
 		t.Fatal("mask omitted from group identity")
 	}
 	replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -108,7 +108,7 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 		call("to_char", count, text("FM9")),
 		call("to_number", call("format", text("%s"), count), text("9")),
 	} {
-		node, err := b.bindFunction(raw)
+		node, err := b.BindFunction(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,7 +139,7 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 		call("to_number", call("format", text("%s"), call("random")), text("9")),
 		call("to_char", count, call("format", text("%s"), call("random"))),
 	} {
-		node, err := b.bindFunction(raw)
+		node, err := b.BindFunction(raw)
 		if err != nil {
 			t.Fatal(err)
 		}

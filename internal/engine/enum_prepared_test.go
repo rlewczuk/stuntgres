@@ -46,8 +46,8 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &description)
-	b.query.auth = &auth
-	value, failure := b.inputConstant("q", typ.Usage(), parser.Position{Offset: capture.Offset, Character: 8})
+	b.Query.Auth = &auth
+	value, failure := b.InputConstant("q", typ.Usage(), parser.Position{Offset: capture.Offset, Character: 8})
 	e.mu.Unlock()
 	if err != nil || failure != nil {
 		t.Fatal(err, failure)
@@ -63,8 +63,8 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	stale.catalogEpoch++
 	e.mu.Lock()
 	b = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &stale)
-	b.query.auth = &auth
-	_, failure = b.inputConstant("q", typ.Usage(), parser.Position{Offset: capture.Offset, Character: 8})
+	b.Query.Auth = &auth
+	_, failure = b.InputConstant("q", typ.Usage(), parser.Position{Offset: capture.Offset, Character: 8})
 	e.mu.Unlock()
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "0A000" || d.Message != "cached plan must not change result type" {
 		t.Fatal("replacement literal bypassed signature fence", failure)
@@ -99,21 +99,21 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	auth.Catalog = e.stageRead(stage)
 	auth.Recapture(auth.Catalog)
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &description)
-	b.query.auth = &auth
-	node, failure := b.bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext, expected: typ.Usage()})
+	b.Query.Auth = &auth
+	node, failure := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{Context: ProjectionContext, Expected: typ.Usage()})
 	e.mu.Unlock()
 	if err != nil || failure != nil {
 		t.Fatal(err, failure)
 	}
-	if node.ResultUsage().Type != typ || b.params.parameters[1].Type != typ || description.Parameters.Types[0].Type != old.SQLType || domainUnitType(t, e.CatalogRead(), "mood") != old {
+	if node.ResultUsage().Type != typ || b.Params.Parameters[1].Type != typ || description.Parameters.Types[0].Type != old.SQLType || domainUnitType(t, e.CatalogRead(), "mood") != old {
 		t.Fatal("private parameter refresh lost codec, immutable contract or published root")
 	}
 	stale := description
 	stale.catalogEpoch++
 	e.mu.Lock()
 	b = newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &stale)
-	b.query.auth = &auth
-	_, failure = b.bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext, expected: typ.Usage()})
+	b.Query.Auth = &auth
+	_, failure = b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{Context: ProjectionContext, Expected: typ.Usage()})
 	e.mu.Unlock()
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "0A000" || d.Message != "cached plan must not change parameter type" {
 		t.Fatal("private refresh bypassed lifetime fence", failure)

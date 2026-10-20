@@ -117,16 +117,16 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	t.Run("scoped operand reuse preserves policy", func(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.RowExpr{Fields: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}}, Pos: parser.Position{Offset: 10, Character: 11}, Explicit: true}
-		cached, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		cached, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
-		b.clause.functionProjection = functionProjectionScope{argumentPos: raw.Pos, argumentKind: projectionArgumentKind(raw), operand: cached}
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		b.Clause.FunctionProjection = functionProjectionScope{ArgumentPos: raw.Pos, ArgumentKind: ProjectionArgumentKind(raw), Operand: cached}
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil || node.ResultUsage().Type != cached.ResultUsage().Type {
 			t.Fatal("operand was rebound", node, err)
 		}
-		node, err = b.bind(raw, expressionPolicy{context: functionArgumentContext, expected: b.typ(sqltype.Bool).Usage(), mode: sqltype.Implicit})
+		node, err = b.Bind(raw, expressionPolicy{Context: FunctionArgumentContext, Expected: b.Type(sqltype.Bool).Usage(), Mode: sqltype.Implicit})
 		if err == nil || node == nil || node.ResultUsage().Type != cached.ResultUsage().Type {
 			t.Fatal("reuse bypassed coercion policy", node, err)
 		}
@@ -136,7 +136,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 func TestCompositeExprAssignmentPaths(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	integer := b.typ(sqltype.Int4)
+	integer := b.Type(sqltype.Int4)
 	pair, err := sqltype.Composite(50000, "pair", "pair", 50001, []sqltype.CompositeMember{{1, "i", integer.Usage()}, {7, "j", integer.Usage()}})
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	field := func(name string) parser.TargetStep { return parser.TargetStep{Field: &parser.Identifier{Text: name}} }
-	target, err := b.bindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("p"), field("i")}, parser.Position{})
+	target, err := b.BindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("p"), field("i")}, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 	if !original.IsNull() || first.CompositeField(0).CompositeField(0).IsNull() || !first.CompositeField(0).CompositeField(1).IsNull() || !first.CompositeField(1).IsNull() {
 		t.Fatal("nested NULL initialization or original ownership")
 	}
-	secondTarget, err := b.bindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("n")}, parser.Position{})
+	secondTarget, err := b.BindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("n")}, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,10 +180,10 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 			t.Fatal("RHS did not use original execution frame", number, err)
 		}
 	}
-	if usage := targetUsage(outer.Usage(), []parser.TargetStep{field("p"), field("j")}); usage.Type != integer {
+	if usage := TargetUsage(outer.Usage(), []parser.TargetStep{field("p"), field("j")}); usage.Type != integer {
 		t.Fatal("leaf metadata", usage)
 	}
-	if _, err := b.bindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("missing")}, parser.Position{}); err == nil {
+	if _, err := b.BindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("missing")}, parser.Position{}); err == nil {
 		t.Fatal("absent assignment attribute admitted")
 	}
 }
@@ -192,13 +192,13 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.RowExpr{Fields: []parser.Expr{arrayUnitInteger(7), parser.RowExpr{Fields: []parser.Expr{arrayUnitInteger(8)}}}}
-	bound, err := b.bindRow(raw, sqltype.Usage{}, sqltype.Explicit, parser.Position{})
+	bound, err := b.BindRow(raw, sqltype.Usage{}, sqltype.Explicit, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	row := bound.(plan.RowExpr)
 	row.Expansions = map[int]plan.CompositeExpansionBinding{0: {Base: row.Fields[1], Fields: []expr.Expr{row.Fields[1]}}}
-	selected, err := b.selectCompositeField(row, "f2", parser.Position{})
+	selected, err := b.SelectCompositeField(row, "f2", parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +257,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	left := plan.RowExpr{Info: expr.Info{Usage: empty.Usage(), Property: expr.Properties{RowDependent: true}}, WholeNames: []string{}, WholeName: "a", PresenceFrame: 1}
 	right := left
 	right.WholeName = "b"
-	if b.sameGroupExpression(left, right) {
+	if b.SameGroupExpression(left, right) {
 		t.Fatal("zero-width source occurrences conflated")
 	}
 	zero := compositeOccurrence{Kind: analyze.CompositeExpansion, Base: empty.Usage()}

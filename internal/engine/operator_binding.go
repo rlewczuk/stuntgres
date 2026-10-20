@@ -28,7 +28,7 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 	case rangeSharedOperator(r):
 		return b.bindRangeShared(r)
 	case name == "||":
-		return b.bindStringConcat(r)
+		return b.BindStringConcat(r)
 	case name == "^@":
 		return b.bindStringPrefix(r)
 	case likeName(name):
@@ -41,18 +41,18 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 		return functions.BindJSONExtraction(b, r)
 	case functions.JSONBExistenceName(name):
 		return functions.BindJSONBExistence(b, r)
-	case functions.JSONBPathOperatorName(name) && len(b.clause.selectedOperatorArgs) == 2 &&
-		b.clause.selectedOperatorArgs[0].ResultUsage().Type.ID() == sqltype.JSONB &&
-		b.clause.selectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.JSONPath:
+	case functions.JSONBPathOperatorName(name) && len(b.Clause.SelectedOperatorArgs) == 2 &&
+		b.Clause.SelectedOperatorArgs[0].ResultUsage().Type.ID() == sqltype.JSONB &&
+		b.Clause.SelectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.JSONPath:
 		return functions.BindJSONBPathOperator(b, r)
 	case name == "#-":
 		return functions.BindJSONBPathDelete(b, r)
 	case bitwiseName(name):
-		return b.bindBitwise(r)
+		return b.BindBitwise(r)
 	case arithmeticName(name) || symbolicArithmeticName(name):
-		return b.bindArithmetic(r)
+		return b.BindArithmetic(r)
 	default:
-		return b.bindComparison(r)
+		return b.BindComparison(r)
 	}
 }
 func builtinOperatorSpelling(name string) bool {
@@ -69,11 +69,11 @@ type operatorCandidateSet struct {
 }
 
 func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool) (operatorCandidateSet, error) {
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return operatorCandidateSet{}, err
 	}
-	path, err := b.host.LookupNamespaces(auth, name, analyze.OperatorLookup)
+	path, err := b.Host.LookupNamespaces(auth, name, analyze.OperatorLookup)
 	if err != nil {
 		return operatorCandidateSet{}, err
 	}
@@ -153,7 +153,7 @@ func requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
 	return nil
 }
 
-func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy expressionPolicy) (expr.Expr, error) {
+func (b *expressionBinder) BindCatalogOperator(raw parser.OperatorExpr, policy expressionPolicy) (expr.Expr, error) {
 	if len(raw.Name.Parts) == 0 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid operator expression")
 	}
@@ -205,9 +205,9 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	}
 	args := make([]expr.Expr, len(operands))
 	for i, o := range operands {
-		target := b.typ(sqltype.ID(targets[i]))
+		target := b.Type(sqltype.ID(targets[i]))
 		if target.Concrete() {
-			args[i], err = b.coerceConditional(o, target.Usage(), name)
+			args[i], err = b.CoerceConditional(o, target.Usage(), name)
 		} else {
 			source := o.descriptor()
 			if source == nil && len(operands) == 2 {
@@ -229,10 +229,10 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 		// Seed metadata is not an invocation descriptor. Dispatch the selected
 		// builtin through its existing real expression provider, reusing the
 		// operands already bound and coerced by catalog resolution.
-		previous, previousSyntax := b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax
-		b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax = args, raw.Args
+		previous, previousSyntax := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax
+		b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax = args, raw.Args
 		defer func() {
-			b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax = previous, previousSyntax
+			b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax = previous, previousSyntax
 		}()
 		raw.Args = make([]parser.Expr, len(args))
 		for i := range args {
@@ -244,11 +244,11 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if routine == nil {
 		return nil, fmt.Errorf("stuntgres: missing operator implementation")
 	}
-	provider, err := b.bindSelectedOperatorRoutine(routine, args, raw.Pos)
+	provider, err := b.BindSelectedOperatorRoutine(routine, args, raw.Pos)
 	if err != nil {
 		return nil, err
 	}
-	ref := b.host.CatalogOwner().Domain.Ref(set.catalog.Epoch(), d.Address())
+	ref := b.Host.CatalogOwner().Domain.Ref(set.catalog.Epoch(), d.Address())
 	b.dependency(ref, d.Revision())
 	info := expr.InfoOf(provider)
 	info.Pos = raw.Pos
@@ -260,13 +260,13 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 // Provider dispatch is constrained by the selected routine's exact declaration.
 // Synthetic argument slots are binder-local, cannot occur in parsed SQL, and
 // are restored even if the selected provider rejects an unsupported signature.
-func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, args []expr.Expr, pos parser.Position) (expr.Expr, error) {
-	previous, previousSyntax := b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax
+func (b *expressionBinder) BindSelectedOperatorRoutine(d *catalog.Procedure, args []expr.Expr, pos parser.Position) (expr.Expr, error) {
+	previous, previousSyntax := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax
 	// This entry receives bound operands, not source recipes. Clear any
 	// enclosing SQL-call syntax rather than attributing it to these slots.
-	b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax = args, nil
+	b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax = args, nil
 	defer func() {
-		b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax = previous, previousSyntax
+		b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax = previous, previousSyntax
 	}()
 	rawArgs := make([]parser.Expr, len(args))
 	for i := range args {
@@ -291,7 +291,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, arg
 				continue
 			}
 			raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: key.Name, Pos: pos}}}, Args: rawArgs, Pos: pos}
-			node, err = b.bindBuiltinOperator(raw, expressionPolicy{context: projectionContext})
+			node, err = b.bindBuiltinOperator(raw, expressionPolicy{Context: ProjectionContext})
 			found = true
 			break
 		}
@@ -299,9 +299,9 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, arg
 			return nil, sqlError("0A000", "operator implementation has no registered provider")
 		}
 	} else {
-		namespace := b.bindingCatalog().Get(d.Namespace()).Name()
+		namespace := b.BindingCatalog().Get(d.Namespace()).Name()
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace, Pos: pos}, {Text: d.Name(), Pos: pos}}}, Args: rawArgs, Pos: pos}
-		node, err = b.bindFunctionProvider(raw)
+		node, err = b.BindFunctionProvider(raw)
 	}
 	if err != nil {
 		return nil, err

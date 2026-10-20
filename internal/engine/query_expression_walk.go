@@ -9,7 +9,7 @@ import (
 
 func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	e := node.(plan.AggregateExpr)
-	call := b.grouping.aggregates[e.Slot]
+	call := b.Grouping.Aggregates[e.Slot]
 	walkArguments := func(visit func(expr.Expr)) {
 		// Ordered-set direct args do not select the aggregate's owner.
 		ownerCall := call
@@ -17,9 +17,9 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 		ownerCall.Expressions(func(expr expr.Expr) { analyze.WalkQueryArgumentExpression(expr, visit) })
 	}
 	owner, index := b.argumentQueryOwner(walkArguments)
-	clause := b.clause.aggregateClause
+	clause := b.Clause.AggregateClause
 	if index >= 0 {
-		clause = b.query.scopes[index].clause
+		clause = b.Query.Scopes[index].Clause
 	}
 	var nested expr.Expr
 	walkArguments(func(node expr.Expr) {
@@ -40,9 +40,9 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	for _, direct := range call.Direct {
 		level := func(frame uint32) int {
 			if frame == b.FrameID() {
-				return len(b.query.scopes)
+				return len(b.Query.Scopes)
 			}
-			for i, scope := range b.query.scopes {
+			for i, scope := range b.Query.Scopes {
 				if scope.frame == frame && scope.allowed {
 					return i
 				}
@@ -98,10 +98,10 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	if index >= 0 {
 		// This call was registered locally by the existing provider binder.
 		// Removing its last registration transfers execution to its lexical owner.
-		if e.Slot == len(b.grouping.aggregates)-1 {
-			b.grouping.aggregates = b.grouping.aggregates[:e.Slot]
+		if e.Slot == len(b.Grouping.Aggregates)-1 {
+			b.Grouping.Aggregates = b.Grouping.Aggregates[:e.Slot]
 		}
-		s := &b.query.scopes[index]
+		s := &b.Query.Scopes[index]
 		e.Slot = len(s.aggregates)
 		immutable := true
 		call.Expressions(func(bound expr.Expr) {
@@ -111,7 +111,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 		})
 		if immutable {
 			for i, existing := range s.aggregates {
-				if b.sameAggregateCall(call, existing) {
+				if b.SameAggregateCall(call, existing) {
 					e.Slot = i
 					break
 				}
@@ -151,8 +151,8 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 			local = true
 			return
 		}
-		for i := len(b.query.scopes) - 1; i >= 0; i-- {
-			scope := &b.query.scopes[i]
+		for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+			scope := &b.Query.Scopes[i]
 			if scope.allowed && scope.frame == frame {
 				if i > index {
 					index = i
@@ -165,20 +165,20 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 		index = -1
 	}
 	if index >= 0 {
-		owner = b.query.scopes[index].frame
+		owner = b.Query.Scopes[index].frame
 	}
 	return owner, index
 }
 
 func (b *expressionBinder) aggregateCallAt(e plan.AggregateExpr) (plan.AggregateCall, bool) {
 	if e.Frame == 0 || e.Frame == b.FrameID() {
-		if e.Slot >= 0 && e.Slot < len(b.grouping.aggregates) {
-			return b.grouping.aggregates[e.Slot], true
+		if e.Slot >= 0 && e.Slot < len(b.Grouping.Aggregates) {
+			return b.Grouping.Aggregates[e.Slot], true
 		}
 		return plan.AggregateCall{}, false
 	}
-	for i := len(b.query.scopes) - 1; i >= 0; i-- {
-		scope := &b.query.scopes[i]
+	for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+		scope := &b.Query.Scopes[i]
 		if scope.frame == e.Frame && e.Slot >= 0 && e.Slot < len(scope.aggregates) {
 			return scope.aggregates[e.Slot], true
 		}

@@ -54,14 +54,14 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			}
 			namespace := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: d.Columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
-			binder.consumer.partitionConsumer, binder.params.noParameters, binder.query.auth = "partition key expression", true, &auth
-			binder.query.namespace = &namespace
-			binder.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
-			node, err := binder.bind(r.Expression, expressionPolicy{context: projectionContext})
+			binder.Consumer.PartitionConsumer, binder.Params.NoParameters, binder.Query.Auth = "partition key expression", true, &auth
+			binder.Query.Namespace = &namespace
+			binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
+			node, err := binder.Bind(r.Expression, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				return nil, err
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			planned, _, err := preflightCoercionsWithPolicy(&evaluation, node, true)
 			if err != nil {
 				return nil, err
@@ -72,7 +72,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			if !planned.Properties().RowDependent {
 				return nil, sqlError("42P17", "cannot use constant expression as partition key")
 			}
-			for _, slot := range binder.query.sources[0].Uses {
+			for _, slot := range binder.Query.Sources[0].Uses {
 				if _, generated := d.ColumnMeta.Generations[d.Attributes[slot]]; generated {
 					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
@@ -169,16 +169,16 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 		return nil, fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-	binder.query.auth = &p.auth
-	binder.params.noParameters = true
-	binder.consumer.partitionConsumer = "partition bound"
-	node, err := binder.bind(datum.Expression, expressionPolicy{context: projectionContext, expected: key.Usage.Type.Usage()})
+	binder.Query.Auth = &p.auth
+	binder.Params.NoParameters = true
+	binder.Consumer.PartitionConsumer = "partition bound"
+	node, err := binder.Bind(datum.Expression, expressionPolicy{Context: ProjectionContext, Expected: key.Usage.Type.Usage()})
 	if err != nil {
 		return nil, err
 	}
 	if node.ResultUsage() != key.Usage {
 		input, annotations := analyze.DomainCoercionInput(node, key.Usage)
-		info, err := analyze.StorageCoercionInfo(binder.bindingCatalog(), binder.info(key.Usage, datum.Pos, input.Properties()), input)
+		info, err := analyze.StorageCoercionInfo(binder.BindingCatalog(), binder.Info(key.Usage, datum.Pos, input.Properties()), input)
 		if err != nil {
 			return nil, err
 		}

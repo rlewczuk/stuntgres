@@ -88,10 +88,10 @@ func TestProtocolValueCodecs(t *testing.T) {
 			}
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, expected)
 			if !retained {
-				binder.seedParameters(description.Parameters.Types)
+				binder.SeedParameters(description.Parameters.Types)
 			}
-			node, bindErr := binder.bind(parser.ParameterExpr{Number: 1}, expressionPolicy{context: projectionContext})
-			formal, formalErr := binder.finish()
+			node, bindErr := binder.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: ProjectionContext})
+			formal, formalErr := binder.Finish()
 			e.mu.Unlock()
 			if bindErr != nil || formalErr != nil {
 				t.Fatal(bindErr, formalErr)

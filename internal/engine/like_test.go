@@ -34,7 +34,7 @@ func TestLikeEvaluationAndProperties(t *testing.T) {
 	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}
-	p := likeProperties(plan.ColumnExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}, plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}}})
+	p := LikeProperties(plan.ColumnExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}, plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}}})
 	if p != (expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}) {
 		t.Fatal(p)
 	}

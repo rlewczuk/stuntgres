@@ -23,8 +23,8 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 	defer e.mu.Unlock()
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
 	seed := []sqltype.Usage{integer, text}
-	b.seedParameters(seed)
-	node, err := b.bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 17}}, expressionPolicy{context: functionArgumentContext, expected: wide, mode: sqltype.Assignment})
+	b.SeedParameters(seed)
+	node, err := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 17}}, expressionPolicy{Context: FunctionArgumentContext, Expected: wide, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 	if !ok || conversion.Child.ResultUsage().Type != integer.Type {
 		t.Fatalf("formal source replaced by destination: %T", node)
 	}
-	info, err := b.finish()
+	info, err := b.Finish()
 	if err != nil || info.Count != 2 || info.Types[0] != integer || info.Types[1] != text {
 		t.Fatal(info, err)
 	}
@@ -41,21 +41,21 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 	}
 	for _, number := range []int{2, 2147483647} {
 		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-		if _, err := b.bind(parser.ParameterExpr{Number: number}, expressionPolicy{context: projectionContext, expected: integer}); err != nil {
+		if _, err := b.Bind(parser.ParameterExpr{Number: number}, expressionPolicy{Context: ProjectionContext, Expected: integer}); err != nil {
 			t.Fatal(err)
 		}
-		_, err := b.finish()
+		_, err := b.Finish()
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42P18" || d.Message != "could not determine data type of parameter $1" || d.Position != "" {
 			t.Fatal(err)
 		}
-		if len(b.params.parameters) != 1 {
+		if len(b.Params.Parameters) != 1 {
 			t.Fatal("sparse index allocated intermediate slots")
 		}
 	}
 	b = newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-	b.seedParameters([]sqltype.Usage{{}})
-	if _, err := b.finish(); err == nil {
+	b.SeedParameters([]sqltype.Usage{{}})
+	if _, err := b.Finish(); err == nil {
 		t.Fatal("unused unknown declaration resolved")
 	}
 }

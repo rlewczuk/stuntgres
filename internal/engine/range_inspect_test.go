@@ -19,24 +19,24 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	fresh := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
-	d := b.typ(sqltype.NumRange)
+	d := b.Type(sqltype.NumRange)
 	v, err := d.Input(ctx, "[1.00,3.000]", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	arg := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: v}
-	result := b.typ(sqltype.Numeric)
-	original, err := functions.NewRangeInspect(b.info(result.Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), sqltype.RangeLower, []expr.Expr{arg})
+	result := b.Type(sqltype.Numeric)
+	original, err := functions.NewRangeInspect(b.Info(result.Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), sqltype.RangeLower, []expr.Expr{arg})
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.typ(d.ID()) })
+	mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
 	next := mapped.(functions.RangeInspect)
 	value, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-	if err != nil || value.Type() != fresh.typ(sqltype.Numeric) {
+	if err != nil || value.Type() != fresh.Type(sqltype.Numeric) {
 		t.Fatal(value, err)
 	}
 	text, err := value.Type().Output(ctx, value)
@@ -62,7 +62,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 		t.Fatal(folded, changed, err)
 	}
 	value, err = folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-	if err != nil || value.Type() != fresh.typ(sqltype.Numeric) {
+	if err != nil || value.Type() != fresh.Type(sqltype.Numeric) {
 		t.Fatal("folded authority", value, err)
 	}
 	recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, target.CatalogRead(), next)
@@ -78,7 +78,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 
 func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	d := b.typ(sqltype.Int4Range)
+	d := b.Type(sqltype.Int4Range)
 	value, err := d.Input(context.Background(), "[1,4]", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	}
 	got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	n, _ := got.Integer()
-	if err != nil || n != 1 || got.Type() != b.typ(sqltype.Int4) {
+	if err != nil || n != 1 || got.Type() != b.Type(sqltype.Int4) {
 		t.Fatal(got, err)
 	}
 	raw.Name.Parts[0].Text = "range_merge"
@@ -125,14 +125,14 @@ func TestRangeInspectTextDiagnosticEnvelope(t *testing.T) {
 				if directString {
 					return functions.BindString(b, raw, true)
 				}
-				return b.bindFunctionProvider(raw)
+				return b.BindFunctionProvider(raw)
 			}
 			node, err := bind(base)
 			if err != nil {
 				t.Fatal(err)
 			}
 			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-			if err != nil || value.Type() != b.typ(sqltype.Text) {
+			if err != nil || value.Type() != b.Type(sqltype.Text) {
 				t.Fatal(value, err)
 			}
 			text, err := value.Type().Output(ctx, value)
@@ -176,33 +176,33 @@ func TestRangeInspectTextDiagnosticEnvelope(t *testing.T) {
 
 func TestRangeInspectChildFilterNamespaceOrdering(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "absent", Pos: parser.Position{Character: 8}}, {Text: "isempty", Pos: parser.Position{Character: 15}}}}, Pos: parser.Position{Character: 8}}
 	raw.Args = []parser.Expr{parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "missing", Pos: parser.Position{Character: 23}}}}, Pos: parser.Position{Character: 23}}}
 	raw.Filter = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Text: "1", Pos: parser.Position{Character: 44}}}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if node != nil {
 		t.Fatal("invalid syntax produced carrier")
 	}
 	inspectBindingDiagnostic(t, err, "42703", `column "missing" does not exist`, "23")
 	raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Text: "1", Pos: parser.Position{Character: 23}}}}
-	node, err = b.bindFunctionProvider(raw)
+	node, err = b.BindFunctionProvider(raw)
 	if node != nil {
 		t.Fatal("invalid FILTER produced carrier")
 	}
 	inspectBindingDiagnostic(t, err, "42804", "argument of FILTER must be type boolean, not type integer", "44")
-	if b.clause.aggregateClause != "SELECT" {
-		t.Fatal("FILTER analysis leaked clause", b.clause.aggregateClause)
+	if b.Clause.AggregateClause != "SELECT" {
+		t.Fatal("FILTER analysis leaked clause", b.Clause.AggregateClause)
 	}
 	raw.Filter = parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true, Pos: parser.Position{Character: 44}}}
-	_, err = b.bindFunctionProvider(raw)
+	_, err = b.BindFunctionProvider(raw)
 	inspectBindingDiagnostic(t, err, "3F000", `schema "absent" does not exist`, "8")
 	raw.Name.Parts = []parser.Identifier{{Text: "lower", Pos: parser.Position{Character: 8}}}
-	_, err = b.bindFunctionProvider(raw)
+	_, err = b.BindFunctionProvider(raw)
 	inspectBindingDiagnostic(t, err, "42883", "function lower(integer) does not exist", "8")
 	raw.Filter = nil
 	raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "AbC"}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "AbC"}}}
 	raw.ArgNames = []parser.Identifier{{Text: "x", Pos: parser.Position{Character: 14}}, {Text: "x", Pos: parser.Position{Character: 24}}}
-	_, err = b.bindFunctionProvider(raw)
+	_, err = b.BindFunctionProvider(raw)
 	inspectBindingDiagnostic(t, err, "42601", `argument name "x" used more than once`, "24")
 }

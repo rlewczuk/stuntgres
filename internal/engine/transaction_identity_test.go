@@ -236,9 +236,9 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		var err error
 		if tc.name == "age" {
 			raw.Args = []parser.Expr{ageFiniteTyped("xid", "0")}
-			bound, err = b.bindFunctionProvider(raw)
+			bound, err = b.BindFunctionProvider(raw)
 		} else {
-			bound, err = b.bindFunctionProvider(raw)
+			bound, err = b.BindFunctionProvider(raw)
 		}
 		if err != nil {
 			t.Fatal(tc.name, err)
@@ -287,7 +287,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := admitRoutineDescriptor(auth, b.dependencies, captured, nil); err != nil {
+		if err := admitRoutineDescriptor(auth, b.Dependencies, captured, nil); err != nil {
 			t.Fatal("original routine manifest rejected", err)
 		}
 		if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
@@ -305,7 +305,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			if d.IsComposite() {
 				return d
 			}
-			return fb.typ(d.ID())
+			return fb.Type(d.ID())
 		})
 		if err != nil || mapped.(expr.StoredProvider).ValidateStoredProvider() != nil {
 			t.Fatal("retag provider", err)

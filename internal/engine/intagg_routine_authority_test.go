@@ -66,10 +66,10 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			var ref ids.ObjectRef
 			aggregate := tc.kind == catalog.AggregateRoutine
 			if aggregate {
-				if len(binder.grouping.aggregates) != 1 {
+				if len(binder.Grouping.Aggregates) != 1 {
 					t.Fatal("missing actual aggregate")
 				}
-				call := binder.grouping.aggregates[0]
+				call := binder.Grouping.Aggregates[0]
 				captured, ref = call.Procedure, call.Routine
 				if ref != call.Ref || ref == (ids.ObjectRef{}) {
 					t.Fatal("aggregate lost original compact authority")
@@ -79,7 +79,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 			} else {
 				enum, ok := node.(plan.UnnestExpr)
-				if !ok || !exec.SourceAdmitted(enum) || !binder.clause.queryHasTargetSet {
+				if !ok || !exec.SourceAdmitted(enum) || !binder.Clause.QueryHasTargetSet {
 					t.Fatal("lost genuine set carrier")
 				}
 				captured, ref = enum.Procedure, enum.Ref
@@ -88,7 +88,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("enum selected declaration/set classification", err)
 				}
 				if tc.name == "enum_parameter" {
-					evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
+					evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
 					folded, changed, err := foldStrictParameterNull(&evaluation, node)
 					if err != nil || changed || !reflect.DeepEqual(folded, node) {
 						t.Fatal("NULL enum folded into scalar", changed, err)
@@ -114,7 +114,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			if captured.Name() != expectedName || captured.Signature != catalog.ProcedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || extension.IntaggProviderOf(captured) != extension.StockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.Catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.Catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
-			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			found := false
 			for _, dep := range original {
 				if dep.Ref.Address == ref.Address {
@@ -344,7 +344,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 			}
-			if !reflect.DeepEqual(node, before) || !reflect.DeepEqual(binder.dependencies, original) {
+			if !reflect.DeepEqual(node, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("authority probes mutated source")
 			}
 			if err := admit(&evaluation, node, ref); err != nil {

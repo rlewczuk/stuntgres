@@ -11,11 +11,11 @@ import (
 )
 
 func (b *expressionBinder) bindRowComparison(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right parser.RowExpr) (expr.Expr, error) {
-	return b.bindRowPredicate(raw, operator, left, right, raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	return b.BindRowPredicate(raw, operator, left, right, raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 }
 
 // Analyze constructors without allocating RECORD values or finalizing unknowns.
-func (b *expressionBinder) rowComparisonOperands(raw parser.RowExpr) ([]comparisonOperand, map[int]plan.CompositeExpansionBinding, error) {
+func (b *expressionBinder) RowComparisonOperands(raw parser.RowExpr) ([]comparisonOperand, map[int]plan.CompositeExpansionBinding, error) {
 	list, err := b.expandRawList(raw.Fields)
 	if err != nil {
 		return nil, nil, err
@@ -23,7 +23,7 @@ func (b *expressionBinder) rowComparisonOperands(raw parser.RowExpr) ([]comparis
 	fields := make([]comparisonOperand, len(list.raw))
 	for i, field := range list.raw {
 		if list.nodes != nil && list.nodes[i] != nil {
-			fields[i] = comparisonOperand{node: list.nodes[i], raw: field}
+			fields[i] = comparisonOperand{Node: list.nodes[i], raw: field}
 		} else {
 			fields[i], err = b.comparisonOperand(field)
 			if err != nil {
@@ -48,12 +48,12 @@ type inComparisonOperand struct {
 
 func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOperand, error) {
 	if row, ok := raw.(parser.RowExpr); ok {
-		fields, expansions, err := b.rowComparisonOperands(row)
+		fields, expansions, err := b.RowComparisonOperands(row)
 		return inComparisonOperand{scalar: comparisonOperand{raw: raw}, fields: fields, expansions: expansions, constructor: true}, err
 	}
 	operand, err := b.comparisonOperand(raw)
 	result := inComparisonOperand{scalar: operand}
-	if row, ok := operand.node.(plan.RowExpr); ok && row.Raw != nil && !row.Usage.Type.IsDomain() {
+	if row, ok := operand.Node.(plan.RowExpr); ok && row.Raw != nil && !row.Usage.Type.IsDomain() {
 		result.constructor, result.expansions = true, row.Expansions
 		result.fields = make([]comparisonOperand, row.Usage.Type.BaseType().CompositeLen())
 		for i, field := range row.Fields {
@@ -64,7 +64,7 @@ func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOpe
 					continue
 				}
 			}
-			result.fields[slot] = comparisonOperand{node: field}
+			result.fields[slot] = comparisonOperand{Node: field}
 		}
 	}
 	return result, err
@@ -74,14 +74,14 @@ func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOpe
 // finalizing their unknown fields. This analysis-only node is never executed:
 // RECORD cannot enter the scalar-array branch, and residual pairs use fields.
 func (b *expressionBinder) inCommonOperand(operand inComparisonOperand) comparisonOperand {
-	if operand.constructor && operand.scalar.node == nil {
-		return comparisonOperand{node: plan.RowExpr{Info: b.info(b.typ(2249).Usage(), operand.scalar.raw.SourcePosition(), expr.Properties{})}, raw: operand.scalar.raw}
+	if operand.constructor && operand.scalar.Node == nil {
+		return comparisonOperand{Node: plan.RowExpr{Info: b.Info(b.Type(2249).Usage(), operand.scalar.raw.SourcePosition(), expr.Properties{})}, raw: operand.scalar.raw}
 	}
 	return operand.scalar
 }
 
 func (b *expressionBinder) inScalarOperand(operand *inComparisonOperand) (comparisonOperand, error) {
-	if operand.scalar.node != nil || !operand.constructor {
+	if operand.scalar.Node != nil || !operand.constructor {
 		return operand.scalar, nil
 	}
 	fields := make([]expr.Expr, len(operand.fields))
@@ -90,7 +90,7 @@ func (b *expressionBinder) inScalarOperand(operand *inComparisonOperand) (compar
 	for i, field := range operand.fields {
 		target := field.descriptor()
 		if target == nil {
-			target = b.typ(sqltype.Text)
+			target = b.Type(sqltype.Text)
 		}
 		node, err := b.finalizeOperand(field, target)
 		if err != nil {
@@ -105,16 +105,16 @@ func (b *expressionBinder) inScalarOperand(operand *inComparisonOperand) (compar
 		return comparisonOperand{}, err
 	}
 	raw := operand.scalar.raw.(parser.RowExpr)
-	operand.scalar.node = plan.RowExpr{Info: b.info(shape.Usage(), raw.Pos, properties), Fields: fields, Raw: &raw, Expansions: operand.expansions}
+	operand.scalar.Node = plan.RowExpr{Info: b.Info(shape.Usage(), raw.Pos, properties), Fields: fields, Raw: &raw, Expansions: operand.expansions}
 	return operand.scalar, nil
 }
 
-func (b *expressionBinder) bindRowPredicate(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right parser.RowExpr, mode string) (expr.Expr, error) {
-	lhs, le, err := b.rowComparisonOperands(left)
+func (b *expressionBinder) BindRowPredicate(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right parser.RowExpr, mode string) (expr.Expr, error) {
+	lhs, le, err := b.RowComparisonOperands(left)
 	if err != nil {
 		return nil, err
 	}
-	rhs, re, err := b.rowComparisonOperands(right)
+	rhs, re, err := b.RowComparisonOperands(right)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 	if len(lhs) != len(rhs) {
 		return nil, expr.ErrorAt("42601", "unequal number of entries in row expressions", raw.Pos)
 	}
-	e := plan.RowComparisonExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, expr.Properties{}), Operator: mode, Expansions: [2]map[int]plan.CompositeExpansionBinding{le, re}}
+	e := plan.RowComparisonExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, expr.Properties{}), Operator: mode, Expansions: [2]map[int]plan.CompositeExpansionBinding{le, re}}
 	if len(lhs) == 0 && !e.Distinct() {
 		return nil, expr.ErrorAt("0A000", "cannot compare rows of zero length", raw.Pos)
 	}
@@ -135,7 +135,7 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 	}
 	for i, l := range lhs {
 		r := rhs[i]
-		node, err := b.bindComparisonOperands(raw, operator, l, r)
+		node, err := b.BindComparisonOperands(raw, operator, l, r)
 		if err != nil {
 			return nil, err
 		}

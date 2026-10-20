@@ -83,7 +83,7 @@ func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser
 			if source.Kind != parser.SubqueryScalar {
 				return nil, expr.ErrorAt("0A000", "source for a multiple-column UPDATE item must be a sub-SELECT or ROW() expression", source.Pos)
 			}
-			binder.query.subqueryDemand = true
+			binder.Query.subqueryDemand = true
 			query, err := binder.BindSelect(source.Query, false)
 			if err != nil {
 				return nil, err
@@ -96,7 +96,7 @@ func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser
 			properties.StageDependent = true
 			for j, target := range a.Targets {
 				origin := project.Expressions[j].SourcePosition()
-				info := binder.info(project.Schema()[j].Usage, origin, properties)
+				info := binder.Info(project.Schema()[j].Usage, origin, properties)
 				var node expr.Expr = plan.UpdateOutputExpr{Info: info, Index: j, Group: start}
 				if j == 0 {
 					node = plan.SubqueryExpr{Info: info, Kind: parser.SubqueryScalar, QueryPlan: query, UpdateWidth: len(a.Targets)}
@@ -135,7 +135,7 @@ func bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.U
 	}
 	if _, requested := a.Value.(parser.DefaultExpr); requested {
 		if slot, ok := b.Relation.Index[a.Target.Text]; ok && b.Relation.Columns[slot].Usage.Type.IsDomain() {
-			node, origin := analyze.ColumnDefault(binder.bindingCatalog(), b.Relation, slot)
+			node, origin := analyze.ColumnDefault(binder.BindingCatalog(), b.Relation, slot)
 			if node == nil {
 				node = analyze.DomainNullInputExpression(b.Relation.Columns[slot].Usage)
 			}
@@ -158,8 +158,8 @@ func bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.U
 	if slot, ok := b.Relation.Index[a.Target.Text]; ok {
 		expected = b.Relation.Columns[slot].Usage
 		if len(a.Steps) != 0 {
-			expected = targetUsage(expected, a.Steps)
+			expected = TargetUsage(expected, a.Steps)
 		}
 	}
-	return binder.bind(a.Value, expressionPolicy{context: projectionContext, expected: expected, mode: sqltype.Assignment})
+	return binder.Bind(a.Value, expressionPolicy{Context: ProjectionContext, Expected: expected, Mode: sqltype.Assignment})
 }

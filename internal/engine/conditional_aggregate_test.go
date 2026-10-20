@@ -11,7 +11,7 @@ import (
 )
 
 func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
-	b := expressionBinder{ctx: context.Background()}
+	b := expressionBinder{Ctx: context.Background()}
 	var integer *sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
 		if typ.ID() == sqltype.Int8 {
@@ -40,7 +40,7 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	original.Arms = []plan.CaseBranch{arm}
 	original.Arms[0].Result = count
 	list := plan.ConditionalExpr{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{original, count}}
-	if !b.sameGroupExpression(groupCase, groupCase) || !b.sameGroupExpression(groupList, groupList) {
+	if !b.SameGroupExpression(groupCase, groupCase) || !b.SameGroupExpression(groupList, groupList) {
 		t.Fatal("identical conditional grouping keys differ")
 	}
 	changed := groupCase
@@ -48,18 +48,18 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	otherKey := key
 	otherKey.Slot = 1
 	changed.Arms[0].Condition = otherKey
-	if b.sameGroupExpression(groupCase, changed) {
+	if b.SameGroupExpression(groupCase, changed) {
 		t.Fatal("different WHEN expression accepted as grouping key")
 	}
 	changedList := groupList
 	changedList.Kind = parser.Greatest
-	if b.sameGroupExpression(groupList, changedList) {
+	if b.SameGroupExpression(groupList, changedList) {
 		t.Fatal("different conditional kind accepted as grouping key")
 	}
-	if aggregateOccurrence(list) == nil {
+	if AggregateOccurrence(list) == nil {
 		t.Fatal("nested aggregate occurrence lost")
 	}
-	rewritten, err := b.rewriteGroup(list, []expr.Expr{key})
+	rewritten, err := b.RewriteGroup(list, []expr.Expr{key})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 		t.Fatal("immutable list args mutated")
 	}
 	for _, bound := range []expr.Expr{groupCase, groupList} {
-		got, err := b.rewriteGroup(bound, []expr.Expr{bound})
+		got, err := b.RewriteGroup(bound, []expr.Expr{bound})
 		if _, ok := got.(plan.GroupExpr); err != nil || !ok {
 			t.Fatal("whole conditional grouping key not recognized", err)
 		}

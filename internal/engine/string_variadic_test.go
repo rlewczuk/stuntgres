@@ -75,7 +75,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	// the source generation. An equal OID cannot authorize capture adoption.
 	ctx := context.Background()
 	binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	bound, err := binder.bind(nullCountRaw("quote_literal", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 42}}), expressionPolicy{context: projectionContext})
+	bound, err := binder.Bind(nullCountRaw("quote_literal", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 42}}), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	types := formatUnitTypes()
-	retagged, changed, err := retagBoundTypes(binder.bindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retagged, changed, err := retagBoundTypes(binder.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -127,7 +127,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if err != nil || quoteOriginOf(remapped.(functions.StringVariadic)).Owner != targetRef || quoteOriginOf(stamped) != origins[2] {
 		t.Fatal("view quote origin remap lost target ownership or mutated source", err)
 	}
-	stampedRetagged, _, err := retagBoundTypes(binder.bindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	stampedRetagged, _, err := retagBoundTypes(binder.BindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || stampedRetagged.(functions.StringVariadic).Origin != stamped.Origin {
 		t.Fatal("view quote origin lost during typed retag", err)
 	}

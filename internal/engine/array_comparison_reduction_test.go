@@ -17,13 +17,13 @@ import (
 func TestArrayCompareReduction(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	integer, boolean := b.typ(sqltype.Int4), b.typ(sqltype.Bool)
-	arrayType := b.typ(integer.AssociatedArray())
+	integer, boolean := b.Type(sqltype.Int4), b.Type(sqltype.Bool)
+	arrayType := b.Type(integer.AssociatedArray())
 	leftValue, err := sqltype.Integer(integer, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	left := plan.LiteralExpr{Info: b.info(integer.Usage(), parser.Position{}, expr.Properties{}), Value: leftValue}
+	left := plan.LiteralExpr{Info: b.Info(integer.Usage(), parser.Position{}, expr.Properties{}), Value: leftValue}
 	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for _, tc := range []struct {
 		input string
@@ -48,14 +48,14 @@ func TestArrayCompareReduction(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		right := plan.LiteralExpr{Info: b.info(arrayType.Usage(), parser.Position{}, expr.Properties{}), Value: array}
+		right := plan.LiteralExpr{Info: b.Info(arrayType.Usage(), parser.Position{}, expr.Properties{}), Value: array}
 		for i, name := range []string{"=", "=", "<>", "<>"} {
 			op, _ := analyze.ComparisonOperator(name)
 			predicate, err := sqltype.BindComparisonPredicate(op, integer, integer, boolean, sqltype.CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := plan.ScalarArrayComparisonExpr{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: left, Array: right, Predicate: predicate, Operator: name, All: i%2 == 1}
+			node := plan.ScalarArrayComparisonExpr{Info: b.Info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: left, Array: right, Predicate: predicate, Operator: name, All: i%2 == 1}
 			value, err := node.Eval(c)
 			if err != nil {
 				t.Fatal(tc.input, err)
@@ -94,7 +94,7 @@ func TestArrayCompareReduction(t *testing.T) {
 	}
 	calls := 0
 	last := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; return leftValue, nil })
-	node := plan.ScalarArrayComparisonExpr{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: left, Items: []expr.Expr{left, last}, Predicate: predicate, Operator: "="}
+	node := plan.ScalarArrayComparisonExpr{Info: b.Info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: left, Items: []expr.Expr{left, last}, Predicate: predicate, Operator: "="}
 	value, err := node.Eval(c)
 	truth, truthErr := plan.TruthOf(value)
 	if err != nil || truthErr != nil || truth != plan.True || calls != 1 {
@@ -113,7 +113,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 	for _, q := range []string{"SELECT $1 IN(1,$2,3)", "SELECT $1=ANY($2)"} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		original, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		original, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -128,7 +128,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"SELECT 1 IN(1,2,NULL)", "SELECT 1=ANY('{1,NULL}'::INT[])"} {
-		original, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		original, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -153,7 +153,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 			t.Fatal("structural identity ignored predicate generations")
 		}
 		node := original.(plan.ScalarArrayComparisonExpr)
-		replacement := plan.LiteralExpr{Info: b.info(node.Left.ResultUsage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(node.Left.ResultUsage().Type)}
+		replacement := plan.LiteralExpr{Info: b.Info(node.Left.ResultUsage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(node.Left.ResultUsage().Type)}
 		next, changed, err := plan.MapScalarArrayChildren(node, func(old expr.Expr) (expr.Expr, bool, error) {
 			if old == node.Left {
 				return replacement, true, nil

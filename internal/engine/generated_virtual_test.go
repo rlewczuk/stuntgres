@@ -129,10 +129,10 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
+	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	node := b.QueryColumnAt(queryColumn{Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}, parser.Position{})
-	if len(b.query.sources[0].Uses) != 1 || b.query.sources[0].Uses[0] != 1 {
-		t.Fatal("base SELECT widened", b.query.sources[0].Uses)
+	if len(b.Query.Sources[0].Uses) != 1 || b.Query.Sources[0].Uses[0] != 1 {
+		t.Fatal("base SELECT widened", b.Query.Sources[0].Uses)
 	}
 	value, _ := sqltype.Integer(typ, 9)
 	row := []sqltype.Value{value, sqltype.Null(typ)}

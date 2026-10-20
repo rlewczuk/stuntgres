@@ -123,7 +123,7 @@ func TestPGSequencesAdmissionDerivedRowLockFrame(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	binder.query.auth = &auth
+	binder.Query.Auth = &auth
 	var query *plan.Query
 	if err == nil {
 		query, err = binder.BindSelect(raw, false)

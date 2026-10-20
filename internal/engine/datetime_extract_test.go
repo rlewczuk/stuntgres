@@ -43,7 +43,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 		}
 		for _, api := range []string{"extract", "date_part"} {
 			raw := datetimeMakeRaw(api, datetimeMakeString("epoch"), ageFiniteTyped(source, value))
-			node, err := b.bindFunctionProvider(raw)
+			node, err := b.BindFunctionProvider(raw)
 			if err != nil {
 				t.Fatal(source, api, err)
 			}
@@ -56,7 +56,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			if source == "timestamptz" {
 				volatility = expr.Stable
 			}
-			if e.ResultUsage().Type.ID() != result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != volatility || exec.PlannedVolatility(e) != volatility || generationImmutable(e) != (volatility == expr.Immutable) || !b.sameGroupExpression(e, e) {
+			if e.ResultUsage().Type.ID() != result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != volatility || exec.PlannedVolatility(e) != volatility || generationImmutable(e) != (volatility == expr.Immutable) || !b.SameGroupExpression(e, e) {
 				t.Fatal(source, api, e.Properties())
 			}
 			replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -110,7 +110,7 @@ func TestDatetimeExtractResolutionFailures(t *testing.T) {
 		{"date_part", ageFiniteTyped("text", "2000-01-01"), "42883", "function date_part(unknown, text) does not exist"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		_, err := b.bindFunctionProvider(datetimeMakeRaw(tc.api, datetimeMakeString("year"), tc.source))
+		_, err := b.BindFunctionProvider(datetimeMakeRaw(tc.api, datetimeMakeString("year"), tc.source))
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Message != tc.message || d.Position != "8" || d.Hint == "" {
 			t.Fatal(tc, err)
@@ -148,7 +148,7 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), engine, input, nil)
 			field := parser.CaseExpr{Arms: []parser.CaseArm{{Condition: parser.PredicateExpr{Kind: parser.IsNotNull, Left: tc.condition}, Result: datetimeMakeString("timezone")}}, Else: datetimeMakeString("year")}
-			node, err := b.bindFunctionProvider(datetimeMakeRaw("date_part", field, ageFiniteTyped("date", "2000-01-01")))
+			node, err := b.BindFunctionProvider(datetimeMakeRaw("date_part", field, ageFiniteTyped("date", "2000-01-01")))
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -20,13 +20,13 @@ func TestArrayAggregateBinding(t *testing.T) {
 	} {
 		e := New()
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
+		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		result, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}
-		call := b.grouping.aggregates[0]
+		call := b.Grouping.Aggregates[0]
 		argument := call.Argument
 		usage := result.ResultUsage()
 		if usage.Typmod != -1 || usage.Collation != argument.ResultUsage().Collation || !result.Properties().StageDependent || !call.IncludeNulls {
@@ -46,7 +46,7 @@ func TestArrayAggregateBinding(t *testing.T) {
 			}
 		}
 		found := false
-		for _, dependency := range b.dependencies {
+		for _, dependency := range b.Dependencies {
 			if dependency.Ref.Address.ClassID == ids.TypeClassID && dependency.Ref.Address.ObjectID == ids.OID(usage.Type.ID()) {
 				found = true
 			}
@@ -54,13 +54,13 @@ func TestArrayAggregateBinding(t *testing.T) {
 		if !found {
 			t.Fatal("missing result-array dependency")
 		}
-		again, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		again, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil || again.(plan.AggregateExpr).Slot != result.(plan.AggregateExpr).Slot {
 			t.Fatal("identical aggregate failed state-slot sharing", err)
 		}
 		other := call
 		other.IncludeNulls = false
-		if b.sameAggregateCall(call, other) {
+		if b.SameAggregateCall(call, other) {
 			t.Fatal("NULL admission omitted from aggregate identity")
 		}
 	}
@@ -106,14 +106,14 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 		{diArray, diArray, true},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
-		b.params.parameters[1] = tc.input.Usage()
+		b.Clause.AggregateClause = "SELECT"
+		b.Params.Parameters[1] = tc.input.Usage()
 		raw := parser.AggregateExpr{Name: "array_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}}
-		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		result, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := b.grouping.aggregates[0]
+		call := b.Grouping.Aggregates[0]
 		provider := call.Provider.(*functions.ArrayAggregateProvider)
 		if result.ResultUsage().Type != tc.want || provider.ResultUsage().Type != tc.want || provider.Arrays() != tc.arrays || provider.ArgumentType() != call.Argument.ResultUsage().Type {
 			t.Fatal("domain overload lost exact catalog generation", tc, provider)
@@ -122,7 +122,7 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 			t.Fatal("scalar domain was flattened")
 		}
 		found := false
-		for _, d := range b.dependencies {
+		for _, d := range b.Dependencies {
 			if d.Ref.Address.ClassID == ids.TypeClassID && d.Ref.Address.ObjectID == ids.OID(tc.want.ID()) {
 				found = true
 			}

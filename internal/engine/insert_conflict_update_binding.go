@@ -12,24 +12,24 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	}
 	c := b.Insert.Conflict
 	c.Width = len(b.Relation.Columns)
-	binder.target.relation, binder.target.ref = b.Relation, b.Ref
-	binder.target.name, binder.target.alias = b.Relation.Name(), s.Alias.Text
-	binder.params.updateParameters = true
-	defer func() { binder.params.updateParameters = false; binder.params.updateInputParameters = nil }()
+	binder.Target.Relation, binder.Target.Ref = b.Relation, b.Ref
+	binder.Target.Name, binder.Target.alias = b.Relation.Name(), s.Alias.Text
+	binder.Params.UpdateParameters = true
+	defer func() { binder.Params.UpdateParameters = false; binder.Params.updateInputParameters = nil }()
 	// Conflict UPDATE owns a fresh lexical namespace: the rule's formal
 	// OLD/NEW entries remain diagnostic candidates, not executable columns.
-	ruleNamespace, previousNamespace, previousHidden := binder.target.ruleNamespace, binder.query.namespace, binder.query.hidden
+	ruleNamespace, previousNamespace, previousHidden := binder.Target.RuleNamespace, binder.Query.Namespace, binder.Query.Hidden
 	if ruleNamespace != nil {
-		binder.target.ruleNamespace = nil
-		binder.query.hidden = append(append([]queryQualifier(nil), previousHidden...),
+		binder.Target.RuleNamespace = nil
+		binder.Query.Hidden = append(append([]queryQualifier(nil), previousHidden...),
 			queryQualifier{Name: "old", Original: "old", LateralForbidden: true},
 			queryQualifier{Name: "new", Original: "new", LateralForbidden: true})
 	}
 	defer func() {
-		binder.target.ruleNamespace, binder.query.namespace, binder.query.hidden = ruleNamespace, previousNamespace, previousHidden
+		binder.Target.RuleNamespace, binder.Query.Namespace, binder.Query.Hidden = ruleNamespace, previousNamespace, previousHidden
 	}()
 	target := binder.mutationTargetNamespace()
-	binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
+	binder.Query.Hidden = append(binder.Query.Hidden, target.Qualifiers[0])
 	excluded := rebaseQueryNamespace(target, len(b.Relation.Columns))
 	excluded.Qualifiers[0] = queryQualifier{Name: "excluded", Columns: excluded.Columns, LateralForbidden: true}
 	namespace := queryNamespace{
@@ -37,8 +37,8 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 		Qualifiers: append(target.Qualifiers, excluded.Qualifiers...),
 		Frame:      append(append([]catalog.Column(nil), target.Frame...), target.Frame...),
 	}
-	binder.query.namespace = &namespace
-	binder.clause.aggregateClause = "UPDATE"
+	binder.Query.Namespace = &namespace
+	binder.Clause.AggregateClause = "UPDATE"
 	action := &boundUpdate{Assignments: make([]expr.Expr, len(s.Conflict.Assignments))}
 	actionBinding := *b
 	actionBinding.Targets = nil
@@ -46,7 +46,7 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 		return err
 	}
 	if s.Conflict.Where != nil {
-		predicate, err := binder.bindBoolean(s.Conflict.Where, filterContext, "WHERE")
+		predicate, err := binder.BindBoolean(s.Conflict.Where, FilterContext, "WHERE")
 		if err != nil {
 			return err
 		}
@@ -54,7 +54,7 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	}
 	c.Update = action
 	c.UpdateTargets = actionBinding.Targets
-	c.ActionReads = append([]int(nil), binder.target.uses...)
-	c.Sources = binder.query.sources
+	c.ActionReads = append([]int(nil), binder.Target.Uses...)
+	c.Sources = binder.Query.Sources
 	return nil
 }

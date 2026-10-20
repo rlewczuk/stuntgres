@@ -33,12 +33,12 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			ctx := context.Background()
 			e := New()
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			b.clause.aggregateClause = "SELECT"
+			b.Clause.AggregateClause = "SELECT"
 			raw := parser.FunctionExpr{
 				Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}},
 				Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}},
 			}
-			call, err := b.bindFunctionProvider(raw)
+			call, err := b.BindFunctionProvider(raw)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -85,13 +85,13 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := admitRoutineDescriptor(auth, b.dependencies, captured, nil); err != nil {
+			if err := admitRoutineDescriptor(auth, b.Dependencies, captured, nil); err != nil {
 				t.Fatal("original lifetime", err)
 			}
 			if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
 				t.Fatal("repaired missing manifest")
 			}
-			checks := append([]catalog.ExpressionDependency(nil), b.dependencies...)
+			checks := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
 			for i := range checks {
 				if checks[i].Ref.Address == address {
 					checks[i].Revision++
@@ -101,8 +101,8 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 				t.Fatal("admitted stale declaration")
 			}
 			if tc.set {
-				b.consumer.defaultConsumer = true
-				if _, err := b.bindFunctionProvider(raw); err == nil {
+				b.Consumer.DefaultConsumer = true
+				if _, err := b.BindFunctionProvider(raw); err == nil {
 					t.Fatal("set admitted in scalar default")
 				}
 			} else if exec.SourceAdmitted(call) {
@@ -116,13 +116,13 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	literal := func(value string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: value}}
 	}
 	bind := func(doc, path string) expr.Expr {
 		t.Helper()
-		call, err := b.bindFunctionProvider(parser.FunctionExpr{
+		call, err := b.BindFunctionProvider(parser.FunctionExpr{
 			Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "jsonb_path_query"}}},
 			Args: []parser.Expr{literal(doc), literal(path)},
 		})

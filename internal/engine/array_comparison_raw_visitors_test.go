@@ -23,10 +23,10 @@ func TestArrayCompareVisitorsRawEngine(t *testing.T) {
 	}
 	for _, form := range forms {
 		t.Run(form.name, func(t *testing.T) {
-			if !containsValuesAggregateAnalysis(form.make(parser.AggregateExpr{Name: "sum"})) {
+			if !ContainsValuesAggregateAnalysis(form.make(parser.AggregateExpr{Name: "sum"})) {
 				t.Fatal("SUM child lost during failed analysis")
 			}
-			if containsValuesAggregateAnalysis(form.make(literal)) {
+			if ContainsValuesAggregateAnalysis(form.make(literal)) {
 				t.Fatal("spurious SUM analysis")
 			}
 			for _, stored := range []bool{false, true} {

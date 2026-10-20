@@ -17,17 +17,17 @@ func TestStringIdentBinding(t *testing.T) {
 	for _, query := range []string{"SELECT parse_ident($1,$2)", "SELECT parse_ident(strict=>$2,str=>$1)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
 		n := bound.(functions.String)
 		reversed := !n.Textual[0]
-		if len(n.Args) != 2 || !n.ResultUsage().Type.IsArray() || n.ResultUsage().Type.Element() != b.typ(sqltype.Text) || !n.Properties().ParameterDependent {
+		if len(n.Args) != 2 || !n.ResultUsage().Type.IsArray() || n.ResultUsage().Type.Element() != b.Type(sqltype.Text) || !n.Properties().ParameterDependent {
 			t.Fatal(n)
 		}
-		if b.params.parameters[1].Type != b.typ(sqltype.Text) || b.params.parameters[2].Type != b.typ(sqltype.Bool) {
-			t.Fatal(b.params.parameters)
+		if b.Params.Parameters[1].Type != b.Type(sqltype.Text) || b.Params.Parameters[2].Type != b.Type(sqltype.Bool) {
+			t.Fatal(b.Params.Parameters)
 		}
 		// These native effect/error units protect written evaluation order,
 		// not an optimizer-wide PostgreSQL order guarantee.
@@ -37,9 +37,9 @@ func TestStringIdentBinding(t *testing.T) {
 			copy := n
 			copy.Args = append([]expr.Expr(nil), n.Args...)
 			for i, arg := range n.Args {
-				v := sqltype.String(b.typ(sqltype.Text), "A.B[]")
+				v := sqltype.String(b.Type(sqltype.Text), "A.B[]")
 				if n.Textual[i] == false {
-					v = sqltype.Boolean(b.typ(sqltype.Bool), false)
+					v = sqltype.Boolean(b.Type(sqltype.Bool), false)
 				}
 				var childError error
 				if i == failing {
@@ -69,7 +69,7 @@ func TestStringIdentBinding(t *testing.T) {
 func TestStringIdentReconstruction(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := statement(t, `SELECT parse_ident(strict=>false,str=>'A.B[]')`).(*parser.Select).Targets[0]
-	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,16 +79,16 @@ func TestStringIdentReconstruction(t *testing.T) {
 	}
 	// Frozen views use their retained AST renderer rather than either bound
 	// scalar renderer. Both presentation and replay must retain named actuals.
-	if err := b.captureViewLiterals(raw, n, analyze.ViewTargetLiteral, 0); err != nil {
+	if err := b.CaptureViewLiterals(raw, n, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	for _, deparse := range []bool{false, true} {
-		renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID(), presentation: viewPresentation{deparse: deparse, pretty: true}}
-		sql, err := renderer.expressionSQL(context.Background(), b.bindingCatalog(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+		renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID(), presentation: viewPresentation{deparse: deparse, pretty: true}}
+		sql, err := renderer.expressionSQL(context.Background(), b.BindingCatalog(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 		if err != nil {
 			t.Fatal(err)
 		}
-		replayed, err := b.bind(statement(t, "SELECT "+sql).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		replayed, err := b.Bind(statement(t, "SELECT "+sql).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal("frozen view named replay", sql, err)
 		}
@@ -122,12 +122,12 @@ func TestStringIdentReconstruction(t *testing.T) {
 		// scalar SQL and the frozen view AST. Execute both pretty modes with
 		// each node's actual catalog owner to protect reversed-role labels.
 		for _, pretty := range []bool{false, true} {
-			renderer := pgRenderer{view: owner.bindingCatalog(), pretty: pretty}
+			renderer := pgRenderer{view: owner.BindingCatalog(), pretty: pretty}
 			rendered, err := renderer.sql(context.Background(), node, pgRenderParent{})
 			if err != nil {
 				t.Fatal("bound presentation", i, pretty, err)
 			}
-			replayed, err := owner.bind(statement(t, "SELECT "+rendered).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			replayed, err := owner.Bind(statement(t, "SELECT "+rendered).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal("bound presentation replay", i, pretty, rendered, err)
 			}
@@ -142,11 +142,11 @@ func TestStringIdentReconstruction(t *testing.T) {
 		}
 		// Canonical stored SQL has a separate renderer from pg_get_viewdef's
 		// presentation route. Replay must preserve the reversed formal roles.
-		sql, err := defaultSQL(context.Background(), owner.bindingCatalog(), node)
+		sql, err := defaultSQL(context.Background(), owner.BindingCatalog(), node)
 		if err != nil {
 			t.Fatal(err)
 		}
-		replayed, err := owner.bind(statement(t, "SELECT "+sql).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		replayed, err := owner.Bind(statement(t, "SELECT "+sql).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal("canonical named replay", sql, err)
 		}

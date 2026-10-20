@@ -51,11 +51,11 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	array := aclUnitType(t, e, sqltype.ACLItemArray)
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	position := parser.Position{Offset: 7, Character: 8}
-	value, err := b.inputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
+	value, err := b.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil {
 		t.Fatal(err)
 	}
-	arrayValue, err := b.inputConstant("[0:1]={acl_unit_a=rw*/acl_unit_b,NULL}", array.Usage(), parser.Position{Offset: 50, Character: 51})
+	arrayValue, err := b.InputConstant("[0:1]={acl_unit_a=rw*/acl_unit_b,NULL}", array.Usage(), parser.Position{Offset: 50, Character: 51})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,9 +84,9 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	if original, ok := oldRoles.Lookup("acl_unit_a"); !ok || original.Ref != a.Ref {
 		t.Fatal("rename mutated old role root")
 	}
-	expected := &StatementDescription{temporals: append([]temporalConstant(nil), b.prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
+	expected := &StatementDescription{temporals: append([]temporalConstant(nil), b.Prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
 	reused := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
-	captured, err := reused.inputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
+	captured, err := reused.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(value, captured) {
 		t.Fatal("prepared literal re-resolved old spelling", err)
 	}
@@ -151,7 +151,7 @@ func TestACLItemEqualityAdmission(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	for _, operator := range []string{"<>", "!=", "<", "<=", ">", ">="} {
 		raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: operator}}}, Pos: parser.Position{Character: 29}}
-		_, _, err := b.resolveComparisonTypes(raw, d, nil)
+		_, _, err := b.ResolveComparisonTypes(raw, d, nil)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Position != "29" {
 			t.Fatal("operator-before-input boundary", operator, err)

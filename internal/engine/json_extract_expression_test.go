@@ -30,8 +30,8 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 		node := jsonbSetUnitBind(t, b, tc.q)
 		for i, id := range tc.ids {
-			if b.params.parameters[i+1].Type.ID() != id {
-				t.Fatal(tc.q, i, b.params.parameters)
+			if b.Params.Parameters[i+1].Type.ID() != id {
+				t.Fatal(tc.q, i, b.Params.Parameters)
 			}
 		}
 		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || exec.PlannedVolatility(node) != expr.Immutable {
@@ -107,14 +107,14 @@ func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
 			t.Run(q, func(t *testing.T) {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, q).(*parser.Select).Targets[0]
-				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+				if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)

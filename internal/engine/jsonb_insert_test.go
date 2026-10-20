@@ -21,14 +21,14 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 	e := node.(functions.JSONBSet)
 	typeIDs := [4]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool}
 	for i, id := range typeIDs {
-		if b.params.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id || e.Args[i].ResultUsage().Typmod != -1 {
+		if b.Params.Parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id || e.Args[i].ResultUsage().Typmod != -1 {
 			t.Fatal("formal inference", i)
 		}
 		binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 		args := []parser.Expr{datetimeMakeString("[0]"), datetimeMakeString("{0}"), datetimeMakeString("9"), datetimeMakeString("false")}
 		args[i] = parser.ParameterExpr{Number: 1}
-		n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_insert", args...))
-		if err != nil || !n.Properties().ParameterDependent || binder.params.parameters[1].Type.ID() != id {
+		n, err := binder.BindFunctionProvider(datetimeMakeRaw("jsonb_insert", args...))
+		if err != nil || !n.Properties().ParameterDependent || binder.Params.Parameters[1].Type.ID() != id {
 			t.Fatal("isolated formal inference", i, err)
 		}
 	}
@@ -115,7 +115,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 		e := base
 		column := plan.ColumnExpr{Info: expr.Info{Usage: e.Args[slot].ResultUsage(), Property: expr.Properties{RowDependent: true}}}
 		e.Args[slot] = column
-		rewritten, err := b.rewriteGroup(e, []expr.Expr{column})
+		rewritten, err := b.RewriteGroup(e, []expr.Expr{column})
 		if err != nil {
 			t.Fatal(slot, err)
 		}
@@ -144,7 +144,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	args := []parser.Expr{datetimeMakeString("[0]"), datetimeMakeString("{0}"), datetimeMakeString("9"),
 		parser.CastExpr{Child: parser.CastExpr{Child: datetimeMakeRaw("random"), TypeName: parser.TypeName{Name: "text"}}, TypeName: parser.TypeName{Name: "boolean"}}}
-	n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_insert", args...))
+	n, err := binder.BindFunctionProvider(datetimeMakeRaw("jsonb_insert", args...))
 	if err != nil {
 		t.Fatal(err)
 	}

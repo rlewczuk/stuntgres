@@ -43,7 +43,7 @@ func TestBinaryAccessResolution(t *testing.T) {
 			if id != 0 {
 				// Supply typed operands directly: overload resolution does not
 				// require (or admit) general BIT/VARBIT SQL casts.
-				b.params.parameters[i+1] = b.typ(id).Usage()
+				b.Params.Parameters[i+1] = b.Type(id).Usage()
 				args[i] = parser.ParameterExpr{Number: i + 1}
 			}
 		}
@@ -141,7 +141,7 @@ func bitAccessBindingProperties(t *testing.T) {
 		for _, unknown := range []bool{false, true} {
 			for _, defaults := range []bool{false, true} {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-				b.consumer.defaultConsumer = defaults
+				b.Consumer.DefaultConsumer = defaults
 				source := parser.Value{Kind: parser.BitStringValue, Text: "b101"}
 				if unknown {
 					source = parser.Value{Kind: parser.StringValue, Text: "101"}
@@ -163,7 +163,7 @@ func bitAccessBindingProperties(t *testing.T) {
 					t.Fatal(name, node)
 				}
 				// DEFAULT admission must not widen the adjacent BYTEA family.
-				b.consumer.defaultConsumer = true
+				b.Consumer.DefaultConsumer = true
 				raw.Args[0] = parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x80"}}, TypeName: parser.TypeName{Name: "bytea"}}
 				_, err = functions.BindBinary(b, raw, true)
 				var state interface{ SQLState() string }
@@ -182,11 +182,11 @@ func bitAccessBindingProperties(t *testing.T) {
 			raw.Args = append(raw.Args, parser.ParameterExpr{Number: 2})
 		}
 		node, err := functions.BindBinary(b, raw, true)
-		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || b.params.parameters[1].Type.ID() != sqltype.Int4 {
+		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || b.Params.Parameters[1].Type.ID() != sqltype.Int4 {
 			t.Fatal("parameter propagation", name, node, err)
 		}
 		for _, family := range []sqltype.ID{sqltype.Bit, sqltype.VarBit} {
-			usage := b.typ(family).Usage()
+			usage := b.Type(family).Usage()
 			usage.Typmod = 3
 			value, err := sqltype.BitString(usage.Type, "101")
 			if err != nil {
@@ -196,7 +196,7 @@ func bitAccessBindingProperties(t *testing.T) {
 			source := plan.LiteralExpr{Info: expr.Info{Usage: usage, Property: props}, Value: value}
 			operands := []functions.Argument{{Expression: source, Usage: usage}}
 			for i := 1; i < len(raw.Args); i++ {
-				u := b.typ(sqltype.Int4).Usage()
+				u := b.Type(sqltype.Int4).Usage()
 				v, _ := sqltype.Integer(u.Type, 0)
 				operands = append(operands, functions.Argument{Expression: plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: v}, Usage: u})
 			}

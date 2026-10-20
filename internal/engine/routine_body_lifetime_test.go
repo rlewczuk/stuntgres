@@ -33,14 +33,14 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	binder := newExpressionBinder(context.Background(), e, input, reader, nil)
-	binder.query.auth = &auth
-	binder.query.namespace = &queryNamespace{}
-	node, err := binder.bind(parser.FunctionExpr{Name: preparedBoundaryName("bit_length"), Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "abc"}}}}, expressionPolicy{context: projectionContext})
+	binder.Query.Auth = &auth
+	binder.Query.Namespace = &queryNamespace{}
+	node, err := binder.Bind(parser.FunctionExpr{Name: preparedBoundaryName("bit_length"), Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "abc"}}}}, expressionPolicy{Context: ProjectionContext})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := binder.dependencies
+	original := binder.Dependencies
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: original}}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("genuine original body authority", err)
@@ -325,9 +325,9 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
-			binder.query.auth, binder.target.ref = &auth, ref
-			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
-			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+			binder.Query.Auth, binder.Target.Ref = &auth, ref
+			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
+			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal("actual provider selection", err)
@@ -336,14 +336,14 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			if err != nil || outer == nil || outer.Address().ObjectID != test.id {
 				t.Fatal("selected released root", outer, err)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original body admission", err)
 			}
 			for _, id := range test.calls {
 				address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 				var missing []catalog.ExpressionDependency
-				for _, dependency := range binder.dependencies {
+				for _, dependency := range binder.Dependencies {
 					if dependency.Ref.Address != address {
 						missing = append(missing, dependency)
 					}

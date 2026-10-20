@@ -102,7 +102,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.ArrayExpr{Elements: []parser.Expr{parser.RegclassExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "pg_catalog.pg_class"}}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}
-	node, err := b.bindArray(raw, sqltype.Usage{})
+	node, err := b.BindArray(raw, sqltype.Usage{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	if count != 2 {
 		t.Fatal(count)
 	}
-	if exec.PlannedVolatility(node) != expr.Immutable || !generationImmutable(node) || !defaultReplayDeferrable(catalog.ColumnDefault{Expression: node}) || !b.sameGroupExpression(node, node) {
+	if exec.PlannedVolatility(node) != expr.Immutable || !generationImmutable(node) || !defaultReplayDeferrable(catalog.ColumnDefault{Expression: node}) || !b.SameGroupExpression(node, node) {
 		t.Fatal("constructor properties/walkers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -131,7 +131,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	if _, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	empty, err := b.bindArray(parser.ArrayExpr{}, node.ResultUsage())
+	empty, err := b.BindArray(parser.ArrayExpr{}, node.ResultUsage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,22 +178,22 @@ func TestRegclassConstructorParameterOccurrences(t *testing.T) {
 		for _, repeated := range []bool{false, true} {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			typ := b.typ(sqltype.Regclass)
+			typ := b.Type(sqltype.Regclass)
 			raw := parser.ArrayExpr{Elements: []parser.Expr{parser.ParameterExpr{Number: 1}}}
 			expected := sqltype.Usage{}
 			if contextual {
-				expected = b.typ(typ.AssociatedArray()).Usage()
+				expected = b.Type(typ.AssociatedArray()).Usage()
 			} else {
 				raw.Elements = append(raw.Elements, parser.RegclassExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "pg_catalog.pg_class"}}})
 			}
 			if repeated {
 				raw.Elements = append(raw.Elements, parser.ParameterExpr{Number: 1})
 			}
-			node, err := b.bindArray(raw, expected)
+			node, err := b.BindArray(raw, expected)
 			if err != nil {
 				t.Fatal(contextual, repeated, err)
 			}
-			parameters, err := b.finish()
+			parameters, err := b.Finish()
 			if err != nil || parameters.Count != 1 || parameters.Types[0].Type != typ || !node.Properties().ParameterDependent {
 				t.Fatal(parameters, node.Properties(), err)
 			}

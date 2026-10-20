@@ -34,13 +34,13 @@ func TestNullCountResolver(t *testing.T) {
 	e := New()
 	for _, name := range []string{"num_nulls", "num_nonnulls"} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		_, err := b.bind(nullCountRaw(name), expressionPolicy{context: projectionContext})
+		_, err := b.Bind(nullCountRaw(name), expressionPolicy{Context: ProjectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42883", Message: "function " + name + "() does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
 		args := make([]parser.Expr, 100)
 		for i := range args {
 			args[i] = parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
 		}
-		bound, err := b.bind(nullCountRaw(name, args...), expressionPolicy{context: projectionContext})
+		bound, err := b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,22 +56,22 @@ func TestNullCountResolver(t *testing.T) {
 		// Child transformation errors precede the outer function's arity guard.
 		args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}})
 		args[0] = parser.ParameterExpr{Number: 0, Pos: parser.Position{Character: 18}}
-		_, err = b.bind(nullCountRaw(name, args...), expressionPolicy{context: projectionContext})
+		_, err = b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: ProjectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P02", Message: "there is no parameter $0", Position: "18"})
 		args[0] = parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
-		_, err = b.bind(nullCountRaw(name, args...), expressionPolicy{context: projectionContext})
+		_, err = b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: ProjectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"})
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	arg := parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue, Pos: parser.Position{Character: 27}}}
 	raw := nullCountRaw("num_nulls", arg)
 	raw.Variadic = true
-	_, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42804", Message: "VARIADIC argument must be an array", Position: "27"})
 	raw.Args = append(raw.Args, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}})
-	_, err = b.bind(raw, expressionPolicy{context: projectionContext})
+	_, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42883", Message: "function num_nulls(unknown, integer) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
-	_, err = b.bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 0, Pos: parser.Position{Character: 18}}), expressionPolicy{context: projectionContext})
+	_, err = b.Bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 0, Pos: parser.Position{Character: 18}}), expressionPolicy{Context: ProjectionContext})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P02", Message: "there is no parameter $0", Position: "18"})
 }
 
@@ -81,50 +81,50 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Bool} {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		parameter := parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 18}}
-		bound, err := b.bind(nullCountRaw("num_nulls", parameter), expressionPolicy{context: projectionContext})
+		bound, err := b.Bind(nullCountRaw("num_nulls", parameter), expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || !bound.Properties().ParameterDependent {
+		if bound.ResultUsage() != b.Type(sqltype.Int4).Usage() || !bound.Properties().ParameterDependent {
 			t.Fatal(bound)
 		}
-		if _, err := b.finish(); err == nil {
+		if _, err := b.Finish(); err == nil {
 			t.Fatal("unresolved ANY escaped analysis")
 		} else {
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P18", Message: "could not determine data type of parameter $1"})
 		}
-		if err := b.constrain(1, b.typ(id).Usage(), parameter.Pos); err != nil {
+		if err := b.Constrain(1, b.Type(id).Usage(), parameter.Pos); err != nil {
 			t.Fatal(err)
 		}
-		_, err = b.finish()
+		_, err = b.Finish()
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P08", Message: "could not determine data type of parameter $1", Position: "18"})
 		// A concrete type known before call transformation is usable unchanged.
 		known := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		if err := known.constrain(1, known.typ(id).Usage(), parameter.Pos); err != nil {
+		if err := known.Constrain(1, known.Type(id).Usage(), parameter.Pos); err != nil {
 			t.Fatal(err)
 		}
-		call, err := known.bind(nullCountRaw("num_nonnulls", parameter), expressionPolicy{context: projectionContext})
+		call, err := known.Bind(nullCountRaw("num_nonnulls", parameter), expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if info, err := known.finish(); err != nil || info.Count != 1 || info.Types[0] != known.typ(id).Usage() {
+		if info, err := known.Finish(); err != nil || info.Count != 1 || info.Types[0] != known.Type(id).Usage() {
 			t.Fatal(info, err)
 		}
-		v, err := call.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(known.typ(id))}}})
+		v, err := call.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(known.Type(id))}}})
 		n, _ := v.Integer()
 		if err != nil || n != 0 {
 			t.Fatal(v, err)
 		}
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	_, err := b.bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 2147483647}), expressionPolicy{context: projectionContext})
+	_, err := b.Bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 2147483647}), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(b.params.parameters) != 1 || len(b.params.anyParameters) != 1 {
+	if len(b.Params.Parameters) != 1 || len(b.Params.AnyParameters) != 1 {
 		t.Fatal("sparse analysis expanded parameter index")
 	}
-	_, err = b.finish()
+	_, err = b.Finish()
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P18", Message: "could not determine data type of parameter $1"})
 }
 

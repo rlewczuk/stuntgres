@@ -11,7 +11,7 @@ import (
 func (b *expressionBinder) BindSearchShape(d *plan.CTEDefinition) error {
 	s := d.Search
 	s.Slot = d.UserWidth
-	s.Depth = b.typ(sqltype.Int8)
+	s.Depth = b.Type(sqltype.Int8)
 	s.Keys = make([]int, len(s.Syntax.Keys))
 	offset := 0
 	if s.Syntax.Breadth {
@@ -38,7 +38,7 @@ func (b *expressionBinder) BindSearchShape(d *plan.CTEDefinition) error {
 			}
 		}
 		s.Keys[i] = slot
-		usage := b.typ(sqltype.Text).Usage()
+		usage := b.Type(sqltype.Text).Usage()
 		if slot >= 0 {
 			usage = d.Schema[slot].Usage
 		}

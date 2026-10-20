@@ -7,9 +7,9 @@ import (
 )
 
 // Text-search captures reuse the existing occurrence-keyed analysis cell.
-func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
+func (b *expressionBinder) RegTSConstant(text string, usage sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
 	constant := regtypeConstant{Offset: pos.Offset, Operator: usage.Type.ID()}
-	for _, c := range b.expected.Regtypes {
+	for _, c := range b.Expected.Regtypes {
 		if c.Offset == pos.Offset && c.Operator == usage.Type.ID() && c.Value.Type() != nil {
 			value, err := c.Value.Retag(usage.Type)
 			if err != nil {
@@ -18,16 +18,16 @@ func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos p
 			for _, dependency := range c.Operands {
 				b.dependency(dependency.Ref, dependency.Revision)
 			}
-			b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, c)
+			b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, c)
 			return value, nil
 		}
 	}
 	if err := b.captureElementInput(); err != nil {
 		return sqltype.Value{}, err
 	}
-	input := b.input
+	input := b.Input
 	input.RegTS = input.RegTS.(analyze.RegTSRetarget).RetargetRegTS(analyze.IdentifierTarget{Qualified: &constant.Qualified, Resolved: &constant.Operands})
-	value, err := usage.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
+	value, err := usage.Type.InputWithEnvironment(b.Ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {
 		return sqltype.Value{}, analyze.RegtypeInputError(err, pos)
 	}
@@ -35,6 +35,6 @@ func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos p
 	for _, dependency := range constant.Operands {
 		b.dependency(dependency.Ref, dependency.Revision)
 	}
-	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
+	b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, constant)
 	return value, nil
 }

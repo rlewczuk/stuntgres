@@ -21,7 +21,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []plan.Sort
 	for i, e := range s.Distinct.On {
 		raw[i] = parser.OrderKey{Expr: e, Pos: parser.ExpressionStart(e)}
 	}
-	b.clause.aggregateClause = "DISTINCT ON"
+	b.Clause.AggregateClause = "DISTINCT ON"
 	on, err := b.BindOrder(&parser.Order{Keys: raw}, projection, names, "DISTINCT ON")
 	if err != nil {
 		return nil, nil, err
@@ -172,7 +172,7 @@ func (b *expressionBinder) FinishDistinctOn(root plan.Node, order, on []plan.Sor
 		}
 		if !demanded {
 			for i, k := range required {
-				if b.sameGroupExpression(expr, k.Expression) {
+				if b.SameGroupExpression(expr, k.Expression) {
 					chosen = i
 					break
 				}

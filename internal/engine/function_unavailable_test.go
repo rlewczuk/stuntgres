@@ -47,7 +47,7 @@ func TestUnavailableFunctionIdentityBoundary(t *testing.T) {
 			if !ok {
 				t.Fatalf("not an ordinary function expression: %T", raw)
 			}
-			node, err := b.bindFunctionProvider(call)
+			node, err := b.BindFunctionProvider(call)
 			var diagnostic *sqlstate.Error
 			if node != nil || !errors.As(err, &diagnostic) || diagnostic.Code != test.code || diagnostic.Position != "11" {
 				t.Fatalf("node=%T diagnostic=%v, want %s at 11", node, err, test.code)

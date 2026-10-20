@@ -31,11 +31,11 @@ func TestRangeAggregateProvider(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange} {
 		d, _ := e.CatalogRead().LookupType(id)
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
-		b.params.parameters[1] = d.Usage()
+		b.Clause.AggregateClause = "SELECT"
+		b.Params.Parameters[1] = d.Usage()
 		for _, name := range []string{"range_agg", "range_agg", "range_intersect_agg"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
-			result, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			result, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -43,11 +43,11 @@ func TestRangeAggregateProvider(t *testing.T) {
 				t.Fatal("result usage", result.ResultUsage())
 			}
 		}
-		if len(b.grouping.aggregates) != 2 || b.grouping.aggregates[0].Operation != functions.AggregateRangeUnion || b.grouping.aggregates[1].Operation != functions.AggregateRangeIntersection || b.grouping.aggregates[0].IncludeNulls || b.grouping.aggregates[1].IncludeNulls {
-			t.Fatal("operation/strict call identity", b.grouping.aggregates)
+		if len(b.Grouping.Aggregates) != 2 || b.Grouping.Aggregates[0].Operation != functions.AggregateRangeUnion || b.Grouping.Aggregates[1].Operation != functions.AggregateRangeIntersection || b.Grouping.Aggregates[0].IncludeNulls || b.Grouping.Aggregates[1].IncludeNulls {
+			t.Fatal("operation/strict call identity", b.Grouping.Aggregates)
 		}
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		binder.params.parameters[1] = d.Usage()
+		binder.Params.Parameters[1] = d.Usage()
 		query, err := binder.BindSelect(&parser.Select{Targets: []parser.Expr{
 			parser.AggregateExpr{Name: "range_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}},
 			parser.AggregateExpr{Name: "range_intersect_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}},

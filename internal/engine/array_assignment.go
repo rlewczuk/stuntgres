@@ -25,10 +25,10 @@ func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sql
 	return usage
 }
 
-func (b *expressionBinder) bindArrayTarget(column catalog.Column, raw []parser.ArraySubscript, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
+func (b *expressionBinder) BindArrayTarget(column catalog.Column, raw []parser.ArraySubscript, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
 	usage := column.Usage.BaseUsage()
 	if !usage.Type.IsArray() {
-		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.diagnosticTypeName(usage.Type)), pos)
+		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.DiagnosticTypeName(usage.Type)), pos)
 	}
 	subs, slice, err := b.bindArrayBounds(raw)
 	if err != nil {
@@ -53,7 +53,7 @@ func (b *expressionBinder) arrayAssignmentDiagnostic(t *plan.ArrayAssignmentTarg
 		return err
 	}
 	copy := *d
-	destinationName, sourceName := b.diagnosticTypeName(t.Destination.Type), b.diagnosticTypeName(source)
+	destinationName, sourceName := b.DiagnosticTypeName(t.Destination.Type), b.DiagnosticTypeName(source)
 	leaf := t
 	for leaf.Next != nil {
 		leaf = leaf.Next
@@ -68,7 +68,7 @@ func (b *expressionBinder) arrayAssignmentDiagnostic(t *plan.ArrayAssignmentTarg
 	return &copy
 }
 
-func targetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usage {
+func TargetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usage {
 	usage := container
 	for i := 0; i < len(steps); {
 		if field := steps[i].Field; field != nil {
@@ -106,7 +106,7 @@ func targetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usa
 	return usage
 }
 
-func (b *expressionBinder) bindAssignmentTarget(column catalog.Column, steps []parser.TargetStep, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
+func (b *expressionBinder) BindAssignmentTarget(column catalog.Column, steps []parser.TargetStep, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
 	return b.bindAssignmentTargetPath(column, steps, pos, pos)
 }
 
@@ -116,7 +116,7 @@ func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps
 	if field := steps[0].Field; field != nil {
 		shape := column.Usage.Type.BaseType()
 		if !shape.IsComposite() {
-			return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot assign to field %q of column %q because its type %s is not a composite type", field.Text, column.Name, b.diagnosticTypeName(shape)), pos)
+			return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot assign to field %q of column %q because its type %s is not a composite type", field.Text, column.Name, b.DiagnosticTypeName(shape)), pos)
 		}
 		for i := range shape.CompositeLen() {
 			member := shape.CompositeMember(i)
@@ -137,7 +137,7 @@ func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps
 			}
 			return target, nil
 		}
-		return nil, expr.ErrorAt("42703", fmt.Sprintf("cannot assign to field %q of column %q because there is no such column in data type %s", field.Text, column.Name, b.diagnosticTypeName(shape)), pos)
+		return nil, expr.ErrorAt("42703", fmt.Sprintf("cannot assign to field %q of column %q because there is no such column in data type %s", field.Text, column.Name, b.DiagnosticTypeName(shape)), pos)
 	}
 	var storage [6]parser.ArraySubscript
 	count := 0
@@ -151,7 +151,7 @@ func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps
 	for i := range count {
 		raw[i] = *steps[i].Subscript
 	}
-	target, err := b.bindArrayTarget(column, raw, containerPos)
+	target, err := b.BindArrayTarget(column, raw, containerPos)
 	if err != nil {
 		return nil, err
 	}

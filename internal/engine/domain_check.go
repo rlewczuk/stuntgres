@@ -47,12 +47,12 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		}
 		installed[name], used[name] = true, true
 		b := newExpressionBinder(ctx, e, input, op, nil)
-		b.query.auth = &auth
-		b.query.namespace = &queryNamespace{}
-		b.consumer.checkConsumer, b.params.noParameters = true, true
+		b.Query.Auth = &auth
+		b.Query.Namespace = &queryNamespace{}
+		b.Consumer.CheckConsumer, b.Params.NoParameters = true, true
 		base := d.SQLType.DomainBase()
-		b.clause.domainValueUsage = &base
-		node, err := b.bindBoolean(check.Expression, projectionContext, "CHECK")
+		b.Clause.DomainValueUsage = &base
+		node, err := b.BindBoolean(check.Expression, ProjectionContext, "CHECK")
 		if err != nil {
 			return alterCookingError(err)
 		}

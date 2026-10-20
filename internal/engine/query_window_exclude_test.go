@@ -110,24 +110,24 @@ func TestQueryWindowExcludeIdentityAndMetadata(t *testing.T) {
 	binder := &expressionBinder{}
 	a, b := node.Specs[0], node.Specs[0]
 	b.Frame.Exclusion = parser.ExcludeTies
-	if binder.sameWindowSpec(a, b) || !binder.sameWindowSort(a, b) || !binder.sameWindowCall(node.Calls[1], node.Calls[2]) {
+	if binder.SameWindowSpec(a, b) || !binder.SameWindowSort(a, b) || !binder.SameWindowCall(node.Calls[1], node.Calls[2]) {
 		t.Fatal("semantic frame/call identity")
 	}
 	if node.Calls[1].Expression.Slot == node.Calls[2].Expression.Slot {
 		t.Fatal("equal SUM targets shared execution ownership")
 	}
 	for _, other := range node.Calls[3:5] {
-		if binder.sameWindowCall(node.Calls[1], other) {
+		if binder.SameWindowCall(node.Calls[1], other) {
 			t.Fatal("distinct typed SUM arguments compared equal")
 		}
 	}
 	left, right := node.Calls[1], node.Calls[2]
 	left.Spec, right.Spec = a, b
-	if binder.sameWindowCall(left, right) {
+	if binder.SameWindowCall(left, right) {
 		t.Fatal("distinct exclusion modes compared equal")
 	}
 	left.Raw, right.Raw = &parser.WindowSpec{}, &parser.WindowSpec{}
-	if !binder.sameWindowCall(left, right) {
+	if !binder.SameWindowCall(left, right) {
 		t.Fatal("identical unresolved SUM targets compared unequal")
 	}
 	for _, call := range node.Calls[1:5] {
@@ -337,16 +337,16 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	project := query.Root.(*plan.ProjectNode)
 	window := project.Child.(*plan.WindowNode)
-	binder.grouping.windowCalls = append([]plan.WindowCall(nil), window.Calls...)
-	binder.grouping.windowCalls[0].Spec = window.Specs[0]
+	binder.Grouping.WindowCalls = append([]plan.WindowCall(nil), window.Calls...)
+	binder.Grouping.WindowCalls[0].Spec = window.Specs[0]
 	raw := statement(t, sql).(*parser.Select).Targets[0]
-	if err := binder.captureViewLiterals(raw, project.Expressions[0], analyze.ViewTargetLiteral, 0); err != nil {
+	if err := binder.CaptureViewLiterals(raw, project.Expressions[0], analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	if len(binder.capture.Literals) != 1 || len(binder.capture.Columns) != 1 {
-		t.Fatal("SUM argument children not captured", binder.capture.Literals, binder.capture.Columns)
+	if len(binder.Capture.Literals) != 1 || len(binder.Capture.Columns) != 1 {
+		t.Fatal("SUM argument children not captured", binder.Capture.Literals, binder.Capture.Columns)
 	}
-	for _, literal := range binder.capture.Literals {
+	for _, literal := range binder.Capture.Literals {
 		value, err := literal.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		n, integerErr := value.Integer()
 		if err != nil || integerErr != nil || n != 1 {

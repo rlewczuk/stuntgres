@@ -27,20 +27,20 @@ func unknownOperand(raw parser.Expr, node expr.Expr) bool {
 // beneath null tests deliberately remain unresolved through final validation.
 func (b *expressionBinder) contextualOperand(raw parser.Expr, node expr.Expr, u sqltype.Usage, context expressionContext) (expr.Expr, error) {
 	if p, ok := node.(plan.ParameterExpr); ok {
-		return b.coerceParameter(p, u)
+		return b.CoerceParameter(p, u)
 	}
-	return b.bind(raw, expressionPolicy{context: context, expected: u, operand: true})
+	return b.Bind(raw, expressionPolicy{Context: context, Expected: u, operand: true})
 }
 
 func (b *expressionBinder) nullTest(raw parser.Expr, pos parser.Position, not, whole bool, context expressionContext) (expr.Expr, error) {
-	child, err := b.bind(raw, expressionPolicy{context: context, operand: true})
+	child, err := b.Bind(raw, expressionPolicy{Context: context, operand: true})
 	if err != nil {
 		return nil, err
 	}
 	if p, ok := child.(plan.ParameterExpr); ok && p.Usage.Type == nil {
-		b.params.anyParameters = append(b.params.anyParameters, p)
+		b.Params.AnyParameters = append(b.Params.AnyParameters, p)
 	}
-	return plan.NullTestExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, child.Properties()), Child: child, Not: not, Whole: whole}, nil
+	return plan.NullTestExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), pos, child.Properties()), Child: child, Not: not, Whole: whole}, nil
 }
 
 func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expressionContext) (expr.Expr, error) {
@@ -48,11 +48,11 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 	case parser.IsNull, parser.IsNotNull:
 		return b.nullTest(raw.Left, raw.Pos, raw.Kind == parser.IsNotNull, false, context)
 	case parser.IsTrue, parser.IsNotTrue, parser.IsFalse, parser.IsNotFalse, parser.IsUnknown, parser.IsNotUnknown:
-		child, err := b.bind(raw.Left, expressionPolicy{context: context, operand: true})
+		child, err := b.Bind(raw.Left, expressionPolicy{Context: context, operand: true})
 		if err != nil {
 			return nil, err
 		}
-		boolUsage := b.typ(sqltype.Bool).Usage()
+		boolUsage := b.Type(sqltype.Bool).Usage()
 		if unknownOperand(raw.Left, child) {
 			child, err = b.contextualOperand(raw.Left, child, boolUsage, context)
 			if err != nil {
@@ -64,16 +64,16 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		if child.ResultUsage().Type != boolUsage.Type {
 			coercionPlan, err := sqltype.PlanCoercion(child.ResultUsage(), boolUsage, sqltype.Implicit)
 			if err != nil {
-				return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], b.diagnosticTypeName(child.ResultUsage().Type)), parser.ExpressionStart(raw.Left))
+				return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], b.DiagnosticTypeName(child.ResultUsage().Type)), parser.ExpressionStart(raw.Left))
 			}
-			info, err := b.coercionInfo(b.info(boolUsage, child.SourcePosition(), analyze.CoercionProperties(child, coercionPlan)), child)
+			info, err := b.coercionInfo(b.Info(boolUsage, child.SourcePosition(), analyze.CoercionProperties(child, coercionPlan)), child)
 			if err != nil {
 				return nil, err
 			}
 			child = plan.CoercionExpr{Info: info, Child: child, Plan: coercionPlan, Mode: sqltype.Implicit}
 		}
 		truth := [...]plan.Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown}
-		return plan.TruthTestExpr{Info: b.info(boolUsage, raw.Pos, child.Properties()), Child: child, Truth: truth[index], Not: index%2 == 1}, nil
+		return plan.TruthTestExpr{Info: b.Info(boolUsage, raw.Pos, child.Properties()), Child: child, Truth: truth[index], Not: index%2 == 1}, nil
 	case parser.IsDistinct, parser.IsNotDistinct:
 		if left, ok := raw.Left.(parser.RowExpr); ok {
 			if right, ok := raw.Right.(parser.RowExpr); ok {
@@ -82,7 +82,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 					mode = "IS NOT DISTINCT FROM"
 				}
 				operator := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: raw.Pos}
-				return b.bindRowPredicate(operator, sqltype.CompareEqual, left, right, mode)
+				return b.BindRowPredicate(operator, sqltype.CompareEqual, left, right, mode)
 			}
 		}
 		if rawNull(raw.Left) {
@@ -93,16 +93,16 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		}
 		// Use the ordinary operator-specific equality binder, preserving its
 		// selected formal conversions, occurrence inference and dependencies.
-		left, err := b.comparisonOperandPolicy(raw.Left, expressionPolicy{context: context, operand: true})
+		left, err := b.comparisonOperandPolicy(raw.Left, expressionPolicy{Context: context, operand: true})
 		if err != nil {
 			return nil, err
 		}
-		right, err := b.comparisonOperandPolicy(raw.Right, expressionPolicy{context: context, operand: true})
+		right, err := b.comparisonOperandPolicy(raw.Right, expressionPolicy{Context: context, operand: true})
 		if err != nil {
 			return nil, err
 		}
 		operator := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Args: []parser.Expr{raw.Left, raw.Right}, Pos: raw.Pos}
-		bound, err := b.bindComparisonOperands(operator, sqltype.CompareEqual, left, right)
+		bound, err := b.BindComparisonOperands(operator, sqltype.CompareEqual, left, right)
 		if err != nil {
 			return nil, err
 		}

@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func orderOrdinal(raw parser.Expr, width int, clause string) (int, bool, error) {
+func OrderOrdinal(raw parser.Expr, width int, clause string) (int, bool, error) {
 	literal, ok := raw.(parser.LiteralExpr)
 	if !ok {
 		return 0, false, nil
@@ -43,12 +43,12 @@ func orderOrdinal(raw parser.Expr, width int, clause string) (int, bool, error) 
 func (b *expressionBinder) orderOutput(expression expr.Expr) (expr.Expr, error) {
 	if unknown, ok := expression.(plan.UnknownOutput); ok {
 		var err error
-		expression, err = b.bind(unknown.Raw, expressionPolicy{context: projectionContext})
+		expression, err = b.Bind(unknown.Raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			return nil, err
 		}
 	}
-	return b.finalizeProjection(expression)
+	return b.FinalizeProjection(expression)
 }
 
 func (b *expressionBinder) BindOrder(order *parser.Order, projection []expr.Expr, names []string, clause string) ([]plan.SortKey, error) {
@@ -57,7 +57,7 @@ func (b *expressionBinder) BindOrder(order *parser.Order, projection []expr.Expr
 	}
 	keys := make([]plan.SortKey, len(order.Keys))
 	for i, raw := range order.Keys {
-		output, ordinal, err := orderOrdinal(raw.Expr, len(projection), clause)
+		output, ordinal, err := OrderOrdinal(raw.Expr, len(projection), clause)
 		if err != nil {
 			return nil, err
 		}
@@ -86,18 +86,18 @@ func (b *expressionBinder) BindOrder(order *parser.Order, projection []expr.Expr
 		if output >= 0 {
 			expression, err = b.orderOutput(projection[output])
 		} else {
-			firstWindowCall := len(b.grouping.windowCalls)
-			expression, err = b.bind(raw.Expr, expressionPolicy{context: projectionContext})
+			firstWindowCall := len(b.Grouping.WindowCalls)
+			expression, err = b.Bind(raw.Expr, expressionPolicy{Context: ProjectionContext})
 			if err == nil {
-				expression, err = b.finalizeProjection(expression)
+				expression, err = b.FinalizeProjection(expression)
 			}
 			if err == nil {
 				for j, candidate := range projection {
-					if b.sameGroupExpression(expression, candidate) {
+					if b.SameGroupExpression(expression, candidate) {
 						output = j
 						expression = candidate
-						for k := firstWindowCall; k < len(b.grouping.windowCalls); k++ {
-							b.grouping.windowCalls[k].AnalysisOnly = true
+						for k := firstWindowCall; k < len(b.Grouping.WindowCalls); k++ {
+							b.Grouping.WindowCalls[k].AnalysisOnly = true
 						}
 						break
 					}
@@ -116,7 +116,7 @@ func (b *expressionBinder) BindOrder(order *parser.Order, projection []expr.Expr
 		if output >= 0 {
 			projection[output] = expression
 		}
-		if demand := b.query.namespace.IdentityValuesOrderDemand; len(demand) != 0 {
+		if demand := b.Query.Namespace.IdentityValuesOrderDemand; len(demand) != 0 {
 			if column, ok := expression.(plan.ColumnExpr); ok {
 				demand[column.Slot] = true
 			}
@@ -176,7 +176,7 @@ func (b *expressionBinder) FinishOrder(root plan.Node, keys []plan.SortKey, proj
 		// SQL99 resolves against the accumulated ORDER target list, including
 		// preceding hidden targets. Direction and NULL policy remain per key.
 		for previous := range i {
-			if keys[previous].Cache >= 0 && ((key.TargetIdentity != 0 && keys[previous].TargetIdentity == key.TargetIdentity) || (key.TargetIdentity == 0 && b.sameGroupExpression(keys[previous].Expression, key.Expression))) {
+			if keys[previous].Cache >= 0 && ((key.TargetIdentity != 0 && keys[previous].TargetIdentity == key.TargetIdentity) || (key.TargetIdentity == 0 && b.SameGroupExpression(keys[previous].Expression, key.Expression))) {
 				key.Cache = keys[previous].Cache
 				break
 			}
@@ -199,7 +199,7 @@ func (b *expressionBinder) FinishOrder(root plan.Node, keys []plan.SortKey, proj
 		}
 		if !demanded {
 			for k, key := range keys {
-				if key.Cache >= 0 && b.sameGroupExpression(output, key.Expression) {
+				if key.Cache >= 0 && b.SameGroupExpression(output, key.Expression) {
 					chosen = k
 					break
 				}

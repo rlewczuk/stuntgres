@@ -77,7 +77,7 @@ func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 		t.Fatal("value/ordinal identity", node.Calls)
 	}
 	binder := &expressionBinder{}
-	if binder.sameWindowCall(node.Calls[1], node.Calls[2]) {
+	if binder.SameWindowCall(node.Calls[1], node.Calls[2]) {
 		t.Fatal("different ordinals collapsed")
 	}
 	call := node.Calls[1]
@@ -122,21 +122,21 @@ func TestQueryWindowValueBindingUnwind(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			b.clause.aggregateClause, b.query.frame = "SELECT", 1
+			b.Clause.AggregateClause, b.Query.Frame = "SELECT", 1
 			seed := statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0]
-			if _, err := b.bind(seed, expressionPolicy{context: projectionContext}); err != nil {
+			if _, err := b.Bind(seed, expressionPolicy{Context: ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
-			before := b.grouping.windowCalls[:len(b.grouping.windowCalls):len(b.grouping.windowCalls)]
-			b.grouping.windowCalls = before
+			before := b.Grouping.WindowCalls[:len(b.Grouping.WindowCalls):len(b.Grouping.WindowCalls)]
+			b.Grouping.WindowCalls = before
 			values := append([]plan.WindowCall(nil), before...)
-			_, err := b.bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != tc.code {
 				t.Fatal(err)
 			}
-			if len(b.grouping.windowCalls) != len(before) || cap(b.grouping.windowCalls) != cap(before) || &b.grouping.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.grouping.windowCalls) || b.grouping.argumentOwner != (argumentWindowOwner{}) {
-				t.Fatal("failed call changed registration/owner", b.grouping.windowCalls, b.grouping.argumentOwner)
+			if len(b.Grouping.WindowCalls) != len(before) || cap(b.Grouping.WindowCalls) != cap(before) || &b.Grouping.WindowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.Grouping.WindowCalls) || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) {
+				t.Fatal("failed call changed registration/owner", b.Grouping.WindowCalls, b.Grouping.ArgumentOwner)
 			}
 		})
 	}
@@ -296,7 +296,7 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 			if tc.order == " ORDER BY b" && node.Calls[0].Expression.Call != 1 {
 				t.Fatal("later demanded ordinal did not retain its own executing slot", node.Calls[0].Expression)
 			}
-			first, second := windowOccurrence(project.Expressions[0]), windowOccurrence(project.Expressions[1])
+			first, second := WindowOccurrence(project.Expressions[0]), WindowOccurrence(project.Expressions[1])
 			// Demanded projections may read ORDER caches instead of a leaf.
 			if first != nil && second != nil && (first.Slot == second.Slot) != tc.same {
 				t.Fatal("slot ownership", first, second)

@@ -19,7 +19,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	}
 	query := bound.(plan.SubqueryExpr)
 	project := query.QueryPlan.Root.(*plan.ProjectNode)
-	arg := expr.Expr(plan.ColumnExpr{Info: b.info(query.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: 0})
+	arg := expr.Expr(plan.ColumnExpr{Info: b.Info(query.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: 0})
 	var format *parser.JSONFormat
 	if len(raw.Formats) > 0 {
 		format = raw.Formats[0]
@@ -49,7 +49,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if err := functions.ValidateJSONOutputFormat(returning, raw.Output); err != nil {
 		return nil, err
 	}
-	usage := b.typ(id).Usage()
+	usage := b.Type(id).Usage()
 	jsonArrayAggregatePlan, err := sqltype.BindJSONArrayAggregate(arg.ResultUsage(), usage, true)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.coercionInfo(b.info(returning, raw.Pos, analyze.CoercionProperties(query, coercion)), query)
+	info, err := b.coercionInfo(b.Info(returning, raw.Pos, analyze.CoercionProperties(query, coercion)), query)
 	if err != nil {
 		return nil, err
 	}

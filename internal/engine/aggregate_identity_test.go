@@ -65,11 +65,11 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	typ, _ := view.LookupType(sqltype.Regprocedure)
-	if _, err := b.routineConstant("public.int_agg_state(internal,integer)", typ.Usage(), parser.Position{Offset: 8, Character: 8}); err != nil {
+	if _, err := b.RoutineConstant("public.int_agg_state(internal,integer)", typ.Usage(), parser.Position{Offset: 8, Character: 8}); err != nil {
 		t.Fatal(err)
 	}
 	found := false
-	for _, operand := range b.prepared.RegtypeConstants[0].Operands {
+	for _, operand := range b.Prepared.RegtypeConstants[0].Operands {
 		if operand.Ref.Address == proc.Address() && operand.Revision == proc.Revision() {
 			found = true
 		}

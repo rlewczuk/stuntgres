@@ -11,14 +11,14 @@ import (
 )
 
 // FILTER is transformed after ordinary children, but before signature lookup.
-func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (expr.Expr, error) {
+func (b *expressionBinder) BindAggregateFilter(raw parser.AggregateExpr) (expr.Expr, error) {
 	if raw.Filter == nil {
 		return nil, nil
 	}
-	clause, regexpClause := b.clause.aggregateClause, b.clause.regexpClause
-	b.clause.aggregateClause, b.clause.regexpClause = "FILTER", "FILTER"
-	defer func() { b.clause.aggregateClause, b.clause.regexpClause = clause, regexpClause }()
-	return b.bindBoolean(raw.Filter, projectionContext, "FILTER")
+	clause, regexpClause := b.Clause.AggregateClause, b.Clause.RegexpClause
+	b.Clause.AggregateClause, b.Clause.RegexpClause = "FILTER", "FILTER"
+	defer func() { b.Clause.AggregateClause, b.Clause.RegexpClause = clause, regexpClause }()
+	return b.BindBoolean(raw.Filter, ProjectionContext, "FILTER")
 }
 
 // SQL99 ignores implicit coercion of an existing target, not explicit casts.
@@ -30,7 +30,7 @@ func (b *expressionBinder) sameAggregateTarget(target, expression expr.Expr) boo
 		}
 		target = c.Child
 	}
-	return b.sameGroupExpression(target, expression)
+	return b.SameGroupExpression(target, expression)
 }
 
 func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
@@ -38,7 +38,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call plan.A
 	objectProvider, object := call.Provider.(functions.JSONObjectAggregate)
 	if raw.Distinct && !object {
 		var err error
-		call.Argument, err = b.finalizeProjection(call.Argument)
+		call.Argument, err = b.FinalizeProjection(call.Argument)
 		if err != nil {
 			return nil, err
 		}
@@ -53,7 +53,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call plan.A
 		if _, ordered := call.Provider.(functions.OrderedAggregate); ordered {
 			break
 		}
-		expression, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
+		expression, err := b.Bind(key.Expr, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			return nil, err
 		}
@@ -74,13 +74,13 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call plan.A
 		} else {
 			// Preserve other providers' existing provisional-target inference.
 			if call.Argument != nil && call.Argument.ResultUsage().Type == nil && b.sameAggregateTarget(call.Argument, expression) {
-				call.Argument, err = b.finalizeProjection(call.Argument)
+				call.Argument, err = b.FinalizeProjection(call.Argument)
 				if err != nil {
 					return nil, err
 				}
 			}
 		}
-		expression, err = b.finalizeProjection(expression)
+		expression, err = b.FinalizeProjection(expression)
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +164,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call plan.A
 			call.Distinct[i] = grouping
 		}
 	}
-	if err := b.grouping.argumentOwner.nestingError(); err != nil {
+	if err := b.Grouping.ArgumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
 	if object {
@@ -181,22 +181,22 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call plan.A
 		}
 	})
 	info.Property = properties
-	slot := len(b.grouping.aggregates)
+	slot := len(b.Grouping.Aggregates)
 	if properties.Volatility == expr.Immutable {
-		for i, existing := range b.grouping.aggregates {
-			if b.sameAggregateCall(call, existing) {
+		for i, existing := range b.Grouping.Aggregates {
+			if b.SameAggregateCall(call, existing) {
 				slot = i
 				break
 			}
 		}
 	}
-	if slot == len(b.grouping.aggregates) {
-		b.grouping.aggregates = append(b.grouping.aggregates, call)
+	if slot == len(b.Grouping.Aggregates) {
+		b.Grouping.Aggregates = append(b.Grouping.Aggregates, call)
 	}
 	return plan.AggregateExpr{Info: info, Slot: slot, Frame: b.FrameID()}, nil
 }
 
-func (b *expressionBinder) sameAggregateCall(a, other plan.AggregateCall) bool {
+func (b *expressionBinder) SameAggregateCall(a, other plan.AggregateCall) bool {
 	if !plan.SameIntaggIdentity(a.Procedure, a.Ref, other.Procedure, other.Ref) {
 		return false
 	}
@@ -206,17 +206,17 @@ func (b *expressionBinder) sameAggregateCall(a, other plan.AggregateCall) bool {
 			return false
 		}
 	}
-	if a.Operation != other.Operation || a.IncludeNulls != other.IncludeNulls || a.StageWidth != other.StageWidth || a.Provider.ResultUsage() != other.Provider.ResultUsage() || len(a.Distinct) != len(other.Distinct) || len(a.Order) != len(other.Order) || len(a.Direct) != len(other.Direct) || !b.sameGroupExpression(a.Argument, other.Argument) || !b.sameGroupExpression(a.Separator, other.Separator) || !b.sameGroupExpression(a.Filter, other.Filter) {
+	if a.Operation != other.Operation || a.IncludeNulls != other.IncludeNulls || a.StageWidth != other.StageWidth || a.Provider.ResultUsage() != other.Provider.ResultUsage() || len(a.Distinct) != len(other.Distinct) || len(a.Order) != len(other.Order) || len(a.Direct) != len(other.Direct) || !b.SameGroupExpression(a.Argument, other.Argument) || !b.SameGroupExpression(a.Separator, other.Separator) || !b.SameGroupExpression(a.Filter, other.Filter) {
 		return false
 	}
 	for i, direct := range a.Direct {
-		if !b.sameGroupExpression(direct, other.Direct[i]) {
+		if !b.SameGroupExpression(direct, other.Direct[i]) {
 			return false
 		}
 	}
 	for i, key := range a.Order {
 		o := other.Order[i]
-		if key.Desc != o.Desc || key.NullsFirst != o.NullsFirst || key.Slot != o.Slot || key.Cache != o.Cache || !b.sameGroupExpression(key.Expression, o.Expression) {
+		if key.Desc != o.Desc || key.NullsFirst != o.NullsFirst || key.Slot != o.Slot || key.Cache != o.Cache || !b.SameGroupExpression(key.Expression, o.Expression) {
 			return false
 		}
 	}
@@ -230,18 +230,18 @@ func (b *expressionBinder) completeJSONObjectAggregateInput(node expr.Expr) (exp
 	if !unknown || p.Usage.Type != nil {
 		return node, nil
 	}
-	resolved, err := b.finalizeProjection(node)
+	resolved, err := b.FinalizeProjection(node)
 	if err != nil {
 		return nil, err
 	}
-	for i, prior := range b.params.anyParameters {
+	for i, prior := range b.Params.AnyParameters {
 		if prior.Number != p.Number || prior.Pos != p.Pos {
 			continue
 		}
-		copy(b.params.anyParameters[i:], b.params.anyParameters[i+1:])
-		last := len(b.params.anyParameters) - 1
-		b.params.anyParameters[last] = plan.ParameterExpr{}
-		b.params.anyParameters = b.params.anyParameters[:last]
+		copy(b.Params.AnyParameters[i:], b.Params.AnyParameters[i+1:])
+		last := len(b.Params.AnyParameters) - 1
+		b.Params.AnyParameters[last] = plan.ParameterExpr{}
+		b.Params.AnyParameters = b.Params.AnyParameters[:last]
 		break
 	}
 	return resolved, nil

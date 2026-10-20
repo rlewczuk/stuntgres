@@ -101,12 +101,12 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, err
 	}
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, &StatementDescription{Parameters: formal})
-	binder.query.auth = &auth
+	binder.Query.Auth = &auth
 	args := make([]parser.Expr, len(usages))
 	for i := range args {
 		args[i] = parser.ParameterExpr{Number: i + 1}
 	}
-	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: d.Name()}}}, Args: args})
+	node, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: d.Name()}}}, Args: args})
 	if err == nil {
 		selected := expr.InfoOf(node).RoutineReference
 		if selected == nil || selected.RoutineOID() != oid {
@@ -117,8 +117,8 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		e.mu.Unlock()
 		return ProtocolField{}, err
 	}
-	s.routineAuth, s.routineDependencies = auth, binder.dependencies
-	s.input = binder.input
+	s.routineAuth, s.routineDependencies = auth, binder.Dependencies
+	s.input = binder.Input
 	s.domains.inputCatalog = auth.Catalog
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
 	evaluation.Input.DomainChecks = &evaluation

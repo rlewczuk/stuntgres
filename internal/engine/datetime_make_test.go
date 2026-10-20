@@ -37,7 +37,7 @@ func TestDatetimeMakeBinding(t *testing.T) {
 		{"make_timestamptz", []parser.Expr{datetimeMakeInteger(2013), datetimeMakeInteger(7), datetimeMakeInteger(15), datetimeMakeInteger(8), datetimeMakeInteger(15), datetimeMakeString("23.5")}, sqltype.Timestamptz, 6},
 		{"make_interval", nil, sqltype.Interval, 7},
 	} {
-		node, err := b.bindFunctionProvider(datetimeMakeRaw(tc.name, tc.args...))
+		node, err := b.BindFunctionProvider(datetimeMakeRaw(tc.name, tc.args...))
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -48,13 +48,13 @@ func TestDatetimeMakeBinding(t *testing.T) {
 	}
 	raw := datetimeMakeRaw("make_interval", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2})
 	raw.ArgNames = []parser.Identifier{{Text: "secs"}, {Text: "days"}}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeMake)
-	if e.WrittenSlots[0] != 6 || e.WrittenSlots[1] != 3 || b.params.parameters[1].Type.ID() != sqltype.Float8 || b.params.parameters[2].Type.ID() != sqltype.Int4 {
-		t.Fatal(e, b.params.parameters)
+	if e.WrittenSlots[0] != 6 || e.WrittenSlots[1] != 3 || b.Params.Parameters[1].Type.ID() != sqltype.Float8 || b.Params.Parameters[2].Type.ID() != sqltype.Int4 {
+		t.Fatal(e, b.Params.Parameters)
 	}
 	for _, tc := range []struct {
 		raw  parser.FunctionExpr
@@ -64,7 +64,7 @@ func TestDatetimeMakeBinding(t *testing.T) {
 		{datetimeMakeRaw("make_date", parser.CastExpr{Child: datetimeMakeInteger(2000), TypeName: parser.TypeName{Name: "int8"}}, datetimeMakeInteger(1), datetimeMakeInteger(1)), "42883"},
 		{datetimeMakeRaw("make_interval", parser.CastExpr{Child: datetimeMakeString("bad"), TypeName: parser.TypeName{Name: "text"}}), "42883"},
 	} {
-		_, err := b.bindFunctionProvider(tc.raw)
+		_, err := b.BindFunctionProvider(tc.raw)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code {
 			t.Fatal(tc, err)
@@ -88,7 +88,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 			}
 			args = append(args, datetimeMakeInteger(n))
 		}
-		node, err := b.bindFunctionProvider(datetimeMakeRaw(name, args...))
+		node, err := b.BindFunctionProvider(datetimeMakeRaw(name, args...))
 		if err != nil {
 			t.Fatal(name, err)
 		}
@@ -101,7 +101,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if e.Properties().Volatility != want || exec.PlannedVolatility(e) != want || generationImmutable(e) == stable {
 			t.Fatal(name, e.Properties(), exec.PlannedVolatility(e))
 		}
-		if !b.sameGroupExpression(e, e) {
+		if !b.SameGroupExpression(e, e) {
 			t.Fatal("lost structural identity", name)
 		}
 		replacement := map[sqltype.ID]*sqltype.Descriptor{}
@@ -123,7 +123,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		}
 	}
 	raw := datetimeMakeRaw("make_timestamptz", datetimeMakeInteger(2000), datetimeMakeInteger(1), datetimeMakeInteger(1), datetimeMakeInteger(0), datetimeMakeInteger(0), datetimeMakeInteger(0), datetimeMakeString("UTC"))
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,14 +139,14 @@ func TestDatetimeMakeArgumentAssociation(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	raw := datetimeMakeRaw("make_interval", datetimeMakeString("1.5"), datetimeMakeInteger(2))
 	raw.ArgNames = []parser.Identifier{{Text: "secs"}, {Text: "days"}}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+	if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID(), presentation: viewPresentation{deparse: true, pretty: true}}
+	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID(), presentation: viewPresentation{deparse: true, pretty: true}}
 	got, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || got != "make_interval(secs => '1.5'::double precision, days => 2)" {
 		t.Fatal("written literal association/default omission", got, err)
@@ -155,7 +155,7 @@ func TestDatetimeMakeArgumentAssociation(t *testing.T) {
 	other := e
 	other.WrittenSlots[0], other.WrittenSlots[1] = other.WrittenSlots[1], other.WrittenSlots[0]
 	other.Labels[0], other.Labels[1] = other.Labels[1], other.Labels[0]
-	if !b.sameGroupExpression(e, other) {
+	if !b.SameGroupExpression(e, other) {
 		t.Fatal("display provenance changed semantic identity")
 	}
 }

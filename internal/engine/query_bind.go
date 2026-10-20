@@ -20,7 +20,7 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (expr.Ex
 			return plan.UnknownOutput{Info: expr.Info{Pos: raw.SourcePosition()}, Raw: raw}, nil
 		}
 	}
-	return b.bind(raw, expressionPolicy{context: projectionContext})
+	return b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 }
 
 // BindSelect is shared by public SELECT, set operands and INSERT producers.
@@ -38,18 +38,18 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if s.Into != nil {
 		return nil, insertError("42601", "SELECT ... INTO is not allowed here", s.Into.Parts[0].Pos)
 	}
-	if b.query.lockAdmission == nil || b.query.lockAdmission.Queries == nil {
+	if b.Query.lockAdmission == nil || b.Query.lockAdmission.Queries == nil {
 		admission, _, _, err := analyze.NewLockAdmission(s)
 		if err != nil {
 			return nil, err
 		}
-		b.query.lockAdmission = &admission
+		b.Query.lockAdmission = &admission
 	}
 	restore := b.EnterQuery(disallowParent)
 	defer restore()
 	defer func() {
-		if failure == nil && query != nil && (b.params.noParameters || b.consumer.materializedDefinition) {
-			b.normalizeStoredQuerySyntax(s)
+		if failure == nil && query != nil && (b.Params.NoParameters || b.Consumer.materializedDefinition) {
+			b.NormalizeStoredQuerySyntax(s)
 		}
 	}()
 	oldCTEs := len(b.cte.bindings)
@@ -69,7 +69,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		for _, definition := range definitions {
 			if definition.Query != nil {
-				project.AnalysisExpressions = append(project.AnalysisExpressions, plan.SubqueryExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), definition.Position, expr.Properties{}), QueryPlan: definition.Query, CTEEdge: true})
+				project.AnalysisExpressions = append(project.AnalysisExpressions, plan.SubqueryExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), definition.Position, expr.Properties{}), QueryPlan: definition.Query, CTEEdge: true})
 			}
 		}
 	}()
@@ -84,21 +84,21 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		return b.bindSet(s)
 	}
 	if len(s.Locking) != 0 {
-		b.query.rowDiagnosticMode = analyze.RowLockMode(s.Locking[0].Mode)
+		b.Query.rowDiagnosticMode = analyze.RowLockMode(s.Locking[0].Mode)
 	}
 	if disallowParent {
-		selected, _ := analyze.RowLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, b.query.lockAdmission.VirtualCTE)
+		selected, _ := analyze.RowLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, b.Query.lockAdmission.VirtualCTE)
 		index := 0
 		_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error {
 			if index < len(selected) && selected[index].Mode != 0 {
-				b.query.rowDiagnosticMode = exec.StrongerQueryRowMode(b.query.rowDiagnosticMode, analyze.RowLockDiagnostic(b.query.lockAdmission.TableMark(table)))
+				b.Query.rowDiagnosticMode = exec.StrongerQueryRowMode(b.Query.rowDiagnosticMode, analyze.RowLockDiagnostic(b.Query.lockAdmission.TableMark(table)))
 			}
 			index++
 			return nil
 		})
 	}
 	if s.Values != nil {
-		query, err := b.bindValues(s.Values, false)
+		query, err := b.BindValues(s.Values, false)
 		if err != nil {
 			return nil, err
 		}
@@ -115,27 +115,27 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if err != nil {
 		return nil, err
 	}
-	b.query.namespace = &namespace
-	b.clause.aggregateClause, b.grouping.aggregates = "SELECT", nil
-	b.grouping.windowRaw = s.Windows
+	b.Query.Namespace = &namespace
+	b.Clause.AggregateClause, b.Grouping.Aggregates = "SELECT", nil
+	b.Grouping.windowRaw = s.Windows
 	var projection []expr.Expr
 	var targetNames []string
 	var literalTargets []int
 	for target, raw := range s.Targets {
-		if err := b.ctx.Err(); err != nil {
+		if err := b.Ctx.Err(); err != nil {
 			return nil, err
 		}
 		if star, ok := raw.(parser.StarExpr); ok {
-			if b.target.ruleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
+			if b.Target.RuleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
 				path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Target: target}
-				if b.capture.Stars == nil {
-					b.capture.Stars = make(map[viewLiteralPath][]viewColumn)
+				if b.Capture.Stars == nil {
+					b.Capture.Stars = make(map[viewLiteralPath][]viewColumn)
 				}
-				b.capture.Stars[path] = nil
-				for _, column := range b.target.ruleNamespace.Relation.Columns {
+				b.Capture.Stars[path] = nil
+				for _, column := range b.Target.RuleNamespace.Relation.Columns {
 					name := star.Qualifier
 					name.Parts = []parser.Identifier{star.Qualifier.Parts[0], {Text: column.Name}}
-					expression, _, err := b.ruleColumn(parser.ColumnExpr{Name: name, Pos: star.Pos})
+					expression, _, err := b.RuleColumn(parser.ColumnExpr{Name: name, Pos: star.Pos})
 					if err != nil {
 						return nil, err
 					}
@@ -143,7 +143,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					projection = append(projection, expression)
 					targetNames = append(targetNames, column.Name)
 					literalTargets = append(literalTargets, -1)
-					b.capture.Stars[path] = append(b.capture.Stars[path], viewColumn{RuleRef: pseudo.Origin, RuleSide: pseudo.Frame})
+					b.Capture.Stars[path] = append(b.Capture.Stars[path], viewColumn{RuleRef: pseudo.Origin, RuleSide: pseudo.Frame})
 				}
 				continue
 			}
@@ -163,24 +163,24 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					if err != nil {
 						return nil, err
 					}
-					columns, frame = q.Columns, b.query.resolvedQueryFrame
+					columns, frame = q.Columns, b.Query.resolvedQueryFrame
 					recordQualifier = q
 				}
 			} else if s.From == nil {
 				return nil, expr.ErrorAt("42601", "SELECT * with no tables specified is not valid", star.Pos)
 			}
 			if returningScope == nil {
-				frozenColumns, err := b.jsonbRecordStarColumns(columns, frame, star, recordQualifier)
+				frozenColumns, err := b.JSONBRecordStarColumns(columns, frame, star, recordQualifier)
 				if err != nil {
 					return nil, err
 				}
 				columns = frozenColumns
 			}
-			if b.params.noParameters || b.consumer.materializedDefinition {
-				if b.capture.Stars == nil {
-					b.capture.Stars = make(map[viewLiteralPath][]viewColumn)
+			if b.Params.NoParameters || b.Consumer.materializedDefinition {
+				if b.Capture.Stars == nil {
+					b.Capture.Stars = make(map[viewLiteralPath][]viewColumn)
 				}
-				b.capture.Stars[starPath] = nil
+				b.Capture.Stars[starPath] = nil
 			}
 			for _, c := range columns {
 				if c.HideStar {
@@ -194,19 +194,19 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 				projection = append(projection, expr)
 				targetNames = append(targetNames, c.Descriptor.Name)
-				if b.params.noParameters || b.consumer.materializedDefinition {
-					b.capture.Stars[starPath] = append(b.capture.Stars[starPath], viewColumn{Frame: frame, Slot: c.Slot})
+				if b.Params.NoParameters || b.Consumer.materializedDefinition {
+					b.Capture.Stars[starPath] = append(b.Capture.Stars[starPath], viewColumn{Frame: frame, Slot: c.Slot})
 					literalTargets = append(literalTargets, -1)
 				}
 			}
 		} else if field, ok := raw.(parser.FieldExpr); ok && field.Expansion {
-			expansion, err := b.expandComposite(field)
+			expansion, err := b.ExpandComposite(field)
 			if err != nil {
 				return nil, err
 			}
 			projection = append(projection, expansion.Fields...)
 			targetNames = append(targetNames, expansion.Names...)
-			if b.params.noParameters || b.consumer.materializedDefinition {
+			if b.Params.NoParameters || b.Consumer.materializedDefinition {
 				path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Target: target}
 				ordinal := 0
 				if err := b.captureCompositeExpansion(field, expansion, path, &ordinal); err != nil {
@@ -222,7 +222,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				return nil, err
 			}
 			projection = append(projection, expr)
-			if b.params.noParameters || b.consumer.materializedDefinition {
+			if b.Params.NoParameters || b.Consumer.materializedDefinition {
 				literalTargets = append(literalTargets, target)
 			}
 			name, _ := expressionName(raw, expr.ResultUsage(), expr)
@@ -233,40 +233,40 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	width := len(projection)
-	b.clause.aggregateClause = "WHERE"
+	b.Clause.AggregateClause = "WHERE"
 	if s.Where != nil {
-		filter, err := b.bindBoolean(s.Where, filterContext, "WHERE")
+		filter, err := b.BindBoolean(s.Where, FilterContext, "WHERE")
 		if err != nil {
 			return nil, err
 		}
-		if b.params.noParameters || b.consumer.materializedDefinition {
-			if err := b.captureViewLiterals(s.Where, filter, analyze.ViewWhereLiteral, 0); err != nil {
+		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+			if err := b.CaptureViewLiterals(s.Where, filter, analyze.ViewWhereLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
-		if !contextual && !b.params.noParameters && !b.consumer.materializedDefinition && len(s.Locking) == 0 {
-			if source, ok := root.(*plan.SourceNode); ok && len(b.query.sources) == 1 && b.query.sources[0].Mark.Mode == 0 {
-				b.query.sources[0].PartialCandidate = b.query.PartialIndexCandidate(source.Ref, filter)
+		if !contextual && !b.Params.NoParameters && !b.Consumer.materializedDefinition && len(s.Locking) == 0 {
+			if source, ok := root.(*plan.SourceNode); ok && len(b.Query.Sources) == 1 && b.Query.Sources[0].Mark.Mode == 0 {
+				b.Query.Sources[0].PartialCandidate = b.Query.PartialIndexCandidate(source.Ref, filter)
 			}
 		}
 		root = &plan.FilterNode{QuerySchema: root.Schema(), Child: root, Predicate: filter}
 	}
-	b.clause.aggregateClause = "GROUP BY"
-	keys, comparisons, sets, err := b.bindGroupClause(s.GroupBy, projection, targetNames)
+	b.Clause.AggregateClause = "GROUP BY"
+	keys, comparisons, sets, err := b.BindGroupClause(s.GroupBy, projection, targetNames)
 	if err != nil {
 		return nil, err
 	}
-	b.grouping.groupSets = sets
-	b.clause.aggregateClause = "HAVING"
+	b.Grouping.GroupSets = sets
+	b.Clause.AggregateClause = "HAVING"
 	var having expr.Expr
 	if s.Having != nil {
 		var err error
-		having, err = b.bindBoolean(s.Having, projectionContext, "HAVING")
+		having, err = b.BindBoolean(s.Having, ProjectionContext, "HAVING")
 		if err != nil {
 			return nil, err
 		}
-		if b.params.noParameters || b.consumer.materializedDefinition {
-			if err := b.captureViewLiterals(s.Having, having, analyze.ViewHavingLiteral, 0); err != nil {
+		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+			if err := b.CaptureViewLiterals(s.Having, having, analyze.ViewHavingLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
@@ -279,7 +279,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 	}
-	b.clause.aggregateClause = "ORDER BY"
+	b.Clause.AggregateClause = "ORDER BY"
 	order, err := b.BindOrder(s.Order, projection, targetNames, "ORDER BY")
 	if err != nil {
 		return nil, err
@@ -299,7 +299,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			slot := key.OutputOrdinal - 1
 			if slot < 0 {
 				for j, expression := range projection {
-					if b.sameGroupExpression(key.Expression, expression) {
+					if b.SameGroupExpression(key.Expression, expression) {
 						slot = j
 						break
 					}
@@ -314,7 +314,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if err := b.resolveWindows(); err != nil {
 		return nil, err
 	}
-	if (b.params.noParameters || b.consumer.materializedDefinition) && s.Order != nil {
+	if (b.Params.NoParameters || b.Consumer.materializedDefinition) && s.Order != nil {
 		frozen := *s.Order
 		frozen.Keys = append([]parser.OrderKey(nil), s.Order.Keys...)
 		for i, key := range frozen.Keys {
@@ -324,19 +324,19 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				frozen.Keys[i].Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: key.Pos}}
 				continue
 			}
-			if err := b.captureViewLiterals(key.Expr, order[i].Expression, analyze.ViewOrderLiteral, i); err != nil {
+			if err := b.CaptureViewLiterals(key.Expr, order[i].Expression, analyze.ViewOrderLiteral, i); err != nil {
 				return nil, err
 			}
 		}
 		s.Order = &frozen
 	}
-	if (b.params.noParameters || b.consumer.materializedDefinition) && len(on) != 0 {
+	if (b.Params.NoParameters || b.Consumer.materializedDefinition) && len(on) != 0 {
 		frozen := *s.Distinct
 		frozen.On = append([]parser.Expr(nil), s.Distinct.On...)
 		for i, raw := range frozen.On {
 			if ordinal := on[i].OutputOrdinal; ordinal != 0 {
 				frozen.On[i] = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: parser.ExpressionStart(raw)}}
-			} else if err := b.captureViewLiterals(raw, on[i].Expression, analyze.ViewDistinctOnLiteral, i); err != nil {
+			} else if err := b.CaptureViewLiterals(raw, on[i].Expression, analyze.ViewDistinctOnLiteral, i); err != nil {
 				return nil, err
 			}
 		}
@@ -351,15 +351,15 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	for i, expression := range projection {
 		if !contextual || plainDistinct {
 			var err error
-			expression, err = b.finalizeProjection(expression)
+			expression, err = b.FinalizeProjection(expression)
 			if err != nil {
 				return nil, err
 			}
 			projection[i] = expression
 		}
-		if (b.params.noParameters || b.consumer.materializedDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
+		if (b.Params.NoParameters || b.Consumer.materializedDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
 			target := literalTargets[i]
-			if err := b.captureViewLiterals(s.Targets[target], expression, analyze.ViewTargetLiteral, target); err != nil {
+			if err := b.CaptureViewLiterals(s.Targets[target], expression, analyze.ViewTargetLiteral, target); err != nil {
 				return nil, err
 			}
 		}
@@ -374,7 +374,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			result.Nullable, result.NullabilityKnown = false, true
 		}
 		for keyIndex, key := range keys {
-			if !b.sameGroupExpression(expression, key) {
+			if !b.SameGroupExpression(expression, key) {
 				continue
 			}
 			for _, set := range sets {
@@ -392,7 +392,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 		if aggregate, ok := expression.(plan.AggregateExpr); ok && aggregate.Frame == b.FrameID() {
-			operation := b.grouping.aggregates[aggregate.Slot].Operation
+			operation := b.Grouping.Aggregates[aggregate.Slot].Operation
 			switch operation {
 			case functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict:
 				// JSON aggregate projections expose computed nullability, including
@@ -426,13 +426,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 	}
-	grouped := s.GroupBy != nil || b.grouping.active || len(b.grouping.aggregates) > 0 || having != nil
+	grouped := s.GroupBy != nil || b.Grouping.active || len(b.Grouping.Aggregates) > 0 || having != nil
 	var stringAnalysis []expr.Expr
-	if b.params.noParameters || b.consumer.materializedDefinition {
+	if b.Params.NoParameters || b.Consumer.materializedDefinition {
 		stringAnalysis = append(stringAnalysis, projection...)
 		stringAnalysis = append(stringAnalysis, keys...)
 	}
-	if b.query.rowDiagnosticMode != 0 {
+	if b.Query.rowDiagnosticMode != 0 {
 		suffix := ""
 		for _, expression := range projection {
 			if exec.QuerySetDepth(expression) != 0 {
@@ -447,15 +447,15 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			suffix = "GROUP BY clause"
 		case s.Having != nil:
 			suffix = "HAVING clause"
-		case len(b.grouping.aggregates) != 0:
+		case len(b.Grouping.Aggregates) != 0:
 			suffix = "aggregate functions"
-		case len(b.grouping.windowCalls) != 0:
+		case len(b.Grouping.WindowCalls) != 0:
 			suffix = "window functions"
-		case b.clause.queryHasTargetSet:
+		case b.Clause.QueryHasTargetSet:
 			suffix = "set-returning functions in the target list"
 		}
 		if suffix != "" {
-			mode := analyze.RowLockClause(b.query.rowDiagnosticMode)
+			mode := analyze.RowLockClause(b.Query.rowDiagnosticMode)
 			if len(s.Locking) != 0 {
 				mode = s.Locking[0].Mode
 			}
@@ -468,47 +468,47 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if err != nil {
 			return nil, err
 		}
-		for i, call := range b.grouping.aggregates {
+		for i, call := range b.Grouping.Aggregates {
 			for j, expr := range call.Direct {
 				direct, err := b.rewriteOrderedSetDirect(expr, keys)
 				if err != nil {
 					return nil, err
 				}
-				b.grouping.aggregates[i].Direct[j] = direct
+				b.Grouping.Aggregates[i].Direct[j] = direct
 			}
 		}
-		schema := make([]catalog.Column, len(keys)+len(b.grouping.aggregates)+1)
+		schema := make([]catalog.Column, len(keys)+len(b.Grouping.Aggregates)+1)
 		for i, key := range keys {
 			schema[i] = catalog.Column{Usage: key.ResultUsage()}
 		}
-		for i, call := range b.grouping.aggregates {
+		for i, call := range b.Grouping.Aggregates {
 			schema[len(keys)+i] = catalog.Column{Usage: call.Provider.ResultUsage()}
 		}
-		schema[len(schema)-1] = catalog.Column{Usage: b.typ(sqltype.Int4).Usage()}
-		root = &plan.AggregateNode{QuerySchema: schema, Child: root, Keys: runtimeKeys, Grouping: comparisons, Sets: sets, GroupingActive: b.grouping.active, Calls: append([]plan.AggregateCall(nil), b.grouping.aggregates...)}
+		schema[len(schema)-1] = catalog.Column{Usage: b.Type(sqltype.Int4).Usage()}
+		root = &plan.AggregateNode{QuerySchema: schema, Child: root, Keys: runtimeKeys, Grouping: comparisons, Sets: sets, GroupingActive: b.Grouping.active, Calls: append([]plan.AggregateCall(nil), b.Grouping.Aggregates...)}
 		for i, expr := range projection {
 			var err error
-			projection[i], err = b.rewriteGroup(expr, keys)
+			projection[i], err = b.RewriteGroup(expr, keys)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if having != nil {
 			var err error
-			having, err = b.rewriteGroup(having, keys)
+			having, err = b.RewriteGroup(having, keys)
 			if err != nil {
 				return nil, err
 			}
 			root = &plan.FilterNode{QuerySchema: root.Schema(), Child: root, Predicate: having}
 		}
 		for i := range order {
-			order[i].Expression, err = b.rewriteGroup(order[i].Expression, keys)
+			order[i].Expression, err = b.RewriteGroup(order[i].Expression, keys)
 			if err != nil {
 				return nil, err
 			}
 		}
 		for i := range on {
-			on[i].Expression, err = b.rewriteGroup(on[i].Expression, keys)
+			on[i].Expression, err = b.RewriteGroup(on[i].Expression, keys)
 			if err != nil {
 				return nil, err
 			}
@@ -564,13 +564,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		root = b.ScheduleQueryProjection(root, projection, bounds != nil)
 	}
 	if len(s.Locking) != 0 {
-		admission := b.query.lockAdmission.Queries[s]
+		admission := b.Query.lockAdmission.Queries[s]
 		var local []plan.RowMark
 		var err error
 		if admission != nil {
 			local, err = admission.Marks, admission.Err
 		} else {
-			local, err = analyze.RowLockTargets(s.From, s.Locking, b.query.lockAdmission.VirtualCTE)
+			local, err = analyze.RowLockTargets(s.From, s.Locking, b.Query.lockAdmission.VirtualCTE)
 		}
 		if err != nil {
 			return nil, err
@@ -581,8 +581,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		} else {
 			_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
 		}
-		marks := make([]plan.RowMark, len(b.query.sources))
-		for i, source := range b.query.sources {
+		marks := make([]plan.RowMark, len(b.Query.Sources))
+		for i, source := range b.Query.Sources {
 			if index, ok := indices[source.Table]; ok && index < len(local) {
 				marks[i] = local[index]
 			}
@@ -599,7 +599,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		results = append([]catalog.Column(nil), results...)
 	}
 	analysis := stringAnalysis
-	for _, call := range b.grouping.windowCalls {
+	for _, call := range b.Grouping.WindowCalls {
 		if !call.AnalysisOnly {
 			continue
 		}
@@ -623,7 +623,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, call.Spec.Frame.End.Offset)
 		}
 	}
-	if (b.params.noParameters || b.consumer.materializedDefinition) && len(on) != 0 {
+	if (b.Params.NoParameters || b.Consumer.materializedDefinition) && len(on) != 0 {
 		// Raw captured occurrences can own independently analyzed subquery
 		// frames even when SQL99 resolution shares their physical datum.
 		for _, key := range order {
@@ -633,8 +633,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, key.Expression)
 		}
 	}
-	for _, definition := range b.grouping.windowRaw {
-		spec := b.grouping.windowDefinitions[definition.Name.Text]
+	for _, definition := range b.Grouping.windowRaw {
+		spec := b.Grouping.windowDefinitions[definition.Name.Text]
 		analysis = append(analysis, spec.Partition...)
 		for _, key := range spec.Order {
 			analysis = append(analysis, key.Expression)
@@ -646,12 +646,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, spec.Frame.End.Offset)
 		}
 	}
-	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, AnalysisExpressions: analysis, Frame: b.FrameID(), Syntax: s, HasTargetSet: b.clause.queryHasTargetSet}, RegclassOutput: regclassOutput, VisibilitySnapshot: b.consumer.visibilitySnapshot}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, AnalysisExpressions: analysis, Frame: b.FrameID(), Syntax: s, HasTargetSet: b.Clause.QueryHasTargetSet}, RegclassOutput: regclassOutput, VisibilitySnapshot: b.Consumer.VisibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) (expr.Expr, error) {
 	if raw, ok := bound.(plan.UnknownOutput); ok {
-		return b.bind(raw.Raw, expressionPolicy{context: assignmentContext, expected: target.Usage, mode: sqltype.Assignment})
+		return b.Bind(raw.Raw, expressionPolicy{Context: AssignmentContext, Expected: target.Usage, Mode: sqltype.Assignment})
 	}
 	if source := bound.ResultUsage().Type; source != nil && source.ID() == 2249 && target.Usage.Type.BaseType().IsComposite() {
 		// A projected RECORD output no longer has direct constructor or
@@ -660,7 +660,7 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 	}
 	if p, ok := bound.(plan.ParameterExpr); ok && p.Usage.Type == nil {
 		var err error
-		bound, err = b.coerceParameter(p, target.Usage)
+		bound, err = b.CoerceParameter(p, target.Usage)
 		if err != nil {
 			return nil, err
 		}
@@ -669,18 +669,18 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 		return bound, nil
 	}
 	input, annotations := analyze.DomainCoercionInput(bound, target.Usage)
-	info, err := analyze.StorageCoercionInfo(b.bindingCatalog(), b.info(target.Usage, bound.SourcePosition(), input.Properties()), input)
+	info, err := analyze.StorageCoercionInfo(b.BindingCatalog(), b.Info(target.Usage, bound.SourcePosition(), input.Properties()), input)
 	if err != nil {
 		return nil, err
 	}
 	coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 	if err != nil {
-		d := expr.ErrorAt("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(bound.ResultUsage().Type)), bound.SourcePosition())
+		d := expr.ErrorAt("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.DiagnosticTypeName(target.Usage.Type), b.DiagnosticTypeName(bound.ResultUsage().Type)), bound.SourcePosition())
 		d.(*sqlstate.Error).Hint = "You will need to rewrite or cast the expression."
 		return nil, d
 	}
 	if coercionPlan.RequiresCatalogOutput() {
-		b.prepared.RegclassConcat = true
+		b.Prepared.RegclassConcat = true
 	}
 	info.Property = analyze.CoercionProperties(input, coercionPlan)
 	bound = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
@@ -690,7 +690,7 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 // rewriteOrderedSetDirect rewrites an ordered-set aggregate's direct
 // arguments over the group keys.
 func (b *expressionBinder) rewriteOrderedSetDirect(expr expr.Expr, keys []expr.Expr) (expr.Expr, error) {
-	direct, err := b.rewriteGroup(expr, keys)
+	direct, err := b.RewriteGroup(expr, keys)
 	if d, ok := err.(*sqlstate.Error); ok && d.Code == "42803" {
 		copy := *d
 		copy.Detail = "Direct arguments of an ordered-set aggregate must use only grouped columns."

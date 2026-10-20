@@ -21,7 +21,7 @@ import (
 func transactionTimeUnitLeaf(t *testing.T, b *expressionBinder, kind functions.TransactionTimeKind) functions.TransactionTime {
 	t.Helper()
 	name := kind.Name()
-	bound, err := b.bindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Offset: 7, Character: 8}})
+	bound, err := b.BindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Offset: 7, Character: 8}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestTransactionTimeArgumentLabelInvariant(t *testing.T) {
 		for _, count := range []int{1, 3} {
 			call.ArgNames = make([]parser.Identifier, count)
 			call.ArgNames[0] = parser.Identifier{Text: "x", Pos: call.Pos}
-			bound, err := binder.bindFunction(call)
+			bound, err := binder.BindFunction(call)
 			if bound != nil || err == nil || err.Error() != "invalid function argument labels" {
 				t.Fatalf("%s labels=%d: bound=%T error=%v", name, count, bound, err)
 			}
@@ -130,12 +130,12 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if sides, err := plan.JoinExpressionSides(copy, 0, 0); err != nil || sides != 0 {
 			t.Fatal(sides, err)
 		}
-		if !binder.sameGroupExpression(leaf, leaf) {
+		if !binder.SameGroupExpression(leaf, leaf) {
 			t.Error("leaf not equivalent to itself")
 		}
 		other := leaf
 		other.Kind = functions.TransactionTimeTransaction
-		if kind == functions.TransactionTimeNow && binder.sameGroupExpression(leaf, other) {
+		if kind == functions.TransactionTimeNow && binder.SameGroupExpression(leaf, other) {
 			t.Error("alias spelling merged")
 		}
 		if !analyze.ClosedTransactionTimeDefault(leaf) {
@@ -156,7 +156,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		t.Error("unknown kind admitted")
 	}
 	invalid = clock
-	invalid.Usage = binder.typ(sqltype.Text).Usage()
+	invalid.Usage = binder.Type(sqltype.Text).Usage()
 	if invalid.Validate(expr.PropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("wrong result type admitted")
 	}
@@ -165,7 +165,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	if invalid.Validate(expr.PropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("demoted clock admitted")
 	}
-	random := functions.Random{Info: expr.Info{Usage: binder.typ(sqltype.Float8).Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
+	random := functions.Random{Info: expr.Info{Usage: binder.Type(sqltype.Float8).Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	if analyze.ClosedTransactionTimeDefault(random) {
 		t.Error("unrelated volatile default admitted")
 	}
@@ -173,7 +173,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		parser.CastExpr{Child: parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "clock_timestamp"}}}}, TypeName: parser.TypeName{Name: "text"}},
 		parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Args: []parser.Expr{parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "timeofday"}}}}}},
 	} {
-		node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

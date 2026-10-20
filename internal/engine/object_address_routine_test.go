@@ -55,7 +55,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if !ok || owned != captured {
 				t.Fatal("reference is not the original owned descriptor")
 			}
-			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			found := false
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -133,7 +133,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("changed selected declaration admitted")
 			}
-			if !reflect.DeepEqual(carrier, before) || !reflect.DeepEqual(binder.dependencies, original) {
+			if !reflect.DeepEqual(carrier, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("negative probes mutated original carrier/manifest")
 			}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
@@ -166,7 +166,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			raw := statement(t, text).(*parser.Select)
 			e.mu.Lock()
 			binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-			binder.query.auth = routineAuthorityView(&evaluation)
+			binder.Query.Auth = routineAuthorityView(&evaluation)
 			query, err := binder.BindSelect(raw, false)
 			e.mu.Unlock()
 			if err != nil {
@@ -190,20 +190,20 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			if source == nil {
 				t.Fatal("missing analyzed function source")
 			}
-			evaluation.RoutineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.Dependencies
 			if tc.parameter {
-				evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
+				evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
 			}
 			originalCalls := append([]expr.Expr(nil), source.Calls...)
 			originalSchema := append(plan.QuerySchema(nil), source.QuerySchema...)
-			originalManifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+			originalManifest := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			planned, err := preflightFunctionFrom(&evaluation, source)
 			if err != nil {
 				t.Fatal("source preflight", err)
 			}
 			execution := planned.(*plan.FunctionFromNode)
 			pruned := execution.ScalarNull != nil && execution.ScalarNull[0]
-			if pruned != tc.pruned || source.ScalarNull != nil || !reflect.DeepEqual(source.Calls, originalCalls) || !reflect.DeepEqual(source.QuerySchema, originalSchema) || !reflect.DeepEqual(binder.dependencies, originalManifest) {
+			if pruned != tc.pruned || source.ScalarNull != nil || !reflect.DeepEqual(source.Calls, originalCalls) || !reflect.DeepEqual(source.QuerySchema, originalSchema) || !reflect.DeepEqual(binder.Dependencies, originalManifest) {
 				t.Fatal("preflight lost source immutability or scalar/RECORD distinction")
 			}
 			if !reflect.DeepEqual(execution.QuerySchema, originalSchema) {
@@ -243,7 +243,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				}
 				cursor.Close()
 				if tc.parameter {
-					value, err := sqltype.OIDValue(binder.params.parameters[1].Type, 1247)
+					value, err := sqltype.OIDValue(binder.Params.Parameters[1].Type, 1247)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -280,7 +280,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			if _, err := preflightFunctionFrom(&canceled, source); !errors.Is(err, context.Canceled) {
 				t.Fatal("cancellation before source pruning", err)
 			}
-			if !reflect.DeepEqual(source.Calls, originalCalls) || !reflect.DeepEqual(source.QuerySchema, originalSchema) || !reflect.DeepEqual(binder.dependencies, originalManifest) {
+			if !reflect.DeepEqual(source.Calls, originalCalls) || !reflect.DeepEqual(source.QuerySchema, originalSchema) || !reflect.DeepEqual(binder.Dependencies, originalManifest) {
 				t.Fatal("admission/replanning mutated analyzed source provenance")
 			}
 		})
@@ -298,7 +298,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}} {
 		t.Run("domain_sibling_"+planner.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "($1::integer)+(NULL::strict_null_checked)::integer")
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
 			if !node.Properties().RuntimeDomainConversion {
 				t.Fatal("fixture lost genuine domain-conversion sibling")
 			}
@@ -340,8 +340,8 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	}
 	for _, text := range []string{"pg_describe_object(NULL,23,0)", "pg_describe_object($1::oid,23,0)", "pg_describe_object($1::oid,23,(NULL::strict_null_checked)::integer)"} {
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, text)
-		if len(binder.params.parameters) != 0 {
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
+		if len(binder.Params.Parameters) != 0 {
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
 		}
 		before := expr.InfoOf(node)
 		folded, changed, err := preflightCoercions(&evaluation, node)
@@ -364,7 +364,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		raw := statement(t, "SELECT * FROM "+text+" WITH ORDINALITY").(*parser.Select)
 		e.mu.Lock()
 		sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-		sourceBinder.query.auth = routineAuthorityView(&evaluation)
+		sourceBinder.Query.Auth = routineAuthorityView(&evaluation)
 		query, bindErr := sourceBinder.BindSelect(raw, false)
 		e.mu.Unlock()
 		if bindErr != nil {
@@ -373,9 +373,9 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		source := query.Root.(*plan.ProjectNode).Child.(*plan.FunctionFromNode)
 		sourceInfo := expr.InfoOf(source.Calls[0])
 		sourceSchema := append(plan.QuerySchema(nil), source.QuerySchema...)
-		sourceManifest := append([]catalog.ExpressionDependency(nil), sourceBinder.dependencies...)
+		sourceManifest := append([]catalog.ExpressionDependency(nil), sourceBinder.Dependencies...)
 		sourceEvaluation := evaluation
-		sourceEvaluation.RoutineChecks = sourceBinder.dependencies
+		sourceEvaluation.RoutineChecks = sourceBinder.Dependencies
 		planned, err := preflightFunctionFrom(&sourceEvaluation, source)
 		if err != nil {
 			t.Fatal("literal sibling source pruning", err)
@@ -389,13 +389,13 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			t.Fatal("literal sibling source typed NULL", cursor, err)
 		}
 		cursor.Close()
-		if source.ScalarNull != nil || !reflect.DeepEqual(sourceInfo, expr.InfoOf(source.Calls[0])) || !reflect.DeepEqual(sourceSchema, execution.QuerySchema) || !reflect.DeepEqual(sourceManifest, sourceBinder.dependencies) {
+		if source.ScalarNull != nil || !reflect.DeepEqual(sourceInfo, expr.InfoOf(source.Calls[0])) || !reflect.DeepEqual(sourceSchema, execution.QuerySchema) || !reflect.DeepEqual(sourceManifest, sourceBinder.Dependencies) {
 			t.Fatal("literal sibling pruning changed original Info/schema/manifest")
 		}
 	}
 	for _, text := range []string{"pg_describe_object($1::oid,23,1/0)"} {
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, text)
-		evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
+		evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
 		_, _, err := preflightCoercions(&evaluation, node)
 		want := sqlstate.Error{Code: "22012", Message: "division by zero"}
 		nullCountUnitDiagnostic(t, err, want)
@@ -403,14 +403,14 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			raw := statement(t, "SELECT * FROM "+text+suffix).(*parser.Select)
 			e.mu.Lock()
 			sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-			sourceBinder.query.auth = routineAuthorityView(&evaluation)
+			sourceBinder.Query.Auth = routineAuthorityView(&evaluation)
 			query, bindErr := sourceBinder.BindSelect(raw, false)
 			e.mu.Unlock()
 			if bindErr != nil {
 				t.Fatal("source child-error binding", bindErr)
 			}
 			sourceEvaluation := evaluation
-			sourceEvaluation.RoutineChecks = sourceBinder.dependencies
+			sourceEvaluation.RoutineChecks = sourceBinder.Dependencies
 			_, err = preflightQuery(&sourceEvaluation, query.Root)
 			nullCountUnitDiagnostic(t, err, want)
 		}
@@ -418,12 +418,12 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	// Validate a real typed DOMAIN parameter at its input boundary, before
 	// outer strict-NULL planning. A literal sibling is not this boundary.
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "pg_describe_object(NULL::oid,23,($1::strict_null_checked)::integer)")
-	domain := binder.params.parameters[1].Type
+	domain := binder.Params.Parameters[1].Type
 	if !domain.IsDomain() || !domain.HasDomainChecks() {
 		t.Fatal("parameter lost genuine domain input authority")
 	}
 	before := expr.InfoOf(node)
-	manifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+	manifest := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 	input := evaluation.Input
 	input.DomainChecks = &evaluation
 	err := domain.CheckDomainInput(evaluation.Context, sqltype.Null(domain), input)
@@ -450,7 +450,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	if err != nil || !result.IsNull() || result.Type() != node.ResultUsage().Type {
 		t.Fatal("imported-domain sibling result", result, err)
 	}
-	if !reflect.DeepEqual(before, expr.InfoOf(node)) || !reflect.DeepEqual(manifest, binder.dependencies) {
+	if !reflect.DeepEqual(before, expr.InfoOf(node)) || !reflect.DeepEqual(manifest, binder.Dependencies) {
 		t.Fatal("domain import/pruning changed original Info or manifest")
 	}
 }
@@ -494,14 +494,14 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				_, _, evaluation := strictNullUnitBind(t, e, op, scope, "1")
 				e.mu.Lock()
 				binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-				binder.query.auth = routineAuthorityView(&evaluation)
+				binder.Query.Auth = routineAuthorityView(&evaluation)
 				query, err := binder.BindSelect(raw, false)
 				e.mu.Unlock()
 				if err != nil {
 					t.Fatal("actual source/target binding", err)
 				}
-				manifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
-				evaluation.RoutineChecks = binder.dependencies
+				manifest := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
+				evaluation.RoutineChecks = binder.Dependencies
 				root, err := preflightQuery(&evaluation, query.Root)
 				if err != nil {
 					t.Fatal("child preflight before source pruning", err)
@@ -515,7 +515,7 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				if err := validateMarkedQueryJoin(&evaluation, root, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
 					t.Fatal("intact original authority", err)
 				}
-				if !reflect.DeepEqual(binder.dependencies, manifest) {
+				if !reflect.DeepEqual(binder.Dependencies, manifest) {
 					t.Fatal("pruning erased original manifest")
 				}
 				sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")

@@ -16,13 +16,13 @@ import (
 
 func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUIDExtractKind) functions.UUIDExtract {
 	t.Helper()
-	d := b.typ(sqltype.UUID)
+	d := b.Type(sqltype.UUID)
 	value, err := d.Input(context.Background(), "00000000-0000-7000-8000-000000000000", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	arg := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
-	node, err := functions.NewUUIDExtract(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), kind, expr.Expr(arg))
+	node, err := functions.NewUUIDExtract(b.Info(b.Type(kind.Result()).Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), kind, expr.Expr(arg))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,11 +37,11 @@ func TestUUIDExtractIdentity(t *testing.T) {
 		t.Fatal("operation identity")
 	}
 	other := version
-	v, err := b.typ(sqltype.UUID).Input(context.Background(), "00000000-0000-1000-8000-000000000000", -1)
+	v, err := b.Type(sqltype.UUID).Input(context.Background(), "00000000-0000-1000-8000-000000000000", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other.Arg = plan.LiteralExpr{Info: expr.Info{Usage: b.typ(sqltype.UUID).Usage()}, Value: v}
+	other.Arg = plan.LiteralExpr{Info: expr.Info{Usage: b.Type(sqltype.UUID).Usage()}, Value: v}
 	if SameGroupExpression(version, other) {
 		t.Fatal("child identity lost")
 	}
@@ -55,7 +55,7 @@ func TestUUIDExtractIdentity(t *testing.T) {
 	if children != 1 {
 		t.Fatal("unary traversal", children)
 	}
-	rewritten, err := b.rewriteGroup(version, []expr.Expr{version.Arg})
+	rewritten, err := b.RewriteGroup(version, []expr.Expr{version.Arg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,19 +75,19 @@ func TestUUIDExtractRemap(t *testing.T) {
 	fresh := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.UUIDExtractKind{functions.UUIDExtractTimestamp, functions.UUIDExtractVersion} {
 		node := uuidExtractEngineUnit(t, b, kind)
-		mapped, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.typ(d.ID()) })
+		mapped, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
 		if err != nil || !changed {
 			t.Fatal(mapped, changed, err)
 		}
 		next := mapped.(functions.UUIDExtract)
-		if next.Validate() != nil || next.ResultUsage().Type != fresh.typ(kind.Result()) || next.Arg.ResultUsage().Type != fresh.typ(sqltype.UUID) {
+		if next.Validate() != nil || next.ResultUsage().Type != fresh.Type(kind.Result()) || next.Arg.ResultUsage().Type != fresh.Type(sqltype.UUID) {
 			t.Fatal("stale descriptors")
 		}
-		if node.Arg.ResultUsage().Type != b.typ(sqltype.UUID) || node.ResultUsage().Type != b.typ(kind.Result()) {
+		if node.Arg.ResultUsage().Type != b.Type(sqltype.UUID) || node.ResultUsage().Type != b.Type(kind.Result()) {
 			t.Fatal("mutated original")
 		}
 		v, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-		if err != nil || v.Type() != fresh.typ(kind.Result()) {
+		if err != nil || v.Type() != fresh.Type(kind.Result()) {
 			t.Fatal(v, err)
 		}
 	}
@@ -107,7 +107,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 			t.Fatal(folded, changed, err)
 		}
 		v, err := folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-		if err != nil || v.Type() != b.typ(kind.Result()) {
+		if err != nil || v.Type() != b.Type(kind.Result()) {
 			t.Fatal("folded authority", v, err)
 		}
 		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, engine.CatalogRead(), node)
@@ -122,7 +122,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	}
 	// A UUID-producing volatile descendant remains visible through extraction.
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_extract_version"}}}, Args: []parser.Expr{parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuidv4"}}}}}}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil || node.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(node) != expr.Volatile || generationImmutable(node) {
 		t.Fatal("volatile child erased", node, err)
 	}

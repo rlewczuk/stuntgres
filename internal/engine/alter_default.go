@@ -149,10 +149,10 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
 	var definition catalog.ColumnDefault
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-	binder.query.auth = &auth
-	binder.consumer.defaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
+	binder.Query.Auth = &auth
+	binder.Consumer.DefaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
 	var err error
-	definition.Expression, err = binder.bindDefault(expression, old.Columns[slot])
+	definition.Expression, err = binder.BindDefault(expression, old.Columns[slot])
 	if err == nil {
 		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, definition.Expression)
 	}

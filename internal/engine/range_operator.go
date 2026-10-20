@@ -83,7 +83,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, 
 	}
 	var args [2]expr.Expr
 	for i, target := range [2]*sqltype.Descriptor{lt, rt} {
-		args[i], err = b.coerceConditional(operands[i], target.Usage(), name)
+		args[i], err = b.CoerceConditional(operands[i], target.Usage(), name)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +93,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, 
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	info := b.info(result.Usage(), parser.ExpressionStart(raw), properties)
+	info := b.Info(result.Usage(), parser.ExpressionStart(raw), properties)
 	node, err := functions.NewRangeOperator(info, op, args, namespace)
 	if err != nil {
 		return nil, err

@@ -44,7 +44,7 @@ func sequenceBoundaryRunner(t *testing.T, e *Engine, op *Operation, query string
 				frame[0] = value
 			}
 			if err != nil {
-				return sequenceInputError(err, parser.Position{}, "", 1)
+				return SequenceInputError(err, parser.Position{}, "", 1)
 			}
 			return nil
 		})

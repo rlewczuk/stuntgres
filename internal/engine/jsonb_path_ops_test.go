@@ -31,7 +31,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if !ok {
 				t.Fatal("not an operator")
 			}
-			call, err := b.bindCatalogOperator(raw, expressionPolicy{context: projectionContext})
+			call, err := b.BindCatalogOperator(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -64,13 +64,13 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := admitRoutineDescriptor(auth, b.dependencies, captured, nil); err != nil {
+			if err := admitRoutineDescriptor(auth, b.Dependencies, captured, nil); err != nil {
 				t.Fatal("actual admission", err)
 			}
 			if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
 				t.Fatal("missing dependency repaired")
 			}
-			stale := append([]catalog.ExpressionDependency(nil), b.dependencies...)
+			stale := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
 			for i := range stale {
 				if stale[i].Ref.Address == captured.Address() {
 					stale[i].Revision++
@@ -80,7 +80,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 				t.Fatal("stale declaration admitted")
 			}
 			// Reuse the actual routine through the existing custom-operator seam.
-			alias, err := b.bindSelectedOperatorRoutine(captured, binary.Args, raw.Pos)
+			alias, err := b.BindSelectedOperatorRoutine(captured, binary.Args, raw.Pos)
 			if err != nil {
 				t.Fatal(err)
 			}

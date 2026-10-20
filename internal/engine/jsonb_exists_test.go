@@ -23,7 +23,7 @@ func TestJSONBExistsBinding(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			pos := parser.Position{Offset: 10, Character: 11}
 			raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: pos}}}, Pos: pos, Args: []parser.Expr{parser.ParameterExpr{Number: 1, Pos: pos}, parser.ParameterExpr{Number: 2, Pos: pos}}}
-			bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if name == "?|" {
 				d, ok := err.(*sqlstate.Error)
 				if !ok || d.Code != "42725" || d.Position != "11" || d.Message != "operator is not unique: unknown ?| unknown" || bound != nil {
@@ -35,15 +35,15 @@ func TestJSONBExistsBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			node, ok := bound.(functions.Binary)
-			if !ok || node.Plan.Name() != name || !node.Plan.Immutable() || bound.ResultUsage() != b.typ(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Immutable || b.params.parameters[1].Type.ID() != sqltype.JSONB {
-				t.Fatal(bound, b.params.parameters)
+			if !ok || node.Plan.Name() != name || !node.Plan.Immutable() || bound.ResultUsage() != b.Type(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Immutable || b.Params.Parameters[1].Type.ID() != sqltype.JSONB {
+				t.Fatal(bound, b.Params.Parameters)
 			}
 			right := sqltype.Text
 			if name == "?&" {
 				right = 1009
 			}
-			if b.params.parameters[2].Type.ID() != right {
-				t.Fatal(b.params.parameters)
+			if b.Params.Parameters[2].Type.ID() != right {
+				t.Fatal(b.Params.Parameters)
 			}
 			next, err := node.Reconstruct(node.Info, node.Args)
 			if err != nil || next.Plan != node.Plan || next.Syntax != node.Syntax || next.Property != node.Property {
@@ -60,13 +60,13 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"?", "?|", "?&"} {
-		right := b.typ(sqltype.Text)
+		right := b.Type(sqltype.Text)
 		request := "a"
 		if name != "?" {
-			right = b.typ(1009)
+			right = b.Type(1009)
 			request = "{a}"
 		}
-		doc, err := b.typ(sqltype.JSONB).Input(context.Background(), `{"a":1}`, -1)
+		doc, err := b.Type(sqltype.JSONB).Input(context.Background(), `{"a":1}`, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,10 +75,10 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 			t.Fatal(err)
 		}
 		args := []expr.Expr{
-			plan.LiteralExpr{Info: expr.Info{Usage: b.typ(sqltype.JSONB).Usage()}, Value: doc},
+			plan.LiteralExpr{Info: expr.Info{Usage: b.Type(sqltype.JSONB).Usage()}, Value: doc},
 			plan.LiteralExpr{Info: expr.Info{Usage: right.Usage()}, Value: key},
 		}
-		expr, err := functions.NewBinary(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{}), name, args, parser.OrdinaryFunctionSyntax)
+		expr, err := functions.NewBinary(b.Info(b.Type(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{}), name, args, parser.OrdinaryFunctionSyntax)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -117,9 +117,9 @@ func TestJSONBExistsOneSidedInference(t *testing.T) {
 		}
 		args[side] = parser.CastExpr{Child: args[side], TypeName: typeName, Syntax: parser.PostfixCast, Pos: pos}
 		raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "?|", Pos: pos}}}, Args: args, Pos: pos}
-		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
-		if err != nil || bound == nil || b.params.parameters[1].Type.ID() != sqltype.JSONB || b.params.parameters[2].Type.ID() != 1009 {
-			t.Fatal(side, bound, err, b.params.parameters)
+		bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		if err != nil || bound == nil || b.Params.Parameters[1].Type.ID() != sqltype.JSONB || b.Params.Parameters[2].Type.ID() != 1009 {
+			t.Fatal(side, bound, err, b.Params.Parameters)
 		}
 	}
 }

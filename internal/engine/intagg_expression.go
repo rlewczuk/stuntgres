@@ -20,7 +20,7 @@ func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call
 	if err != nil {
 		return nil, nil, ids.ObjectRef{}, nil, err
 	}
-	filter, err := b.bindAggregateFilter(raw)
+	filter, err := b.BindAggregateFilter(raw)
 	if err != nil {
 		return nil, nil, ids.ObjectRef{}, nil, err
 	}
@@ -47,13 +47,13 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 	if err != nil {
 		return nil, err
 	}
-	array, ok := b.definitionArray(b.typ(sqltype.Int4))
+	array, ok := b.definitionArray(b.Type(sqltype.Int4))
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing integer array descriptor")
 	}
 	properties := arg.Properties()
 	properties.StageDependent = true
-	info := b.info(array.Usage(), raw.Pos, properties)
+	info := b.Info(array.Usage(), raw.Pos, properties)
 	call := plan.AggregateCall{Provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), Argument: arg, Operation: functions.AggregateArrayScalar, IncludeNulls: true, Procedure: proc, Ref: ref, Routine: ref}
 	return b.finishAggregate(raw, call, filter, info)
 }
@@ -65,8 +65,8 @@ func (r installedExtensionRoutine) intaggIdentity() (*catalog.Procedure, ids.Obj
 	if extension.IntaggProviderOf(p) != extension.StockIntagg {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
-	ref := r.binder.host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
-	r.binder.dependencies = append(r.binder.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()})
+	ref := r.binder.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
+	r.binder.Dependencies = append(r.binder.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()})
 	return p, ref, nil
 }
 
@@ -74,10 +74,10 @@ func (r installedExtensionRoutine) intaggIdentity() (*catalog.Procedure, ids.Obj
 // may appear and lifts it as the engine's set-returning unnest node.
 func (r installedExtensionRoutine) attachIntaggEnumeration(call functions.IntaggEnumeration) (expr.Expr, error) {
 	b := r.binder
-	if b.params.executeParameters {
+	if b.Params.ExecuteParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", call.Pos)
 	}
-	if b.consumer.policyConsumer && b.query.frame == 0 {
+	if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
 	if err := b.AdmitSetReturning(call.Pos); err != nil {

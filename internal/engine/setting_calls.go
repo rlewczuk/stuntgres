@@ -43,10 +43,10 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 	if err != nil {
 		return settingCallBinding{}, err
 	}
-	info, err := binder.finish()
-	input.EnumMemberSafe = binder.input.EnumMemberSafe
-	input.TypeDiagnosticName = binder.input.TypeDiagnosticName
-	return settingCallBinding{parameters: info, arguments: bound, routine: routine, dependencies: binder.dependencies}, err
+	info, err := binder.Finish()
+	input.EnumMemberSafe = binder.Input.EnumMemberSafe
+	input.TypeDiagnosticName = binder.Input.TypeDiagnosticName
+	return settingCallBinding{parameters: info, arguments: bound, routine: routine, dependencies: binder.Dependencies}, err
 }
 func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.mu.Lock()

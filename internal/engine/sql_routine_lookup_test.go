@@ -104,16 +104,16 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 		var handled bool
 		var err error
 		if call, ok := raw.(parser.FunctionExpr); ok {
-			_, handled, err = b.bindSQLCallable(call)
+			_, handled, err = b.BindSQLCallable(call)
 		} else {
-			_, handled, err = b.bindSQLRoutineSyntax(raw, expressionPolicy{context: projectionContext})
+			_, handled, err = b.BindSQLRoutineSyntax(raw, expressionPolicy{Context: ProjectionContext})
 		}
 		if handled || err != nil {
 			t.Fatal("negative SQL gate changed builtin owner", query, handled, err)
 		}
 	}
 	raw := statement(t, "SELECT routine_unit_added(1)").(*parser.Select).Targets[0].(parser.FunctionExpr)
-	node, handled, err := b.bindSQLCallable(raw)
+	node, handled, err := b.BindSQLCallable(raw)
 	if err != nil || !handled {
 		t.Fatal("staged SQL addition did not bind", handled, err)
 	}

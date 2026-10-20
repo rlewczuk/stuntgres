@@ -76,12 +76,12 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 		}
 		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.Relation.Name()))
 	}
-	binder := shared.host.IndexExpressionBinder(shared.input, auth, b.Relation)
-	binder.params.parameters = shared.params.parameters
-	binder.expected = shared.expected
-	binder.params.noParameters = false
+	binder := shared.Host.IndexExpressionBinder(shared.Input, auth, b.Relation)
+	binder.Params.Parameters = shared.Params.Parameters
+	binder.Expected = shared.Expected
+	binder.Params.NoParameters = false
 	if raw.Update {
-		binder.query.hidden = append(binder.query.hidden, queryQualifier{Name: "excluded", Original: "excluded", LateralForbidden: true})
+		binder.Query.Hidden = append(binder.Query.Hidden, queryQualifier{Name: "excluded", Original: "excluded", LateralForbidden: true})
 	}
 	c.Keys = make([]analyze.ConflictKey, len(raw.Keys))
 	for i, key := range raw.Keys {
@@ -95,7 +95,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 		if node == nil {
 			node = parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: key.Column.Text, Pos: raw.Pos}}}, Pos: raw.Pos}
 		}
-		expression, err := binder.bind(node, expressionPolicy{context: projectionContext})
+		expression, err := binder.Bind(node, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			return err
 		}
@@ -114,7 +114,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 			c.Keys[i].Expression = expression
 		}
 		if key.Collation != nil {
-			id, err := shared.host.LookupCollation(*key.Collation)
+			id, err := shared.Host.LookupCollation(*key.Collation)
 			if err != nil {
 				return expr.WithPosition(err, raw.Pos)
 			}
@@ -124,7 +124,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 			c.Keys[i].Collation = id
 		}
 		if key.Opclass != nil {
-			class, err := shared.host.LookupIndexClass(auth, *key.Opclass, catalog.BtreeMethod)
+			class, err := shared.Host.LookupIndexClass(auth, *key.Opclass, catalog.BtreeMethod)
 			if err != nil {
 				return err
 			}
@@ -134,16 +134,16 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 		// provider or apply its option validation; identity is family plus input.
 	}
 	if raw.Predicate != nil {
-		binder.consumer.indexPredicateConsumer = true
-		predicate, err := binder.bindBoolean(raw.Predicate, filterContext, "WHERE")
+		binder.Consumer.IndexPredicateConsumer = true
+		predicate, err := binder.BindBoolean(raw.Predicate, FilterContext, "WHERE")
 		if err != nil {
 			return err
 		}
 		c.Predicate = predicate
 	}
-	c.Reads = binder.query.sources[0].Uses
-	shared.params.anyParameters = append(shared.params.anyParameters, binder.params.anyParameters...)
-	for _, dep := range binder.dependencies {
+	c.Reads = binder.Query.Sources[0].Uses
+	shared.Params.AnyParameters = append(shared.Params.AnyParameters, binder.Params.AnyParameters...)
+	for _, dep := range binder.Dependencies {
 		shared.dependency(dep.Ref, dep.Revision)
 	}
 	return nil

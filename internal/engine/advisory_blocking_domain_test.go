@@ -38,11 +38,11 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	}
 	probeBinder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	base := target.DomainBase()
-	probeBinder.clause.domainValueUsage = &base
-	probeBinder.consumer.checkConsumer, probeBinder.params.noParameters = true, true
-	probeBinder.query.namespace = &queryNamespace{}
+	probeBinder.Clause.DomainValueUsage = &base
+	probeBinder.Consumer.CheckConsumer, probeBinder.Params.NoParameters = true, true
+	probeBinder.Query.Namespace = &queryNamespace{}
 	probeRaw := statement(t, "SELECT pg_try_advisory_lock(NULL::integer, (VALUE::public.advisory_inner)::integer) IS NULL AND pg_blocking_pids(NULLIF((VALUE::public.advisory_inner)::integer,(VALUE::public.advisory_inner)::integer)) IS NULL AND CASE WHEN false THEN pg_safe_snapshot_blocking_pids(1/0) IS NULL ELSE true END").(*parser.Select).Targets[0]
-	probe, err := probeBinder.bindBoolean(probeRaw, projectionContext, "CHECK")
+	probe, err := probeBinder.BindBoolean(probeRaw, ProjectionContext, "CHECK")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	// Reconstruct an actual CASE child through the generic simplifier. The
 	// inquiry follows the resulting child's properties, not stale outer facts.
 	caseRaw := statement(t, "SELECT pg_blocking_pids(CASE WHEN true THEN 0 ELSE $1 END)").(*parser.Select).Targets[0]
-	boundCase, err := b.bind(caseRaw, expressionPolicy{context: projectionContext})
+	boundCase, err := b.Bind(caseRaw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

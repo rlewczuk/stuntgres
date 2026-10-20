@@ -13,12 +13,12 @@ import (
 )
 
 type sqlCallable struct {
-	procedure *catalog.Procedure
-	inputs    []sqltype.Usage
+	Procedure *catalog.Procedure
+	Inputs    []sqltype.Usage
 	// targets are family-resolved applicability usages, never ranking inputs.
-	targets     []sqltype.Usage
-	path        int
-	variadic    bool
+	Targets     []sqltype.Usage
+	Path        int
+	Variadic    bool
 	polymorphic bool
 }
 type sqlCallableSelection struct {
@@ -28,9 +28,9 @@ type sqlCallableSelection struct {
 	properties expr.Properties
 }
 
-func (b *expressionBinder) bindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, error) {
-	if b.clause.selectedCallReentry {
-		b.clause.selectedCallReentry = false
+func (b *expressionBinder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, error) {
+	if b.Clause.selectedCallReentry {
+		b.Clause.selectedCallReentry = false
 		return nil, false, nil
 	}
 	if raw.Syntax != parser.OrdinaryFunctionSyntax || raw.StringSyntax != parser.OrdinaryStringSyntax || len(raw.ArgNames) != 0 {
@@ -40,7 +40,7 @@ func (b *expressionBinder) bindSQLCallable(raw parser.FunctionExpr) (expr.Expr, 
 	if err != nil || !handled {
 		return nil, handled, err
 	}
-	node, err := b.finishSQLCallable(raw, selected, nil, expressionPolicy{context: projectionContext})
+	node, err := b.finishSQLCallable(raw, selected, nil, expressionPolicy{Context: ProjectionContext})
 	return node, true, err
 }
 
@@ -53,11 +53,11 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	if !b.hasSQLProcedureName(name) {
 		return selection, false, nil
 	}
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return selection, true, err
 	}
-	path, err := b.host.LookupNamespaces(auth, raw.Name, analyze.FunctionLookup)
+	path, err := b.Host.LookupNamespaces(auth, raw.Name, analyze.FunctionLookup)
 	if err != nil {
 		return selection, true, err
 	}
@@ -66,7 +66,7 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	seen := map[catalog.ProcedureSignature]bool{}
 	hasSQL := false
 	for i := range path.Count() {
-		for d := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), path.At(i), name) {
+		for d := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), name) {
 			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || seen[d.Signature] {
 				continue
 			}
@@ -77,9 +77,9 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 			if d.SQL == nil && d.Builtin == nil && d.Implementation == nil {
 				continue
 			}
-			candidate, valid := sqlCallableShape(auth.ReadCatalog(), b.host.DefinitionOf(auth), d, raw)
+			candidate, valid := SQLCallableShape(auth.ReadCatalog(), b.Host.DefinitionOf(auth), d, raw)
 			if valid {
-				candidate.path = i
+				candidate.Path = i
 				candidates = append(candidates, candidate)
 			}
 		}
@@ -96,7 +96,7 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 		}
 		names[i] = "unknown"
 		if t := operands[i].descriptor(); t != nil {
-			names[i] = b.diagnosticTypeName(t)
+			names[i] = b.DiagnosticTypeName(t)
 		}
 	}
 	var familyStorage [4]functions.Argument
@@ -105,21 +105,21 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 		familyArgs = make([]functions.Argument, len(operands))
 	}
 	for i, o := range operands {
-		familyArgs[i] = functions.Argument{Expression: o.node, Raw: o.raw}
+		familyArgs[i] = functions.Argument{Expression: o.Node, Raw: o.raw}
 		if o.descriptor() != nil {
-			familyArgs[i].Usage = o.node.ResultUsage()
+			familyArgs[i].Usage = o.Node.ResultUsage()
 		}
 	}
 	viable := candidates[:0]
 	for _, candidate := range candidates {
 		if candidate.polymorphic {
-			candidate.targets = make([]sqltype.Usage, len(candidate.inputs))
-			copy(candidate.targets, candidate.inputs)
-			if !b.probeSQLCallable(raw, familyArgs, &candidate) {
+			candidate.Targets = make([]sqltype.Usage, len(candidate.Inputs))
+			copy(candidate.Targets, candidate.Inputs)
+			if !b.ProbeSQLCallable(raw, familyArgs, &candidate) {
 				continue
 			}
 		}
-		viable = appendSQLCallable(viable, candidate)
+		viable = AppendSQLCallable(viable, candidate)
 	}
 	candidates = viable
 	// Domain identities participate in exact lookup before base-type ranking.
@@ -127,7 +127,7 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	for i, candidate := range candidates {
 		match := true
 		for j, o := range operands {
-			if o.descriptor() != candidate.inputs[j].Type {
+			if o.descriptor() != candidate.Inputs[j].Type {
 				match = false
 				break
 			}
@@ -143,11 +143,11 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 		selection.sqlCallable = candidates[exact]
 	} else {
 		if cast != nil && b.sqlFunctionCastShortcut(*cast, operands[0]) {
-			selection.args = []expr.Expr{operands[0].node}
+			selection.args = []expr.Expr{operands[0].Node}
 			return selection, true, nil
 		}
 		assumed := false
-		candidates = selectSQLCallables(candidates, operands, func(candidate sqlCallable, known *sqltype.Descriptor) bool {
+		candidates = SelectSQLCallables(candidates, operands, func(candidate sqlCallable, known *sqltype.Descriptor) bool {
 			if !assumed {
 				for i, o := range operands {
 					if o.descriptor() == nil {
@@ -166,8 +166,8 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	selection.args = make([]expr.Expr, len(operands))
 	selection.properties = expr.Properties{Volatility: expr.Volatile}
 	for i, o := range operands {
-		if selection.procedure.SQL != nil {
-			selection.args[i], err = b.coerceConditional(o, selection.inputs[i], "function")
+		if selection.Procedure.SQL != nil {
+			selection.args[i], err = b.CoerceConditional(o, selection.Inputs[i], "function")
 			if err != nil {
 				return selection, true, err
 			}
@@ -175,23 +175,23 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 		} else if o.descriptor() != nil {
 			// Unknown literals and parameters retain their raw occurrence for
 			// the winning family. Known operands are never analyzed twice.
-			selection.args[i] = o.node
+			selection.args[i] = o.Node
 		}
 	}
 	return selection, true, nil
 }
 
-func selectSQLCallables(candidates []sqlCallable, operands []comparisonOperand, assumeKnown func(sqlCallable, *sqltype.Descriptor) bool) []sqlCallable {
+func SelectSQLCallables(candidates []sqlCallable, operands []comparisonOperand, assumeKnown func(sqlCallable, *sqltype.Descriptor) bool) []sqlCallable {
 	viable := candidates[:0]
 	for _, candidate := range candidates {
 		valid := true
 		for i, o := range operands {
-			target := candidate.inputs[i]
-			if candidate.targets != nil {
-				target = candidate.targets[i]
+			target := candidate.Inputs[i]
+			if candidate.Targets != nil {
+				target = candidate.Targets[i]
 			}
 			if o.descriptor() != nil && target.Type != nil && target.Type.Concrete() {
-				if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), target, sqltype.Implicit); err != nil {
+				if _, err := sqltype.PlanCoercion(o.Node.ResultUsage(), target, sqltype.Implicit); err != nil {
 					valid = false
 					break
 				}
@@ -211,7 +211,7 @@ func selectSQLCallables(candidates []sqlCallable, operands []comparisonOperand, 
 			for i, o := range operands {
 				if t := o.descriptor(); t != nil {
 					t = t.BaseType()
-					target := candidate.inputs[i].Type
+					target := candidate.Inputs[i].Type
 					if !preferred && t == target {
 						score++
 					}
@@ -255,7 +255,7 @@ func selectSQLCallables(candidates []sqlCallable, operands []comparisonOperand, 
 			slot := &slots[i]
 			conflict := false
 			for _, candidate := range candidates {
-				facts, _ := candidate.inputs[i].Type.PGTypeMetadata()
+				facts, _ := candidate.Inputs[i].Type.PGTypeMetadata()
 				if slot.category == "" {
 					slot.category, slot.preferred = facts.Category, facts.Preferred
 				} else if facts.Category == slot.category {
@@ -276,7 +276,7 @@ func selectSQLCallables(candidates []sqlCallable, operands []comparisonOperand, 
 			survives := func(candidate sqlCallable) bool {
 				for i, o := range operands {
 					if o.descriptor() == nil {
-						facts, _ := candidate.inputs[i].Type.PGTypeMetadata()
+						facts, _ := candidate.Inputs[i].Type.PGTypeMetadata()
 						if facts.Category != slots[i].category || slots[i].preferred && !facts.Preferred {
 							return false
 						}
@@ -322,7 +322,7 @@ func selectSQLCallables(candidates []sqlCallable, operands []comparisonOperand, 
 				} else {
 					for i, o := range operands {
 						if o.descriptor() == nil {
-							if _, err := sqltype.PlanCoercion(known.Usage(), candidate.inputs[i], sqltype.Implicit); err != nil {
+							if _, err := sqltype.PlanCoercion(known.Usage(), candidate.Inputs[i], sqltype.Implicit); err != nil {
 								valid = false
 								break
 							}
@@ -342,7 +342,7 @@ func selectSQLCallables(candidates []sqlCallable, operands []comparisonOperand, 
 }
 
 func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallableSelection, original parser.Expr, policy expressionPolicy) (expr.Expr, error) {
-	d := selected.procedure
+	d := selected.Procedure
 	if d != nil && d.SQL != nil {
 		modifier := ""
 		if raw.Distinct {
@@ -359,12 +359,12 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 		if raw.Star || len(raw.Order) != 0 {
 			return nil, expr.ErrorAt("0A000", "SQL scalar function call modifiers are unsupported", raw.Pos)
 		}
-		ref := b.host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
+		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
 		b.dependency(ref, d.Revision())
 		result, _ := b.authorityType(selected.auth, sqltype.ID(d.Result))
-		info := b.info(result.Usage(), raw.Pos, selected.properties)
+		info := b.Info(result.Usage(), raw.Pos, selected.properties)
 		info.RoutineReference = d
-		if b.params.noParameters || b.consumer.materializedDefinition {
+		if b.Params.NoParameters || b.Consumer.materializedDefinition {
 			namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
 			if !ok {
 				return nil, fmt.Errorf("missing SQL routine namespace")
@@ -373,27 +373,27 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 				Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: d.Name()}}},
 				Args: raw.Args, Pos: raw.Pos, StoredSQLRoutine: true,
 			}
-			if b.stored.syntax == nil {
-				b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
+			if b.Stored.Syntax == nil {
+				b.Stored.Syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 			}
-			b.stored.syntax[storedExpressionSyntaxKey{frame: b.FrameID(), position: raw.SourcePosition()}] = frozen
+			b.Stored.Syntax[storedExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}] = frozen
 		}
 		return plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: selected.args}, nil
 	}
-	previous, previousSyntax, previousArguments := b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax, b.clause.selectedCallArguments
-	previousReentry, previousCallee := b.clause.selectedCallReentry, b.clause.selectedWindowCallee
-	b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax, b.clause.selectedCallArguments = selected.args, raw.Args, true
+	previous, previousSyntax, previousArguments := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments
+	previousReentry, previousCallee := b.Clause.selectedCallReentry, b.Clause.selectedWindowCallee
+	b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments = selected.args, raw.Args, true
 	// The winner's immediate gateway consumes this bit before its provider
 	// analyzes FILTER, ORDER BY or other previously unanalyzed children.
-	b.clause.selectedCallReentry = true
-	b.clause.selectedWindowCallee = parser.ObjectName{}
+	b.Clause.selectedCallReentry = true
+	b.Clause.selectedWindowCallee = parser.ObjectName{}
 	if d != nil && d.RoutineKind == catalog.WindowRoutine {
-		b.clause.selectedWindowCallee = raw.Name
+		b.Clause.selectedWindowCallee = raw.Name
 	}
 	defer func() {
-		b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax, b.clause.selectedCallArguments = previous, previousSyntax, previousArguments
-		b.clause.selectedCallReentry = previousReentry
-		b.clause.selectedWindowCallee = previousCallee
+		b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments = previous, previousSyntax, previousArguments
+		b.Clause.selectedCallReentry = previousReentry
+		b.Clause.selectedWindowCallee = previousCallee
 	}()
 	args := append([]parser.Expr(nil), raw.Args...)
 	for i, arg := range selected.args {
@@ -410,17 +410,17 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 			namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 			cast.TypeName.Schema = &parser.Identifier{Text: namespace.Name()}
 		}
-		return b.bind(cast, policy)
+		return b.Bind(cast, policy)
 	}
 	if aggregate, ok := original.(parser.AggregateExpr); ok {
 		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 		aggregate.Schema = &parser.Identifier{Text: namespace.Name()}
 		aggregate.Args = args
-		return b.bind(aggregate, policy)
+		return b.Bind(aggregate, policy)
 	}
 	if d.RoutineKind == catalog.AggregateRoutine || d.RoutineKind == catalog.WindowRoutine {
 		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
-		return b.bind(parser.AggregateExpr{
+		return b.Bind(parser.AggregateExpr{
 			Name: d.Name(), Schema: &parser.Identifier{Text: namespace.Name()}, Args: args, Pos: raw.Pos,
 			Star: raw.Star, Distinct: raw.Distinct, Variadic: raw.Variadic, Order: raw.Order,
 			Filter: raw.Filter, Window: raw.Window, Within: raw.Within, WithinPos: raw.WithinPos,
@@ -429,5 +429,5 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 	namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 	raw.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: d.Name()}}}
 	raw.Args = args
-	return b.bindFunctionProvider(raw)
+	return b.BindFunctionProvider(raw)
 }

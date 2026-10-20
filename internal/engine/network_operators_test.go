@@ -38,11 +38,11 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 			raw := bitOperatorRaw(tc.name, tc.args...)
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if node.ResultUsage() != b.typ(tc.result).Usage() || node.Properties() != (expr.Properties{}) {
+			if node.ResultUsage() != b.Type(tc.result).Usage() || node.Properties() != (expr.Properties{}) {
 				t.Fatal(node.ResultUsage(), node.Properties())
 			}
 			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
@@ -57,7 +57,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if err != nil || !strings.Contains(serialized, tc.name) {
 				t.Fatal(serialized, err)
 			}
-			if !b.sameGroupExpression(node, node) {
+			if !b.SameGroupExpression(node, node) {
 				t.Fatal("self structural equality")
 			}
 			replacement := New()
@@ -86,7 +86,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 				}
 				corrupt := original
 				corrupt.Network = next.Network
-				if b.sameGroupExpression(original, corrupt) {
+				if b.SameGroupExpression(original, corrupt) {
 					t.Fatal("network provider omitted from structural equality")
 				}
 			}
@@ -122,16 +122,16 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	node, err := b.bindBitwise(bitOperatorRaw("&", networkOperatorTyped("inet", "192.168.1.6/24"), networkOperatorTyped("inet", "0.0.0.255/25")))
+	node, err := b.BindBitwise(bitOperatorRaw("&", networkOperatorTyped("inet", "192.168.1.6/24"), networkOperatorTyped("inet", "0.0.0.255/25")))
 	if err != nil {
 		t.Fatal(err)
 	}
 	root := node.(plan.BitwiseExpr)
-	integral, err := sqltype.BindBitwise(sqltype.BitwiseAnd, b.typ(sqltype.Int4), b.typ(sqltype.Int4))
+	integral, err := sqltype.BindBitwise(sqltype.BitwiseAnd, b.Type(sqltype.Int4), b.Type(sqltype.Int4))
 	if err != nil {
 		t.Fatal(err)
 	}
-	bits, err := sqltype.BindBitStringBitwise(sqltype.BitwiseAnd, b.typ(sqltype.Bit), b.typ(sqltype.Bit))
+	bits, err := sqltype.BindBitStringBitwise(sqltype.BitwiseAnd, b.Type(sqltype.Bit), b.Type(sqltype.Bit))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Operator = sqltype.BitwiseOr; return n },
 		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Operator = sqltype.BitwiseOperator(255); return n },
 		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Usage.Typmod = 4; return n },
-		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Usage.Type = b.typ(sqltype.Cidr); return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Usage.Type = b.Type(sqltype.Cidr); return n },
 		func(n plan.BitwiseExpr) plan.BitwiseExpr {
 			v, err := foreignInet.Input(ctx, "::1", -1)
 			if err != nil {
@@ -170,7 +170,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 		bitOperatorRaw("&", bitOperatorLiteral("1"), bitOperatorLiteral("1")),
 		bitOperatorRaw("&", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}),
 	} {
-		other, err := b.bindBitwise(raw)
+		other, err := b.BindBitwise(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -182,7 +182,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	}
 	// Import-time preflight is scoped to network signatures and preserves the
 	// original parameter dependence even after producing an execution literal.
-	inet, int8 := b.typ(sqltype.Inet), b.typ(sqltype.Int8)
+	inet, int8 := b.Type(sqltype.Inet), b.Type(sqltype.Int8)
 	v4, err := inet.Input(ctx, "1.2.3.4", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -267,7 +267,7 @@ func networkOperatorArithmeticStoredValidation(t *testing.T) {
 		bitOperatorRaw("+", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, networkOperatorTyped("inet", "::1")),
 		bitOperatorRaw("-", networkOperatorTyped("inet", "::1"), networkOperatorTyped("inet", "::")),
 	} {
-		node, err := b.bindArithmetic(raw)
+		node, err := b.BindArithmetic(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -275,7 +275,7 @@ func networkOperatorArithmeticStoredValidation(t *testing.T) {
 		for _, mutate := range []func(plan.ArithmeticExpr) plan.ArithmeticExpr{
 			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Provider = sqltype.Arithmetic{}; return n },
 			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Operator = sqltype.ArithmeticMultiply; return n },
-			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Usage.Type = b.typ(sqltype.Int4); return n },
+			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Usage.Type = b.Type(sqltype.Int4); return n },
 			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Left = nil; return n },
 			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Right = nil; return n },
 			func(n plan.ArithmeticExpr) plan.ArithmeticExpr {
@@ -309,7 +309,7 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 		t.Fatal("absent-only operands are not execution ready")
 	}
 
-	node, err := b.bindBitwise(bitOperatorRaw("~", networkOperatorTyped("inet", "192.168.1.6/24")))
+	node, err := b.BindBitwise(bitOperatorRaw("~", networkOperatorTyped("inet", "192.168.1.6/24")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +331,7 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 
 	// The same lexical convention applies to optional operands nested below
 	// the network root, not only to the network operator's own right child.
-	inet, int8 := b.typ(sqltype.Inet), b.typ(sqltype.Int8)
+	inet, int8 := b.Type(sqltype.Inet), b.Type(sqltype.Int8)
 	address, err := inet.Input(ctx, "::2", -1)
 	if err != nil {
 		t.Fatal(err)

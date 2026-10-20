@@ -22,16 +22,16 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: pos}}}, Args: []parser.Expr{parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 40}}}, Pos: pos}
 			raw := parser.LogicalExpr{Op: op, Left: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: op == parser.LogicalOr}}, Right: call}
-			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(name, err)
 			}
 			p := node.Properties()
-			if node.ResultUsage() != b.typ(sqltype.Bool).Usage() || !p.ParameterDependent || p.RowDependent || p.Volatility != expr.Stable {
+			if node.ResultUsage() != b.Type(sqltype.Bool).Usage() || !p.ParameterDependent || p.RowDependent || p.Volatility != expr.Stable {
 				t.Fatal(name, node.ResultUsage(), p)
 			}
-			info, err := b.finish()
-			if err != nil || info.Count != 1 || info.Types[0] != b.typ(sqltype.Oid).Usage() {
+			info, err := b.Finish()
+			if err != nil || info.Count != 1 || info.Types[0] != b.Type(sqltype.Oid).Usage() {
 				t.Fatal(name, info, err)
 			}
 			found := false
@@ -44,8 +44,8 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 				t.Fatal("decisive constant lost analyzed inquiry", name)
 			}
 			call.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue, Pos: pos}}}
-			null, err := b.bindBoolean(call, filterContext, "WHERE")
-			if err != nil || null.ResultUsage() != b.typ(sqltype.Bool).Usage() {
+			null, err := b.BindBoolean(call, FilterContext, "WHERE")
+			if err != nil || null.ResultUsage() != b.Type(sqltype.Bool).Usage() {
 				t.Fatal(name, null, err)
 			}
 			literal, ok := null.(plan.LiteralExpr)
@@ -67,8 +67,8 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 		call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unnest", Pos: pos}}}, Args: []parser.Expr{parser.ArrayExpr{Elements: []parser.Expr{parser.LiteralExpr{Value: value}}, Pos: pos}}, Pos: pos}
 		for _, construct := range []string{"AND", "OR", "NOT"} {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			b.clause.aggregateClause = "SELECT"
-			node, err := b.bindBoolean(call, projectionContext, construct)
+			b.Clause.AggregateClause = "SELECT"
+			node, err := b.BindBoolean(call, ProjectionContext, construct)
 			message := "argument of " + construct + " must not return a set"
 			if !boolean {
 				message = "argument of " + construct + " must be type boolean, not type integer"
@@ -80,8 +80,8 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 			}
 		}
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
-		node, err := b.bind(call, expressionPolicy{context: projectionContext})
+		b.Clause.AggregateClause = "SELECT"
+		node, err := b.Bind(call, expressionPolicy{Context: ProjectionContext})
 		if err != nil || !exec.SourceReturnsSet(node) {
 			t.Fatal("standalone set projection changed", node, err)
 		}

@@ -105,7 +105,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	auth.Catalog = e.stageRead(stage)
 	auth.Recapture(auth.Catalog)
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-	binder.query.auth = &auth
+	binder.Query.Auth = &auth
 	localDefaults, err := bindCreateDefaults(binder, d.Columns, declarations)
 	if err != nil {
 		return nil, err

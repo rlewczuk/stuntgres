@@ -17,7 +17,7 @@ import (
 
 func TestAggregateModifiersTupleDistinct(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	typ := b.typ(sqltype.Text)
+	typ := b.Type(sqltype.Text)
 	family, err := sqltype.BindGrouping(typ.Usage())
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE SEQUENCE am_unit_sequence")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	for i, tc := range []struct {
 		call string
 		slot int
@@ -87,23 +87,23 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 		{"count(1 ORDER BY nextval('am_unit_sequence'))", 10},
 	} {
 		raw := statement(t, "SELECT "+tc.call).(*parser.Select).Targets[0]
-		expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		expr, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil || expr.(plan.AggregateExpr).Slot != tc.slot {
 			t.Fatal(i, expr, err)
 		}
 	}
 	raw := statement(t, "SELECT count(DISTINCT nextval('am_unit_sequence') ORDER BY nextval('am_unit_sequence'),nextval('am_unit_sequence'))").(*parser.Select).Targets[0]
-	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := b.grouping.aggregates[bound.(plan.AggregateExpr).Slot]
+	call := b.Grouping.Aggregates[bound.(plan.AggregateExpr).Slot]
 	if call.Order[0].Slot != 0 || call.Order[1].Slot != 0 || bound.Properties().Volatility != expr.Volatile {
 		t.Fatal(call, bound.Properties())
 	}
 	altered := call
-	altered.Provider = functions.NewCountProvider(b.typ(sqltype.Int4).Usage())
-	if b.sameAggregateCall(call, altered) {
+	altered.Provider = functions.NewCountProvider(b.Type(sqltype.Int4).Usage())
+	if b.SameAggregateCall(call, altered) {
 		t.Fatal("result Usage omitted from identity")
 	}
 }
@@ -114,21 +114,21 @@ func TestAggregateModifiersParameterTargets(t *testing.T) {
 		"SELECT count(DISTINCT $1 ORDER BY $1)",
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause = "SELECT"
+		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		expression, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		expression, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		parameters, err := b.finish()
+		parameters, err := b.Finish()
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		call := b.grouping.aggregates[expression.(plan.AggregateExpr).Slot]
+		call := b.Grouping.Aggregates[expression.(plan.AggregateExpr).Slot]
 		if parameters.Count != 1 || parameters.Types[0].Type.ID() != sqltype.Text ||
 			call.Argument.ResultUsage().Type.ID() != sqltype.Text ||
-			call.Order[0].Slot != 0 || call.Order[0].Cache != 0 || len(b.params.anyParameters) != 0 {
-			t.Fatal(query, parameters, call, b.params.anyParameters)
+			call.Order[0].Slot != 0 || call.Order[0].Cache != 0 || len(b.Params.AnyParameters) != 0 {
+			t.Fatal(query, parameters, call, b.Params.AnyParameters)
 		}
 	}
 }
@@ -163,7 +163,7 @@ func (c *aggregateModifierFamilyCancelContext) Err() error {
 
 func TestAggregateModifiersFamilyCancellation(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	typ := b.typ(sqltype.Text)
+	typ := b.Type(sqltype.Text)
 	family, err := sqltype.BindGrouping(typ.Usage())
 	if err != nil {
 		t.Fatal(err)

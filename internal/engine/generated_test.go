@@ -77,21 +77,21 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	ns := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{{Name: "g", Original: "g", Schema: "public", Ref: ref, Columns: columns}}, Frame: d.Columns}
 	auth := AuthorizationView{View: access.View{Catalog: view}}
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.target.generatedOwner = d
-	b.query.auth = &auth
-	b.query.namespace = &ns
-	b.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
+	b.Target.GeneratedOwner = d
+	b.Query.Auth = &auth
+	b.Query.Namespace = &ns
+	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	raw := func(name string) parser.ColumnExpr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}
-	if _, err := b.column(raw("a")); err != nil {
+	if _, err := b.Column(raw("a")); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.target.uses) != 0 {
-		t.Fatal("generation added DML explicit read manifest", b.target.uses)
+	if len(b.Target.Uses) != 0 {
+		t.Fatal("generation added DML explicit read manifest", b.Target.Uses)
 	}
 	for _, tc := range []struct{ name, code string }{{"b", "42P17"}, {"g", "42P17"}, {"xmin", "42P10"}, {"missing", "42703"}} {
-		_, err := b.column(raw(tc.name))
+		_, err := b.Column(raw(tc.name))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal(tc, err)

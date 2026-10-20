@@ -23,7 +23,7 @@ func TestStringCoreBinding(t *testing.T) {
 	bind := func(query string) expr.Expr {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
@@ -33,7 +33,7 @@ func TestStringCoreBinding(t *testing.T) {
 	if first.Properties().Volatility != expr.Immutable || first.ResultUsage().Type.ID() != sqltype.Text {
 		t.Fatal(first)
 	}
-	if !binder.sameGroupExpression(first, bind("SELECT btrim(' x ')")) || binder.sameGroupExpression(first, bind("SELECT ltrim(' x ')")) || binder.sameGroupExpression(first, bind("SELECT btrim(' y ')")) {
+	if !binder.SameGroupExpression(first, bind("SELECT btrim(' x ')")) || binder.SameGroupExpression(first, bind("SELECT ltrim(' x ')")) || binder.SameGroupExpression(first, bind("SELECT btrim(' y ')")) {
 		t.Fatal("string provider grouping identity")
 	}
 	for _, tc := range []struct {
@@ -126,7 +126,7 @@ func TestStringCoreMissingOperatorOwner(t *testing.T) {
 	} {
 		binder := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]
-		_, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+		_, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: tc.message, Position: tc.position, Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}
 		if !errors.As(err, &got) || *got != want {
@@ -213,10 +213,10 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	ordinary := node
 	ordinary.Syntax = parser.OrdinaryFunctionSyntax
-	if !binder.sameGroupExpression(node, ordinary) {
+	if !binder.SameGroupExpression(node, ordinary) {
 		t.Fatal("presentation syntax changed binary semantic identity")
 	}
-	grouped, err := binder.rewriteGroup(node, node.Args)
+	grouped, err := binder.RewriteGroup(node, node.Args)
 	if err != nil || grouped.(functions.Binary).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("aggregate rewrite lost syntax", grouped, err)
 	}

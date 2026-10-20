@@ -96,17 +96,17 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	pos := parser.Position{Offset: 7, Character: 8}
-	captured, err := binder.inputConstant("unit_role", d.Usage(), pos)
+	captured, err := binder.InputConstant("unit_role", d.Usage(), pos)
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := &StatementDescription{temporals: append([]temporalConstant(nil), binder.prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
+	description := &StatementDescription{temporals: append([]temporalConstant(nil), binder.Prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
 	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
-	again, err := retained.inputConstant("not_resolved_again", d.Usage(), pos)
+	again, err := retained.InputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {
 		t.Fatal("prepared identity retention", err)
 	}
-	if !analyze.RefreshableTemporal(binder.prepared.Temporals[0]) {
+	if !analyze.RefreshableTemporal(binder.Prepared.Temporals[0]) {
 		t.Fatal("full analysis invalidation cannot refresh role literal")
 	}
 	textType := aclUnitType(t, e, sqltype.Text)
@@ -147,7 +147,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		}
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: strconv.FormatUint(uint64(id), 10)}}
-		if err := binder.captureViewLiterals(raw, literal, analyze.ViewTargetLiteral, 0); !reflect.DeepEqual(err, want) {
+		if err := binder.CaptureViewLiterals(raw, literal, analyze.ViewTargetLiteral, 0); !reflect.DeepEqual(err, want) {
 			t.Fatal("view freeze boundary", err)
 		}
 		// Data serialization is legal even when the exact same datum is banned

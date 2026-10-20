@@ -67,16 +67,16 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		}
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	oid, boolean := b.typ(sqltype.Oid), b.typ(sqltype.Bool)
-	left := plan.LiteralExpr{Info: b.info(oid.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(oid)}
-	late := plan.TableOIDExpr{Info: b.info(oid.Usage(), parser.Position{}, expr.Properties{RowDependent: true})}
+	oid, boolean := b.Type(sqltype.Oid), b.Type(sqltype.Bool)
+	left := plan.LiteralExpr{Info: b.Info(oid.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(oid)}
+	late := plan.TableOIDExpr{Info: b.Info(oid.Usage(), parser.Position{}, expr.Properties{RowDependent: true})}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, node := range []plan.ScalarArrayComparisonExpr{
-		{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Items: []expr.Expr{left, late}, Predicate: predicate, Operator: "="},
-		{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Array: plan.ArrayExpr{Info: b.info(b.typ(oid.AssociatedArray()).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Elements: []expr.Expr{left, late}}, Predicate: predicate, Operator: "="},
+		{Info: b.Info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Items: []expr.Expr{left, late}, Predicate: predicate, Operator: "="},
+		{Info: b.Info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Array: plan.ArrayExpr{Info: b.Info(b.Type(oid.AssociatedArray()).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Elements: []expr.Expr{left, late}}, Predicate: predicate, Operator: "="},
 	} {
 		if !generationHasTableOID(node) || !generationImmutable(node) {
 			t.Fatal("late RHS owner-dependent generation lost", node)

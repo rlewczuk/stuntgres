@@ -19,9 +19,9 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 	}
 	namespace := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{{Name: parent.Name(), Original: parent.Name(), Schema: auth.Catalog.Get(parent.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: parent.Columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
-	binder.consumer.indexConsumer, binder.params.noParameters, binder.query.auth = true, true, &auth
-	binder.query.namespace = &namespace
-	binder.query.sources = []exec.Leaf{{Ref: ref, Relation: parent}}
+	binder.Consumer.IndexConsumer, binder.Params.NoParameters, binder.Query.Auth = true, true, &auth
+	binder.Query.Namespace = &namespace
+	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: parent}}
 	return binder
 }
 
@@ -31,16 +31,16 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 // not an expression-only default comparator.
 func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
 	binder := e.indexExpressionBinder(op, input, auth, parent)
-	binder.stored.checkLiterals = literals
-	definition, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+	binder.Stored.CheckLiterals = literals
+	definition, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		return nil, "", err
 	}
-	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].Uses); err != nil {
+	if err := rejectVirtualIndexUses(parent, binder.Query.Sources[0].Uses); err != nil {
 		return nil, "", err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.dependencies
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.Dependencies
 	evaluation.RoutineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {

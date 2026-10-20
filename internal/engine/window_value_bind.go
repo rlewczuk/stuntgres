@@ -63,7 +63,7 @@ func (b *expressionBinder) windowValueAliases(calls []plan.WindowCall, projectio
 				return
 			}
 			for _, owner := range owners {
-				if !b.sameWindowCall(calls[leaf.Call], calls[owner.Call]) {
+				if !b.SameWindowCall(calls[leaf.Call], calls[owner.Call]) {
 					continue
 				}
 				if leaf.Call != owner.Call {

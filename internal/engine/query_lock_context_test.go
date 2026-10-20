@@ -37,13 +37,13 @@ func TestQueryLockContextsAndReferenceKinds(t *testing.T) {
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-			binder.query.auth = &auth
+			binder.Query.Auth = &auth
 			var query *plan.Query
 			if err == nil {
 				query, err = binder.BindSelect(raw, false)
 			}
 			if err == nil {
-				err = e.initializeQueryLocksLocked(scope, query.Root, binder.query.sources)
+				err = e.initializeQueryLocksLocked(scope, query.Root, binder.Query.Sources)
 			}
 			e.mu.Unlock()
 			if tc.sequenceError {

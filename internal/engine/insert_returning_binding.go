@@ -9,37 +9,37 @@ func bindInsertReturning(b *binding, binder *expressionBinder, auth analyze.Auth
 	if s.Returning == nil {
 		return nil
 	}
-	binder.target.relation, binder.target.ref = b.Relation, b.Ref
-	binder.target.name, binder.target.alias = b.Relation.Name(), s.Alias.Text
-	binder.query.auth = auth
+	binder.Target.Relation, binder.Target.Ref = b.Relation, b.Ref
+	binder.Target.Name, binder.Target.alias = b.Relation.Name(), s.Alias.Text
+	binder.Query.Auth = auth
 	target := binder.mutationTargetNamespace()
-	binder.query.namespace = &target
-	binder.query.hidden = nil
+	binder.Query.Namespace = &target
+	binder.Query.Hidden = nil
 	if s.Alias.Text != "" {
-		binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
+		binder.Query.Hidden = append(binder.Query.Hidden, target.Qualifiers[0])
 	}
 	if s.Conflict != nil && s.Conflict.Update {
-		binder.query.hidden = append(binder.query.hidden, queryQualifier{Name: "excluded", Original: "excluded", LateralForbidden: true})
+		binder.Query.Hidden = append(binder.Query.Hidden, queryQualifier{Name: "excluded", Original: "excluded", LateralForbidden: true})
 	}
-	previousUses := binder.target.uses
-	previousReadRequired := binder.target.returningReadRequired
-	binder.target.returningReadRequired = false
-	binder.target.uses = nil
-	output, err := binder.bindReturning(s.Returning, returningInsert)
-	reads := binder.target.uses
-	readRequired := binder.target.returningReadRequired
-	binder.target.returningReadRequired = previousReadRequired
-	binder.target.uses = previousUses
+	previousUses := binder.Target.Uses
+	previousReadRequired := binder.Target.returningReadRequired
+	binder.Target.returningReadRequired = false
+	binder.Target.Uses = nil
+	output, err := binder.BindReturning(s.Returning, returningInsert)
+	reads := binder.Target.Uses
+	readRequired := binder.Target.returningReadRequired
+	binder.Target.returningReadRequired = previousReadRequired
+	binder.Target.Uses = previousUses
 	for _, slot := range reads {
 		found := false
-		for _, prior := range binder.target.uses {
+		for _, prior := range binder.Target.Uses {
 			if prior == slot {
 				found = true
 				break
 			}
 		}
 		if !found {
-			binder.target.uses = append(binder.target.uses, slot)
+			binder.Target.Uses = append(binder.Target.Uses, slot)
 		}
 	}
 	if err != nil {

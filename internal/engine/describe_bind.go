@@ -19,24 +19,24 @@ import (
 // routine bodies whose formals are fixed; initial seeds parameter types.
 func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth analyze.Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected analyze.Expected, admission *queryLockAdmission, rule *analyze.RuleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
-	binder := newHostedBinder(ctx, host, input, expected)
-	binder.target.ruleNamespace = rule
-	binder.params.noParameters = rule != nil
-	binder.params.closedRoutineFormals = closed
+	binder := NewBinder(ctx, host, input, expected)
+	binder.Target.RuleNamespace = rule
+	binder.Params.NoParameters = rule != nil
+	binder.Params.ClosedRoutineFormals = closed
 	if len(initial) != 0 && initial[0] != nil {
-		binder.seedParameters(initial[0])
+		binder.SeedParameters(initial[0])
 	}
-	binder.query.lockAdmission = admission
-	binder.query.auth = auth
-	if err := host.CaptureEnumOperationInput(auth, &binder.input); err != nil {
+	binder.Query.lockAdmission = admission
+	binder.Query.Auth = auth
+	if err := host.CaptureEnumOperationInput(auth, &binder.Input); err != nil {
 		return b, err
 	}
-	if binder.query.lockAdmission == nil {
+	if binder.Query.lockAdmission == nil {
 		manifest, _, _, err := analyze.NewLockAdmission(stmt)
 		if err != nil {
 			return b, err
 		}
-		binder.query.lockAdmission = &manifest
+		binder.Query.lockAdmission = &manifest
 	}
 	cteRestriction := ""
 	switch original := stmt.(type) {
@@ -57,12 +57,12 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 		}
 		view = s
 		stmt = s.Query
-		binder.params.noParameters = true
+		binder.Params.NoParameters = true
 		b.CommandQuery = true
 	}
 	if s, ok := stmt.(*parser.CreateQueryTable); ok {
 		materialized = s.Form == parser.CreateMaterializedView
-		binder.consumer.materializedDefinition = materialized
+		binder.Consumer.materializedDefinition = materialized
 		stmt = s.Query
 		b.CommandQuery = true
 	}
@@ -88,7 +88,7 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 		}
 	case *parser.DeclareCursor:
 		var err error
-		binder.query.auth = auth
+		binder.Query.Auth = auth
 		b.Query, err = binder.BindSelect(s.Query, false)
 		if err != nil {
 			return b, err
@@ -108,12 +108,12 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 		b.CommandQuery = true
 	case *parser.Select:
 		var err error
-		binder.query.auth = auth
+		binder.Query.Auth = auth
 		b.Query, err = binder.BindSelect(s, false)
 		if err != nil {
 			return b, err
 		}
-		b.QuerySources = binder.query.sources
+		b.QuerySources = binder.Query.Sources
 		if view != nil {
 			if err := analyze.BindViewOutput(b.Query, view); err != nil {
 				return b, err
@@ -124,9 +124,9 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 	}
 	b.CTEs = binder.cte.statementCTEs
 	b.CTESelectBodies = binder.cte.selectBodies
-	b.QuerySources = binder.query.sources
+	b.QuerySources = binder.Query.Sources
 	var err error
-	b.Parameters, err = binder.finish()
+	b.Parameters, err = binder.Finish()
 	if err != nil {
 		return b, err
 	}
@@ -150,7 +150,7 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 		if b.Parameters.Count != 0 {
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
-		for _, source := range binder.query.sources {
+		for _, source := range binder.Query.Sources {
 			if ns := auth.ReadCatalog().MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
@@ -174,12 +174,12 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 			return b, pgcatalog.VirtualViewWriteError(b.Relation, "delete", nil)
 		}
 	}
-	b.UsedColumns, b.Dependencies = binder.target.uses, binder.dependencies
-	b.VisibilitySnapshot = binder.consumer.visibilitySnapshot
-	b.SubqueryDemand = binder.query.subqueryDemand
-	b.Capture = binder.capture
-	slices.SortFunc(binder.prepared.Temporals, func(a, b temporalConstant) int { return a.Offset - b.Offset })
-	b.Prepared = binder.prepared
+	b.UsedColumns, b.Dependencies = binder.Target.Uses, binder.Dependencies
+	b.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot
+	b.SubqueryDemand = binder.Query.subqueryDemand
+	b.Capture = binder.Capture
+	slices.SortFunc(binder.Prepared.Temporals, func(a, b temporalConstant) int { return a.Offset - b.Offset })
+	b.Prepared = binder.Prepared
 	if rule == nil && !parser.ModifyingStatement(stmt) {
 		if err := host.BindViewWrite(&b, auth, stmt); err != nil {
 			return b, err
@@ -206,6 +206,6 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 			}
 		}
 	}
-	b.Resolvers = analyze.NewResolverInputs(binder.input)
+	b.Resolvers = analyze.NewResolverInputs(binder.Input)
 	return b, nil
 }

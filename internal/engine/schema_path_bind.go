@@ -7,11 +7,11 @@ import (
 )
 
 func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind analyze.LookupKind) (bool, error) {
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return false, err
 	}
-	path, err := b.host.LookupNamespaces(auth, name, kind)
+	path, err := b.Host.LookupNamespaces(auth, name, kind)
 	if err != nil {
 		return false, err
 	}

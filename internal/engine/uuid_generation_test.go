@@ -16,7 +16,7 @@ import (
 func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"gen_random_uuid", "uuidv4", "uuidv7"} {
-		node, err := b.bind(nullCountRaw(name), expressionPolicy{context: projectionContext})
+		node, err := b.Bind(nullCountRaw(name), expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -24,29 +24,29 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 			t.Fatal(name, node)
 		}
 	}
-	node, err := b.bind(nullCountRaw("uuidv7", parser.ParameterExpr{Number: 1}), expressionPolicy{context: projectionContext})
+	node, err := b.Bind(nullCountRaw("uuidv7", parser.ParameterExpr{Number: 1}), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Volatile || analyze.ClosedUUIDDefault(node) {
 		t.Fatal("parameter dependence", node.Properties())
 	}
-	uuid := b.typ(sqltype.UUID)
-	iv := b.typ(sqltype.Interval)
+	uuid := b.Type(sqltype.UUID)
+	iv := b.Type(sqltype.Interval)
 	argument := plan.LiteralExpr{Info: expr.Info{Usage: iv.Usage()}, Value: sqltype.Null(iv)}
 	bound := functions.UUIDGeneration{Info: expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "uuidv7", Args: []expr.Expr{argument}}
 	// Tree inspection, descriptor remapping and rendering do not evaluate a child.
-	stored, err := b.bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), expressionPolicy{context: projectionContext})
+	stored, err := b.Bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	other := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	rebound, changed, err := retagBoundTypes(other.bindingCatalog(), stored, func(d *sqltype.Descriptor) *sqltype.Descriptor { return other.typ(d.ID()) })
+	rebound, changed, err := retagBoundTypes(other.BindingCatalog(), stored, func(d *sqltype.Descriptor) *sqltype.Descriptor { return other.Type(d.ID()) })
 	if err != nil || !changed {
 		t.Fatal("UUID retag", changed, err)
 	}
 	n := rebound.(functions.UUIDGeneration)
-	if n.Timestamp != other.typ(sqltype.Timestamptz) || n.ResultUsage().Type != other.typ(sqltype.UUID) || n.Args[0].ResultUsage().Type != other.typ(sqltype.Interval) || n.Properties() != stored.Properties() {
+	if n.Timestamp != other.Type(sqltype.Timestamptz) || n.ResultUsage().Type != other.Type(sqltype.UUID) || n.Args[0].ResultUsage().Type != other.Type(sqltype.Interval) || n.Properties() != stored.Properties() {
 		t.Fatal("retag lost descriptor/dependence")
 	}
 	if generationImmutable(bound) {
@@ -68,7 +68,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		parser.CaseExpr{Arms: []parser.CaseArm{{Condition: yes, Result: typedNull}}, Else: zero},
 		parser.ConditionalExpr{Kind: parser.Coalesce, Args: []parser.Expr{typedNull, typedNull}},
 	} {
-		analyzed, err := b.bind(nullCountRaw("uuidv7", child), expressionPolicy{context: projectionContext})
+		analyzed, err := b.Bind(nullCountRaw("uuidv7", child), expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -94,7 +94,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 					t.Fatal("strict NULL physical tree", planned)
 				}
 				value, err := planned.Eval(evaluation)
-				if err != nil || !value.IsNull() || value.Type() != b.typ(sqltype.UUID) {
+				if err != nil || !value.IsNull() || value.Type() != b.Type(sqltype.UUID) {
 					t.Fatal("typed NULL demanded session", value, err)
 				}
 			}
@@ -105,7 +105,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		}
 	}
 	for _, raw := range []parser.FunctionExpr{nullCountRaw("uuidv7"), nullCountRaw("uuidv7", zero)} {
-		analyzed, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		analyzed, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

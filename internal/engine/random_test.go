@@ -31,7 +31,7 @@ func TestRandomBinder(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			x, err := b.bind(nullCountRaw(tc.name, tc.args...), expressionPolicy{context: projectionContext})
+			x, err := b.Bind(nullCountRaw(tc.name, tc.args...), expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -44,6 +44,6 @@ func TestRandomBinder(t *testing.T) {
 
 func TestRandomBinderAmbiguousParameters(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	_, err := b.bind(nullCountRaw("random", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}), expressionPolicy{context: projectionContext})
+	_, err := b.Bind(nullCountRaw("random", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}), expressionPolicy{Context: ProjectionContext})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42725", Message: "function random(unknown, unknown) is not unique", Position: "8", Hint: "Could not choose a best candidate function. You might need to add explicit type casts."})
 }

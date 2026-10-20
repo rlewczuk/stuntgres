@@ -22,7 +22,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound, err := b.bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			bound, err := b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 			if err != nil {
 				t.Fatal("describable extrema rejected at analysis", err)
 			}
@@ -90,7 +90,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node, err := b.bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+	node, err := b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

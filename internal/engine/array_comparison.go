@@ -14,13 +14,13 @@ import (
 
 // Resolve the operator before finalizing unknown occurrences. The returned
 // targets are the selected operation's actual inputs, not the source pair.
-func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, rt *sqltype.Descriptor) (*sqltype.Descriptor, *sqltype.Descriptor, error) {
+func (b *expressionBinder) ResolveComparisonTypes(raw parser.OperatorExpr, lt, rt *sqltype.Descriptor) (*sqltype.Descriptor, *sqltype.Descriptor, error) {
 	return b.resolveComparisonCandidates(raw, lt, rt, nil)
 }
 
 func (b *expressionBinder) resolveComparisonCandidates(raw parser.OperatorExpr, lt, rt *sqltype.Descriptor, candidates *operatorCandidateSet) (*sqltype.Descriptor, *sqltype.Descriptor, error) {
 	// Internal provider dispatch has already selected and coerced these inputs.
-	if len(raw.Args) == 2 && len(b.clause.selectedOperatorArgs) == 2 {
+	if len(raw.Args) == 2 && len(b.Clause.SelectedOperatorArgs) == 2 {
 		left, lok := raw.Args[0].(parser.ParameterExpr)
 		right, rok := raw.Args[1].(parser.ParameterExpr)
 		if lok && rok && left.Number == -1 && right.Number == -2 {
@@ -63,7 +63,7 @@ func (b *expressionBinder) resolveComparisonCandidates(raw parser.OperatorExpr, 
 
 // Specialize selected catalog formals without choosing another overload.
 func (b *expressionBinder) comparisonInputType(id sqltype.ID, own, other *sqltype.Descriptor) *sqltype.Descriptor {
-	polymorphic := !b.typ(id).Concrete() && id != 2249
+	polymorphic := !b.Type(id).Concrete() && id != 2249
 	if own == nil && id == 2249 {
 		return sqltype.DeferredRecord()
 	}
@@ -80,7 +80,7 @@ func (b *expressionBinder) comparisonInputType(id sqltype.ID, own, other *sqltyp
 	if id == 2249 {
 		return sqltype.DeferredRecord()
 	}
-	return b.typ(id)
+	return b.Type(id)
 }
 
 func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (expr.Expr, error) {
@@ -139,16 +139,16 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, err
 	}
-	l, err := b.coerceConditional(left, lt.Usage(), name)
+	l, err := b.CoerceConditional(left, lt.Usage(), name)
 	if err != nil {
 		return nil, err
 	}
 	var target sqltype.Usage
-	if right.node != nil && element != nil && element.BaseType() == rt {
+	if right.Node != nil && element != nil && element.BaseType() == rt {
 		// The existing RHS already carries the resolved physical element.
 		// Retain its exact domain/array generations, typmod and collation;
 		// an array-valued element need not have an array-of-array provider.
-		target = right.node.ResultUsage()
+		target = right.Node.ResultUsage()
 	} else {
 		arrayType, found := b.definitionArray(rt)
 		if !found || !arrayType.Concrete() {
@@ -156,7 +156,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 		}
 		target = arrayType.Usage()
 	}
-	r, err := b.coerceConditional(right, target, name)
+	r, err := b.CoerceConditional(right, target, name)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, err
 	}
-	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type.BaseType().Element(), b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
+	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type.BaseType().Element(), b.Type(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, functions.ComparisonError(b, err, left.descriptor(), element, operatorRaw)
 	}
@@ -176,7 +176,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+	info := b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, properties)
 	if declaration != nil {
 		info, err = b.selectedBuiltinRoutineInfo(info, declaration)
 		if err != nil {
@@ -186,7 +186,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	return plan.ScalarArrayComparisonExpr{Info: info, Left: l, Array: r, Predicate: predicate, Operator: name, Namespace: namespace, All: raw.All}, nil
 }
 
-func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
+func (b *expressionBinder) InListHasVar(node expr.Expr) bool {
 	found := false
 	frame := b.FrameID()
 	var visit func(expr.Expr)
@@ -209,8 +209,8 @@ func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
 }
 
 type storedExpressionSyntaxKey struct {
-	frame    uint32
-	position parser.Position
+	Frame    uint32
+	Position parser.Position
 }
 
 func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
@@ -242,10 +242,10 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 				return nil, err
 			}
 		}
-		vars[i] = b.inListHasVar(items[i].node)
-		if leftInput.constructor && rowItems[i].constructor && items[i].node == nil {
+		vars[i] = b.InListHasVar(items[i].Node)
+		if leftInput.constructor && rowItems[i].constructor && items[i].Node == nil {
 			for _, field := range rowItems[i].fields {
-				vars[i] = vars[i] || b.inListHasVar(field.node)
+				vars[i] = vars[i] || b.InListHasVar(field.Node)
 			}
 		}
 		if !vars[i] {
@@ -264,11 +264,11 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 	operator, _ := analyze.ComparisonOperator(name)
 	op := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}, Pos: raw.Pos}
 	var result expr.Expr
-	capture := b.params.noParameters || b.consumer.materializedDefinition
+	capture := b.Params.NoParameters || b.Consumer.materializedDefinition
 	var syntax parser.Expr
 	batched := false
 	if len(nonvar) > 2 {
-		common, err := commonExpressionUsage(nonvar, b.typ(sqltype.Text).Usage(), "")
+		common, err := CommonExpressionUsage(nonvar, b.Type(sqltype.Text).Usage(), "")
 		if err != nil {
 			return nil, err
 		}
@@ -281,7 +281,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 				if item.descriptor() == nil {
 					continue
 				}
-				if _, err := sqltype.PlanCoercion(item.node.ResultUsage(), common, sqltype.Implicit); err != nil {
+				if _, err := sqltype.PlanCoercion(item.Node.ResultUsage(), common, sqltype.Implicit); err != nil {
 					feasible = false
 					break
 				}
@@ -291,14 +291,14 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 			children := make([]expr.Expr, len(nonvar)-1)
 			properties := expr.Properties{}
 			for i, item := range nonvar[1:] {
-				children[i], err = b.coerceConditional(item, common, "IN")
+				children[i], err = b.CoerceConditional(item, common, "IN")
 				if err != nil {
 					return nil, err
 				}
 			}
 			// The batch array inputs are finalized before scalar operator lookup
 			// and lhs input, matching transformAExprIn's diagnostic precedence.
-			leftTarget, rightTarget, err := b.resolveComparisonTypes(op, nonvar[0].descriptor(), common.Type)
+			leftTarget, rightTarget, err := b.ResolveComparisonTypes(op, nonvar[0].descriptor(), common.Type)
 			if err != nil {
 				return nil, err
 			}
@@ -307,33 +307,33 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 				return nil, err
 			}
 			for i, child := range children {
-				children[i], err = b.coerceConditional(comparisonOperand{node: child}, rightTarget.Usage(), name)
+				children[i], err = b.CoerceConditional(comparisonOperand{Node: child}, rightTarget.Usage(), name)
 				if err != nil {
 					return nil, err
 				}
 				properties = expr.MergeProperties(properties, children[i].Properties())
 			}
-			l, err := b.coerceConditional(left, leftTarget.Usage(), name)
+			l, err := b.CoerceConditional(left, leftTarget.Usage(), name)
 			if err != nil {
 				return nil, err
 			}
 			properties = expr.MergeProperties(properties, l.Properties())
-			input, err := b.collatedInfo(b.info(rightTarget.Usage(), raw.Pos, properties), children...)
+			input, err := b.CollatedInfo(b.Info(rightTarget.Usage(), raw.Pos, properties), children...)
 			if err != nil {
 				return nil, err
 			}
-			input, err = b.collatedInfo(input, l)
+			input, err = b.CollatedInfo(input, l)
 			if err != nil {
 				return nil, err
 			}
-			predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, children[0].ResultUsage().Type, b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
+			predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, children[0].ResultUsage().Type, b.Type(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 			if err != nil {
 				return nil, functions.ComparisonError(b, err, left.descriptor(), common.Type, op)
 			}
 			if predicate.SessionDependent() && properties.Volatility < expr.Stable {
 				properties.Volatility = expr.Stable
 			}
-			info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+			info := b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, properties)
 			if declaration != nil {
 				info, err = b.selectedBuiltinRoutineInfo(info, declaration)
 				if err != nil {
@@ -344,8 +344,8 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 			// PostgreSQL coerces an unknown Param occurrence in place, unlike
 			// an unknown Const. Only the original batch lhs is updated before
 			// Var pairs copy it; other transformed occurrences stay independent.
-			if parameter, ok := left.node.(plan.ParameterExpr); ok && parameter.Usage.Type == nil {
-				left.node = l
+			if parameter, ok := left.Node.(plan.ParameterExpr); ok && parameter.Usage.Type == nil {
+				left.Node = l
 			}
 			batched = true
 			if capture {
@@ -368,7 +368,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 		if rowPair {
 			pair, err = b.bindRowPredicateOperands(op, operator, leftInput.fields, rowItems[i].fields, leftInput.expansions, rowItems[i].expansions, name)
 		} else {
-			if left.node == nil && leftInput.constructor {
+			if left.Node == nil && leftInput.constructor {
 				left, err = b.inScalarOperand(&leftInput)
 				if err != nil {
 					return nil, err
@@ -380,7 +380,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 					return nil, err
 				}
 			}
-			pair, err = b.bindComparisonOperands(op, operator, left, item)
+			pair, err = b.BindComparisonOperands(op, operator, left, item)
 		}
 		if err != nil {
 			return nil, err
@@ -394,7 +394,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 				comparison := pair.(plan.RowComparisonExpr)
 				for side, input := range [2]inComparisonOperand{leftInput, rowItems[i]} {
 					_, rawRow := input.scalar.raw.(parser.RowExpr)
-					if constructor, ok := input.scalar.node.(plan.RowExpr); ok && !rawRow {
+					if constructor, ok := input.scalar.Node.(plan.RowExpr); ok && !rawRow {
 						args[side] = *constructor.Raw
 						comparison.MemberCasts[side] = true
 					}
@@ -411,16 +411,16 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 			continue
 		}
 		properties := expr.MergeProperties(result.Properties(), pair.Properties())
-		result = plan.LogicalExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), Op: logical, Left: result, Right: pair}
+		result = plan.LogicalExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, properties), Op: logical, Left: result, Right: pair}
 		if capture {
 			syntax = parser.LogicalExpr{Op: logical, Left: syntax, Right: pairSyntax, Pos: raw.Pos}
 		}
 	}
 	if capture {
-		if b.stored.syntax == nil {
-			b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
+		if b.Stored.Syntax == nil {
+			b.Stored.Syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 		}
-		b.stored.syntax[storedExpressionSyntaxKey{frame: b.FrameID(), position: raw.Pos}] = syntax
+		b.Stored.Syntax[storedExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.Pos}] = syntax
 	}
 	return result, nil
 }

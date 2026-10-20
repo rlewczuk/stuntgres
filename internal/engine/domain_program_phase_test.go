@@ -170,8 +170,8 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			child := view.MustRelation(childRef[0])
 			ownerAuth := foreignActionOwner(auth, child.Owner)
 			binder := newExpressionBinder(context.Background(), e, scope.input, caller, nil)
-			binder.query.auth, binder.query.namespace = &auth, &queryNamespace{}
-			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+			binder.Query.Auth, binder.Query.Namespace = &auth, &queryNamespace{}
+			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -180,7 +180,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if !ok {
 				t.Fatalf("actual inquiry provider %T", node)
 			}
-			invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}, EvalAdmission: exec.EvalAdmission{RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}, EvalAdmission: exec.EvalAdmission{RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
 			local := invoker
 			local.RoutineAuthority = &ownerAuth
 			enter := func(evaluation *exec.Context) error {

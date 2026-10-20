@@ -24,7 +24,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "jsonb_path_query_array"}}},
 		Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}},
 	}
-	node, err := b.bindFunctionProvider(raw)
+	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,13 +67,13 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := admitRoutineDescriptor(auth, b.dependencies, captured, nil); err != nil {
+	if err := admitRoutineDescriptor(auth, b.Dependencies, captured, nil); err != nil {
 		t.Fatal("original omitted-argument binding authority", err)
 	}
 	if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
 		t.Fatal("current OID repaired missing original manifest")
 	}
-	checks := append([]catalog.ExpressionDependency(nil), b.dependencies...)
+	checks := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
 	for i := range checks {
 		if checks[i].Ref.Address == address {
 			checks[i].Revision++

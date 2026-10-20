@@ -31,8 +31,8 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 		node := jsonbSetUnitBind(t, b, tc.q)
 		for i, id := range tc.ids {
-			if b.params.parameters[i+1].Type.ID() != id {
-				t.Fatal(tc.q, b.params.parameters)
+			if b.Params.Parameters[i+1].Type.ID() != id {
+				t.Fatal(tc.q, b.Params.Parameters)
 			}
 		}
 		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || exec.PlannedVolatility(node) != expr.Immutable {
@@ -47,7 +47,7 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 	for _, q := range []string{"SELECT $1 -> 0", "SELECT $1 ->> 'a'", "SELECT $1 #> '{a}'", "SELECT $1 #>> '{a}'"} {
 		b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil || !strings.Contains(err.Error(), "operator is not unique") {
+		if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err == nil || !strings.Contains(err.Error(), "operator is not unique") {
 			t.Fatal(q, err)
 		}
 	}
@@ -113,14 +113,14 @@ func TestJSONBExtractStoredVariadicProvenance(t *testing.T) {
 			t.Run(q, func(t *testing.T) {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, q).(*parser.Select).Targets[0]
-				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+				if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)

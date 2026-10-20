@@ -75,7 +75,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.populate {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || exec.SourceReturnsSet(call) != tc.set || !exec.SourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || exec.SourceReturnsSet(call) != tc.set || !exec.SourceAdmitted(call) || binder.Clause.QueryHasTargetSet != tc.set {
 				t.Fatal("physical/source/project contract", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || !call.Properties().RuntimeDomainConversion || call.Properties().DomainDependent {
@@ -107,7 +107,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if evaluation.Catalog.Get(address) != captured {
 				t.Fatal("not the borrowed owned descriptor")
 			}
-			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			selected := 0
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -130,7 +130,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			if tc.valid {
 				raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0].(parser.FunctionExpr)
-				if _, err := binder.completeFunctionDefinitions(raw, call, []parser.FunctionColumnDefinition{
+				if _, err := binder.CompleteFunctionDefinitions(raw, call, []parser.FunctionColumnDefinition{
 					{Name: parser.Identifier{Text: "a"}, Type: parser.TypeName{Name: "integer"}},
 				}); err == nil {
 					t.Fatal("BOOL validity accepted a fake record definition")
@@ -139,15 +139,15 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.anonymous {
 				raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0].(parser.FunctionExpr)
 				_, sourceBinder, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
-				sourceBinder.clause.aggregateClause = "FROM"
-				sourceBinder.query.namespace = &queryNamespace{}
+				sourceBinder.Clause.AggregateClause = "FROM"
+				sourceBinder.Query.Namespace = &queryNamespace{}
 				e.mu.Lock()
 				source, sourceErr := sourceBinder.BindFunctionSource(raw)
 				e.mu.Unlock()
 				if sourceErr != nil {
 					t.Fatal("actual FROM binding", sourceErr)
 				}
-				completed, err := sourceBinder.completeFunctionDefinitions(raw, source, []parser.FunctionColumnDefinition{
+				completed, err := sourceBinder.CompleteFunctionDefinitions(raw, source, []parser.FunctionColumnDefinition{
 					{Name: parser.Identifier{Text: "a"}, Type: parser.TypeName{Name: "strict_null_checked"}},
 					{Name: parser.Identifier{Text: "b"}, Type: parser.TypeName{Name: "text"}},
 				})
@@ -249,7 +249,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed nil carrier admitted")
 			}
-			if !reflect.DeepEqual(call, before) || !reflect.DeepEqual(binder.dependencies, original) {
+			if !reflect.DeepEqual(call, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("probes mutated original graph/manifest")
 			}
 			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
@@ -265,7 +265,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	ref := roleTableRef(t, e, "jsonb_authority_recipe")
 	recipe := view.MustRelation(ref.Address)
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "jsonb_to_record('{}'::jsonb)")
-	original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+	original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 	call := node.(functions.JSONBRecord)
 	captured, err := routine.ExpressionRoutineDescriptor(call)
 	if err != nil || captured == nil {
@@ -278,7 +278,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 		t.Fatal("graft actual stored recipe", err)
 	}
 	raw := statement(t, "SELECT jsonb_to_record('{}'::jsonb)").(*parser.Select).Targets[0].(parser.FunctionExpr)
-	completed, err := binder.completeFunctionDefinitions(raw, grafted, []parser.FunctionColumnDefinition{
+	completed, err := binder.CompleteFunctionDefinitions(raw, grafted, []parser.FunctionColumnDefinition{
 		{Name: parser.Identifier{Text: "a"}, Type: parser.TypeName{Name: "integer"}},
 		{Name: parser.Identifier{Text: "b"}, Type: parser.TypeName{Name: "text"}},
 	})
@@ -383,17 +383,17 @@ func eMustJSONBRoutineAuthority(t *testing.T, e *Engine, op *Operation) *Authori
 func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "FROM"
-	usage := b.typ(sqltype.Int4).Usage()
+	b.Clause.AggregateClause = "FROM"
+	usage := b.Type(sqltype.Int4).Usage()
 	usage.Typmod = 0
 	column := catalog.Column{Name: "base", Usage: usage}
-	b.query.namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
+	b.Query.Namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
 	raw := statement(t, "SELECT jsonb_populate_record(base,'{}'::jsonb)").(*parser.Select).Targets[0].(parser.FunctionExpr)
 	_, err := b.BindFunctionSource(raw)
 	if err == nil {
 		t.Fatal("real constructor failure", err)
 	}
-	for _, dependency := range b.dependencies {
+	for _, dependency := range b.Dependencies {
 		if dependency.Ref.Address == (ids.ObjectAddress{ids.ProcedureClassID, 3209, 0}) {
 			t.Fatal("failed constructor captured outer routine", dependency)
 		}
@@ -418,7 +418,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+		original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 		base := e.CatalogRead()
 		// Reusing a live, same-domain principal is a genuine owner-COW, even
 		// though the SQL surface does not offer ALTER FUNCTION OWNER here.
@@ -465,7 +465,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			t.Fatal("fresh current admission", err)
 		}
 		found := false
-		for _, dep := range freshBinder.dependencies {
+		for _, dep := range freshBinder.Dependencies {
 			if dep.Ref.Address == current.Address() {
 				found = dep.Revision == current.Revision() && dep.Ref.Domain() == e.catalog.Domain
 			}
@@ -490,7 +490,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			}
 			e.DiscardCatalogStage(badStage)
 		}
-		if !reflect.DeepEqual(binder.dependencies, original) || captured.Owner == target {
+		if !reflect.DeepEqual(binder.Dependencies, original) || captured.Owner == target {
 			t.Fatal("owner probes mutated original authority")
 		}
 	}
@@ -516,7 +516,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+		original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 		var ref ids.ObjectRef
 		for _, dependency := range original {
 			if dependency.Ref.Address == captured.Address() {
@@ -556,7 +556,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 				t.Fatal("COW mutated original authority snapshot", err)
 			}
 		}
-		if !reflect.DeepEqual(binder.dependencies, original) {
+		if !reflect.DeepEqual(binder.Dependencies, original) {
 			t.Fatal("ACL COW changed original manifest")
 		}
 		if selected, err := routine.ExpressionRoutineDescriptor(node); err != nil || selected != captured {

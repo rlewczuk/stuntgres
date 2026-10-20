@@ -88,29 +88,29 @@ func subscriptsUnitRead(t *testing.T, e plan.SubscriptsExpr) []int64 {
 
 func TestSubscriptsBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.clause.aggregateClause = "SELECT"
+	b.Clause.AggregateClause = "SELECT"
 	array := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "integer", ArrayBounds: []int32{0}}, Syntax: parser.PostfixCast}
 	integer := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}
-	x, err := b.bindFunction(nullCountRaw("generate_subscripts", array, integer, parser.ParameterExpr{Number: 2}))
+	x, err := b.BindFunction(nullCountRaw("generate_subscripts", array, integer, parser.ParameterExpr{Number: 2}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	e, ok := x.(plan.SubscriptsExpr)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.clause.queryHasTargetSet || !exec.SourceAdmitted(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.Clause.QueryHasTargetSet || !exec.SourceAdmitted(e) {
 		t.Fatal(x)
 	}
-	if b.params.parameters[1].Type == nil || !b.params.parameters[1].Type.IsArray() || b.params.parameters[2].Type.ID() != sqltype.Bool {
-		t.Fatal("parameter identity", b.params.parameters)
+	if b.Params.Parameters[1].Type == nil || !b.Params.Parameters[1].Type.IsArray() || b.Params.Parameters[2].Type.ID() != sqltype.Bool {
+		t.Fatal("parameter identity", b.Params.Parameters)
 	}
 	if _, err := e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("unlifted set scalar evaluation")
 	}
-	_, err = b.bindFunction(nullCountRaw("generate_subscripts", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, integer))
+	_, err = b.BindFunction(nullCountRaw("generate_subscripts", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, integer))
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42804" || diagnostic.Position != "" {
 		t.Fatal(err)
 	}
-	_, err = b.bindFunction(nullCountRaw("generate_subscripts", array, parser.CastExpr{Child: integer, TypeName: parser.TypeName{Name: "bigint"}}))
+	_, err = b.BindFunction(nullCountRaw("generate_subscripts", array, parser.CastExpr{Child: integer, TypeName: parser.TypeName{Name: "bigint"}}))
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" {
 		t.Fatal("implicit narrowing accepted", err)
 	}

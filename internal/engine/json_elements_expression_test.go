@@ -16,9 +16,9 @@ import (
 
 func jsonElementsUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONElements {
 	t.Helper()
-	b.clause.aggregateClause = "SELECT"
-	b.query.namespace = &queryNamespace{}
-	node, err := b.bindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
+	b.Clause.AggregateClause = "SELECT"
+	b.Query.Namespace = &queryNamespace{}
+	node, err := b.BindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,10 +39,10 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if name == "json_array_elements_text" {
 			id = sqltype.Text
 		}
-		if original.ResultUsage().Type != b.typ(id) || original.ResultUsage().Type.IsComposite() || !validExpressionUsage(view, original.ResultUsage()) {
+		if original.ResultUsage().Type != b.Type(id) || original.ResultUsage().Type.IsComposite() || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("scalar result usage", original)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !exec.SourceReturnsSet(original) || exec.QuerySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.Clause.QueryHasTargetSet || !exec.SourceReturnsSet(original) || exec.QuerySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -54,7 +54,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if next.ResultUsage().Type != fresh[id] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.Plan.ResultUsage() != next.ResultUsage() || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation marker", next)
 		}
-		if original.ResultUsage().Type != b.typ(id) || original.Args[0].ResultUsage().Type != b.typ(sqltype.JSON) {
+		if original.ResultUsage().Type != b.Type(id) || original.Args[0].ResultUsage().Type != b.Type(sqltype.JSON) {
 			t.Fatal("retained marker mutated")
 		}
 		cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, next)
@@ -92,7 +92,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 			t.Fatal("symbolic rendering", text, err)
 		}
 		other := jsonElementsUnitMarker(t, b, name, `[2]`)
-		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Name: "value", Usage: b.typ(id).Usage()}}, Frame: 1}
+		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Name: "value", Usage: b.Type(id).Usage()}}, Frame: 1}
 		rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
@@ -122,7 +122,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"json_array_elements", "json_array_elements_text"} {
 		marker := jsonElementsUnitMarker(t, b, name, `[null]`)
-		series, err := b.bindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 8}}))
+		series, err := b.BindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 8}}))
 		if err != nil {
 			t.Fatal(err)
 		}

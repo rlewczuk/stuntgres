@@ -19,7 +19,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	input.ExactSnapshot = true
 	for _, id := range []sqltype.ID{sqltype.Timestamp, sqltype.Time, sqltype.Timestamptz} {
 		b := newExpressionBinder(context.Background(), e, input, op, nil)
-		u, _, err := b.typ(id).ResolveModifiers(3)
+		u, _, err := b.Type(id).ResolveModifiers(3)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -30,15 +30,15 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 		if id == sqltype.Timestamptz {
 			text += "+00"
 		}
-		if _, err := b.inputConstant(text, u, parser.Position{}); err == nil {
+		if _, err := b.InputConstant(text, u, parser.Position{}); err == nil {
 			t.Fatal("bind-time temporal input erased precision", id)
 		}
-		if len(b.prepared.Temporals) != 0 {
+		if len(b.Prepared.Temporals) != 0 {
 			t.Fatal("failed input installed temporal capture")
 		}
 	}
 	b := newExpressionBinder(context.Background(), e, input, op, nil)
-	u, _, err := b.typ(sqltype.Numeric).ResolveModifiers(5, 2)
+	u, _, err := b.Type(sqltype.Numeric).ResolveModifiers(5, 2)
 	if err != nil {
 		t.Fatal(err)
 	}

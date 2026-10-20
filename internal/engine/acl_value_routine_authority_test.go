@@ -60,8 +60,8 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			// bindACLValue returns the bare carrier directly, without setting
 			// the binder's target-set observation. Actual set classification
 			// above and source/project admission below own this SRF contract.
-			if binder.clause.queryHasTargetSet {
-				t.Fatalf("bare ACL binder queryHasTargetSet: got %t, want false", binder.clause.queryHasTargetSet)
+			if binder.Clause.QueryHasTargetSet {
+				t.Fatalf("bare ACL binder queryHasTargetSet: got %t, want false", binder.Clause.QueryHasTargetSet)
 			}
 			if tc.set {
 				shape := call.ResultUsage().Type
@@ -91,7 +91,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.Revision() == 0 || len(captured.Body) != 0 || evaluation.Catalog.Get(address) != captured {
 				t.Fatal("selected owned descriptor/no SQL helper body", captured)
 			}
-			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			selected := 0
 			var missing []catalog.ExpressionDependency
 			for _, dependency := range original {
@@ -183,7 +183,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed-nil selected descriptor admitted")
 			}
-			if !reflect.DeepEqual(binder.dependencies, original) {
+			if !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("negative probes mutated original manifest")
 			}
 			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {

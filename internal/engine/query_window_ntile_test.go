@@ -195,7 +195,7 @@ func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
 		t.Fatal(node.Calls)
 	}
 	binder := &expressionBinder{}
-	if binder.sameWindowCall(node.Calls[0], node.Calls[1]) || binder.sameWindowCall(node.Calls[1], node.Calls[2]) {
+	if binder.SameWindowCall(node.Calls[0], node.Calls[1]) || binder.SameWindowCall(node.Calls[1], node.Calls[2]) {
 		t.Fatal("different bucket arguments collapsed")
 	}
 	call := node.Calls[0]
@@ -236,26 +236,26 @@ func TestQueryWindowNtileBindingUnwind(t *testing.T) {
 		{"SELECT ntile(missing) OVER()", "42703"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause, b.query.frame = "SELECT", 1
+		b.Clause.AggregateClause, b.Query.Frame = "SELECT", 1
 		for _, q := range []string{"SELECT sum(1)", "SELECT row_number() OVER()"} {
-			if _, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext}); err != nil {
+			if _, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		before := b.grouping.windowCalls[:len(b.grouping.windowCalls):len(b.grouping.windowCalls)]
-		b.grouping.windowCalls = before
+		before := b.Grouping.WindowCalls[:len(b.Grouping.WindowCalls):len(b.Grouping.WindowCalls)]
+		b.Grouping.WindowCalls = before
 		values := append([]plan.WindowCall(nil), before...)
-		aggregates := b.grouping.aggregates[:len(b.grouping.aggregates):len(b.grouping.aggregates)]
-		b.grouping.aggregates = aggregates
-		_, err := b.bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		aggregates := b.Grouping.Aggregates[:len(b.Grouping.Aggregates):len(b.Grouping.Aggregates)]
+		b.Grouping.Aggregates = aggregates
+		_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal(tc, err)
 		}
-		if len(b.grouping.windowCalls) != len(before) || cap(b.grouping.windowCalls) != cap(before) || &b.grouping.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.grouping.windowCalls) || b.grouping.argumentOwner != (argumentWindowOwner{}) {
-			t.Fatal("failed call changed window registration/owner", tc, b.grouping.windowCalls, b.grouping.argumentOwner)
+		if len(b.Grouping.WindowCalls) != len(before) || cap(b.Grouping.WindowCalls) != cap(before) || &b.Grouping.WindowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.Grouping.WindowCalls) || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) {
+			t.Fatal("failed call changed window registration/owner", tc, b.Grouping.WindowCalls, b.Grouping.ArgumentOwner)
 		}
-		if len(b.grouping.aggregates) != len(aggregates) || cap(b.grouping.aggregates) != cap(aggregates) || &b.grouping.aggregates[0] != &aggregates[0] {
+		if len(b.Grouping.Aggregates) != len(aggregates) || cap(b.Grouping.Aggregates) != cap(aggregates) || &b.Grouping.Aggregates[0] != &aggregates[0] {
 			t.Fatal("failed call changed aggregate registration", tc)
 		}
 	}

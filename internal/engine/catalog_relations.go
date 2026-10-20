@@ -32,7 +32,7 @@ func (b *expressionBinder) bindExtensionUpdatePaths(raw parser.FunctionExpr) (ex
 		if len(raw.Args) <= 100 {
 			name := "unknown"
 			if typ := arg.descriptor(); typ != nil {
-				name = b.diagnosticTypeName(typ)
+				name = b.DiagnosticTypeName(typ)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, name)
 		}
@@ -52,7 +52,7 @@ func (b *expressionBinder) bindExtensionUpdatePaths(raw parser.FunctionExpr) (ex
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	var arg expr.Expr
-	target := b.typ(sqltype.Name).Usage()
+	target := b.Type(sqltype.Name).Usage()
 	arg, err = b.finalizeOperand(operand, target.Type)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (b *expressionBinder) bindExtensionUpdatePaths(raw parser.FunctionExpr) (ex
 			}
 			return nil, failure
 		}
-		arg = plan.CoercionExpr{Info: b.info(target, raw.Args[0].SourcePosition(), analyze.CoercionProperties(arg, coercionPlan)), Child: arg, Plan: coercionPlan, Mode: sqltype.Implicit}
+		arg = plan.CoercionExpr{Info: b.Info(target, raw.Args[0].SourcePosition(), analyze.CoercionProperties(arg, coercionPlan)), Child: arg, Plan: coercionPlan, Mode: sqltype.Implicit}
 	}
 	if raw.Star {
 		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)

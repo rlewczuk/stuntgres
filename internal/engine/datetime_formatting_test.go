@@ -19,7 +19,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 	e := New()
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	text := b.typ(sqltype.Text)
+	text := b.Type(sqltype.Text)
 	for _, signature := range []struct {
 		name           string
 		source, result sqltype.ID
@@ -27,7 +27,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		{"to_char", sqltype.Timestamp, sqltype.Text}, {"to_char", sqltype.Timestamptz, sqltype.Text}, {"to_char", sqltype.Interval, sqltype.Text},
 		{"to_date", sqltype.Text, sqltype.Date}, {"to_timestamp", sqltype.Text, sqltype.Timestamptz},
 	} {
-		source, result := b.typ(signature.source), b.typ(signature.result)
+		source, result := b.Type(signature.source), b.Type(signature.result)
 		template := "YYYY"
 		datetimeFormatPlan, err := sqltype.BindDatetimeFormat(ctx, signature.name, result.Usage(), source.Usage(), &template)
 		if err != nil {
@@ -40,12 +40,12 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if exec.PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
 			t.Fatal("lost intrinsic STABLE classification", signature)
 		}
-		if !b.sameGroupExpression(node, node) {
+		if !b.SameGroupExpression(node, node) {
 			t.Fatal("semantic identity lost", signature)
 		}
 		other := node
 		other.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "MM")}
-		if b.sameGroupExpression(node, other) {
+		if b.SameGroupExpression(node, other) {
 			t.Fatal("template omitted from semantic identity", signature)
 		}
 		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
@@ -96,7 +96,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 			}
 			input = parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: signature.source}, Text: value}
 		}
-		bound, err := b.bindFunctionProvider(raw(signature.name, input, text("YYYY")))
+		bound, err := b.BindFunctionProvider(raw(signature.name, input, text("YYYY")))
 		if err != nil {
 			t.Fatal(signature, err)
 		}
@@ -106,7 +106,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 		}
 	}
 	integer := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}
-	bound, err := b.bindFunctionProvider(raw("to_char", integer, text("FM9")))
+	bound, err := b.BindFunctionProvider(raw("to_char", integer, text("FM9")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 			// A schema-qualified name outside pg_catalog hides the builtin.
 			call.Name.Parts = append([]parser.Identifier{{Text: "public"}}, call.Name.Parts...)
 		}
-		_, err := b.bindFunctionProvider(call)
+		_, err := b.BindFunctionProvider(call)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != c.code || diagnostic.Position != "8" {
 			t.Fatal("binder diagnostic/ownership", c, err)

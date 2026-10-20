@@ -8,9 +8,9 @@ import (
 
 // Routine literals share the prepared catalog-identifier analysis lifecycle;
 // the alias type distinguishes captures at the same source occurrence.
-func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
+func (b *expressionBinder) RoutineConstant(text string, usage sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
 	constant := regtypeConstant{Offset: pos.Offset, TypeID: usage.Type.ID()}
-	for _, c := range b.expected.Regtypes {
+	for _, c := range b.Expected.Regtypes {
 		if c.Offset == pos.Offset && c.TypeID == constant.TypeID && c.Value.Type() != nil {
 			value, err := c.Value.Retag(usage.Type)
 			if err != nil {
@@ -19,14 +19,14 @@ func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos
 			for _, operand := range c.Operands {
 				b.dependency(operand.Ref, operand.Revision)
 			}
-			b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, c)
+			b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, c)
 			return value, nil
 		}
 	}
 	if err := b.captureElementInput(); err != nil {
 		return sqltype.Value{}, err
 	}
-	input := b.input
+	input := b.Input
 	target := analyze.IdentifierTarget{Position: pos, Qualified: &constant.Qualified, Operands: &constant.Operands}
 	input.Regproc = input.Regproc.(analyze.RoutineRetarget).RetargetRoutine(target)
 	if types, ok := input.Regtype.(analyze.RegtypeRetarget); ok {
@@ -35,7 +35,7 @@ func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos
 	if operator, ok := input.Operator.(analyze.OperatorRetarget); ok {
 		input.Operator = operator.RetargetOperator(target)
 	}
-	value, err := usage.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
+	value, err := usage.Type.InputWithEnvironment(b.Ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {
 		return sqltype.Value{}, analyze.RegtypeInputError(err, pos)
 	}
@@ -43,6 +43,6 @@ func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos
 	for _, operand := range constant.Operands {
 		b.dependency(operand.Ref, operand.Revision)
 	}
-	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
+	b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, constant)
 	return value, nil
 }

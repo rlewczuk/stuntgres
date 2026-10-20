@@ -35,7 +35,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		{"isfinite", []parser.Expr{ageFiniteTyped("timestamp", "infinity")}, sqltype.Bool, expr.Immutable},
 		{"isfinite", []parser.Expr{ageFiniteTyped("interval", "infinity")}, sqltype.Bool, expr.Immutable},
 	} {
-		node, err := b.bindFunctionProvider(datetimeMakeRaw(tc.name, tc.args...))
+		node, err := b.BindFunctionProvider(datetimeMakeRaw(tc.name, tc.args...))
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -43,7 +43,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, e.Properties())
 		}
-		if !b.sameGroupExpression(e, e) {
+		if !b.SameGroupExpression(e, e) {
 			t.Fatal("lost structural identity")
 		}
 		replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -84,12 +84,12 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		}
 	}
 	parameter := parser.ParameterExpr{Number: 1}
-	node, err := b.bindFunctionProvider(datetimeMakeRaw("age", ageFiniteTyped("timestamp", "2004-06-01"), parameter))
+	node, err := b.BindFunctionProvider(datetimeMakeRaw("age", ageFiniteTyped("timestamp", "2004-06-01"), parameter))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.params.parameters[1].Type.ID() != sqltype.Timestamp || !node.Properties().ParameterDependent {
-		t.Fatal(b.params.parameters, node.Properties())
+	if b.Params.Parameters[1].Type.ID() != sqltype.Timestamp || !node.Properties().ParameterDependent {
+		t.Fatal(b.Params.Parameters, node.Properties())
 	}
 }
 
@@ -108,7 +108,7 @@ func TestDatetimeAgeFiniteResolutionFailures(t *testing.T) {
 		{datetimeMakeRaw("isfinite", ageFiniteTyped("time", "12:00")), "0A000", "time to interval conversion is unsupported", ""},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		_, err := b.bindFunctionProvider(tc.raw)
+		_, err := b.BindFunctionProvider(tc.raw)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Message != tc.message || d.Hint != tc.hint || d.Position != "8" {
 			t.Fatal(tc, err)
@@ -118,7 +118,7 @@ func TestDatetimeAgeFiniteResolutionFailures(t *testing.T) {
 
 func TestDatetimeAgeUnaryRetagsHiddenDateAuthority(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindFunctionProvider(datetimeMakeRaw("age", ageFiniteTyped("timestamp", "2000-01-01")))
+	node, err := b.BindFunctionProvider(datetimeMakeRaw("age", ageFiniteTyped("timestamp", "2000-01-01")))
 	if err != nil {
 		t.Fatal(err)
 	}

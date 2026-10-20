@@ -19,10 +19,10 @@ import (
 // metadata; a nil binder selects conservative structural comparison without
 // constructing binder state.
 func SameGroupExpression(a, other expr.Expr) bool {
-	return (*expressionBinder)(nil).sameGroupExpression(a, other)
+	return (*expressionBinder)(nil).SameGroupExpression(a, other)
 }
 
-func (b *expressionBinder) sameGroupExpression(a, other expr.Expr) bool {
+func (b *expressionBinder) SameGroupExpression(a, other expr.Expr) bool {
 	return b.sameGroupExpressionIn(a, other, nil)
 }
 
@@ -30,7 +30,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	if a == nil || other == nil {
 		return a == nil && other == nil
 	}
-	checkDefinitionEquality := b != nil && b.consumer.checkDefinitionEquality
+	checkDefinitionEquality := b != nil && b.Consumer.CheckDefinitionEquality
 	leftUsage, rightUsage := a.ResultUsage(), other.ResultUsage()
 	if checkDefinitionEquality {
 		leftUsage.Collation.Derivation = rightUsage.Collation.Derivation
@@ -38,7 +38,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	if !sqltype.SameRecordUsage(leftUsage, rightUsage) || a.CollationIndeterminate() != other.CollationIndeterminate() || !checkDefinitionEquality && (a.ExplicitCollation().Character > 0) != (other.ExplicitCollation().Character > 0) {
 		return false
 	}
-	same := b.sameGroupExpression
+	same := b.SameGroupExpression
 	if comparison != nil {
 		same = func(a, other expr.Expr) bool { return b.sameGroupExpressionIn(a, other, comparison) }
 	}
@@ -147,11 +147,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			// A call slot alone cannot prove window semantic identity.
 			return false
 		}
-		if e.Call < 0 || o.Call < 0 || e.Call >= len(b.grouping.windowCalls) || o.Call >= len(b.grouping.windowCalls) {
+		if e.Call < 0 || o.Call < 0 || e.Call >= len(b.Grouping.WindowCalls) || o.Call >= len(b.Grouping.WindowCalls) {
 			return e.Slot == o.Slot
 		}
-		a, c := b.grouping.windowCalls[e.Call], b.grouping.windowCalls[o.Call]
-		return b.sameWindowCall(a, c)
+		a, c := b.Grouping.WindowCalls[e.Call], b.Grouping.WindowCalls[o.Call]
+		return b.SameWindowCall(a, c)
 	case plan.GroupExpr:
 		o, ok := other.(plan.GroupExpr)
 		return ok && e.Slot == o.Slot && comparison.SameFrame(e.Frame, o.Frame)
@@ -340,15 +340,15 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	}
 	return false
 }
-func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, error) {
-	if err := b.ctx.Err(); err != nil {
+func (b *expressionBinder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, error) {
+	if err := b.Ctx.Err(); err != nil {
 		return nil, err
 	}
 	if operation, ok := bound.(plan.GroupingExpr); ok {
-		return b.rewriteGrouping(operation, keys)
+		return b.RewriteGrouping(operation, keys)
 	}
 	for i, key := range keys {
-		if b.sameGroupExpression(bound, key) {
+		if b.SameGroupExpression(bound, key) {
 			properties := bound.Properties()
 			properties.RowDependent = false
 			properties.StageDependent = true
@@ -363,22 +363,22 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			return child
 		}
 		var out expr.Expr
-		out, err = b.rewriteGroup(child, keys)
+		out, err = b.RewriteGroup(child, keys)
 		return out
 	}
 	stage := func(info *expr.Info) { info.Property.StageDependent = true }
 	switch e := bound.(type) {
 	case plan.SubqueryExpr:
-		old := b.grouping.groupSubquery
-		b.grouping.groupSubquery = true
+		old := b.Grouping.groupSubquery
+		b.Grouping.groupSubquery = true
 		root, failure := plan.RewriteQueryExpressions(e.QueryPlan.Root, func(child expr.Expr) (expr.Expr, bool, error) {
 			if !analyze.ExpressionUsesFrame(child, b.FrameID()) {
 				return child, false, nil
 			}
-			next, err := b.rewriteGroup(child, keys)
+			next, err := b.RewriteGroup(child, keys)
 			return next, true, err
 		})
-		b.grouping.groupSubquery = old
+		b.Grouping.groupSubquery = old
 		if failure != nil {
 			return nil, failure
 		}
@@ -406,8 +406,8 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		if e.Frame != b.FrameID() {
 			return e, nil
 		}
-		name := b.query.namespace.Frame[e.Slot].Name
-		for _, q := range b.query.namespace.Qualifiers {
+		name := b.Query.Namespace.Frame[e.Slot].Name
+		for _, q := range b.Query.Namespace.Qualifiers {
 			found := false
 			for _, c := range q.Columns {
 				if c.Slot == e.Slot {
@@ -420,14 +420,14 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 				break
 			}
 		}
-		if b.grouping.groupSubquery {
+		if b.Grouping.groupSubquery {
 			return nil, expr.ErrorAt("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.Pos)
 		}
 		return nil, expr.ErrorAt("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)
 	case plan.RowExpr:
 		e, _, err = plan.MapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := rewrite(old)
-			return next, !b.sameGroupExpression(old, next), err
+			return next, !b.SameGroupExpression(old, next), err
 		})
 		if err != nil {
 			return nil, err
@@ -452,7 +452,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 				return nil, false, nil
 			}
 			next := rewrite(child)
-			return next, !b.sameGroupExpression(child, next), err
+			return next, !b.SameGroupExpression(child, next), err
 		})
 		if failure != nil {
 			return nil, failure
@@ -627,11 +627,11 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	}
 	return bound, err
 }
-func aggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
+func AggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
 	var found *plan.AggregateExpr
 	walk := func(child expr.Expr) {
 		if found == nil {
-			found = aggregateOccurrence(child)
+			found = AggregateOccurrence(child)
 		}
 	}
 	switch e := bound.(type) {
@@ -740,7 +740,7 @@ func aggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
 	}
 	return found
 }
-func groupOrdinal(raw parser.Expr, width int) (int, bool, error) {
+func GroupOrdinal(raw parser.Expr, width int) (int, bool, error) {
 	literal, ok := raw.(parser.LiteralExpr)
 	if !ok {
 		return 0, false, nil

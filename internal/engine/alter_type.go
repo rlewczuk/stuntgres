@@ -89,14 +89,14 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 		namespace = alterTypeNamespace(auth, original, ref)
 	}
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-	binder.target.relation, binder.target.ref, binder.params.noParameters, binder.query.auth = original, ref, true, &auth
-	binder.query.namespace = namespace
-	binder.query.sources = []exec.Leaf{{Ref: ref, Relation: original}}
-	node, err := binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
-	if err == nil && (binder.prepared.RegclassConcat || binder.consumer.catalogSnapshot) {
+	binder.Target.Relation, binder.Target.Ref, binder.Params.NoParameters, binder.Query.Auth = original, ref, true, &auth
+	binder.Query.Namespace = namespace
+	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: original}}
+	node, err := binder.Bind(action.Using, expressionPolicy{Context: ProjectionContext, Expected: usage.Type.Usage()})
+	if err == nil && (binder.Prepared.RegclassConcat || binder.Consumer.CatalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)
 	}
-	return node, binder.dependencies, err
+	return node, binder.Dependencies, err
 }
 
 // Complete phase-one TYPE work against the immutable original row. The caller

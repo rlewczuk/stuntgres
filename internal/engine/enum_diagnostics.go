@@ -9,17 +9,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
+func (b *expressionBinder) DiagnosticTypeName(typ *sqltype.Descriptor) string {
 	if typ == nil {
 		return "unknown"
 	}
 	if typ.IsArray() {
-		return b.diagnosticTypeName(typ.Element()) + "[]"
+		return b.DiagnosticTypeName(typ.Element()) + "[]"
 	}
 	if !typ.IsUserDefined() {
 		return typ.DiagnosticName()
 	}
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return typ.DiagnosticName()
 	}
@@ -28,40 +28,40 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	if !ok {
 		return typ.DiagnosticName()
 	}
-	path, err := b.host.ReferencePath(auth)
+	path, err := b.Host.ReferencePath(auth)
 	if err != nil {
 		return typ.DiagnosticName()
 	}
 	return catalog.TypeDiagnosticNameAt(auth.ReadCatalog(), descriptor, path)
 }
 
-func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) error {
-	if sqltype.IsFTS(typ.BaseType().ID()) && b.input.FTS == nil {
-		b.input.FTS = b.host.FTSInput()
+func (b *expressionBinder) CaptureTypeDiagnosticInput(typ *sqltype.Descriptor) error {
+	if sqltype.IsFTS(typ.BaseType().ID()) && b.Input.FTS == nil {
+		b.Input.FTS = b.Host.FTSInput()
 	}
-	acl := typ.ContainsACLItem() && b.input.ACLItem == nil
-	naming := b.input.TypeDiagnosticName == nil && analyze.NeedsTypeDiagnosticInput(typ)
+	acl := typ.ContainsACLItem() && b.Input.ACLItem == nil
+	naming := b.Input.TypeDiagnosticName == nil && analyze.NeedsTypeDiagnosticInput(typ)
 	if !acl && !naming {
 		return nil
 	}
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return err
 	}
-	return b.host.CaptureTypeDiagnosticInput(auth, &b.input, typ)
+	return b.Host.CaptureTypeDiagnosticInput(auth, &b.Input, typ)
 }
 
 // Comparisons need names, not input codecs or role-name resolution. Capture the
 // existing naming authority once without acquiring unrelated ACL input state.
 func (b *expressionBinder) captureComparisonDiagnosticInput(typ *sqltype.Descriptor) error {
-	if b.input.TypeDiagnosticName != nil || !analyze.NeedsTypeDiagnosticInput(typ) {
+	if b.Input.TypeDiagnosticName != nil || !analyze.NeedsTypeDiagnosticInput(typ) {
 		return nil
 	}
-	auth, err := b.bindingAuthorization()
+	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return err
 	}
-	b.input.TypeDiagnosticName, err = b.host.CaptureTypeDiagnosticName(auth)
+	b.Input.TypeDiagnosticName, err = b.Host.CaptureTypeDiagnosticName(auth)
 	return err
 }
 
@@ -94,18 +94,18 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 // Stored sources are opaque to the outer expression binder, but their
 // planning-time conversions consume the same published input environment.
 func (b *expressionBinder) captureRetainedViewInput(relation *catalog.Relation) error {
-	return b.host.CaptureRetainedViewInput(b.query.auth, relation, b.captureElementInput, b.captureTypeDiagnosticInput)
+	return b.Host.CaptureRetainedViewInput(b.Query.Auth, relation, b.captureElementInput, b.CaptureTypeDiagnosticInput)
 }
 
 // Retained write expressions are not rebound with the consuming statement.
 // Capture input authority and lazy naming without evaluating defaults or branches.
-func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, generations map[int32]catalog.ColumnGeneration, checks []catalog.CheckConstraint) error {
+func (b *expressionBinder) CaptureRetainedWriteInput(defaults []expr.Expr, generations map[int32]catalog.ColumnGeneration, checks []catalog.CheckConstraint) error {
 	var failure error
 	visit := func(node expr.Expr) {
 		if failure != nil {
 			return
 		}
-		failure = analyze.CaptureRetainedExpressionInput(node, b.captureElementInput, b.captureTypeDiagnosticInput)
+		failure = analyze.CaptureRetainedExpressionInput(node, b.captureElementInput, b.CaptureTypeDiagnosticInput)
 	}
 	for _, node := range defaults {
 		plan.WalkExpression(node, visit)

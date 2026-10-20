@@ -15,17 +15,17 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 	e := New()
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	array, boolean := b.typ(1007), b.typ(sqltype.Bool)
+	array, boolean := b.Type(1007), b.Type(sqltype.Bool)
 	value, err := array.Input(ctx, "{1,NULL}", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operand := plan.LiteralExpr{Info: b.info(array.Usage(), parser.Position{}, expr.Properties{}), Value: value}
+	operand := plan.LiteralExpr{Info: b.Info(array.Usage(), parser.Position{}, expr.Properties{}), Value: value}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, array, array, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := plan.ComparisonExpr{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: operand, Right: operand, Predicate: predicate, Operator: "="}
+	original := plan.ComparisonExpr{Info: b.Info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: operand, Right: operand, Predicate: predicate, Operator: "="}
 	target := New()
 	fresh := map[sqltype.ID]*sqltype.Descriptor{
 		1007:         eType(t, target, 1007),

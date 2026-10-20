@@ -120,16 +120,16 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 		return nil, nil
 	}
 	binder := e.indexExpressionBinder(op, input, auth, parent)
-	binder.consumer.indexPredicateConsumer = true
-	definition, err := binder.bindBoolean(raw, filterContext, "WHERE")
+	binder.Consumer.IndexPredicateConsumer = true
+	definition, err := binder.BindBoolean(raw, FilterContext, "WHERE")
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].Uses); err != nil {
+	if err := rejectVirtualIndexUses(parent, binder.Query.Sources[0].Uses); err != nil {
 		return nil, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.dependencies
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.Dependencies
 	evaluation.RoutineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {

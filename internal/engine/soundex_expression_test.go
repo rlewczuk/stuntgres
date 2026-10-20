@@ -22,7 +22,7 @@ func soundexUnitExpression(t *testing.T, e *Engine, name string) plan.InstalledS
 	if name == "difference" {
 		args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Anne"}})
 	}
-	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args})
+	node, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 	for _, name := range []string{"soundex", "difference"} {
 		n := soundexUnitExpression(t, e, name)
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		rewritten, err := binder.rewriteGroup(n, []expr.Expr{n.Args[0]})
+		rewritten, err := binder.RewriteGroup(n, []expr.Expr{n.Args[0]})
 		if err != nil {
 			t.Fatal(err)
 		}

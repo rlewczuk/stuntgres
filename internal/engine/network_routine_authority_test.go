@@ -48,9 +48,9 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
-			binder.query.auth, binder.target.ref = &auth, ref
-			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
-			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+			binder.Query.Auth, binder.Target.Ref = &auth, ref
+			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
+			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal("actual network operator selection", err)
@@ -76,7 +76,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("INTERNAL operator acquired SQL helper edges", outer.Body)
 			}
 			found := make(map[ids.OID]bool)
-			for _, dependency := range binder.dependencies {
+			for _, dependency := range binder.Dependencies {
 				if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
 					found[dependency.Ref.Address.ObjectID] = true
 				}
@@ -84,7 +84,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, want) {
 				t.Fatal("exact original routine manifest", found, want)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority", err)
 			}
@@ -92,7 +92,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			for id := range want {
 				for _, mode := range []string{"missing", "foreign", "stale"} {
 					var checks []catalog.ExpressionDependency
-					for _, dependency := range binder.dependencies {
+					for _, dependency := range binder.Dependencies {
 						if dependency.Ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}) {
 							switch mode {
 							case "missing":
@@ -122,7 +122,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("foreign retag manufactured original lifetime")
 			}
-			evaluation.RoutineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.Dependencies
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("negative probes changed source authority", err)
 			}

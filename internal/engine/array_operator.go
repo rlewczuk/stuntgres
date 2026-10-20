@@ -67,12 +67,12 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 	}
 	args := make([]expr.Expr, 2)
 	for i, o := range operands {
-		args[i], err = b.coerceConditional(o, selected.Usage(), raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+		args[i], err = b.CoerceConditional(o, selected.Usage(), raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return functions.ArraySearchNode(b, raw.Name.Parts[len(raw.Name.Parts)-1].Text, raw.Name, raw.Pos, b.typ(sqltype.Bool).Usage(), args)
+	return functions.ArraySearchNode(b, raw.Name.Parts[len(raw.Name.Parts)-1].Text, raw.Name, raw.Pos, b.Type(sqltype.Bool).Usage(), args)
 }
 
 // This is the array branch of the existing || selector. Its children have

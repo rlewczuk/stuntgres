@@ -30,11 +30,11 @@ func TestDatetimeArithmeticBindingAndPhysicalVolatility(t *testing.T) {
 		e := New()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+tc.expression+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		if node.ResultUsage().Type != b.typ(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
+		if node.ResultUsage().Type != b.Type(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node, node.Properties())
 		}
 		folded, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node, false)
@@ -56,12 +56,12 @@ func TestDatetimeArithmeticDependenceAndVolatileDominance(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, expression := range []string{"$1::TIMESTAMPTZ+INTERVAL '0'", "INTERVAL '0'+$1::TIMESTAMPTZ"} {
-		node, err := b.bind(statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		node, err := b.Bind(statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Stable {
 			t.Fatal(node, err)
 		}
 		n := node.(plan.ArithmeticExpr)
-		child := plan.ParameterExpr{Info: expr.Info{Usage: b.typ(sqltype.Timestamptz).Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}}, Number: 1}
+		child := plan.ParameterExpr{Info: expr.Info{Usage: b.Type(sqltype.Timestamptz).Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}}, Number: 1}
 		if n.Left.ResultUsage().Type.ID() == sqltype.Timestamptz {
 			n.Left = child
 		} else {
@@ -77,8 +77,8 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 	ctx := context.Background()
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
-	b.consumer.defaultConsumer = true
-	node, err := b.bind(statement(t, "SELECT TIMESTAMPTZ '2005-04-02 12:00-07'+INTERVAL '1 day' FROM t").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+	b.Consumer.DefaultConsumer = true
+	node, err := b.Bind(statement(t, "SELECT TIMESTAMPTZ '2005-04-02 12:00-07'+INTERVAL '1 day' FROM t").(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -28,10 +28,10 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 		}
 	} else {
 		b := newExpressionBinder(ctx, e, input, op, nil)
-		b.query.auth = &auth
-		b.query.namespace = &queryNamespace{}
-		b.params.noParameters = true
-		node, err := b.bindDefault(raw, catalog.Column{Name: d.Name(), Usage: base})
+		b.Query.Auth = &auth
+		b.Query.Namespace = &queryNamespace{}
+		b.Params.NoParameters = true
+		node, err := b.BindDefault(raw, catalog.Column{Name: d.Name(), Usage: base})
 		if err != nil {
 			return err
 		}
@@ -43,7 +43,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 		}
 		d.DomainDefaultOwn = true
 		definition := catalog.ColumnDefault{Expression: node}
-		if _, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: e.catalog.owner(), roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(ctx, auth.Catalog, node); err != nil {
+		if _, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: capturedACLItemOutput{owner: e.catalog.owner(), roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
 		var path []ids.ObjectAddress

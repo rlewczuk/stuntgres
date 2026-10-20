@@ -53,15 +53,15 @@ func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *Statement
 		t.Fatal(err)
 	}
 	b := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-	b.query.auth, b.target.ref = &auth, ref
-	b.target.relation = auth.Catalog.MustRelation(ref.Address)
-	b.clause.aggregateClause = "SELECT"
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	b.Query.Auth, b.Target.Ref = &auth, ref
+	b.Target.Relation = auth.Catalog.MustRelation(ref.Address)
+	b.Clause.AggregateClause = "SELECT"
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal("actual provider binding", text, err)
 	}
-	return node, b, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
+	return node, b, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
 }
 
 func TestStrictParameterNullPlanning(t *testing.T) {
@@ -75,7 +75,7 @@ func TestStrictParameterNullPlanning(t *testing.T) {
 			for _, expression := range []string{"abs($1::integer)", "abs(CASE WHEN TRUE THEN $1 ELSE v END)", "abs(($1::smallint)::integer)"} {
 				t.Run(expression, func(t *testing.T) {
 					node, b, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-					evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
+					evaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 					planned, changed, err := planner.run(&evaluation, node, true)
 					if err != nil || !changed {
 						t.Fatal("known NULL did not prune", changed, err)
@@ -89,7 +89,7 @@ func TestStrictParameterNullPlanning(t *testing.T) {
 					}
 					// Reusing the original analyzed expression with a non-NULL
 					// frame must still execute the original selected provider.
-					input, err := sqltype.Integer(b.params.parameters[1].Type, -7)
+					input, err := sqltype.Integer(b.Params.Parameters[1].Type, -7)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -111,7 +111,7 @@ func TestStrictParameterNullPlanning(t *testing.T) {
 			// A real volatile sibling is never evaluated merely to discover
 			// strict NULL. The sequence supplies an observable effect boundary.
 			node, b, evaluation := strictNullUnitBind(t, e, op, scope, "($1::integer)+nextval('strict_null_steps'::regclass)::integer")
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 			sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")
 			planned, changed, err := planner.run(&evaluation, node, true)
 			if err != nil || !changed {
@@ -128,7 +128,7 @@ func TestStrictParameterNullPlanning(t *testing.T) {
 			}
 			// Ordinary immutable argument failures still precede this rule.
 			node, b, evaluation = strictNullUnitBind(t, e, op, scope, "($1::integer)+(1/0)")
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 			_, _, err = planner.run(&evaluation, node, true)
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 		})
@@ -146,21 +146,21 @@ func TestStrictParameterNullBoundaries(t *testing.T) {
 	}
 	// Runtime row NULL is not an execution-known parameter constant.
 	row, _, rowEvaluation := strictNullUnitBind(t, e, op, scope, "abs(v)")
-	rowEvaluation.Row = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
-	rowEvaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
+	rowEvaluation.Row = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
+	rowEvaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 	if _, folded, err := foldStrictParameterNull(&rowEvaluation, row); err != nil || folded {
 		t.Fatal("row demand was pruned", folded, err)
 	}
 	// A strict SRF initializes even with NULL parameters: it is not scalar.
 	set, setBinder, setEvaluation := strictNullUnitBind(t, e, op, scope, "generate_series($1::integer,$2::integer)")
-	setEvaluation.Parameters = []sqltype.Value{sqltype.Null(setBinder.params.parameters[1].Type), sqltype.Null(setBinder.params.parameters[2].Type)}
+	setEvaluation.Parameters = []sqltype.Value{sqltype.Null(setBinder.Params.Parameters[1].Type), sqltype.Null(setBinder.Params.Parameters[2].Type)}
 	if _, folded, err := foldStrictParameterNull(&setEvaluation, set); err != nil || folded {
 		t.Fatal("SRF initialization was pruned", folded, err)
 	}
 	// A real domain conversion cannot be replaced by the physical NULL of its
 	// input; its CHECK truth remains an actual later consumption boundary.
 	domain, domainBinder, domainEvaluation := strictNullUnitBind(t, e, op, scope, "abs(($1::integer)::strict_null_checked)")
-	domainEvaluation.Parameters = []sqltype.Value{sqltype.Null(domainBinder.params.parameters[1].Type)}
+	domainEvaluation.Parameters = []sqltype.Value{sqltype.Null(domainBinder.Params.Parameters[1].Type)}
 	if _, folded, err := foldStrictParameterNull(&domainEvaluation, domain); err != nil || folded {
 		t.Fatal("domain barrier was discarded", folded, err)
 	}
@@ -194,7 +194,7 @@ func TestStrictParameterNullCompoundSemantics(t *testing.T) {
 			} {
 				t.Run(tc.expression, func(t *testing.T) {
 					node, b, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
-					evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
+					evaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 					planned, _, err := planner.run(&evaluation, node, true)
 					if err != nil {
 						t.Fatal(err)

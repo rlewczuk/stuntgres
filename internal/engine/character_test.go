@@ -66,29 +66,29 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	source := b.typ(sqltype.BPChar).Usage()
-	b.params.parameters[1] = source
+	source := b.Type(sqltype.BPChar).Usage()
+	b.Params.Parameters[1] = source
 	raw := statement(t, "SELECT CAST($1 AS text) FROM seed").(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	cast, ok := node.(plan.CoercionExpr)
-	if !ok || cast.Child.ResultUsage() != source || cast.ResultUsage().Type.ID() != sqltype.Text || b.params.parameters[1] != source {
-		t.Fatal("cast retargeted known parameter", node, b.params.parameters[1])
+	if !ok || cast.Child.ResultUsage() != source || cast.ResultUsage().Type.ID() != sqltype.Text || b.Params.Parameters[1] != source {
+		t.Fatal("cast retargeted known parameter", node, b.Params.Parameters[1])
 	}
 	if !cast.Properties().ParameterDependent || cast.Properties().RowDependent || cast.Properties().Volatility != expr.Immutable {
 		t.Fatal("cast properties", cast.Properties())
 	}
 	for _, id := range []sqltype.ID{sqltype.BPChar, sqltype.Text} {
 		found := false
-		for _, dependency := range b.dependencies {
+		for _, dependency := range b.Dependencies {
 			if dependency.Ref.Address.ClassID == ids.TypeClassID && dependency.Ref.Address.ObjectID == ids.OID(id) {
 				found = true
 			}
 		}
 		if !found {
-			t.Fatal("missing cast type dependency", id, b.dependencies)
+			t.Fatal("missing cast type dependency", id, b.Dependencies)
 		}
 	}
 }

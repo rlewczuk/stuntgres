@@ -80,7 +80,7 @@ func (b *expressionBinder) LowerQuerySets(root plan.Node, requests []expr.Expr, 
 	rewrite := func(bound expr.Expr, sql99 bool, beforeDepth int) (expr.Expr, error) {
 		return b.MapQuerySetStage(bound, func(e expr.Expr) (expr.Expr, bool, error) {
 			for i, original := range template.Origins {
-				if (analyze.SameQuerySetOccurrence(e, original) || sql99 && exec.SourceReturnsSet(e) && b.sameGroupExpression(e, original)) && exec.QuerySetDepth(e) < beforeDepth {
+				if (analyze.SameQuerySetOccurrence(e, original) || sql99 && exec.SourceReturnsSet(e) && b.SameGroupExpression(e, original)) && exec.QuerySetDepth(e) < beforeDepth {
 					return column(original, i), true, nil
 				}
 			}

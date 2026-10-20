@@ -5,18 +5,18 @@ import "stuntgres/internal/parser"
 // Stored syntax follows analyzed lowering, including independently typed IN
 // operands and erased quantified constructor casts. Only changed ancestors are
 // copied; child queries normalize in their own lexical binding frame.
-func (b *expressionBinder) normalizeStoredExpression(raw parser.Expr) parser.Expr {
-	if len(b.stored.syntax) == 0 {
+func (b *expressionBinder) NormalizeStoredExpression(raw parser.Expr) parser.Expr {
+	if len(b.Stored.Syntax) == 0 {
 		return raw
 	}
-	next, _ := b.normalizeInListExpression(raw)
+	next, _ := b.NormalizeInListExpression(raw)
 	return next
 }
 
-func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Expr, bool) {
+func (b *expressionBinder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) {
 	changed := false
 	child := func(raw parser.Expr) parser.Expr {
-		next, did := b.normalizeInListExpression(raw)
+		next, did := b.NormalizeInListExpression(raw)
 		changed = changed || did
 		return next
 	}
@@ -38,7 +38,7 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 	if raw != nil {
 		switch raw.(type) {
 		case parser.InListExpr, parser.CastExpr, parser.AggregateExpr, parser.FunctionExpr:
-			if lowered, ok := b.stored.syntax[storedExpressionSyntaxKey{frame: b.FrameID(), position: raw.SourcePosition()}]; ok {
+			if lowered, ok := b.Stored.Syntax[storedExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}]; ok {
 				raw, changed = lowered, true
 			}
 		}
@@ -83,8 +83,8 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 		r.Base = child(r.Base)
 		var subs []parser.ArraySubscript
 		for i, sub := range r.Subscripts {
-			lower, lc := b.normalizeInListExpression(sub.Lower)
-			upper, uc := b.normalizeInListExpression(sub.Upper)
+			lower, lc := b.NormalizeInListExpression(sub.Lower)
+			upper, uc := b.NormalizeInListExpression(sub.Upper)
 			if lc || uc {
 				if subs == nil {
 					subs = append([]parser.ArraySubscript(nil), r.Subscripts...)
@@ -144,8 +144,8 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 		r.Test, r.Else = child(r.Test), child(r.Else)
 		var arms []parser.CaseArm
 		for i, arm := range r.Arms {
-			condition, cc := b.normalizeInListExpression(arm.Condition)
-			result, rc := b.normalizeInListExpression(arm.Result)
+			condition, cc := b.NormalizeInListExpression(arm.Condition)
+			result, rc := b.NormalizeInListExpression(arm.Result)
 			if cc || rc {
 				if arms == nil {
 					arms = append([]parser.CaseArm(nil), r.Arms...)
@@ -193,7 +193,7 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 func (b *expressionBinder) normalizeInListArguments(raw []parser.Expr) ([]parser.Expr, bool) {
 	var result []parser.Expr
 	for i, item := range raw {
-		next, changed := b.normalizeInListExpression(item)
+		next, changed := b.NormalizeInListExpression(item)
 		if changed {
 			if result == nil {
 				result = append([]parser.Expr(nil), raw...)
@@ -210,7 +210,7 @@ func (b *expressionBinder) normalizeInListArguments(raw []parser.Expr) ([]parser
 func (b *expressionBinder) normalizeInListOrder(raw []parser.OrderKey) ([]parser.OrderKey, bool) {
 	var result []parser.OrderKey
 	for i, key := range raw {
-		next, changed := b.normalizeInListExpression(key.Expr)
+		next, changed := b.NormalizeInListExpression(key.Expr)
 		if changed {
 			if result == nil {
 				result = append([]parser.OrderKey(nil), raw...)
@@ -235,8 +235,8 @@ func (b *expressionBinder) normalizeInListWindow(raw *parser.WindowSpec) (*parse
 	next.Partition, next.Order = partition, order
 	changed := pc || oc
 	if raw.Frame != nil {
-		start, sc := b.normalizeInListExpression(raw.Frame.Start.Offset)
-		end, ec := b.normalizeInListExpression(raw.Frame.End.Offset)
+		start, sc := b.NormalizeInListExpression(raw.Frame.Start.Offset)
+		end, ec := b.NormalizeInListExpression(raw.Frame.End.Offset)
 		if sc || ec {
 			frame := *raw.Frame
 			frame.Start.Offset, frame.End.Offset = start, end
@@ -250,12 +250,12 @@ func (b *expressionBinder) normalizeInListWindow(raw *parser.WindowSpec) (*parse
 	return raw, false
 }
 
-func (b *expressionBinder) normalizeStoredQuerySyntax(s *parser.Select) {
-	if len(b.stored.syntax) == 0 {
+func (b *expressionBinder) NormalizeStoredQuerySyntax(s *parser.Select) {
+	if len(b.Stored.Syntax) == 0 {
 		return
 	}
 	s.Targets, _ = b.normalizeInListArguments(s.Targets)
-	s.Where, s.Having = b.normalizeStoredExpression(s.Where), b.normalizeStoredExpression(s.Having)
+	s.Where, s.Having = b.NormalizeStoredExpression(s.Where), b.NormalizeStoredExpression(s.Having)
 	s.From = b.normalizeInListFrom(s.From)
 	if s.Order != nil {
 		if keys, changed := b.normalizeInListOrder(s.Order.Keys); changed {
@@ -300,7 +300,7 @@ func (b *expressionBinder) normalizeStoredQuerySyntax(s *parser.Select) {
 func (b *expressionBinder) normalizeInListGroups(raw []parser.GroupItem) ([]parser.GroupItem, bool) {
 	var result []parser.GroupItem
 	for i, item := range raw {
-		expr, ec := b.normalizeInListExpression(item.Expr)
+		expr, ec := b.NormalizeInListExpression(item.Expr)
 		items, ic := b.normalizeInListGroups(item.Items)
 		if ec || ic {
 			if result == nil {
@@ -320,8 +320,8 @@ func (b *expressionBinder) normalizeInListBounds(raw *parser.QueryBounds) *parse
 	if raw == nil {
 		return raw
 	}
-	offset, oc := b.normalizeInListExpression(raw.Offset)
-	count, cc := b.normalizeInListExpression(raw.Count)
+	offset, oc := b.NormalizeInListExpression(raw.Offset)
+	count, cc := b.NormalizeInListExpression(raw.Count)
 	if !oc && !cc {
 		return raw
 	}
@@ -364,7 +364,7 @@ func (b *expressionBinder) normalizeInListFrom(raw parser.FromItem) parser.FromI
 	switch r := raw.(type) {
 	case *parser.JoinReference:
 		left, right := b.normalizeInListFrom(r.Left), b.normalizeInListFrom(r.Right)
-		on, changed := b.normalizeInListExpression(r.On)
+		on, changed := b.NormalizeInListExpression(r.On)
 		if changed || left != r.Left || right != r.Right {
 			next := *r
 			next.Left, next.Right, next.On = left, right, on
@@ -398,7 +398,7 @@ func (b *expressionBinder) normalizeInListFrom(raw parser.FromItem) parser.FromI
 func (b *expressionBinder) normalizeInListCalls(raw []parser.FunctionExpr) []parser.FunctionExpr {
 	var result []parser.FunctionExpr
 	for i, call := range raw {
-		if next, changed := b.normalizeInListExpression(call); changed {
+		if next, changed := b.NormalizeInListExpression(call); changed {
 			if result == nil {
 				result = append([]parser.FunctionExpr(nil), raw...)
 			}

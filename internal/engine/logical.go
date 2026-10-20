@@ -11,18 +11,18 @@ import (
 
 // Boolean context resolves only unknown inputs. A known parameter's type is
 // preserved just like a column's type, rather than assignment-coerced to BOOL.
-func (b *expressionBinder) bindBoolean(raw parser.Expr, context expressionContext, construct string) (expr.Expr, error) {
-	u := b.typ(sqltype.Bool).Usage()
+func (b *expressionBinder) BindBoolean(raw parser.Expr, context expressionContext, construct string) (expr.Expr, error) {
+	u := b.Type(sqltype.Bool).Usage()
 	if p, ok := raw.(parser.ParameterExpr); ok {
-		if known := b.params.parameters[p.Number]; known.Type != nil {
+		if known := b.Params.Parameters[p.Number]; known.Type != nil {
 			u = known
 		}
 	}
-	return b.bind(raw, expressionPolicy{context: context, expected: u, booleanConstruct: construct})
+	return b.Bind(raw, expressionPolicy{Context: context, Expected: u, booleanConstruct: construct})
 }
 
 func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressionContext) (expr.Expr, error) {
-	if context == assignmentContext || raw.Left == nil {
+	if context == AssignmentContext || raw.Left == nil {
 		return nil, fmt.Errorf("stuntgres: invalid logical expression")
 	}
 	var construct string
@@ -39,15 +39,15 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 	if (raw.Op == parser.LogicalNot) != (raw.Right == nil) {
 		return nil, fmt.Errorf("stuntgres: invalid logical arity")
 	}
-	left, err := b.bindBoolean(raw.Left, context, construct)
+	left, err := b.BindBoolean(raw.Left, context, construct)
 	if err != nil {
 		return nil, err
 	}
 	var right expr.Expr
 	properties := left.Properties()
-	queryFrame := b.query.nextQueryFrame
+	queryFrame := b.Query.NextQueryFrame
 	if raw.Right != nil {
-		right, err = b.bindBoolean(raw.Right, context, construct)
+		right, err = b.BindBoolean(raw.Right, context, construct)
 		if err != nil {
 			return nil, err
 		}
@@ -72,5 +72,5 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 			}
 		}
 	}
-	return plan.LogicalExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), Op: raw.Op, Left: left, Right: right, QueryRight: b.query.nextQueryFrame != queryFrame}, nil
+	return plan.LogicalExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), pos, properties), Op: raw.Op, Left: left, Right: right, QueryRight: b.Query.NextQueryFrame != queryFrame}, nil
 }

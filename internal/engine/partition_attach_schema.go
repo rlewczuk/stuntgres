@@ -136,8 +136,8 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 		if err != nil {
 			return nil, err
 		}
-		binder := expressionBinder{consumer: consumerContext{checkDefinitionEquality: true}}
-		if !binder.sameGroupExpression(mapped, actual.Expression) {
+		binder := expressionBinder{Consumer: consumerContext{CheckDefinitionEquality: true}}
+		if !binder.SameGroupExpression(mapped, actual.Expression) {
 			return nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different definition for check constraint "%s"`, child.Name(), required.Name))
 		}
 		if actual.NoInherit {

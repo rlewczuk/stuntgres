@@ -29,28 +29,28 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	ctx := context.Background()
 	engine := New()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
-	column := catalog.Column{Name: "k", Usage: b.typ(sqltype.Text).Usage()}
-	b.query.namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
+	column := catalog.Column{Name: "k", Usage: b.Type(sqltype.Text).Usage()}
+	b.Query.Namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
 	raw := statement(t, query).(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The actual selected-function path must capture the written VARCHAR cast
 	// and original column, not mistake the contextual TEXT conversion for it.
-	if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+	if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	foundColumn, foundTypmod := false, false
-	for _, captured := range b.capture.Columns {
+	for _, captured := range b.Capture.Columns {
 		foundColumn = foundColumn || captured.Frame == b.FrameID() && captured.Slot == 0
 	}
-	for _, usage := range b.capture.CastUsages {
+	for _, usage := range b.Capture.CastUsages {
 		length, known := usage.Length()
 		foundTypmod = foundTypmod || usage.Type.ID() == sqltype.VarChar && known && length == 1
 	}
 	if !foundColumn || !foundTypmod {
-		t.Fatal("capture lost original column identity or written typmod", b.capture.Columns, b.capture.CastUsages)
+		t.Fatal("capture lost original column identity or written typmod", b.Capture.Columns, b.Capture.CastUsages)
 	}
 	pathConversion := func(node expr.Expr) plan.CoercionExpr {
 		e := node.(functions.JSONBSet)
@@ -109,13 +109,13 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 			}
 		}
 	}
-	assertRows(node, b.typ(sqltype.Text))
+	assertRows(node, b.Type(sqltype.Text))
 	mapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pathConversion(mapped)
-	assertRows(mapped, b.typ(sqltype.Text))
+	assertRows(mapped, b.Type(sqltype.Text))
 	fresh := jsonObjectUnitTypes()
 	reminted, changed, err := retagBoundTypes(engine.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {

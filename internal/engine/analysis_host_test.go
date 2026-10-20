@@ -29,9 +29,9 @@ func TestAnalysisHostWithoutOperation(t *testing.T) {
 	}
 	host.EmitWarning(sqlstate.Error{Code: "01000", Message: "dropped"})
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	got, ok := b.host.(*bindingHost)
+	got, ok := b.Host.(*bindingHost)
 	if !ok || got.engine != e || got.op != nil {
-		t.Fatalf("binder host = %#v, want the engine and no operation", b.host)
+		t.Fatalf("binder host = %#v, want the engine and no operation", b.Host)
 	}
 }
 
@@ -60,12 +60,12 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 		t.Fatalf("notices = %#v, want the warning", notices)
 	}
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	if got, ok := b.host.(*bindingHost); !ok || got.engine != e || got.op != op {
-		t.Fatalf("binder host = %#v, want the engine and the operation", b.host)
+	if got, ok := b.Host.(*bindingHost); !ok || got.engine != e || got.op != op {
+		t.Fatalf("binder host = %#v, want the engine and the operation", b.Host)
 	}
 }
 
 // binderOperation and binderEngine read a binder's host state in tests.
-func binderOperation(b *expressionBinder) *Operation { return b.host.(*bindingHost).op }
+func binderOperation(b *expressionBinder) *Operation { return b.Host.(*bindingHost).op }
 
-func binderEngine(b *expressionBinder) *Engine { return b.host.(*bindingHost).engine }
+func binderEngine(b *expressionBinder) *Engine { return b.Host.(*bindingHost).engine }

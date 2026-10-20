@@ -26,22 +26,22 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*plan.CycleR
 			return nil, err
 		}
 		if _, typed := raw.(parser.TypedLiteralExpr); typed {
-			typedConstants[i] = operands[i].node.ResultUsage()
+			typedConstants[i] = operands[i].Node.ResultUsage()
 		}
 	}
-	common, err := selectCommonUsage(2, func(i int) comparisonOperand { return operands[i] }, b.typ(sqltype.Text).Usage(), "CYCLE", b.recursiveTypeName)
+	common, err := selectCommonUsage(2, func(i int) comparisonOperand { return operands[i] }, b.Type(sqltype.Text).Usage(), "CYCLE", b.recursiveTypeName)
 	if err != nil {
 		return nil, err
 	}
-	mark, err := b.coerceConditional(operands[0], common, "CYCLE/SET/TO")
+	mark, err := b.CoerceConditional(operands[0], common, "CYCLE/SET/TO")
 	if err != nil {
 		return nil, err
 	}
-	otherwise, err := b.coerceConditional(operands[1], common, "CYCLE/SET/DEFAULT")
+	otherwise, err := b.CoerceConditional(operands[1], common, "CYCLE/SET/DEFAULT")
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.collatedInfo(b.info(common, raw.Pos, expr.Properties{}), mark, otherwise)
+	info, err := b.CollatedInfo(b.Info(common, raw.Pos, expr.Properties{}), mark, otherwise)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*plan.CycleR
 	if _, err := sqltype.BindGrouping(info.Usage); err != nil {
 		return nil, err
 	}
-	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, common.Type, common.Type, b.typ(sqltype.Bool), info.Usage.Collation, info.CollationConflict)
+	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, common.Type, common.Type, b.Type(sqltype.Bool), info.Usage.Collation, info.CollationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (b *expressionBinder) bindCycleShape(d *plan.CTEDefinition) error {
 			}
 		}
 		c.Keys[i] = slot
-		usage := b.typ(sqltype.Text).Usage()
+		usage := b.Type(sqltype.Text).Usage()
 		if slot >= 0 {
 			usage = d.Schema[slot].Usage
 		}

@@ -14,14 +14,14 @@ import (
 
 // stringNode builds a string node and records what only the analyzer owns:
 // catalog-identifier output of ||, and polymorphic body casts.
-func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []expr.Expr, textual [4]bool, syntax parser.StringSyntax) (expr.Expr, error) {
+func (b *expressionBinder) StringNode(name string, result sqltype.Usage, pos parser.Position, args []expr.Expr, textual [4]bool, syntax parser.StringSyntax) (expr.Expr, error) {
 	node, err := functions.StringNode(b, name, result, pos, args, textual, syntax)
 	if err != nil {
 		return nil, err
 	}
 	for i, arg := range args {
 		if functions.StringCatalogOutput(name, textual[i], arg.ResultUsage()) {
-			b.prepared.RegclassConcat = true
+			b.Prepared.RegclassConcat = true
 		}
 	}
 	if err := b.capturePolymorphicBody(node); err != nil {
@@ -32,10 +32,10 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 
 // COLLATE resolves before overload finalization. Contextualize only textual
 // roles, preserving each established parameter's input descriptor.
-func (b *expressionBinder) stringOperand(raw parser.Expr, textual bool) (comparisonOperand, error) {
-	policy := expressionPolicy{context: projectionContext, stringInput: textual}
+func (b *expressionBinder) StringOperand(raw parser.Expr, textual bool) (comparisonOperand, error) {
+	policy := expressionPolicy{Context: ProjectionContext, stringInput: textual}
 	if _, collated := raw.(parser.CollateExpr); collated && textual {
-		policy.expected = b.typ(sqltype.Text).Usage()
+		policy.Expected = b.Type(sqltype.Text).Usage()
 		child := raw
 		for {
 			collation, ok := child.(parser.CollateExpr)
@@ -45,8 +45,8 @@ func (b *expressionBinder) stringOperand(raw parser.Expr, textual bool) (compari
 			child = collation.Child
 		}
 		if parameter, ok := child.(parser.ParameterExpr); ok {
-			if established := b.params.parameters[parameter.Number]; established.Type != nil {
-				policy.expected = established
+			if established := b.Params.Parameters[parameter.Number]; established.Type != nil {
+				policy.Expected = established
 			}
 		}
 	}
@@ -74,14 +74,14 @@ func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (expr.Expr,
 	}
 	args := make([]expr.Expr, 2)
 	for i, o := range operands {
-		args[i], err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.typ(sqltype.Text).Usage()})
+		args[i], err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.Type(sqltype.Text).Usage()})
 		if err != nil {
 			return nil, err
 		}
 	}
-	return b.stringNode("starts_with", b.typ(sqltype.Bool).Usage(), raw.Pos, args, [4]bool{true, true}, parser.PrefixStringSyntax)
+	return b.StringNode("starts_with", b.Type(sqltype.Bool).Usage(), raw.Pos, args, [4]bool{true, true}, parser.PrefixStringSyntax)
 }
-func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (expr.Expr, error) {
+func (b *expressionBinder) BindStringConcat(raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Args) != 2 {
 		return nil, expr.ErrorAt("42883", "operator does not exist: ||", raw.Pos)
 	}
@@ -127,7 +127,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (expr.Expr,
 	args := make([]expr.Expr, 2)
 	for i, o := range operands {
 		if o.Usage.Type == nil {
-			args[i], err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.typ(sqltype.Text).Usage()})
+			args[i], err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.Type(sqltype.Text).Usage()})
 			if err != nil {
 				return nil, err
 			}
@@ -135,5 +135,5 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (expr.Expr,
 			args[i] = o.Expression
 		}
 	}
-	return b.stringNode("||", b.typ(sqltype.Text).Usage(), raw.Pos, args, [4]bool{textual[0], textual[1]}, parser.OrdinaryStringSyntax)
+	return b.StringNode("||", b.Type(sqltype.Text).Usage(), raw.Pos, args, [4]bool{textual[0], textual[1]}, parser.OrdinaryStringSyntax)
 }

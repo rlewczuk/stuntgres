@@ -13,7 +13,7 @@ import (
 // claims. The shared aggregate placement gates have already run.
 // It returns the bound node, not yet owned, and the SQL/JSON RETURNING usage
 // that the caller applies after ownership (zero when absent).
-func (b *expressionBinder) bindRegisteredAggregate(raw parser.AggregateExpr, name parser.ObjectName, definition functions.AggregateDefinition) (expr.Expr, sqltype.Usage, error) {
+func (b *expressionBinder) BindRegisteredAggregate(raw parser.AggregateExpr, name parser.ObjectName, definition functions.AggregateDefinition) (expr.Expr, sqltype.Usage, error) {
 	if definition.ValuesNamespace {
 		defer b.valuesAggregateNamespace()()
 	}
@@ -27,10 +27,10 @@ func (b *expressionBinder) bindRegisteredAggregate(raw parser.AggregateExpr, nam
 // aggregateReturning applies a SQL/JSON aggregate's RETURNING clause to the
 // owned aggregate as an assignment coercion.
 func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node expr.Expr, returning sqltype.Usage) (expr.Expr, error) {
-	if err := b.captureTypeDiagnosticInput(returning.Type); err != nil {
+	if err := b.CaptureTypeDiagnosticInput(returning.Type); err != nil {
 		return nil, err
 	}
-	info, err := b.coercionInfo(b.info(returning, raw.Pos, node.Properties()), node)
+	info, err := b.coercionInfo(b.Info(returning, raw.Pos, node.Properties()), node)
 	if err != nil {
 		return nil, err
 	}
@@ -47,19 +47,19 @@ func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node exp
 // inaccessible diagnostic candidate: it is never added to the source
 // namespace or read manifest. The returned function restores the binder.
 func (b *expressionBinder) valuesAggregateNamespace() func() {
-	if b.clause.aggregateClause != "INSERT VALUES" || b.query.namespace != nil {
+	if b.Clause.AggregateClause != "INSERT VALUES" || b.Query.Namespace != nil {
 		return func() {}
 	}
-	b.query.namespace = &queryNamespace{}
-	hidden := b.query.hidden
-	if target := b.target.insertTarget; target != nil {
+	b.Query.Namespace = &queryNamespace{}
+	hidden := b.Query.Hidden
+	if target := b.Target.InsertTarget; target != nil {
 		columns := make([]queryColumn, len(target.Columns))
 		for i, descriptor := range target.Columns {
 			columns[i].Descriptor = descriptor
 		}
-		b.query.hidden = append(b.query.hidden, queryQualifier{Name: target.Name(), Columns: columns, LateralForbidden: true})
+		b.Query.Hidden = append(b.Query.Hidden, queryQualifier{Name: target.Name(), Columns: columns, LateralForbidden: true})
 	}
-	return func() { b.query.namespace, b.query.hidden = nil, hidden }
+	return func() { b.Query.Namespace, b.Query.Hidden = nil, hidden }
 }
 
 // rejectOrdinaryWithin analyzes WITHIN GROUP on an aggregate that is not an
@@ -72,7 +72,7 @@ func (b *expressionBinder) rejectOrdinaryWithin(raw parser.AggregateExpr) (expr.
 		combined.Args = append(combined.Args, key.Expr)
 	}
 	combined.Within, combined.Order, combined.Window = false, nil, nil
-	if _, err := b.bind(combined, expressionPolicy{context: projectionContext}); err != nil {
+	if _, err := b.Bind(combined, expressionPolicy{Context: ProjectionContext}); err != nil {
 		return nil, err
 	}
 	return nil, expr.ErrorAt("42809", raw.Name+" is not an ordered-set aggregate, so it cannot have WITHIN GROUP", raw.Pos)
