@@ -383,25 +383,6 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.right, err = child(e.right)
 		}
 		expression = e
-	case sequenceCallExpression:
-		var args []expr.Expr
-		for i, old := range e.args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.args = args
-		}
-		expression = e
 	case extensionPathsExpression:
 		arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
 		if failure != nil {

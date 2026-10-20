@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `bfc0dbc071229cd649864bc4719a717213965d1f`. The later-wave plans
+Last verified against `master` at `55f377e301e449ddea878d20f54a60e7bb188342`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,8 +15,8 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 3 remainder** — Tier C sequence calls (item 10). It touches shared
-  switches; rebase early.
+- **Step 17 `sequence`** — 17a (item 30); the Tier C sequence calls have
+  moved to `functions`.
 - **Step 8 `settings`** — 8c alias removal (item 15, **broad**).
 - **Step 9 `pgcatalog`** — 9b (item 17).
 - **Step 10 `plan`** — 10b node runtime (item 32).
@@ -135,7 +135,7 @@ Steps 1, 2 and 4–7 and `access` are done.
   - [x] F4/F5 aggregates and windows (`f4ee7801c`, `d9d8e6482`, `8066e02e9`,
     `ff28e5996`, `a18766bcc`, `c4a15e187`, then the docs commit)
     *(racecheck skipped at user request)*
-  - [ ] Tier C refined *(after steps 4, 5 and 7)*
+  - [x] Tier C refined *(after steps 4, 5 and 7)*
     - [x] ACL SQL function nodes (`b3ce43139`, `574de18f1`, `436322070`,
       `75d906ea8`, then the docs commit) *(racecheck skipped at user
       request)*
@@ -144,7 +144,8 @@ Steps 1, 2 and 4–7 and `access` are done.
     - [x] transaction identity and commit timestamps *(this commit; selected dual-mode, quickcheck, racecheck and driver smoke passed)*
     - [x] advisory locks, with blocking inquiry *(extraction complete in candidate;
       quickcheck-only waiver; synchronized proof, review and integration pending)*
-    - [ ] sequence calls
+    - [x] sequence calls *(Group A Item 10; selected dual-mode, quickcheck and
+      byte-identical public probe passed; racecheck/finalcheck skipped at user request)*
 - [x] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
     (`78265dd49`, `d4a96abb9`, `e9c2356cd`, docs `ad4693205`)
@@ -355,8 +356,9 @@ in the prompt file's Status section.
    or expired, not passed. User waived racecheck/race-based finalcheck;
    synchronized quickcheck/public smoke, independent review and integration
    remain root-owned gates, not completion claims.
-10. [ ] Tier C: sequence calls — [functions](ENGINE-SPLIT-functions.md)
-    Tier C · needs 7, 8, 9
+10. [x] Tier C: sequence calls — [functions](ENGINE-SPLIT-functions.md)
+    Tier C · needs 7, 8, 9 · selected dual-mode, quickcheck and byte-identical
+    public probe passed; racecheck/finalcheck skipped at user request
 11. [x] Catalog 5h — [catalog](ENGINE-SPLIT-catalog.md) 5h · needs —
     (the commit that records this status) *(quickcheck passed; further
     racecheck and finalcheck skipped at user request)*

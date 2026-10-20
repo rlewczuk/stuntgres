@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -22,9 +23,9 @@ func defaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 	if closedSequenceDefault(node) {
 		eligible, captured := true, false
 		walkBoundExpression(node, func(child expr.Expr) {
-			if call, ok := child.(sequenceCallExpression); ok {
+			if call, ok := child.(functions.SequenceCall); ok {
 				captured = true
-				if !slices.Contains(definition.Dependencies, call.ref) {
+				if !slices.Contains(definition.Dependencies, call.Ref) {
 					eligible = false
 				}
 			}

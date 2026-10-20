@@ -981,24 +981,6 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.left, e.right = left, right
 			return e, true, nil
 		}
-	case sequenceCallExpression:
-		var args []expr.Expr
-		for i, arg := range e.args {
-			folded, changed, err := preflightCoercions(c, arg)
-			if err != nil {
-				return nil, false, err
-			}
-			if changed {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i] = folded
-			}
-		}
-		if args != nil {
-			e.args = args
-			return e, true, nil
-		}
 	case expr.Composite:
 		// Function nodes name their fold; installed-routine wrappers keep
 		// their cases above.
@@ -1717,7 +1699,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.CallExpr:
 			var err error
-			node, err = b.bindSequenceCall(r)
+			node, err = functions.BindSequenceCall(b, r)
 			if err != nil {
 				return nil, err
 			}

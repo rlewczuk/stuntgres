@@ -124,6 +124,15 @@ type Binder interface {
 	// JSONReturningType resolves a SQL/JSON RETURNING type name as the
 	// statement's type input does, rejecting the RETURNING-forbidden forms.
 	JSONReturningType(parser.TypeName) (sqltype.Usage, error)
+	// SequenceArgument binds a sequence call's regclass provider input. It
+	// owns prepared sequence-literal capture (held constants keep their
+	// captured identity) and, in a column DEFAULT, requires a non-NULL
+	// captured literal. ref is zero unless the input is such a literal.
+	SequenceArgument(parser.Expr) (node expr.Expr, ref ids.ObjectRef, err error)
+	// SequenceTemporary returns the TEMP provenance captured with ref by
+	// SequenceArgument. In a column DEFAULT it validates that provider for
+	// the consumer and ends call-site literal capture.
+	SequenceTemporary(ids.ObjectRef, parser.Position) (ids.SessionToken, error)
 }
 
 // AggregateBinder is the analyzer as aggregate bind code sees it: the scalar

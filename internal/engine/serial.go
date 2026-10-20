@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -89,16 +90,16 @@ func closedSequenceDefault(node expr.Expr) bool {
 		return true
 	case fieldExpression:
 		return closedSequenceDefault(n.base)
-	case sequenceCallExpression:
-		if n.name != "nextval" || n.identity || len(n.args) != 1 || n.ref == (ids.ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (expr.Properties{Volatility: expr.Volatile}) {
+	case functions.SequenceCall:
+		if n.Name != "nextval" || n.Identity || len(n.Args) != 1 || n.Ref == (ids.ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (expr.Properties{Volatility: expr.Volatile}) {
 			return false
 		}
-		literal, ok := n.args[0].(literalExpression)
+		literal, ok := n.Args[0].(literalExpression)
 		if !ok || literal.value.IsNull() || literal.ResultUsage().Type.ID() != sqltype.Regclass || literal.Properties() != (expr.Properties{}) {
 			return false
 		}
 		text, err := literal.value.Text()
-		return err == nil && text == strconv.FormatUint(uint64(n.ref.Address.ObjectID), 10)
+		return err == nil && text == strconv.FormatUint(uint64(n.Ref.Address.ObjectID), 10)
 	}
 	return false
 }

@@ -275,17 +275,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case sequenceCallExpression:
-		o, ok := other.(sequenceCallExpression)
-		if !ok || e.name != o.name || e.ref != o.ref || e.temporary != o.temporary || len(e.args) != len(o.args) {
-			return false
-		}
-		for i := range e.args {
-			if !same(e.args[i], o.args[i]) {
-				return false
-			}
-		}
-		return true
 	case extensionPathsExpression:
 		o, ok := other.(extensionPathsExpression)
 		return ok && same(e.arg, o.arg)
@@ -558,13 +547,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case sequenceCallExpression:
-		e.args = append([]expr.Expr(nil), e.args...)
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
 	case extensionPathsExpression:
 		e.arg = rewrite(e.arg)
 		stage(&e.Info)
@@ -720,10 +702,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		}
 		walk(e.otherwise)
 	case conditionalExpression:
-		for _, arg := range e.args {
-			walk(arg)
-		}
-	case sequenceCallExpression:
 		for _, arg := range e.args {
 			walk(arg)
 		}

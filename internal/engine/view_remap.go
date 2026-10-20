@@ -357,11 +357,11 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.ref = ref(n.ref)
 		}
 		next = n
-	case sequenceCallExpression:
+	case functions.SequenceCall:
 		if ref != nil {
-			n.ref = ref(n.ref)
+			n.Ref = ref(n.Ref)
 		}
-		n.args = args(n.args)
+		n.Args = args(n.Args)
 		next = n
 	case caseExpression:
 		n.test, n.otherwise = child(n.test), child(n.otherwise)

@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -46,9 +47,9 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 	if got.slot != 0 || got.origin.Address.ObjectID != child.Address().ObjectID || got.origin.Address.SubID != 1 || node.slot != 1 || node.origin != ref {
 		t.Fatal(got, node)
 	}
-	sequence := sequenceCallExpression{ref: ref}
+	sequence := functions.SequenceCall{Ref: ref}
 	mapped, err = mapper.remap(sequence, child, e.CatalogRead())
-	if err != nil || mapped.(sequenceCallExpression).ref != ref {
+	if err != nil || mapped.(functions.SequenceCall).Ref != ref {
 		t.Fatal(mapped, err)
 	}
 }
@@ -265,9 +266,9 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	if sameInheritedExpression(mapped, other, d, current) {
 		t.Fatal("row-authority normalization hid a different expression type")
 	}
-	external := sequenceCallExpression{ref: oldRef}
+	external := functions.SequenceCall{Ref: oldRef}
 	newExternal := external
-	newExternal.ref.Epoch++
+	newExternal.Ref.Epoch++
 	if sameInheritedExpression(newExternal, external, d, current) {
 		t.Fatal("row-authority normalization retargeted an external provider")
 	}

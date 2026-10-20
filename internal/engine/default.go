@@ -31,8 +31,8 @@ func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 		if err != nil {
 			return
 		}
-		if call, ok := node.(sequenceCallExpression); ok {
-			err = validateDefaultTemporaryProvider(call.temporary, consumer, parser.Position{})
+		if call, ok := node.(functions.SequenceCall); ok {
+			err = validateDefaultTemporaryProvider(call.Temporary, consumer, parser.Position{})
 		}
 	})
 	return err
@@ -266,13 +266,13 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: access inquiries are unsupported in stored defaults")
 		}
 		return r.scalarFunctionSQL(ctx, view, n)
-	case sequenceCallExpression:
+	case functions.SequenceCall:
 		if r.owner == nil && !closedSequenceDefault(n) {
 			return "", fmt.Errorf("stuntgres: invalid stored sequence default")
 		}
-		args := n.args
+		args := n.Args
 		want := 1
-		switch n.name {
+		switch n.Name {
 		case "nextval", "currval":
 		case "lastval":
 			want = 0
@@ -281,7 +281,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		default:
 			return "", fmt.Errorf("stuntgres: invalid stored sequence function")
 		}
-		if len(args) != want && !(n.name == "setval" && len(args) == 3) || u.Type.ID() != sqltype.Int8 {
+		if len(args) != want && !(n.Name == "setval" && len(args) == 3) || u.Type.ID() != sqltype.Int8 {
 			return "", fmt.Errorf("stuntgres: invalid stored sequence signature")
 		}
 		for i, arg := range args {
@@ -296,22 +296,22 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 				return "", fmt.Errorf("stuntgres: invalid stored sequence argument")
 			}
 		}
-		if n.ref != (ids.ObjectRef{}) {
+		if n.Ref != (ids.ObjectRef{}) {
 			if len(args) == 0 {
 				return "", fmt.Errorf("stuntgres: stored sequence identity lacks argument")
 			}
 			if _, err := r.sql(ctx, view, args[0]); err != nil {
 				return "", err
 			}
-			target, ok := view.Descriptor(n.ref.Address)
-			if !ok || !storedSequenceEpochValid(view, r.retainedConsumer(), n.ref, n.temporary) {
+			target, ok := view.Descriptor(n.Ref.Address)
+			if !ok || !storedSequenceEpochValid(view, r.retainedConsumer(), n.Ref, n.Temporary) {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence reference")
 			}
 			sequence, ok := target.(*catalog.Relation)
 			if !ok || sequence.RelationKind != catalog.SequenceRelation {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence target")
 			}
-			r.record(n.ref)
+			r.record(n.Ref)
 			namespace, ok := view.Descriptor(sequence.Namespace())
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing stored sequence namespace")
@@ -325,9 +325,9 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 				}
 				parts = append(parts, text)
 			}
-			return "pg_catalog." + n.name + "(" + strings.Join(parts, ", ") + ")", nil
+			return "pg_catalog." + n.Name + "(" + strings.Join(parts, ", ") + ")", nil
 		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.name, args)
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Name, args)
 	case caseExpression, conditionalExpression:
 		return r.conditionalSQL(ctx, view, node)
 	case literalExpression:

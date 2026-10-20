@@ -248,6 +248,8 @@ func TestCaptureOperandsNoAllocations(t *testing.T) {
 		{"zero_leaf", CurrentDateTime{}, expr.CaptureCurrentDateTime, nil},
 		{"advisory", Advisory{Args: a[:2]}, expr.CaptureFunction, a[:2]},
 		{"blocking", BlockingInquiry{Arg: a[0]}, expr.CaptureFunction, a[:1]},
+		{"sequence", SequenceCall{Name: "setval", Args: a[:3]}, expr.CaptureFunction, a[:3]},
+		{"sequence lastval", SequenceCall{Name: "lastval"}, expr.CaptureFunction, nil},
 	}
 	defer func() { captureOperandsSink = expr.CaptureOperands{} }()
 	for _, tc := range cases {

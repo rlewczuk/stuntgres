@@ -114,8 +114,8 @@ catalog/role/comment/visibility snapshots, locks and authorization recapture,
 schemaInquiryPathLocked and pending-TEMP staging/publication, schema execution
 caches and FK/rule/view expression authority. It also owns address lookup,
 catalog index interpretation, post-NULL successful-only lazy routine admission,
-deparse/tree engines and serial ownership lookup. Sequence execution and
-pg_extension_update_paths are not part of the move.
+deparse/tree engines and serial ownership lookup. pg_extension_update_paths
+is not part of the move; sequence calls moved separately (below).
 
 Generic visitors consume node-owned capture, source, demand, cost, grouping,
 volatility and rendering hooks; installed/catalog wrappers still win. Stored
@@ -195,6 +195,30 @@ for actual binder/context/traversal/replay units. Node-only units and the
 public selected proof/smoke instructions are in the functions README. Existing
 manager ownership, savepoint/prepared transfer, replacement and SSI tests remain
 at their canonical seams; moving SQL nodes does not move their authority.
+
+### Sequence call authority
+
+`functions.SequenceCall` and `functions.BindSequenceCall` own the
+`nextval`/`currval`/`setval`/`lastval` binding, immutable node operations and
+argument demand; `parser.CallExpr` dispatch calls the binder directly. The
+engine keeps the authority behind `SequenceRuntime` (`sequence_runtime.go`): the
+evaluation prelude and live statement scope, OID-to-reference construction and
+`lastval`'s session provider, the catalog epoch fence (including TEMP epoch
+revalidation) before and after the RowExclusive `acquireSequence`, ACL and
+read-only checks, `sequenceGeneratorLocked`/`reserveSequence` and the
+physical-session `currval`/`lastval` memories, all in the original order. The
+binder's `SequenceArgument`/`SequenceTemporary` keep regclass input,
+prepared sequence-literal capture and DEFAULT TEMP validation here; the node
+caches no session, scope or owner. Catalog-identity consumers keep explicit
+`functions.SequenceCall` cases: stored DEFAULT SQL and replay eligibility,
+`validateCookedDefaultTemporary`, `closedSequenceDefault`, dependency references,
+view `Ref` remapping, COPY's nextval volatility and the identity DEFAULT
+constructor in `bindInsertDefaults`.
+
+Run `make check RUN='^Test(SerialStoredDefaultInvariants|SerialDefaultIdentityProviderTemporaryCollision|QueryParallelEligibility|TableLikeTemporary(DefaultAuthority|RetainedCopy)|Inheritance(MergeStableRemap|RetainedRowAuthority)|TableLikeCookedRowRemap|IdentityOwnCheckBindingAuthority)$'`
+for the actual binder, stored-default, remap and parallel-safety units that use
+the moved node. Node-only units and public selections are in the functions
+README; generator and prepared-literal tests stay with their engine owners.
 
 ### Catalog write ownership
 

@@ -556,10 +556,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	case cachedOrderExpression:
 		n.Info = info
 		rebound = n
-	case sequenceCallExpression:
-		n.args = children(n.args)
-		n.Info = info
-		rebound = n
 	case extensionPathsExpression:
 		n.arg = child(n.arg)
 		if err != nil {

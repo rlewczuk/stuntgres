@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/expr"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
+)
 
 // plannedVolatility inspects the physical surviving tree. Analysis properties
 // deliberately retain dependence from eliminated CASE/COALESCE arms.
@@ -46,9 +49,9 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return v
 	}
 	switch n := node.(type) {
-	case sequenceCallExpression:
-		if copyNextval && n.name == "nextval" {
-			return children(n.args...)
+	case functions.SequenceCall:
+		if copyNextval && n.Name == "nextval" {
+			return children(n.Args...)
 		}
 		return n.Properties().Volatility
 	case assignmentValueExpression:

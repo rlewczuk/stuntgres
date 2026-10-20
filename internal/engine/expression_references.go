@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -116,8 +117,8 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 		address := n.owner.Address
 		address.SubID = -6
 		r.add(address)
-	case sequenceCallExpression:
-		r.add(n.ref.Address)
+	case functions.SequenceCall:
+		r.add(n.Ref.Address)
 	case subqueryExpression:
 		r.query(n.queryPlan.Root)
 	}

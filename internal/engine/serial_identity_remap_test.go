@@ -24,8 +24,8 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			temp := description.sequences.constants[0].ref.Address
 			original := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.consumer").Address)
 			leaf := serialLeaf(original.ColumnMeta.Defaults[1].Expression)
-			if leaf.ref.Address != temp {
-				t.Fatal("fixture lacks actual identity provider collision", leaf.ref.Address, temp)
+			if leaf.Ref.Address != temp {
+				t.Fatal("fixture lacks actual identity provider collision", leaf.Ref.Address, temp)
 			}
 			if restore {
 				var dump bytes.Buffer
@@ -40,11 +40,11 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			}
 			consumer := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.consumer").Address)
 			current := serialLeaf(consumer.ColumnMeta.Defaults[1].Expression)
-			if current.ref.Address == temp || !closedSequenceDefault(consumer.ColumnMeta.Defaults[1].Expression) {
-				t.Fatal("identity provider reference not remapped", current.ref)
+			if current.Ref.Address == temp || !closedSequenceDefault(consumer.ColumnMeta.Defaults[1].Expression) {
+				t.Fatal("identity provider reference not remapped", current.Ref)
 			}
-			provider := dest.catalog.state.MustRelation(current.ref.Address)
-			if !provider.Sequence.Identity || current.identity {
+			provider := dest.catalog.state.MustRelation(current.Ref.Address)
+			if !provider.Sequence.Identity || current.Identity {
 				t.Fatal("ordinary default inherited identity privilege/width semantics")
 			}
 			sessionSQL(t, b, `INSERT INTO portable.consumer DEFAULT VALUES`)
@@ -52,7 +52,7 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			sessionSQL(t, b, `INSERT INTO portable.producer DEFAULT VALUES`)
 			sequenceScalar(t, b, `SELECT id FROM portable.producer`, 9)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
-			if serialLeaf(original.ColumnMeta.Defaults[1].Expression).ref != leaf.ref {
+			if serialLeaf(original.ColumnMeta.Defaults[1].Expression).Ref != leaf.Ref {
 				t.Fatal("source provider identity mutated")
 			}
 			checkReviewDependencyValid(t, dest)

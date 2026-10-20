@@ -249,12 +249,13 @@ Tier C has a refined plan.
   `a18766bcc` ordered-set and hypothetical-set, `c4a15e187` window
   functions, then the docs commit; `int_array_aggregate` keeps its engine
   branch)
-- [ ] Tier C refined (after steps 4, 5 and 7; plan in "Tier C refinement"
+- [x] Tier C refined (after steps 4, 5 and 7; plan in "Tier C refinement"
   below): [x] ACL SQL function nodes (`b3ce43139` seam, `574de18f1` port,
   `436322070` move, `75d906ea8` protocol hooks, then the docs commit)
   [x] catalog inquiry (with session identity; verified ownership cutover,
   record below) [x] transaction identity and commit timestamps
-  [ ] advisory locks (with blocking inquiry) [ ] sequence calls
+  [x] advisory locks (with blocking inquiry; integrated as `a85e7d747`)
+  [x] sequence calls (Group A Item 10, record below)
 
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
 pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
@@ -1600,8 +1601,9 @@ Tier C refinement, measured on `5cc6fe6e5` with the ACL part done first:
     cutover and selected dual-mode, quickcheck, full race and smoke proof passed.
   - Advisory locks: `advisoryExpression` over the `lock` package's advisory
     manager: a lock capability.
-  - Sequence calls: `sequenceCallExpression`, with its prepared-literal and
-    DEFAULT rules from `AGENTS.md`; the most constrained part, last.
+  - Sequence calls: done. `functions.SequenceCall` and `BindSequenceCall`
+    over `SequenceRuntime`; prepared-literal capture and DEFAULT TEMP rules stay
+    behind two Binder methods (record below).
   - `blockingInquiryExpression` (`pg_blocking_pids` and friends) goes with
     the advisory part (decided at the later-wave refresh: it reads the lock
     manager's state, like advisory locks).
@@ -1810,8 +1812,8 @@ and Item7/Item8 ownership implementation. `query_bind.go` and `returning.go`
 consume node-owned hooks rather than enumerate catalog/session/blocking inquiry
 kinds. The ten catalog/session nodes and transaction identity/timestamp nodes,
 including their source hooks, now live in functions; their central concrete
-cases are removed. Only advisory/blocking and sequence owners remain engine-node
-moves in this historical inventory.
+cases are removed. Advisory/blocking and sequence calls have since moved too
+(records above and below), so no Tier C engine-node move remains.
 
 - **Historical central caller inventory** (not remaining Item7/Item8 concrete cases):
   the same 12 central
@@ -2045,4 +2047,74 @@ runtime environment measured1.151–1.310ms, above the <1ms target, with steady
 comparison. Review and post-integration proof are separate workflow gates, not
 claimed by these implementation measurements. No temporary smoke source is a
 repository deliverable.
+
+### Sequence calls — Group A Item 10
+
+`SequenceCall` (`nextval`/`currval`/`setval`/`lastval`), its `Eval`,
+`BindSequenceCall` and node protocols live in `functions`
+(`sequence_call.go`, `sequence_protocol.go`). `parser.CallExpr` keeps its own
+grammar route, so the engine dispatch calls `BindSequenceCall` directly; there is
+no registry entry and, as before, no shared gates. `SequenceRuntime`
+(`SequenceAuthority`, `Sequence(SequenceRequest)`) is implemented on
+`*EvalContext` in `sequence_runtime.go`, carrying the former Eval body unchanged
+in order. `SequenceAuthority` uses the engine's own evaluation prelude, so an
+active domain-check input frame is still installed before arguments run.
+
+Binder gains two reviewed capabilities: `SequenceArgument` (regclass input with
+prepared sequence-literal capture; DEFAULT literal-provider rule) and
+`SequenceTemporary` (captured TEMP provenance; DEFAULT validation and capture
+end). Everything else maps onto existing methods with exact equivalence:
+`CoerceArgument` with an empty-`Argument` `DirectFormalArgument` binds int8/bool in
+function-argument context; `ConstantValue` (not `LiteralNull`, which looks through
+wrappers) detects the strict NULL; the signature diagnostic uses the pure
+`ResolutionError`, so it still does not note the signature.
+
+Measured at `4d3568a9d`, 22 production references in 17 files (the historical
+inventory above named `view_write_insert.go`, which has none, and omitted the
+twelve core switch files). Twelve concrete cases moved to generic branches
+(walk, join legality, retag, conditional simplification, preflight, grouping
+identity/rewrite/occurrence, index function syntax, node tree, deparse, view
+literal capture). Eight catalog-identity consumers keep explicit
+`functions.SequenceCall` cases: `default.go` (TEMP DEFAULT validation and stored
+SQL with catalog/epoch/dependency checks), `default_replay.go`, `serial.go`,
+`expression_references.go`, `view_remap.go` (Ref remap), `expression_volatility.go`
+(COPY nextval) and the identity constructor in `insert_binding.go`. Regclass
+input, `sequenceConstant` and the prepared-literal caches stay in
+`sequence_expression.go`/`sequence_prepared.go` for step 17.
+
+Behavior notes. Preflight now passes the caller's `decisiveDefaults` to
+sequence-call children (the old case hard-coded false); DEFAULT admits only
+`nextval(<regclass literal>)`, and the CHECK probes below were unchanged. The
+view-literal arm guards on `expr.Capturable`, so a strictly folded NULL call
+keeps its original mismatch diagnostic. `generationHasTableOID` now recurses
+into sequence-call children, but only admitted immutable generation plans reach
+it, which never contain sequence calls.
+
+Tests: new leaf units `TestSequenceCall(RuntimeDemand|IdentityResult|MissingRuntime|Protocols)`;
+`TestCaptureOperandsWrittenSlots` gained two sequence cases. Adapted to the
+exported type and fields, with assertions unchanged: `serial_test.go`,
+`serial_identity_remap_test.go`, `query_parallel_test.go`,
+`table_like_temporary_test.go`, `table_inheritance_test.go`, `table_like_test.go`;
+`TestIdentityOwnCheckBindingAuthority` calls `functions.BindSequenceCall`. No test
+moved or was deleted; reference goldens are unchanged.
+
+Verification: see the functions README "Sequence call cutover" Testing section.
+A throwaway public `database/sql` probe produced byte-identical output on master
+and the branch (141 lines). It covered results and errors for all four calls
+(including signature, NULL, OID/parameter input, bounds and read-only cases), a
+prepared literal across a rename, serial/identity inserts, TEMP providers,
+privileges, views, DEFAULTs and CHECKs (with `quote_all_identifiers` off and on),
+node trees, dependencies, grouping/CASE/join/ORDER BY shapes and native
+Dump→Restore→redump. Racecheck and finalcheck were skipped at the user's request.
+
+Notes for later steps (Item 10):
+
+- Existing bug, unrelated to the move and reproduced on `4d3568a9d`:
+  `ALTER TABLE t ADD CONSTRAINT c CHECK (x <> setval('s', 10, (true OR x IS NULL)))`
+  panics with a nil descriptor in `captureTypeDiagnosticInput`
+  (`enum_diagnostics.go`), via `nullTest` inside a sequence-call argument bound
+  for `bindColumnChecks`. Recovery then deadlocks in `prepareTemporaryCommit`.
+  It needs reference coverage and a fix in its own task.
+- `nextval('s'::text::regclass)` reports 42883 `function nextval(regclass) does
+  not exist`; PostgreSQL accepts it. Existing gap; needs reference coverage first.
 

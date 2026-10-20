@@ -799,8 +799,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), []expr.Expr{n.Arg}, true)
-	case sequenceCallExpression:
-		return function(n.name, n.args, true)
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

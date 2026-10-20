@@ -632,8 +632,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		return protocol(expr.CaptureFunction, r.Args)
 	case parser.CallExpr:
-		if n, ok := bound.(sequenceCallExpression); ok {
-			return children(r.Args, n.args)
+		// A strict NULL fold leaves no capturable call: keep the mismatch.
+		if _, ok := bound.(expr.Capturable); ok {
+			return protocol(expr.CaptureFunction, r.Args)
 		}
 	}
 	return fmt.Errorf("stuntgres: mismatched view literal expression %T / %T", raw, bound)

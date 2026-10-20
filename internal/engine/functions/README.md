@@ -252,6 +252,17 @@ values their engine branches passed in:
 - `JSONReturningType`: resolves a SQL/JSON `RETURNING` type name with the
   statement's type input (RETURNING-forbidden forms rejected). The JSON
   aggregates use it; the SQL/JSON constructors will.
+- `SequenceArgument`: a sequence call's regclass provider input. It shares
+  the engine's regclass input with explicit regclass casts and owns prepared
+  sequence-literal capture: held constants keep their captured provider rather
+  than following a later name replacement (`AGENTS.md`). In a column DEFAULT it
+  admits only a non-NULL captured literal. A genuine analyzer capability: the
+  capture cell and its reanalysis rules are statement-analysis state.
+- `SequenceTemporary`: the TEMP provenance captured with that provider. In a
+  column DEFAULT it also validates the provider for the consumer and ends
+  call-site literal capture, since stored defaults never enter prepared
+  reanalysis. A genuine analyzer capability (TEMP lifetime follows the physical
+  session, which only the engine knows).
 
 `AggregateBinder` extends `Binder` with what is valid only while an aggregate
 call (`parser.AggregateExpr`) binds, where the engine owns grouping state.
@@ -359,6 +370,19 @@ it with a compile-time assertion. `expr.Context` does not grow per family.
   Engine authorization is checked under `Engine.mu`; safe-snapshot capture stays
   there, but ordinary manager reads run after releasing it. Neither capability
   passes managers, scopes, tickets, callbacks or captured owners into this leaf.
+- `SequenceRuntime` (`sequence_runtime.go`): `SequenceAuthority` runs the
+  engine's evaluation prelude (cancellation and any active domain-check input)
+  and requires the live statement scope before any argument is evaluated.
+  `Sequence` takes one `SequenceRequest`: the call name, the bound provider
+  reference or the OID read from the argument, TEMP provenance, the identity
+  marker and setval's still-unconverted value/is_called inputs. The engine
+  adapter (`internal/engine/sequence_runtime.go`) keeps the catalog epoch fence
+  before and after the RowExclusive sequence lock, ACL and read-only checks,
+  generator reservation and the physical-session `currval`/`lastval` memories,
+  in the original order; setval's inputs are converted after the privilege
+  checks, exactly as before. The node evaluates every argument once, left to
+  right, returns a typed NULL without opening the sequence when any is NULL,
+  and narrows identity results to the column type.
 
 ## Registry
 
@@ -401,6 +425,12 @@ children have been analyzed. Blocking inquiries deliberately have no shared gate
 all children and the argument limit precede visibility and exact signature
 checks, as in their former early engine branch. SQL-overload competition remains
 engine-owned and precedes registry lookup.
+
+Sequence calls are not registered. The lexer and grammar give
+`nextval`/`currval`/`setval`/`lastval` their own `parser.CallExpr` syntax, and the
+engine's expression dispatch calls `BindSequenceCall` directly for it, as it
+does `BindJSONPredicate`. No shared gates, labels or SQL-overload competition
+apply, as before the move.
 
 Registered families:
 
@@ -687,6 +717,23 @@ generated/index, source or parallel admission. The existing
 cast properties without adding a cast routine identity; other callers are
 unchanged.
 
+`SequenceCall` rebuilds with the supplied Info and children while keeping its
+provider `Ref`, TEMP `Temporary` and `Identity` marker: these are catalog facts,
+and the engine's catalog consumers (stored DEFAULT SQL and replay, DEFAULT TEMP
+validation, `closedSequenceDefault`, dependency references, view remapping of
+`Ref`, COPY's nextval volatility and the identity DEFAULT constructor) keep
+explicit `functions.SequenceCall` cases reading those exported fields. Generic
+branches cover walk, join legality, retag, conditional simplification
+(`FoldNever`), preflight (`PreflightChildren`), grouping identity (name, provider,
+TEMP provenance and children; not the identity marker), grouping rewrite (it is
+not a `GroupLeaf`, so `lastval()` is still staged), aggregate occurrence, index
+function syntax, view literal capture (`CaptureFunction`) and the display/tree
+rendering (`Sequence <name> oid <n>`, a bare call name quoted only under
+`quote_all_identifiers`, call arguments with implicit casts shown). Stored
+scalar SQL never replays that rendering; its explicit engine case validates and
+records the provider. It has no intrinsic volatility, strict fold, result
+nullability, stored-provider or closure hook, so those consumers are unchanged.
+
 Nodes also implement the optional `expr` hooks that the engine's switches ask
 (the `expr` README defines them):
 
@@ -900,7 +947,8 @@ are local, catalog index interpretation is not. Comments retain post-NULL lazy
 routine admission through immutable provenance. Deparse owns all twelve existing
 signatures, including pg_get_serial_sequence, but actual rendering/tree lookup,
 catalog locks, relation/column parsing and serial AUTO/INTERNAL ownership stay
-in the engine. No nextval/currval/setval execution moves.
+in the engine. Sequence calls moved separately (Group A Item 10, see
+`SequenceRuntime` above); their execution authority stays in the engine.
 
 Ordering is family-specific, not a universal guard-first rule. Address evaluates
 all children once in written order, maps formal slots, then applies strict NULL;
@@ -1120,6 +1168,40 @@ diagnostic behavior, actual commit timestamps and byte-identical symbolic native
 roundtrip (583 observed bytes, not an expected-size constant). Required selected
 dual-mode, full-suite, race and review gates are not claimed by that observation.
 
+
+### Sequence call cutover
+
+`SequenceCall` units here use the real node with a recording runtime: authority
+before arguments, every argument once in written order, strict NULL without
+opening the sequence, argument-supplied provider OIDs, identity narrowing, the
+missing-runtime errors and the immutable protocols (provider-preserving
+`Rebuild`, grouping identity, rendering, capture). Generator, lock, epoch, ACL,
+read-only and prepared-literal behavior stays covered at its engine owners and
+in `reference/sequences`, whose goldens are unchanged.
+
+```sh
+make check RUN='^Test(SequenceCall(RuntimeDemand|IdentityResult|MissingRuntime|Protocols)|CaptureOperandsWrittenSlots|CaptureOperandsNoAllocations)$'
+make check RUN='^Test(SerialStoredDefaultInvariants|SerialDefaultIdentityProviderTemporaryCollision|QueryParallelEligibility|TableLikeTemporary(DefaultAuthority|RetainedCopy)|Inheritance(MergeStableRemap|RetainedRowAuthority)|TableLikeCookedRowRemap|IdentityOwnCheckBindingAuthority)'
+make check RUN='^TestReferenceSequence'
+make check RUN='^TestReferenceSequence' REFERENCE=1
+make check RUN='^TestReference(Serial|Identity|Default)'
+make check RUN='^TestReference(Serial|Identity|Default)' REFERENCE=1
+```
+
+Observed for this cutover, each with an external 900-second deadline: the leaf
+and engine units above passed; eight public selections passed in quick and pinned
+PostgreSQL 18.6 modes (`^TestReferenceSequence`, `^TestReferenceSerial`,
+`^TestReferenceIdentity`, `^TestReferenceDefault`, the sequence/serial/identity/default
+smoke, the sequence grant/catalog/session/CHECK/DELETE selection,
+`^TestReference(View|Deparse|Check|Generated)` and `^TestReference.*(Dump|Restore)`).
+The only exception is the pinned run of `^TestReferenceSerial`, where the PG-only
+`TestReferenceSerialDefaultProvider(PublicationHold|DropFirst)` failed identically on
+unmodified master `4d3568a9d`: oracle drift, not this change. After the rebase onto
+`55f377e30`, full quickcheck, build, deps and the functions import check passed, and a
+throwaway public `database/sql` probe stayed byte-identical to master (results,
+errors, deparse with and without `quote_all_identifiers`, node trees, dependencies and
+native Dump/Restore). Racecheck, finalcheck and bench were skipped at the user's
+request; no startup code changed.
 
 ### Shared integration and protocol selections
 

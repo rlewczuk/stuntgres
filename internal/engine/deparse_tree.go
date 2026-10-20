@@ -204,9 +204,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})
-	case sequenceCallExpression:
-		fmt.Fprintf(out, "Sequence %s oid %d", n.name, n.ref.Address.ObjectID)
-		err = args(n.args)
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

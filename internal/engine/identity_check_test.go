@@ -5,6 +5,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -293,7 +294,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	auth.Recapture(auth.Catalog)
 	binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	binder.queryAuth = &auth
-	if _, err := binder.bindSequenceCall(ast.Targets[0].(parser.CallExpr)); err != nil {
+	if _, err := functions.BindSequenceCall(binder, ast.Targets[0].(parser.CallExpr)); err != nil {
 		t.Fatal(err)
 	}
 	if len(binder.sequenceConstants) != 1 {

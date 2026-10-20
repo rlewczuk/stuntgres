@@ -738,8 +738,6 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case extensionPathsExpression:
 		return joinExpressionSides(e.arg, leftWidth, rightWidth)
-	case sequenceCallExpression:
-		children = e.args
 	case installedSoundexFunctionExpression:
 		children = e.Args
 	case installedMetaphoneFunctionExpression:

@@ -218,6 +218,37 @@ func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage
 	return b.engine.resolveAnnotationTypeInput(raw, b.op, false, false, true, true, false)
 }
 
+// SequenceArgument shares regclass input, with its prepared sequence-literal
+// capture, with explicit regclass casts. A column DEFAULT admits only a
+// non-NULL captured literal provider.
+func (b *expressionBinder) SequenceArgument(raw parser.Expr) (expr.Expr, ids.ObjectRef, error) {
+	node, ref, err := b.bindRegclass(raw)
+	if err == nil && b.defaultConsumer {
+		literal, ok := node.(literalExpression)
+		if !ok || literal.value.IsNull() || ref == (ids.ObjectRef{}) {
+			return nil, ref, expr.ErrorAt("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
+		}
+	}
+	return node, ref, err
+}
+
+func (b *expressionBinder) SequenceTemporary(ref ids.ObjectRef, pos parser.Position) (ids.SessionToken, error) {
+	var temporary ids.SessionToken
+	for _, constant := range b.sequenceConstants {
+		if constant.ref == ref {
+			temporary = constant.temporary
+		}
+	}
+	if b.defaultConsumer {
+		if err := validateDefaultTemporaryProvider(temporary, b.defaultTemporary, pos); err != nil {
+			return temporary, err
+		}
+		// Stored defaults do not enter call-site prepared literal reanalysis.
+		b.sequenceConstants = nil
+	}
+	return temporary, nil
+}
+
 // withinGroupOrder converts a family's WITHIN GROUP keys: an argument key
 // reads stage slot 0; other keys own the stage slots after value and
 // separator, in key order.

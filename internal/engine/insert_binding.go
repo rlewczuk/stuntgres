@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -285,7 +286,7 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 			b.defaultOrigins[i] = origin
 		}
 		if identity, ok := b.relation.ColumnMeta.Identities[attribute]; ok {
-			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), identity: true}
+			b.defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), Identity: true}
 		}
 	}
 	if override == parser.OverrideUser {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -35,15 +36,15 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			old := source.ColumnMeta.Defaults[2]
 			manifest := slices.Clone(old.Dependencies)
 			generator := *e.storage.Sequences[seed.Address()]
-			var call sequenceCallExpression
+			var call functions.SequenceCall
 			calls := 0
 			walkBoundExpression(old.Expression, func(node expr.Expr) {
-				if n, ok := node.(sequenceCallExpression); ok {
+				if n, ok := node.(functions.SequenceCall); ok {
 					call = n
 					calls++
 				}
 			})
-			if calls != 1 || call.temporary != owner.token || call.ref.Address != seed.Address() || call.ref.Domain() != e.catalog.Domain {
+			if calls != 1 || call.Temporary != owner.token || call.Ref.Address != seed.Address() || call.Ref.Domain() != e.catalog.Domain {
 				t.Fatal("fixture lacks exact temporary sequence authority", call, calls)
 			}
 			op, err := owner.Acquire(context.Background())
@@ -165,9 +166,9 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	manifest := slices.Clone(old.Dependencies)
 	seed := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "seed")
 	generator := *e.storage.Sequences[seed.Address()]
-	var call sequenceCallExpression
+	var call functions.SequenceCall
 	walkBoundExpression(old.Expression, func(node expr.Expr) {
-		if n, ok := node.(sequenceCallExpression); ok {
+		if n, ok := node.(functions.SequenceCall); ok {
 			call = n
 		}
 	})
@@ -204,18 +205,18 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		t.Fatal("retained cooked default lost original manifest/identity or advanced provider", copied)
 	}
 	view := e.stageRead(stage)
-	if call.ref.Epoch == view.Epoch() || !storedSequenceEpochValid(view, destination, call.ref, call.temporary) {
-		t.Fatal("retained manifest lacks bounded old-epoch authority", call.ref)
+	if call.Ref.Epoch == view.Epoch() || !storedSequenceEpochValid(view, destination, call.Ref, call.Temporary) {
+		t.Fatal("retained manifest lacks bounded old-epoch authority", call.Ref)
 	}
-	if err := e.ValidateObjectRef(view, call.ref); err == nil {
+	if err := e.ValidateObjectRef(view, call.Ref); err == nil {
 		t.Fatal("generic stale ObjectRef admitted")
 	}
-	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(call.ref.Epoch, call.ref.Address), e.catalog.Domain.Ref(view.Epoch()+1, call.ref.Address)} {
-		if storedSequenceEpochValid(view, destination, bad, call.temporary) {
+	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(call.Ref.Epoch, call.Ref.Address), e.catalog.Domain.Ref(view.Epoch()+1, call.Ref.Address)} {
+		if storedSequenceEpochValid(view, destination, bad, call.Temporary) {
 			t.Fatal("foreign/future reference admitted", bad)
 		}
 	}
-	if storedSequenceEpochValid(view, destination, call.ref, ids.SessionToken{}) {
+	if storedSequenceEpochValid(view, destination, call.Ref, ids.SessionToken{}) {
 		t.Fatal("zero token admitted stale temporary sequence")
 	}
 	var rendered []ids.ObjectRef
@@ -229,13 +230,13 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		t.Fatal("DEFAULT provenance widened row policy")
 	}
 	// Admission must prove the original SubID before whole-object lock dedup.
-	attribute := e.catalog.Domain.Ref(call.ref.Epoch, source.Address())
+	attribute := e.catalog.Domain.Ref(call.Ref.Epoch, source.Address())
 	attribute.Address.SubID = 1
 	removed := attribute
 	removed.Address.SubID = 2
-	foreign := call.ref
+	foreign := call.Ref
 	foreign = New().catalog.Domain.Ref(foreign.Epoch, foreign.Address)
-	future := call.ref
+	future := call.Ref
 	future.Epoch = stage.Base.Epoch() + 1
 	for _, tc := range []struct {
 		name      string
@@ -246,7 +247,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		{"removed attribute", removed, false, false},
 		{"foreign owner", foreign, false, false},
 		{"future epoch", future, false, false},
-		{"permanent consumer", call.ref, true, false},
+		{"permanent consumer", call.Ref, true, false},
 		{"live retained attribute", attribute, false, true},
 	} {
 		candidate := e.BeginCatalogStage(stage.Base)
@@ -278,7 +279,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	e.DiscardCatalogStage(stage)
 	sessionSQL(t, owner, "DROP SEQUENCE pg_temp.seed CASCADE")
 	sessionSQL(t, owner, "CREATE TEMP SEQUENCE seed START 901")
-	if storedSequenceEpochValid(e.CatalogRead(), destination, call.ref, call.temporary) {
+	if storedSequenceEpochValid(e.CatalogRead(), destination, call.Ref, call.Temporary) {
 		t.Fatal("retired reference adopted recreated provider name")
 	}
 	if !reflect.DeepEqual(source.ColumnMeta.Defaults[1].Expression, old.Expression) || !slices.Equal(old.Dependencies, manifest) {

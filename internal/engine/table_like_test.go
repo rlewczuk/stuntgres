@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -91,12 +92,12 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	if !reflect.DeepEqual(mapped, literal) {
 		t.Fatal("explicit source literal retargeted", mapped)
 	}
-	call := sequenceCallExpression{ref: ref}
+	call := functions.SequenceCall{Ref: ref}
 	mapped, err = in.remap(call, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(sequenceCallExpression).ref != ref {
+	if mapped.(functions.SequenceCall).Ref != ref {
 		t.Fatal("external call retargeted")
 	}
 }

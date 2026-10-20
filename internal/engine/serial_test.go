@@ -5,18 +5,19 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func serialLeaf(node expr.Expr) sequenceCallExpression {
+func serialLeaf(node expr.Expr) functions.SequenceCall {
 	for {
 		if wrapper, ok := node.(coercionExpression); ok {
 			node = wrapper.child
 			continue
 		}
-		return node.(sequenceCallExpression)
+		return node.(functions.SequenceCall)
 	}
 }
 
@@ -28,10 +29,10 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 	for slot, attribute := range d.Attributes {
 		definition := d.ColumnMeta.Defaults[attribute]
 		leaf := serialLeaf(definition.Expression)
-		if leaf.identity || len(d.ColumnMeta.Identities) != 0 || leaf.ResultUsage().Type.ID() != sqltype.Int8 || !closedSequenceDefault(definition.Expression) {
+		if leaf.Identity || len(d.ColumnMeta.Identities) != 0 || leaf.ResultUsage().Type.ID() != sqltype.Int8 || !closedSequenceDefault(definition.Expression) {
 			t.Fatal("serial became identity", definition)
 		}
-		seq := view.MustRelation(leaf.ref.Address)
+		seq := view.MustRelation(leaf.Ref.Address)
 		owner := d.Address()
 		owner.SubID = attribute
 		if seq.Sequence.Identity || seq.Sequence.Owned != owner || seq.Sequence.SQLType != d.Columns[slot].Usage.Type.ID() {
@@ -43,16 +44,16 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 		if err := (relationProvider{}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
-		for _, mutate := range []func(sequenceCallExpression) sequenceCallExpression{
-			func(n sequenceCallExpression) sequenceCallExpression { n.identity = true; return n },
-			func(n sequenceCallExpression) sequenceCallExpression { n.name = "currval"; return n },
-			func(n sequenceCallExpression) sequenceCallExpression { n.ref.Epoch++; return n },
-			func(n sequenceCallExpression) sequenceCallExpression { n.args = nil; return n },
-			func(n sequenceCallExpression) sequenceCallExpression { n.Property.Volatility = expr.Stable; return n },
-			func(n sequenceCallExpression) sequenceCallExpression {
-				arg := n.args[0].(literalExpression)
+		for _, mutate := range []func(functions.SequenceCall) functions.SequenceCall{
+			func(n functions.SequenceCall) functions.SequenceCall { n.Identity = true; return n },
+			func(n functions.SequenceCall) functions.SequenceCall { n.Name = "currval"; return n },
+			func(n functions.SequenceCall) functions.SequenceCall { n.Ref.Epoch++; return n },
+			func(n functions.SequenceCall) functions.SequenceCall { n.Args = nil; return n },
+			func(n functions.SequenceCall) functions.SequenceCall { n.Property.Volatility = expr.Stable; return n },
+			func(n functions.SequenceCall) functions.SequenceCall {
+				arg := n.Args[0].(literalExpression)
 				arg.value = sqltype.String(arg.Usage.Type, "999")
-				n.args = []expr.Expr{arg}
+				n.Args = []expr.Expr{arg}
 				return n
 			},
 		} {
@@ -99,8 +100,8 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			temp := description.sequences.constants[0].ref.Address
 			original := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			leaf := serialLeaf(original.ColumnMeta.Defaults[1].Expression)
-			if leaf.ref.Address != temp {
-				t.Fatal("fixture lacks actual persistent sequence collision", leaf.ref.Address, temp)
+			if leaf.Ref.Address != temp {
+				t.Fatal("fixture lacks actual persistent sequence collision", leaf.Ref.Address, temp)
 			}
 			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], b.sequences[temp]
 			if mode == "Restore" {
@@ -119,8 +120,8 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			}
 			d := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.t").Address)
 			next := serialLeaf(d.ColumnMeta.Defaults[1].Expression)
-			if next.ref.Address == temp || next.ref.Domain() != dest.catalog.Domain || next.ref.Epoch != dest.catalog.state.Epoch() || !closedSequenceDefault(d.ColumnMeta.Defaults[1].Expression) {
-				t.Fatal("default not remapped", next.ref)
+			if next.Ref.Address == temp || next.Ref.Domain() != dest.catalog.Domain || next.Ref.Epoch != dest.catalog.state.Epoch() || !closedSequenceDefault(d.ColumnMeta.Defaults[1].Expression) {
+				t.Fatal("default not remapped", next.Ref)
 			}
 			if err := (relationProvider{}).Validate(dest.CatalogRead(), d); err != nil {
 				t.Fatal(err)
@@ -129,10 +130,10 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			sequenceScalar(t, b, `SELECT id FROM portable.t`, 8)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
 			sessionSQL(t, b, `DROP TABLE portable.t RESTRICT`)
-			if dest.catalog.state.Get(next.ref.Address) != nil {
+			if dest.catalog.state.Get(next.Ref.Address) != nil {
 				t.Fatal("remapped AUTO dependency remained")
 			}
-			if serialLeaf(original.ColumnMeta.Defaults[1].Expression).ref != leaf.ref {
+			if serialLeaf(original.ColumnMeta.Defaults[1].Expression).Ref != leaf.Ref {
 				t.Fatal("source default mutated")
 			}
 			if err := (relationProvider{}).Validate(source.CatalogRead(), original); err != nil {
