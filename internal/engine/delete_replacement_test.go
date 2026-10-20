@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
@@ -327,7 +328,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	for address, relation := range source.storage.Relations {
 		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 	}
-	sequences, sequenceErr := copySequenceState(source, replacement)
+	sequences, sequenceErr := sequence.CopyGenerators(replacement, source.storage.Sequences)
 	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
 	source.mu.Unlock()
 	if sequenceErr != nil {

@@ -1397,7 +1397,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			return ChangeSet{}, err
 		}
 		var sequenceErr error
-		sequences, sequenceErr = copySequenceState(e, replacement)
+		sequences, sequenceErr = sequence.CopyGenerators(replacement, e.storage.Sequences)
 		if sequenceErr != nil {
 			return ChangeSet{}, sequenceErr
 		}
@@ -1470,7 +1470,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	}
 	err = copyRows(source)
 	if err == nil {
-		sequences, err = copySequenceState(source, replacement)
+		sequences, err = sequence.CopyGenerators(replacement, source.storage.Sequences)
 	}
 	sourceRoles := source.roles.read(source.catalog.owner(), replacement, source.roles.published)
 	foreignNamespaces := source.foreignNamespaces

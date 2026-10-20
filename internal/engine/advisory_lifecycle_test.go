@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"testing"
 	"time"
@@ -82,7 +83,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	for address, relation := range source.storage.Relations {
 		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 	}
-	sequences, err := copySequenceState(source, replacement)
+	sequences, err := sequence.CopyGenerators(replacement, source.storage.Sequences)
 	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
 	source.mu.Unlock()
 	if err != nil {

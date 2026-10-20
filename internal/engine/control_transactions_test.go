@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
@@ -135,7 +136,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			for address, relation := range source.storage.Relations {
 				preparedStorage[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 			}
-			preparedSequences, sequenceErr := copySequenceState(source, replacement)
+			preparedSequences, sequenceErr := sequence.CopyGenerators(replacement, source.storage.Sequences)
 			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
 			source.mu.Unlock()
 			if sequenceErr != nil {
