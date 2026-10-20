@@ -11,7 +11,7 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	if s.Conflict == nil || !s.Conflict.Update {
 		return nil
 	}
-	c := b.insert.conflict
+	c := insertConflictOf(b.insert.conflict)
 	c.width = len(b.relation.Columns)
 	binder.target.relation, binder.target.ref = b.relation, b.ref
 	binder.target.name, binder.target.alias = b.relation.Name(), s.Alias.Text

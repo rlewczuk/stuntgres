@@ -98,19 +98,19 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 			}
 		}
 		if body.insert.conflict != nil {
-			for _, key := range body.insert.conflict.keys {
+			for _, key := range insertConflictOf(body.insert.conflict).keys {
 				inspectExpression(key.expression)
 			}
-			inspectExpression(body.insert.conflict.predicate)
-			if body.insert.conflict.update != nil {
-				inspectTargets(body.insert.conflict.update.arrayTargets)
-				inspectExpression(body.insert.conflict.update.predicate)
-				for _, expr := range body.insert.conflict.update.assignments {
+			inspectExpression(insertConflictOf(body.insert.conflict).predicate)
+			if insertConflictOf(body.insert.conflict).update != nil {
+				inspectTargets(insertConflictOf(body.insert.conflict).update.arrayTargets)
+				inspectExpression(insertConflictOf(body.insert.conflict).update.predicate)
+				for _, expr := range insertConflictOf(body.insert.conflict).update.assignments {
 					inspectExpression(expr)
 				}
 			}
-			if body.insert.conflict.returning != nil && body.insert.conflict.returning != body.returning {
-				for _, expr := range body.insert.conflict.returning.expressions {
+			if insertConflictOf(body.insert.conflict).returning != nil && insertConflictOf(body.insert.conflict).returning != body.returning {
+				for _, expr := range insertConflictOf(body.insert.conflict).returning.expressions {
 					inspectExpression(expr)
 				}
 			}

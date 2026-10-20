@@ -133,8 +133,8 @@ func rowSecurityLayers(view catalog.Read, b binding) []access.RowSecurityLayer {
 	if b.viewWrite == nil {
 		return nil
 	}
-	layers := make([]access.RowSecurityLayer, 0, len(b.viewWrite.layers))
-	for _, layer := range b.viewWrite.layers {
+	layers := make([]access.RowSecurityLayer, 0, len(viewWriteOf(b.viewWrite).layers))
+	for _, layer := range viewWriteOf(b.viewWrite).layers {
 		current := view.MustRelation(layer.ref.Address)
 		layers = append(layers, access.RowSecurityLayer{Owner: current.Owner, Invoker: viewOf(current).invoker})
 	}
@@ -179,7 +179,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	}
 	reads := b.returning != nil || len(b.usedColumns) != 0
 	if b.viewWrite != nil {
-		reads = reads || len(b.viewWrite.logical.usedColumns) != 0
+		reads = reads || len(viewWriteOf(b.viewWrite).logical.usedColumns) != 0
 	}
 	if command != catalog.PolicyInsert {
 		decision, err := access.RowSecurityGroups(auth.Roles, b.relation, principal, command, false, reads)
@@ -191,7 +191,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 		}
 		scope.rlsTargetDenied = decision == access.RLSDefaultDeny
 	}
-	proposedRead := b.insert.conflict != nil && len(b.insert.conflict.reads) != 0
+	proposedRead := b.insert.conflict != nil && len(insertConflictOf(b.insert.conflict).reads) != 0
 	switch stmt.(type) {
 	case *parser.Insert:
 		scope.rlsProposal, err = access.RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, proposedRead)

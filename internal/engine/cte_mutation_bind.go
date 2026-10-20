@@ -173,7 +173,7 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 	}
 	binder.query.sources = b.querySources
 	if b.viewWrite != nil {
-		if err := binder.captureRetainedWriteInput(b.insert.defaults, b.viewWrite.base.ColumnMeta.Generations, b.viewWrite.base.Constraints.Check); err != nil {
+		if err := binder.captureRetainedWriteInput(b.insert.defaults, viewWriteOf(b.viewWrite).base.ColumnMeta.Generations, viewWriteOf(b.viewWrite).base.Constraints.Check); err != nil {
 			return b, err
 		}
 	}

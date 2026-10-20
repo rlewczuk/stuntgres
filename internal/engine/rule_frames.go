@@ -55,13 +55,13 @@ func ruleBindingMaxFrame(b binding) uint32 {
 		}
 	}
 	if b.insert.conflict != nil {
-		for _, key := range b.insert.conflict.keys {
+		for _, key := range insertConflictOf(b.insert.conflict).keys {
 			visitExpression(key.expression)
 		}
-		visitExpression(b.insert.conflict.predicate)
-		if b.insert.conflict.update != nil {
-			visitExpression(b.insert.conflict.update.predicate)
-			for _, expr := range b.insert.conflict.update.assignments {
+		visitExpression(insertConflictOf(b.insert.conflict).predicate)
+		if insertConflictOf(b.insert.conflict).update != nil {
+			visitExpression(insertConflictOf(b.insert.conflict).update.predicate)
+			for _, expr := range insertConflictOf(b.insert.conflict).update.assignments {
 				visitExpression(expr)
 			}
 		}

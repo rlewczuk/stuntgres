@@ -42,7 +42,7 @@ func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier b
 		if modifier {
 			for _, definition := range b.ctes {
 				if definition.Mutation != nil && cteMutationOf(definition).insert.conflict != nil {
-					return r, cteMutationOf(definition).insert.conflict
+					return r, insertConflictOf(cteMutationOf(definition).insert.conflict)
 				}
 			}
 			t.Fatal("analyzed modifying WITH lost conflict body")
@@ -50,7 +50,7 @@ func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier b
 		if b.insert.conflict == nil {
 			t.Fatal("analyzed action lost conflict")
 		}
-		return r, b.insert.conflict
+		return r, insertConflictOf(b.insert.conflict)
 	}
 	t.Fatal("analyzed rule missing")
 	return ruleDefinition{}, nil
@@ -274,7 +274,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 				body := mappedRule.actions[0].binding
 				var definition *plan.CTEDefinition
 				for _, candidate := range body.ctes {
-					if candidate.Mutation != nil && cteMutationOf(candidate).insert.conflict == mappedConflict {
+					if candidate.Mutation != nil && insertConflictOf(cteMutationOf(candidate).insert.conflict) == mappedConflict {
 						definition = candidate
 					}
 				}

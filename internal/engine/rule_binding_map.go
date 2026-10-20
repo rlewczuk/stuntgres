@@ -111,7 +111,7 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 		}
 	}
 	if b.insert.conflict != nil {
-		conflict := *b.insert.conflict
+		conflict := *insertConflictOf(b.insert.conflict)
 		var keys []conflictKey
 		for i, key := range conflict.keys {
 			next, changed, err := mapper.expression(key.expression)
@@ -173,7 +173,7 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 			}
 		}
 		if conflictChanged {
-			b.insert.conflict = &conflict
+			b.insert.conflict = insertConflictSlotOf(&conflict)
 		}
 	}
 	var definitions []*plan.CTEDefinition

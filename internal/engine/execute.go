@@ -309,8 +309,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	callerSequences, callerRegtypes := b.prepared.sequenceConstants, b.prepared.regtypeConstants
 	if b.viewWrite != nil {
 		e.mu.Unlock()
-		if b.viewWrite.base.RelationKind != catalog.ViewRelation {
-			if err := scope.acquireViewWriteTarget(b.viewWrite); err != nil {
+		if viewWriteOf(b.viewWrite).base.RelationKind != catalog.ViewRelation {
+			if err := scope.acquireViewWriteTarget(viewWriteOf(b.viewWrite)); err != nil {
 				return Result{}, err
 			}
 		}
@@ -508,7 +508,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, nil
 		}
 	}
-	if b.insert.conflict != nil && b.insert.conflict.update != nil {
+	if b.insert.conflict != nil && insertConflictOf(b.insert.conflict).update != nil {
 		if boundary := partitionWriteExtensionBoundary(stmt, b.physicalBinding().relation); boundary != nil {
 			// Hierarchies have no conflict-update executor. Complete analysis
 			// and target/source authority before rejecting that capability,

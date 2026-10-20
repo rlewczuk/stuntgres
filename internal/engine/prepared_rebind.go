@@ -106,7 +106,7 @@ func preparedDefinitionStamp(d catalog.Descriptor, session *Session) ids.Definit
 func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationView, b binding) (*preparedAnalysis, error) {
 	target := s.lockedRef
 	if b.viewWrite != nil {
-		target = b.viewWrite.logical.ref
+		target = viewWriteOf(b.viewWrite).logical.ref
 	}
 	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.session.token, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
 	seen := make(map[ids.ObjectRef]bool)

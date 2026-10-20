@@ -30,8 +30,8 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			return v
 		}
 		proposal := []sqltype.Value{integer(1), integer(2)}
-		hit, err := scope.probeUniqueRow(b.ref, &indexWriteCandidate{values: proposal}, nil, indexWriteBatch{}, b.insert.conflict, indexProbeRuntime)
-		entry := e.storage.IndexRoots[b.insert.conflict.selected[0]].Entries[0]
+		hit, err := scope.probeUniqueRow(b.ref, &indexWriteCandidate{values: proposal}, nil, indexWriteBatch{}, insertConflictOf(b.insert.conflict), indexProbeRuntime)
+		entry := e.storage.IndexRoots[insertConflictOf(b.insert.conflict).selected[0]].Entries[0]
 		store := e.storage.Relations[b.ref.Address]
 		if err != nil || !hit.committed || entry.Position != 1 || hit.position != 1 || hit.row.Row != entry.Row || hit.row.Version != entry.Version || &hit.row.Values[0] != &store.Versions[1].Values[0] {
 			t.Fatal("provider physical hint after real tombstone, without copying", isolation, hit, entry, err)
@@ -42,11 +42,11 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			t.Fatal(admitted, err)
 		}
 		stage := scope.stage.rows[b.ref.Address]
-		replacement, err := scope.probeUniqueRow(b.ref, &indexWriteCandidate{values: proposal}, nil, indexWriteBatch{}, b.insert.conflict, indexProbeRuntime)
+		replacement, err := scope.probeUniqueRow(b.ref, &indexWriteCandidate{values: proposal}, nil, indexWriteBatch{}, insertConflictOf(b.insert.conflict), indexProbeRuntime)
 		if err != nil || replacement.committed || len(stage) != 1 || replacement.row.Row != old.Row || replacement.row.Version != stage[0].Version || replacement.row.Base != old.Version || replacement.row.Version == old.Version || testExport(old.Values[1]) != int64(10) {
 			t.Fatal("current-command replacement overlay/provenance", replacement, stage, old, err)
 		}
-		if _, affected := b.insert.conflict.affectedRows[replacement.row.Row]; !affected {
+		if _, affected := insertConflictOf(b.insert.conflict).affectedRows[replacement.row.Row]; !affected {
 			t.Fatal("command origin missing")
 		}
 		if err := scope.Finish(nil); err != nil {
@@ -59,8 +59,8 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		prior := s.transactions.writes[b.ref.Address][0]
 		op2, scope2, b2 := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,4) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
-		own, err := scope2.probeUniqueRow(b2.ref, &indexWriteCandidate{values: nextProposal}, nil, indexWriteBatch{}, b2.insert.conflict, indexProbeRuntime)
-		if err != nil || own.committed || own.row.Row != prior.Row || own.row.Version != prior.Version || len(b2.insert.conflict.affectedRows) != 0 {
+		own, err := scope2.probeUniqueRow(b2.ref, &indexWriteCandidate{values: nextProposal}, nil, indexWriteBatch{}, insertConflictOf(b2.insert.conflict), indexProbeRuntime)
+		if err != nil || own.committed || own.row.Row != prior.Row || own.row.Version != prior.Version || len(insertConflictOf(b2.insert.conflict).affectedRows) != 0 {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}
 		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op2.Context(), Input: scope2.input, Output: scope2.output, Host: hostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}

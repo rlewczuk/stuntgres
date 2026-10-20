@@ -205,7 +205,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		b.prepared.sequenceConstants[i].Ref = ref(b.prepared.sequenceConstants[i].Ref)
 	}
 	if b.insert.conflict != nil {
-		next := *b.insert.conflict.instantiate()
+		next := *insertConflictOf(b.insert.conflict).instantiate()
 		if next.constraint != (ids.ObjectAddress{}) {
 			constraintRef := originalRef
 			constraintRef.Address = next.constraint
@@ -246,7 +246,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		if err != nil {
 			return b, err
 		}
-		b.insert.conflict = &next
+		b.insert.conflict = insertConflictSlotOf(&next)
 	}
 	b.ctes = slices.Clone(b.ctes)
 	for i, definition := range b.ctes {
@@ -372,10 +372,10 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 		r.actions = slices.Clone(r.actions)
 		conflict := func(b binding) binding {
 			if b.insert.conflict != nil {
-				if address, ok := mapping[b.insert.conflict.constraint]; ok && address != b.insert.conflict.constraint {
-					copy := *b.insert.conflict
+				if address, ok := mapping[insertConflictOf(b.insert.conflict).constraint]; ok && address != insertConflictOf(b.insert.conflict).constraint {
+					copy := *insertConflictOf(b.insert.conflict)
 					copy.constraint = address
-					b.insert.conflict = &copy
+					b.insert.conflict = insertConflictSlotOf(&copy)
 				}
 			}
 			return b

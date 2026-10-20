@@ -110,18 +110,18 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 			}
 		}
 		if b.insert.conflict != nil {
-			if b.insert.conflict.constraint != (ids.ObjectAddress{}) {
-				add([]ids.ObjectAddress{b.insert.conflict.constraint})
+			if insertConflictOf(b.insert.conflict).constraint != (ids.ObjectAddress{}) {
+				add([]ids.ObjectAddress{insertConflictOf(b.insert.conflict).constraint})
 			}
-			for _, key := range b.insert.conflict.keys {
+			for _, key := range insertConflictOf(b.insert.conflict).keys {
 				if err := expr(key.expression); err != nil {
 					return err
 				}
 			}
-			if err := expr(b.insert.conflict.predicate); err != nil {
+			if err := expr(insertConflictOf(b.insert.conflict).predicate); err != nil {
 				return err
 			}
-			if b.insert.conflict.update != nil {
+			if insertConflictOf(b.insert.conflict).update != nil {
 				// PostgreSQL's EXCLUDED targetlist captures every live attribute
 				// at definition time, independently of executable ACL read demand.
 				for _, attribute := range b.relation.Attributes {
@@ -129,18 +129,18 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 					a.SubID = attribute
 					add([]ids.ObjectAddress{a})
 				}
-				if err := targets(b.insert.conflict.update.arrayTargets); err != nil {
+				if err := targets(insertConflictOf(b.insert.conflict).update.arrayTargets); err != nil {
 					return err
 				}
-				for i, value := range b.insert.conflict.update.assignments {
+				for i, value := range insertConflictOf(b.insert.conflict).update.assignments {
 					if err := expr(value); err != nil {
 						return err
 					}
 					a := b.ref.Address
-					a.SubID = b.relation.Attributes[b.insert.conflict.updateTargets[i]]
+					a.SubID = b.relation.Attributes[insertConflictOf(b.insert.conflict).updateTargets[i]]
 					add([]ids.ObjectAddress{a})
 				}
-				if err := expr(b.insert.conflict.update.predicate); err != nil {
+				if err := expr(insertConflictOf(b.insert.conflict).update.predicate); err != nil {
 					return err
 				}
 			}

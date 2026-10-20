@@ -86,8 +86,8 @@ func validateMutationJoinExecution(c *exec.Context, b *binding, expressions [][]
 		return err
 	}
 	action := b.update
-	if b.insert.conflict != nil && b.insert.conflict.update != nil {
-		action = b.insert.conflict.update
+	if b.insert.conflict != nil && insertConflictOf(b.insert.conflict).update != nil {
+		action = insertConflictOf(b.insert.conflict).update
 	}
 	if action != nil {
 		if err := validateTargets(action.arrayTargets); err != nil {

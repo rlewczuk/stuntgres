@@ -69,7 +69,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth Authorization
 		return d
 	}
 	c := &boundInsertConflict{targets: b.targets}
-	b.insert.conflict = c
+	b.insert.conflict = insertConflictSlotOf(c)
 	if raw.Constraint.Text != "" {
 		for _, u := range b.relation.Constraints.Unique {
 			if u.Name == raw.Constraint.Text {

@@ -45,11 +45,11 @@ func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax pa
 		visit(&plan.ProjectNode{Expressions: []expr.Expr{action.predicate}})
 	}
 	if action.insert.conflict != nil {
-		if action.insert.conflict.predicate != nil {
-			visit(&plan.ProjectNode{Expressions: []expr.Expr{action.insert.conflict.predicate}})
+		if insertConflictOf(action.insert.conflict).predicate != nil {
+			visit(&plan.ProjectNode{Expressions: []expr.Expr{insertConflictOf(action.insert.conflict).predicate}})
 		}
-		if action.insert.conflict.update != nil {
-			visit(&plan.ProjectNode{Expressions: action.insert.conflict.update.assignments})
+		if insertConflictOf(action.insert.conflict).update != nil {
+			visit(&plan.ProjectNode{Expressions: insertConflictOf(action.insert.conflict).update.assignments})
 		}
 	}
 	if !local {

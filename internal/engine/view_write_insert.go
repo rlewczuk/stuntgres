@@ -9,8 +9,8 @@ import (
 // The logical binder has checked arity, expressions and types. Logical view
 // defaults win for exposed columns; only true absence falls back to the base.
 func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.Insert) error {
-	d := b.viewWrite.base
-	physical := binding{relation: d, ref: b.viewWrite.ref}
+	d := viewWriteOf(b.viewWrite).base
+	physical := binding{relation: d, ref: viewWriteOf(b.viewWrite).ref}
 	domainScheduling := bindInsertDefaults(e.catalog.owner(), &physical, auth, parser.OverrideNone)
 	b.insert.defaults, b.insert.defaultOrigins = physical.insert.defaults, physical.insert.defaultOrigins
 	if b.insert.defaults == nil {
@@ -18,12 +18,12 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 	}
 	b.insert.identityDiscard = nil
 	b.insert.projection = nil
-	for i, output := range b.viewWrite.outputs {
+	for i, output := range viewWriteOf(b.viewWrite).outputs {
 		direct, ok := viewDirectColumn(output)
 		if !ok {
 			continue
 		}
-		node, origin := columnDefault(auth.Catalog, b.viewWrite.logical.relation, i)
+		node, origin := columnDefault(auth.Catalog, viewWriteOf(b.viewWrite).logical.relation, i)
 		if origin.definition.Expression != nil {
 			if b.insert.defaultOrigins == nil {
 				b.insert.defaultOrigins = make([]defaultOrigin, len(d.Columns))
@@ -98,6 +98,6 @@ func (b binding) physicalBinding() binding {
 	if b.viewWrite == nil {
 		return b
 	}
-	b.relation, b.ref = b.viewWrite.base, b.viewWrite.ref
+	b.relation, b.ref = viewWriteOf(b.viewWrite).base, viewWriteOf(b.viewWrite).ref
 	return b
 }

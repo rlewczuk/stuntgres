@@ -54,7 +54,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 	}
 	for _, definition := range b.ctes {
 		mutation, ok := mutationBinding(definition)
-		if !ok || b.rule.ctes[definition] != nil {
+		if !ok || ruleCTEsOf(b.rule.ctes)[definition] != nil {
 			continue
 		}
 		original := *mutation
@@ -69,9 +69,9 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 		}
 		command := program.commands[0]
 		if b.rule.ctes == nil {
-			b.rule.ctes = make(map[*plan.CTEDefinition]*ruleCTECommand)
+			b.rule.ctes = ruleCTEsSlotOf(make(map[*plan.CTEDefinition]*ruleCTECommand))
 		}
-		b.rule.ctes[definition] = &ruleCTECommand{definition: definition, command: command, caller: auth, events: program.events, mutation: -1}
+		ruleCTEsOf(b.rule.ctes)[definition] = &ruleCTECommand{definition: definition, command: command, caller: auth, events: program.events, mutation: -1}
 		b.dependencies = append(b.dependencies, program.events...)
 		if command.binding.relation != nil {
 			b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
@@ -87,21 +87,21 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 // original parsed contexts remain present for caller/name/storage fences.
 // Enter held; success retains Engine.mu, failure releases it.
 func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Statement, b *binding) ([]ids.ObjectRef, error) {
-	if len(b.rule.ctes) == 0 {
+	if len(ruleCTEsOf(b.rule.ctes)) == 0 {
 		return nil, nil
 	}
 	// Prepared bindings retain analysis recipes, never an execution's admitted
 	// index or refreshed principal. Each request owns these mutable tuples.
-	commands := make(map[*plan.CTEDefinition]*ruleCTECommand, len(b.rule.ctes))
-	for definition, recipe := range b.rule.ctes {
+	commands := make(map[*plan.CTEDefinition]*ruleCTECommand, len(ruleCTEsOf(b.rule.ctes)))
+	for definition, recipe := range ruleCTEsOf(b.rule.ctes) {
 		copy := *recipe
 		commands[definition] = &copy
 	}
-	b.rule.ctes = commands
+	b.rule.ctes = ruleCTEsSlotOf(commands)
 	program := ruleProgram{}
 	var normalized []*ruleCTECommand
 	for _, definition := range b.ctes {
-		rewrite := b.rule.ctes[definition]
+		rewrite := ruleCTEsOf(b.rule.ctes)[definition]
 		if rewrite == nil {
 			continue
 		}
@@ -126,7 +126,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		e.mu.Unlock()
 		return nil, err
 	}
-	for _, rewrite := range b.rule.ctes {
+	for _, rewrite := range ruleCTEsOf(b.rule.ctes) {
 		caller := fresh
 		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
 		if err := caller.Roles.ValidatePrincipal(caller.State.CurrentUser); err != nil {
@@ -139,7 +139,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			return nil, err
 		}
 	}
-	for _, rewrite := range b.rule.ctes {
+	for _, rewrite := range ruleCTEsOf(b.rule.ctes) {
 		caller := fresh
 		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
 		mutation, _ := mutationBinding(rewrite.definition)
@@ -161,7 +161,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		physical := rewrite.command.binding.physicalBinding()
 		scope.mutations[scope.activeMutation] = scope.statementMutation
 		rewrite.mutation = len(scope.mutations)
-		scope.mutations = append(scope.mutations, statementMutation{statement: rewrite.command.syntax, lockedRef: physical.ref, lockedDescriptor: physical.relation, lockedStorage: physical.storage, viewWrite: rewrite.command.binding.viewWrite})
+		scope.mutations = append(scope.mutations, statementMutation{statement: rewrite.command.syntax, lockedRef: physical.ref, lockedDescriptor: physical.relation, lockedStorage: physical.storage, viewWrite: viewWriteOf(rewrite.command.binding.viewWrite)})
 	}
 	return refs, nil
 }

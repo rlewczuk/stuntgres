@@ -68,7 +68,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	}
 	// Normalized rule auxiliaries select one preparation policy for the entire
 	// auxiliary/primary program, even when the primary has no rules of its own.
-	if len(b.rule.ctes) != 0 {
+	if len(ruleCTEsOf(b.rule.ctes)) != 0 {
 		evaluation.PlanStaticOperators = true
 		evaluation.SpecializeRuleParameters = true
 	}
@@ -103,7 +103,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			continue
 		}
 		syntax, commandBinding, commandAuth := definition.Statement, *mutation, auth
-		rewrite := b.rule.ctes[definition]
+		rewrite := ruleCTEsOf(b.rule.ctes)[definition]
 		if rewrite != nil {
 			if _, selectOnly := rewrite.command.syntax.(*parser.Select); selectOnly {
 				continue

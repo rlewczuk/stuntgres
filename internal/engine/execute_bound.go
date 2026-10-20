@@ -63,17 +63,17 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 		if b.insert.conflict != nil {
-			if b.insert.conflict.predicate != nil {
-				b.insert.conflict.predicate, err = normalizeConflictPredicate(&evaluation, b.insert.conflict.predicate)
+			if insertConflictOf(b.insert.conflict).predicate != nil {
+				insertConflictOf(b.insert.conflict).predicate, err = normalizeConflictPredicate(&evaluation, insertConflictOf(b.insert.conflict).predicate)
 				if err != nil {
 					return Result{}, err
 				}
 			}
-			if err := b.insert.conflict.selectArbiters(&evaluation, b.physicalBinding().relation, auth.Catalog); err != nil {
+			if err := insertConflictOf(b.insert.conflict).selectArbiters(&evaluation, b.physicalBinding().relation, auth.Catalog); err != nil {
 				return Result{}, err
 			}
-			scope.insertConflict = b.insert.conflict
-			if err := b.insert.conflict.preflightUpdate(&evaluation); err != nil {
+			scope.insertConflict = insertConflictOf(b.insert.conflict)
+			if err := insertConflictOf(b.insert.conflict).preflightUpdate(&evaluation); err != nil {
 				return Result{}, err
 			}
 		}
@@ -87,7 +87,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			// changed rows and the outer slice need execution-private copies.
 			destination, destinationTargets := b.relation, b.targets
 			if b.viewWrite != nil {
-				destination, destinationTargets = b.viewWrite.logical.relation, b.viewWrite.logical.targets
+				destination, destinationTargets = viewWriteOf(b.viewWrite).logical.relation, viewWriteOf(b.viewWrite).logical.targets
 			}
 			for i, row := range b.expressions {
 				var privateRow []expr.Expr
@@ -161,7 +161,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		}
 		if b.viewWrite != nil {
 			var checks []viewCheckGroup
-			for i, group := range b.viewWrite.checks {
+			for i, group := range viewWriteOf(b.viewWrite).checks {
 				var predicates []expr.Expr
 				for j, expression := range group.predicates {
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
@@ -177,13 +177,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				}
 				if predicates != nil {
 					if checks == nil {
-						checks = append([]viewCheckGroup(nil), b.viewWrite.checks...)
+						checks = append([]viewCheckGroup(nil), viewWriteOf(b.viewWrite).checks...)
 					}
 					checks[i].predicates = predicates
 				}
 			}
 			if checks != nil {
-				b.viewWrite.checks = checks
+				viewWriteOf(b.viewWrite).checks = checks
 			}
 		}
 		// Both INSERT paths plan only defaults this binding actually consumes.

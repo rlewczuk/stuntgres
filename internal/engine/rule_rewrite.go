@@ -361,7 +361,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	auth.State.CurrentUser = original.relation.Owner
 	b := action.binding
 	dependenciesPrivate := false
-	b.insert.conflict = b.insert.conflict.instantiate()
+	b.insert.conflict = insertConflictSlotOf(insertConflictOf(b.insert.conflict).instantiate())
 	b, err = refreshRuleActionCTEs(auth, b)
 	if err != nil {
 		return b, err
@@ -1022,14 +1022,14 @@ func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth Authorizat
 	if b.relation.RelationKind != catalog.ViewRelation {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
-	prior := b.viewWrite
+	prior := viewWriteOf(b.viewWrite)
 	b.viewWrite = nil
 	if err := e.bindViewWrite(&b, auth, stmt, b.ref); err != nil {
 		return -1, err
 	}
 	if b.viewWrite != nil && prior != nil {
-		b.viewWrite.layers = append(slices.Clone(prior.layers), b.viewWrite.layers...)
-		b.viewWrite.logical = prior.logical
+		viewWriteOf(b.viewWrite).layers = append(slices.Clone(prior.layers), viewWriteOf(b.viewWrite).layers...)
+		viewWriteOf(b.viewWrite).logical = prior.logical
 	}
 	return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
 }
@@ -1063,10 +1063,11 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 		return b, err
 	}
 	if b.insert.conflict != nil {
-		b.insert.conflict, err = refreshRuleConflict(catalog, b, current, slots)
+		conflict, err := refreshRuleConflict(catalog, b, current, slots)
 		if err != nil {
 			return b, err
 		}
+		b.insert.conflict = insertConflictSlotOf(conflict)
 	}
 	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
 		if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == 1 && column.Frame == 1 && column.Slot >= len(old.Columns) {
@@ -1185,7 +1186,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 }
 
 func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relation, slots func([]int) ([]int, error)) (*boundInsertConflict, error) {
-	c := *b.insert.conflict
+	c := *insertConflictOf(b.insert.conflict)
 	var err error
 	c.targets, err = slots(c.targets)
 	if err != nil {
@@ -1229,11 +1230,11 @@ func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relat
 		return column, true, nil
 	}
 	mapper := newRuleTreeMapper(catalog, nil, 0, nil, ruleTreeMapping{leaf: leaf})
-	mapped, err := mapRuleBindingRecipes(binding{insert: insertBinding{conflict: &c}}, mapper)
+	mapped, err := mapRuleBindingRecipes(binding{insert: insertBinding{conflict: insertConflictSlotOf(&c)}}, mapper)
 	if err != nil {
 		return nil, err
 	}
-	c = *mapped.insert.conflict
+	c = *insertConflictOf(mapped.insert.conflict)
 	c.width = width
 	c.frame = nil
 	return &c, nil
@@ -1293,16 +1294,16 @@ func ruleBindingHasPseudo(b binding) bool {
 		}
 	}
 	if b.insert.conflict != nil {
-		expression(b.insert.conflict.predicate)
-		for _, key := range b.insert.conflict.keys {
+		expression(insertConflictOf(b.insert.conflict).predicate)
+		for _, key := range insertConflictOf(b.insert.conflict).keys {
 			expression(key.expression)
 		}
-		if b.insert.conflict.update != nil {
-			expression(b.insert.conflict.update.predicate)
-			for _, expr := range b.insert.conflict.update.assignments {
+		if insertConflictOf(b.insert.conflict).update != nil {
+			expression(insertConflictOf(b.insert.conflict).update.predicate)
+			for _, expr := range insertConflictOf(b.insert.conflict).update.assignments {
 				expression(expr)
 			}
-			targets(b.insert.conflict.update.arrayTargets)
+			targets(insertConflictOf(b.insert.conflict).update.arrayTargets)
 		}
 	}
 	return found

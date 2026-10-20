@@ -24,7 +24,7 @@ type insertBinding struct {
 	defaultOrigins  []defaultOrigin
 	identityDiscard []bool
 	projection      []int
-	conflict        *boundInsertConflict
+	conflict        insertConflictSlot
 }
 
 // deleteBinding is the DELETE payload: the USING source and its frame width.
@@ -115,5 +115,21 @@ func newResolverInputs(input sqltype.InputEnvironment) resolverInputs {
 // commands.
 type ruleBinding struct {
 	template bool
-	ctes     map[*plan.CTEDefinition]*ruleCTECommand
+	ctes     ruleCTEsSlot
 }
+
+// The slots below carry engine-owned values through a binding without
+// naming their types. The engine stores and recovers each value with one
+// checked helper (binding_slots.go) and never stores a nil pointer, so a nil
+// slot means the value is absent.
+
+// insertConflictSlot holds the bound ON CONFLICT clause together with its
+// per-execution arbiter and write state.
+type insertConflictSlot interface{ InsertConflictSlot() }
+
+// ruleCTEsSlot holds the rule commands of a rule action's CTEs, keyed by
+// their definitions.
+type ruleCTEsSlot interface{ RuleCTEsSlot() }
+
+// viewWriteSlot holds the lowering of a write through an updatable view.
+type viewWriteSlot interface{ ViewWriteSlot() }

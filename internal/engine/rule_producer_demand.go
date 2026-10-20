@@ -70,16 +70,16 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 		}
 	}
 	if action.insert.conflict != nil {
-		expression(action.insert.conflict.predicate)
-		for _, key := range action.insert.conflict.keys {
+		expression(insertConflictOf(action.insert.conflict).predicate)
+		for _, key := range insertConflictOf(action.insert.conflict).keys {
 			expression(key.expression)
 		}
-		if action.insert.conflict.update != nil {
-			expression(action.insert.conflict.update.predicate)
-			for _, expr := range action.insert.conflict.update.assignments {
+		if insertConflictOf(action.insert.conflict).update != nil {
+			expression(insertConflictOf(action.insert.conflict).update.predicate)
+			for _, expr := range insertConflictOf(action.insert.conflict).update.assignments {
 				expression(expr)
 			}
-			targets(action.insert.conflict.update.arrayTargets)
+			targets(insertConflictOf(action.insert.conflict).update.arrayTargets)
 		}
 	}
 	return uses

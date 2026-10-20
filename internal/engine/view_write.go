@@ -395,7 +395,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		}
 	}
 	w.base, w.ref, w.outputs = d, ref, outputs
-	b.viewWrite = w
+	b.viewWrite = viewWriteSlotOf(w)
 	b.targets = targets
 	return e.lowerViewWrite(b, auth, stmt)
 }
@@ -414,7 +414,7 @@ func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.R
 }
 
 func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement) error {
-	w := b.viewWrite
+	w := viewWriteOf(b.viewWrite)
 	logicalWidth, physicalWidth := len(w.logical.relation.Columns), len(w.base.Columns)
 	graft := func(root plan.Node, mapper func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 		return w.graftQuery(b, auth.Catalog, root, mapper)
@@ -580,7 +580,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		b.returning = &r
 	}
 	if b.insert.conflict != nil {
-		conflict := *b.insert.conflict
+		conflict := *insertConflictOf(b.insert.conflict)
 		conflict.targets = b.targets
 		conflict.keys = append([]conflictKey(nil), conflict.keys...)
 		for i, key := range conflict.keys {
@@ -611,7 +611,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		if err != nil {
 			return err
 		}
-		b.insert.conflict = &conflict
+		b.insert.conflict = insertConflictSlotOf(&conflict)
 	}
 	if insert, ok := stmt.(*parser.Insert); ok {
 		return e.lowerViewInsert(b, auth, insert)

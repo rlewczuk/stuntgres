@@ -386,7 +386,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		if mapped.ref != f.viewRef || mapped.relation != f.view || mapped.physicalBinding().ref != f.baseRef || mapped.targets[0] != 1 {
 			t.Fatal("layered outer authority or inner event mapping lost")
 		}
-		if len(mapped.viewWrite.checks) != 0 || len(mapped.viewWrite.predicates) == 0 {
+		if len(viewWriteOf(mapped.viewWrite).checks) != 0 || len(viewWriteOf(mapped.viewWrite).predicates) == 0 {
 			t.Fatal("rewrite boundary conflated CHECK enforcement with selection")
 		}
 		if original.viewWrite != nil || original.targets[0] != 0 || original.ref != f.viewRef {

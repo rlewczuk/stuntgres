@@ -128,7 +128,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			return Result{}, err
 		}
 		physical := command.binding.physicalBinding()
-		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.ref, descriptor: physical.relation, storage: physical.storage, viewWrite: command.binding.viewWrite, sources: command.binding.querySources, auth: &program.commands[i].auth})
+		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.ref, descriptor: physical.relation, storage: physical.storage, viewWrite: viewWriteOf(command.binding.viewWrite), sources: command.binding.querySources, auth: &program.commands[i].auth})
 		captures := &exec.QuoteCaptureCandidate{}
 		if command.binding.parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}

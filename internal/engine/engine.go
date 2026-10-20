@@ -74,7 +74,7 @@ type binding struct {
 	relation           *catalog.Relation
 	storage            *storage.Relation
 	ref                ids.ObjectRef
-	viewWrite          *viewWrite
+	viewWrite          viewWriteSlot
 	targets            []int
 	arrayTargets       []*plan.ArrayAssignmentTarget
 	usedColumns        []int
