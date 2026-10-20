@@ -75,7 +75,7 @@ func newHostedBinder(ctx context.Context, host analyzeHost, input sqltype.InputE
 		b.seedParameters(expected.Parameters.Types)
 		if expected.RefreshTemporals {
 			for _, capture := range expected.Temporals {
-				if !refreshableTemporalCapture(capture) {
+				if !analyze.RefreshableTemporal(capture) {
 					b.prepared.Temporals = append(b.prepared.Temporals, capture)
 				}
 			}
@@ -659,7 +659,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			if retained {
 				catalog := b.bindingCatalog()
-				if b.expected.Held && statementCatalogType(u.Type) && b.expected.CatalogOwner != nil &&
+				if b.expected.Held && analyze.StatementCatalogType(u.Type) && b.expected.CatalogOwner != nil &&
 					(b.expected.CatalogOwner != catalog.Owner() || b.expected.CatalogEpoch != catalog.Epoch()) {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
@@ -669,7 +669,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					// authorities, never catalog's lookup-only RECORD identity.
 					current = b.params.parameters[r.Number].Type
 				}
-				if current == nil && statementCatalogType(u.Type) {
+				if current == nil && analyze.StatementCatalogType(u.Type) {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				u.Type = current
@@ -1275,7 +1275,7 @@ func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error)
 		captures := b.expected.Temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
 		if i < len(captures) && captures[i].Offset == offset {
-			if b.expected.RefreshTemporals && refreshableTemporalCapture(captures[i]) {
+			if b.expected.RefreshTemporals && analyze.RefreshableTemporal(captures[i]) {
 				return temporalConstant{}, false, nil
 			}
 			saved := captures[i]
@@ -1296,7 +1296,7 @@ func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalCo
 		captures := b.expected.Temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
 		if i < len(captures) && captures[i].Offset == offset {
-			if b.expected.RefreshTemporals && refreshableTemporalCapture(captures[i]) {
+			if b.expected.RefreshTemporals && analyze.RefreshableTemporal(captures[i]) {
 				return temporalConstant{}, false, nil
 			}
 			for ; i < len(captures) && captures[i].Offset == offset; i++ {
@@ -1350,7 +1350,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		if found {
 			catalog := b.bindingCatalog()
 			if hasEnumInput(u.Type) && (b.expected.CatalogOwner != catalog.Owner() || b.expected.CatalogEpoch != catalog.Epoch()) {
-				if err := checkExpectedLifetime(b.expected, catalog.Owner(), catalog.Epoch()); err != nil {
+				if err := b.expected.CheckLifetime(catalog.Owner(), catalog.Epoch()); err != nil {
 					return sqltype.Value{}, err
 				}
 				return sqltype.Value{}, ids.ErrCatalogReplaced

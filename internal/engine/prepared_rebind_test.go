@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 func preparedRebindValid(t *testing.T, e *Engine, s *Session, cell *preparedAnalysis) bool {
@@ -269,7 +271,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		}
 		for i, old := range frozen {
 			same := reflect.DeepEqual(old, fresh.Prepared.Temporals[i])
-			if same == refreshableTemporalCapture(old) {
+			if same == analyze.RefreshableTemporal(old) {
 				t.Fatal("incorrect temporal/logical candidate boundary", i, old, fresh.Prepared.Temporals[i])
 			}
 		}

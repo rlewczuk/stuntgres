@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -98,7 +99,7 @@ func TestJSONCreateRecordParameterOccurrence(t *testing.T) {
 		t.Fatal("retained RECORD formal lost anonymous shape during reanalysis", err)
 	}
 	current, err := reanalysis.finish()
-	if err != nil || !sameStatementUsage(signature.Types[0], current.Types[0]) || !current.Types[0].Type.IsComposite() {
+	if err != nil || !analyze.SameStatementUsage(signature.Types[0], current.Types[0]) || !current.Types[0].Type.IsComposite() {
 		t.Fatal("RECORD parameter signature changed", current, err)
 	}
 	got, err = rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(current.Types[0].Type)}}})

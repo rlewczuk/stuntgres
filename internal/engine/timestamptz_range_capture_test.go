@@ -2,10 +2,12 @@ package engine
 
 import (
 	"context"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func TestTimestamptzRangeTemporalCapture(t *testing.T) {
@@ -41,7 +43,7 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 	if err != nil || out != `("2001-01-01 12:00:00+00","2001-01-02 00:00:00+00"]` || sqltype.SameDatum(v, fresh) {
 		t.Fatal("fresh compound", out, err)
 	}
-	if !refreshableTemporalCapture(b.prepared.Temporals[0]) {
+	if !analyze.RefreshableTemporal(b.prepared.Temporals[0]) {
 		t.Fatal("builtin not refreshable")
 	}
 	description.refreshTemporals = true
@@ -61,7 +63,7 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if refreshableTemporalCapture(temporalConstant{TypeID: domain.ID(), Typmod: -1, Value: logical}) {
+	if analyze.RefreshableTemporal(temporalConstant{TypeID: domain.ID(), Typmod: -1, Value: logical}) {
 		t.Fatal("domain ownership fence lost")
 	}
 	for _, tc := range []struct {

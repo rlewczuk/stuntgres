@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -29,7 +30,7 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	out, err = d.Output(ctx, fresh)
 	if err != nil || out != "[2001-01-01,2001-01-02)" || sqltype.SameDatum(v, fresh) { t.Fatal("fresh bound environment", out, err) }
-	if !refreshableTemporalCapture(b.prepared.Temporals[0]) { t.Fatal("builtin daterange not refreshable") }
+	if !analyze.RefreshableTemporal(b.prepared.Temporals[0]) { t.Fatal("builtin daterange not refreshable") }
 	description.refreshTemporals = true
 	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.inputConstant("[today,tomorrow)", d.Usage(), position)
@@ -39,5 +40,5 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	logical, err := domain.Wrap(v)
 	if err != nil { t.Fatal(err) }
-	if refreshableTemporalCapture(temporalConstant{TypeID: domain.ID(), Typmod: -1, Value: logical}) { t.Fatal("logical domain capture lost ownership fence") }
+	if analyze.RefreshableTemporal(temporalConstant{TypeID: domain.ID(), Typmod: -1, Value: logical}) { t.Fatal("logical domain capture lost ownership fence") }
 }

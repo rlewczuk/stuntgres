@@ -256,7 +256,7 @@ func TestQuerySearchSignature(t *testing.T) {
 			}
 		}
 		left, right := a.Search.Result.Usage(), b.Search.Result.Usage()
-		if !sameStatementResultUsage(left, right) || sameStatementUsage(left, right) || sqltype.SameRecordUsage(left, right) {
+		if !analyze.SameStatementResultUsage(left, right) || analyze.SameStatementUsage(left, right) || sqltype.SameRecordUsage(left, right) {
 			t.Fatal("public/internal/parameter signatures conflated")
 		}
 		expected := StatementDescription{Results: []catalog.Column{{Name: "seq", Usage: left}}}
@@ -272,7 +272,7 @@ func TestQuerySearchSignature(t *testing.T) {
 			t.Fatal("parameter shape relaxed")
 		}
 	}
-	if sameStatementResultUsage(small.Usage(), big.Usage()) {
+	if analyze.SameStatementResultUsage(small.Usage(), big.Usage()) {
 		t.Fatal("scalar result widened")
 	}
 	named, err := sqltype.Composite(49000, "keytype", "public.keytype", 49001, []sqltype.CompositeMember{{Attribute: 1, Name: "n", Usage: small.Usage()}})

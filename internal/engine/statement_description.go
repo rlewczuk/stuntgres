@@ -5,7 +5,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
-	"stuntgres/internal/sqltype"
 )
 
 type StatementDescription struct {
@@ -26,23 +25,4 @@ type StatementDescription struct {
 	planOwner        ids.SessionToken
 	planGeneration   uint64
 	refreshTemporals bool // Candidate-only request; never published in a description.
-}
-
-func refreshableTemporalCapture(c temporalConstant) bool {
-	t := c.Value.Type()
-	if statementCatalogType(t) {
-		return false // Logical compounds retain even their embedded temporal fields.
-	}
-	id := c.TypeID
-	if t != nil {
-		for t.IsArray() {
-			t = t.Element()
-		}
-		id = t.ID()
-	}
-	switch id {
-	case sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange, sqltype.Regrole:
-		return true
-	}
-	return false
 }

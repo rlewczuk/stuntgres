@@ -768,7 +768,7 @@ func sameRelationRowShape(a, b *catalog.Relation) bool {
 	}
 	for i, column := range a.Columns {
 		other := b.Columns[i]
-		if a.Attributes[i] != b.Attributes[i] || column.Name != other.Name || !sameStatementUsage(column.Usage, other.Usage) || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
+		if a.Attributes[i] != b.Attributes[i] || column.Name != other.Name || !analyze.SameStatementUsage(column.Usage, other.Usage) || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
 			return false
 		}
 	}

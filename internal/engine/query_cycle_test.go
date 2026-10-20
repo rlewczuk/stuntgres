@@ -323,13 +323,13 @@ func TestQueryCycleSignature(t *testing.T) {
 	small, _ := view.LookupType(sqltype.Int4)
 	big, _ := view.LookupType(sqltype.Int8)
 	a, b := cycleUnitRecipe(t, small.Usage()), cycleUnitRecipe(t, big.Usage())
-	if !sameStatementResultUsage(a.Path.Usage(), b.Path.Usage()) {
+	if !analyze.SameStatementResultUsage(a.Path.Usage(), b.Path.Usage()) {
 		t.Fatal("public RECORD[] OID froze private member shape")
 	}
 	if sqltype.SameRecordUsage(a.Path.Usage(), b.Path.Usage()) {
 		t.Fatal("internal shape validation weakened")
 	}
-	if sameStatementUsage(small.Usage(), big.Usage()) {
+	if analyze.SameStatementUsage(small.Usage(), big.Usage()) {
 		t.Fatal("ordinary result type widened")
 	}
 }

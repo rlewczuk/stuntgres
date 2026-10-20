@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -62,7 +63,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	if err := remove.removeObject(e.catalog.Domain.Ref(current.Epoch(), d.Address()), false); err == nil {
 		t.Fatal("builtin removal admitted")
 	}
-	if !statementCatalogType(d.SQLType) {
+	if !analyze.StatementCatalogType(d.SQLType) {
 		t.Fatal("domain parameter generation fence missing")
 	}
 }

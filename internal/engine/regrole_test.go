@@ -106,7 +106,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil || !sqltype.SameDatum(captured, again) {
 		t.Fatal("prepared identity retention", err)
 	}
-	if !refreshableTemporalCapture(binder.prepared.Temporals[0]) {
+	if !analyze.RefreshableTemporal(binder.prepared.Temporals[0]) {
 		t.Fatal("full analysis invalidation cannot refresh role literal")
 	}
 	textType := aclUnitType(t, e, sqltype.Text)

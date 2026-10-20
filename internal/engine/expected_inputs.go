@@ -2,8 +2,6 @@ package engine
 
 import (
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 )
 
 // expectedOf is the binder's view of a held description: the inputs it reads
@@ -29,13 +27,4 @@ func expectedOf(d *StatementDescription) analyze.Expected {
 		e.Regtypes = d.regtypes.constants
 	}
 	return e
-}
-
-// checkExpectedLifetime applies the held signature check to a catalog owner
-// or epoch replacement of the held description.
-func checkExpectedLifetime(e analyze.Expected, owner *catalog.Owner, epoch ids.CatalogEpoch) error {
-	expected := statementSignature{parameters: e.Parameters, results: e.Results, owner: e.CatalogOwner, epoch: e.CatalogEpoch}
-	actual := expected
-	actual.owner, actual.epoch = owner, epoch
-	return checkSignature(expected, actual)
 }
