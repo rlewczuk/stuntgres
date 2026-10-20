@@ -12,16 +12,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalWindow(e *plan.WindowExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if e.Slot < 0 || e.Slot >= len(c.Row) {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing window output")
-	}
-	return c.Row[e.Slot], nil
-}
-
 // A same-query call owns only its own argument occurrences. Evidence is checked
 // after that call resolves, so an invalid signature is never hidden by nesting.
 type argumentWindowOwner struct {

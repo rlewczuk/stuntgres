@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 type returningMode uint8
@@ -34,41 +33,6 @@ type boundReturning struct {
 	reads              []int
 	readRequired       bool // Whole-row references retain SELECT demand with zero members.
 	visibilitySnapshot bool
-}
-
-func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, error) {
-	if err := evaluationContext(c); err != nil {
-		return nil, err
-	}
-	for parent := c; parent != nil; parent = parent.Outer {
-		if parent.Scope == scope && parent.Frame == frame {
-			return parent, nil
-		}
-	}
-	return nil, fmt.Errorf("stuntgres: RETURNING row frame is missing")
-}
-
-func (c *EvalContext) EvalReturningColumn(e plan.ReturningColumnExpr) (sqltype.Value, error) {
-	parent, err := returningRowContext(c, e.Scope, e.Frame)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if e.Merge && mergeReturningAbsent(parent, e.Side) {
-		return sqltype.Null(e.Usage.Type), nil
-	}
-	if e.Absent || !e.Merge && e.Old && parent.OldRow == nil {
-		return sqltype.Null(e.Usage.Type), nil
-	}
-	value := expr.Expr(e.ColumnExpr)
-	if e.Value != nil {
-		value = e.Value
-	}
-	if !e.Old {
-		return value.Eval(c)
-	}
-	old := *parent
-	old.Context, old.Row = c.Context, parent.OldRow
-	return value.Eval(&old)
 }
 
 func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMode) (*boundReturning, error) {

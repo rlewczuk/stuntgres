@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
@@ -94,20 +93,6 @@ func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
 		s.presentation().regprocedure = make(map[uint32]string)
 	}
 	s.presentation().regprocedure[id] = text
-	return text, nil
-}
-func (r *finalRows) FormatRegproc(id uint32) (string, error) {
-	text, ok := r.regprocOutput[id]
-	if !ok {
-		return "", fmt.Errorf("stuntgres: missing retained regproc presentation")
-	}
-	return text, nil
-}
-func (r *finalRows) FormatRegprocedure(id uint32) (string, error) {
-	text, ok := r.regprocedureOutput[id]
-	if !ok {
-		return "", fmt.Errorf("stuntgres: missing retained regprocedure presentation")
-	}
 	return text, nil
 }
 

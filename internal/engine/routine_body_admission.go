@@ -1,37 +1,14 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
-	"stuntgres/internal/sqlstate"
 )
 
-type routineBodyContext struct {
-	outer     *catalog.Procedure
-	statement bool
-}
-
-func (context routineBodyContext) annotate(err error) error {
-	if err == nil || context.outer == nil {
-		return err
-	}
-	var diagnostic *sqlstate.Error
-	if errors.As(err, &diagnostic) && diagnostic.Code == "42501" {
-		copy := *diagnostic
-		phase := "during inlining"
-		if context.statement {
-			phase = "statement 1"
-		}
-		copy.Context = fmt.Sprintf(`SQL function "%s" %s`, context.outer.Name(), phase)
-		return &copy
-	}
-	return err
-}
 func bodyErrorContext(outer *catalog.Procedure, constant bool) routineBodyContext {
 	if !constant || outer.Address().ObjectID == 3935 || outer.Address().ObjectID == 3936 {
 		return routineBodyContext{}

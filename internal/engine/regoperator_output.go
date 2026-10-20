@@ -1,17 +1,11 @@
 package engine
 
 import (
-	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
-
-type operatorOutputKey struct {
-	id    uint32
-	alias sqltype.ID
-}
 
 func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups operatorGroups, id ids.OID, alias sqltype.ID) string {
 	descriptor, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
@@ -83,19 +77,6 @@ func (s *StatementScope) FormatRegoper(id uint32) (string, error) {
 }
 func (s *StatementScope) FormatRegoperator(id uint32) (string, error) {
 	return s.formatOperator(id, sqltype.Regoperator)
-}
-func (r *finalRows) formatOperator(id uint32, alias sqltype.ID) (string, error) {
-	text, ok := r.operatorOutput[operatorOutputKey{id, alias}]
-	if !ok {
-		return "", fmt.Errorf("stuntgres: missing operator output snapshot")
-	}
-	return text, nil
-}
-func (r *finalRows) FormatRegoper(id uint32) (string, error) {
-	return r.formatOperator(id, sqltype.Regoper)
-}
-func (r *finalRows) FormatRegoperator(id uint32) (string, error) {
-	return r.formatOperator(id, sqltype.Regoperator)
 }
 func captureOperatorOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {

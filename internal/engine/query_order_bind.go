@@ -217,13 +217,3 @@ func (b *expressionBinder) finishOrder(root plan.Node, keys []plan.SortKey, proj
 	}
 	return &plan.SortNode{QuerySchema: root.Schema(), Child: root, Keys: keys, CacheWidth: computed}, nil
 }
-
-func (c *EvalContext) EvalCachedOrder(e plan.CachedOrderExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if e.Slot < 0 || e.Slot >= len(c.orderValues) {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing ordering output")
-	}
-	return c.orderValues[e.Slot], nil
-}

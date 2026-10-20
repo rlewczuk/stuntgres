@@ -233,15 +233,6 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	return Result{}, err
 }
 
-func (c *EvalContext) evaluateSelectedDomainCheck(view catalog.Read, selected *catalog.Type, value sqltype.Value, violation error) error {
-	oldValue, oldUsage, oldActive, oldChecks := c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks
-	c.Input.DomainChecks = c
-	defer func() {
-		c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks = oldValue, oldUsage, oldActive, oldChecks
-	}()
-	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
-}
-
 func validateSelectedDomainRows(c *EvalContext, view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
 	violations := make([]error, len(use.Columns))
 	for i, column := range use.Columns {

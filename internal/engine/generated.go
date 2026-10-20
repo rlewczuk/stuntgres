@@ -14,20 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalTableOID(n plan.TableOIDExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if c.Scope != 1 || c.Frame != 1 || n.Owner.Address.ObjectID == 0 {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid generated tableoid frame")
-	}
-	owner := n.Owner
-	if c.physicalTable != (ids.ObjectRef{}) {
-		owner = c.physicalTable
-	}
-	return sqltype.OIDValue(n.Usage.Type, uint32(owner.Address.ObjectID))
-}
-
 func generationWriteError(column string, update bool) error {
 	message := fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column)
 	if update {

@@ -12,7 +12,6 @@ import (
 )
 
 type operatorSignature struct{ left, right ids.OID }
-type operatorGroups map[string][]*catalog.Operator
 
 func collectOperatorGroups(view catalog.Read) operatorGroups {
 	groups := make(operatorGroups)

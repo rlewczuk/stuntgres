@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
@@ -35,19 +34,6 @@ func (s *StatementScope) FormatRegnamespace(id uint32) (string, error) {
 		return detachedPresentation{}.FormatRegnamespace(id)
 	}
 	return regObjectSpelling(s.inquiry.commentCatalog, nil, ids.NamespaceClassID, ids.OID(id)), nil
-}
-func (r *finalRows) FormatRegcollation(id uint32) (string, error) {
-	return r.regObjectText(ids.CollationClassID, id)
-}
-func (r *finalRows) FormatRegnamespace(id uint32) (string, error) {
-	return r.regObjectText(ids.NamespaceClassID, id)
-}
-func (r *finalRows) regObjectText(class ids.OID, id uint32) (string, error) {
-	text, exists := r.regobjectOutput[ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)}]
-	if !exists {
-		return "", fmt.Errorf("stuntgres: missing collation/namespace output snapshot")
-	}
-	return text, nil
 }
 
 func captureRegObjectOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {

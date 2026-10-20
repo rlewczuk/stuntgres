@@ -54,15 +54,6 @@ func virtualGenerationSecurity(node expr.Expr) error {
 	return failure
 }
 
-// Generation recipes own their original references, independently of an outer
-// query or definer view. Selecting that provenance never changes the invoker.
-func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, definition catalog.ColumnGeneration) {
-	c.routineRecipe, c.routineGraft = true, false
-	c.routineChecks = nil
-	c.routineReferences = definition.Dependencies
-	c.routineConsumer = owner
-}
-
 func admitColumnVirtualGeneration(c *EvalContext, e plan.ColumnExpr, view catalog.Read) error {
 	if e.VirtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
@@ -126,33 +117,6 @@ func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *E
 	local := *c
 	local.Scope, local.Frame, local.Row = 1, 1, row
 	return column.Eval(&local)
-}
-
-// Frozen projections do not freeze the queried logical relation's recipe.
-// Physical child identity belongs to tableoid/provenance, not recipe selection.
-// Rechecks borrow the complete latest logical tuple without rereading a source
-// whose inheritance mapping scratch may still hold that same tuple.
-func (c *EvalContext) columnCapturedGeneration(e plan.ColumnExpr, source *querySource, index int, current []sqltype.Value) (expr.Expr, []sqltype.Value, error) {
-	data := source.view.Load()
-	if data == nil {
-		return nil, nil, fmt.Errorf("stuntgres: virtual source snapshot is released")
-	}
-	logical, ok := data.Catalog.Relation(source.ref.Address)
-	if !ok {
-		return nil, nil, fmt.Errorf("stuntgres: missing virtual source descriptor")
-	}
-	definition, ok := logical.ColumnMeta.Generations[e.Origin.Address.SubID]
-	if !ok || definition.Kind != catalog.GenerationVirtual || definition.Planned == nil {
-		return nil, nil, fmt.Errorf("stuntgres: missing captured virtual generation")
-	}
-	selectVirtualGenerationRecipe(c, logical, definition)
-	if current != nil {
-		if len(current) != len(logical.Columns) {
-			return nil, nil, fmt.Errorf("stuntgres: invalid virtual recheck tuple")
-		}
-		return definition.Planned, current, nil
-	}
-	return definition.Planned, source.row(index), nil
 }
 
 func generationInheritanceError(column string, parent, child catalog.GenerationKind) error {

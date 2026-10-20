@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -20,15 +19,4 @@ func validInstalledText(n plan.InstalledTextExpr) bool {
 		return extension.FuzzystrmatchProviderOf(p) == extension.StockFuzzystrmatch && p.Name() == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.Dictionary == nil && n.Template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
 	}
 	return extension.UnaccentProviderOf(p) == extension.StockUnaccent && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.Dictionary != nil && n.Template != nil && p.Dictionary == n.Dictionary.Address() && n.Dictionary.Template == n.Template.Address() && extension.UnaccentProviderOf(p) == extension.UnaccentDictionaryProviderOf(n.Dictionary) && extension.UnaccentDictionaryProviderOf(n.Dictionary) == extension.UnaccentTemplateProviderOf(n.Template)
-}
-
-// EvalInstalledText checks the captured provider, then runs the kernel.
-func (c *EvalContext) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if !preparation.ValidInstalledText(n) {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed function expression")
-	}
-	return n.InstalledText.Eval(c)
 }

@@ -9,47 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func preflightJoin(c *EvalContext, n *plan.JoinNode) (plan.Node, error) {
-	left, err := preflightQuery(c, n.Left)
-	if err != nil {
-		return nil, err
-	}
-	right, err := preflightQuery(c, n.Right)
-	if err != nil {
-		return nil, err
-	}
-	predicate := n.Predicate
-	changed := false
-	if predicate != nil {
-		predicate, changed, err = preflightCoercions(c, predicate)
-		if err != nil {
-			return nil, err
-		}
-	}
-	var merges []expr.Expr
-	for i, expression := range n.Merges {
-		folded, replacement, err := preflightCoercions(c, expression)
-		if err != nil {
-			return nil, err
-		}
-		if replacement {
-			if merges == nil {
-				merges = append([]expr.Expr(nil), n.Merges...)
-			}
-			merges[i] = folded
-		}
-	}
-	if changed || merges != nil || left != n.Left || right != n.Right {
-		copy := *n
-		copy.Left, copy.Right, copy.Predicate = left, right, predicate
-		if merges != nil {
-			copy.Merges = merges
-		}
-		return &copy, nil
-	}
-	return n, nil
-}
-
 func openJoinNode(ctx context.Context, state *queryState, n *plan.JoinNode) (indexedStage, error) {
 	foreignOwner := n // Private coercion rewrites must not create new scan owners.
 	// Admission/preflight is independent of operand population. Opening both
@@ -411,4 +370,16 @@ func setQueryInvocationLineage(source *querySource, index int) {
 	lineage := source.invocationLineage[index]
 	setQueryLineage(lineage.left, lineage.leftIndex)
 	setQueryLineage(lineage.right, lineage.rightIndex)
+}
+
+func updateMatches(eval *EvalContext, predicate expr.Expr) (bool, error) {
+	if predicate == nil {
+		return true, eval.Context.Err()
+	}
+	value, err := predicate.Eval(eval)
+	if err != nil {
+		return false, err
+	}
+	truth, err := plan.TruthOf(value)
+	return truth == plan.True, err
 }

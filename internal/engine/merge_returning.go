@@ -8,27 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalMergeAction(e plan.MergeActionExpr) (sqltype.Value, error) {
-	owner, err := returningRowContext(c, e.Scope, e.Frame)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if !owner.mergeReturning {
-		return sqltype.Value{}, errors.New("stuntgres: MERGE output action is missing")
-	}
-	var text string
-	switch owner.mergeAction {
-	case parser.MergeInsertAction:
-		text = "INSERT"
-	case parser.MergeUpdateAction:
-		text = "UPDATE"
-	case parser.MergeDeleteAction:
-		text = "DELETE"
-	default:
-		return sqltype.Value{}, errors.New("stuntgres: invalid MERGE output action")
-	}
-	return sqltype.String(e.Usage.Type, text), nil
-}
 func (b *expressionBinder) bindMergeAction(raw parser.MergeActionExpr) (expr.Expr, error) {
 	frame := uint32(0)
 	if b.target.returningAliases != nil && b.target.returningAliases.mode == returningMerge {
@@ -58,16 +37,6 @@ func (b *expressionBinder) mergeReturningFrame(frame uint32) bool {
 		}
 	}
 	return false
-}
-
-const (
-	mergeDefaultSide plan.MergeReturningSide = iota
-	mergeOldSide
-	mergeNewSide
-)
-
-func mergeReturningAbsent(c *EvalContext, side plan.MergeReturningSide) bool {
-	return side == mergeOldSide && c.mergeAction == parser.MergeInsertAction || side == mergeNewSide && c.mergeAction == parser.MergeDeleteAction
 }
 
 // This execution-private collector never escapes before executeMerge's staging

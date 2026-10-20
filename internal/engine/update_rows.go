@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -14,13 +13,6 @@ import (
 // a group source exactly once, without adding a parallel graph ownership path.
 type updateAssignmentGroup struct {
 	start, width int
-}
-
-func (c *EvalContext) EvalUpdateOutput(e plan.UpdateOutputExpr) (sqltype.Value, error) {
-	if e.Index >= len(c.updateOutputs) || !c.updateOutputsReady {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: UPDATE output outside its assignment group")
-	}
-	return c.updateOutputs[e.Index], nil
 }
 
 // Analyze sources in original SET order, before the shared destination pass.

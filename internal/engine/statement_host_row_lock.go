@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/ids"
@@ -11,98 +10,6 @@ import (
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
-
-func queryRowMode(clause string) lock.Mode {
-	switch clause {
-	case "FOR KEY SHARE":
-		return lock.ForKeyShare
-	case "FOR SHARE":
-		return lock.ForShare
-	case "FOR NO KEY UPDATE":
-		return lock.ForNoKeyUpdate
-	case "FOR UPDATE":
-		return lock.ForUpdate
-	}
-	panic("invalid SELECT row lock mode")
-}
-
-// absentQueryIndex is an absent physical occurrence, never a real NULL-valued row.
-const absentQueryIndex = -1
-
-// Input adapters translate row identity exactly as they translate row cells.
-func (source *querySource) inputIndex(index int) int {
-	if index != absentQueryIndex && source.windowIndices != nil {
-		return source.windowIndices[index]
-	}
-	return index
-}
-
-func queryOccurrenceWidth(source *querySource) int {
-	if source.input != nil {
-		return queryOccurrenceWidth(source.input)
-	}
-	if source.lineage != nil {
-		return queryOccurrenceWidth(source.lineage.stage)
-	}
-	if source.singleton {
-		return 0
-	}
-	if source.materialized {
-		return len(source.occurrences)
-	}
-	return 1
-}
-
-func appendQueryOccurrences(dst []int, source *querySource) []int {
-	if source.input != nil {
-		return appendQueryOccurrences(dst, source.input)
-	}
-	if source.lineage != nil {
-		return appendQueryOccurrences(dst, source.lineage.stage)
-	}
-	if source.singleton {
-		return dst
-	}
-	if source.materialized {
-		return append(dst, source.occurrences...)
-	}
-	return append(dst, source.occurrence)
-}
-func appendQueryProvenance(dst []int, source *querySource, index int) []int {
-	if index == absentQueryIndex {
-		setQueryLineage(source, index)
-		for range queryOccurrenceWidth(source) {
-			dst = append(dst, absentQueryIndex)
-		}
-		return dst
-	}
-	if source.input != nil {
-		return appendQueryProvenance(dst, source.input, source.inputIndex(index))
-	}
-	if source.lineage != nil {
-		lineage := source.lineage
-		lineage.currentIndex = index
-		if lineage.cacheWidth != 0 {
-			occurrence := index
-			if lineage.cacheOccurrences != nil {
-				occurrence = lineage.cacheOccurrences[index]
-			}
-			lineage.currentOrder = lineage.orderValues[occurrence*lineage.cacheWidth : (occurrence+1)*lineage.cacheWidth]
-		}
-		if source.lineage.selection != nil {
-			index = source.lineage.selection[index]
-		}
-		return appendQueryProvenance(dst, source.lineage.stage, index)
-	}
-	if source.singleton {
-		return dst
-	}
-	if source.materialized {
-		width := len(source.occurrences)
-		return append(dst, source.provenance[index*width:(index+1)*width]...)
-	}
-	return append(dst, index)
-}
 
 // The source manifest, not target-only DML authority or a re-resolved name,
 // identifies each grant. Waiting shares the existing journal/deadline machinery.
@@ -202,24 +109,4 @@ func (h *statementHost) LatestQueryRow(leaf queryLeaf, candidate storage.RowVers
 		}
 	}
 	return current, present, nil
-}
-
-func openRowLockNode(ctx context.Context, state *queryState, n *plan.RowLockNode) (indexedStage, error) {
-	if state.source.liveHost() == nil {
-		return indexedStage{}, fmt.Errorf("stuntgres: missing row locking scope")
-	}
-	previous := state.locking
-	state.locking = true
-	child, err := openQueryNode(ctx, state, n.Child)
-	state.locking = previous
-	if err != nil {
-		return indexedStage{}, err
-	}
-	if !queryHasPhysicalInput(n.Child) {
-		return child, nil
-	}
-	if state.source.locks != nil {
-		child.pending = appendPendingRowMarks(child.pending, n.Marks, state.source)
-	}
-	return child, nil
 }

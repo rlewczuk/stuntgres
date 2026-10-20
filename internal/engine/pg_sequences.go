@@ -5,19 +5,10 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
-
-// Definitions are snapshot-owned; completion uses the exact current incarnation.
-type pgSequencesSource struct {
-	host       execHost
-	refs       []ids.ObjectRef
-	predicates []expr.Expr
-}
 
 func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	base := e.catalog.state
@@ -137,44 +128,4 @@ func (h *statementHost) CompletePGSequence(ctx context.Context, ref ids.ObjectRe
 		row[10], err = sqltype.Integer(row[10].Type(), generator.Last)
 	}
 	return err
-}
-
-func openPGSequencesStage(state *queryState, source *querySource, schema []catalog.Column) indexedStage {
-	p := source.pgSequences
-	out := indexedStage{source: source, schema: schema, selection: []int{}}
-	position := 0
-	evaluation := state.evaluation(nil)
-	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		for position < len(p.refs) {
-			i := position
-			position++
-			evaluation.setContext(ctx)
-			evaluation.Row = source.anonymous[i]
-			admitted := true
-			for _, predicate := range p.predicates {
-				value, err := predicate.Eval(&evaluation)
-				if err != nil {
-					return false, err
-				}
-				truth, err := plan.TruthOf(value)
-				if err != nil {
-					return false, err
-				}
-				if truth != plan.True {
-					admitted = false
-					break
-				}
-			}
-			if !admitted {
-				continue
-			}
-			if err := p.host.CompletePGSequence(ctx, p.refs[i], source.anonymous[i]); err != nil {
-				return false, err
-			}
-			out.selection = append(out.selection, i)
-			return true, ctx.Err()
-		}
-		return false, ctx.Err()
-	}
-	return out
 }

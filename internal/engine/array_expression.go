@@ -236,25 +236,6 @@ func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n p
 	return text, nil
 }
 
-func subscriptChildren(n plan.SubscriptExpr, storage *[13]expr.Expr) []expr.Expr {
-	count := 0
-	if n.Base != nil {
-		storage[count] = n.Base
-		count++
-	}
-	for _, s := range n.Subscripts {
-		if s.Lower != nil {
-			storage[count] = s.Lower
-			count++
-		}
-		if s.Upper != nil {
-			storage[count] = s.Upper
-			count++
-		}
-	}
-	return storage[:count]
-}
-
 // Only actual changed child lists are copied; shared plans remain immutable.
 func mapSubscript(n plan.SubscriptExpr, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.SubscriptExpr, bool, error) {
 	base, changed, err := rewrite(n.Base)

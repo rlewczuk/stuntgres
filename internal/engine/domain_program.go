@@ -3,21 +3,9 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
-// The existing domain map owns both prepared expressions and every actual phase
-// initialization. These are consumed call graphs with original actors/lifetimes,
-// not cached permission results. No CHECK truth is recorded or replayed.
-type domainCheckProgram struct {
-	expressions []expr.Expr
-	phases      domainCheckPhases
-}
-
-// The runtime reads only a programme's expressions; its phases are an opaque
-// slot that holds a domainPhaseList, which only engine helpers look inside.
-type domainCheckPhases interface{ DomainCheckPhasesSlot() }
 type domainPhaseList []domainCheckPhase
 
 func (domainPhaseList) DomainCheckPhasesSlot() {}

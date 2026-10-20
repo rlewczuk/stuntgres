@@ -1,39 +1,10 @@
 package engine
 
 import (
-	"fmt"
-	"time"
-
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/sqltype"
 )
-
-func (c *EvalContext) FunctionStatementTime() (time.Time, error) {
-	host := c.liveHost()
-	if host == nil {
-		return time.Time{}, fmt.Errorf("stuntgres: missing statement time scope")
-	}
-	// A held cursor keeps its declaring statement's clock.
-	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
-		return c.query.source.authority.expression.statementStart, nil
-	}
-	return host.StatementStart(), nil
-}
-func (c *EvalContext) FunctionWallTime() time.Time {
-	return time.Now().UTC().Truncate(time.Microsecond)
-}
-func (c *EvalContext) FunctionTimeOfDayZone() *sqltype.Zone {
-	return c.Input.Zone
-}
-
-func (c *EvalContext) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, error) {
-	input := c.Input
-	input.TransactionStart = c.FunctionWallTime()
-	return sqltype.CurrentDateTime(usage, input)
-}
-func (c *EvalContext) FunctionSleepArgumentPresent(arg expr.Expr) bool { return arg != nil }
 
 // Only selected time leaves may introduce volatility into this closed default.
 // Other volatile producers retain their separately owned admission rules.

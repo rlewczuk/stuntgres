@@ -1,11 +1,5 @@
 package engine
 
-// The routine admission slots of evalAdmission are opaque to the runtime: it
-// copies them with the context (the borrowed pointer, never the pointee) and
-// only engine helpers look inside. A nil pointer is stored as an untyped nil.
-type admissionAuthority interface{ AdmissionAuthoritySlot() }
-type admissionProgram interface{ AdmissionProgramSlot() }
-
 func (*AuthorizationView) AdmissionAuthoritySlot()     {}
 func (*routineAdmissionProgram) AdmissionProgramSlot() {}
 

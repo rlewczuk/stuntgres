@@ -6,39 +6,13 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/sqltype"
 )
-
-// Entries are immutable once published by Execute under Engine.mu. A candidate
-// borrows the old group and copies only when a successful fold changes it.
-type quoteOrigin struct {
-	owner      ids.ObjectRef
-	attribute  int32
-	definition ids.OID
-	revision   ids.DefinitionRevision
-}
 
 // quoteOriginOf reads the opaque occurrence origin the engine stored on e. An
 // unset origin is the zero quoteOrigin.
 func quoteOriginOf(e functions.StringVariadic) quoteOrigin {
 	origin, _ := e.Origin.(quoteOrigin)
 	return origin
-}
-
-type quoteConstant struct {
-	offset     int
-	origin     quoteOrigin
-	frame      uint32
-	name       string
-	anyelement bool
-	source     sqltype.Usage
-	result     sqltype.Usage
-	value      sqltype.Value
-}
-type quoteCaptureCandidate struct {
-	entries []quoteConstant
-	private bool
-	sealed  bool
 }
 
 func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, bool, error) {

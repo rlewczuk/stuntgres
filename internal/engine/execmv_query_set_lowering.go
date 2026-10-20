@@ -10,6 +10,90 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+func querySetDepth(bound expr.Expr) int {
+	depth := 0
+	plan.ExpressionChildren(bound, func(child expr.Expr) {
+		if d := querySetDepth(child); d > depth {
+			depth = d
+		}
+	})
+	if sourceReturnsSet(bound) {
+		depth++
+	}
+	return depth
+}
+
+func querySetScalarSlot(slots []int, index int) int {
+	if slots == nil {
+		return index
+	}
+	return slots[index]
+}
+
+func stringSetLocalStep(step plan.SetStep, callSlots, scalarSlots []int, scalars int) (plan.SetStep, bool) {
+	slots := callSlots
+	switch step.Kind {
+	case querySetCallStep:
+	case querySetScalarStep:
+		if scalarSlots == nil {
+			return step, step.Index >= 0 && step.Index < scalars
+		}
+		slots = scalarSlots
+	default:
+		return plan.SetStep{}, false
+	}
+	for i, slot := range slots {
+		if slot == step.Index {
+			step.Index = i
+			return step, true
+		}
+	}
+	return plan.SetStep{}, false
+}
+
+func validateQuerySetSteps(steps []plan.SetStep, calls, scalars int) error {
+	if len(steps) != calls+scalars {
+		return fmt.Errorf("stuntgres: incomplete string set schedule")
+	}
+	for i, step := range steps {
+		width := calls
+		switch step.Kind {
+		case querySetCallStep:
+		case querySetScalarStep:
+			width = scalars
+		default:
+			return fmt.Errorf("stuntgres: invalid string set schedule kind")
+		}
+		if step.Index < 0 || step.Index >= width {
+			return fmt.Errorf("stuntgres: invalid string set schedule index")
+		}
+		for _, previous := range steps[:i] {
+			if previous == step {
+				return fmt.Errorf("stuntgres: duplicate string set schedule event")
+			}
+		}
+	}
+	return nil
+}
+
+func validateQuerySetStageOrder(original, executable []plan.SetStep, callSlots, scalarSlots []int, scalars int) error {
+	position := 0
+	for _, original := range original {
+		step, present := stringSetLocalStep(original, callSlots, scalarSlots, scalars)
+		if !present {
+			continue
+		}
+		if position >= len(executable) || executable[position] != step {
+			return fmt.Errorf("stuntgres: invalid string set schedule order")
+		}
+		position++
+	}
+	if position != len(executable) {
+		return fmt.Errorf("stuntgres: invalid string set schedule owner")
+	}
+	return nil
+}
+
 const (
 	querySetCallStep plan.SetStepKind = iota
 	querySetScalarStep
@@ -23,6 +107,7 @@ func (s *functionSetInvocation) close() {
 	}
 	s.cursors = nil
 }
+
 func strictScalarFunctionSource(call expr.Expr) bool {
 	source, admitted := call.(expr.Source)
 	strict, folds := call.(expr.StrictFolding)
@@ -31,40 +116,6 @@ func strictScalarFunctionSource(call expr.Expr) bool {
 	}
 	allowed, set := source.SourceAdmission()
 	return allowed && !set && call.ResultUsage().Type != nil && !call.ResultUsage().Type.IsComposite()
-}
-
-func preflightFunctionFrom(c *EvalContext, n *plan.FunctionFromNode) (plan.Node, error) {
-	// Plan every child before simplifying a source call. Keep the analyzed
-	// call carrier: it owns aliases, record expansion and the fixed stage width.
-	planned, err := plan.RewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) {
-		return preflightCoercions(c, expr)
-	})
-	if err != nil {
-		return nil, err
-	}
-	source := planned.(*plan.FunctionFromNode)
-	var scalarNull []bool
-	for i, call := range source.Calls {
-		if !strictScalarFunctionSource(call) {
-			continue
-		}
-		next, _, err := simplifyConditional(c, call, false)
-		if err != nil {
-			return nil, err
-		}
-		if randomLiteralNull(next) {
-			if scalarNull == nil {
-				scalarNull = make([]bool, len(source.Calls))
-			}
-			scalarNull[i] = true
-		}
-	}
-	if scalarNull == nil && source.ScalarNull == nil {
-		return source, nil
-	}
-	copy := *source
-	copy.ScalarNull = scalarNull
-	return &copy, nil
 }
 
 // openFunctionCall opens call i of a ROWS FROM item; a strict call with a NULL
@@ -91,6 +142,7 @@ func openFunctionInvocation(c *EvalContext, n *plan.FunctionFromNode) (functionS
 	}
 	return s, nil
 }
+
 func openFunctionSource(c *EvalContext, expression expr.Expr) (expr.SourceCursor, error) {
 	if !expr.AdmitsSource(expression) {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
@@ -164,6 +216,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *plan.Functi
 	}
 	return out, nil
 }
+
 func appendFunctionStageRow(ctx context.Context, out *indexedStage, schema []catalog.Column, row []sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err

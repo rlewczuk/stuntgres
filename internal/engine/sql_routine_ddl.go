@@ -155,23 +155,3 @@ func validateSQLRoutineResult(columns []catalog.Column, result sqltype.Usage) (s
 	}
 	return plan, nil
 }
-
-func sqlRoutineContext(err error, name string, runtime bool) error {
-	if err == nil {
-		return nil
-	}
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) {
-		return err
-	}
-	copy := *diagnostic
-	context := "SQL function " + strconv.Quote(name)
-	if runtime {
-		context += " statement 1"
-	}
-	if copy.Context != "" {
-		copy.Context += "\n"
-	}
-	copy.Context += context
-	return &copy
-}

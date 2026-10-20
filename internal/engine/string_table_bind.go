@@ -11,9 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func sourceReturnsSet(e expr.Expr) bool { return expr.IsSetSource(e) }
-func sourceAdmitted(e expr.Expr) bool   { return expr.AdmitsSource(e) }
-
 // Selected rendering and binding share a lane; typed admission remains owned
 // by the node's SourceAdmission after ordinary function resolution.
 func selectedFunctionSourceName(name string) bool {

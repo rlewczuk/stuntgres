@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
@@ -98,28 +97,6 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 		b.query.rowDiagnosticMode = parent.rowDiagnosticMode
 		b.query.frame = oldFrame
 	}
-}
-
-func (s *queryState) evaluation(ctx context.Context) EvalContext {
-	s.inheritCTEs()
-	frame := s.frame
-	if frame == 0 {
-		frame = 1
-	}
-	evaluation := EvalContext{evalFrame: evalFrame{Scope: 1, Frame: frame, Outer: s.outer, query: s}, evalStatement: evalStatement{Parameters: s.parameters, Input: s.input, Output: s.output}}
-	if s.outer != nil {
-		evaluation.catalog = s.outer.catalog
-	}
-	if s.source != nil && s.source.view != nil {
-		evaluation.catalog = s.source.view.Catalog()
-	}
-	if s.source != nil && s.source.routineRecipe != nil {
-		recipe := s.source.routineRecipe
-		evaluation.routineRecipe = true
-		evaluation.routineChecks, evaluation.routineConsumer = s.source.routineChecks, recipe
-	}
-	evaluation.setContext(ctx)
-	return evaluation
 }
 
 func (q *queryScopeState) outerQualifiers() []queryQualifier {

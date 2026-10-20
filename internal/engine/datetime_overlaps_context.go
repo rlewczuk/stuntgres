@@ -8,25 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Imported parameters remain Execute-owned. This predicate inspects structure
-// and availability only, never evaluates a child again or freezes its value.
-func overlapsExecutionConstant(node expr.Expr, c *EvalContext) bool {
-	switch n := node.(type) {
-	case plan.LiteralExpr:
-		return true
-	case plan.ParameterExpr:
-		return n.Number > 0 && n.Number <= len(c.Parameters)
-	case plan.ColumnExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, plan.SubqueryExpr:
-		return false
-	}
-	if plannedVolatility(node) != expr.Immutable {
-		return false
-	}
-	found, constant := false, true
-	plan.ExpressionChildren(node, func(child expr.Expr) { found = true; constant = constant && overlapsExecutionConstant(child, c) })
-	return found && constant
-}
-
 // Only duration starts occur twice in the SQL wrapper body. Released inline
 // safety tests apply to those slots, not volatile single-use durations/ends.
 func overlapsInlineSafe(e functions.DatetimeOverlaps) bool {

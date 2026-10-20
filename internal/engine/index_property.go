@@ -8,14 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error) {
-	host := c.liveHost()
-	if host == nil {
-		return false, false, fmt.Errorf("stuntgres: missing index property catalog snapshot")
-	}
-	return host.IndexProperty(kind, oid, ordinalValue, property)
-}
-
 func (h *statementHost) IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error) {
 	scope := h.scope()
 	if scope.inquiry.commentCatalog.State() == nil {

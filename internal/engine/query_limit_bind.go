@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -117,30 +116,4 @@ func firstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position
 	}
 	expression(bound)
 	return position
-}
-
-func queryBoundValue(ctx context.Context, state *queryState, expr expr.Expr, clause string) (int64, bool, error) {
-	if expr == nil {
-		return 0, false, nil
-	}
-	evaluation := state.evaluation(ctx)
-	value, err := expr.Eval(&evaluation)
-	if err != nil {
-		return 0, false, err
-	}
-	if value.IsNull() {
-		return 0, false, nil
-	}
-	n, err := value.Integer()
-	if err != nil {
-		return 0, false, err
-	}
-	if n < 0 {
-		code := "2201W"
-		if clause == "OFFSET" {
-			code = "2201X"
-		}
-		return 0, false, sqlError(code, clause+" must not be negative")
-	}
-	return n, true, ctx.Err()
 }

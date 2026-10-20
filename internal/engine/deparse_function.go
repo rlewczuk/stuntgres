@@ -9,14 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
-	if host == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
-	}
-	return host.DeparseInquiry(c, signature, values, result)
-}
-
 func (h *statementHost) DeparseInquiry(c *EvalContext, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	if scope.inquiry.commentCatalog.State() == nil {

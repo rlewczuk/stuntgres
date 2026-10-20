@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"crypto/fips140"
-	"crypto/rand"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -11,16 +9,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
-
-func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
-	if err := c.FunctionContext().Err(); err != nil {
-		return err
-	}
-	_, err := rand.Read(bytes)
-	return err
-}
-
-func (c *EvalContext) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
 func validateInstalledCrypto(n plan.InstalledCryptoExpr, v catalog.Read) error {
 	for _, arg := range n.Args {

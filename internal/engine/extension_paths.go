@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"strings"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -29,36 +28,6 @@ func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.
 	}
 	b.consumer.catalogSnapshot, b.prepared.regclassConcat = true, true
 	return plan.ExtensionPathsExpr{Info: info, Arg: arg}, nil
-}
-
-// OpenExtensionPaths lists every ordered version pair of the named extension
-// with its update path (NULL when no path exists).
-func (c *EvalContext) OpenExtensionPaths(n plan.ExtensionPathsExpr) ([]sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return nil, err
-	}
-	if err := n.Validate(); err != nil {
-		return nil, err
-	}
-	value, err := n.Arg.Eval(c)
-	if err != nil {
-		return nil, err
-	}
-	if value.IsNull() {
-		return nil, nil
-	}
-	name, err := value.Text()
-	if err != nil {
-		return nil, err
-	}
-	if detail := catalog.ExtensionNameDetail(name, false); detail != "" {
-		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid extension name: "%s"`, name), Detail: detail}
-	}
-	host := c.liveHost()
-	if host == nil {
-		return nil, fmt.Errorf("stuntgres: missing extension paths snapshot")
-	}
-	return host.OpenExtensionPaths(c, n, name)
 }
 
 func (h *statementHost) OpenExtensionPaths(c *EvalContext, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error) {

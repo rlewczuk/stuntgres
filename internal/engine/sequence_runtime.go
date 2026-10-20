@@ -10,33 +10,6 @@ import (
 	"stuntgres/internal/engine/sequence"
 )
 
-var _ functions.SequenceRuntime = (*EvalContext)(nil)
-
-// SequenceAuthority installs the evaluation frame (cancellation and any
-// active domain-check input) and requires the current statement's authority
-// before a sequence call demands its arguments.
-func (c *EvalContext) SequenceAuthority() error {
-	if err := evaluationContext(c); err != nil {
-		return err
-	}
-	if c.liveHost() == nil {
-		return fmt.Errorf("stuntgres: sequence call lacks statement authority")
-	}
-	return nil
-}
-
-// Sequence resolves the current statement owner, never a prepared owner. The
-// provider is fenced against catalog replacement before and after its
-// RowExclusive lock; ACL, read-only admission, the generator and the
-// physical-session memory are read under Engine.mu after the lock is held.
-func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error) {
-	host := c.liveHost()
-	if host == nil {
-		return 0, fmt.Errorf("stuntgres: sequence call lacks statement authority")
-	}
-	return host.Sequence(request)
-}
-
 func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, error) {
 	scope := h.scope()
 	e := scope.op.session.Engine()

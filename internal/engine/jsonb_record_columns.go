@@ -1,74 +1,12 @@
 package engine
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
-
-func (c *EvalContext) FunctionJSONBRecordInput() sqltype.InputEnvironment {
-	input := c.Input
-	input.DomainChecks = jsonbRecordDomainChecks{c}
-	return input
-}
-
-// PostgreSQL saves a domain's own constraint violation, not errors raised while
-// executing its CHECK expression. Keep that distinction across nested text
-// composite/array input as well as JSON-node conversion.
-type jsonbRecordDomainChecks struct{ evaluation *EvalContext }
-
-type jsonbRecordHardDomainError struct{ error }
-
-func (e jsonbRecordHardDomainError) Unwrap() error { return e.error }
-
-func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltype.Descriptor, value sqltype.Value) error {
-	err := c.evaluation.CheckDomain(ctx, target, value)
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return err
-	}
-	var diagnostic *sqlstate.Error
-	if errors.As(err, &diagnostic) && (diagnostic.Code == "23514" || diagnostic.Code == "23502") {
-		view := preparation.DomainCatalog(c.evaluation)
-		if view.State() != nil {
-			d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
-			if ok && d.SQLType == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.Get(d.ObjectNamespace).Name() {
-				if diagnostic.Code == "23502" && diagnostic.Constraint == "" {
-					return err
-				}
-				// Inherited checks report the requested domain, but retain their
-				// declaring constraint name. Read only the captured generation.
-				for current := d; ; {
-					for _, check := range current.DomainChecks {
-						if diagnostic.Constraint == check.Name {
-							return err
-						}
-					}
-					base := current.SQLType.DomainBase().Type
-					if !base.IsDomain() {
-						break
-					}
-					parent, found := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
-					if !found || parent.SQLType != base {
-						break
-					}
-					current = parent
-				}
-			}
-		}
-	}
-	// Soft-error classification deliberately examines the direct error, whereas
-	// ordinary SQL diagnostics and cancellation follow this unchanged cause.
-	return jsonbRecordHardDomainError{err}
-}
 
 // Only the analyzed projection is frozen. The function source keeps its current
 // complete schema and still converts every destination member before yielding.

@@ -9,14 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) CommentInquiry(kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
-	if host == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
-	}
-	return host.CommentInquiry(c, kind, values, provenance, result)
-}
-
 func (h *statementHost) CommentInquiry(c *EvalContext, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	if err := admitInquiryBody(c, provenance); err != nil {

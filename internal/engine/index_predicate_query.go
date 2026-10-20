@@ -69,8 +69,3 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	}
 	return root
 }
-
-func partialMaskContains(root *storage.IndexRoot, row storage.RowVersion) bool {
-	version, ok := root.Membership[row.Row]
-	return ok && version == row.Version
-}

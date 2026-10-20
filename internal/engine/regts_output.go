@@ -1,18 +1,12 @@
 package engine
 
 import (
-	"fmt"
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
-
-type regTSOutputKey struct {
-	id    uint32
-	alias sqltype.ID
-}
 
 func regTSSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, alias sqltype.ID, qualified bool) string {
 	if id == 0 {
@@ -67,19 +61,6 @@ func (s *StatementScope) FormatRegconfig(id uint32) (string, error) {
 }
 func (s *StatementScope) FormatRegdictionary(id uint32) (string, error) {
 	return s.formatRegTS(id, sqltype.Regdictionary)
-}
-func (r *finalRows) formatRegTS(id uint32, alias sqltype.ID) (string, error) {
-	text, ok := r.regTSOutput[regTSOutputKey{id, alias}]
-	if !ok {
-		return "", fmt.Errorf("stuntgres: missing text search output snapshot")
-	}
-	return text, nil
-}
-func (r *finalRows) FormatRegconfig(id uint32) (string, error) {
-	return r.formatRegTS(id, sqltype.Regconfig)
-}
-func (r *finalRows) FormatRegdictionary(id uint32) (string, error) {
-	return r.formatRegTS(id, sqltype.Regdictionary)
 }
 func captureRegTSOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegTS() {

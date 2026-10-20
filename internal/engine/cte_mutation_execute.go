@@ -319,11 +319,3 @@ func completeCTEMutation(o *cteInvocation, definition *plan.CTEDefinition, resul
 	o.order = append(o.order, producer)
 	return nil
 }
-
-func (s *queryState) inheritCTEs() {
-	if s.ctes == nil && s.source != nil {
-		if host := s.source.liveHost(); host != nil {
-			s.ctes = host.CTEInvocation()
-		}
-	}
-}

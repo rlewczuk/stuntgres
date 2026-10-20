@@ -4,20 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
-
-var _ functions.CatalogInquiryRuntime = (*EvalContext)(nil)
-
-func (c *EvalContext) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
-	if host == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
-	}
-	return host.CatalogUserName(oid, result)
-}
 
 func (h *statementHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()

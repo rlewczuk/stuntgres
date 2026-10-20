@@ -70,17 +70,6 @@ func (s *StatementScope) FormatACLRole(authority *sqltype.ACLAuthority, id uint3
 	return (capturedACLItemOutput{owner: s.inquiry.commentCatalog.Owner(), roles: s.inquiry.commentRoles}).FormatACLRole(authority, id)
 }
 
-func (r *finalRows) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
-	if authority == nil || authority != r.aclAuthority {
-		return "", fmt.Errorf("stuntgres: foreign ACL output identity")
-	}
-	name, ok := r.aclitemOutput[id]
-	if !ok {
-		return "", fmt.Errorf("stuntgres: missing ACL output snapshot")
-	}
-	return name, nil
-}
-
 func captureACLItemOutputValue(rows *finalRows, output capturedACLItemOutput, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsACLItem() {
 		return nil

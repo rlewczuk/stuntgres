@@ -1,21 +1,9 @@
 package engine
 
 import (
-	"fmt"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
-
-var _ functions.SessionInquiryRuntime = (*EvalContext)(nil)
-
-func (c *EvalContext) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
-	if host == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
-	}
-	return host.CurrentSchemas(implicit, result)
-}
 
 func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
@@ -49,14 +37,6 @@ func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor
 	return results[0], nil
 }
 
-func (c *EvalContext) MyTempNamespace() (uint32, error) {
-	host := c.liveHost()
-	if host == nil {
-		return 0, fmt.Errorf("stuntgres: namespace inquiry lacks statement authority")
-	}
-	return host.MyTempNamespace()
-}
-
 func (h *statementHost) MyTempNamespace() (uint32, error) {
 	scope := h.scope()
 	engine := scope.op.session.Engine()
@@ -67,13 +47,6 @@ func (h *statementHost) MyTempNamespace() (uint32, error) {
 		return 0, err
 	}
 	return uint32(temporaryNamespace(auth).ObjectID), nil
-}
-func (c *EvalContext) OtherTempNamespace(oid uint32) (bool, error) {
-	host := c.liveHost()
-	if host == nil {
-		return false, fmt.Errorf("stuntgres: namespace inquiry lacks statement authority")
-	}
-	return host.OtherTempNamespace(oid)
 }
 
 func (h *statementHost) OtherTempNamespace(oid uint32) (bool, error) {

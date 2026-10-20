@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
@@ -80,14 +79,6 @@ func (s *StatementScope) FormatRegtype(id uint32) (string, error) {
 		return detachedPresentation{}.FormatRegtype(id)
 	}
 	return regtypeSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
-}
-
-func (r *finalRows) FormatRegtype(id uint32) (string, error) {
-	text, ok := r.regtypeOutput[id]
-	if !ok {
-		return "", fmt.Errorf("stuntgres: missing regtype output snapshot")
-	}
-	return text, nil
 }
 
 func captureRegtypeOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {

@@ -14,36 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, err error) {
-	if err = evaluationContext(c); err != nil {
-		return value, err
-	}
-	frame := proc.NewFrame(n.Procedure.SQL.Inputs)
-	defer frame.Close()
-	for i, arg := range n.Args {
-		v, err := arg.Eval(c)
-		if err != nil {
-			return value, err
-		}
-		if err = frame.Bind(i, v, arg.ResultUsage()); err != nil {
-			return value, err
-		}
-	}
-	// The statement's own host wins over a query source's host here.
-	host := c.host
-	if host == nil && c.query != nil && c.query.source != nil {
-		host = c.query.source.liveHost()
-	}
-	if host == nil {
-		return value, fmt.Errorf("SQL routine invocation has no statement owner")
-	}
-	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage)
-	if err != nil {
-		return value, sqlRoutineContext(err, n.Procedure.Name(), true)
-	}
-	return frame.Result(value, n.Usage)
-}
-
 type sqlRoutineAnalysis struct {
 	definition  *proc.Definition
 	description StatementDescription

@@ -13,30 +13,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The ACL SQL functions borrow the executing statement's authority through
-// this capability. Each inquiry holds e.mu only for its own catalog and role
-// reads and caches nothing on the expression or statement.
-var _ functions.ACLRuntime = (*EvalContext)(nil)
-
-func (c *EvalContext) ACLAuthority() *sqltype.ACLAuthority {
-	host := c.liveHost()
-	if host == nil {
-		return nil
-	}
-	return host.ACLAuthority()
-}
-
 func (h *statementHost) ACLAuthority() *sqltype.ACLAuthority {
 	scope := h.scope()
 	return &scope.op.session.Engine().roles.aclAuthority
-}
-
-func (c *EvalContext) ObjectACL(address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
-	if host == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: object ACL inquiry lacks statement authority")
-	}
-	return host.ObjectACL(c, address, result)
 }
 
 func (h *statementHost) ObjectACL(c *EvalContext, address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -53,14 +32,6 @@ func (h *statementHost) ObjectACL(c *EvalContext, address ids.ObjectAddress, res
 		return sqltype.Value{}, err
 	}
 	return pgcatalog.ClassACL(e.catalog.owner(), auth.Roles, result, acl)
-}
-
-func (c *EvalContext) RoleMembership(actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {
-	host := c.liveHost()
-	if host == nil {
-		return false, fmt.Errorf("stuntgres: access inquiry lacks statement authority")
-	}
-	return host.RoleMembership(c, actor, target, privilege)
 }
 
 func (h *statementHost) RoleMembership(c *EvalContext, actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {
@@ -87,14 +58,6 @@ func (h *statementHost) RoleMembership(c *EvalContext, actor *functions.AccessRo
 		return false, err
 	}
 	return authorization.HasRole(c.Context, auth.Roles, &e.roles.domain, actorID, targetID, mask)
-}
-
-func (c *EvalContext) RowSecurityActive(relation functions.AccessRelation) (bool, error) {
-	host := c.liveHost()
-	if host == nil {
-		return false, fmt.Errorf("stuntgres: access inquiry lacks statement authority")
-	}
-	return host.RowSecurityActive(c, relation)
 }
 
 func (h *statementHost) RowSecurityActive(c *EvalContext, relation functions.AccessRelation) (bool, error) {

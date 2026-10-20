@@ -8,18 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func querySetDepth(bound expr.Expr) int {
-	depth := 0
-	plan.ExpressionChildren(bound, func(child expr.Expr) {
-		if d := querySetDepth(child); d > depth {
-			depth = d
-		}
-	})
-	if sourceReturnsSet(bound) {
-		depth++
-	}
-	return depth
-}
 func sameQuerySetOccurrence(a, b expr.Expr) bool {
 	if !sourceReturnsSet(a) || !sourceReturnsSet(b) || a.SourcePosition() != b.SourcePosition() {
 		return false
@@ -313,34 +301,6 @@ func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error
 	return root, nil
 }
 
-func querySetScalarSlot(slots []int, index int) int {
-	if slots == nil {
-		return index
-	}
-	return slots[index]
-}
-
-func stringSetLocalStep(step plan.SetStep, callSlots, scalarSlots []int, scalars int) (plan.SetStep, bool) {
-	slots := callSlots
-	switch step.Kind {
-	case querySetCallStep:
-	case querySetScalarStep:
-		if scalarSlots == nil {
-			return step, step.Index >= 0 && step.Index < scalars
-		}
-		slots = scalarSlots
-	default:
-		return plan.SetStep{}, false
-	}
-	for i, slot := range slots {
-		if slot == step.Index {
-			step.Index = i
-			return step, true
-		}
-	}
-	return plan.SetStep{}, false
-}
-
 func querySetStageSteps(original []plan.SetStep, callSlots, scalarSlots []int, scalars int) []plan.SetStep {
 	steps := make([]plan.SetStep, 0, len(callSlots)+scalars)
 	for _, step := range original {
@@ -349,49 +309,6 @@ func querySetStageSteps(original []plan.SetStep, callSlots, scalarSlots []int, s
 		}
 	}
 	return steps
-}
-
-func validateQuerySetSteps(steps []plan.SetStep, calls, scalars int) error {
-	if len(steps) != calls+scalars {
-		return fmt.Errorf("stuntgres: incomplete string set schedule")
-	}
-	for i, step := range steps {
-		width := calls
-		switch step.Kind {
-		case querySetCallStep:
-		case querySetScalarStep:
-			width = scalars
-		default:
-			return fmt.Errorf("stuntgres: invalid string set schedule kind")
-		}
-		if step.Index < 0 || step.Index >= width {
-			return fmt.Errorf("stuntgres: invalid string set schedule index")
-		}
-		for _, previous := range steps[:i] {
-			if previous == step {
-				return fmt.Errorf("stuntgres: duplicate string set schedule event")
-			}
-		}
-	}
-	return nil
-}
-
-func validateQuerySetStageOrder(original, executable []plan.SetStep, callSlots, scalarSlots []int, scalars int) error {
-	position := 0
-	for _, original := range original {
-		step, present := stringSetLocalStep(original, callSlots, scalarSlots, scalars)
-		if !present {
-			continue
-		}
-		if position >= len(executable) || executable[position] != step {
-			return fmt.Errorf("stuntgres: invalid string set schedule order")
-		}
-		position++
-	}
-	if position != len(executable) {
-		return fmt.Errorf("stuntgres: invalid string set schedule owner")
-	}
-	return nil
 }
 
 func querySetProjectionDepth(expressions []expr.Expr) (int, bool) {

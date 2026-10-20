@@ -68,30 +68,3 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	}
 	return plan.CoercionExpr{Info: info, Child: query, Plan: coercion, Mode: sqltype.Assignment}, nil
 }
-func (c *EvalContext) subqueryJSONArray(e plan.SubqueryExpr, state *queryState, stage *indexedStage) (sqltype.Value, error) {
-	p := e.JSONArray
-	aggregate, err := p.Plan.Init(c.Context, c.FunctionJSONOutput())
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	var row [1]sqltype.Value
-	for {
-		present, err := stage.Next(c.Context, row[:])
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if !present {
-			return p.Plan.Finalize(c.Context, aggregate)
-		}
-		inner := state.evaluation(c.Context)
-		inner.Frame = e.QueryPlan.Root.(*plan.ProjectNode).Frame
-		inner.Row = row[:]
-		value, err := p.Input.Eval(&inner)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if err = p.Plan.Advance(c.Context, aggregate, value); err != nil {
-			return sqltype.Value{}, err
-		}
-	}
-}

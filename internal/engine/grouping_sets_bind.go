@@ -306,30 +306,6 @@ func expandGroupingItem(ctx context.Context, item analyzedGroupItem) ([][]int, e
 	return nil, fmt.Errorf("stuntgres: invalid grouping item")
 }
 
-func (c *EvalContext) EvalGrouping(e plan.GroupingExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	frame := e.Frame
-	if frame == 0 {
-		frame = 1
-	}
-	for c != nil && (c.Scope != 1 || c.Frame != frame) {
-		c = c.Outer
-	}
-	if c == nil || e.Slot < 0 || e.Slot >= len(c.Row) {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid grouping frame")
-	}
-	occurrence, err := c.Row[e.Slot].Integer()
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if occurrence < 0 || occurrence >= int64(len(e.Masks)) {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid grouping occurrence")
-	}
-	return sqltype.Integer(e.Usage.Type, int64(e.Masks[occurrence]))
-}
-
 func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, error) {
 	if len(raw.Args) > 31 {
 		return nil, expr.ErrorAt("54023", "GROUPING must have fewer than 32 arguments", raw.Pos)

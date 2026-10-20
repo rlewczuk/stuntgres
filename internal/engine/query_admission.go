@@ -7,30 +7,10 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-// Each manifest entry is an SQL occurrence, even when physical identity repeats.
-type queryLeaf struct {
-	ref              ids.ObjectRef
-	relation         *catalog.Relation
-	storage          *storage.Relation
-	only             bool
-	principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
-	frozenAttributes []int32                    // Execution-owned stored-view subquery layout.
-	uses             []int
-	mark             plan.RowMark
-	query            *parser.Select
-	table            *parser.TableReference
-	// DELETE's immediate USING occurrences require reference-kind validation,
-	// not SELECT FOR UPDATE authority or source tuple locks.
-	deleteReference  bool
-	partialCandidate *catalog.Relation
-	analysisOnly     bool // Unreferenced CTE body: analyzed dependency, no executable ACL.
-}
 
 func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*parser.TableReference, []*parser.Select, error) {
 	admissions := make(map[*parser.Select]*queryLockAdmission)
@@ -457,34 +437,6 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	return first, nil
 }
 
-func selectQuerySources(ctx context.Context, source *querySource) error {
-	selectOne := func(source *querySource) error {
-		if source.inheritance != nil {
-			return source.selectInheritancePrefixes(ctx)
-		}
-		if source.view == nil {
-			return ctx.Err()
-		}
-		data := source.view.Data()
-		_, err := selectQuerySource(ctx, source, data.FrontierAt(source.ref.Address), data.Ends[source.ref.Address], data.Deleted[source.ref.Address])
-		return err
-	}
-	if source.sources == nil {
-		if err := selectOne(source); err != nil {
-			source.close()
-			return err
-		}
-		return nil
-	}
-	for _, leaf := range source.sources {
-		if err := selectOne(leaf); err != nil {
-			source.close()
-			return err
-		}
-	}
-	return nil
-}
-
 // Source teardown can enter foreign provider code. Detach the captured set
 // while locked, then release all provider resources outside Engine.mu.
 func (e *Engine) closeQuerySourceSetLocked(ctx context.Context, first *querySource, sources []*querySource) {
@@ -517,4 +469,68 @@ type inquirySnapshot struct {
 	visibilityDemand       bool
 	currentSchemaResult    sqltype.Value
 	searchPathResults      [2]sqltype.Value
+}
+
+// The caller holds e.mu, the same owner as visibility-prefix capture. After
+// this proof, probing consults only the retained root and retained source rows.
+func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf, source *querySource, mark plan.RowMark) error {
+	if !scope.implicit || scope.catalog != nil || mark.Mode != 0 || source.view == nil || source.inheritance != nil || len(source.own) != 0 {
+		return nil
+	}
+	data := source.view.Data()
+	if data.Catalog.State() != e.catalog.state {
+		return nil
+	}
+	a := leaf.ref.Address
+	store := data.GenerationAt(a)
+	if store == nil || store != e.storage.Relations[a] || data.FrontierAt(a) != e.visibility.CommitSeq() || data.Deleted[a] != nil || len(source.committed) != len(store.Versions) || data.Ends[a] != store.Ends {
+		return nil
+	}
+	for address, carrier := range e.storage.IndexRoots {
+		index, ok := data.Catalog.Relation(address)
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != catalog.HashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.Hash == nil {
+			continue
+		}
+		// Readiness permits maintenance, not complete query coverage. A
+		// grandfathered commit may legitimately be absent from an invalid root.
+		if !index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live {
+			continue
+		}
+		live, ok := e.catalog.state.Relation(address)
+		if !ok || !sameIndexKeySemantics(index, live) {
+			continue
+		}
+		root := carrier.Hash
+		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.committed) || root.Ends != data.Ends[a] {
+			continue
+		}
+		usage, err := indexKeyUsage(leaf.relation, index.SQLIndex.Keys[0])
+		if err != nil {
+			return err
+		}
+		if usage != root.Binding.Usage {
+			continue
+		}
+		source.hashIndexes = append(source.hashIndexes, capturedHashIndex{definition: index.SQLIndex, root: root, usage: usage})
+	}
+	return nil
+}
+
+func borrowQueryAuthority(s *querySource, scope *StatementScope) {
+	s.authority = scope.authority
+	s.host = nil
+	if s.authority == nil {
+		s.host = hostOf(scope)
+	}
+}
+
+func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation) (*querySource, error) {
+	g := e.sequenceGeneratorLocked(scope, ref.Address)
+	if g == nil {
+		return nil, fmt.Errorf("stuntgres: sequence state missing")
+	}
+	i := relation.Columns[0].Usage.Type
+	last, _ := sqltype.Integer(i, g.Last)
+	log, _ := sqltype.Integer(i, 0)
+	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.Columns[2].Usage.Type, g.Called)}}}, nil
 }

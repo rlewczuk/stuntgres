@@ -184,18 +184,6 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	return nil
 }
 
-func updateMatches(eval *EvalContext, predicate expr.Expr) (bool, error) {
-	if predicate == nil {
-		return true, eval.Context.Err()
-	}
-	value, err := predicate.Eval(eval)
-	if err != nil {
-		return false, err
-	}
-	truth, err := plan.TruthOf(value)
-	return truth == plan.True, err
-}
-
 // SQL waits never retain replacement admission or state/manager mutexes.
 func (s *StatementScope) acquireUpdateRow(ref ids.ObjectRef, row ids.RowID) error {
 	return s.acquireUpdateRowMode(ref, row, lock.ForNoKeyUpdate)

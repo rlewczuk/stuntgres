@@ -16,16 +16,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalDomainValue(e plan.DomainValueExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if !c.domainValueActive || c.domainValue.Type() != e.Usage.Type || c.domainFrameUsage != e.Usage {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing domain VALUE frame")
-	}
-	return c.domainValue, nil
-}
-
 func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	return e.bindDomainCheckRecipes(op.Context(), op, auth, stage, d, raw, input)
 }
@@ -91,13 +81,6 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 	}
 	slices.SortFunc(d.DomainChecks, func(a, b catalog.DomainCheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
-}
-
-func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descriptor, candidate sqltype.Value) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return preparation.CheckDomain(ctx, c, target, candidate)
 }
 
 // CheckDomain prepares the domain's CHECK programme for the context's phase
@@ -260,70 +243,6 @@ func domainCatalog(c *EvalContext) catalog.Read {
 		return scope.ResolutionCatalog()
 	}
 	return catalog.Read{}
-}
-
-func (c *EvalContext) evaluateDomainChecks(view catalog.Read, target, d *catalog.Type, candidate sqltype.Value) error {
-	base := d.SQLType.DomainBase()
-	if base.Type.IsDomain() && base.Type.HasDomainChecks() {
-		parent := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
-		if err := c.evaluateDomainChecks(view, target, parent, candidate); err != nil {
-			return err
-		}
-	}
-	return c.evaluateOwnDomainChecks(view, target, d, candidate, nil)
-}
-
-func (c *EvalContext) evaluateOwnDomainChecks(view catalog.Read, target, d *catalog.Type, candidate sqltype.Value, violation error) error {
-	base := d.SQLType.DomainBase()
-	if len(d.DomainChecks) == 0 {
-		return nil
-	}
-	value, err := candidate.DomainValue(base.Type)
-	if err != nil {
-		return err
-	}
-	c.domainValue, c.domainFrameUsage, c.domainValueActive = value, base, true
-	expressions := c.preparedDomainChecks[d].expressions
-	oldRecipe, oldGraft := c.routineRecipe, c.routineGraft
-	oldChecks, oldReferences, oldConsumer := c.routineChecks, c.routineReferences, c.routineConsumer
-	defer func() {
-		c.routineRecipe, c.routineGraft = oldRecipe, oldGraft
-		c.routineChecks, c.routineReferences, c.routineConsumer = oldChecks, oldReferences, oldConsumer
-	}()
-	for i, check := range d.DomainChecks {
-		// Preserve the original CHECK recipe for lazily demanded bodies,
-		// without changing the phase's actual invoker/RI authority.
-		c.routineRecipe, c.routineGraft = true, false
-		c.routineChecks, c.routineReferences, c.routineConsumer = check.Dependencies, nil, nil
-		node := check.Expression
-		if expressions != nil {
-			node = expressions[i]
-		}
-		result, err := node.Eval(c)
-		if err != nil {
-			return err
-		}
-		truth, err := plan.TruthOf(result)
-		if err != nil {
-			return err
-		}
-		if truth == plan.False {
-			if violation != nil {
-				return violation
-			}
-			name := target.SQLType.SQLName()
-			if c.Input.TypeDiagnosticName != nil {
-				if captured := c.Input.TypeDiagnosticName(target.SQLType.ID()); captured != "" {
-					name = captured
-				}
-			}
-			diagnostic := sqlError("23514", fmt.Sprintf("value for domain %s violates check constraint %q", name, check.Name)).(*sqlstate.Error)
-			diagnostic.Schema = view.Get(target.ObjectNamespace).Name()
-			diagnostic.DataType, diagnostic.Constraint = target.Name(), check.Name
-			return diagnostic
-		}
-	}
-	return nil
 }
 
 // COPY owns a public transport cursor, rather than an expression node. Its live

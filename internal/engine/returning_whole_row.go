@@ -10,23 +10,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalReturningWholeRow(e plan.ReturningWholeRowExpr) (sqltype.Value, error) {
-	parent, err := returningRowContext(c, e.Scope, e.Frame)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if e.Merge && mergeReturningAbsent(parent, e.Side) || !e.Merge && e.Old && parent.OldRow == nil {
-		return sqltype.Null(e.Usage.Type), nil
-	}
-	fields := make([]sqltype.Value, len(e.Members))
-	for i, member := range e.Members {
-		fields[i], err = member.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-	}
-	return sqltype.OwnedCompositeValue(e.Usage.Type, fields)
-}
 func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Relation, frame uint32, aliases *returningAliases, pos parser.Position) (expr.Expr, bool, error) {
 	if aliases == nil || aliases.mode != returningInsert && aliases.mode != returningMerge {
 		return nil, false, nil
