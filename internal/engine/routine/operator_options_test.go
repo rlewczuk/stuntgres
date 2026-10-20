@@ -31,12 +31,12 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 	for _, literal := range []string{"", "int4", "integer", "pg_catalog.int4", `A."B"`, "int4[]", "SETOF int4", "numeric(8,2)", " Int4 "} {
 		pos := parser.Position{Offset: 27, Character: 28}
 		o := parser.OperatorOption{Name: "function", HasValue: true, Kind: parser.OperatorOptionStringArgument, Value: literal, ValuePos: pos}
-		name, err := OperatorOptionName(o)
+		name, err := operatorOptionName(o)
 		if err != nil || !reflect.DeepEqual(name.Parts, []parser.Identifier{{Text: literal, Pos: pos}}) {
 			t.Fatal("literal name reinterpreted", literal, name, err)
 		}
 		o.Name = "leftarg"
-		typ, err := OperatorOptionType(o)
+		typ, err := operatorOptionType(o)
 		want := parser.TypeName{Name: literal, Quoted: true, Parts: []parser.Identifier{{Text: literal, Pos: pos}}, Pos: pos}
 		if err != nil || !reflect.DeepEqual(typ, want) {
 			t.Fatal("literal type reinterpreted", literal, typ, err)
@@ -44,7 +44,7 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 	}
 	for _, text := range []string{"function=int4", "function=int4[]", "function=int4(8)", "function=SETOF int4"} {
 		o := operatorParsedOptions(t, text)[0]
-		name, err := OperatorOptionName(o)
+		name, err := operatorOptionName(o)
 		if err != nil || len(name.Parts) != 1 || name.Parts[0].Text != "int4" {
 			t.Fatal("generic name canonicalized as a type", text, name, err)
 		}
@@ -60,7 +60,7 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 		{"pg_catalog.int4", []string{"pg_catalog", "int4"}},
 	} {
 		o := operatorParsedOptions(t, "function="+tc.text)[0]
-		name, err := OperatorOptionName(o)
+		name, err := operatorOptionName(o)
 		if err != nil || len(name.Parts) != len(tc.parts) {
 			t.Fatal(tc.text, name, err)
 		}
@@ -77,22 +77,22 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 		{"function=OPERATOR(public.+)", "", "argument of function must be a type name"},
 	} {
 		o := operatorParsedOptions(t, tc.text)[0]
-		_, err := OperatorOptionName(o)
+		_, err := operatorOptionName(o)
 		if tc.nameError != "" {
 			operatorOptionDiagnostic(t, err, "42601", tc.nameError, "")
 		} else if err != nil {
 			t.Fatal(err)
 		}
-		_, err = OperatorOptionType(o)
+		_, err = operatorOptionType(o)
 		operatorOptionDiagnostic(t, err, "42601", tc.typeError, "")
 	}
 	for _, text := range []string{"function=pg_catalog.int4[]", "function=pg_catalog.numeric(8,2)", "function=SETOF pg_catalog.int4"} {
 		o := operatorParsedOptions(t, text)[0]
-		name, err := OperatorOptionName(o)
+		name, err := operatorOptionName(o)
 		if err != nil || len(name.Parts) != 2 || name.Parts[0].Text != "pg_catalog" || name.Parts[1].Text != o.Type.Name {
 			t.Fatal("name extraction must ignore type decorations only", text, name, err)
 		}
-		typ, err := OperatorOptionType(o)
+		typ, err := operatorOptionType(o)
 		if err != nil || !reflect.DeepEqual(typ, o.Type) {
 			t.Fatal("type extraction lost decorations", text, typ, err)
 		}
@@ -111,7 +111,7 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 			text += "=" + tc.rhs
 		}
 		o := operatorParsedOptions(t, text)[0]
-		got, err := OperatorBoolean(o)
+		got, err := operatorBoolean(o)
 		if tc.valid {
 			if err != nil || got != tc.want {
 				t.Fatal(text, got, err)
@@ -123,19 +123,19 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 	for _, text := range []string{"restrict", "restrict=NONE", "restrict='none'", `restrict="none"`} {
 		o := operatorParsedOptions(t, text)[0]
 		create := o
-		o = OperatorAlterOption(o)
+		o = operatorAlterOption(o)
 		nullable := text == "restrict" || text == "restrict=NONE"
 		if o.HasValue == nullable {
 			t.Fatal("ALTER NULL classification", text, o)
 		}
 		if !nullable {
-			name, err := OperatorOptionName(o)
+			name, err := operatorOptionName(o)
 			if err != nil || len(name.Parts) != 1 || name.Parts[0].Text != "none" {
 				t.Fatal(text, name, err)
 			}
 		}
 		if text == "restrict=NONE" {
-			name, err := OperatorOptionName(create)
+			name, err := operatorOptionName(create)
 			if err != nil || name.Parts[0].Text != "none" {
 				t.Fatal("CREATE NONE lost real name", name, err)
 			}

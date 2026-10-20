@@ -19,21 +19,21 @@ func collectOperatorOptions(h DDLHost, auth Authority, d *catalog.Operator, opti
 	for i := range options {
 		value := options[i]
 		if alter {
-			value = OperatorAlterOption(value)
+			value = operatorAlterOption(value)
 		}
 		o := &value
 		var err error
 		switch o.Name {
 		case "commutator":
-			comm, err = OperatorOptionName(*o)
+			comm, err = operatorOptionName(*o)
 		case "negator":
-			neg, err = OperatorOptionName(*o)
+			neg, err = operatorOptionName(*o)
 		case "restrict":
 			restriction = &options[i]
 		case "join":
 			join = &options[i]
 		case "hashes", "merges":
-			enabled, err := OperatorBoolean(*o)
+			enabled, err := operatorBoolean(*o)
 			if err != nil {
 				return comm, neg, err
 			}
@@ -55,12 +55,12 @@ func collectOperatorOptions(h DDLHost, auth Authority, d *catalog.Operator, opti
 		}
 		value := *o
 		if alter {
-			value = OperatorAlterOption(value)
+			value = operatorAlterOption(value)
 		}
 		var name parser.ObjectName
 		if !alter || value.HasValue {
 			var err error
-			name, err = OperatorOptionName(value)
+			name, err = operatorOptionName(value)
 			if err != nil {
 				return comm, neg, err
 			}
@@ -97,13 +97,13 @@ func StageCreateOperator(h DDLHost, auth Authority, s *parser.CreateOperator) er
 	for _, o := range s.Options {
 		switch o.Name {
 		case "leftarg":
-			left, err = OperatorOptionType(o)
+			left, err = operatorOptionType(o)
 			hasLeft = true
 		case "rightarg":
-			right, err = OperatorOptionType(o)
+			right, err = operatorOptionType(o)
 			hasRight = true
 		case "function", "procedure":
-			function, err = OperatorOptionName(o)
+			function, err = operatorOptionName(o)
 		}
 		if err != nil {
 			return err
@@ -160,7 +160,7 @@ func StageCreateOperator(h DDLHost, auth Authority, s *parser.CreateOperator) er
 	if !ValidOperatorName(symbol) {
 		return sqlError("42602", fmt.Sprintf(`"%s" is not a valid operator name`, symbol))
 	}
-	if err = ValidateOperatorOptions(&next, comm, neg); err != nil {
+	if err = validateOperatorOptions(&next, comm, neg); err != nil {
 		return err
 	}
 	old, _ := view.Catalog.Operator(view.Catalog.NameAddress(catalog.DescriptorNameKey(&next)))
@@ -285,19 +285,19 @@ func StageAlterOperator(h DDLHost, auth Authority, s *parser.AlterOperator) erro
 		if negator != nil && negator.Address() == next.Address() {
 			return sqlError("42P13", "operator cannot be its own negator")
 		}
-		if err = CheckOperatorLinkReplacement(d, commutator, false); err != nil {
+		if err = checkOperatorLinkReplacement(d, commutator, false); err != nil {
 			return err
 		}
-		if err = CheckOperatorLinkReplacement(d, negator, true); err != nil {
+		if err = checkOperatorLinkReplacement(d, negator, true); err != nil {
 			return err
 		}
 		if d.Merge && !next.Merge {
-			return OperatorOptionError("merges")
+			return operatorOptionError("merges")
 		}
 		if d.Hash && !next.Hash {
-			return OperatorOptionError("hashes")
+			return operatorOptionError("hashes")
 		}
-		if err = ValidateOperatorOptions(&next, comm, neg); err != nil {
+		if err = validateOperatorOptions(&next, comm, neg); err != nil {
 			return err
 		}
 		if err = stageResolvedOperatorLink(h, &next, commutator, false); err != nil {

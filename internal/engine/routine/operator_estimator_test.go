@@ -32,7 +32,7 @@ func TestUserOperatorCatalogEstimatorVariants(t *testing.T) {
 		{name: "ambiguous", fourCount: 1, fiveCount: 1, code: "42725", message: "join estimator function public.join_estimator has multiple matches"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, count, err := OperatorEstimatorVariant(name, five, tc.fiveCount, four, tc.fourCount)
+			got, count, err := operatorEstimatorVariant(name, five, tc.fiveCount, four, tc.fourCount)
 			if tc.code != "" {
 				var d *sqlstate.Error
 				if !errors.As(err, &d) || d.Code != tc.code || d.Message != tc.message {
@@ -68,7 +68,7 @@ func TestUserOperatorCatalogEstimatorMetadata(t *testing.T) {
 		{name: "missing_metadata", builtin: true, code: "0A000", message: "operator estimator return metadata is unavailable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateOperatorEstimatorMetadata(name, tc.join, tc.result, tc.builtin, tc.superuser)
+			err := validateOperatorEstimatorMetadata(name, tc.join, tc.result, tc.builtin, tc.superuser)
 			if tc.code == "" {
 				if err != nil {
 					t.Fatal(err)

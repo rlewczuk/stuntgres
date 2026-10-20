@@ -102,7 +102,7 @@ func operatorEstimator(h DDLHost, auth Authority, name parser.ObjectName, join b
 		if err != nil {
 			return 0, err
 		}
-		identity, count, err = OperatorEstimatorVariant(name, identity, count, alternate, other)
+		identity, count, err = operatorEstimatorVariant(name, identity, count, alternate, other)
 		if err != nil {
 			return 0, err
 		}
@@ -134,7 +134,7 @@ func operatorEstimator(h DDLHost, auth Authority, name parser.ObjectName, join b
 			superuser = actor.Superuser
 		}
 	}
-	if err := ValidateOperatorEstimatorMetadata(name, join, result, builtin, superuser); err != nil {
+	if err := validateOperatorEstimatorMetadata(name, join, result, builtin, superuser); err != nil {
 		return 0, err
 	}
 	return identity.ID, nil

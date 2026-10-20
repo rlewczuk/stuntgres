@@ -28,7 +28,7 @@ func ValidOperatorName(name string) bool {
 	return len(name) == 1 || !strings.ContainsAny(name[len(name)-1:], "+-") || strings.ContainsAny(name, "~!@#^&|`?%")
 }
 
-func OperatorOptionName(o parser.OperatorOption) (parser.ObjectName, error) {
+func operatorOptionName(o parser.OperatorOption) (parser.ObjectName, error) {
 	if !o.HasValue {
 		return parser.ObjectName{}, sqlError("42601", o.Name+" requires a parameter")
 	}
@@ -53,7 +53,7 @@ func OperatorOptionName(o parser.OperatorOption) (parser.ObjectName, error) {
 	return parser.ObjectName{}, sqlError("42601", "argument of "+o.Name+" must be a name")
 }
 
-func OperatorOptionType(o parser.OperatorOption) (parser.TypeName, error) {
+func operatorOptionType(o parser.OperatorOption) (parser.TypeName, error) {
 	if !o.HasValue {
 		return parser.TypeName{}, sqlError("42601", o.Name+" requires a parameter")
 	}
@@ -71,7 +71,7 @@ func OperatorOptionType(o parser.OperatorOption) (parser.TypeName, error) {
 }
 
 // ALTER's unquoted NONE is a NULL argument; quoted/literal none remains a name.
-func OperatorAlterOption(o parser.OperatorOption) parser.OperatorOption {
+func operatorAlterOption(o parser.OperatorOption) parser.OperatorOption {
 	if o.Kind == parser.OperatorOptionNoneArgument {
 		o.HasValue, o.Kind = false, parser.OperatorOptionNoArgument
 	}
@@ -93,7 +93,7 @@ func OperatorInputName(v catalog.Read, left, right ids.OID, name parser.ObjectNa
 
 // Both join signatures are legal, but neither wins over the other when both
 // exist. Inputs are lookup identities, not callable provider declarations.
-func OperatorEstimatorVariant(name parser.ObjectName, five catalog.RoutineIdentity, fiveCount int, four catalog.RoutineIdentity, fourCount int) (catalog.RoutineIdentity, int, error) {
+func operatorEstimatorVariant(name parser.ObjectName, five catalog.RoutineIdentity, fiveCount int, four catalog.RoutineIdentity, fourCount int) (catalog.RoutineIdentity, int, error) {
 	if fiveCount != 0 && fourCount != 0 {
 		return catalog.RoutineIdentity{}, 0, sqlError("42725", "join estimator function "+objectNameText(name)+" has multiple matches")
 	}
@@ -103,7 +103,7 @@ func OperatorEstimatorVariant(name parser.ObjectName, five catalog.RoutineIdenti
 	return four, fourCount, nil
 }
 
-func ValidateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result ids.OID, builtin, superuser bool) error {
+func validateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result ids.OID, builtin, superuser bool) error {
 	if !builtin && !superuser {
 		return sqlError("42501", "must be superuser to specify a non-built-in selectivity estimation function")
 	}
@@ -120,11 +120,11 @@ func ValidateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result
 	return nil
 }
 
-func OperatorOptionError(name string) error {
+func operatorOptionError(name string) error {
 	return sqlError("42P13", fmt.Sprintf(`operator attribute "%s" cannot be changed if it has already been set`, name))
 }
 
-func ValidateOperatorOptions(d *catalog.Operator, comm, neg parser.ObjectName) error {
+func validateOperatorOptions(d *catalog.Operator, comm, neg parser.ObjectName) error {
 	// OperatorValidateParams completes binary eligibility before checking
 	// Boolean results, even when an earlier Boolean-only option is also set.
 	if d.Left == 0 {
@@ -161,7 +161,7 @@ func ValidateOperatorOptions(d *catalog.Operator, comm, neg parser.ObjectName) e
 	return nil
 }
 
-func OperatorBoolean(o parser.OperatorOption) (bool, error) {
+func operatorBoolean(o parser.OperatorOption) (bool, error) {
 	if !o.HasValue {
 		return true, nil
 	}
@@ -210,7 +210,7 @@ func OperatorBoolean(o parser.OperatorOption) (bool, error) {
 	return false, sqlError("42601", o.Name+" requires a Boolean value")
 }
 
-func CheckOperatorLinkReplacement(d, peer *catalog.Operator, negator bool) error {
+func checkOperatorLinkReplacement(d, peer *catalog.Operator, negator bool) error {
 	if peer == nil {
 		return nil
 	}
@@ -223,7 +223,7 @@ func CheckOperatorLinkReplacement(d, peer *catalog.Operator, negator bool) error
 		if negator {
 			attribute = "negator"
 		}
-		return OperatorOptionError(attribute)
+		return operatorOptionError(attribute)
 	}
 	return nil
 }
@@ -234,9 +234,9 @@ func operatorOptionsSyntax(h DDLHost, options []parser.OperatorOption, alter boo
 	for _, raw := range options {
 		o := raw
 		if alter {
-			o = OperatorAlterOption(o)
+			o = operatorAlterOption(o)
 			if o.HasValue {
-				if _, err := OperatorOptionName(o); err != nil {
+				if _, err := operatorOptionName(o); err != nil {
 					return err
 				}
 			}
@@ -246,7 +246,7 @@ func operatorOptionsSyntax(h DDLHost, options []parser.OperatorOption, alter boo
 			if alter {
 				return sqlError("42601", fmt.Sprintf(`operator attribute "%s" cannot be changed`, o.Name))
 			}
-			typ, err := OperatorOptionType(o)
+			typ, err := operatorOptionType(o)
 			if err != nil {
 				return err
 			}
@@ -257,18 +257,18 @@ func operatorOptionsSyntax(h DDLHost, options []parser.OperatorOption, alter boo
 			if alter {
 				return sqlError("42601", fmt.Sprintf(`operator attribute "%s" cannot be changed`, o.Name))
 			}
-			if _, err := OperatorOptionName(o); err != nil {
+			if _, err := operatorOptionName(o); err != nil {
 				return err
 			}
 		case "restrict", "join", "commutator", "negator":
 			if alter && !o.HasValue && (o.Name == "restrict" || o.Name == "join") {
 				continue
 			}
-			if _, err := OperatorOptionName(o); err != nil {
+			if _, err := operatorOptionName(o); err != nil {
 				return err
 			}
 		case "hashes", "merges":
-			if _, err := OperatorBoolean(o); err != nil {
+			if _, err := operatorBoolean(o); err != nil {
 				return err
 			}
 		case "sort1", "sort2", "ltcmp", "gtcmp":
