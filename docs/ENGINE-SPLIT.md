@@ -296,7 +296,7 @@ The later waves (§6) refine L6 into these layers:
  L6  engine/plan           plan IR and concrete expression node types (expr, functions, catalog, lock) step 10
  L7  engine/exec           executor runtime, the concrete evaluation context (plan, storage, visibility, lock) step 11
  L8  engine/analyze        binder and statement binding (plan; exec only for constant evaluation) step 12
- L9  engine/session        sessions, operations, statement scope, transaction owner (exec, analyze, settings) step 13
+ L9  engine/session        sessions, operations, transaction owner, journal, settings store (exec, settings; never analyze) step 13
  L10 engine/<feature>      routine, typedef, extension, sequence, then the postponed features  steps 14–17
  L11 engine/control        native Reset/Dump/Restore driver (postponed)
  L12 engine                public facade and statement dispatch
@@ -348,7 +348,9 @@ Its private immutable payloads contain no session/operation/notice authority.
    Their Part A content (records and algorithms that import only L1–L5) sits
    below `analyze` in practice: the binder calls it, so `analyze` may import
    it. Part B handlers never import `analyze`; they reach binding through the
-   root host (12d refine).
+   root host (12d refine). For the same reason `session`, which Part B
+   handlers import, never imports `analyze` or a feature package (13c
+   refine).
 7. **Lower layers never name upper-layer types.** When a lower package must
    carry an upper-layer value (a feature's statement state, a journal fence,
    a CTE's mutation binding), it holds a lower-layer interface or an opaque
@@ -1102,10 +1104,11 @@ point. Prompt file: [ENGINE-SPLIT-analyze.md](ENGINE-SPLIT-analyze.md).
 
 ### Step 13 — `engine/session`: sessions and statement scope
 
-**Moves** (refined in 13c). `Session`, `Operation`, the statement scope
-core, the transaction owner, savepoints, the `catalogChanges` journal, 2PC,
-notifications, timeouts, SQL cursors and portals, the prepared SQL registry
-and the per-session settings store.
+**Moves** (refined in 13c). `Session`, `Operation`, the transaction owner's
+state, savepoint marks, the `catalogChanges` journal, timeouts, notices,
+`ProtocolCycle`, the notification records, the per-session settings store,
+the transaction and session value types, and a small `StatementLease` that
+replaces the scope back-references in timeouts and COPY admission.
 
 **In-place port.**
 
@@ -1120,17 +1123,27 @@ and the per-session settings store.
   materialized sources, domain validation, enum generations, typed-table
   observation) become feature slots, and the journal fences one fence
   interface. The transaction owner's FDW participants become a slot.
-- **13c — refine** after steps 11 and 12: decide what moves and the boundary
-  with the root dispatch.
+- **13c — refine** after steps 11 and 12. Done: most of the session layer
+  is orchestration (57 `Engine` methods install changes under `Engine.mu`),
+  only 16 of the 320 scope methods touch nothing but a possible core, and
+  `analyze` imports the feature packages, so `session` must not import it.
+  State moves; orchestration and the scope stay. 13d runs in six sessions
+  (journal, statement lease, engine edges, root payloads, file splits and
+  exports, move); details in the prompt file.
 
-**Stays in the engine.** Statement dispatch (`executeStatement`) and the
-feature handlers until Part B of their feature steps.
+**Stays in the engine.** Statement dispatch (`executeStatement`), the whole
+`StatementScope`, the cross-subsystem orchestration (begin, end, publication,
+2PC install, prepared re-analysis), SQL cursors, protocol portals, the
+prepared SQL registry, `StatementDescription`, the notification listener,
+the 2PC records, and the feature handlers until Part B of their feature
+steps. Part B handlers reach the scope through host interfaces on
+`statementHost` (§7 decision 8).
 
 **Doable because** 13a and 13b remove every feature type from the shared
 structs, so `session` imports no feature package.
 
-**Done when** `session` imports no feature package and nothing above L9.
-Prompt file: [ENGINE-SPLIT-session.md](ENGINE-SPLIT-session.md).
+**Done when** `session` imports no feature package, not `analyze`, and
+nothing above L9. Prompt file: [ENGINE-SPLIT-session.md](ENGINE-SPLIT-session.md).
 
 ### Step 14 — `engine/routine`: builtin routines and operators
 
@@ -1260,7 +1273,12 @@ These packages get prompt files after the steps above. Each needs `session`
 7. **Slot typing.** Before `session` moves, scope and journal slots name
    engine types; after it moves they must be lower-layer interfaces (§3 rule
    7). Settle in 13c whether that is one interface per slot or a typed key
-   (`session.Slot[T]`).
+   (`session.Slot[T]`). Settled in 13c: one interface per slot, with an
+   exported marker method (and `Clone` where the journal or savepoints copy
+   it) and one checked helper in the owner; a typed nil is never stored.
+   Root-only slots with one lifetime collapse into one root payload per
+   struct; the fence list becomes `[]session.Fence`. No `Slot[T]`. Scope
+   slots need neither, because `StatementScope` stays in the root.
 8. **Host interfaces.** `exec` (11b), `analyze` (12c) and the feature Part B
    steps each declare a host interface that the root package implements.
    Settled in 11a: one root adapter type, `statementHost` (a defined type
@@ -1271,6 +1289,8 @@ These packages get prompt files after the steps above. Each needs `session`
    methods. Two scope-free exceptions: 11b's stateless `execPreparation`
    value, and 12c's `bindingHost` over the engine and operation, because
    binders also run without a scope (DDL, defaults, checks, bootstrap).
+   13c confirms the pattern for the feature Part B steps: `StatementScope`
+   stays in the root, so their handlers reach it only through such hosts.
 9. **Where `Eval` lives.** Step 10 keeps node types and `Eval` in `plan`,
    with engine state behind a node runtime capability; the alternative is to
    keep `Eval` for frame-reading nodes in `exec`. Settled in 10b: `Eval`
@@ -1280,7 +1300,10 @@ These packages get prompt files after the steps above. Each needs `session`
    user (numbers in the plan prompt's 10b result).
 10. **Settings session store.** Whether `sessionSettings` (with its SET LOCAL
     stack) moves into `settings` or `session`. It reads session authorization
-    and timeouts today, so step 8 leaves it for 13c.
+    and timeouts today, so step 8 leaves it for 13c. Settled in 13c:
+    `session`. It holds the `*Session` back-pointer, role setting actions
+    and the owner's characteristic projections, and its mutex sits between
+    `Engine.mu` and `session.mu`.
 11. **Facade types.** `RegistrationError`, `SettingDefinition`, `RowResult`
     and `StatementDescription` are named by the root driver. Settle per step
     whether the driver imports the subpackage directly (as it does `catalog`
@@ -1291,7 +1314,13 @@ These packages get prompt files after the steps above. Each needs `session`
     `cmd/stuntgres` import `exec` directly, with no permanent alias.
     Settled for step 12 (12e): `analyze` owns `ParameterInfo`; the driver
     imports `analyze` directly (`frameImporter` and the adapter tests), with
-    no permanent alias.
+    no permanent alias. Proposed for step 13 (13c; applied in 13e): the
+    driver and `cmd/stuntgres` import `session` directly for `Session`,
+    `SessionStart`, `EndReason`, `ResourceKind`, `Tx*`, `TxOptions`, the
+    isolation constants and `ProtocolCycle`; `StatementScope`,
+    `StatementDescription`, `Result`, the other `Protocol*`/`CopyProtocol*`
+    types, `CopyBoundary` and `FrameImporter` stay root types.
+    `Session.Engine()` goes away, so the driver keeps its own engine field.
 
 ## 8. Implementation sessions
 
@@ -1314,7 +1343,7 @@ package-specific scope. This section holds the rules every session follows.
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10d): `plan` created, IR, node types and installed extension nodes moved, aliases removed (racecheck/finalcheck skipped by user) |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c; 12d: 12c, 11c | done (12a–12e): `binding` split per statement kind, binder fields grouped, host seam, `analyze` created, areas prepared in place and the binder moved (12d.1–12d.6), aliases removed; the driver imports `analyze` for `ParameterInfo` (racecheck/finalcheck skipped at user request) |
-| 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c–13e planned |
+| 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c refined (state moves, the scope and orchestration stay; decisions 7, 10 settled, 11 proposed); 13d (six sessions) and 13e planned |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c–16d planned |

@@ -18,9 +18,10 @@ constraints, verification, documentation and report.
 ## Goal
 
 The statement scope, the operation, the catalog journal and the stage stop
-carrying feature fields. Then sessions, operations, the statement scope core
-and the transaction owner move into `session`, which imports no feature
-package. The root package keeps the public facade and statement dispatch.
+carrying feature fields. Then sessions, operations, the transaction owner,
+the catalog journal and the settings store move into `session`, which imports
+no feature package and not `analyze`. The root package keeps the public
+facade, the statement scope and statement dispatch (13c refine).
 
 ## Inventory (measured at `75fe0d710`)
 
@@ -284,25 +285,197 @@ After 11c and 12d:
    (facade types).
 5. Write the 13d session order and commit sequence here; wait for approval.
 
-### 13d — Move (broad; several sessions)
+**13c refine (approved; measured at `3fbd7d241`).** The `frontier`,
+`reach` and `paths` tools (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/`;
+outputs in `.cswd/tmp/PG18-ENGINE-SPLIT-SESSION-REFINE/`), with the 43
+session-layer files (9.75k lines: `session*.go`, `protocol_*.go`,
+`prepared_rebind.go`, `prepared_sql.go`, `sql_cursor*.go`,
+`notification*.go`, `transaction*.go`, `savepoints.go`,
+`commit_timestamp_store.go`, `catalog_transaction*.go`, `catalog_fence.go`,
+`notices.go`, `statement_signature.go`) as the move set:
 
-Follow the 13c plan. Each session exports in place, moves, and leaves
-aliases. Keep the public facade source-compatible: the root driver keeps
-compiling against `engine.Session`, `engine.Operation` and
-`engine.StatementScope` until 13e, through aliases or wrappers.
+- **Most of the layer is orchestration.** 57 `Engine` methods live in these
+  files (begin and end, publication, preflight, 2PC install, notification
+  publication, settings application, prepared re-analysis); they install
+  changes across catalog, storage and visibility under `Engine.mu` (§3 rule
+  4). `StatementScope` has 320 methods in 119 files; against a proposed core
+  header, 16 touch only core fields, 58 touch only core fields but call
+  other scope methods, 95 reach `Engine` and 151 use execution fields or
+  slots.
+- **Outside uses** (production, outside the move set): scope header fields
+  about 2.5k (`op` 767, `owner` 300, `input` 187, `inquiry` 140,
+  `replacementRead` 127), `Operation` about 1k (`session` 376, `Context`
+  362), `Session` about 440 (`Engine()` 146), transaction owner about 380
+  (`catalog` 187), journal about 310.
+- **What stays dirty after the obvious cuts** (session, notification and
+  fence back-pointers, the operation's analysis host and replay slot, the
+  three `*StatementScope` back-references, the owner's FDW and exclusion
+  values, the journal's index slot): `sqlCursor` holds two
+  `AuthorizationView` values, which stay in the root (authorization
+  prompt), and through it `protocolPortal`, the prepared registry, the
+  owner's cursor cleanup and `Session` reach the root.
+  `sessionNotifications` holds `*Engine` and its queue is guarded by
+  `Engine.mu`; the 2PC records are held only by `Engine.prepared`.
+- **Feature types inside moving structs:** the journal's
+  `typedef.EnumJournal`/`DomainJournal` and index slot, `Session.sequences`
+  (`sequence.SessionMemory`), the owner's `foreign` and `exclusionModes`,
+  and the savepoint exclusion projection.
+- **Layering.** `analyze` imports `typedef`, `sequence`, `routine` and
+  `extension` (§3 rule 6). Part B puts handlers that import `session` into
+  those packages, so `session` must never import `analyze` or a feature
+  package: either would form a cycle. `StatementDescription` holds
+  `analyze.ParameterInfo` and `*sequence.Analysis`, so it cannot move.
+- **Driver.** It calls `Session.Engine()` at six call sites (`conn.go`,
+  `tx.go`, `copy.go`, `control.go`).
+- **What session code needs from the scope is small.** Timeouts compare
+  `sessionTimeout.scope` and `Operation.timeoutScope` by identity and write
+  only `timeoutRef`; the owner's `copyScope` is identity only. No moving
+  code needs to get back from session state to the root scope.
+
+Decisions:
+
+1. **State moves, orchestration stays.** `session` gets `Session`,
+   `Operation` and the copy-input context; the transaction owner's state,
+   with the owner methods that stay clean (`inBlock`, `retainsTransaction`,
+   `truncateSavepoints`, `acquireAdmission`); savepoint marks; the
+   `catalogChanges` journal; timeouts; notices; `ProtocolCycle`; the
+   `Notification` and `notificationAction` records; the settings store; and
+   the value types `Tx*`, `Isolation`, `TxOptions`, `EndReason`,
+   `ResourceKind` and `SessionStart`. Engine orchestration stays in the
+   root. The other owner methods become root functions (for example
+   `clearTransaction(t)`, which retires cursors and portals).
+2. **`StatementScope` stays whole in the root** as the dispatch type. A
+   core split would buy 16 methods for about 2.5k exports and about 70 of
+   the 85 test literals (51 files). Instead `session` declares a small
+   `StatementLease` value (statement identity and `TimeoutRef`), held as a
+   named scope field; it replaces `Operation.timeoutScope`,
+   `sessionTimeout.scope` and the owner's `copyScope`, and the scope fields
+   the timeout code only reads (`op`, `message`, `txRef`,
+   `transactionStart`) become arguments. Part B feature handlers reach the
+   scope through per-consumer host interfaces on `statementHost` (§7
+   decision 8), not by naming the scope; they need hosts anyway because
+   `CatalogStage` stays in the root.
+3. **Stay in the root:** SQL cursors, protocol portals, the prepared SQL
+   registry, `sqlRoutines` and `StatementDescription` (execution runtime and
+   analysis output), the notification listener (`sessionNotifications`) and
+   the 2PC records. `Session` holds them through one root session payload,
+   allocated with the session; the owner holds the foreign participants,
+   exclusion modes and cursor cleanup through one root owner extension.
+   Prepared SQL rules therefore stay in `AGENTS.md`.
+4. **Slot typing (§7 decision 7): one interface per slot.** Each slot is a
+   `session` interface with an exported marker method (and `Clone` where
+   savepoints or the copy-on-write journal copy it); its owner recovers the
+   concrete type with one checked helper; a typed nil is never stored, so a
+   nil test keeps its meaning. Root-only slots with the same lifetime
+   collapse into one payload per struct (decision 3). The fence list
+   becomes `[]session.Fence` (`Kind()`); `catalogPreflightLocked` recovers
+   the root fence with a checked assertion and keeps the kind order and
+   recording order. No generic `session.Slot[T]`: a lower struct cannot
+   name the slot types, a typed-key table needs a registry and `[]any`, and
+   the slots' clone and reset rules differ.
+5. **Settings store (§7 decision 10): `session`.** `sessionSettings` holds
+   the `*Session` back-pointer, role setting actions and the owner's
+   characteristic projections, and its mutex sits between `Engine.mu` and
+   `session.mu` in the lock order; `settings` is L1. `settingAccess` (it
+   reads `AuthorizationView`) stays in the root.
+6. **Facade types (§7 decision 11), applied in 13e.** The driver and
+   `cmd/stuntgres` import `session` directly for `Session`, `SessionStart`,
+   `EndReason`, `ResourceKind`, `Tx*`, `TxOptions`, the isolation constants
+   and `ProtocolCycle`, with no permanent aliases (as `settings` in 8c,
+   `exec` in 11d and `analyze.ParameterInfo` in 12e). `StatementScope`,
+   `StatementDescription`, `Result`, the other `Protocol*` and
+   `CopyProtocol*` types, `CopyBoundary` and `FrameImporter` stay root
+   types. Deviation: `Session.Engine()` goes away (a lower type cannot
+   return `*Engine`), so the driver keeps its own engine field; the facade
+   is not source-compatible at those six call sites.
+7. **Layer line.** `session` imports `exec`, `settings` and L1–L5 only,
+   never `analyze` or a feature package (§3).
+
+### 13d — Move (several sessions)
+
+Six sessions, in this order. Each re-measures its move set with `reach` and
+`frontier`, checks with `go list` that `session` imports neither `analyze`
+nor a feature package, runs `make bench`, and runs `RACE=1` selections for
+timeouts, COPY, cancellation and 2PC.
+
+#### 13d.1 — Journal (broad; creates `session`)
+
+1. The journal's `enum`, `domain` and `indexesSlot` become `session` slot
+   interfaces with a marker and `Clone`; the typedef journals and the index
+   journal implement them; checked helpers recover them. Index maps stay
+   deep-copied (savepoint marks keep old journals).
+2. `fences` becomes `[]session.Fence`; root fences keep `currentLocked`
+   and are recovered by assertion in `catalogPreflightLocked`
+   (`catalog_fence_test.go` keeps passing unchanged).
+3. Export the journal members the root reads (about 310 references).
+4. Create `session`, move `catalogChanges`, `catalogStorageChange`,
+   `catalogDependencyObservation` and the clone helper, with aliases.
+
+#### 13d.2 — Statement lease and small cuts (in place)
+
+May run in parallel with 13d.1 (it touches the timeout, COPY admission and
+authorization files, not the journal).
+
+1. Add `StatementLease`; replace `Operation.timeoutScope`,
+   `sessionTimeout.scope` and `transactionOwner.copyScope`; pass the read
+   fields to `startProvisionalTimeout` and `finishScopeTimeout`.
+2. `settingAccess` and `Operation.Authorization` become root functions.
+
+#### 13d.3 — Engine edges (broad)
+
+1. A `session.Host` interface, implemented by a root adapter over the
+   engine, for what moving code needs from it: session end maintenance
+   (TEMP collations; outside `s.mu`, never inside a `SessionResource`
+   callback), unregistering from `Engine.sessions` (under `s.mu`, takes
+   `Engine.sessionMu`), serializable enrolment for characteristic sync, the
+   lock manager and the setting definitions. Document each method's lock
+   contract.
+2. `engineOf(session)` replaces `Session.Engine()` in the root (about 220
+   call sites; `s.op.session.Engine()` becomes `s.engine()`); the driver
+   keeps an engine field.
+3. Owner methods that reach the engine, FDW or cursor code become root
+   functions; the owner's `EndSession` becomes a root session resource.
+
+#### 13d.4 — Root payloads (in place)
+
+1. The root session payload: cursors, prepared registry, `sqlRoutines`,
+   `sequences` and the notification listener, allocated with the session.
+2. The root owner extension: foreign participants and cleanup, exclusion
+   modes, cursor cleanup. `markNext` becomes a generic savepoint serial in
+   the owner. The savepoint exclusion mark becomes a slot that is nil when
+   zero.
+3. The operation's `replaySlot` and `analysis` become slots, without a new
+   allocation per operation (the root allocates operations through the
+   host).
+
+#### 13d.5 — File splits and exports (broad)
+
+Split the mixed files (`transaction.go`, `session.go`, `session_timeout.go`,
+`notifications.go`, `savepoints.go`, `protocol_cycle.go`, the settings
+store) into moving and root files; export the moving members the root reads
+(about 2.1k references: `Operation` about 1k, `Session` about 440, owner
+about 380, settings); key positional test literals (`keylit`).
+
+#### 13d.6 — Move (broad)
+
+One scripted session (it may merge with 13d.5, as 12d.6 did): move the
+types of decision 1 with aliases.
 
 ### 13e — Remove the aliases (broad)
 
-Use the alias tool. Decide for each public facade name whether the driver
-imports `session` directly or the engine keeps a permanent facade alias (§3
-rule 2).
+Use the alias tool. Apply decision 6: the driver and `cmd/stuntgres` import
+`session` directly; no permanent facade aliases.
 
 ## Stays in the engine
 
 `executeStatement` and the statement-kind dispatch, feature handlers until
 Part B of their feature steps, the public `Engine` facade (`NewWithSettings`,
 `StartSession`, `Reset`, `Dump`, `Restore`, ...), and native control
-(postponed `control`).
+(postponed `control`). After the 13c refine also: `StatementScope` (whole),
+the cross-subsystem orchestration (begin, end, publication, preflight, 2PC
+install, notification publication, settings application, prepared
+re-analysis), SQL cursors, protocol portals, the prepared SQL registry,
+`StatementDescription`, the notification listener and the 2PC records.
 
 ## Invariants
 
@@ -317,6 +490,10 @@ Part B of their feature steps, the public `Engine` facade (`NewWithSettings`,
   held cursors copy exactly the state they copy today.
 - Prepared SQL rules in `AGENTS.md` (analysis-identity cells, invalidation,
   shadow retention) are unchanged.
+- A `StatementLease` keeps the identity semantics of the scope pointers it
+  replaces: one lease per scope, compared by address, never copied.
+- A nil slot interface means "none", as a nil slot pointer does today; a
+  slot `Clone` copies exactly what the journal or savepoint copies today.
 
 ## Targeted tests
 
@@ -338,17 +515,20 @@ Part B of their feature steps, the public `Engine` facade (`NewWithSettings`,
 - `docs/TRANSACTIONS.md`, `docs/QUERIES.md`, `docs/DEVELOPMENT.md` and the
   design notes that name `StatementScope`, `transactionOwner` or
   `catalogChanges` (grep `docs/design`).
-- `AGENTS.md`: add `session` to the shared subpackage bullet. Move the
-  prepared SQL bullets ("Ordinary prepared SQL", "Prepared shadow retention")
-  into the `session` README when the prepared registry moves, leaving at most
-  one line. The transaction-isolation rule stays (it is cross-cutting).
+- `AGENTS.md`: add `session` to the shared subpackage bullet. The prepared
+  SQL bullets ("Ordinary prepared SQL", "Prepared shadow retention") stay:
+  the prepared registry stays in the root (13c refine). The
+  transaction-isolation rule stays (it is cross-cutting).
+- The `lock` README: the `session.Host` callback contracts and the exported
+  session and owner mutexes (13d.3).
 
 ## Done when
 
 `StatementScope`, `Operation`, the journal, `CatalogStage` and
 `transactionOwner` hold no feature fields. `session` imports no feature
-package and nothing above L9. The root package keeps only the facade and
-dispatch. The checks in §8.3 pass, including `RACE=1` selections.
+package, not `analyze`, and nothing above L9. The root package keeps the
+facade, the statement scope, dispatch and the root payloads of 13c decision
+3. The checks in §8.3 pass, including `RACE=1` selections.
 
 ## Status
 
@@ -365,16 +545,28 @@ dispatch. The checks in §8.3 pass, including `RACE=1` selections.
   passed; racecheck/finalcheck skipped at user request; the only
   `REFERENCE=1` failures, PostgreSQL-side `PartitionExclusion*`, also fail
   on `master`)*
-- [ ] 13c — Refine (docs only)
+- [x] 13c — Refine (docs only; the commit that records this text)
+  *(measured at `3fbd7d241`; quickcheck passed; racecheck/finalcheck
+  skipped at user request)*
 - [ ] 13d — `session` created and moved (sessions per the 13c plan)
+  - [ ] 13d.1 — Journal (creates `session`)
+  - [ ] 13d.2 — Statement lease and small cuts
+  - [ ] 13d.3 — Engine edges
+  - [ ] 13d.4 — Root payloads
+  - [ ] 13d.5 — File splits and exports
+  - [ ] 13d.6 — Move
 - [ ] 13e — Aliases removed
 
 Outstanding aliases: none yet.
 
 Notes for later steps:
 
-- Part B of the feature steps (14c–17d) and the postponed packages need 13d:
-  their handlers take the statement scope.
+- Part B of the feature steps (14c–17d) and the postponed packages need 13d.
+  After the 13c refine their handlers do not name `StatementScope` (it
+  stays in the root): each declares a host interface implemented on
+  `statementHost` (§7 decision 8), and root dispatch passes the feature's
+  slot. A feature that owns a journal or owner slot implements the `session`
+  slot interface (13c decision 4).
 - The FDW write work (`fdw_*.go`, `b54eae5ef`) added the four foreign-table
   scope fields and the three owner fields listed above; it is included in
   these measurements. Feature work keeps adding fields, so re-measure in 13a.

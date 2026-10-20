@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `93c5893bb`. The later-wave plans
+Last verified against `master` at `3fbd7d241`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -16,10 +16,11 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8).
 
 - **`access` B5** — the binding walkers (item 42).
-- **Step 13 `session`** — 13c, the refine (item 43, docs only).
+- **Step 13 `session`** — 13d.1, the journal (item 44a) **broad**, and
+  13d.2, the statement lease (item 44b, in place); they may run in parallel.
 
 Steps 1, 2 and 4–12 and `access` A1–B4 are done. Step 13's in-place untangling (13a,
-13b) is done; 13c (item 43) is ready. Step 16
+13b) and its refine (13c) are done; 13d runs in six sessions (44a–44f). Step 16
 Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
 A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
 
@@ -315,8 +316,15 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     (`3ce970c39`, `43237d634`, `45992db99`, `f37f352f3`, `8915f5271`,
     `92ae3b8f3`, then the docs commit) *(racecheck/finalcheck skipped at user
     request)*
-  - [ ] 13c — Refine (docs only)
-  - [ ] 13d — `session` created and moved (several sessions) *(broad)*
+  - [x] 13c — Refine (docs only; the commit that records this status)
+    *(quickcheck passed; racecheck/finalcheck skipped at user request)*
+  - [ ] 13d — `session` created and moved (several sessions)
+    - [ ] 13d.1 — Journal, creates `session` *(broad)*
+    - [ ] 13d.2 — Statement lease and small cuts (in place)
+    - [ ] 13d.3 — Engine edges *(broad)*
+    - [ ] 13d.4 — Root payloads (in place)
+    - [ ] 13d.5 — File splits and exports *(broad)*
+    - [ ] 13d.6 — Move *(broad)*
   - [ ] 13e — Aliases removed *(broad)*
 - [ ] **Step 14 — `routine`** ([prompt](ENGINE-SPLIT-routine.md); Part A
   needs `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item; Part B
@@ -567,10 +575,20 @@ in the prompt file's Status section.
     `ParameterInfo`
 42. [ ] Access B5: binding walkers —
     [authorization](ENGINE-SPLIT-authorization.md) B5 · needs 40
-43. [ ] Session 13c (refine, docs only) —
-    [session](ENGINE-SPLIT-session.md) 13c · needs 23, 37, 40, 14
+43. [x] Session 13c (refine, docs only) —
+    [session](ENGINE-SPLIT-session.md) 13c · needs 23, 37, 40, 14 · (the
+    commit that records this status) · state moves, the scope and
+    orchestration stay; quickcheck passed; racecheck/finalcheck skipped at
+    user request
 44. [ ] Session 13d (several sessions) — [session](ENGINE-SPLIT-session.md)
-    13d · needs 43 · **broad**
+    13d · needs 43 · **broad** · done when 44a–44f are ticked
+    - 44a. [ ] 13d.1 journal, creates `session` · needs 43 · **broad**
+    - 44b. [ ] 13d.2 statement lease and small cuts · needs 43 · may run in
+      parallel with 44a
+    - 44c. [ ] 13d.3 engine edges · needs 44a, 44b · **broad**
+    - 44d. [ ] 13d.4 root payloads · needs 44c
+    - 44e. [ ] 13d.5 file splits and exports · needs 44d · **broad**
+    - 44f. [ ] 13d.6 move · needs 44e · **broad** (may merge with 44e)
 45. [ ] Session 13e — [session](ENGINE-SPLIT-session.md) 13e · needs 44 ·
     **broad**
 
