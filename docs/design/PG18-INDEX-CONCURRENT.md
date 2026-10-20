@@ -188,10 +188,10 @@ Dump rejects persistent invalid/in-flight indexes deterministically before the
 first writer call. Valid standalone unique definitions serialize ordinary
 PostgreSQL-compatible UNIQUE index SQL, including NULLS NOT DISTINCT. Isolated
 Restore uses the normal parser and the existing authenticated index destination
-authority (`restoreTableDestination`, bootstrap and `importTargets`) to reconstruct
-emitted computed definitions. Only this producer bypasses the bounded ordinary
-SQL provider-admission policy; actual tuple/provider/root validation and later
-claims remain shared. There is no UNIQUE parser option or new trust gate.
+authority (`restoreReplay.tableDestination`, bootstrap and `importTargets`) to
+reconstruct emitted computed definitions. Only this producer bypasses the
+bounded ordinary SQL provider-admission policy; actual tuple/provider/root
+validation and later claims remain shared. There is no UNIQUE parser option or new trust gate.
 Concurrent phase SQL is rejected in a Restore stream. Malformed/duplicate streams
 leave the destination unchanged.
 Replacement rejects invalid imported definitions instead of healing them, while

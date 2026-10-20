@@ -214,6 +214,59 @@ Final header: `statementMutation` (embedded), `mutations`, `activeMutation`,
    journal slots; `domainBases`, `domainTargets` and `domainChanged` are
    shared and stay (see the typedef prompt file's Status).
 
+**13b result** (measured at `01c1a9ec4`, rebased onto `c6766e328`): 32
+feature fields left the four structs. New pointer slots follow the 13a rules
+(`xSlot` field, allocating `x()`, copying `xOrZero()`, nil means all zero).
+
+| Struct | Slot | Kind | Type, home file | Fields |
+|---|---|---|---|---|
+| `Operation` | `replaySlot` | pointer | `restoreReplay`, `restore_replay.go` | tableDestination, insertAuthority, commentAuthority, materializedPopulation, materializedOwner, defaultReplay, sqlBodies, partitionAttach, partitionCheck, partitionUsingIndex, partitionUnique, domainReplay |
+| `catalogChanges` | `fences` | list | `catalogFence`, `catalog_fence.go` | the storage-read, index-set, namespace, extension authority, TRUNCATE graph and materialized source fences |
+| `catalogChanges` | `indexesSlot` | pointer | `indexJournal`, `index_journal.go` | uniqueRoots, candidates, rebuilds |
+| `CatalogStage` | `indexesSlot` | pointer | `indexStage`, `index_stage.go` | rebuilds, candidates, layouts, parents, sets, output |
+| `CatalogStage` | `materializedSlot` | pointer | `materializedStage`, `materialized_stage.go` | replacement, sourceView |
+| `transactionOwner` | `foreign` | value | `foreignTransaction`, `fdw_transaction.go` | participants, cleanup, markNext |
+
+Fence list: each fence type declares `fenceKind()` and its own
+`currentLocked(e, c)` next to its feature code (`partitionReadFence`,
+`catalogIndexFence`, `catalogNamespaceFence`,
+`extensionAuthorityFence`, `truncateGraphFence`,
+`materializedSourceFence`). `catalogPreflightLocked` checks the kinds at
+the same four points as before: storage-read, index-set and namespace after
+the typedef domain fences; extension authority before the dependency
+preflight; TRUNCATE graph after it; materialized sources after the storage
+check. Within a call, kinds run in the given order and fences in recording
+order, so the first error is unchanged. The extension fence repeats the
+name-conflict check per observation; the check does not depend on the
+observation, so the first error is the same. The journal index slot's
+`clone` copies its maps (the journal is copy-on-write; savepoint marks keep
+old journals), `forget` replaces the paired deletes and `pending` the
+publication XID test.
+
+Stays, measured: `discardRoleReset` (the only DISCARD field); journal
+`domainChanged` (shared, see the typedef Status), `dependencies` and the
+core maps; stage `querySources` (written by policy, rule, view ALTER,
+TRUNCATE, CREATE TABLE AS and REFRESH stages), `partitionReads` (generic
+storage read fences, also fed by index parents and candidates),
+`likeSources` (CREATE TABLE LIKE only, one field; postponed `table`),
+cascade names (about 11 features), `initialTables` and `initialTx` (CTAS,
+SELECT INTO, TEMP, materialized), `extensionNamespace` (one extension
+field; step 16), the database predecessor and authority, `roleCandidate`,
+`terminalCleanup`, `dependencyPath`, `rowShapes`.
+
+Deviations from the plan above:
+
+- `transactionOwner`'s FDW fields are a value group, not a pointer slot:
+  every SAVEPOINT advances `markNext`, so a lazy slot would allocate in
+  transactions with no foreign tables.
+- `extensionAuthority` became a fence kind rather than an extension journal
+  slot: publication only checks it, like the other fences. Step 16b moved
+  the observation to `extension.AuthorityObservation`; the engine wraps it
+  in `extensionAuthorityFence` (`extension_authority_fence.go`), because the
+  fence interface takes the engine.
+- `querySources` stays in the stage header (see above); only the two
+  refresh fields form the materialized slot.
+
 ### 13c — Refine (docs only)
 
 After 11c and 12d:
@@ -306,7 +359,12 @@ dispatch. The checks in §8.3 pass, including `RACE=1` selections.
   passed; the only `REFERENCE=1` failures, PostgreSQL-side
   `PartitionExclusion*` and PG-only `SerialDefaultProviderPublicationHold`,
   also fail on `master`; racecheck/finalcheck skipped at user request)*
-- [ ] 13b — Operation, journal, stage and owner slots
+- [x] 13b — Operation, journal, stage and owner slots (`3ce970c39`,
+  `43237d634`, `45992db99`, `f37f352f3`, `8915f5271`, `92ae3b8f3`, then the
+  docs commit) *(selected unit/`RACE=1` and dual-mode proof and quickcheck
+  passed; racecheck/finalcheck skipped at user request; the only
+  `REFERENCE=1` failures, PostgreSQL-side `PartitionExclusion*`, also fail
+  on `master`)*
 - [ ] 13c — Refine (docs only)
 - [ ] 13d — `session` created and moved (sessions per the 13c plan)
 - [ ] 13e — Aliases removed
@@ -324,11 +382,22 @@ Notes for later steps:
   rewritten in place by the selector tool (for example
   `conversion_lookup_test.go`, `serial_sequence_test.go`,
   `alter_tablespace_prefix_test.go`).
-- 13b: steps 15a and 17a already added `CatalogStage` slots (`sequence`,
-  domain ALTER, typed tables) and journal domain/enum slots in their own
-  style (field plus `xState()` accessor and nil-safe read methods). Measure
-  what is left before planning 13b.
-- 13c, §7 decision 7: 13a uses two slot kinds. Value groups (`inquiry`,
+- 13b kept the 15a/17a slots (`sequence`, `typed`, `domainAlter` on the
+  stage; `enum`, `domain` in the journal) in their own style (field plus
+  `xState()` accessor and nil-safe read methods); its new slots use the 13a
+  style. 13c settles one style per struct when the slots move.
+- 13b rewrote unit tests in place with the selector tool (for example
+  `partition_unique_replay_test.go`, `unique_lifetime_test.go`,
+  `materialized_refresh_test.go`, `fdw_transaction_test.go`); three fence
+  tests now read `fences` through the `catalogFencesOf` test helper. New
+  unit tests: `TestCatalogFencesCheckKindsInCallOrder`,
+  `TestCatalogFencesStopAtFirstFailure` (`catalog_fence_test.go`).
+- 13b, for 13c/13d: fence kinds are declared centrally in
+  `catalog_fence.go` because publication owns their order; a feature
+  package adding a fence must add its kind there. The 13b stays list
+  (above) names the stage fields with no single owner.
+- 13c, §7 decision 7: 13a uses two slot kinds (13b adds a third, the
+  journal's ordered fence list). Value groups (`inquiry`,
   `prepared`, `sqlRoutine`, `inheritance`, `domains`) are written by every
   statement; pointer slots are feature-only. Keep that split when slots
   move with their features.

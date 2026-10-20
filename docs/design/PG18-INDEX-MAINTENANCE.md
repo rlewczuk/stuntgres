@@ -116,10 +116,11 @@ root on backing rename without suppressing TYPE/shape/derived rebind work.
 
 ## Real rebuild publication
 
-`CatalogStage.indexRebuilds` records selected index addresses and their immutable
-observed descriptors. Parent observations and TABLE index-set counts are separate
-from the existing parent row-shape rebuild intents. A descriptor-unchanged stage
-is real work: no artificial descriptor revision or sibling rebuild flag is used.
+The stage index slot (`indexStage.rebuilds`) records selected index addresses
+and their immutable observed descriptors. Parent observations and TABLE
+index-set counts are separate from the existing parent row-shape rebuild
+intents. A descriptor-unchanged stage is real work: no artificial descriptor
+revision or sibling rebuild flag is used.
 All existing publication/replacement callers pass no selected maintenance intent.
 
 The existing catalog publication authority captures committed live parent heads

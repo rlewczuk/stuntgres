@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `28a0934f1`. The later-wave plans
+Last verified against `master` at `c6766e328`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -20,13 +20,11 @@ as another broad item (§8).
   done.
 - **Step 12 `analyze`** — 12c refine, then host seam (item 39); 12b and 10c
   are done.
-- **In-place untangling** — 13b operation, journal, stage and owner slots
-  (item 23; broad); 13a is done. 10d and 13b are both broad: run them one
-  after the other.
 
-Steps 1, 2 and 4–9 and `access` are done. Step 16 Part A (16a, 16b) is
-done; 16c (item 50) waits for 13d (item 44). Step 17 Part A (17a, 17b) is
-done; 17c (item 52) waits for 13d (item 44).
+Steps 1, 2 and 4–9 and `access` are done. Step 13's in-place untangling (13a,
+13b) is done; 13c (item 43) waits for 11c (item 37) and 12d (item 40). Step 16
+Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
+A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
 
 ## Task tree
 
@@ -279,7 +277,10 @@ done; 17c (item 52) waits for 13d (item 44).
     `dd7faf016`, `dd018885f`, `df6045183`, `a067c88db`, `40dc0f177`,
     `3271f3ea1`, `dd2394458`, `ef136c2c5`, `c23fe3429`, `a08db5ff1`, then the
     docs commit) *(racecheck/finalcheck skipped at user request)*
-  - [ ] 13b — Operation, journal, stage and owner slots *(broad)*
+  - [x] 13b — Operation, journal, stage and owner slots *(broad)*
+    (`3ce970c39`, `43237d634`, `45992db99`, `f37f352f3`, `8915f5271`,
+    `92ae3b8f3`, then the docs commit) *(racecheck/finalcheck skipped at user
+    request)*
   - [ ] 13c — Refine (docs only)
   - [ ] 13d — `session` created and moved (several sessions) *(broad)*
   - [ ] 13e — Aliases removed *(broad)*
@@ -427,8 +428,11 @@ in the prompt file's Status section.
 22. [x] Session 13a: scope slots — [session](ENGINE-SPLIT-session.md) 13a ·
     needs — · **broad** · selected unit/`RACE=1` and dual-mode proof and
     quickcheck passed; racecheck/finalcheck skipped at user request
-23. [ ] Session 13b: operation, journal, stage and owner slots —
+23. [x] Session 13b: operation, journal, stage and owner slots —
     [session](ENGINE-SPLIT-session.md) 13b · needs 22 · **broad**
+    (`3ce970c39`, `43237d634`, `45992db99`, `f37f352f3`, `8915f5271`,
+    `92ae3b8f3`, then the docs commit) · selected unit/`RACE=1` and dual-mode
+    proof and quickcheck passed; racecheck/finalcheck skipped at user request
 
 ### Group D — feature packages, Part A
 
