@@ -11,7 +11,7 @@ import (
 
 func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
 	view := e.catalog.read(next)
-	collation := remappedCollationCapabilities(next, mapping)
+	collation := RemappedCollationCapabilities(next, mapping)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		if old == (ids.ObjectRef{}) || typesOnly {
 			return old

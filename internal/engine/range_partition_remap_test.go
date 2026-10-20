@@ -302,7 +302,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	next.SetDescriptor(provider.Address(), &temporary)
 	next.SetDescriptor(imported.Address(), &imported)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{provider.Address(): imported.Address()}
-	collation := remappedCollationCapabilities(next, mapping)
+	collation := RemappedCollationCapabilities(next, mapping)
 	for _, typesOnly := range []bool{false, true} {
 		mapped, err := remapPartitionDescriptor(e.catalog.read(next), source,
 			func(ref ids.ObjectRef) ids.ObjectRef { return ref },

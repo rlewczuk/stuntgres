@@ -41,7 +41,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			step("ALTER DOMAIN public.d ADD CONSTRAINT counted CHECK(nextval('public.calls')>0) NOT VALID")
 			step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
 			changes := s.transactions.catalog
-			if len(changes.domain.validationFences()) != 1 || len(cloneCatalogChanges(changes).domain.validationFences()) != 1 || cloneCatalogChanges(changes).domain.validationFences()[0] != changes.domain.validationFences()[0] {
+			if len(changes.domain.ValidationFences()) != 1 || len(cloneCatalogChanges(changes).domain.ValidationFences()) != 1 || cloneCatalogChanges(changes).domain.ValidationFences()[0] != changes.domain.ValidationFences()[0] {
 				t.Fatal("immutable validation observation lost during clone")
 			}
 			view := e.privateCatalogLocked(changes)
@@ -59,10 +59,10 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			}
 			expectedTruth := int64(2)
 			if kind == "multiple_validations" {
-				first := changes.domain.validationFences()[0]
+				first := changes.domain.ValidationFences()[0]
 				step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
 				latest := s.transactions.catalog
-				if len(latest.domain.validationFences()) != 2 || latest.domain.validationFences()[0] != first || len(changes.domain.validationFences()) != 1 {
+				if len(latest.domain.ValidationFences()) != 2 || latest.domain.ValidationFences()[0] != first || len(changes.domain.ValidationFences()) != 1 {
 					t.Fatal("repeated validation replaced earliest or sibling fence")
 				}
 				expectedTruth = 4

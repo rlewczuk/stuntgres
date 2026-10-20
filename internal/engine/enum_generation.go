@@ -53,7 +53,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 			for attribute, value := range shape.fills {
 				target, _ := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
 				if target != nil && target.SQLType != value.Type() {
-					v, err := reownDomainDatum(value, target.SQLType, nil, nil, nil)
+					v, err := ReownDomainDatum(value, target.SQLType, nil, nil, nil)
 					if err != nil {
 						return err
 					}

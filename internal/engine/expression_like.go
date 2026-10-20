@@ -141,7 +141,7 @@ func collatedInfo(view catalog.Read, info expr.Info, inputs ...expr.Expr) (expr.
 		}
 		if explicit.Character > 0 {
 			if info.CollationExplicit.Character > 0 && info.Usage.Collation.ID != u.Collation.ID {
-				return info, expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, collationName(view, info.Usage.Collation.ID), collationName(view, u.Collation.ID)), explicit)
+				return info, expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, CollationName(view, info.Usage.Collation.ID), CollationName(view, u.Collation.ID)), explicit)
 			}
 			info.Usage.Collation = u.Collation
 			if info.CollationExplicit.Character == 0 {

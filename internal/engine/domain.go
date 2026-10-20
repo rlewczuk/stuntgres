@@ -39,7 +39,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if !available || relationTypeNameOccupied(auth.Catalog, ns.Address, name) {
+	if !available || RelationTypeNameOccupied(auth.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	var defaultRaw parser.Expr

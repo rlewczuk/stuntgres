@@ -79,7 +79,7 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	if a.Address().ClassID != ids.TypeClassID || a.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}) || a.Owner != op.RoleState().CurrentUser || a.Revision() == 0 || chain.Address() == a.Address() || chain.SQLType.DomainBase().Type != a.SQLType || chain.SQLType.BaseType() != numeric || chain.SQLType.Usage().BaseUsage().Typmod != 327686 || names.Dimensions != 2 || names.SQLType.BaseType().ID() != sqltype.NameArray {
 		t.Fatal(a, chain, names)
 	}
-	if a.SQLType.Usage().Typmod != -1 || chain.SQLType.Usage().Typmod != -1 || !defaultDomainACL(a) {
+	if a.SQLType.Usage().Typmod != -1 || chain.SQLType.Usage().Typmod != -1 || !DefaultDomainACL(a) {
 		t.Fatal("logical usage/ACL", a)
 	}
 	if len(original.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "amount"})) != 0 || len(first.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "chain"})) != 0 || first.Get(a.Address()) != a {

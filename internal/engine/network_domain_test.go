@@ -57,7 +57,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 				direct.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002},
 				arrays[0].Address(): {ClassID: ids.TypeClassID, ObjectID: 60003}, arrays[1].Address(): {ClassID: ids.TypeClassID, ObjectID: 60004},
 			}
-			changed, err := reownDomainTypes(next, mapping, false)
+			changed, err := ReownDomainTypes(next, mapping, false)
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}

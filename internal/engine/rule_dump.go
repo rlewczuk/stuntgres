@@ -399,7 +399,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 						return "", err
 					}
 					if key.collation != 0 {
-						parts[i] += " COLLATE " + collationSQLName(view, key.collation)
+						parts[i] += " COLLATE " + CollationSQLName(view, key.collation)
 					}
 					if key.class.Name != "" {
 						parts[i] += " " + catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(key.class.Name)

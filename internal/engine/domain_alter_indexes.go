@@ -11,7 +11,7 @@ import (
 // turn a metadata generation change into another CHECK or index truth event.
 func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalog.State, stores map[ids.ObjectAddress]*storage.Relation) error {
 	for address, store := range stores {
-		rebound, err := reownDomainIndexOutputs(stage.domainAlter.alterContext(), stage.Base.State(), next, e.stageStorageLocked(stage, address), store)
+		rebound, err := reownDomainIndexOutputs(stage.domainAlter.AlterContext(), stage.Base.State(), next, e.stageStorageLocked(stage, address), store)
 		if err != nil {
 			return err
 		}
@@ -31,7 +31,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		private = stage.authSession.transactions.catalog
 	}
-	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter.alterContext(), stage.Base, sources, sourceRoots, e.visibility.CommitSeq(), stores, private)
+	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter.AlterContext(), stage.Base, sources, sourceRoots, e.visibility.CommitSeq(), stores, private)
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		}
 		positions[address] = selected
 	}
-	roots, err := snapshot.transportRows(stage.domainAlter.alterContext(), next, stores, positions, true)
+	roots, err := snapshot.transportRows(stage.domainAlter.AlterContext(), next, stores, positions, true)
 	if err != nil {
 		return err
 	}
@@ -59,14 +59,14 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate, len(roots))
 	}
 	domain := stage.domainAlterState()
-	if domain.indexRoots == nil {
-		domain.indexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(roots))
+	if domain.IndexRoots == nil {
+		domain.IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(roots))
 	}
 	for address, root := range roots {
 		index := next.MustRelation(address)
 		store := stores[index.SQLIndex.Parent]
 		stage.indexCandidates[address] = indexRootCandidate{index: index, root: root, storage: store.IndexIdentity(), generation: store.Generation, ends: store.Ends, length: len(store.Versions)}
-		domain.indexRoots[address] = snapshot.sources[address].root
+		domain.IndexRoots[address] = snapshot.sources[address].root
 	}
 	return nil
 }

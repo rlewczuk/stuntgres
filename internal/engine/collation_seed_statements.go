@@ -11,7 +11,7 @@ import (
 
 // Seed identity/provider/pins survive SQL metadata ALTER. Reconstruct metadata
 // before user FROM definitions, using collision-free intermediate names for swaps.
-func collationSeedDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read) ([]string, error) {
+func CollationSeedDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read) ([]string, error) {
 	catalogNamespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap collation namespace")
@@ -80,7 +80,7 @@ func collationSeedDumpStatements(ctx context.Context, view catalog.Read, roles a
 	}
 	for _, change := range changes {
 		if change.owner != "postgres" || change.d.Owner.ID() != authorization.BootstrapPrincipalID {
-			statements = append(statements, "ALTER COLLATION "+collationSQLName(view, uint32(change.d.OID))+" OWNER TO "+catalog.QuoteIdentifier(change.owner)+";\n")
+			statements = append(statements, "ALTER COLLATION "+CollationSQLName(view, uint32(change.d.OID))+" OWNER TO "+catalog.QuoteIdentifier(change.owner)+";\n")
 		}
 	}
 	return statements, nil

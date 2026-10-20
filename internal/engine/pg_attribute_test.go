@@ -216,12 +216,12 @@ func TestPGAttributeDeclaredRank(t *testing.T) {
 	}
 	source := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: next.Columns[1].Usage, DeclaredDimensions: 2}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
 	typed := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: next.Columns[1].Usage}}, Attributes: []int32{1}}
-	actions, _ := typedShapeActions(source, source, typed, nil)
+	actions, _ := TypedShapeActions(source, source, typed, nil)
 	if len(actions) != 0 {
 		t.Fatal("unrequested copied rank propagated", actions)
 	}
-	actions, _ = typedShapeActions(source, source, typed, map[int32]bool{1: true})
-	if len(actions) != 1 || actions[0].declaredDimensions != 2 {
+	actions, _ = TypedShapeActions(source, source, typed, map[int32]bool{1: true})
+	if len(actions) != 1 || actions[0].DeclaredDimensions != 2 {
 		t.Fatal("explicit typed rank lost", actions)
 	}
 }

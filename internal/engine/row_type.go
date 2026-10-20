@@ -8,7 +8,7 @@ import (
 )
 
 func associatedArrayName(stage *CatalogStage, namespace ids.ObjectAddress, name string) string {
-	return chooseAssociatedArrayName(name, func(candidate string) bool {
+	return ChooseAssociatedArrayName(name, func(candidate string) bool {
 		return stage.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 	})
 }
@@ -84,7 +84,7 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *catalog.Relat
 		ns = stage.Base.Get(relation.Namespace())
 	}
 	declaration := catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(relation.Name())
-	typ, err := sqltype.Composite(sqltype.ID(id), relation.Name(), declaration, sqltype.ID(arrayID), compositeMembers(relation))
+	typ, err := sqltype.Composite(sqltype.ID(id), relation.Name(), declaration, sqltype.ID(arrayID), CompositeMembers(relation))
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func synchronizeRowTypeMetadata(relation *catalog.Relation, row *catalog.Type, d
 	} else if row.SQLType.IsComposite() {
 		ns := descriptor(relation.Namespace())
 		var err error
-		next.SQLType, err = sqltype.Composite(row.SQLType.ID(), relation.Name(), catalog.DependencyIdentifier(ns.Name())+"."+catalog.DependencyIdentifier(relation.Name()), row.Array, compositeMembers(relation))
+		next.SQLType, err = sqltype.Composite(row.SQLType.ID(), relation.Name(), catalog.DependencyIdentifier(ns.Name())+"."+catalog.DependencyIdentifier(relation.Name()), row.Array, CompositeMembers(relation))
 		if err != nil {
 			return err
 		}

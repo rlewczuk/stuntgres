@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-func chooseAssociatedArrayName(name string, occupied func(string) bool) string {
+func ChooseAssociatedArrayName(name string, occupied func(string) bool) string {
 	prefix := name
 	for len(prefix) > 62 {
 		_, width := utf8.DecodeLastRuneInString(prefix)
@@ -28,7 +28,7 @@ func chooseAssociatedArrayName(name string, occupied func(string) bool) string {
 
 // The executable projection shares one authority with named and supported user
 // rows; catalog/builtin row identities remain lookup-only.
-func compositeMembers(relation *catalog.Relation) []sqltype.CompositeMember {
+func CompositeMembers(relation *catalog.Relation) []sqltype.CompositeMember {
 	members := make([]sqltype.CompositeMember, len(relation.Columns))
 	for i, c := range relation.Columns {
 		members[i] = sqltype.CompositeMember{Attribute: relation.Attributes[i], Name: c.Name, Usage: c.Usage}

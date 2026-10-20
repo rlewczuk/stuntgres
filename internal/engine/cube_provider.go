@@ -33,7 +33,7 @@ func (p *cubeProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extens
 	if err != nil {
 		return err
 	}
-	if !available || relationTypeNameOccupied(auth.Catalog, ext.TargetNamespace, "cube") {
+	if !available || RelationTypeNameOccupied(auth.Catalog, ext.TargetNamespace, "cube") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: cubeTypeContext}
 	}
 	ext.Members = make([]ids.ObjectAddress, 3)

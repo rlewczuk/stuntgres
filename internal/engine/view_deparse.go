@@ -869,7 +869,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view collation")
 		}
-		name := collationSQLName(catalogView, id)
+		name := CollationSQLName(catalogView, id)
 		if v.presentation.deparse {
 			name = collationDisplayName(catalogView, id, v.presentation.path)
 		}

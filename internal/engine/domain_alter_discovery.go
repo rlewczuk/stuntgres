@@ -12,28 +12,28 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type domainValidationUse struct {
-	relation   *catalog.Relation
-	columns    []int
-	storage    *storage.Relation
-	versions   []storage.RowVersion
-	ends       *storage.DeletionRoot
-	generation uint64
+type DomainValidationUse struct {
+	Relation   *catalog.Relation
+	Columns    []int
+	Storage    *storage.Relation
+	Versions   []storage.RowVersion
+	Ends       *storage.DeletionRoot
+	Generation uint64
 }
 
 // The observation is the incoming type-use graph, not a catalog-wide epoch
 // comparison. Unrelated declarations can publish without replaying CHECK truth.
-type domainValidationFence struct {
-	target          ids.ObjectAddress
-	objects         map[ids.ObjectAddress]catalog.Descriptor
-	uses            []domainValidationUse
-	path            []ids.ObjectAddress
-	reads           []*catalog.Relation
-	allowContainers bool // Committed predecessors may be hidden by prior own DDL.
+type DomainValidationFence struct {
+	Target          ids.ObjectAddress
+	Objects         map[ids.ObjectAddress]catalog.Descriptor
+	Uses            []DomainValidationUse
+	Path            []ids.ObjectAddress
+	Reads           []*catalog.Relation
+	AllowContainers bool // Committed predecessors may be hidden by prior own DDL.
 }
 
-func domainUsesAt(view catalog.Read, target ids.ObjectAddress, path []ids.ObjectAddress) (*domainValidationFence, error) {
-	fence := &domainValidationFence{target: target, objects: make(map[ids.ObjectAddress]catalog.Descriptor), path: path}
+func DomainUsesAt(view catalog.Read, target ids.ObjectAddress, path []ids.ObjectAddress) (*DomainValidationFence, error) {
+	fence := &DomainValidationFence{Target: target, Objects: make(map[ids.ObjectAddress]catalog.Descriptor), Path: path}
 	cache := make(map[sqltype.ID]sqltype.ID)
 	active := make(map[sqltype.ID]bool)
 	var contains func(sqltype.ID) (sqltype.ID, error)
@@ -79,7 +79,7 @@ func domainUsesAt(view catalog.Read, target ids.ObjectAddress, path []ids.Object
 		}
 		cache[id] = found
 		if found != 0 {
-			fence.objects[d.Address()] = d
+			fence.Objects[d.Address()] = d
 		}
 		return found, nil
 	}
@@ -118,9 +118,9 @@ func domainUsesAt(view catalog.Read, target ids.ObjectAddress, path []ids.Object
 			if found == 0 {
 				continue
 			}
-			fence.objects[relation.Address()] = relation
+			fence.Objects[relation.Address()] = relation
 			if !recorded {
-				fence.reads = append(fence.reads, relation)
+				fence.Reads = append(fence.Reads, relation)
 				recorded = true
 			}
 			if domainDescendsFrom(column.Usage.Type, target.ObjectID) {
@@ -136,7 +136,7 @@ func domainUsesAt(view catalog.Read, target ids.ObjectAddress, path []ids.Object
 			}
 		}
 		if len(columns) != 0 {
-			fence.uses = append(fence.uses, domainValidationUse{relation: relation, columns: columns})
+			fence.Uses = append(fence.Uses, DomainValidationUse{Relation: relation, Columns: columns})
 		}
 	}
 	return fence, blocker
@@ -151,25 +151,25 @@ func domainDescendsFrom(typ *sqltype.Descriptor, target ids.OID) bool {
 	}
 	return false
 }
-func domainGraphEqual(a, b *domainValidationFence) bool {
-	return a.target == b.target && maps.Equal(a.objects, b.objects)
+func DomainGraphEqual(a, b *DomainValidationFence) bool {
+	return a.Target == b.Target && maps.Equal(a.Objects, b.Objects)
 }
 
-func (f *domainValidationFence) current(view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation) bool {
-	next, err := domainUsesAt(view, f.target, f.path)
-	if next == nil || err != nil && !f.allowContainers || !maps.Equal(f.objects, next.objects) {
+func (f *DomainValidationFence) Current(view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation) bool {
+	next, err := DomainUsesAt(view, f.Target, f.Path)
+	if next == nil || err != nil && !f.AllowContainers || !maps.Equal(f.Objects, next.Objects) {
 		return false
 	}
-	for _, use := range f.uses {
-		store := relations[use.relation.Address()]
-		if store != use.storage || store == nil || len(store.Versions) != len(use.versions) || store.Ends != use.ends || store.Generation != use.generation {
+	for _, use := range f.Uses {
+		store := relations[use.Relation.Address()]
+		if store != use.Storage || store == nil || len(store.Versions) != len(use.Versions) || store.Ends != use.Ends || store.Generation != use.Generation {
 			return false
 		}
 	}
 	return true
 }
 
-func domainHistoricalViolation(view catalog.Read, relation *catalog.Relation, column int) error {
+func DomainHistoricalViolation(view catalog.Read, relation *catalog.Relation, column int) error {
 	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.Columns[column].Name, relation.Name())).(*sqlstate.Error)
 	diagnostic.Schema = view.Get(relation.Namespace()).Name()
 	diagnostic.Table, diagnostic.Column = relation.Name(), relation.Columns[column].Name

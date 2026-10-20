@@ -386,13 +386,13 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	return next, err
 }
 
-func remapViewQuery(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+func remapViewQuery(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...CollationRemapper) (LogicalNode, error) {
 	typ = recordTypeMapper(typ, collations...)
 	return remapViewQueryMapped(view, node, ref, typ, collations...)
 }
 
-func remapViewQueryMapped(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
-	var collation collationRemapper
+func remapViewQueryMapped(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...CollationRemapper) (LogicalNode, error) {
+	var collation CollationRemapper
 	if len(collations) != 0 {
 		collation = collations[0]
 	}
@@ -407,7 +407,7 @@ type viewQueryRemapper struct {
 	ref            func(ids.ObjectRef) ids.ObjectRef
 	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
 	queries        map[*projectNode]LogicalNode
-	collation      collationRemapper
+	collation      CollationRemapper
 	catalog        catalog.Read
 	referencesOnly bool
 	ctes           map[*cteDefinition]*cteDefinition

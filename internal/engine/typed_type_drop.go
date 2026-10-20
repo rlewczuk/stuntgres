@@ -23,7 +23,7 @@ func (e *Engine) stageDropCompositeLocked(op *Operation, auth AuthorizationView,
 			}
 			return err
 		}
-		if _, err := standaloneComposite(auth.Catalog, typ, nil); err != nil {
+		if _, err := StandaloneComposite(auth.Catalog, typ, nil); err != nil {
 			return expr.ErrorAt("0A000", "statement is unsupported", s.Pos)
 		}
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address())

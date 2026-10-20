@@ -26,7 +26,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	}
 	domainUnitPublish(t, e, stage)
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	if !mood.SQLType.IsEnum() || mood.Owner != op.RoleState().CurrentUser || !defaultDomainACL(mood) || !reflect.DeepEqual(mood.SQLType.EnumLabels(), []string{"sad", "ok", "happy"}) {
+	if !mood.SQLType.IsEnum() || mood.Owner != op.RoleState().CurrentUser || !DefaultDomainACL(mood) || !reflect.DeepEqual(mood.SQLType.EnumLabels(), []string{"sad", "ok", "happy"}) {
 		t.Fatal(mood)
 	}
 	for _, labels := range []string{"'ok','ok'", "'" + strings.Repeat("x", 64) + "'"} {
@@ -120,7 +120,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	wrapped := domainUnitType(t, e.CatalogRead(), "wrapped")
 	next := catalog.CloneState(e.CatalogRead().State())
 	target := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 60000}
-	changed, err := reownDomainTypes(next, map[ids.ObjectAddress]ids.ObjectAddress{mood.Address(): target}, false)
+	changed, err := ReownDomainTypes(next, map[ids.ObjectAddress]ids.ObjectAddress{mood.Address(): target}, false)
 	if err != nil || !changed {
 		t.Fatal(err)
 	}
@@ -138,17 +138,17 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 		if typ == wrapped.SQLType {
 			destination = newWrapped
 		}
-		if _, err := reownDomainDatum(value, destination, nil, nil, nil); err == nil {
+		if _, err := ReownDomainDatum(value, destination, nil, nil, nil); err == nil {
 			t.Fatal("cross-ID enum import admitted without source authority")
 		}
 		foreign, err := sqltype.EnumWithMembers(newMood.ID(), newMood.Name(), newMood.SQLName(), newMood.EnumMembers())
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := reownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.SQLType: foreign}, nil); err == nil {
+		if _, err := ReownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.SQLType: foreign}, nil); err == nil {
 			t.Fatal("equal-ID/member/label destination bypassed exact codec authority")
 		}
-		mapped, err := reownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.SQLType: newMood}, nil)
+		mapped, err := ReownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.SQLType: newMood}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

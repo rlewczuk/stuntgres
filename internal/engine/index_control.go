@@ -133,7 +133,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		if presented.Collation != 0 {
 			sql.WriteString(" COLLATE ")
 			if presentation.dump {
-				sql.WriteString(collationSQLName(view, presented.Collation))
+				sql.WriteString(CollationSQLName(view, presented.Collation))
 			} else {
 				sql.WriteString(collationDisplayName(view, presented.Collation, presentation.path))
 			}

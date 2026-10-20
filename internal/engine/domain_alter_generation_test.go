@@ -56,7 +56,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			if err == nil {
 				err = stage.Replace(&next)
 			}
-			stage.domainAlterState().ctx = context.Background()
+			stage.domainAlterState().Ctx = context.Background()
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

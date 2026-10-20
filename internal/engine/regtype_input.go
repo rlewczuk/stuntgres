@@ -104,7 +104,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		return 0, err
 	}
 	if !raw.Quoted && raw.Schema == nil {
-		canonical := canonicalDeclarationTypeName(raw.Name)
+		canonical := CanonicalDeclarationTypeName(raw.Name)
 		if canonical != raw.Name {
 			raw.Name, raw.System, raw.Parts = canonical, true, nil
 		}

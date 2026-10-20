@@ -14,47 +14,47 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const domainReplayMarker = "stuntgres-domain-null-v1"
+const DomainReplayMarker = "stuntgres-domain-null-v1"
 
-type domainReplayRecord struct {
+type DomainReplayRecord struct {
 	Schema string             `json:"schema"`
 	Table  string             `json:"table"`
-	Cells  []domainReplayCell `json:"cells"`
+	Cells  []DomainReplayCell `json:"cells"`
 }
 
-type domainReplayCell struct {
+type DomainReplayCell struct {
 	Column string            `json:"column"`
-	Value  *domainReplayNode `json:"value"`
+	Value  *DomainReplayNode `json:"value"`
 }
 
 // Pointer fields distinguish absent fields from inappropriate empty fields.
 // NULL is not part of this wire format: null nodes are explicit tagged objects.
-type domainReplayNode struct {
+type DomainReplayNode struct {
 	Kind       string                   `json:"kind"`
 	Type       *[]string                `json:"type,omitempty"`
 	Scalar     *string                  `json:"scalar,omitempty"`
-	Base       *domainReplayNode        `json:"base,omitempty"`
-	Members    *[]domainReplayMember    `json:"members,omitempty"`
-	Dimensions *[]domainReplayDimension `json:"dimensions,omitempty"`
-	Elements   *[]domainReplayNode      `json:"elements,omitempty"`
+	Base       *DomainReplayNode        `json:"base,omitempty"`
+	Members    *[]DomainReplayMember    `json:"members,omitempty"`
+	Dimensions *[]DomainReplayDimension `json:"dimensions,omitempty"`
+	Elements   *[]DomainReplayNode      `json:"elements,omitempty"`
 }
 
-type domainReplayMember struct {
+type DomainReplayMember struct {
 	Name  string            `json:"name"`
-	Value *domainReplayNode `json:"value"`
+	Value *DomainReplayNode `json:"value"`
 }
 
-type domainReplayDimension struct {
+type DomainReplayDimension struct {
 	Lower  int32 `json:"lower"`
 	Length int32 `json:"length"`
 }
 
-type positionedDomainReplay struct {
-	record domainReplayRecord
-	end    int
+type PositionedDomainReplay struct {
+	Record DomainReplayRecord
+	End    int
 }
 
-func containsStoredDomainNull(v sqltype.Value) bool {
+func ContainsStoredDomainNull(v sqltype.Value) bool {
 	d := v.Type()
 	if d == nil || !sqltype.ContainsDomainConstraints(d) {
 		return false
@@ -64,18 +64,18 @@ func containsStoredDomainNull(v sqltype.Value) bool {
 	}
 	if d.IsDomain() {
 		base, err := v.BaseValue()
-		return err == nil && containsStoredDomainNull(base)
+		return err == nil && ContainsStoredDomainNull(base)
 	}
 	if d.IsArray() {
 		for i := range v.ArrayLen() {
-			if containsStoredDomainNull(v.ArrayElement(i)) {
+			if ContainsStoredDomainNull(v.ArrayElement(i)) {
 				return true
 			}
 		}
 	}
 	if d.IsComposite() {
 		for i := range v.CompositeLen() {
-			if containsStoredDomainNull(v.CompositeField(i)) {
+			if ContainsStoredDomainNull(v.CompositeField(i)) {
 				return true
 			}
 		}
@@ -83,7 +83,7 @@ func containsStoredDomainNull(v sqltype.Value) bool {
 	return false
 }
 
-func domainReplayIdentity(view catalog.Read, d *sqltype.Descriptor) ([]string, error) {
+func DomainReplayIdentity(view catalog.Read, d *sqltype.Descriptor) ([]string, error) {
 	descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.ID())})
 	if !ok || descriptor.SQLType != d || !d.IsDomain() {
 		return nil, fmt.Errorf("stuntgres: invalid native domain identity")
@@ -95,12 +95,12 @@ func domainReplayIdentity(view catalog.Read, d *sqltype.Descriptor) ([]string, e
 	return []string{namespace.Name(), descriptor.Name()}, nil
 }
 
-func encodeDomainReplay(record domainReplayRecord) (string, error) {
+func EncodeDomainReplay(record DomainReplayRecord) (string, error) {
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return "", err
 	}
-	return "-- " + domainReplayMarker + " " + base64.StdEncoding.EncodeToString(raw) + "\n", nil
+	return "-- " + DomainReplayMarker + " " + base64.StdEncoding.EncodeToString(raw) + "\n", nil
 }
 
 // The token pass rejects duplicate keys at EVERY depth, JSON nulls and trailing
@@ -150,16 +150,16 @@ func validateDomainReplayJSON(decoder *json.Decoder) error {
 	return err
 }
 
-func decodeDomainReplay(comment string) (domainReplayRecord, bool, error) {
+func DecodeDomainReplay(comment string) (DomainReplayRecord, bool, error) {
 	text := strings.TrimSpace(comment)
 	if !strings.HasPrefix(text, "stuntgres-domain-null-") {
-		return domainReplayRecord{}, false, nil
+		return DomainReplayRecord{}, false, nil
 	}
 	parts := strings.Fields(text)
-	fail := func(err error) (domainReplayRecord, bool, error) {
-		return domainReplayRecord{}, true, fmt.Errorf("stuntgres: invalid native domain replay: %w", err)
+	fail := func(err error) (DomainReplayRecord, bool, error) {
+		return DomainReplayRecord{}, true, fmt.Errorf("stuntgres: invalid native domain replay: %w", err)
 	}
-	if len(parts) != 2 || parts[0] != domainReplayMarker {
+	if len(parts) != 2 || parts[0] != DomainReplayMarker {
 		return fail(fmt.Errorf("unsupported marker or payload"))
 	}
 	raw, err := base64.StdEncoding.Strict().DecodeString(parts[1])
@@ -175,7 +175,7 @@ func decodeDomainReplay(comment string) (domainReplayRecord, bool, error) {
 	}
 	decoder = json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
-	var record domainReplayRecord
+	var record DomainReplayRecord
 	if err = decoder.Decode(&record); err != nil {
 		return fail(err)
 	}
@@ -185,16 +185,16 @@ func decodeDomainReplay(comment string) (domainReplayRecord, bool, error) {
 	return record, true, nil
 }
 
-func pairDomainReplay(script string, statements []parser.Statement, records []positionedDomainReplay) (map[*parser.Insert]domainReplayRecord, error) {
+func PairDomainReplay(script string, statements []parser.Statement, records []PositionedDomainReplay) (map[*parser.Insert]DomainReplayRecord, error) {
 	if len(records) == 0 {
 		return nil, nil
 	}
-	pairs := make(map[*parser.Insert]domainReplayRecord, len(records))
+	pairs := make(map[*parser.Insert]DomainReplayRecord, len(records))
 	statementIndex := 0
 	for _, entry := range records {
 		for statementIndex < len(statements) {
 			insert, ok := statements[statementIndex].(*parser.Insert)
-			if ok && insert.Pos.Offset >= entry.end {
+			if ok && insert.Pos.Offset >= entry.End {
 				break
 			}
 			statementIndex++
@@ -204,21 +204,21 @@ func pairDomainReplay(script string, statements []parser.Statement, records []po
 		}
 		statement := statements[statementIndex]
 		insert, ok := statement.(*parser.Insert)
-		if !ok || entry.end < 0 || entry.end > len(script) || insert.Pos.Offset < entry.end || strings.TrimSpace(script[entry.end:insert.Pos.Offset]) != "" {
+		if !ok || entry.End < 0 || entry.End > len(script) || insert.Pos.Offset < entry.End || strings.TrimSpace(script[entry.End:insert.Pos.Offset]) != "" {
 			return nil, fmt.Errorf("stuntgres: native domain replay must immediately precede its INSERT")
 		}
 		if _, duplicate := pairs[insert]; duplicate {
 			return nil, fmt.Errorf("stuntgres: duplicate native domain replay")
 		}
-		if len(insert.Name.Parts) != 2 || insert.Name.Parts[0].Text != entry.record.Schema || insert.Name.Parts[1].Text != entry.record.Table || insert.Alias.Text != "" || len(insert.Rows) != 1 || insert.DefaultValues || insert.Source != nil || len(insert.With) != 0 || insert.Returning != nil || insert.Conflict != nil {
+		if len(insert.Name.Parts) != 2 || insert.Name.Parts[0].Text != entry.Record.Schema || insert.Name.Parts[1].Text != entry.Record.Table || insert.Alias.Text != "" || len(insert.Rows) != 1 || insert.DefaultValues || insert.Source != nil || len(insert.With) != 0 || insert.Returning != nil || insert.Conflict != nil {
 			return nil, fmt.Errorf("stuntgres: invalid native domain replay INSERT target")
 		}
-		pairs[insert] = entry.record
+		pairs[insert] = entry.Record
 	}
 	return pairs, nil
 }
 
-func (n *domainReplayNode) shape(kind string) bool {
+func (n *DomainReplayNode) Shape(kind string) bool {
 	if n == nil || n.Kind != kind {
 		return false
 	}

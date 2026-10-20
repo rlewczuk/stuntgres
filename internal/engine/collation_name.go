@@ -5,7 +5,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func collationName(view catalog.Read, id uint32) string {
+func CollationName(view catalog.Read, id uint32) string {
 	if view.State() != nil {
 		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
 			return d.Name()
@@ -19,13 +19,13 @@ func collationName(view catalog.Read, id uint32) string {
 	return ""
 }
 
-func collationSQLName(view catalog.Read, id uint32) string {
+func CollationSQLName(view catalog.Read, id uint32) string {
 	if view.State() != nil {
 		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
 			return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 		}
 	}
-	if name := collationName(view, id); name != "" {
+	if name := CollationName(view, id); name != "" {
 		return catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(name)
 	}
 	return ""

@@ -5,8 +5,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type typedColumnAction struct {
-	action             parser.AlterTableAction
-	usage              *sqltype.Usage
-	declaredDimensions int16
+type TypedColumnAction struct {
+	Action             parser.AlterTableAction
+	Usage              *sqltype.Usage
+	DeclaredDimensions int16
 }

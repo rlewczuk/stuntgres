@@ -41,7 +41,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 				bridge.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: queryRowMark{mode: lock.ForUpdate}}}}
 			}
 			t.Cleanup(bridge.close)
-			state := &queryState{source: bridge, input: sqltype.InputEnvironment{EnumMemberSafe: enumSafety(map[int64]bool{102: true})}}
+			state := &queryState{source: bridge, input: sqltype.InputEnvironment{EnumMemberSafe: EnumSafety(map[int64]bool{102: true})}}
 			value := sqltype.Boolean(boolean, false)
 			live := name == "literalTrue" || name == "parameterTrue"
 			if live {

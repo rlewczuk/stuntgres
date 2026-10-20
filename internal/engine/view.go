@@ -528,7 +528,7 @@ func checkViewPrefix(catalog catalog.Read, old, next []catalog.Column) error {
 			return sqlError("42P16", fmt.Sprintf(`cannot change data type of view column "%s" from %s to %s`, column.Name, oldType, newType))
 		}
 		if a.Collation.ID != b.Collation.ID {
-			return sqlError("42P16", fmt.Sprintf(`cannot change collation of view column "%s" from "%s" to "%s"`, column.Name, collationName(catalog, a.Collation.ID), collationName(catalog, b.Collation.ID)))
+			return sqlError("42P16", fmt.Sprintf(`cannot change collation of view column "%s" from "%s" to "%s"`, column.Name, CollationName(catalog, a.Collation.ID), CollationName(catalog, b.Collation.ID)))
 		}
 	}
 	return nil

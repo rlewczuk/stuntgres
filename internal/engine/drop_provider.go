@@ -696,7 +696,7 @@ func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name str
 	if p.stage != nil {
 		return associatedArrayName(p.stage, namespace, name)
 	}
-	return chooseAssociatedArrayName(name, func(candidate string) bool {
+	return ChooseAssociatedArrayName(name, func(candidate string) bool {
 		return p.prepared.lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 	})
 }

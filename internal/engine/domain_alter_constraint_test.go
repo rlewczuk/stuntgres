@@ -15,20 +15,20 @@ import (
 )
 
 // Private seams only: parser/binder/catalog fixtures do not issue driver SQL.
-func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids.ObjectAddress) *domainValidationFence {
+func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids.ObjectAddress) *DomainValidationFence {
 	t.Helper()
-	f, err := domainUsesAt(view, target, []ids.ObjectAddress{})
+	f, err := DomainUsesAt(view, target, []ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := range f.uses {
-		use := &f.uses[i]
-		use.storage = e.storage.Relations[use.relation.Address()]
-		if use.storage == nil {
+	for i := range f.Uses {
+		use := &f.Uses[i]
+		use.Storage = e.storage.Relations[use.Relation.Address()]
+		if use.Storage == nil {
 			t.Fatal("missing physical use")
 		}
-		use.versions = use.storage.Versions[:len(use.storage.Versions):len(use.storage.Versions)]
-		use.ends, use.generation = use.storage.Ends, use.storage.Generation
+		use.Versions = use.Storage.Versions[:len(use.Storage.Versions):len(use.Storage.Versions)]
+		use.Ends, use.Generation = use.Storage.Ends, use.Storage.Generation
 	}
 	return f
 }
@@ -107,23 +107,23 @@ func TestDomainAlterConstraintDiscovery(t *testing.T) {
 	view := e.CatalogRead()
 	d := domainUnitType(t, view, "d")
 	f := domainAlterUnitFence(t, e, view, d.Address())
-	if len(f.uses) != 1 || f.uses[0].relation != table || !slices.Equal(f.uses[0].columns, []int{0, 1}) || !f.current(view, e.storage.Relations) {
-		t.Fatal("physical target/attribute deduplication", f.uses)
+	if len(f.Uses) != 1 || f.Uses[0].Relation != table || !slices.Equal(f.Uses[0].Columns, []int{0, 1}) || !f.Current(view, e.storage.Relations) {
+		t.Fatal("physical target/attribute deduplication", f.Uses)
 	}
 	domainUnitTable(t, e, op, "CREATE TABLE public.unrelated(v integer)")
-	if !f.current(e.CatalogRead(), e.storage.Relations) {
+	if !f.Current(e.CatalogRead(), e.storage.Relations) {
 		t.Fatal("unrelated declaration invalidated observation")
 	}
 	domainUnitTable(t, e, op, "CREATE TABLE public.late(v public.child)")
-	if f.current(e.CatalogRead(), e.storage.Relations) {
+	if f.Current(e.CatalogRead(), e.storage.Relations) {
 		t.Fatal("late direct use escaped observation")
 	}
 	f = domainAlterUnitFence(t, e, e.CatalogRead(), d.Address())
 	domainUnitTable(t, e, op, "CREATE TABLE public.blocker(v public.unstored[])")
-	if f.current(e.CatalogRead(), e.storage.Relations) {
+	if f.Current(e.CatalogRead(), e.storage.Relations) {
 		t.Fatal("late stored container escaped observation")
 	}
-	_, err := domainUsesAt(e.CatalogRead(), d.Address(), []ids.ObjectAddress{})
+	_, err := DomainUsesAt(e.CatalogRead(), d.Address(), []ids.ObjectAddress{})
 	domainUnitDiagnostic(t, err, "0A000", `cannot alter type "public.d" because column "blocker.v" uses it`)
 }
 
@@ -175,7 +175,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if err == nil {
 		err = stage.Replace(&next)
 	}
-	stage.domainAlterState().ctx = context.Background()
+	stage.domainAlterState().Ctx = context.Background()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -199,7 +199,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if err := drop.removeDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	drop.domainAlterState().ctx = context.Background()
+	drop.domainAlterState().Ctx = context.Background()
 	domainUnitPublish(t, e, drop)
 	if domainUnitType(t, e.CatalogRead(), "child").SQLType.HasDomainChecks() || !newChild.SQLType.HasDomainChecks() || !newD.DomainChecks[0].NotValid {
 		t.Fatal("last DROP changed retained generations")

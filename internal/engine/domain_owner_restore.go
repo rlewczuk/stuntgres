@@ -6,11 +6,11 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-const restoreDomainOwnerBoundary = "restore accepts only immediately paired fresh domain ownership"
+const RestoreDomainOwnerBoundary = "restore accepts only immediately paired fresh domain ownership"
 
-type restoredDomainOwner struct {
-	ref            ids.ObjectRef
-	domain         *catalog.Type
-	namespace      *catalog.Namespace
-	owner, creator authorization.PrincipalRef
+type RestoredDomainOwner struct {
+	Ref            ids.ObjectRef
+	Domain         *catalog.Type
+	Namespace      *catalog.Namespace
+	Owner, Creator authorization.PrincipalRef
 }

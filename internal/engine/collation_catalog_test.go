@@ -79,7 +79,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if collationSQLName(view, 90000) != `"public"."registered"` || collationSQLName(e.CatalogRead(), 90000) != `"public"."renamed"` {
+	if CollationSQLName(view, 90000) != `"public"."registered"` || CollationSQLName(e.CatalogRead(), 90000) != `"public"."renamed"` {
 		t.Fatal("snapshot names lost identity")
 	}
 	if current, err := next.Usage(); err != nil || current != ref {

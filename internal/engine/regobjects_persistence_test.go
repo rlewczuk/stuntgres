@@ -148,7 +148,7 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 	}
 	ref := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 963})
 	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
-	if err := validateCollationProvider(view, ref); err == nil {
+	if err := ValidateCollationProvider(view, ref); err == nil {
 		t.Fatal("fixture's unsupported comparison provider became executable")
 	}
 	if err := validateStoredCollationDependency(view, ref, literal); err != nil {

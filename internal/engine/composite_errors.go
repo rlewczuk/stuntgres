@@ -9,25 +9,25 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func compositeOpenError(relation *catalog.Relation, pos parser.Position) error {
+func CompositeOpenError(relation *catalog.Relation, pos parser.Position) error {
 	d := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), pos).(*sqlstate.Error)
 	d.Detail = "This operation is not supported for composite types."
 	return d
 }
 
-func containsRowType(typ *sqltype.Descriptor, id sqltype.ID) bool {
+func ContainsRowType(typ *sqltype.Descriptor, id sqltype.ID) bool {
 	if typ.ID() == id {
 		return true
 	}
 	if typ.IsDomain() {
-		return containsRowType(typ.DomainBase().Type, id)
+		return ContainsRowType(typ.DomainBase().Type, id)
 	}
 	if typ.IsArray() {
-		return containsRowType(typ.Element(), id)
+		return ContainsRowType(typ.Element(), id)
 	}
 	if typ.IsComposite() {
 		for i := range typ.CompositeLen() {
-			if containsRowType(typ.CompositeMember(i).Usage.Type, id) {
+			if ContainsRowType(typ.CompositeMember(i).Usage.Type, id) {
 				return true
 			}
 		}
@@ -37,7 +37,7 @@ func containsRowType(typ *sqltype.Descriptor, id sqltype.ID) bool {
 
 // PostgreSQL protects physical row codecs even when the proposed SQL type is
 // unchanged. Find the real stored consumer, not an intermediate named wrapper.
-func rowRewriteError(view catalog.Read, source *catalog.Relation) error {
+func RowRewriteError(view catalog.Read, source *catalog.Relation) error {
 	if source.RowType == 0 {
 		return nil
 	}
@@ -49,7 +49,7 @@ func rowRewriteError(view catalog.Read, source *catalog.Relation) error {
 			continue
 		}
 		for _, c := range table.Columns {
-			if containsRowType(c.Usage.Type, source.RowType) && (consumer == nil || table.Address().ObjectID < consumer.Address().ObjectID) {
+			if ContainsRowType(c.Usage.Type, source.RowType) && (consumer == nil || table.Address().ObjectID < consumer.Address().ObjectID) {
 				consumer, column = table, c.Name
 				break
 			}

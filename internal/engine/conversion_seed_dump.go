@@ -11,11 +11,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func conversionSQLName(view catalog.Read, d *catalog.Conversion) string {
+func ConversionSQLName(view catalog.Read, d *catalog.Conversion) string {
 	return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 }
 
-func conversionDefinition(view catalog.Read, d *catalog.Conversion, name string) (string, error) {
+func ConversionDefinition(view catalog.Read, d *catalog.Conversion, name string) (string, error) {
 	procedure, ok := view.Procedure(d.Handler)
 	if !ok || procedure.Conversion.Name() == "" {
 		return "", fmt.Errorf("stuntgres: unavailable dump conversion provider")
@@ -30,7 +30,7 @@ func conversionDefinition(view catalog.Read, d *catalog.Conversion, name string)
 
 // All moving/renamed seeds first receive intermediate names, avoiding swaps and
 // collisions with both canonical seed names and current user-object names.
-func conversionSeedDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read) ([]string, error) {
+func ConversionSeedDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read) ([]string, error) {
 	catalogNamespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap conversion namespace")
@@ -102,7 +102,7 @@ func conversionSeedDumpStatements(ctx context.Context, view catalog.Read, roles 
 	}
 	for _, change := range changes {
 		if change.owner != "postgres" || change.d.Owner.ID() != authorization.BootstrapPrincipalID {
-			statements = append(statements, "ALTER CONVERSION "+conversionSQLName(view, change.d)+" OWNER TO "+catalog.QuoteIdentifier(change.owner)+";\n")
+			statements = append(statements, "ALTER CONVERSION "+ConversionSQLName(view, change.d)+" OWNER TO "+catalog.QuoteIdentifier(change.owner)+";\n")
 		}
 	}
 	return statements, nil

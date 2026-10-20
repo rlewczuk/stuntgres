@@ -12,7 +12,7 @@ import (
 // consumed graph for the existing wait/publication readmission fences.
 type partitionRoutineIdentity struct {
 	owner *catalog.Relation
-	phase domainCheckIdentity
+	phase DomainCheckIdentity
 	actor authorization.PrincipalRef
 	ri    bool
 }
@@ -23,7 +23,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 	local.Row, local.Scope, local.Frame = row, 1, 1
 	scope := local.liveScope()
 	if scope != nil {
-		local.domainPhase = domainCheckIdentity{transaction: scope.txRef, command: scope.command}
+		local.domainPhase = DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
 		local.preparedDomainChecks = scope.domainPreparedChecks
 	}
 	auth, _, err := local.routineAdmissionAuthority()

@@ -8,7 +8,7 @@ import (
 
 // Captured provider manifests may outlive a descriptor revision, but never
 // authorize a missing identity, an attribute address, or an unavailable provider.
-func validateCollationProvider(view catalog.Read, ref ids.ObjectRef) error {
+func ValidateCollationProvider(view catalog.Read, ref ids.ObjectRef) error {
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: invalid stored collation provider")
 	}

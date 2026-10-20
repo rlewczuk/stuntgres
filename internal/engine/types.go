@@ -59,7 +59,7 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 		}
 	}
 	if t.SQLType.IsUserDefined() || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined() {
-		if t.ObjectRevision == 0 || t.OwningRelation == (ids.ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
+		if t.ObjectRevision == 0 || t.OwningRelation == (ids.ObjectAddress{}) && RelationTypeNameOccupied(view, t.Namespace(), t.Name()) {
 			return catalog.Conflict{}
 		}
 	}

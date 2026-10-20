@@ -5,8 +5,8 @@ package engine
 // place: domainWritable and enumWritable first replace it with a private
 // copy (the maps and slices inside keep their old sharing rules).
 
-func (c *catalogChanges) domainWritable() *domainJournal {
-	next := new(domainJournal)
+func (c *catalogChanges) domainWritable() *DomainJournal {
+	next := new(DomainJournal)
 	if c.domain != nil {
 		*next = *c.domain
 	}
@@ -14,8 +14,8 @@ func (c *catalogChanges) domainWritable() *domainJournal {
 	return next
 }
 
-func (c *catalogChanges) enumWritable() *enumJournal {
-	next := new(enumJournal)
+func (c *catalogChanges) enumWritable() *EnumJournal {
+	next := new(EnumJournal)
 	if c.enum != nil {
 		*next = *c.enum
 	}

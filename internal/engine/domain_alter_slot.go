@@ -9,29 +9,29 @@ import (
 
 // domainAlterStage is the ALTER DOMAIN state of one catalog stage. A nil slot
 // is a stage that alters no domain.
-type domainAlterStage struct {
-	ctx        context.Context // the altering operation; nil outside ALTER DOMAIN
-	validation *domainValidationFence
-	indexRoots map[ids.ObjectAddress]*storage.IndexRoot
+type DomainAlterStage struct {
+	Ctx        context.Context // the altering operation; nil outside ALTER DOMAIN
+	Validation *DomainValidationFence
+	IndexRoots map[ids.ObjectAddress]*storage.IndexRoot
 }
 
-func (d *domainAlterStage) alterContext() context.Context {
+func (d *DomainAlterStage) AlterContext() context.Context {
 	if d == nil {
 		return nil
 	}
-	return d.ctx
+	return d.Ctx
 }
 
-func (d *domainAlterStage) validationFence() *domainValidationFence {
+func (d *DomainAlterStage) ValidationFence() *DomainValidationFence {
 	if d == nil {
 		return nil
 	}
-	return d.validation
+	return d.Validation
 }
 
-func (d *domainAlterStage) alteredIndexRoots() map[ids.ObjectAddress]*storage.IndexRoot {
+func (d *DomainAlterStage) AlteredIndexRoots() map[ids.ObjectAddress]*storage.IndexRoot {
 	if d == nil {
 		return nil
 	}
-	return d.indexRoots
+	return d.IndexRoots
 }

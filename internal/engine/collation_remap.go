@@ -7,9 +7,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type collationRemapper func(sqltype.CollationRef) (sqltype.CollationRef, error)
+type CollationRemapper func(sqltype.CollationRef) (sqltype.CollationRef, error)
 
-func remappedCollationCapabilities(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) collationRemapper {
+func RemappedCollationCapabilities(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) CollationRemapper {
 	needed := false
 	for from, to := range mapping {
 		if from.ClassID == ids.CollationClassID && from != to {

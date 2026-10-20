@@ -22,7 +22,7 @@ import (
 // seeds from the built-in tables, plus room for the few seeded outside them:
 // namespaces, tablespaces, catalog sources and the current database.
 func builtinCatalogCapacity(types int) int {
-	return types + len(catalog.BuiltinCollations) + len(builtinConversionRoutines) + len(routine.BuiltinRoutineDeclarations) +
+	return types + len(catalog.BuiltinCollations) + len(BuiltinConversionRoutines) + len(routine.BuiltinRoutineDeclarations) +
 		len(catalog.BuiltinConversions) + routine.BuiltinOperatorCount + 128
 }
 
@@ -38,7 +38,7 @@ func (e *Engine) installBuiltinProcedures() {
 
 // installBuiltinConversionRoutines installs the encoding conversion routines.
 func (e *Engine) installBuiltinConversionRoutines() {
-	procedures := builtinConversionProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	procedures := BuiltinConversionProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
 	for i := range procedures {
 		d := &procedures[i]
 		e.catalog.state.SetDescriptor(d.Address(), d)
@@ -51,19 +51,19 @@ func (e *Engine) installBuiltinConversionRoutines() {
 // cooking as user domains, without a session, SQL execution or a separately
 // allocated type.
 func (e *Engine) installBuiltinDomainChecks() error {
-	checks, err := builtinDomainCheckSeeds()
+	checks, err := BuiltinDomainCheckSeeds()
 	if err != nil {
 		return err
 	}
 	for _, seed := range checks {
-		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.id})
-		if err := e.bindDomainCheckRecipes(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.constraints, sqltype.InputEnvironment{}); err != nil {
+		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.Id})
+		if err := e.bindDomainCheckRecipes(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Constraints, sqltype.InputEnvironment{}); err != nil {
 			return err
 		}
 	}
-	for _, seed := range builtinDomainDefaultSeeds() {
-		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.id})
-		if err := e.bindDomainDefault(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.expression, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
+	for _, seed := range BuiltinDomainDefaultSeeds() {
+		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.Id})
+		if err := e.bindDomainDefault(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Expression, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
 			return err
 		}
 	}

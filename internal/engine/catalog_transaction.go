@@ -29,7 +29,7 @@ type catalogChanges struct {
 	extensionAuthority  []extensionAuthorityObservation
 	cachedBase          *catalog.State
 	cached              catalog.Read
-	enum                *enumJournal
+	enum                *EnumJournal
 	rolesBase           *access.RoleRecord
 	roles               *access.RoleRecord
 	retiredRoles        map[authorization.PrincipalRef]struct{}
@@ -39,7 +39,7 @@ type catalogChanges struct {
 	readFences          []partitionReadFence
 	truncateFences      []truncateGraphFence
 	materializedSources []materializedSourceFence
-	domain              *domainJournal
+	domain              *DomainJournal
 	domainChanged       bool
 }
 
@@ -52,7 +52,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		return n
 	}
 	cloneDefaultChanges(c, n)
-	n.enum = c.enum.clone()
+	n.enum = c.enum.Clone()
 	for a, d := range c.originals {
 		n.originals[a] = d
 	}
@@ -101,7 +101,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.readFences = append(n.readFences, c.readFences...)
 	n.truncateFences = append(n.truncateFences, c.truncateFences...)
 	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
-	n.domain = c.domain.clone()
+	n.domain = c.domain.Clone()
 	return n
 }
 
@@ -322,7 +322,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 							}
 						}
 					}
-					if owner.SQLType.IsDomain() && usageDependsOn(owner.SQLType.DomainBase(), target) ||
+					if owner.SQLType.IsDomain() && UsageDependsOn(owner.SQLType.DomainBase(), target) ||
 						owner.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(owner.SQLType.Element().ID())}) {
 						return catalog.Conflict{}
 					}
@@ -338,7 +338,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 					}
 					if candidate.Get(target) == nil {
 						for _, column := range owner.Columns {
-							if usageDependsOn(column.Usage, target) {
+							if UsageDependsOn(column.Usage, target) {
 								return catalog.Conflict{}
 							}
 						}

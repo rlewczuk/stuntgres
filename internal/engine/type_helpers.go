@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func storedArrayElement(typ *sqltype.Descriptor) bool {
+func StoredArrayElement(typ *sqltype.Descriptor) bool {
 	if !typ.Concrete() {
 		return false
 	}
@@ -16,7 +16,7 @@ func storedArrayElement(typ *sqltype.Descriptor) bool {
 		return false
 	}
 	if physical.IsArray() {
-		return storedArrayElement(physical.Element())
+		return StoredArrayElement(physical.Element())
 	}
 	if physical.IsComposite() {
 		return physical.Concrete()
@@ -24,7 +24,7 @@ func storedArrayElement(typ *sqltype.Descriptor) bool {
 	return sqltype.StoredScalarCastType(physical.ID()) || physical.ID() == sqltype.Regclass
 }
 
-func canonicalDeclarationTypeName(name string) string {
+func CanonicalDeclarationTypeName(name string) string {
 	switch name {
 	case "smallint":
 		name = "int2"
@@ -50,7 +50,7 @@ func canonicalDeclarationTypeName(name string) string {
 	return name
 }
 
-func typeDiagnostic(raw parser.TypeName, code, message string) error {
+func TypeDiagnostic(raw parser.TypeName, code, message string) error {
 	if raw.Pos.Character > 0 {
 		return insertError(code, message, raw.Pos)
 	}
@@ -60,7 +60,7 @@ func typeDiagnostic(raw parser.TypeName, code, message string) error {
 // Recognized PostgreSQL types outside the concrete storage authority are a
 // capability boundary, not nonexistent names. Classification belongs to binding
 // so IF NOT EXISTS can skip it, never to the raw syntax parser.
-func unsupportedColumnType(raw parser.TypeName) bool {
+func UnsupportedColumnType(raw parser.TypeName) bool {
 	switch raw.Name {
 	case "smallserial", "serial2", "serial", "serial4", "bigserial", "serial8":
 		// CREATE recognizes these utility pseudo names even when quoted.
@@ -82,7 +82,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 }
 
 // Existing row-bearing relations reserve their reciprocal type identity.
-func relationTypeNameOccupied(view catalog.Read, namespace ids.ObjectAddress, name string) bool {
+func RelationTypeNameOccupied(view catalog.Read, namespace ids.ObjectAddress, name string) bool {
 	for _, address := range view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}) {
 		if relation, ok := view.Relation(address); ok && (relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.PartitionedRelation || relation.RelationKind == catalog.ViewRelation || relation.RelationKind == catalog.CompositeRelation) {
 			return true

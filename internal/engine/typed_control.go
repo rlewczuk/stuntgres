@@ -24,7 +24,7 @@ func (e *Engine) checkTemporaryTypedReplacementLocked() error {
 			return fmt.Errorf("stuntgres: missing typed source")
 		}
 		if e.catalog.state.MustNamespace(source.ObjectNamespace).Temporary == (ids.SessionToken{}) {
-			return fmt.Errorf("%s", temporaryTypedReplacementError)
+			return fmt.Errorf("%s", TemporaryTypedReplacementError)
 		}
 	}
 	return nil

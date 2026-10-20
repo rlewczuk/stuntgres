@@ -85,7 +85,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.domainAlterState().ctx = op.Context()
+	stage.domainAlterState().Ctx = op.Context()
 	stage.authorizeLocked(auth, op.session)
 	scope.routineAuth = auth
 	scope.domainInputCatalog = auth.Catalog
@@ -161,9 +161,9 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if err := evaluation.prepareOwnDomainChecks(&chosen); err != nil {
 			return Result{}, err
 		}
-		fence, discoveryErr := domainUsesAt(auth.Catalog, ref.Address, diagnosticPath)
+		fence, discoveryErr := DomainUsesAt(auth.Catalog, ref.Address, diagnosticPath)
 		if fence != nil {
-			for _, relation := range fence.reads {
+			for _, relation := range fence.Reads {
 				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, relation.Address()), lock.AccessShare, true); err != nil {
 					return Result{}, err
 				}
@@ -174,7 +174,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 				e.mu.Lock()
 				current := e.stageCatalogBaseLocked(stage)
 				stable := current.Epoch() == ref.Epoch
-				for address, descriptor := range fence.objects {
+				for address, descriptor := range fence.Objects {
 					stable = stable && current.Get(address) == descriptor
 				}
 				e.mu.Unlock()
@@ -184,37 +184,37 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			}
 			return Result{}, discoveryErr
 		}
-		for _, use := range fence.uses {
-			if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, use.relation.Address()), lock.Share, true); err != nil {
+		for _, use := range fence.Uses {
+			if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, use.Relation.Address()), lock.Share, true); err != nil {
 				return Result{}, err
 			}
 		}
 		e.mu.Lock()
 		view := e.catalog.read(e.stageCatalogBaseLocked(stage))
-		currentUses, graphErr := domainUsesAt(view, ref.Address, diagnosticPath)
-		if graphErr == nil && !domainGraphEqual(fence, currentUses) {
+		currentUses, graphErr := DomainUsesAt(view, ref.Address, diagnosticPath)
+		if graphErr == nil && !DomainGraphEqual(fence, currentUses) {
 			graphErr = catalog.Conflict{}
 		}
 		frontier := e.visibility.CommitSeq()
 		if graphErr == nil {
-			for i := range fence.uses {
-				use := &fence.uses[i]
-				use.storage = e.stageStorageLocked(stage, use.relation.Address())
-				if use.storage == nil {
+			for i := range fence.Uses {
+				use := &fence.Uses[i]
+				use.Storage = e.stageStorageLocked(stage, use.Relation.Address())
+				if use.Storage == nil {
 					graphErr = catalog.Conflict{}
 					break
 				}
-				use.versions = use.storage.Versions[:len(use.storage.Versions):len(use.storage.Versions)]
-				use.ends, use.generation = use.storage.Ends, use.storage.Generation
+				use.Versions = use.Storage.Versions[:len(use.Storage.Versions):len(use.Storage.Versions)]
+				use.Ends, use.Generation = use.Storage.Ends, use.Storage.Generation
 			}
 		}
 		e.mu.Unlock()
 		if graphErr != nil {
 			return Result{}, graphErr
 		}
-		stage.domainAlterState().validation = fence
-		for _, use := range fence.uses {
-			writes, deletes := scope.columnProjectionRoots(use.relation.Address())
+		stage.domainAlterState().Validation = fence
+		for _, use := range fence.Uses {
+			writes, deletes := scope.columnProjectionRoots(use.Relation.Address())
 			if err := evaluation.validateSelectedDomainRows(auth.Catalog, &chosen, use, frontier, writes, deletes); err != nil {
 				return Result{}, err
 			}
@@ -241,10 +241,10 @@ func (c *EvalContext) evaluateSelectedDomainCheck(view catalog.Read, selected *c
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
-func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use domainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
-	violations := make([]error, len(use.columns))
-	for i, column := range use.columns {
-		violations[i] = domainHistoricalViolation(view, use.relation, column)
+func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
+	violations := make([]error, len(use.Columns))
+	for i, column := range use.Columns {
+		violations[i] = DomainHistoricalViolation(view, use.Relation, column)
 	}
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
@@ -260,10 +260,10 @@ func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *ca
 			if err := c.Context.Err(); err != nil {
 				return err
 			}
-			if committed && replaced[row.Row] || !visibility.LiveVersion(row, frontier, use.ends, deletes) {
+			if committed && replaced[row.Row] || !visibility.LiveVersion(row, frontier, use.Ends, deletes) {
 				continue
 			}
-			for i, column := range use.columns {
+			for i, column := range use.Columns {
 				if err := c.evaluateSelectedDomainCheck(view, selected, row.Values[column], violations[i]); err != nil {
 					return err
 				}
@@ -271,7 +271,7 @@ func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *ca
 		}
 		return nil
 	}
-	if err := scan(use.versions, true); err != nil {
+	if err := scan(use.Versions, true); err != nil {
 		return err
 	}
 	return scan(writes, false)

@@ -14,7 +14,7 @@ type domainCheckProgram struct {
 	phases      []domainCheckPhase
 }
 type domainCheckPhase struct {
-	number    domainCheckIdentity
+	number    DomainCheckIdentity
 	actor     authorization.PrincipalRef
 	ri        bool
 	admission routineAdmissionProgram

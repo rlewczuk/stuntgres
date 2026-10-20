@@ -7,19 +7,19 @@ import (
 
 // builtinDomainCheckSeed is the CHECK declaration of a builtin domain.
 type builtinDomainCheckSeed struct {
-	id          ids.OID
-	constraints []parser.ColumnConstraint
+	Id          ids.OID
+	Constraints []parser.ColumnConstraint
 }
 
 // builtinDomainDefaultSeed is the DEFAULT expression of a builtin domain.
 type builtinDomainDefaultSeed struct {
-	id         ids.OID
-	expression parser.Expr
+	Id         ids.OID
+	Expression parser.Expr
 }
 
 // builtinDomainCheckSeeds parses the CHECK constraints of the
 // information_schema domains, in installation order.
-func builtinDomainCheckSeeds() ([]builtinDomainCheckSeed, error) {
+func BuiltinDomainCheckSeeds() ([]builtinDomainCheckSeed, error) {
 	declarations := [...]struct {
 		id          ids.OID
 		declaration string
@@ -33,12 +33,12 @@ func builtinDomainCheckSeeds() ([]builtinDomainCheckSeed, error) {
 		if err != nil {
 			return nil, err
 		}
-		seeds[i] = builtinDomainCheckSeed{id: recipe.id, constraints: raw[0].(*parser.CreateDomain).Constraints}
+		seeds[i] = builtinDomainCheckSeed{Id: recipe.id, Constraints: raw[0].(*parser.CreateDomain).Constraints}
 	}
 	return seeds, nil
 }
 
 // builtinDomainDefaultSeeds returns the DEFAULT of information_schema.time_stamp.
-func builtinDomainDefaultSeeds() []builtinDomainDefaultSeed {
-	return []builtinDomainDefaultSeed{{id: 13254, expression: parser.CurrentDateTimeExpr{Kind: parser.CurrentTimestamp, HasPrecision: true, Precision: 2}}}
+func BuiltinDomainDefaultSeeds() []builtinDomainDefaultSeed {
+	return []builtinDomainDefaultSeed{{Id: 13254, Expression: parser.CurrentDateTimeExpr{Kind: parser.CurrentTimestamp, HasPrecision: true, Precision: 2}}}
 }

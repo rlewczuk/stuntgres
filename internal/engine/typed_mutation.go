@@ -18,16 +18,16 @@ type typedRelationMutation struct {
 	checks     []catalog.CheckConstraint
 }
 
-func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []typedColumnAction) (typedRelationMutation, error) {
+func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []TypedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))
 	for i, action := range actions {
-		raw[i] = action.action
+		raw[i] = action.Action
 	}
 	for pass := range 2 {
 		for _, planned := range actions {
-			a := planned.action
+			a := planned.Action
 			if !(pass == 0 && a.Action == parser.DropColumn || pass == 1 && a.Action == parser.AddColumn) {
 				continue
 			}
@@ -37,10 +37,10 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				mutation.next, err = scope.dropColumnCandidate(stage, mutation.next, ref, a, nil)
 			case parser.AddColumn:
 				var added addedColumn
-				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.usage)
+				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.Usage)
 				if err == nil && added.column != nil {
-					if planned.usage != nil {
-						mutation.next.Columns[mutation.next.IndexForAttribute(added.attribute)].DeclaredDimensions = planned.declaredDimensions
+					if planned.Usage != nil {
+						mutation.next.Columns[mutation.next.IndexForAttribute(added.attribute)].DeclaredDimensions = planned.DeclaredDimensions
 					}
 					mutation.additions = append(mutation.additions, added)
 				}
@@ -61,20 +61,20 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 			// TYPE expressions bind to the original row; the CHECK/index queue
 			// binds only after all TYPE candidates have their final usages.
 			for _, planned := range actions {
-				if planned.action.Action != parser.AlterColumnType {
+				if planned.Action.Action != parser.AlterColumnType {
 					continue
 				}
 				e.mu.Lock()
-				prepared, prepareErr := e.prepareAlterTypeLocked(scope, op, auth, old, ref, planned.action, planned.usage)
+				prepared, prepareErr := e.prepareAlterTypeLocked(scope, op, auth, old, ref, planned.Action, planned.Usage)
 				e.mu.Unlock()
 				if prepareErr != nil {
 					return mutation, prepareErr
 				}
-				if planned.usage != nil {
-					prepared.declaredDimensions = planned.declaredDimensions
+				if planned.Usage != nil {
+					prepared.declaredDimensions = planned.DeclaredDimensions
 				}
 				var transform columnTransformation
-				mutation.next, transform, err = e.alterTypeCandidate(scope, op, auth, stage, old, mutation.next, ref, planned.action, prepared)
+				mutation.next, transform, err = e.alterTypeCandidate(scope, op, auth, stage, old, mutation.next, ref, planned.Action, prepared)
 				if err != nil {
 					return mutation, err
 				}
@@ -118,7 +118,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	// candidate preserves every Usage and descriptor pointer. Keep semantic
 	// admission ahead of the no-physical-change fast path.
 	if len(mutation.transforms) != 0 {
-		if err := rowRewriteError(auth.Catalog, old); err != nil {
+		if err := RowRewriteError(auth.Catalog, old); err != nil {
 			return err
 		}
 	}
@@ -145,7 +145,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		rewrite = rewrite || transform.rewrite
 	}
 	if perRowAdd {
-		if err := rowRewriteError(auth.Catalog, old); err != nil {
+		if err := RowRewriteError(auth.Catalog, old); err != nil {
 			return err
 		}
 	}

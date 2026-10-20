@@ -9,7 +9,7 @@ import (
 // Input order is lexical (parameter/member order), not a later value-tree walk.
 // This capture concerns only providers of the demanded input recipe, before
 // leaving the binder's lock, and is discarded with that synchronous occurrence.
-func captureDomainInputProviders(view catalog.Read, typ *sqltype.Descriptor) map[ids.ObjectAddress]catalog.Descriptor {
+func CaptureDomainInputProviders(view catalog.Read, typ *sqltype.Descriptor) map[ids.ObjectAddress]catalog.Descriptor {
 	providers := make(map[ids.ObjectAddress]catalog.Descriptor)
 	var visit func(*sqltype.Descriptor)
 	visit = func(typ *sqltype.Descriptor) {
@@ -51,7 +51,7 @@ func captureDomainInputProviders(view catalog.Read, typ *sqltype.Descriptor) map
 	return providers
 }
 
-func validateCapturedInputBinding(captured, current catalog.Read, dependencies []catalog.ExpressionDependency) error {
+func ValidateCapturedInputBinding(captured, current catalog.Read, dependencies []catalog.ExpressionDependency) error {
 	if captured.Owner() != current.Owner() || captured.Epoch() != current.Epoch() {
 		return ids.ErrCatalogReplaced
 	}

@@ -129,7 +129,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := validateRules(v, r); err != nil {
 		return err
 	}
-	if err := validateTypedAttachment(v, r); err != nil {
+	if err := ValidateTypedAttachment(v, r); err != nil {
 		return err
 	}
 	if err := validateInheritance(v, r); err != nil {
@@ -351,7 +351,7 @@ type CatalogStage struct {
 	indexSets           map[ids.ObjectAddress]int
 	indexOutput         sqltype.OutputEnvironment
 	sequence            *sequenceStage
-	typed               *typedStage
+	typed               *TypedStage
 	lifecycle           catalogLifecycle
 	invalid             error
 	authSession         *Session
@@ -368,7 +368,7 @@ type CatalogStage struct {
 	dependencyPath     []ids.ObjectAddress
 	domainTargets      []ids.ObjectAddress
 	domainBases        []catalog.Descriptor
-	domainAlter        *domainAlterStage
+	domainAlter        *DomainAlterStage
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
@@ -764,11 +764,11 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
-		if !e.storage.IndexRootsCurrent(s.domainAlter.alteredIndexRoots()) {
+		if !e.storage.IndexRootsCurrent(s.domainAlter.AlteredIndexRoots()) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if fence := s.domainAlter.validationFence(); fence != nil && !fence.current(e.catalog.read(current), currentStorage) {
+		if fence := s.domainAlter.ValidationFence(); fence != nil && !fence.Current(e.catalog.read(current), currentStorage) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -1060,7 +1060,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 			if domainChanged || s.Get(descriptor.Address()) != nil {
 				if relation, ok := descriptor.(*catalog.Relation); ok {
-					if err := validateTypedAttachment(e.catalog.read(next), relation); err != nil {
+					if err := ValidateTypedAttachment(e.catalog.read(next), relation); err != nil {
 						return ChangeSet{}, err
 					}
 				}
@@ -1143,10 +1143,10 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		err := p.ctx.Err()
-		if err == nil && !e.storage.IndexRootsCurrent(s.domainAlter.alteredIndexRoots()) {
+		if err == nil && !e.storage.IndexRootsCurrent(s.domainAlter.AlteredIndexRoots()) {
 			err = catalog.Conflict{}
 		}
-		if fence := s.domainAlter.validationFence(); err == nil && fence != nil && !fence.current(e.catalog.read(e.catalog.state), e.storage.Relations) {
+		if fence := s.domainAlter.ValidationFence(); err == nil && fence != nil && !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			err = catalog.Conflict{}
 		}
 		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != s.databasePredecessor {

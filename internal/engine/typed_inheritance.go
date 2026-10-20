@@ -46,7 +46,7 @@ func typedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAdd
 				continue
 			}
 			for _, rowType := range rowTypes {
-				if containsRowType(typ, rowType) {
+				if ContainsRowType(typ, rowType) {
 					result[table.Address()] = table
 					break
 				}
@@ -60,14 +60,14 @@ func typedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAdd
 }
 
 func typedObservationValid(stage *CatalogStage, current catalog.Read) bool {
-	if stage.typed.sourceType() == (ids.ObjectAddress{}) {
+	if stage.typed.SourceType() == (ids.ObjectAddress{}) {
 		return true
 	}
-	observed := typedClosure(current, stage.typed.sourceType())
-	if len(observed) != len(stage.typed.observedTables()) {
+	observed := typedClosure(current, stage.typed.SourceType())
+	if len(observed) != len(stage.typed.ObservedTables()) {
 		return false
 	}
-	for address, descriptor := range stage.typed.observedTables() {
+	for address, descriptor := range stage.typed.ObservedTables() {
 		if observed[address] != descriptor {
 			return false
 		}
@@ -129,12 +129,12 @@ func typedPropagationOrder(view catalog.Read, source ids.ObjectAddress) []*catal
 	return ordered
 }
 
-func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
+func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]TypedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
 	graph := *old.Inheritance
 	graph.Columns = maps.Clone(graph.Columns)
 	graph.Checks = maps.Clone(graph.Checks)
 	graph.NotNull = maps.Clone(graph.NotNull)
-	var actions []typedColumnAction
+	var actions []TypedColumnAction
 	renames := make(map[int32]string)
 	for i, attribute := range old.Attributes {
 		provenance := graph.Columns[attribute]
@@ -163,7 +163,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 		graph.Columns[attribute] = provenance
 		if desired == nil {
 			if !provenance.Local {
-				actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: old.Columns[i].Name}, Mode: parser.DropCascade}})
+				actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: old.Columns[i].Name}, Mode: parser.DropCascade}})
 				delete(graph.Columns, attribute)
 			}
 			continue
@@ -177,7 +177,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 			if forceType {
 				dimensions = requestedDimensions
 			}
-			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: old.Columns[i].Name}}, usage: &usage, declaredDimensions: dimensions})
+			actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: old.Columns[i].Name}}, Usage: &usage, DeclaredDimensions: dimensions})
 		}
 	}
 	// New attributes merge with an existing local/sibling attribute by live name,
@@ -211,13 +211,13 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 				continue
 			}
 			if index, exists := pending[member.Name]; exists {
-				if *actions[index].usage != member.Usage {
+				if *actions[index].Usage != member.Usage {
 					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`inherited column "%s" has a type conflict`, member.Name))
 				}
 			} else {
 				usage := member.Usage
 				pending[member.Name] = len(actions)
-				actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: member.Name}}, usage: &usage, declaredDimensions: member.DeclaredDimensions})
+				actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: member.Name}}, Usage: &usage, DeclaredDimensions: member.DeclaredDimensions})
 			}
 		}
 	}

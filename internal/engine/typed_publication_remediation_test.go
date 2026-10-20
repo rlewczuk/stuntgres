@@ -38,7 +38,7 @@ func TestTypedInheritedParentAttributePublication(t *testing.T) {
 	if source.Columns[0].Usage.Type.ID() != sqltype.Int4 || table.Columns[1].Name != "note" {
 		t.Fatal("publication mutated captured providers")
 	}
-	if err := validateTypedAttachment(view, root); err != nil {
+	if err := ValidateTypedAttachment(view, root); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -53,7 +53,7 @@ func TestTypedStoredAssociatedCompositeArrayGuard(t *testing.T) {
 	state := catalog.CloneState(view.State())
 	state.SetDescriptor(holder.Address(), holder)
 	var diagnostic *sqlstate.Error
-	if err := rowRewriteError(e.catalog.read(state), source); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter type "pair" because column "holder.v" uses it` {
+	if err := RowRewriteError(e.catalog.read(state), source); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter type "pair" because column "holder.v" uses it` {
 		t.Fatal("real associated-array provider escaped guard", err)
 	}
 }

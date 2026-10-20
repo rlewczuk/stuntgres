@@ -299,7 +299,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	defer func() { next.SetScalarImports(nil) }()
-	domainsChanged, err := reownDomainTypes(next, mapping, true)
+	domainsChanged, err := ReownDomainTypes(next, mapping, true)
 	if err != nil {
 		return err
 	}
@@ -599,7 +599,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			}
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok {
-			if err := validateTypedAttachment(e.catalog.read(next), relation); err != nil {
+			if err := ValidateTypedAttachment(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}

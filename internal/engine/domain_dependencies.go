@@ -201,7 +201,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				if compositeAttributeRoot && target == root && defaultDependency {
 					compositeDefaultOrder = true
 				}
-				if d.SQLType.IsDomain() && (usageDependsOn(d.SQLType.DomainBase(), target) || defaultDependency) {
+				if d.SQLType.IsDomain() && (UsageDependsOn(d.SQLType.DomainBase(), target) || defaultDependency) {
 					dependencyTarget := target
 					// DFS can reach an inherited recipe through its parent before
 					// visiting its direct provider edge. Retain that genuine root
@@ -310,7 +310,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				for i, c := range d.Columns {
 					column := a
 					column.SubID = d.Attributes[i]
-					if usageDependsOn(c.Usage, target) {
+					if UsageDependsOn(c.Usage, target) {
 						direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, relation: d, column: c.Name})
 					}
 					if droppedColumns[column] {

@@ -105,7 +105,7 @@ func partitionKeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.R
 			text.WriteString(catalog.QuoteIdentifier(d.Columns[slot].Name))
 		}
 		if key.Collation != 0 {
-			name := collationSQLName(catalogView, key.Collation)
+			name := CollationSQLName(catalogView, key.Collation)
 			if name == "" {
 				return "", fmt.Errorf("stuntgres: unsupported stored collation")
 			}

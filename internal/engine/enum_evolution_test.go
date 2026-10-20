@@ -16,22 +16,22 @@ import (
 func TestEnumProvenanceSavepoints(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 45000}
 	outer := newCatalogChanges()
-	outer.enum = &enumJournal{created: map[ids.ObjectAddress]bool{address: true}, unsafe: map[int64]bool{9: true}}
+	outer.enum = &EnumJournal{Created: map[ids.ObjectAddress]bool{address: true}, Unsafe: map[int64]bool{9: true}}
 	child := cloneCatalogChanges(outer)
-	child.enum.unsafeMembers()[10] = true
-	delete(child.enum.createdTypes(), address)
-	if outer.enum.unsafeMembers()[10] || !outer.enum.createdTypes()[address] {
+	child.enum.UnsafeMembers()[10] = true
+	delete(child.enum.CreatedTypes(), address)
+	if outer.enum.UnsafeMembers()[10] || !outer.enum.CreatedTypes()[address] {
 		t.Fatal("provenance clone mutated mark")
 	}
 	owner := &transactionOwner{catalog: outer}
 	mark := savepointMark{catalog: owner.catalog}
 	owner.catalog = child
 	// RELEASE retains child roots; ROLLBACK restores the exact marked root.
-	if enumSafety(owner.catalog.enum.unsafeMembers())(45000, 10) {
+	if EnumSafety(owner.catalog.enum.UnsafeMembers())(45000, 10) {
 		t.Fatal("child unsafe member upgraded")
 	}
 	owner.catalog = mark.catalog
-	if !enumSafety(owner.catalog.enum.unsafeMembers())(45000, 10) || enumSafety(owner.catalog.enum.unsafeMembers())(45000, 9) {
+	if !EnumSafety(owner.catalog.enum.UnsafeMembers())(45000, 10) || EnumSafety(owner.catalog.enum.UnsafeMembers())(45000, 9) {
 		t.Fatal("rollback provenance")
 	}
 }
@@ -116,10 +116,10 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	target, _ := sqltype.EnumWithMembers(source.ID(), "mood", "public.mood", []sqltype.EnumMember{{ID: 80, Label: "old", SortOrder: 1}})
 	v, _ := source.Input(ctx, "old", -1)
 	imports := map[*sqltype.Descriptor]*sqltype.Descriptor{source: target}
-	if _, err := reownDomainDatum(v, target, nil, nil, nil); err == nil {
+	if _, err := ReownDomainDatum(v, target, nil, nil, nil); err == nil {
 		t.Fatal("ordinary same-ID foreign membership admitted")
 	}
-	mapped, err := reownDomainDatum(v, target, nil, imports, nil)
+	mapped, err := ReownDomainDatum(v, target, nil, imports, nil)
 	id, _ := mapped.EnumMemberID()
 	if err != nil || id != 80 {
 		t.Fatal("same-ID import", id, err)
@@ -127,7 +127,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	oldDomain, _ := sqltype.Domain(45001, "d", "public.d", source.Usage())
 	newDomain, _ := sqltype.Domain(oldDomain.ID(), "d", "public.d", target.Usage())
 	wrapped, _ := oldDomain.Wrap(v)
-	mapped, err = reownDomainDatum(wrapped, newDomain, nil, imports, nil)
+	mapped, err = ReownDomainDatum(wrapped, newDomain, nil, imports, nil)
 	id, _ = mapped.EnumMemberID()
 	if err != nil || id != 80 || mapped.Type() != newDomain {
 		t.Fatal("domain import", mapped, err)
@@ -135,7 +135,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	oldArray, _ := sqltype.Array(45002, "_mood", source)
 	newArray, _ := sqltype.Array(oldArray.ID(), "_mood", target)
 	array, _ := sqltype.OwnedArrayValue(oldArray, []sqltype.ArrayDimension{{Lower: 1, Length: 1}}, []sqltype.Value{v})
-	mapped, err = reownDomainDatum(array, newArray, nil, imports, nil)
+	mapped, err = ReownDomainDatum(array, newArray, nil, imports, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

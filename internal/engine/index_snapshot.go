@@ -158,8 +158,8 @@ func (snapshot *indexSnapshot) destination(address ids.ObjectAddress) ids.Object
 	return address
 }
 
-func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descriptor, collation collationRemapper, aclImport func(sqltype.Value) (sqltype.Value, error)) (sqltype.Value, error) {
-	value, err := reownDomainDatum(value, target, collation, snapshot.imports, aclImport)
+func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descriptor, collation CollationRemapper, aclImport func(sqltype.Value) (sqltype.Value, error)) (sqltype.Value, error) {
+	value, err := ReownDomainDatum(value, target, collation, snapshot.imports, aclImport)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -210,7 +210,7 @@ func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalog.Stat
 func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	roots := make(map[ids.ObjectAddress]*storage.IndexRoot, len(snapshot.sources))
 	checkedParents := make(map[ids.ObjectAddress]bool)
-	collation := remappedCollationCapabilities(next, snapshot.mapping)
+	collation := RemappedCollationCapabilities(next, snapshot.mapping)
 	for sourceAddress, source := range snapshot.sources {
 		if err := ctx.Err(); err != nil {
 			return nil, err

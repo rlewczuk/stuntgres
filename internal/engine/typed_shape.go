@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func standaloneComposite(view catalog.Read, typ *catalog.Type, path []ids.ObjectAddress) (*catalog.Relation, error) {
+func StandaloneComposite(view catalog.Read, typ *catalog.Type, path []ids.ObjectAddress) (*catalog.Relation, error) {
 	name := typ.SQLType.DiagnosticName()
 	if typ.SQLType.IsUserDefined() {
 		name = catalog.TypeDiagnosticNameAt(view, typ, path)
@@ -29,7 +29,7 @@ func standaloneComposite(view catalog.Read, typ *catalog.Type, path []ids.Object
 	return source, nil
 }
 
-func typedShape(table, source *catalog.Relation) error {
+func TypedShape(table, source *catalog.Relation) error {
 	for i, member := range source.Columns {
 		if i >= len(table.Columns) {
 			return sqlError("42804", fmt.Sprintf(`table is missing column "%s"`, member.Name))
@@ -48,7 +48,7 @@ func typedShape(table, source *catalog.Relation) error {
 	return nil
 }
 
-func validateTypedAttachment(view catalog.Read, table *catalog.Relation) error {
+func ValidateTypedAttachment(view catalog.Read, table *catalog.Relation) error {
 	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -59,17 +59,17 @@ func validateTypedAttachment(view catalog.Read, table *catalog.Relation) error {
 	if !ok {
 		return fmt.Errorf("stuntgres: missing typed source")
 	}
-	source, err := standaloneComposite(view, typ, nil)
+	source, err := StandaloneComposite(view, typ, nil)
 	if err != nil {
 		return err
 	}
 	if table.Inheritance != nil && len(table.Inheritance.Parents) != 0 {
 		return sqlError("42809", "typed tables cannot inherit")
 	}
-	return typedShape(table, source)
+	return TypedShape(table, source)
 }
 
-func typedDirectActionsGuard(table *catalog.Relation, actions []parser.AlterTableAction) error {
+func TypedDirectActionsGuard(table *catalog.Relation, actions []parser.AlterTableAction) error {
 	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}

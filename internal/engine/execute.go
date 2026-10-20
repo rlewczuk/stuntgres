@@ -481,7 +481,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		scope.routineAuth = auth
-		if err := validateCapturedInputBinding(captured, auth.Catalog, b.dependencies); err != nil {
+		if err := ValidateCapturedInputBinding(captured, auth.Catalog, b.dependencies); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

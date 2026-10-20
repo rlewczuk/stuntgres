@@ -105,7 +105,7 @@ type evalAdmission struct {
 	routineConsumer    *catalog.Relation
 	routineProgram     *routineAdmissionProgram // Borrowed serial preparation footprint, never row-owned.
 	routineBodyContext routineBodyContext
-	domainPhase        domainCheckIdentity // Existing transaction/command identity, not a permission result.
+	domainPhase        DomainCheckIdentity // Existing transaction/command identity, not a permission result.
 }
 
 // A folded value retains conservative type/dependence metadata and the original

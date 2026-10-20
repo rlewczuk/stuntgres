@@ -5,7 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func defaultDomainACL(d *catalog.Type) bool {
+func DefaultDomainACL(d *catalog.Type) bool {
 	if !d.ACLSyntheticDefault || !d.ACL.Explicit {
 		return false
 	}

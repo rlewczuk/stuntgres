@@ -227,7 +227,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		if err != nil {
 			return err
 		}
-		if err := validateCapturedInputBinding(auth.Catalog, current.Catalog, binder.dependencies); err != nil {
+		if err := ValidateCapturedInputBinding(auth.Catalog, current.Catalog, binder.dependencies); err != nil {
 			return err
 		}
 		e.mu.Unlock()

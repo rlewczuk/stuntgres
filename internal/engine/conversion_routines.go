@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-var builtinConversionRoutines = [...]struct {
+var BuiltinConversionRoutines = [...]struct {
 	oid  ids.OID
 	name string
 }{
@@ -98,7 +98,7 @@ var builtinConversionRoutines = [...]struct {
 	{4387, "shift_jis_2004_to_euc_jis_2004"},
 }
 
-func conversionRoutineName(oid ids.OID) string {
+func ConversionRoutineName(oid ids.OID) string {
 	if oid < 4302 || oid > 4387 || oid == 4350 || oid == 4351 {
 		return ""
 	}
@@ -106,14 +106,14 @@ func conversionRoutineName(oid ids.OID) string {
 	if oid >= 4352 {
 		index -= 2
 	}
-	return builtinConversionRoutines[index].name
+	return BuiltinConversionRoutines[index].name
 }
 
 // builtinConversionProcedures returns fresh descriptors for the builtin
 // encoding conversion routines, owned by owner.
-func builtinConversionProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
-	procedures := make([]catalog.Procedure, len(builtinConversionRoutines))
-	for i, routine := range builtinConversionRoutines {
+func BuiltinConversionProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
+	procedures := make([]catalog.Procedure, len(BuiltinConversionRoutines))
+	for i, routine := range BuiltinConversionRoutines {
 		provider, ok := sqltype.RegisteredEncodingConversion(routine.name)
 		if !ok {
 			panic("stuntgres: missing released encoding conversion provider")

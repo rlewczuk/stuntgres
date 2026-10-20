@@ -34,7 +34,7 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	source, err := standaloneComposite(auth.Catalog, typ, path)
+	source, err := StandaloneComposite(auth.Catalog, typ, path)
 	if err == nil {
 		err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address()))
 	}
@@ -105,7 +105,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-		source, err := standaloneComposite(auth.Catalog, typ, path)
+		source, err := StandaloneComposite(auth.Catalog, typ, path)
 		if err == nil {
 			// Like CREATE OF, attachment needs source USAGE (PostgreSQL 18.6,
 			// CVE-2026-6470), checked before inheritance and shape.
@@ -117,7 +117,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 		if old.Inheritance != nil && len(old.Inheritance.Parents) != 0 {
 			return fail(sqlError("42809", "typed tables cannot inherit"))
 		}
-		if err := typedShape(old, source); err != nil {
+		if err := TypedShape(old, source); err != nil {
 			return fail(err)
 		}
 		next.OfType = typ.Address()

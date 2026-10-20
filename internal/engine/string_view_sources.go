@@ -61,7 +61,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 				}
 				members[j] = v.presentation.identifier(member.Name) + " " + declaration
 				if member.Usage.Collation.ID != 0 {
-					name := collationSQLName(catalog, member.Usage.Collation.ID)
+					name := CollationSQLName(catalog, member.Usage.Collation.ID)
 					if name == "" {
 						return viewRenderFrom{}, fmt.Errorf("stuntgres: missing record member collation")
 					}

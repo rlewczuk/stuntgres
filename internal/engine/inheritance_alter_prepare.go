@@ -268,7 +268,7 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *ca
 		descriptor, _ := reader.descriptor(address)
 		return descriptor
 	}, func(namespace ids.ObjectAddress, name string) string {
-		return chooseAssociatedArrayName(name, func(candidate string) bool {
+		return ChooseAssociatedArrayName(name, func(candidate string) bool {
 			return reader.lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 		})
 	}, func(descriptor catalog.Descriptor) error {

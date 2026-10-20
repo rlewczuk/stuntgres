@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func typeDefault(view catalog.Read, typ *sqltype.Descriptor) *catalog.ColumnDefault {
+func TypeDefault(view catalog.Read, typ *sqltype.Descriptor) *catalog.ColumnDefault {
 	if !typ.IsDomain() {
 		return nil
 	}

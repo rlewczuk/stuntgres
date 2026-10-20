@@ -100,12 +100,12 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 		if len(scope.owner.savepoints) == 0 {
 			journal := changes.enumWritable()
-			if journal.created == nil {
-				journal.created = make(map[ids.ObjectAddress]bool)
+			if journal.Created == nil {
+				journal.Created = make(map[ids.ObjectAddress]bool)
 			}
 			for a, d := range stage.Descriptors() {
 				if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsEnum() {
-					journal.created[a] = true
+					journal.Created[a] = true
 				}
 			}
 		}
@@ -162,14 +162,14 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			if err != nil {
 				return Result{}, err
 			}
-			order := enumInsertionOrder(members, at)
+			order := EnumInsertionOrder(members, at)
 			members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
-			if !changes.enum.createdTypes()[ref.Address] || len(scope.owner.savepoints) != 0 {
+			if !changes.enum.CreatedTypes()[ref.Address] || len(scope.owner.savepoints) != 0 {
 				journal := changes.enumWritable()
-				if journal.unsafe == nil {
-					journal.unsafe = make(map[int64]bool)
+				if journal.Unsafe == nil {
+					journal.Unsafe = make(map[int64]bool)
 				}
-				journal.unsafe[member] = true
+				journal.Unsafe[member] = true
 			}
 		}
 		typ, err := sqltype.EnumWithMembers(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), members)

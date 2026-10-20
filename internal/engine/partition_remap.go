@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation collationRemapper) (*catalog.Relation, error) {
+func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation CollationRemapper) (*catalog.Relation, error) {
 	next := *d
 	if d.Partition != nil {
 		definition := *d.Partition
@@ -81,7 +81,7 @@ func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 				if datum.Kind != 0 {
 					continue
 				}
-				value, err := reownDomainDatum(datum.Value, typ(datum.Value.Type()), collation, view.State().ScalarImports(), view.State().ACLItemImport())
+				value, err := ReownDomainDatum(datum.Value, typ(datum.Value.Type()), collation, view.State().ScalarImports(), view.State().ACLItemImport())
 				if err != nil {
 					return nil, err
 				}

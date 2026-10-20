@@ -399,7 +399,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if err != nil {
 			return "", err
 		}
-		if name := collationSQLName(view, n.Usage.Collation.ID); name != "" {
+		if name := CollationSQLName(view, n.Usage.Collation.ID); name != "" {
 			return "(" + text + " COLLATE " + name + ")", nil
 		}
 		return "", fmt.Errorf("stuntgres: invalid default collation")

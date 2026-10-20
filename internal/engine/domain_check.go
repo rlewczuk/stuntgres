@@ -179,7 +179,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 	scope := c.liveScope()
 	if scope != nil {
 		c.preparedDomainChecks = scope.domainPreparedChecks
-		c.domainPhase = domainCheckIdentity{transaction: scope.txRef, command: scope.command}
+		c.domainPhase = DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
 	}
 	if len(d.DomainChecks) == 0 {
 		return nil

@@ -8,72 +8,72 @@ import (
 )
 
 // domainJournal holds the committed-predecessor fences of ALTER DOMAIN.
-type domainJournal struct {
-	validations []*domainValidationFence
-	indexRoots  map[ids.ObjectAddress]*storage.IndexRoot
+type DomainJournal struct {
+	Validations []*DomainValidationFence
+	IndexRoots  map[ids.ObjectAddress]*storage.IndexRoot
 }
 
 // enumJournal holds enum provenance: types created at top transaction level
 // and globally nonreused member identities.
-type enumJournal struct {
-	created map[ids.ObjectAddress]bool
-	unsafe  map[int64]bool
+type EnumJournal struct {
+	Created map[ids.ObjectAddress]bool
+	Unsafe  map[int64]bool
 }
 
 // clone copies the slot for a savepoint or statement candidate.
-func (d *domainJournal) clone() *domainJournal {
+func (d *DomainJournal) Clone() *DomainJournal {
 	if d == nil {
 		return nil
 	}
-	n := &domainJournal{validations: append([]*domainValidationFence(nil), d.validations...)}
-	if d.indexRoots != nil {
-		n.indexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(d.indexRoots))
-		maps.Copy(n.indexRoots, d.indexRoots)
+	n := &DomainJournal{Validations: append([]*DomainValidationFence(nil), d.Validations...)}
+	if d.IndexRoots != nil {
+		n.IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(d.IndexRoots))
+		maps.Copy(n.IndexRoots, d.IndexRoots)
 	}
 	return n
 }
 
-func (d *domainJournal) validationFences() []*domainValidationFence {
+func (d *DomainJournal) ValidationFences() []*DomainValidationFence {
 	if d == nil {
 		return nil
 	}
-	return d.validations
+	return d.Validations
 }
 
-func (d *domainJournal) committedIndexRoots() map[ids.ObjectAddress]*storage.IndexRoot {
+func (d *DomainJournal) CommittedIndexRoots() map[ids.ObjectAddress]*storage.IndexRoot {
 	if d == nil {
 		return nil
 	}
-	return d.indexRoots
+	return d.IndexRoots
 }
 
 // clone copies the slot for a savepoint or statement candidate.
-func (j *enumJournal) clone() *enumJournal {
+func (j *EnumJournal) Clone() *EnumJournal {
 	if j == nil {
 		return nil
 	}
-	n := new(enumJournal)
-	if j.created != nil {
-		n.created = make(map[ids.ObjectAddress]bool, len(j.created))
-		maps.Copy(n.created, j.created)
+	n := new(EnumJournal)
+	if j.Created != nil {
+		n.Created = make(map[ids.ObjectAddress]bool, len(j.Created))
+		maps.Copy(n.Created, j.Created)
 	}
-	if j.unsafe != nil {
-		n.unsafe = make(map[int64]bool, len(j.unsafe))
-		maps.Copy(n.unsafe, j.unsafe)
+	if j.Unsafe != nil {
+		n.Unsafe = make(map[int64]bool, len(j.Unsafe))
+		maps.Copy(n.Unsafe, j.Unsafe)
 	}
 	return n
 }
 
-func (j *enumJournal) createdTypes() map[ids.ObjectAddress]bool {
+func (j *EnumJournal) CreatedTypes() map[ids.ObjectAddress]bool {
 	if j == nil {
 		return nil
 	}
-	return j.created
+	return j.Created
 }
 
-func (j *enumJournal) unsafeMembers() map[int64]bool {
+func (j *EnumJournal) UnsafeMembers() map[int64]bool {
 	if j == nil {
 		return nil
 	}
-	return j.unsafe
+	return j.Unsafe
 }

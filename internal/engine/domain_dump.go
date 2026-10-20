@@ -86,11 +86,11 @@ func catalogColumnDeclaration(view catalog.Read, column catalog.Column) (string,
 	return alias, nil
 }
 
-func domainDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *domainReplayNames) (dumpDomain, error) {
+func domainDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *DomainReplayNames) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err
 	}
-	if !defaultDomainACL(d) {
+	if !DefaultDomainACL(d) {
 		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
 	}
 	qualified, err := catalogTypeDeclaration(view, d.SQLType.Usage())
@@ -115,8 +115,8 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	}
 	if base.Type.IsArray() {
 		if d.Dimensions == 0 {
-			key, exists := replayNames.names[base.Type.ID()]
-			if !exists || replayNames.arrays[base.Type.Element().ID()] != base.Type.ID() {
+			key, exists := replayNames.Names[base.Type.ID()]
+			if !exists || replayNames.Arrays[base.Type.Element().ID()] != base.Type.ID() {
 				return dumpDomain{}, fmt.Errorf("stuntgres: missing domain replay array identity")
 			}
 			namespace, exists := view.Descriptor(key.Namespace)
@@ -130,7 +130,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	}
 	collation := ""
 	if base.Collation != base.Type.Usage().Collation {
-		name := collationSQLName(view, base.Collation.ID)
+		name := CollationSQLName(view, base.Collation.ID)
 		if name == "" {
 			return dumpDomain{}, fmt.Errorf("stuntgres: unsupported domain collation")
 		}

@@ -447,7 +447,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			var path []ids.ObjectAddress
 			path, err = e.referencePath(auth)
 			if err == nil {
-				source, err = standaloneComposite(auth.Catalog, typ, path)
+				source, err = StandaloneComposite(auth.Catalog, typ, path)
 			}
 			if err == nil {
 				typedSourceRef = e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())

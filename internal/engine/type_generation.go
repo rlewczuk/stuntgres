@@ -11,7 +11,7 @@ import (
 func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.stageRead(stage)
 	next := view.State()
-	if _, err := reownDomainTypes(next, nil, false); err != nil {
+	if _, err := ReownDomainTypes(next, nil, false); err != nil {
 		return err
 	}
 	if err := reownCatalogScalarTypes(next, nil, nil); err != nil {
@@ -22,7 +22,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	}
 	// ALTER changes executable domain recipes, unlike mere retained-value
 	// reownership. Every changed same-ID consumer must invalidate held analysis.
-	if stage.domainAlter.alterContext() != nil {
+	if stage.domainAlter.AlterContext() != nil {
 		for address, descriptor := range next.Descriptors() {
 			previous := stage.Get(address)
 			if previous == nil {
@@ -75,7 +75,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				}
 			}
 		}
-		if stage.domainAlter.alterContext() != nil {
+		if stage.domainAlter.AlterContext() != nil {
 			if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 				parent := index.SQLIndex.Parent
 				if stores[parent] == nil {
@@ -104,7 +104,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
 		return err
 	}
-	if stage.domainAlter.alterContext() != nil {
+	if stage.domainAlter.AlterContext() != nil {
 		if err := e.stageDomainIndexGenerationsLocked(stage, next, stores); err != nil {
 			return err
 		}

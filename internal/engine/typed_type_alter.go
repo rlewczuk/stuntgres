@@ -50,8 +50,8 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	stage.authorizeLocked(auth, op.session)
 	stage.dependencyPath = path
 	stage.domainBases = append(stage.domainBases, typ)
-	stage.typedState().source = typ.Address()
-	stage.typedState().observed = typedClosure(auth.Catalog, typ.Address())
+	stage.typedState().Source = typ.Address()
+	stage.typedState().Observed = typedClosure(auth.Catalog, typ.Address())
 	targets := typedPropagationOrder(auth.Catalog, typ.Address())
 	if len(targets) != 0 {
 		restrict := s.Rename != nil && s.Mode != parser.DropCascade
@@ -66,7 +66,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	// OID order grants deterministic closure authority; planning order below is
 	// independently parent-before-child for multiple-parent inheritance.
-	addresses := typedSortedAddresses(targets)
+	addresses := TypedSortedAddresses(targets)
 	for _, address := range addresses {
 		if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return Result{}, err
@@ -102,7 +102,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {
-			if err := rowRewriteError(auth.Catalog, source); err != nil {
+			if err := RowRewriteError(auth.Catalog, source); err != nil {
 				return Result{}, err
 			}
 		}
@@ -119,9 +119,9 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		next.ObjectRevision = source.Revision() + 1
 		sourceMutation = typedRelationMutation{old: source, next: next}
 	} else {
-		actions := make([]typedColumnAction, len(s.Actions))
+		actions := make([]TypedColumnAction, len(s.Actions))
 		for i, action := range s.Actions {
-			actions[i].action = action
+			actions[i].Action = action
 		}
 		sourceMutation, err = e.typedMutation(scope, op, auth, stage, source, actions)
 		if err != nil {
@@ -170,13 +170,13 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 	}
 	for _, table := range targets {
-		var actions []typedColumnAction
+		var actions []TypedColumnAction
 		var renames map[int32]string
 		var graph *catalog.TableInheritance
 		view := e.stageRead(stage)
 		table = view.MustRelation(table.Address())
 		if table.OfType == typ.Address() {
-			actions, renames = typedShapeActions(source, sourceMutation.next, table, forced[source.Address()])
+			actions, renames = TypedShapeActions(source, sourceMutation.next, table, forced[source.Address()])
 		} else {
 			actions, renames, graph, err = typedInheritedActions(view, table, forced)
 			if err != nil {
@@ -215,7 +215,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			next.ObjectRevision = table.Revision() + 1
 			mutation.next = &next
 			if graph != nil {
-				finishTypedInheritance(view, &next, graph)
+				FinishTypedInheritance(view, &next, graph)
 			}
 		}
 		if err := stage.Replace(mutation.next); err != nil {

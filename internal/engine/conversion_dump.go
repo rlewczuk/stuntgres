@@ -18,7 +18,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 		return
 	}
 	sort.Slice(definitions, func(i, j int) bool {
-		return conversionSQLName(view, definitions[i]) < conversionSQLName(view, definitions[j])
+		return ConversionSQLName(view, definitions[i]) < ConversionSQLName(view, definitions[j])
 	})
 	type pair struct {
 		namespace           ids.ObjectAddress
@@ -47,7 +47,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 		if ownerErr != nil {
 			return nil, nil, ownerErr
 		}
-		name := conversionSQLName(view, d)
+		name := ConversionSQLName(view, d)
 		key := pair{d.Namespace(), d.Source, d.Destination}
 		helper := ""
 		if d.DefaultConversion && occupiedPairs[key] {
@@ -60,7 +60,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 			schemas = append(schemas, "CREATE SCHEMA "+catalog.QuoteIdentifier(helper)+" AUTHORIZATION "+catalog.QuoteIdentifier(owner.Name)+";\n")
 			name = catalog.QuoteIdentifier(helper) + "." + catalog.QuoteIdentifier(d.Name())
 		}
-		definition, definitionErr := conversionDefinition(view, d, name)
+		definition, definitionErr := ConversionDefinition(view, d, name)
 		if definitionErr != nil {
 			return nil, nil, definitionErr
 		}

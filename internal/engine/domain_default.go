@@ -77,7 +77,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 // Only meaningful NULL masks or deferred domain conversions survive ordinary
 // column-default elision. Plain builtin DEFAULT NULL retains its old absence.
 func omitColumnDefault(view catalog.Read, node expr.Expr, usage sqltype.Usage) bool {
-	return structuralNull(node) && typeDefault(view, usage.Type) == nil && !node.Properties().RuntimeDomainConversion
+	return structuralNull(node) && TypeDefault(view, usage.Type) == nil && !node.Properties().RuntimeDomainConversion
 }
 
 func defaultDestination(node expr.Expr, target sqltype.Usage) expr.Expr {
@@ -106,7 +106,7 @@ func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 	if definition, ok := d.ColumnMeta.Defaults[attribute]; ok {
 		return definition.Expression, defaultOrigin{definition: definition, consumer: d, quote: quoteOrigin{owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), attribute: attribute, definition: definition.OID}}
 	}
-	if definition := typeDefault(view, usage.Type); definition != nil {
+	if definition := TypeDefault(view, usage.Type); definition != nil {
 		owner := view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		return defaultDestination(definition.Expression, usage), defaultOrigin{definition: *definition, quote: quoteOrigin{owner: owner}}
 	}
@@ -137,7 +137,7 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 		return fmt.Errorf("stuntgres: invalid domain default destination")
 	}
 	if !d.DomainDefaultOwn {
-		parent := typeDefault(view, d.SQLType.DomainBase().Type)
+		parent := TypeDefault(view, d.SQLType.DomainBase().Type)
 		if (parent == nil) != (d.DomainDefault == nil) {
 			return fmt.Errorf("stuntgres: inconsistent inherited domain default")
 		}

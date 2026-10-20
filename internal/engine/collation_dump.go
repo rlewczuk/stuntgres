@@ -11,7 +11,7 @@ import (
 
 func collationDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Collation) ([]dumpDomain, error) {
 	sort.Slice(definitions, func(i, j int) bool {
-		return collationSQLName(view, uint32(definitions[i].OID)) < collationSQLName(view, uint32(definitions[j].OID))
+		return CollationSQLName(view, uint32(definitions[i].OID)) < CollationSQLName(view, uint32(definitions[j].OID))
 	})
 	statements := make([]dumpDomain, 0, len(definitions))
 	literal := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
@@ -27,7 +27,7 @@ func collationDumpStatements(ctx context.Context, view catalog.Read, roles autho
 		if err != nil {
 			return nil, err
 		}
-		name := collationSQLName(view, uint32(d.OID))
+		name := CollationSQLName(view, uint32(d.OID))
 		var definition strings.Builder
 		definition.WriteString("CREATE COLLATION " + name)
 		// PostgreSQL has no ENCODING attribute. Immutable bootstrap copies
@@ -45,7 +45,7 @@ func collationDumpStatements(ctx context.Context, view catalog.Read, roles autho
 			bootstrap = 962
 		}
 		if bootstrap != 0 {
-			definition.WriteString(" FROM " + collationSQLName(view, bootstrap) + ";\n")
+			definition.WriteString(" FROM " + CollationSQLName(view, bootstrap) + ";\n")
 		} else {
 			encoding := int32(6)
 			if d.Provider == "b" && d.Locale != nil && *d.Locale == "C" {

@@ -10,11 +10,11 @@ import (
 // Importing mints destination composite codecs even when logical identities and
 // members are unchanged. Visiting their children first then rebuilds dependent
 // domains and arrays against those codecs; staged evolution remains copy-on-change.
-func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool) (bool, error) {
+func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool) (bool, error) {
 	visited := make(map[ids.ObjectAddress]bool)
 	active := make(map[ids.ObjectAddress]bool)
 	changed := false
-	collation := remappedCollationCapabilities(next, mapping)
+	collation := RemappedCollationCapabilities(next, mapping)
 	var visit func(ids.ObjectAddress) error
 	visit = func(address ids.ObjectAddress) error {
 		if visited[address] {
@@ -141,7 +141,7 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 					rebuild = true
 				}
 				if rebuild && members == nil {
-					members = compositeMembers(relation)
+					members = CompositeMembers(relation)
 					for j := range i {
 						members[j].Usage.Type = next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(members[j].Usage.Type.ID())}).SQLType
 						if collation != nil {
@@ -159,7 +159,7 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			}
 			if rebuild {
 				if members == nil {
-					members = compositeMembers(relation)
+					members = CompositeMembers(relation)
 				}
 				typ, err := sqltype.Composite(sqltype.ID(identity.ObjectID), relation.Name(), declaration, associated, members)
 				if err != nil {
@@ -296,15 +296,15 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 
 // Only an explicit catalog identity mapping can reidentify a domain. Ordinary
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
-func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation collationRemapper, imports map[*sqltype.Descriptor]*sqltype.Descriptor, aclImport func(sqltype.Value) (sqltype.Value, error)) (sqltype.Value, error) {
+func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation CollationRemapper, imports map[*sqltype.Descriptor]*sqltype.Descriptor, aclImport func(sqltype.Value) (sqltype.Value, error)) (sqltype.Value, error) {
 	if value.Type().BaseType().IsComposite() && target.BaseType().IsComposite() {
 		return value.MapComposite(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
-			return reownDomainDatum(v, t, collation, imports, aclImport)
+			return ReownDomainDatum(v, t, collation, imports, aclImport)
 		})
 	}
 	if value.Type().BaseType().IsArray() && target.BaseType().IsArray() {
 		return value.MapArray(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
-			return reownDomainDatum(v, t, collation, imports, aclImport)
+			return ReownDomainDatum(v, t, collation, imports, aclImport)
 		})
 	}
 	if aclImport != nil && value.Type().ContainsACLItem() {
@@ -358,7 +358,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	physical, err = reownDomainDatum(physical, to.Type, collation, imports, aclImport)
+	physical, err = ReownDomainDatum(physical, to.Type, collation, imports, aclImport)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

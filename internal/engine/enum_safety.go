@@ -6,7 +6,7 @@ import (
 
 // Immutable operation provenance: no SQL input callback reaches live session
 // state or modifies a definition. Committed captures have no unsafe members.
-func enumSafety(unsafe map[int64]bool) func(sqltype.ID, int64) bool {
+func EnumSafety(unsafe map[int64]bool) func(sqltype.ID, int64) bool {
 	if len(unsafe) == 0 {
 		return nil
 	}

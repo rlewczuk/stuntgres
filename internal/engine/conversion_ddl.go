@@ -90,7 +90,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if err != nil {
 		return err
 	}
-	if err = conversionProbeResult(functionName, consumed); err != nil {
+	if err = ConversionProbeResult(functionName, consumed); err != nil {
 		return err
 	}
 	object := s.Name.Parts[len(s.Name.Parts)-1].Text

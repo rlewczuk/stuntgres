@@ -132,7 +132,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	base := *next.MustType(baseAddress)
 	base.SQLType, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
 	next.SetDescriptor(baseAddress, &base)
-	changed, err := reownDomainTypes(next, nil, false)
+	changed, err := ReownDomainTypes(next, nil, false)
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}

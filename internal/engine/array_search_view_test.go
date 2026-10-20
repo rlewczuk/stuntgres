@@ -140,7 +140,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	oldNumeric := assertValue(outer, wideArray, "{1,2}")
 	oldPositions := assertValue(positions, array, "{1,2}")
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{sourceCollation.Address(): targetCollation.Address()}
-	collation := remappedCollationCapabilities(targetView.State(), mapping)
+	collation := RemappedCollationCapabilities(targetView.State(), mapping)
 	types := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil

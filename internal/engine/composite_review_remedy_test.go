@@ -58,16 +58,16 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		state.CloneDescriptors()
 		state.SetDescriptor(table.Address(), &consumer)
 		view := e.catalog.read(&state)
-		domainUnitDiagnostic(t, rowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
+		domainUnitDiagnostic(t, RowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
-		stage.typedState().source = table.OfType
-		stage.typedState().observed = typedClosure(before, table.OfType)
+		stage.typedState().Source = table.OfType
+		stage.typedState().Observed = typedClosure(before, table.OfType)
 		if typedObservationValid(stage, view) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
 		e.DiscardCatalogStage(stage)
 		consumer.RelationKind = catalog.ViewRelation
-		if err := rowRewriteError(view, source); err != nil {
+		if err := RowRewriteError(view, source); err != nil {
 			t.Fatal("nonstored view blocked", err)
 		}
 	}
@@ -132,8 +132,8 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	stage.typedState().source = table.OfType
-	stage.typedState().observed = typedClosure(before, table.OfType)
+	stage.typedState().Source = table.OfType
+	stage.typedState().Observed = typedClosure(before, table.OfType)
 	if err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *mutation.next
-	finishTypedInheritance(view, &next, graph)
+	FinishTypedInheritance(view, &next, graph)
 	if len(next.Constraints.Check) != 1 || next.Constraints.Check[0].Name != "keep_check" {
 		t.Fatal("propagation resurrected removed check")
 	}

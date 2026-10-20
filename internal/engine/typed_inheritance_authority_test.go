@@ -61,7 +61,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				t.Fatal(actions, renames, err)
 			}
 			next := *child
-			finishTypedInheritance(view, &next, graph)
+			FinishTypedInheritance(view, &next, graph)
 			if err := validateInheritance(view, &next); err != nil {
 				t.Fatal(err)
 			}
@@ -84,8 +84,8 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 
 func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
-	actions, _ := typedShapeActions(source, source, table, map[int32]bool{2: true})
-	if len(actions) != 1 || actions[0].action.Action != parser.AlterColumnType || actions[0].action.Column.Text != "id" || *actions[0].usage != table.Columns[0].Usage {
+	actions, _ := TypedShapeActions(source, source, table, map[int32]bool{2: true})
+	if len(actions) != 1 || actions[0].Action.Action != parser.AlterColumnType || actions[0].Action.Column.Text != "id" || *actions[0].Usage != table.Columns[0].Usage {
 		t.Fatal("same-usage source TYPE disappeared", actions)
 	}
 	child := inheritanceUnitRelation(e, "c", 22002, "id", "note")
@@ -97,7 +97,7 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 	}
 	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{table.Address()}, Columns: map[int32]catalog.InheritedColumn{3: {Origins: []catalog.InheritanceOrigin{{Parent: table.Address(), Attribute: 1}}}, 8: {Origins: []catalog.InheritanceOrigin{{Parent: table.Address(), Attribute: 7}}}}}
 	actions, _, _, err := typedInheritedActions(inheritanceUnitView(e, table, child), child, map[ids.ObjectAddress]map[int32]bool{table.Address(): {1: true}})
-	if err != nil || len(actions) != 1 || actions[0].action.Action != parser.AlterColumnType || actions[0].action.Column.Text != "id" {
+	if err != nil || len(actions) != 1 || actions[0].Action.Action != parser.AlterColumnType || actions[0].Action.Column.Text != "id" {
 		t.Fatal("same-usage inherited TYPE disappeared", actions, err)
 	}
 }

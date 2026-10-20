@@ -10,7 +10,7 @@ import (
 )
 
 func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
-	collation := remappedCollationCapabilities(next, mapping)
+	collation := RemappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
 			return d.SQLType
@@ -75,7 +75,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 				changed := target != value.Type()
 				var err error
 				if changed || next.ACLItemImport() != nil && value.Type().ContainsACLItem() {
-					rebound, err = reownDomainDatum(value, target, collation, next.ScalarImports(), next.ACLItemImport())
+					rebound, err = ReownDomainDatum(value, target, collation, next.ScalarImports(), next.ACLItemImport())
 					if err != nil {
 						return err
 					}

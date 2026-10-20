@@ -35,7 +35,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	if !available || relationTypeNameOccupied(auth.Catalog, ns.Address, name) {
+	if !available || RelationTypeNameOccupied(auth.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	oid, err := e.catalog.allocateOIDLocked()

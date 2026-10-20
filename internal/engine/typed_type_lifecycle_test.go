@@ -83,7 +83,7 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	}
 	view := destination.CatalogRead()
 	imported := view.MustRelation(table.Address())
-	if err := validateTypedAttachment(view, imported); err != nil {
+	if err := ValidateTypedAttachment(view, imported); err != nil {
 		t.Fatal(err)
 	}
 	if imported.OfType.ClassID != ids.TypeClassID || imported.RowType == sqltype.ID(imported.OfType.ObjectID) || !reflect.DeepEqual(imported.Attributes, []int32{1, 7}) {
@@ -126,7 +126,7 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	}
 	other.Columns, other.Attributes, other.Index = nil, nil, map[string]int{}
 	actions, _, graph, err = typedInheritedActions(e.catalog.read(state), &child, nil)
-	if err != nil || len(actions) != 1 || actions[0].action.Column.Text != "id" || !graph.Columns[8].Local {
+	if err != nil || len(actions) != 1 || actions[0].Action.Column.Text != "id" || !graph.Columns[8].Local {
 		t.Fatal("local column or retired origin lost", actions, graph, err)
 	}
 }

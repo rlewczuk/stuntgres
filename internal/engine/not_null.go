@@ -91,7 +91,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if len(s.Actions) == 0 {
 		return fail(fmt.Errorf("stuntgres: empty ALTER TABLE"))
 	}
-	if err := typedDirectActionsGuard(old, s.Actions); err != nil {
+	if err := TypedDirectActionsGuard(old, s.Actions); err != nil {
 		return fail(err)
 	}
 	var preparation alterTablePreparation
@@ -621,7 +621,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		rowRewrite = rowRewrite || !fill.IsNull()
 	}
 	if rowRewrite {
-		if err := rowRewriteError(auth.Catalog, old); err != nil {
+		if err := RowRewriteError(auth.Catalog, old); err != nil {
 			return Result{}, err
 		}
 	}

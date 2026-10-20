@@ -37,7 +37,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	importer := target.aclItemImporter(source, source.Roles(), target.Roles(), nil)
-	mapped, err := reownDomainDatum(cv, toComposite, nil, nil, importer)
+	mapped, err := ReownDomainDatum(cv, toComposite, nil, nil, importer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,18 +62,18 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal("source payload changed")
 	}
 	// A stable descriptor does not imply stable principal authority.
-	sameDescriptor, err := reownDomainDatum(value, d, nil, nil, importer)
+	sameDescriptor, err := ReownDomainDatum(value, d, nil, nil, importer)
 	if err != nil || sameDescriptor == value || sameDescriptor.Type() != d {
 		t.Fatal("same-descriptor principal import skipped", err)
 	}
-	unchanged, err := reownDomainDatum(mapped, toComposite, nil, nil, importer)
+	unchanged, err := ReownDomainDatum(mapped, toComposite, nil, nil, importer)
 	if err != nil || unchanged != mapped {
 		t.Fatal("destination-owned data copied/reimported", err)
 	}
 	foreign := New()
 	aclUnitRoles(foreign, "acl_remap_a", "acl_remap_b")
 	coincident := aclUnitValue(t, foreign, "acl_remap_a=r/acl_remap_b")
-	if _, err := reownDomainDatum(coincident, td, nil, nil, importer); err == nil {
+	if _, err := ReownDomainDatum(coincident, td, nil, nil, importer); err == nil {
 		t.Fatal("foreign coincident IDs imported")
 	}
 	// The literal retagger must apply ACL import even without type changes.
@@ -134,14 +134,14 @@ func TestACLItemRestoreFence(t *testing.T) {
 	putFixtureRole(next, old)
 	target.roles.published = next
 	target.mu.Unlock()
-	if _, err := reownDomainDatum(value, aclUnitType(t, target, sqltype.ACLItem), nil, nil, importer); err == nil {
+	if _, err := ReownDomainDatum(value, aclUnitType(t, target, sqltype.ACLItem), nil, nil, importer); err == nil {
 		t.Fatal("drop/recreate crossed captured target fence")
 	}
 	// Expected importTargets rejects a different captured incarnation as well.
 	original, _ := source.Roles().Lookup("acl_fence_a")
 	expected := map[authorization.PrincipalRef]authorization.PrincipalRef{original.Ref: target.roles.domain.Principal(20000)}
 	importer = target.aclItemImporter(source, source.Roles(), target.Roles(), expected)
-	if _, err := reownDomainDatum(value, aclUnitType(t, target, sqltype.ACLItem), nil, nil, importer); err == nil {
+	if _, err := ReownDomainDatum(value, aclUnitType(t, target, sqltype.ACLItem), nil, nil, importer); err == nil {
 		t.Fatal("expected target incarnation ignored")
 	}
 	freshSource, freshTarget := New(), New()

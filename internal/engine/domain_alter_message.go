@@ -12,44 +12,44 @@ import (
 // instead fences their committed predecessors, never private-vs-committed pointer
 // equality and never another execution of the selected CHECK.
 func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogChanges, current *catalog.State) error {
-	if fence := stage.domainAlter.validationFence(); fence != nil {
-		stores := make(map[ids.ObjectAddress]*storage.Relation, len(fence.uses))
-		for _, use := range fence.uses {
-			stores[use.relation.Address()] = e.stageStorageLocked(stage, use.relation.Address())
+	if fence := stage.domainAlter.ValidationFence(); fence != nil {
+		stores := make(map[ids.ObjectAddress]*storage.Relation, len(fence.Uses))
+		for _, use := range fence.Uses {
+			stores[use.Relation.Address()] = e.stageStorageLocked(stage, use.Relation.Address())
 		}
-		if !fence.current(e.catalog.read(current), stores) {
+		if !fence.Current(e.catalog.read(current), stores) {
 			return catalog.Conflict{}
 		}
-		committed, err := domainUsesAt(e.catalog.read(e.catalog.state), fence.target, fence.path)
+		committed, err := DomainUsesAt(e.catalog.read(e.catalog.state), fence.Target, fence.Path)
 		if committed == nil {
 			return err
 		}
 		// A prior own DROP may hide a committed stored container. Its presence
 		// is an observed predecessor edge, not another validation blocker.
-		committed.allowContainers = true
-		for i := range committed.uses {
-			use := &committed.uses[i]
-			use.storage = e.storage.Relations[use.relation.Address()]
-			if use.storage == nil {
+		committed.AllowContainers = true
+		for i := range committed.Uses {
+			use := &committed.Uses[i]
+			use.Storage = e.storage.Relations[use.Relation.Address()]
+			if use.Storage == nil {
 				return catalog.Conflict{}
 			}
-			use.versions = use.storage.Versions[:len(use.storage.Versions):len(use.storage.Versions)]
-			use.ends, use.generation = use.storage.Ends, use.storage.Generation
+			use.Versions = use.Storage.Versions[:len(use.Storage.Versions):len(use.Storage.Versions)]
+			use.Ends, use.Generation = use.Storage.Ends, use.Storage.Generation
 		}
 		journal := changes.domainWritable()
-		journal.validations = append(journal.validations, committed)
+		journal.Validations = append(journal.Validations, committed)
 	}
-	if len(stage.domainAlter.alteredIndexRoots()) != 0 {
+	if len(stage.domainAlter.AlteredIndexRoots()) != 0 {
 		journal := changes.domainWritable()
-		journal.indexRoots = maps.Clone(journal.indexRoots)
-		if journal.indexRoots == nil {
-			journal.indexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
+		journal.IndexRoots = maps.Clone(journal.IndexRoots)
+		if journal.IndexRoots == nil {
+			journal.IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
-		for address, root := range stage.domainAlter.alteredIndexRoots() {
+		for address, root := range stage.domainAlter.AlteredIndexRoots() {
 			if e.domainStageIndexRootLocked(stage, address) != root {
 				return catalog.Conflict{}
 			}
-			journal.indexRoots[address] = e.storage.IndexRoots[address]
+			journal.IndexRoots[address] = e.storage.IndexRoots[address]
 		}
 	}
 	return nil
@@ -67,7 +67,7 @@ func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.Obj
 }
 
 func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes *catalogChanges) error {
-	if stage.domainAlter.alterContext() == nil {
+	if stage.domainAlter.AlterContext() == nil {
 		return nil
 	}
 	e := scope.op.session.Engine()
@@ -91,7 +91,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
 				target := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
-				shape.fills[attribute], err = reownDomainDatum(value, target.SQLType, nil, next.ScalarImports(), next.ACLItemImport())
+				shape.fills[attribute], err = ReownDomainDatum(value, target.SQLType, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return err
 				}

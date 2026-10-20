@@ -45,13 +45,13 @@ func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 	e.mu.Lock()
 	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
-	if err == nil || err.Error() != temporaryTypedReplacementError {
+	if err == nil || err.Error() != TemporaryTypedReplacementError {
 		t.Fatal(err)
 	}
 	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[table.Address()] != stored {
 		t.Fatal("final admission rejection mutated target")
 	}
-	if err := e.Reset(context.Background()); err == nil || err.Error() != temporaryTypedReplacementError {
+	if err := e.Reset(context.Background()); err == nil || err.Error() != TemporaryTypedReplacementError {
 		t.Fatal(err)
 	}
 	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[table.Address()] != stored {
@@ -78,7 +78,7 @@ func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	if retained.OfType != table.OfType || retained.RowType != table.RowType || backing.RowType != source.RowType || relations[table.Address()] != e.storage.Relations[table.Address()] {
 		t.Fatal("retained TEMP providers were retargeted")
 	}
-	if err := validateTypedAttachment(e.catalog.read(next), retained); err != nil {
+	if err := ValidateTypedAttachment(e.catalog.read(next), retained); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -34,7 +34,7 @@ func validateUsageCollationAt(view catalog.Read, reader definitionReader, u sqlt
 // capability. Other expressions and any actual use of this collation keep the
 // existing provider validation, even if the same OID also appears as an alias.
 func validateStoredCollationDependency(view catalog.Read, ref ids.ObjectRef, node expr.Expr) error {
-	err := validateCollationProvider(view, ref)
+	err := ValidateCollationProvider(view, ref)
 	if err == nil {
 		return nil
 	}

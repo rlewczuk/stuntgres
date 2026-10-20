@@ -41,7 +41,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	members := mood.EnumMembers()
 	e.mu.Lock()
 	scope.owner.catalog = newCatalogChanges()
-	scope.owner.catalog.enumWritable().unsafe = map[int64]bool{members[1].ID: true}
+	scope.owner.catalog.enumWritable().Unsafe = map[int64]bool{members[1].ID: true}
 	auth, err := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {
@@ -119,7 +119,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	root := newCatalogChanges()
-	root.enumWritable().unsafe = map[int64]bool{members[1].ID: true}
+	root.enumWritable().Unsafe = map[int64]bool{members[1].ID: true}
 	scope.owner.catalog = root
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -152,7 +152,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	}
 	mark := savepointMark{catalog: root}
 	candidate := cloneCatalogChanges(root)
-	candidate.enum.unsafeMembers()[members[0].ID] = true
+	candidate.enum.UnsafeMembers()[members[0].ID] = true
 	scope.owner.catalog = candidate
 	b.input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
 	captureEnumOperationSafety(op, &b.input)
@@ -160,7 +160,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := b.input.EnumMemberSafe
-	if root.enum.unsafeMembers()[members[0].ID] || !original.EnumMemberSafe(mood.ID(), members[0].ID) || child(mood.ID(), members[0].ID) {
+	if root.enum.UnsafeMembers()[members[0].ID] || !original.EnumMemberSafe(mood.ID(), members[0].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("candidate mutation changed borrowed root or fresh capture missed it")
 	}
 	scope.owner.catalog = mark.catalog

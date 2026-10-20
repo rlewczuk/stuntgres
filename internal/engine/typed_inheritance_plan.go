@@ -7,15 +7,15 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func typedShapeActions(old, next, table *catalog.Relation, forced map[int32]bool) ([]typedColumnAction, map[int32]string) {
-	var actions []typedColumnAction
+func TypedShapeActions(old, next, table *catalog.Relation, forced map[int32]bool) ([]TypedColumnAction, map[int32]string) {
+	var actions []TypedColumnAction
 	renames := make(map[int32]string)
 	for i, attribute := range old.Attributes {
 		target := table.Attributes[i]
 		name := table.Columns[i].Name
 		slot := next.IndexForAttribute(attribute)
 		if slot < 0 {
-			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: name}, Mode: parser.DropCascade}})
+			actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: name}, Mode: parser.DropCascade}})
 			continue
 		}
 		if next.Columns[slot].Name != name {
@@ -23,7 +23,7 @@ func typedShapeActions(old, next, table *catalog.Relation, forced map[int32]bool
 		}
 		if forced[attribute] || next.Columns[slot].Usage != table.Columns[i].Usage {
 			usage := next.Columns[slot].Usage
-			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: name}}, usage: &usage, declaredDimensions: next.Columns[slot].DeclaredDimensions})
+			actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: name}}, Usage: &usage, DeclaredDimensions: next.Columns[slot].DeclaredDimensions})
 		}
 	}
 	for i, attribute := range next.Attributes {
@@ -31,12 +31,12 @@ func typedShapeActions(old, next, table *catalog.Relation, forced map[int32]bool
 			continue
 		}
 		usage := next.Columns[i].Usage
-		actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: next.Columns[i].Name}}, usage: &usage, declaredDimensions: next.Columns[i].DeclaredDimensions})
+		actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: next.Columns[i].Name}}, Usage: &usage, DeclaredDimensions: next.Columns[i].DeclaredDimensions})
 	}
 	return actions, renames
 }
 
-func finishTypedInheritance(view catalog.Read, next *catalog.Relation, graph *catalog.TableInheritance) {
+func FinishTypedInheritance(view catalog.Read, next *catalog.Relation, graph *catalog.TableInheritance) {
 	for i, attribute := range next.Attributes {
 		provenance, exists := graph.Columns[attribute]
 		if !exists {
@@ -112,7 +112,7 @@ func finishTypedInheritance(view catalog.Read, next *catalog.Relation, graph *ca
 	next.Inheritance = graph
 }
 
-func typedSortedAddresses(tables []*catalog.Relation) []ids.ObjectAddress {
+func TypedSortedAddresses(tables []*catalog.Relation) []ids.ObjectAddress {
 	addresses := make([]ids.ObjectAddress, len(tables))
 	for i, table := range tables {
 		addresses[i] = table.Address()

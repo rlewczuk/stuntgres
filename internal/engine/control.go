@@ -373,7 +373,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			case *catalog.Type:
 				// A recipe can regenerate synthetic type defaults, never a real
 				// explicit ACL (even one equal to the effective baseline).
-				if t.ACL.Explicit && !defaultDomainACL(t) {
+				if t.ACL.Explicit && !DefaultDomainACL(t) {
 					message := "stuntgres: dump cannot serialize changed type ACL"
 					if t.SQLType.IsDomain() || t.SQLType.IsEnum() {
 						message = "stuntgres: dump cannot serialize changed domain ACL"
@@ -896,7 +896,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
-	seedStatements, err := collationSeedDumpStatements(ctx, catalogView, domainRoles)
+	seedStatements, err := CollationSeedDumpStatements(ctx, catalogView, domainRoles)
 	if err != nil {
 		return err
 	}
@@ -904,7 +904,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
-	conversionSeeds, err := conversionSeedDumpStatements(ctx, catalogView, domainRoles)
+	conversionSeeds, err := ConversionSeedDumpStatements(ctx, catalogView, domainRoles)
 	if err != nil {
 		return err
 	}
@@ -1334,7 +1334,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					}
 					line.WriteString(" " + declaration)
 					if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
-						name := collationSQLName(catalogView, c.Usage.Collation.ID)
+						name := CollationSQLName(catalogView, c.Usage.Collation.ID)
 						if name == "" {
 							return fmt.Errorf("stuntgres: unsupported stored collation")
 						}
@@ -1691,14 +1691,14 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	}
 	var snapshots []materializedSnapshot
 	var extensionOwners []extensionOwnerRecord
-	var domainReplays []positionedDomainReplay
+	var domainReplays []PositionedDomainReplay
 	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
-		domainRecord, domainRecognized, domainErr := decodeDomainReplay(comment)
+		domainRecord, domainRecognized, domainErr := DecodeDomainReplay(comment)
 		if domainErr != nil {
 			return domainErr
 		}
 		if domainRecognized {
-			domainReplays = append(domainReplays, positionedDomainReplay{record: domainRecord, end: position.Offset + len(comment)})
+			domainReplays = append(domainReplays, PositionedDomainReplay{Record: domainRecord, End: position.Offset + len(comment)})
 			return nil
 		}
 		ownerRecord, ownerRecognized, ownerErr := decodeExtensionOwners(comment)
@@ -1718,7 +1718,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err != nil {
 		return err
 	}
-	domainReplayPairs, err := pairDomainReplay(string(data), statements, domainReplays)
+	domainReplayPairs, err := PairDomainReplay(string(data), statements, domainReplays)
 	if err != nil {
 		return err
 	}
@@ -1753,7 +1753,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	var generationRepairs []restoredGenerationRecipe
 	var lastAuthorization, createOwner authorization.PrincipalRef
 	var pairedOwner restoredInheritedOwner
-	var pairedDomainOwner restoredDomainOwner
+	var pairedDomainOwner RestoredDomainOwner
 	historicalRefs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	historicalAuthority := &restoredHistoryAuthority{facts: make(map[ids.OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
 	for statementIndex, stmt := range statements {
@@ -1788,7 +1788,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		}
 		priorAuthorization, ownerForCreate, ownerPair := lastAuthorization, createOwner, pairedOwner
 		domainOwnerPair := pairedDomainOwner
-		pairedDomainOwner = restoredDomainOwner{}
+		pairedDomainOwner = RestoredDomainOwner{}
 		lastAuthorization, createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
 		pairedOwner = restoredInheritedOwner{}
 		if alteration, ok := stmt.(*parser.AlterTable); ok && physicalConstructor == nil {
