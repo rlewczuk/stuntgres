@@ -196,10 +196,10 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if mapped.ctes[0] == owned || mapped.ctes[0].query != nil || mapped.ctes[0].statement != auxiliary.syntax || mapped.ctes[0].mutation.ref.Epoch != auxiliary.binding.ref.Epoch+1 {
+		if mapped.ctes[0] == owned || mapped.ctes[0].query != nil || mapped.ctes[0].statement != auxiliary.syntax || cteMutationOf(mapped.ctes[0]).ref.Epoch != auxiliary.binding.ref.Epoch+1 {
 			t.Fatal("unused owned modifier did not retain syntax/nil spool authority and remap target")
 		}
-		if owned.mutation.ref != auxiliary.binding.ref {
+		if cteMutationOf(owned).ref != auxiliary.binding.ref {
 			t.Fatal("persistent remap mutated frozen modifier")
 		}
 	})
@@ -263,7 +263,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 			visit(right)
 		}
 		visit(b.query.Root)
-		if !found || provider.statement != definition.statement || provider.mutation.insert.conflict != tuple.command.binding.insert.conflict {
+		if !found || provider.statement != definition.statement || cteMutationOf(provider).insert.conflict != tuple.command.binding.insert.conflict {
 			t.Fatal("composition/normalization disconnected modifier spool identity")
 		}
 		return provider, tuple.command.binding.insert.conflict
@@ -304,8 +304,8 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		t.Fatal(err)
 	}
 	outer := refreshed.ctes[0]
-	inner := outer.mutation.ctes[0]
-	if outer == ancestor || inner == definition || outer.mutation.insert.conflict == recipe || inner.mutation.insert.conflict == recipe || outer.mutation.insert.conflict == inner.mutation.insert.conflict {
+	inner := cteMutationOf(outer).ctes[0]
+	if outer == ancestor || inner == definition || cteMutationOf(outer).insert.conflict == recipe || cteMutationOf(inner).insert.conflict == recipe || cteMutationOf(outer).insert.conflict == cteMutationOf(inner).insert.conflict {
 		t.Fatal("recursive stored modifier ancestry retained shared workspace")
 	}
 	if outer.owner != ancestor.owner || inner.owner != definition.owner || nested.ctes[0] != definition || ancestor.mutation != &nested {
@@ -316,4 +316,10 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	if err != nil || ordinary.insert.conflict != recipe {
 		t.Fatal("ordinary binding acquired an unnecessary workspace clone")
 	}
+}
+
+// cteMutationOf recovers a definition's binding for test assertions.
+func cteMutationOf(definition *cteDefinition) *binding {
+	mutation, _ := mutationBinding(definition)
+	return mutation
 }

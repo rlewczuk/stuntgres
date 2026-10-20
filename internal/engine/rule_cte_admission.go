@@ -122,8 +122,8 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		if definition.query != nil {
 			inspectQuery(definition.query.Root)
 		}
-		if definition.mutation != nil {
-			inspectBinding(definition.mutation)
+		if mutation, ok := mutationBinding(definition); ok {
+			inspectBinding(mutation)
 		}
 	}
 	if b.query != nil {

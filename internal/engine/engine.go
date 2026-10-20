@@ -788,10 +788,10 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		}
 	}
 	for _, definition := range b.ctes {
-		if definition.mutation == nil {
+		mutation, ok := mutationBinding(definition)
+		if !ok {
 			continue
 		}
-		mutation := definition.mutation
 		mutation.querySources = b.querySources
 		mutation.parameters = b.parameters
 		// Auxiliary commands share this binder; borrow its completed original

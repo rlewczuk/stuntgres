@@ -177,7 +177,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			bound.ctes[1].mutation.returning.expressions = []expr.Expr{probe}
+			cteMutationOf(bound.ctes[1]).returning.expressions = []expr.Expr{probe}
 			quotes := quoteCaptureCandidate{}
 			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output, quoteCaptures: &quotes}}
 			e.mu.Lock()

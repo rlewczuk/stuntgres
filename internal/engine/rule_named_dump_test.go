@@ -54,7 +54,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 							if len(b.ctes) != 1 || b.ctes[0].mutation == nil {
 								t.Fatal("analyzed action lost its modifying CTE")
 							}
-							b = *b.ctes[0].mutation
+							b = *cteMutationOf(b.ctes[0])
 						}
 						if b.insert.conflict == nil {
 							t.Fatal("analyzed action lost its named conflict binding")
@@ -75,7 +75,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						action := r.actions[0]
 						body := action.binding.ctes[0]
 						presentation := action.modifierPresentations[body.statement]
-						project := body.mutation.query.Root.(*projectNode)
+						project := cteMutationOf(body).query.Root.(*projectNode)
 						outer := action.binding.query.Root.(*projectNode)
 						if project.frame == outer.frame {
 							t.Fatal("modifier and consumer share a capture frame")

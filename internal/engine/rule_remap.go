@@ -16,7 +16,8 @@ func remapRuleBinding(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.
 	typ = recordTypeMapper(typ, collation)
 	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
 	mapper.mutation = func(definition *cteDefinition) (binding, error) {
-		return remapRuleBindingMapped(view, *definition.mutation, ref, typ, collation, mapper)
+		mutation, _ := mutationBinding(definition)
+		return remapRuleBindingMapped(view, *mutation, ref, typ, collation, mapper)
 	}
 	return remapRuleBindingMapped(view, b, ref, typ, collation, mapper)
 }
@@ -384,7 +385,8 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 			}
 			mapper := newRuleTreeMapper(view, nil, 0, nil, ruleTreeMapping{
 				mutation: func(definition *cteDefinition) (binding, error) {
-					return conflict(*definition.mutation), nil
+					mutation, _ := mutationBinding(definition)
+					return conflict(*mutation), nil
 				},
 			})
 			next, err := mapRuleBindingRecipes(conflict(r.actions[j].binding), mapper)

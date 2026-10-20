@@ -15,7 +15,7 @@ import (
 type cteDefinition struct {
 	query      *BoundQuery
 	statement  parser.Statement
-	mutation   *binding
+	mutation   cteMutation
 	schema     querySchema
 	owner      uint32
 	references int
@@ -134,7 +134,8 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 				definition.query.Root = &project
 			} else {
 				definition.schema = aliased
-				definition.mutation.returning.schema = aliased
+				mutation, _ := mutationBinding(definition)
+				mutation.returning.schema = aliased
 			}
 		}
 		definitions[index] = definition
@@ -150,7 +151,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 
 func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cteBinding) (LogicalNode, queryNamespace, error) {
 	d := binding.definition
-	if d.mutation != nil && d.mutation.returning == nil {
+	if mutation, ok := mutationBinding(d); ok && mutation.returning == nil {
 		return nil, queryNamespace{}, expr.ErrorAt("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
 	}
 	d.references++

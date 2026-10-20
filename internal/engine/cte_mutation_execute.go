@@ -80,11 +80,12 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	defer scope.activateMutation(main)
 	count, primaryTag := 0, ""
 	for _, definition := range b.ctes {
-		if definition.mutation == nil {
+		mutation, ok := mutationBinding(definition)
+		if !ok {
 			continue
 		}
 		count++
-		if scope.owner.readOnly && !temporaryDataTarget(auth, definition.mutation, definition.statement) {
+		if scope.owner.readOnly && !temporaryDataTarget(auth, mutation, definition.statement) {
 			primaryTag = modifyingTag(statement)
 			if primaryTag == "" {
 				primaryTag = "SELECT"
@@ -95,10 +96,11 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	// Complete every mandatory command's real static preflight/ACL/RLS before
 	// effects. No auxiliary parameter frame, rebind, or publication is involved.
 	for _, definition := range b.ctes {
-		if definition.mutation == nil {
+		mutation, ok := mutationBinding(definition)
+		if !ok {
 			continue
 		}
-		syntax, commandBinding, commandAuth := definition.statement, *definition.mutation, auth
+		syntax, commandBinding, commandAuth := definition.statement, *mutation, auth
 		rewrite := b.rule.ctes[definition]
 		if rewrite != nil {
 			if _, selectOnly := rewrite.command.syntax.(*parser.Select); selectOnly {
@@ -292,7 +294,7 @@ func (o *cteInvocation) completeMutation(definition *cteDefinition, result Resul
 		return fmt.Errorf("stuntgres: CTE modifier completed more than once")
 	}
 	producer := &cteProducer{done: true, closed: true, affected: result.Count}
-	if definition.mutation.returning != nil {
+	if mutation, _ := mutationBinding(definition); mutation.returning != nil {
 		rows, ok := result.Rows.(*finalRows)
 		if !ok {
 			if result.Rows != nil {

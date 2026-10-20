@@ -9,7 +9,8 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 		return b, nil
 	}
 	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *cteDefinition) (binding, error) {
-		body := *definition.mutation
+		mutation, _ := mutationBinding(definition)
+		body := *mutation
 		// Stored modifier recipes need a private execution workspace even when
 		// catalog identity and every expression are unchanged. This mapper also
 		// visits action-owned descendant definitions and reconnects their scans;

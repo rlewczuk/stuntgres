@@ -310,14 +310,15 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				return renderer.selectQuerySQL(ctx, view, query, project)
 			}
 			for _, definition := range b.ctes {
-				if definition.statement != statement || definition.mutation == nil {
+				mutation, ok := mutationBinding(definition)
+				if definition.statement != statement || !ok {
 					continue
 				}
 				presentation := action.modifierPresentations[statement]
 				if presentation == nil {
 					return "", fmt.Errorf("stuntgres: missing retained rule modifier presentation")
 				}
-				return ruleActionSQL(ctx, view, ruleAction{syntax: statement, binding: *definition.mutation, presentation: presentation, modifierPresentations: action.modifierPresentations})
+				return ruleActionSQL(ctx, view, ruleAction{syntax: statement, binding: *mutation, presentation: presentation, modifierPresentations: action.modifierPresentations})
 			}
 			return "", fmt.Errorf("stuntgres: missing retained rule modifier binding")
 		})

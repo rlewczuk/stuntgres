@@ -148,14 +148,15 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 			add([]ids.ObjectAddress{dependency.Ref.Address})
 		}
 		for _, definition := range b.ctes {
-			if definition.mutation == nil || seen[definition] {
+			mutation, ok := mutationBinding(definition)
+			if !ok || seen[definition] {
 				continue
 			}
 			if seen == nil {
 				seen = make(map[*cteDefinition]bool)
 			}
 			seen[definition] = true
-			if err := bindingRefs(*definition.mutation); err != nil {
+			if err := bindingRefs(*mutation); err != nil {
 				return err
 			}
 		}

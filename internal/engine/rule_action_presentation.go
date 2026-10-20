@@ -70,14 +70,15 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 	var collect func(binding) error
 	collect = func(body binding) error {
 		for _, definition := range body.ctes {
-			if definition.mutation == nil || presentations[definition.statement] != nil {
+			mutation, ok := mutationBinding(definition)
+			if !ok || presentations[definition.statement] != nil {
 				continue
 			}
 			// Auxiliary bindings share the outer statement binder's capture
 			// tables. Those tables are published on the completed action binding,
 			// not on each mutation. Borrow them for freezing while retaining the
 			// modifier's own executable query and globally indexed source leaves.
-			metadata := *definition.mutation
+			metadata := *mutation
 			metadata.dependencies = b.dependencies
 			metadata.capture.literals, metadata.capture.castUsages = b.capture.literals, b.capture.castUsages
 			metadata.capture.routineRefs = b.capture.routineRefs
@@ -96,7 +97,7 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 				presentations = make(map[parser.Statement]*viewDefinition)
 			}
 			presentations[definition.statement] = presentation
-			if err := collect(*definition.mutation); err != nil {
+			if err := collect(*mutation); err != nil {
 				return err
 			}
 		}

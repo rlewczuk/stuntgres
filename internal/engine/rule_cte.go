@@ -43,7 +43,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 	}
 	needed := b.rule.template || matched(bindingRuleRelation(*b), statement)
 	for _, definition := range b.ctes {
-		if definition.mutation != nil && matched(bindingRuleRelation(*definition.mutation), definition.statement) {
+		if mutation, ok := mutationBinding(definition); ok && matched(bindingRuleRelation(*mutation), definition.statement) {
 			needed = true
 			break
 		}
@@ -52,10 +52,11 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 		return nil
 	}
 	for _, definition := range b.ctes {
-		if definition.mutation == nil || b.rule.ctes[definition] != nil {
+		mutation, ok := mutationBinding(definition)
+		if !ok || b.rule.ctes[definition] != nil {
 			continue
 		}
-		original := *definition.mutation
+		original := *mutation
 		original.parameters = b.parameters
 		original.ctes = b.ctes
 		program := ruleProgram{count: -1, returning: -1}
@@ -103,7 +104,8 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		if rewrite == nil {
 			continue
 		}
-		if err := rewrite.caller.checkBinding(*definition.mutation, definition.statement); err != nil {
+		mutation, _ := mutationBinding(definition)
+		if err := rewrite.caller.checkBinding(*mutation, definition.statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -130,7 +132,8 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			e.mu.Unlock()
 			return nil, err
 		}
-		if err := checkRowSecurityBinding(scope, caller, *rewrite.definition.mutation); err != nil {
+		mutation, _ := mutationBinding(rewrite.definition)
+		if err := checkRowSecurityBinding(scope, caller, *mutation); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -138,7 +141,8 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 	for _, rewrite := range b.rule.ctes {
 		caller := fresh
 		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
-		if err := caller.checkBinding(*rewrite.definition.mutation, rewrite.definition.statement); err != nil {
+		mutation, _ := mutationBinding(rewrite.definition)
+		if err := caller.checkBinding(*mutation, rewrite.definition.statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
