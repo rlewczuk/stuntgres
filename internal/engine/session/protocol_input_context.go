@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func (c *protocolCopyInputContext) Held() bool {
 	return c.Active.Load() && c.Decoding.Load()
 }
 
-func pendingProtocolUserCancel(ctx context.Context) bool {
+func PendingProtocolUserCancel(ctx context.Context) bool {
 	var diagnostic *sqlstate.Error
 	return ctx.Err() != nil && errors.As(context.Cause(ctx), &diagnostic) && diagnostic != nil && diagnostic.Code == "57014" && diagnostic.Severity != "FATAL"
 }
@@ -33,18 +33,18 @@ func (c *protocolCopyInputContext) effectiveLocked(op *Operation) context.Contex
 	if !c.Held() {
 		return op.Ctx
 	}
-	if c.Masked == nil && pendingProtocolUserCancel(op.Ctx) {
+	if c.Masked == nil && PendingProtocolUserCancel(op.Ctx) {
 		// WithoutCancel hides the original cancelCtxKey as well as Done/Err.
 		// Re-project only the already captured absolute budget, never a fresh one.
 		c.Masked, c.cancel = context.WithCancelCause(context.WithoutCancel(op.Ctx))
 		if deadline, ok := op.Ctx.Deadline(); ok {
 			cause := error(context.DeadlineExceeded)
 			if !op.StatementDeadline.IsZero() && deadline.Equal(op.StatementDeadline) {
-				cause = statementTimeoutCause
+				cause = StatementTimeoutCause
 			}
 			c.Masked, c.timerCancel = context.WithDeadlineCause(c.Masked, deadline, cause)
 		}
-		if op.Released || op.Session.State != live {
+		if op.Released || op.Session.State != Live {
 			var cause error
 			if op.Session.Timeouts.Fatal != nil {
 				cause = op.Session.Timeouts.Fatal

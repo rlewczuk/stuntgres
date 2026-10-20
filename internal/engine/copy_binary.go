@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -102,7 +103,7 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 		ctx = c.scope.op.Context()
 	}
 	if err := ctx.Err(); err != nil {
-		if c.header && c.scope.op.CopyInput.Held() && pendingProtocolUserCancel(ctx) {
+		if c.header && c.scope.op.CopyInput.Held() && session.PendingProtocolUserCancel(ctx) {
 			// Refresh a context captured just before user cancellation only
 			// after binary startup has admitted the row-decoding phase.
 			ctx = c.scope.op.Context()

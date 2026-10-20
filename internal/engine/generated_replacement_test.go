@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -175,7 +176,7 @@ func (f *generatedRepairFixture) assertJoined(t *testing.T) {
 	}
 	f.session.Mu.Lock()
 	defer f.session.Mu.Unlock()
-	if f.session.State != ended || f.session.Leases != 0 || len(f.session.Operations) != 0 {
+	if f.session.State != session.Ended || f.session.Leases != 0 || len(f.session.Operations) != 0 {
 		t.Fatal("session cleanup did not join operations", f.session.State, f.session.Leases, len(f.session.Operations))
 	}
 }

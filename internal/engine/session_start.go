@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {
@@ -47,7 +48,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		return nil, roleLoginError(role.Name)
 	}
 	// One allocation holds the session, its root payload and the owner extension.
-	allocation := &sessionAllocation{session: Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[ResourceHandle]bool)}}
+	allocation := &sessionAllocation{session: Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[ResourceHandle]bool)}}
 	s, payload := &allocation.session, &allocation.payload
 	s.Payload = payload
 	if private {
@@ -139,7 +140,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if err == nil {
 		err = ctx.Err()
 	}
-	if err == nil && s.State != initializing {
+	if err == nil && s.State != session.Initializing {
 		err = errors.New("stuntgres: session initialization ended")
 	}
 	if err == nil {
@@ -155,7 +156,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 			if resetRole != (authorization.PrincipalRef{}) {
 				auth.State.CurrentUser, auth.State.ResetRole = resetRole, resetRole
 			}
-			s.State = live
+			s.State = session.Live
 			e.sessions[s.SessionToken] = s
 		}
 		e.sessionMu.Unlock()
@@ -173,5 +174,5 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 }
 
 func (e *Engine) validateOperation(op *Operation) error {
-	return validateSessionOperation(domainOf(e), op)
+	return session.ValidateOperation(domainOf(e), op)
 }

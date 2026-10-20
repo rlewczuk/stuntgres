@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
@@ -81,7 +82,7 @@ func policyPreflight(op *Operation, auth AuthorizationView, stmt parser.Statemen
 	}
 	_, warn, err := resolvePolicyRoles(auth, roles)
 	if err == nil && warn && notices {
-		op.EmitNotice(levelWarning, sqlstate.Error{
+		op.EmitNotice(session.LevelWarning, sqlstate.Error{
 			Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023",
 			Message: "ignoring specified roles other than PUBLIC",
 			Hint:    "All roles are members of the PUBLIC role.",

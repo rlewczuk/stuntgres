@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -40,7 +41,7 @@ func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryActio
 			if mode == functions.AdvisoryShare {
 				message = "you don't own a lock of type ShareLock"
 			}
-			s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message})
+			s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message})
 		}
 		return sqltype.Boolean(result, unlocked), nil
 	}

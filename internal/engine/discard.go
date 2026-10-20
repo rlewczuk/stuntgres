@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"time"
@@ -103,27 +104,27 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 }
 
 func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) {
-	session, e := s.op.Session, s.engine()
-	ticket := session.Advisory.Ticket
-	if !e.locks.ValidSession(ticket, session.SessionToken) {
+	sess, e := s.op.Session, s.engine()
+	ticket := sess.Advisory.Ticket
+	if !e.locks.ValidSession(ticket, sess.SessionToken) {
 		return authorization.RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	session.Settings.Mu.Lock()
-	defer session.Settings.Mu.Unlock()
-	session.Mu.Lock()
-	defer session.Mu.Unlock()
+	sess.Settings.Mu.Lock()
+	defer sess.Settings.Mu.Unlock()
+	sess.Mu.Lock()
+	defer sess.Mu.Unlock()
 	if err := publicationOperationLocked(e, s.op); err != nil {
 		return authorization.RoleState{}, err
 	}
-	if session.Settings.Ended {
+	if sess.Settings.Ended {
 		return authorization.RoleState{}, fmt.Errorf("stuntgres: settings attachment ended")
 	}
-	if err := roleRevisionHeadroom(session.Authorization, 3); err != nil {
+	if err := session.RoleRevisionHeadroom(sess.Authorization, 3); err != nil {
 		return authorization.RoleState{}, err
 	}
-	reset := session.Authorization.State
+	reset := sess.Authorization.State
 	reset.SessionUser, reset.CurrentUser = reset.Authenticated, reset.Authenticated
 	if reset.ResetRole != (authorization.PrincipalRef{}) {
 		reset.CurrentUser = reset.ResetRole
@@ -143,7 +144,7 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 	if op.DiscardRoleReset.Authenticated == (authorization.PrincipalRef{}) {
 		return nil
 	}
-	if err := roleRevisionHeadroom(op.Session.Authorization, 3); err != nil {
+	if err := session.RoleRevisionHeadroom(op.Session.Authorization, 3); err != nil {
 		return err
 	}
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)

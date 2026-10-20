@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -33,7 +34,7 @@ var _ analyze.Host = (*bindingHost)(nil)
 func (*bindingHost) AnalysisSlot() {}
 
 // analysisHost returns the binding host for op. A session operation carries
-// its own host, allocated with it (newSessionOperation), and the engine one for
+// its own host, allocated with it (sessionHost.NewOperation), and the engine one for
 // binding without an operation (bootstrap), so binding allocates no host;
 // copied operations get a fresh host.
 func (e *Engine) analysisHost(op *Operation) *bindingHost {
@@ -254,13 +255,13 @@ func (h *bindingHost) PlanOwner() (ids.SessionToken, uint64, bool) {
 
 func (h *bindingHost) EmitWarning(diagnostic sqlstate.Error) {
 	if h.op != nil {
-		h.op.EmitNotice(levelWarning, diagnostic)
+		h.op.EmitNotice(session.LevelWarning, diagnostic)
 	}
 }
 
 func (h *bindingHost) EmitNotice(diagnostic sqlstate.Error) {
 	if h.op != nil {
-		h.op.EmitNotice(levelNotice, diagnostic)
+		h.op.EmitNotice(session.LevelNotice, diagnostic)
 	}
 }
 

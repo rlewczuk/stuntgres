@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,13 +16,13 @@ import (
 func TestProtocolCopyInputContext(t *testing.T) {
 	t.Run("conversion_and_context_contract", func(t *testing.T) {
 		e := New()
-		session := sessionStart(t, e, nil)
+		sess := sessionStart(t, e, nil)
 		deadline := time.Now().Add(time.Hour)
 		parent, stopDeadline := context.WithDeadline(context.Background(), deadline)
 		defer stopDeadline()
 		source, cancel := context.WithCancelCause(parent)
 		defer cancel(nil)
-		op, _, err := session.AcquireCommand(source)
+		op, _, err := sess.AcquireCommand(source)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -76,10 +77,10 @@ func TestProtocolCopyInputContext(t *testing.T) {
 	})
 	t.Run("ending_after_user_cancel", func(t *testing.T) {
 		e := New()
-		session := sessionStart(t, e, nil)
+		sess := sessionStart(t, e, nil)
 		source, cancel := context.WithCancelCause(context.Background())
 		defer cancel(nil)
-		op, _, err := session.AcquireCommand(source)
+		op, _, err := sess.AcquireCommand(source)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -90,22 +91,22 @@ func TestProtocolCopyInputContext(t *testing.T) {
 		cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 		cancel(cause)
 		input := op.Context()
-		session.RequestEnd(InvalidConnection)
+		sess.RequestEnd(InvalidConnection)
 		select {
 		case <-input.Done():
 		default:
 			t.Fatal("session ending did not cancel held input before lease drain")
 		}
-		if input.Err() != context.Canceled || context.Cause(op.Ctx) != cause || session.Check(context.Background()) == nil {
+		if input.Err() != context.Canceled || context.Cause(op.Ctx) != cause || sess.Check(context.Background()) == nil {
 			t.Fatal("terminal input cancellation changed original cause or hid ending")
 		}
 	})
 	t.Run("ordinary_cancellation_and_timeout", func(t *testing.T) {
-		for _, cause := range []error{context.Canceled, statementTimeoutCause} {
+		for _, cause := range []error{context.Canceled, session.StatementTimeoutCause} {
 			e := New()
-			session := sessionStart(t, e, nil)
+			sess := sessionStart(t, e, nil)
 			source, cancel := context.WithCancelCause(context.Background())
-			op, _, err := session.AcquireCommand(source)
+			op, _, err := sess.AcquireCommand(source)
 			if err != nil {
 				cancel(nil)
 				t.Fatal(err)
@@ -119,7 +120,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 				t.Error("input view masked an ordinary caller or owned timeout", err)
 			}
 			mapped := op.CommandError(err)
-			if cause == statementTimeoutCause {
+			if cause == session.StatementTimeoutCause {
 				var diagnostic *sqlstate.Error
 				if !errors.As(mapped, &diagnostic) || diagnostic.Code != "57014" || diagnostic.Message != "canceling statement due to statement timeout" {
 					t.Error("owned timeout diagnostic changed during input", mapped)

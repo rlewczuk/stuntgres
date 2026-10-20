@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-var statementTimeoutCause = errors.New("stuntgres: statement timeout")
+var StatementTimeoutCause = errors.New("stuntgres: statement timeout")
 
 // AcquireCommand captures prior settings before parsing or executing a SET.
 // Initialization and native controls deliberately continue to use Acquire.
@@ -33,7 +33,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	s.Settings.Mu.Unlock()
 	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
 		deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
-		timed, cancel := context.WithDeadlineCause(op.Ctx, deadline, statementTimeoutCause)
+		timed, cancel := context.WithDeadlineCause(op.Ctx, deadline, StatementTimeoutCause)
 		s.Mu.Lock()
 		op.StatementDeadline, op.Ctx, op.TimerCancel = deadline, timed, cancel
 		s.Mu.Unlock()
@@ -48,7 +48,7 @@ func (op *Operation) CommandError(err error) error {
 	if errors.As(err, &source) {
 		return source.Unwrap()
 	}
-	if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(op.Context()), statementTimeoutCause) {
+	if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(op.Context()), StatementTimeoutCause) {
 		return sqlError("57014", "canceling statement due to statement timeout")
 	}
 	return op.fatalError(err)
@@ -78,7 +78,7 @@ func (op *Operation) RefreshStatementBudget() error {
 	op.SQLFinished = false
 	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
 		deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
-		op.Ctx, op.TimerCancel = context.WithDeadlineCause(op.CommandContext, deadline, statementTimeoutCause)
+		op.Ctx, op.TimerCancel = context.WithDeadlineCause(op.CommandContext, deadline, StatementTimeoutCause)
 		op.StatementDeadline = deadline
 	}
 	return nil

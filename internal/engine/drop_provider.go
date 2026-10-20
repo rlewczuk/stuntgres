@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -266,7 +267,7 @@ func (p *dropProvider) applyForeignKeyDependents(edges []domainDependency) error
 func (p *dropProvider) missingColumnNotice(column, relation string) {
 	notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, column, relation)}
 	if p.prepared == nil {
-		p.scope.op.EmitNotice(levelNotice, notice)
+		p.scope.op.EmitNotice(session.LevelNotice, notice)
 		return
 	}
 	p.prepared.recordEffect(dropEffect{missing: &notice})
@@ -612,7 +613,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 		case effect.notice != "":
 			stage.viewCascadeNames = append(stage.viewCascadeNames, effect.notice)
 		case effect.missing != nil:
-			scope.op.EmitNotice(levelNotice, *effect.missing)
+			scope.op.EmitNotice(session.LevelNotice, *effect.missing)
 		case effect.rowType != (ids.ObjectAddress{}):
 			stage.domainTargets = append(stage.domainTargets, effect.rowType)
 		case len(effect.identityRoots) != 0:

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -169,7 +170,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 		return Result{}, err
 	}
 	if !t.InBlock() {
-		s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
+		s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
 	}
 	err := assignModes(t, stmt.Modes)
 	if err == nil {

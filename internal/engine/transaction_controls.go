@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -26,17 +27,17 @@ func (e *Engine) transactionAuthority(op *Operation) error {
 	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
-	session := op.Session
-	session.Mu.Lock()
-	defer session.Mu.Unlock()
-	if op.Released || session.State != live {
-		if session.Timeouts.Fatal != nil {
-			copy := *session.Timeouts.Fatal
+	sess := op.Session
+	sess.Mu.Lock()
+	defer sess.Mu.Unlock()
+	if op.Released || sess.State != session.Live {
+		if sess.Timeouts.Fatal != nil {
+			copy := *sess.Timeouts.Fatal
 			return &copy
 		}
 		return errors.New("stuntgres: inactive operation")
 	}
-	if _, ok := session.Operations[op]; !ok {
+	if _, ok := sess.Operations[op]; !ok {
 		return errors.New("stuntgres: inactive operation")
 	}
 	return nil
@@ -358,7 +359,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		} else {
 			err = e.endPreflight(s.op)
 			if err == nil {
-				s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25001", Message: "there is already a transaction in progress"})
+				s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25001", Message: "there is already a transaction in progress"})
 			}
 		}
 	} else if state == TxIdle {
@@ -370,7 +371,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			}
 			err = sqlError("25P01", word+" AND CHAIN can only be used in transaction blocks")
 		} else if err == nil {
-			s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+			s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		}
 	} else {
 		if state == TxImplicit {
@@ -381,7 +382,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 				}
 				return Result{}, sqlError("25P01", word+" AND CHAIN can only be used in transaction blocks")
 			}
-			s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+			s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		}
 		nextStart := s.statementStart
 		if s.message {

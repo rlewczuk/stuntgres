@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -103,7 +104,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	key := ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}
 	if auth.Catalog.NameAddress(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
-			op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`extension "%s" already exists, skipping`, s.Name.Text)})
+			op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`extension "%s" already exists, skipping`, s.Name.Text)})
 			return nil, nil
 		}
 		return nil, sqlError("42710", fmt.Sprintf(`extension "%s" already exists`, s.Name.Text))

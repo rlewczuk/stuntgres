@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -212,7 +213,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if ifExists && renameMissing(err) {
 		e.mu.Unlock()
 		scope.completed = true
-		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})
+		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})
 		return Result{}, scope.op.Context().Err()
 	}
 	if err != nil {

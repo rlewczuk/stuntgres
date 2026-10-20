@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func localOwnerValue(t *testing.T, s *Session, name, want string) {
@@ -126,7 +127,7 @@ func TestSettingsLocalTypedConsumersAbort(t *testing.T) {
 	if _, ok := op.Ctx.Deadline(); ok {
 		t.Fatal("next admission captured stale timeout")
 	}
-	if op.NoticeThreshold != levelNotice {
+	if op.NoticeThreshold != session.LevelNotice {
 		t.Fatal("next admission captured stale notice threshold")
 	}
 	transactionEnd(t, s, ref, false)

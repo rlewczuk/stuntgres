@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"fmt"
@@ -7,13 +7,13 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-type sessionAuthorization struct {
+type AuthorizationState struct {
 	Session  *Session
 	State    authorization.RoleState
 	Revision uint64
 }
 
-func (a *sessionAuthorization) EndSession(token ids.SessionToken, reason EndReason) error {
+func (a *AuthorizationState) EndSession(token ids.SessionToken, reason EndReason) error {
 	if a.Session == nil || a.Session.SessionToken != token {
 		return fmt.Errorf("stuntgres: foreign authorization attachment")
 	}

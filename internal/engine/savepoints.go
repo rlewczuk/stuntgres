@@ -160,7 +160,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		}
 		if (t.IdentityCaptured || t.Session.Settings.RoleAction.Present) && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
 			// Reserve failed-preflight restoration and remaining boundaries.
-			if err := roleRevisionHeadroom(t.Session.Authorization, uint64(len(t.Savepoints))+3); err != nil {
+			if err := session.RoleRevisionHeadroom(t.Session.Authorization, uint64(len(t.Savepoints))+3); err != nil {
 				return Result{}, err
 			}
 		}

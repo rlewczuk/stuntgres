@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -159,7 +160,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			}
 			if err == nil && cascade {
 				// Records are detached to the adapter later; this invokes no user callback.
-				s.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
+				s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
 			}
 			if err == nil {
 				err = checkTruncate(auth, ref, d, privilege, only)

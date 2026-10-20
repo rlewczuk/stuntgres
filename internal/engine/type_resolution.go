@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -193,7 +194,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 			if raw.Pos.Character > 0 {
 				warning.Position = strconv.Itoa(raw.Pos.Character)
 			}
-			op.EmitNotice(levelWarning, *warning)
+			op.EmitNotice(session.LevelWarning, *warning)
 		}
 	}
 	if len(raw.ArrayBounds) > 0 {

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -24,7 +25,7 @@ func collationVersionWarning(op *Operation, d *catalog.Collation, view catalog.R
 	}
 	if *d.Version != *actual {
 		ns := view.Get(d.Namespace()).Name()
-		op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.Name()), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.Version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + catalog.DependencyIdentifier(ns) + "." + catalog.DependencyIdentifier(d.Name()) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
+		op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.Name()), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.Version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + catalog.DependencyIdentifier(ns) + "." + catalog.DependencyIdentifier(d.Name()) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
 	}
 	return nil
 }

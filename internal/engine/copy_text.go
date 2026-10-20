@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -278,7 +279,7 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		ctx = c.scope.op.Context()
 	}
 	if err := ctx.Err(); err != nil {
-		if c.scope.op.CopyInput.Held() && pendingProtocolUserCancel(ctx) {
+		if c.scope.op.CopyInput.Held() && session.PendingProtocolUserCancel(ctx) {
 			// User cancellation may arrive after Context selected its live
 			// standard context. Refresh only the admitted decoder's view;
 			// its owner retains deadlines, terminal and source authority.

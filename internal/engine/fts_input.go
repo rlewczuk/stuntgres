@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -22,7 +23,7 @@ func (r capturedFTSInput) EmptyQuery(ctx context.Context, text string) {
 	if r.position > 0 {
 		n.Position = strconv.Itoa(r.position)
 	}
-	r.op.EmitNotice(levelNotice, n)
+	r.op.EmitNotice(session.LevelNotice, n)
 }
 func (r capturedFTSInput) FTSLiteral(position int) sqltype.FTSInputNotices {
 	r.position = position

@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"crypto/rand"
@@ -7,25 +7,25 @@ import (
 	"sync"
 )
 
-// randomState is pointer-owned with its Session. Its mutex covers an entire
+// RandomState is pointer-owned with its Session. Its mutex covers an entire
 // builtin operation; argument evaluation happens before acquiring it. No
 // transaction/catalog/lifecycle lock is acquired while this mutex is held.
 // State deliberately survives rollback and native catalog replacement.
-type randomState struct {
+type RandomState struct {
 	Mu          sync.Mutex
 	pcg         random.PCG
 	Rand        random.Rand
 	Initialized bool
 }
 
-func (s *randomState) seed(a, b uint64) {
+func (s *RandomState) seed(a, b uint64) {
 	s.pcg.Seed(a, b)
 	if !s.Initialized {
 		s.Rand = *random.New(&s.pcg)
 		s.Initialized = true
 	}
 }
-func (s *randomState) initialize() error {
+func (s *RandomState) initialize() error {
 	if s.Initialized {
 		return nil
 	}
@@ -36,12 +36,12 @@ func (s *randomState) initialize() error {
 	s.seed(binary.LittleEndian.Uint64(entropy[:8]), binary.LittleEndian.Uint64(entropy[8:]))
 	return nil
 }
-func (s *randomState) SeedWords(a, b uint64) {
+func (s *RandomState) SeedWords(a, b uint64) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	s.seed(a, b)
 }
-func (s *randomState) Borrow() (*random.Rand, error) {
+func (s *RandomState) Borrow() (*random.Rand, error) {
 	s.Mu.Lock()
 	if err := s.initialize(); err != nil {
 		s.Mu.Unlock()
@@ -49,4 +49,4 @@ func (s *randomState) Borrow() (*random.Rand, error) {
 	}
 	return &s.Rand, nil
 }
-func (s *randomState) Release() { s.Mu.Unlock() }
+func (s *RandomState) Release() { s.Mu.Unlock() }

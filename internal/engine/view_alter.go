@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -66,7 +67,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		}
 		scope.completed = true
 		e.mu.Unlock()
-		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
+		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
 		return Result{}, nil
 	}
 	if err != nil {
@@ -355,7 +356,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	scope.completed = true
 	emitViewCascade(scope.op, append(stage.schemaCascadeNames, stage.viewCascadeNames...))
 	for _, notice := range notices {
-		scope.op.EmitNotice(levelNotice, notice)
+		scope.op.EmitNotice(session.LevelNotice, notice)
 	}
 	return Result{}, nil
 }

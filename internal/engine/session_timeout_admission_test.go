@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -67,11 +68,11 @@ func TestSessionTimeoutAdmissionMechanics(t *testing.T) {
 					}
 				}
 				var diagnostic *sqlstate.Error
-				if !errors.As(err, &diagnostic) || *diagnostic != *timeoutFatal(code) {
+				if !errors.As(err, &diagnostic) || *diagnostic != *session.TimeoutFatal(code) {
 					t.Fatalf("overdue admission = %#v, %v; want exact %s FATAL", diagnostic, err, code)
 				}
 				s.Mu.Lock()
-				if s.State == live || s.Reason != Terminated || s.Leases != 0 || s.Timeouts.SQLLeases != 0 || len(s.Operations) != 0 {
+				if s.State == session.Live || s.Reason != Terminated || s.Leases != 0 || s.Timeouts.SQLLeases != 0 || len(s.Operations) != 0 {
 					t.Error("fatal admission retained live owner or published a lease", s.State, s.Reason, s.Leases, s.Timeouts.SQLLeases, len(s.Operations))
 				}
 				s.Mu.Unlock()
@@ -101,7 +102,7 @@ func TestSessionTimeoutRetiredAdmissionMechanics(t *testing.T) {
 			}
 			op.Done()
 			s.Mu.Lock()
-			if s.State != live || s.Timeouts.Fatal != nil {
+			if s.State != session.Live || s.Timeouts.Fatal != nil {
 				t.Error("retired budget terminated owner")
 			}
 			s.Mu.Unlock()
@@ -131,7 +132,7 @@ func TestSessionTimeoutCanceledAdmissionMechanics(t *testing.T) {
 				t.Fatal("caller cancellation became session fatal", err)
 			}
 			s.Mu.Lock()
-			if s.State != live || s.Timeouts.Fatal != nil || s.Leases != 0 {
+			if s.State != session.Live || s.Timeouts.Fatal != nil || s.Leases != 0 {
 				t.Error("canceled admission changed owner state")
 			}
 			s.Mu.Unlock()

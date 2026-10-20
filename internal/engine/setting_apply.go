@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -65,7 +66,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 		}
 		if err != nil {
 			if notice != nil {
-				op.EmitNotice(levelWarning, *notice)
+				op.EmitNotice(session.LevelWarning, *notice)
 			}
 			return "", err
 		}
@@ -97,7 +98,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 		op.Session.PublishTimeoutSettingsLocked(owner, d.Name == "transaction_timeout", time.Now())
 	}
 	if notice != nil {
-		op.EmitNotice(levelNotice, *notice)
+		op.EmitNotice(session.LevelNotice, *notice)
 	}
 	return owner.Value(d.Name), nil
 }
@@ -115,12 +116,12 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 		name = s.Name.Text
 		write = true
 		if s.Local && implicit {
-			op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
+			op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
 		}
 		if atom := s.Interval; atom != nil {
 			precision := atom.Precision
 			if precision > 6 {
-				op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "INTERVAL(" + strconv.FormatInt(int64(precision), 10) + ") precision reduced to maximum allowed, 6"})
+				op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "INTERVAL(" + strconv.FormatInt(int64(precision), 10) + ") precision reduced to maximum allowed, 6"})
 				precision = 6
 			}
 			interval, err := sqltype.DecodeZoneInterval(atom.Text, atom.Qualifier, precision)

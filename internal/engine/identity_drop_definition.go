@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -48,7 +49,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Rel
 		}
 		notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message + ", skipping"}
 		if provider.prepared == nil {
-			provider.scope.op.EmitNotice(levelNotice, notice)
+			provider.scope.op.EmitNotice(session.LevelNotice, notice)
 		} else {
 			provider.prepared.recordEffect(dropEffect{missing: &notice})
 		}

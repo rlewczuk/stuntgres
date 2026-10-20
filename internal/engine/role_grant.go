@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -35,7 +36,7 @@ func grantWarning(op *Operation, relation, column string, requested, available a
 	} else {
 		message += fmt.Sprintf(` for column "%s" of relation "%s"`, column, relation)
 	}
-	op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
+	op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
 }
 
 func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
@@ -273,7 +274,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			targetMask = classMask
 		} else if relation.RelationKind == catalog.SequenceRelation && s.Kind == "" {
 			if targetMask & ^classMask != 0 {
-				op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports USAGE, SELECT, and UPDATE privileges`, relation.Name())})
+				op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports USAGE, SELECT, and UPDATE privileges`, relation.Name())})
 			}
 			targetMask &= classMask
 		} else if targetMask & ^classMask != 0 {
@@ -338,7 +339,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			mask := masks[i]
 			if len(item.Columns) != 0 && relation.RelationKind == catalog.SequenceRelation {
 				if mask & ^authorization.SelectPrivilege != 0 {
-					op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports SELECT column privileges`, relation.Name())})
+					op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports SELECT column privileges`, relation.Name())})
 				}
 				mask &= authorization.SelectPrivilege
 			}

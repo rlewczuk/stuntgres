@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -175,7 +176,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	}
 	persistence := requestedViewPersistence(auth.Catalog, view, b.QuerySources)
 	if persistence == "temporary" && view.Persistence != "temporary" {
-		s.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
+		s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
 	}
 	projection, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {

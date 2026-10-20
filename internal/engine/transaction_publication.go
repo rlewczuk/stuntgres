@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -516,7 +517,7 @@ func publicationOperationLocked(e *Engine, op *Operation) error {
 	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
-	if op.Released || op.Session.State != live {
+	if op.Released || op.Session.State != session.Live {
 		if op.Session.Timeouts.Fatal != nil {
 			copy := *op.Session.Timeouts.Fatal
 			return &copy

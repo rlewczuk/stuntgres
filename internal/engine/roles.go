@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -51,7 +52,7 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	if selection, ok := stmt.(*parser.RoleSelection); ok && selection.Local && implicit {
-		op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
+		op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -96,15 +97,15 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 				return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
 			}
 		}
-		session := op.Session
-		settings := session.Settings
+		sess := op.Session
+		settings := sess.Settings
 		settings.Mu.Lock()
 		defer settings.Mu.Unlock()
-		session.Mu.Lock()
-		defer session.Mu.Unlock()
-		a := session.Authorization
+		sess.Mu.Lock()
+		defer sess.Mu.Unlock()
+		a := sess.Authorization
 		// Reserve failure unwind, retained savepoints and outer restoration.
-		if err := roleRevisionHeadroom(a, uint64(len(session.Transactions.Savepoints))+3); err != nil {
+		if err := session.RoleRevisionHeadroom(a, uint64(len(sess.Transactions.Savepoints))+3); err != nil {
 			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {
@@ -128,14 +129,14 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		if !auth.Superuser && target != auth.Ref {
 			return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set session authorization \"%s\"", s.Name))
 		}
-		session := op.Session
-		settings := session.Settings
+		sess := op.Session
+		settings := sess.Settings
 		settings.Mu.Lock()
 		defer settings.Mu.Unlock()
-		session.Mu.Lock()
-		defer session.Mu.Unlock()
-		a := session.Authorization
-		if err := roleRevisionHeadroom(a, uint64(len(session.Transactions.Savepoints))+3); err != nil {
+		sess.Mu.Lock()
+		defer sess.Mu.Unlock()
+		a := sess.Authorization
+		if err := session.RoleRevisionHeadroom(a, uint64(len(sess.Transactions.Savepoints))+3); err != nil {
 			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {

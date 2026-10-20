@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"maps"
@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -15,25 +14,25 @@ import (
 
 // Marks retain immutable logical roots and held lock contributions, not
 // generator counters or snapshots. The outer block keeps the same ticket.
-type savepointMark struct {
+type SavepointMark struct {
 	Name                string
 	Serial              uint64 // the owner's savepointSerial at capture; names foreign savepoints
 	Writes              map[ids.ObjectAddress][]storage.RowVersion
 	Deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
-	Catalog             *catalogChanges
-	Settings            settingsMark
+	Catalog             *Journal
+	Settings            SettingsMark
 	Isolation           Isolation
 	ReadOnly            bool
 	Deferrable          bool
 	Locks               lock.Checkpoint
 	Cursors             uint64
-	Exclusion           session.ExclusionMarkSlot // nil when zero; see exclusionMarkSlotOf
+	Exclusion           ExclusionMarkSlot // nil when zero; see exclusionMarkSlotOf
 	Identity            authorization.RoleState
-	NotificationActions []notificationAction
+	NotificationActions []NotificationAction
 	NotificationEvents  []Notification
 }
 
-type settingsMark struct {
+type SettingsMark struct {
 	Values      map[string]string
 	Typed       map[string]settings.Value
 	Actions     map[string]settingAction
@@ -41,15 +40,15 @@ type settingsMark struct {
 	CurrentRole authorization.PrincipalRef
 }
 
-func (m settingsMark) Clone() settingsMark {
+func (m SettingsMark) Clone() SettingsMark {
 	m.Values, m.Typed, m.Actions = maps.Clone(m.Values), maps.Clone(m.Typed), maps.Clone(m.Actions)
 	return m
 }
 
-func (s *sessionSettings) Savepoint() settingsMark {
+func (s *SettingsStore) Savepoint() SettingsMark {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	m := settingsMark{Values: s.Values, Typed: s.Typed, Actions: s.Actions, RoleAction: s.RoleAction}
+	m := SettingsMark{Values: s.Values, Typed: s.Typed, Actions: s.Actions, RoleAction: s.RoleAction}
 	if s.Session != nil {
 		s.Session.Mu.Lock()
 		if s.Session.Authorization != nil {
@@ -62,7 +61,7 @@ func (s *sessionSettings) Savepoint() settingsMark {
 
 // candidate is already independent of the retained mark; no callbacks or
 // allocation are allowed between final preflight and effect installation.
-func (s *sessionSettings) RestoreSavepoint(candidate settingsMark, identity authorization.RoleState) {
+func (s *SettingsStore) RestoreSavepoint(candidate SettingsMark, identity authorization.RoleState) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	s.Values, s.Typed, s.Actions = candidate.Values, candidate.Typed, candidate.Actions
@@ -76,7 +75,7 @@ func (s *sessionSettings) RestoreSavepoint(candidate settingsMark, identity auth
 	}
 }
 
-func (t *transactionOwner) TruncateSavepoints(n int) {
+func (t *TransactionOwner) TruncateSavepoints(n int) {
 	clear(t.Savepoints[n:])
 	t.Savepoints = t.Savepoints[:n]
 }

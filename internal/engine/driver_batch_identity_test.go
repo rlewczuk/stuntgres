@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func batchUnitIdentity(m *batchUnitMessage, current authorization.PrincipalRef) 
 	defer s.Settings.Mu.Unlock()
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	if roleRevisionHeadroom(s.Authorization, uint64(len(t.Savepoints))+3) != nil {
+	if session.RoleRevisionHeadroom(s.Authorization, uint64(len(t.Savepoints))+3) != nil {
 		return false
 	}
 	engineOf(s).touchOperationIdentityLocked(m.op)

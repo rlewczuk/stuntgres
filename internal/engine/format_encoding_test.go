@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -176,7 +177,7 @@ func TestFormatEncodingValidationNotices(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, threshold := range []noticeLevel{levelWarning, levelError} {
+	for _, threshold := range []noticeLevel{session.LevelWarning, session.LevelError} {
 		op.NoticeThreshold = threshold
 		_, err := e.executeSetting(op, &parser.Set{Name: parser.Identifier{Text: "lc_time"}, Local: true, Values: []string{"é🙂"}}, 0, true)
 		var diagnostic *sqlstate.Error
@@ -184,7 +185,7 @@ func TestFormatEncodingValidationNotices(t *testing.T) {
 			t.Fatal(err)
 		}
 		notices := op.DetachNotices()
-		if threshold == levelError {
+		if threshold == session.LevelError {
 			if len(notices) != 0 {
 				t.Fatal("filtered validation warnings delivered", notices)
 			}

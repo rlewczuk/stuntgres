@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -176,7 +177,7 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *catalog
 		return nil, ids.ErrCatalogReplaced
 	}
 	if prepared.notice.Code != "" {
-		op.EmitNotice(levelNotice, prepared.notice)
+		op.EmitNotice(session.LevelNotice, prepared.notice)
 	}
 	if prepared.err != nil {
 		return nil, prepared.err

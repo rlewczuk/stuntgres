@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -85,7 +86,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 			return Result{}, err
 		}
 	}
-	n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.Notices, op.NoticeThreshold <= levelNotice, op.NoticeThreshold <= levelWarning)
+	n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.Notices, op.NoticeThreshold <= session.LevelNotice, op.NoticeThreshold <= session.LevelWarning)
 	op.Notices = notices
 	if err != nil {
 		return Result{}, err

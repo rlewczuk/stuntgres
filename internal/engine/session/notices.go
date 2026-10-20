@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"fmt"
@@ -7,27 +7,27 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// noticeLevel values are ranks in settings message-level order.
-type noticeLevel uint8
+// NoticeLevel values are ranks in settings message-level order.
+type NoticeLevel uint8
 
 const (
-	levelDebug5 noticeLevel = iota
-	levelDebug4
-	levelDebug3
-	levelDebug2
-	levelDebug1
-	levelLog
-	levelInfo
-	levelNotice
-	levelWarning
-	levelError
+	LevelDebug5 NoticeLevel = iota
+	LevelDebug4
+	LevelDebug3
+	LevelDebug2
+	LevelDebug1
+	LevelLog
+	LevelInfo
+	LevelNotice
+	LevelWarning
+	LevelError
 )
 
 // messageLevel maps a client message level name to its notice level. The
-// noticeLevel constants follow the settings rank order.
-func messageLevel(value string) (noticeLevel, bool) {
+// NoticeLevel constants follow the settings rank order.
+func messageLevel(value string) (NoticeLevel, bool) {
 	rank, ok := settings.MessageLevelRank(value)
-	return noticeLevel(rank), ok
+	return NoticeLevel(rank), ok
 }
 func (op *Operation) SnapshotNoticeThreshold() {
 	s := op.Session.Settings
@@ -39,8 +39,8 @@ func (op *Operation) SnapshotNoticeThreshold() {
 	s.Mu.Unlock()
 	op.NoticeThreshold, _ = messageLevel(value)
 }
-func (op *Operation) EmitNotice(level noticeLevel, diagnostic sqlstate.Error) {
-	if level >= levelError || (level != levelInfo && level < op.NoticeThreshold) {
+func (op *Operation) EmitNotice(level NoticeLevel, diagnostic sqlstate.Error) {
+	if level >= LevelError || (level != LevelInfo && level < op.NoticeThreshold) {
 		return
 	}
 	op.Notices = append(op.Notices, diagnostic)
@@ -53,8 +53,8 @@ func (op *Operation) DetachNotices() []sqlstate.Error {
 	return notices
 }
 func (op *Operation) ParseNotice(diagnostic sqlstate.Error) {
-	op.EmitNotice(levelNotice, diagnostic)
+	op.EmitNotice(LevelNotice, diagnostic)
 }
 func (op *Operation) ExistingRelationNotice(name string) {
-	op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: fmt.Sprintf(`relation "%s" already exists, skipping`, name)})
+	op.EmitNotice(LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: fmt.Sprintf(`relation "%s" already exists, skipping`, name)})
 }

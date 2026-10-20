@@ -17,4 +17,9 @@ type Host interface {
 	// Session.mu; it takes only Engine.sessionMu (lock order Session.mu,
 	// then Engine.sessionMu) and never Engine.mu or the lock manager.
 	Unregister(token ids.SessionToken, owner ids.SessionOwner)
+	// NewOperation allocates an operation of s with Session and Self set,
+	// together with the engine's per-operation analysis state (the Analysis
+	// slot). Session.Operation calls it, possibly while holding Session.Mu;
+	// it only allocates and takes no lock.
+	NewOperation(s *Session) *Operation
 }

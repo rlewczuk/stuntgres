@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"math"
@@ -16,7 +16,7 @@ func TestSettingsLocalActions(t *testing.T) {
 		}{
 			{"S", "s"}, {"L", "b"}, {"SL", "s"}, {"LS", "s"}, {"SLSL", "s"}, {"SLD", "s"}, {"SLR", ""}, {"SDR", "s"},
 		} {
-			s := &sessionSettings{Values: map[string]string{"x": "b"}, Typed: map[string]settings.Value{"x": {Number: math.SmallestNonzeroFloat64}}}
+			s := &SettingsStore{Values: map[string]string{"x": "b"}, Typed: map[string]settings.Value{"x": {Number: math.SmallestNonzeroFloat64}}}
 			for _, action := range tc.actions {
 				switch action {
 				case 'S':
@@ -55,7 +55,7 @@ func TestSettingsLocalActions(t *testing.T) {
 }
 
 func TestSettingsLocalEndedCleanup(t *testing.T) {
-	s := &sessionSettings{Values: map[string]string{"x": "b"}, Typed: map[string]settings.Value{}}
+	s := &SettingsStore{Values: map[string]string{"x": "b"}, Typed: map[string]settings.Value{}}
 	s.Touch("x", true)
 	s.EndSession(ids.SessionToken{}, 0)
 	s.FinishTransaction(false)

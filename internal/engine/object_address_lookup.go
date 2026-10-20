@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -183,7 +184,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	view := scope.inquiry.commentCatalog
 	types := capturedRegtypeInput{auth: scope.inquiry.deparseAuth, path: scope.inquiry.deparsePath, database: scope.op.Session.DatabaseName, temporary: temporaryNamespace(scope.inquiry.deparseAuth), token: scope.op.Session.SessionToken, op: scope.op}
 	parseSyntax := func(input string) (parser.TypeName, error) {
-		return parser.ParseTypeName(ctx, input, func(notice sqlstate.Error) { scope.op.EmitNotice(levelNotice, notice) })
+		return parser.ParseTypeName(ctx, input, func(notice sqlstate.Error) { scope.op.EmitNotice(session.LevelNotice, notice) })
 	}
 	var typeID uint32
 	var parsedName parser.TypeName

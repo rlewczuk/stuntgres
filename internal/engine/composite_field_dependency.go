@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -161,7 +162,7 @@ func (provider *dropProvider) compositeFieldNotice(message string) {
 	if provider.prepared != nil {
 		provider.prepared.recordEffect(dropEffect{missing: &notice})
 	} else if provider.scope != nil {
-		provider.scope.op.EmitNotice(levelNotice, notice)
+		provider.scope.op.EmitNotice(session.LevelNotice, notice)
 	}
 }
 

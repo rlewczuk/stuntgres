@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -41,7 +40,7 @@ type TxOptions struct {
 	DeferrableSet bool
 }
 
-type transactionOwner struct {
+type TransactionOwner struct {
 	ids.TxOwnerMarker
 	Admission       sync.Mutex
 	CopyLease       *StatementLease // the statement holding the COPY reservation
@@ -67,18 +66,18 @@ type transactionOwner struct {
 	Roots           map[ids.ObjectAddress]visibility.Root
 	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
 	SequenceCatalog     *catalog.State
-	Catalog             *catalogChanges
-	Savepoints          []savepointMark
+	Catalog             *Journal
+	Savepoints          []SavepointMark
 	AccessedTemporary   bool
 	RetainedMessage     bool           // Admission spans a direct multi-command message.
 	ProtocolCycle       *ProtocolCycle // Retention only; never owns admission.
 	IdentityEntry       authorization.RoleState
 	IdentityCaptured    bool
 	MessageBorn         bool
-	NotificationActions []notificationAction
+	NotificationActions []NotificationAction
 	NotificationEvents  []Notification
-	Extension           session.OwnerSlot // Root extension; see ownerExtensionOf.
-	SavepointSerial     uint64            // Advanced by every SAVEPOINT, never reset; names foreign savepoints.
+	Extension           OwnerSlot // Root extension; see ownerExtensionOf.
+	SavepointSerial     uint64    // Advanced by every SAVEPOINT, never reset; names foreign savepoints.
 }
 
 func (s *Session) TransactionState() TxState {
@@ -88,7 +87,7 @@ func (s *Session) TransactionState() TxState {
 	return t.State
 }
 
-func (t *transactionOwner) Validate(ref ids.TxRef) error {
+func (t *TransactionOwner) Validate(ref ids.TxRef) error {
 	if ref.Domain() != t.Session.SessionToken.Domain() || ref.Session() != t.Session.SessionToken || ref.ID() == 0 || ref.Attachment() != ids.TxOwner(t) {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
@@ -100,13 +99,13 @@ func (t *transactionOwner) Validate(ref ids.TxRef) error {
 
 // Admission remains held for ordinary statements. Only a reserved COPY drops
 // the mutex across external I/O; every owner mutator waits on its logical lease.
-func (t *transactionOwner) AcquireAdmission(ctx context.Context, op *Operation) error {
+func (t *TransactionOwner) AcquireAdmission(ctx context.Context, op *Operation) error {
 	waited := false
 	for {
 		t.Admission.Lock()
 		if t.CopyLease == nil {
 			if waited && op != nil {
-				if err := validateSessionOperation(t.Session.SessionToken.Domain(), op); err != nil {
+				if err := ValidateOperation(t.Session.SessionToken.Domain(), op); err != nil {
 					t.Admission.Unlock()
 					return err
 				}
@@ -125,6 +124,6 @@ func (t *transactionOwner) AcquireAdmission(ctx context.Context, op *Operation) 
 }
 
 // Caller holds the transaction mutex where required by existing gates.
-func (t *transactionOwner) InBlock() bool {
+func (t *TransactionOwner) InBlock() bool {
 	return t.State == TxActive || t.State == TxImplicit && t.RetainsTransaction()
 }

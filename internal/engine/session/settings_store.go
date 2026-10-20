@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/engine/settings"
 )
 
-type sessionSettings struct {
+type SettingsStore struct {
 	Mu               sync.Mutex
 	Session          *Session
 	Defaults, Values map[string]string
@@ -72,7 +72,7 @@ type roleSettingAction struct {
 	kind                uint8
 }
 
-func roleRevisionHeadroom(a *sessionAuthorization, needed uint64) error {
+func RoleRevisionHeadroom(a *AuthorizationState, needed uint64) error {
 	if ^uint64(0)-a.Revision < needed {
 		return fmt.Errorf("stuntgres: session authorization revision exhausted")
 	}
@@ -81,7 +81,7 @@ func roleRevisionHeadroom(a *sessionAuthorization, needed uint64) error {
 
 // Called with settings and Session locked. Role refs were validated before
 // publication; restoration must not repeat membership eligibility checks.
-func (s *sessionSettings) TouchRole(current authorization.PrincipalRef, local bool) {
+func (s *SettingsStore) TouchRole(current authorization.PrincipalRef, local bool) {
 	a := s.RoleAction
 	if !a.Present {
 		a.Present = true
@@ -100,7 +100,7 @@ func (s *sessionSettings) TouchRole(current authorization.PrincipalRef, local bo
 }
 
 // Install a complete boundary state once; admission reserves revision capacity.
-func (s *sessionSettings) RestoreIdentityLocked(target authorization.RoleState) {
+func (s *SettingsStore) RestoreIdentityLocked(target authorization.RoleState) {
 	a := s.Session.Authorization
 	if a != nil && a.State != target {
 		a.State = target
@@ -108,11 +108,11 @@ func (s *sessionSettings) RestoreIdentityLocked(target authorization.RoleState) 
 	}
 }
 
-func (s *sessionSettings) override(name string) settingOverride {
+func (s *SettingsStore) override(name string) settingOverride {
 	text, present := s.Values[name]
 	return settingOverride{Present: present, Text: text, Typed: s.Typed[name]}
 }
-func (s *sessionSettings) Restore(name string, v settingOverride) {
+func (s *SettingsStore) Restore(name string, v settingOverride) {
 	if v.Present {
 		s.Values[name] = v.Text
 		s.Typed[name] = v.Typed
@@ -121,7 +121,7 @@ func (s *sessionSettings) Restore(name string, v settingOverride) {
 		delete(s.Typed, name)
 	}
 }
-func (s *sessionSettings) Touch(name string, local bool) {
+func (s *SettingsStore) Touch(name string, local bool) {
 	if s.Actions == nil {
 		s.Actions = make(map[string]settingAction)
 	}
@@ -143,7 +143,7 @@ func (s *sessionSettings) Touch(name string, local bool) {
 
 // finishTransaction runs under transaction admission. Typed timer restoration
 // follows settings -> Session ordering, without providers or external callbacks.
-func (s *sessionSettings) FinishTransaction(commit bool) {
+func (s *SettingsStore) FinishTransaction(commit bool) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	if !s.Ended {
@@ -181,7 +181,7 @@ func (s *sessionSettings) FinishTransaction(commit bool) {
 	s.RoleAction = roleSettingAction{}
 }
 
-func (s *sessionSettings) Initialize(ctx context.Context, definitions map[string]settings.Definition, names []string, provider settings.SessionDefaultProvider) error {
+func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]settings.Definition, names []string, provider settings.SessionDefaultProvider) error {
 	s.Typed = make(map[string]settings.Value)
 	s.DefaultTyped = make(map[string]settings.Value)
 	s.Placeholders = make(map[string]bool)
@@ -218,7 +218,7 @@ func (s *sessionSettings) Initialize(ctx context.Context, definitions map[string
 	}
 	return nil
 }
-func (s *sessionSettings) EndSession(_ ids.SessionToken, _ EndReason) error {
+func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	s.Ended = true
@@ -231,7 +231,7 @@ func (s *sessionSettings) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.RoleAction = roleSettingAction{}
 	return nil
 }
-func (s *sessionSettings) Value(name string) string {
+func (s *SettingsStore) Value(name string) string {
 	if name == "transaction_isolation" && s.CurrentIsolation != "" {
 		return s.CurrentIsolation
 	}
@@ -252,7 +252,7 @@ func (s *sessionSettings) Value(name string) string {
 	}
 	return s.Defaults[name]
 }
-func (s *sessionSettings) TypedValue(name string) settings.Value {
+func (s *SettingsStore) TypedValue(name string) settings.Value {
 	if v, ok := s.Typed[name]; ok {
 		return v
 	}

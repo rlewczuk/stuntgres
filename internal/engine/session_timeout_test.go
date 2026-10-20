@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -83,7 +84,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	s.ExpireTimeoutLocked(slot, generation, foreign, "25P04", deadline)
 	s.Timeouts.Authority = timeoutMechanicsRef(s, 2)
 	s.ExpireTimeoutLocked(slot, generation, s.SessionToken, "25P04", deadline)
-	if s.State != live {
+	if s.State != session.Live {
 		t.Error("foreign identity expired the owner")
 	}
 	s.RetireTransactionTimeoutLocked()
@@ -91,11 +92,11 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	s.BeginTimeoutLocked(second, true, now.Add(time.Minute))
 	s.ExpireTimeoutLocked(slot, generation, s.SessionToken, "25P04", slot.Deadline)
 	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline.Add(-time.Nanosecond))
-	if s.State != live {
+	if s.State != session.Live {
 		t.Error("stale or early callback expired the next incarnation")
 	}
 	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline)
-	if s.State != ending || s.Reason != Terminated {
+	if s.State != session.Ending || s.Reason != Terminated {
 		t.Error("current expiry did not request canonical physical end")
 	}
 	s.Mu.Unlock()
@@ -118,7 +119,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.Mu.Lock()
-	if s.Reason != Terminated || s.State != ended {
+	if s.Reason != Terminated || s.State != session.Ended {
 		t.Error("late close replaced fatal first reason", s.Reason, s.State)
 	}
 	s.Mu.Unlock()
@@ -217,7 +218,7 @@ func TestSessionTimeoutIdleMechanics(t *testing.T) {
 				t.Error("active SQL retained idle budget")
 			}
 			s.ExpireTimeoutLocked(&s.Timeouts.Idle, generation, s.SessionToken, tc.code, deadline)
-			if s.State != live {
+			if s.State != session.Live {
 				t.Error("old idle callback expired active work")
 			}
 			s.Mu.Unlock()
@@ -247,7 +248,7 @@ func TestSessionTimeoutCancellationMechanics(t *testing.T) {
 	defer op.Done()
 	cancel()
 	s.Mu.Lock()
-	s.Timeouts.Fatal = timeoutFatal("25P04")
+	s.Timeouts.Fatal = session.TimeoutFatal("25P04")
 	s.Mu.Unlock()
 	if got := op.CommandError(context.Canceled); got != context.Canceled {
 		t.Error("caller cancellation became SQL fatal", got)
@@ -285,15 +286,15 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 			if completed {
 				s.FinishScopeTimeout(&scope.lease, scope.op, scope.message, scope.txRef, false)
 			}
-			expireStatement(statementTimeoutCause)
+			expireStatement(session.StatementTimeoutCause)
 			s.Mu.Lock()
 			slot := &s.Timeouts.Transaction
 			s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline)
 			if completed {
-				if s.State != ending || s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P04" {
+				if s.State != session.Ending || s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P04" {
 					t.Error("late completed statement timer suppressed transaction fatal")
 				}
-			} else if s.State != live || !slot.Deadline.IsZero() || s.Timeouts.Fatal != nil {
+			} else if s.State != session.Live || !slot.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 				t.Error("already-pending statement ERROR lost released priority")
 			}
 			s.Mu.Unlock()
@@ -321,7 +322,7 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 	})
 	t.Run("pending-lock-and-statement-before-fatal", func(t *testing.T) {
 		ctx, cancel := context.WithCancelCause(context.Background())
-		cancel(timeoutFatal("25P04"))
+		cancel(session.TimeoutFatal("25P04"))
 		now := time.Now()
 		for _, tc := range []struct {
 			statement, lock time.Time
@@ -383,7 +384,7 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 				t.Error("no-birth finish retained runtime timer")
 			}
 			s.ExpireTimeoutLocked(&s.Timeouts.Transaction, generation, s.SessionToken, "25P04", deadline)
-			if s.State != live {
+			if s.State != session.Live {
 				t.Error("retired provisional callback terminated ready owner")
 			}
 			s.Mu.Unlock()
@@ -430,7 +431,7 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 	s.BeginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
 	slot := &s.Timeouts.Transaction
 	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline)
-	if s.State != ending || s.Leases != 1 {
+	if s.State != session.Ending || s.Leases != 1 {
 		t.Error("canonical end failed to retain accepted lease drain")
 	}
 	s.Mu.Unlock()
@@ -486,7 +487,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 		t.Error("batch reset did not publish disabled limits while retaining canonical transaction")
 	}
 	s.ExpireTimeoutLocked(&s.Timeouts.Transaction, generation, s.SessionToken, "25P04", deadline)
-	if s.State != live {
+	if s.State != session.Live {
 		t.Error("retired pre-reset callback terminated owner")
 	}
 	s.Mu.Unlock()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -43,10 +44,10 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 		scope.completed = true
 		if reindex {
-			scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].Name())})
+			scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].Name())})
 		}
 		for _, notice := range g.notices {
-			scope.op.EmitNotice(levelNotice, notice)
+			scope.op.EmitNotice(session.LevelNotice, notice)
 		}
 		return Result{}, nil
 	}
@@ -133,7 +134,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	scope.completed = true
 	for _, notice := range g.notices {
-		scope.op.EmitNotice(levelNotice, notice)
+		scope.op.EmitNotice(session.LevelNotice, notice)
 	}
 	return Result{}, nil
 }

@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -44,7 +45,7 @@ func (r capturedACLItemInput) WarnACLGrantor(ctx context.Context) {
 	if r.position > 0 {
 		warning.Position = strconv.Itoa(r.position)
 	}
-	r.op.EmitNotice(levelWarning, warning)
+	r.op.EmitNotice(session.LevelWarning, warning)
 }
 func (r capturedACLItemInput) ACLItemParameter(slot int, empty bool) sqltype.ACLItemResolver {
 	r.position = 0

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -90,7 +91,7 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 			if r.portal != "" {
 				notice.Context += "\n" + r.portal
 			}
-			op.EmitNotice(levelNotice, notice)
+			op.EmitNotice(session.LevelNotice, notice)
 		}
 	})
 	if err != nil {
@@ -227,7 +228,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 				warning.Position = strconv.Itoa(r.position.Character)
 			}
 			warning.Context = r.portal
-			op.EmitNotice(levelWarning, *warning)
+			op.EmitNotice(session.LevelWarning, *warning)
 		}
 	}
 	if r.resolved != nil {

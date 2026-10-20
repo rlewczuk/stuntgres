@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func schemaReserved(name string) error {
 	return nil
 }
 func schemaNotice(op *Operation, code, message string) {
-	op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
+	op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
 }
 
 // Non-table creation and namespace moves retain their TEMP capability boundary.
@@ -178,7 +179,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			}
 			d.Columns[i].Usage = usage
 			if warning != nil {
-				op.EmitNotice(levelWarning, *warning)
+				op.EmitNotice(session.LevelWarning, *warning)
 			}
 		}
 	}
@@ -329,7 +330,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 					message = fmt.Sprintf("drop cascades to %d other objects", len(details))
 					detail = strings.Join(details, "\n")
 				}
-				op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+				op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 			}
 		}
 	}

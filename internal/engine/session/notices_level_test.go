@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ func TestNoticesFilter(t *testing.T) {
 			level, _ := messageLevel(normalized)
 			for emitted := 0; emitted <= 9; emitted++ {
 				op := &Operation{NoticeThreshold: level}
-				op.EmitNotice(noticeLevel(emitted), witness)
+				op.EmitNotice(NoticeLevel(emitted), witness)
 				got := op.DetachNotices()
 				want := emitted < 9 && (emitted == 6 || emitted >= ranks[i])
 				if (len(got) == 1) != want {

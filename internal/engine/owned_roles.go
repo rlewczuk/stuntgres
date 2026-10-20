@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -317,7 +318,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.viewCascadeNames))
 			detail = strings.Join(stage.viewCascadeNames, "\n")
 		}
-		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 	}
 	return result, err
 }

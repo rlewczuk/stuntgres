@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -397,7 +398,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 
 func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	e := New()
-	s := &Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(1), State: initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[ResourceHandle]bool)}
+	s := &Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(1), State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[ResourceHandle]bool)}
 	s.Cond = sync.NewCond(&s.Mu)
 	op := s.Operation(context.Background(), true)
 	calls := 0

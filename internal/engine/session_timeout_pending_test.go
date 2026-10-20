@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -154,7 +155,7 @@ func timeoutPendingDiagnostic(t *testing.T, err error, code string) {
 		want.Message = "canceling statement due to statement timeout"
 	}
 	if code == "25P04" {
-		want = *timeoutFatal(code)
+		want = *session.TimeoutFatal(code)
 	}
 	var got *sqlstate.Error
 	if !errors.As(err, &got) || *got != want {
@@ -186,7 +187,7 @@ func timeoutPendingRecovery(t *testing.T, s *Session, ref ids.TxRef, child bool)
 		}
 		s.Settings.Mu.Unlock()
 		s.Mu.Lock()
-		if s.State != live || !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Fatal != nil {
+		if s.State != session.Live || !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 			t.Error("child recovery rearmed budget or accepted fatal")
 		}
 		s.Mu.Unlock()
@@ -197,14 +198,14 @@ func timeoutPendingRecovery(t *testing.T, s *Session, ref ids.TxRef, child bool)
 	}
 	op.Done()
 	s.Mu.Lock()
-	if s.State != live || !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Fatal != nil {
+	if s.State != session.Live || !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 		t.Error("ERROR recovery rearmed budget or accepted fatal")
 	}
 	s.Mu.Unlock()
 }
 
 func timeoutPendingStatement(op *Operation, deadline time.Time) {
-	timed, cancel := context.WithDeadlineCause(op.Ctx, deadline, statementTimeoutCause)
+	timed, cancel := context.WithDeadlineCause(op.Ctx, deadline, session.StatementTimeoutCause)
 	op.Session.Mu.Lock()
 	op.StatementDeadline, op.Ctx, op.TimerCancel = deadline, timed, cancel
 	op.Session.Mu.Unlock()
@@ -270,7 +271,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 						t.Error("statement callback lacks exact unfinished operation/scope/incarnation authority")
 					}
 					s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", observed)
-					if s.State != live || !slot.Deadline.IsZero() || s.Timeouts.Fatal != nil {
+					if s.State != session.Live || !slot.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 						t.Error("due statement ERROR accepted physical FATAL before callback delivery")
 					}
 					s.Mu.Unlock()
@@ -316,7 +317,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 						t.Error("lock callback lacks exact unfinished operation/scope/incarnation authority")
 					}
 					s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", observed)
-					if s.State != live || !slot.Deadline.IsZero() || s.Timeouts.Fatal != nil {
+					if s.State != session.Live || !slot.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 						t.Error("pending lock ERROR accepted physical FATAL")
 					}
 					s.Mu.Unlock()
@@ -421,7 +422,7 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 			s.Mu.Lock()
 			slot := &s.Timeouts.Transaction
 			s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline)
-			if s.State != ending || s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P04" {
+			if s.State != session.Ending || s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P04" {
 				t.Error("stale completed/granted operation suppressed genuine transaction FATAL")
 			}
 			s.Mu.Unlock()
@@ -526,7 +527,7 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("transaction deadline did not finish blocked mutation")
 		}
-		want := *timeoutFatal("25P04")
+		want := *session.TimeoutFatal("25P04")
 		want.Position = "13" // The INSERT target starts at character 13.
 		var diagnostic *sqlstate.Error
 		if !errors.As(got.err, &diagnostic) || *diagnostic != want {

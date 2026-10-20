@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -137,7 +138,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		}
 		if newIndex >= 0 {
 			if !alter.Rename && alter.IfNotExists {
-				op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text)})
+				op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text)})
 				return Result{}, nil
 			}
 			return Result{}, sqlError("42710", fmt.Sprintf(`enum label "%s" already exists`, alter.Label.Text))

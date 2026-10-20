@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
@@ -57,13 +56,13 @@ type SessionStart struct {
 	Defaults      settings.SessionDefaultProvider
 	Authenticated authorization.PrincipalRef
 }
-type sessionState uint8
+type State uint8
 
 const (
-	initializing sessionState = iota
-	live
-	ending
-	ended
+	Initializing State = iota
+	Live
+	Ending
+	Ended
 )
 
 type resourceEntry struct {
@@ -74,11 +73,11 @@ type Session struct {
 	ids.SessionOwnerMarker
 	Mu           sync.Mutex
 	Cond         *sync.Cond
-	Host         session.Host // Immutable after construction; engineOf recovers the engine.
+	Host         Host // Immutable after construction; engineOf recovers the engine.
 	SessionToken ids.SessionToken
 	// Written before registry publication, never changed by identity switches.
 	CountedAuthenticated   authorization.PrincipalRef
-	State                  sessionState
+	State                  State
 	Completed              chan struct{}
 	endRequested           chan struct{} // Lazy wake projection of ending, not a lease or completion.
 	Leases                 int
@@ -90,18 +89,18 @@ type Session struct {
 	Reason                 EndReason
 	cleanupErrors          []error
 	result                 error
-	Settings               *sessionSettings
-	Transactions           *transactionOwner
+	Settings               *SettingsStore
+	Transactions           *TransactionOwner
 	Advisory               sessionAdvisory
-	Authorization          *sessionAuthorization
+	Authorization          *AuthorizationState
 	DiscardPlansGeneration uint64 // serialized by physical-owner statement admission
 	TemporaryNamespace     ids.ObjectAddress
-	Random                 randomState
-	ArrayRandom            randomState // independent of random()/setseed()
+	Random                 RandomState
+	ArrayRandom            RandomState // independent of random()/setseed()
 	UUID                   uuidClock
 	DatabaseName           string
 	Timeouts               sessionTimeouts
-	Payload                session.PayloadSlot // Root payload; set before publication, never changed. See payloadOf.
+	Payload                PayloadSlot // Root payload; set before publication, never changed. See payloadOf.
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -115,7 +114,7 @@ type Operation struct {
 	Released           bool
 	private            bool
 	Notices            []sqlstate.Error
-	NoticeThreshold    noticeLevel
+	NoticeThreshold    NoticeLevel
 	TimerCancel        context.CancelFunc
 	LockTimeout        time.Duration
 	ParallelWorkers    int // Immutable prior-setting snapshot at command admission.
@@ -130,8 +129,8 @@ type Operation struct {
 	LockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
 	NonstandardStrings bool
 	DiscardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
-	ReplaySlot         session.ReplaySlot      // Restore and materialized population only; see operationReplay.
-	Analysis           session.AnalysisSlot    // Immutable after creation; see newSessionOperation.
+	ReplaySlot         ReplaySlot              // Restore and materialized population only; see operationReplay.
+	Analysis           AnalysisSlot            // Immutable after creation; see Host.NewOperation.
 }
 
 func (s *Session) Token() ids.SessionToken { return s.SessionToken }
@@ -139,12 +138,23 @@ func (s *Session) Operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
 	// cancels every admitted child under the same admission lock; Done removes it.
 	combined, cancel := context.WithCancelCause(ctx)
-	op := newSessionOperation(s)
+	op := s.newOperation()
 	op.Ctx, op.CommandContext, op.SourceContext, op.Cancel, op.private = combined, combined, ctx, cancel, private
 	if s.Operations == nil {
 		s.Operations = make(map[*Operation]struct{})
 	}
 	s.Operations[op] = struct{}{}
+	return op
+}
+
+// newOperation allocates an operation of s through its host. A host-less
+// session (unit tests) gets a plain operation without an analysis slot.
+func (s *Session) newOperation() *Operation {
+	if s.Host != nil {
+		return s.Host.NewOperation(s)
+	}
+	op := &Operation{Session: s}
+	op.Self = op
 	return op
 }
 func (s *Session) Acquire(ctx context.Context) (*Operation, error) {
@@ -157,7 +167,7 @@ func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	s.observeTimeoutsLocked(time.Now())
-	if s.State != live || s.detaching {
+	if s.State != Live || s.detaching {
 		if s.Timeouts.Fatal != nil {
 			copy := *s.Timeouts.Fatal
 			return nil, &copy
@@ -209,17 +219,17 @@ func (op *Operation) Done() {
 	s.Cond.Broadcast()
 }
 
-// validateSessionOperation reports whether op is a live operation of a session
+// ValidateOperation reports whether op is a live operation of a session
 // in domain. A session's token carries its engine's domain, so session code
 // passes its own token's domain.
-func validateSessionOperation(domain *ids.Domain, op *Operation) error {
+func ValidateOperation(domain *ids.Domain, op *Operation) error {
 	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	s := op.Session
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	if op.Released || s.State != live {
+	if op.Released || s.State != Live {
 		if s.Timeouts.Fatal != nil {
 			copy := *s.Timeouts.Fatal
 			return &copy
@@ -252,7 +262,7 @@ func (op *Operation) Attach(kind ResourceKind, owner SessionResource) (ResourceH
 	if err := op.Ctx.Err(); err != nil {
 		return ResourceHandle{}, err
 	}
-	if op.Released || (s.State != live && !(op.private && s.State == initializing)) || s.detaching {
+	if op.Released || (s.State != Live && !(op.private && s.State == Initializing)) || s.detaching {
 		return ResourceHandle{}, errors.New("stuntgres: inactive attachment lease")
 	}
 	if s.Resources[kind] != nil {
@@ -281,7 +291,7 @@ func (s *Session) Detach(h ResourceHandle, reason EndReason) error {
 		s.Mu.Unlock()
 		return errors.New("stuntgres: stale resource handle")
 	}
-	if s.State != live || s.Leases != 0 || s.detaching {
+	if s.State != Live || s.Leases != 0 || s.detaching {
 		s.Mu.Unlock()
 		return errors.New("stuntgres: session detach requires quiescence")
 	}
@@ -312,7 +322,7 @@ func (s *Session) EndRequested() <-chan struct{} {
 	defer s.Mu.Unlock()
 	if s.endRequested == nil {
 		s.endRequested = make(chan struct{})
-		if s.State == ending || s.State == ended {
+		if s.State == Ending || s.State == Ended {
 			close(s.endRequested)
 		}
 	}
@@ -320,10 +330,10 @@ func (s *Session) EndRequested() <-chan struct{} {
 }
 
 func (s *Session) requestEndLocked(reason EndReason) {
-	if s.State == ending || s.State == ended {
+	if s.State == Ending || s.State == Ended {
 		return
 	}
-	s.State = ending
+	s.State = Ending
 	if s.endRequested != nil {
 		close(s.endRequested)
 	}
@@ -368,7 +378,7 @@ func (s *Session) end() {
 	}
 	s.result = errors.Join(s.cleanupErrors...)
 	s.Host.Unregister(s.SessionToken, s)
-	s.State = ended
+	s.State = Ended
 	close(s.Completed)
 	s.Mu.Unlock()
 }
@@ -388,9 +398,9 @@ func (s *Session) Reuse(ctx context.Context) error {
 	}
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	if s.State != live {
+	if s.State != Live {
 		return fmt.Errorf("stuntgres: session is not reusable")
 	}
 	return nil
 }
-func (s *Session) IsLive() bool { s.Mu.Lock(); defer s.Mu.Unlock(); return s.State == live }
+func (s *Session) IsLive() bool { s.Mu.Lock(); defer s.Mu.Unlock(); return s.State == Live }

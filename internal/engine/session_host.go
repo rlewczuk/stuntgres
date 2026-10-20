@@ -42,15 +42,13 @@ type operationAllocation struct {
 	analysis bindingHost
 }
 
-// newSessionOperation allocates an operation of s together with its binding
-// host (engine nil for a host-less test session) and sets op.session,
-// op.self and the analysis slot. When Operation moves to session (13d.6),
-// this becomes the Host's NewOperation.
-func newSessionOperation(s *Session) *Operation {
+// NewOperation allocates an operation of s together with its binding host
+// and sets op.Session, op.Self and the analysis slot.
+func (h *sessionHost) NewOperation(s *Session) *Operation {
 	a := &operationAllocation{op: Operation{Session: s}}
 	op := &a.op
 	op.Self = op
-	a.analysis = bindingHost{engine: engineOf(s), op: op}
+	a.analysis = bindingHost{engine: (*Engine)(h), op: op}
 	op.Analysis = &a.analysis
 	return op
 }

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -59,7 +60,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 		if !action.IfNotExists {
 			return fail(sqlError("42701", message))
 		}
-		op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42701", Message: message + ", skipping"})
+		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42701", Message: message + ", skipping"})
 		return old, addedColumn{}, nil
 	}
 	if old.ColumnMeta.HighWater >= 1600 {

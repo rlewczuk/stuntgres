@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 func TestSessionTimeoutPendingGrantRace(t *testing.T) {
@@ -73,12 +74,12 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			peer.Done()
 			result := timeoutPendingReceive(t, returned)
 			s.Mu.Lock()
-			survived := s.State == live
+			survived := s.State == session.Live
 			if survived {
 				if !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 					t.Error("SQL ERROR claim did not stop budget without FATAL")
 				}
-			} else if s.State != ending || s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P04" {
+			} else if s.State != session.Ending || s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P04" {
 				t.Error("grant winner did not retain exact genuine FATAL")
 			}
 			s.Mu.Unlock()

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -115,7 +116,7 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 		return nil, err
 	}
 	if old.Version == version {
-		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`version "%s" of extension "%s" is already installed`, version, old.Name())})
+		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`version "%s" of extension "%s" is already installed`, version, old.Name())})
 		return nil, nil
 	}
 	path := implementation.Versions().Path(old.Version, version)

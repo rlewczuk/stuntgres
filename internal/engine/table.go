@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -111,7 +112,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	if len(refs) == 0 {
 		e.mu.Unlock()
 		for _, notice := range notices {
-			op.EmitNotice(levelNotice, notice)
+			op.EmitNotice(session.LevelNotice, notice)
 		}
 		return Result{}, nil
 	}
@@ -160,7 +161,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		scope.owner.AccessedTemporary = true
 		emitViewCascade(op, stage.viewCascadeNames)
 		for _, notice := range notices {
-			op.EmitNotice(levelNotice, notice)
+			op.EmitNotice(session.LevelNotice, notice)
 		}
 		return Result{}, nil
 	}
@@ -171,7 +172,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	scope.completed = true
 	emitViewCascade(op, append(stage.schemaCascadeNames, stage.viewCascadeNames...))
 	for _, notice := range notices {
-		op.EmitNotice(levelNotice, notice)
+		op.EmitNotice(session.LevelNotice, notice)
 	}
 	return Result{}, nil
 }
