@@ -2,46 +2,18 @@ package engine
 
 import (
 	"fmt"
-	"sort"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
-
-type builtinOperatorRoutineKey struct {
-	name        string
-	left, right ids.OID
-}
-
-// Join immutable released declarations once. Comparison selection and coercion
-// happen before this identity lookup; evaluation never consults the catalog.
-var builtinOperatorRoutineByDeclaration = indexBuiltinOperatorRoutines()
-
-func indexBuiltinOperatorRoutines() map[builtinOperatorRoutineKey]*catalog.BuiltinRoutineDeclaration {
-	byDeclaration := make(map[builtinOperatorRoutineKey]*catalog.BuiltinRoutineDeclaration, len(builtinOperatorRoutineAssociations))
-	for _, association := range builtinOperatorRoutineAssociations {
-		i := sort.Search(len(builtinOperators), func(i int) bool { return builtinOperators[i].oid >= association.operator })
-		if i == len(builtinOperators) || builtinOperators[i].oid != association.operator {
-			panic("stuntgres: missing released operator identity")
-		}
-		operator := builtinOperators[i]
-		declaration := builtinRoutineByOID[association.routine]
-		if declaration == nil || declaration.Providers&functions.OperatorRoutineProvider == 0 {
-			panic("stuntgres: missing genuine operator routine association")
-		}
-		byDeclaration[builtinOperatorRoutineKey{operator.name, operator.left, operator.right}] = declaration
-	}
-	return byDeclaration
-}
 
 func (b *expressionBinder) builtinOperatorRoutineInfo(info expr.Info, name string, left, right sqltype.ID) (expr.Info, error) {
 	if name == "!=" {
 		name = "<>"
 	}
-	declaration := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, ids.OID(left), ids.OID(right)}]
+	declaration := OperatorRoutine(name, ids.OID(left), ids.OID(right))
 	if declaration == nil {
 		return expr.Info{}, fmt.Errorf("stuntgres: missing successful operator routine association for %s (%d,%d)", name, left, right)
 	}
@@ -56,7 +28,7 @@ func (b *expressionBinder) comparisonRoutineDeclaration(name string, left, right
 		name = "<>"
 	}
 	formal := sqltype.EqualitySignature{Left: comparisonFormalID(left.BaseType()), Right: comparisonFormalID(right.BaseType())}
-	declaration := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, ids.OID(formal.Left), ids.OID(formal.Right)}]
+	declaration := OperatorRoutine(name, ids.OID(formal.Left), ids.OID(formal.Right))
 	if declaration == nil {
 		return nil, sqltype.EqualitySignature{}, fmt.Errorf("stuntgres: missing successful comparison routine association for %s (%d,%d)", name, formal.Left, formal.Right)
 	}

@@ -167,7 +167,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.DatabaseProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(operatorProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(OperatorProvider{}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(parameterProvider{&e.settings}); err != nil {

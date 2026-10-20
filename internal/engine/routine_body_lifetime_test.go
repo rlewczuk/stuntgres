@@ -134,7 +134,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	// no reconstructed/grafted expected recipe substitutes for the stored one.
 	originalRefs := append([]ids.ObjectRef(nil), original[0].refs...)
 	originalChecks := append([]catalog.ExpressionDependency(nil), original[1].checks...)
-	sourceCall, err := expressionRoutineDescriptor(original[0].node)
+	sourceCall, err := ExpressionRoutineDescriptor(original[0].node)
 	if err != nil || sourceCall == nil {
 		t.Fatal("missing original DEFAULT routine carrier", err)
 	}
@@ -159,7 +159,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		if item.consumer == original[i].consumer || item.consumer.Owner != target.roles.domain.Principal(item.consumer.Owner.ID()) {
 			t.Fatal("stored consumer retained source ownership", i)
 		}
-		call, err := expressionRoutineDescriptor(item.node)
+		call, err := ExpressionRoutineDescriptor(item.node)
 		if err != nil || call == nil || call.Address() != sourceCall.Address() || call == sourceCall ||
 			call.Owner != target.roles.domain.Principal(call.Owner.ID()) || call.Revision() == 0 {
 			t.Fatal("stored call lost destination declaration provenance", i, err)
@@ -329,7 +329,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual provider selection", err)
 			}
-			outer, err := expressionRoutineDescriptor(node)
+			outer, err := ExpressionRoutineDescriptor(node)
 			if err != nil || outer == nil || outer.Address().ObjectID != test.id {
 				t.Fatal("selected released root", outer, err)
 			}

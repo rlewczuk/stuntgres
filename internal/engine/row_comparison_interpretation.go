@@ -58,7 +58,7 @@ func (b *expressionBinder) checkRowComparisonInterpretation(raw parser.OperatorE
 			return err
 		}
 		formalLeft, formalRight := comparisonFormalID(left), comparisonFormalID(right)
-		selected := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, ids.OID(formalLeft), ids.OID(formalRight)}]
+		selected := OperatorRoutine(name, ids.OID(formalLeft), ids.OID(formalRight))
 		if declaration != nil && declaration == selected && rowBTreeFormalPair(formalLeft, formalRight) {
 			continue
 		}

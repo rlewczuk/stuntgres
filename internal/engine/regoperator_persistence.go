@@ -59,7 +59,7 @@ func operatorLiteralSQL(view catalog.Read, value sqltype.Value) (string, error) 
 		return "", err
 	}
 	d, known := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(id)})
-	if !known || operatorSeeded(d) {
+	if !known || OperatorSeeded(d) {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'::" + value.Type().BaseType().Name(), nil
 	}
 	text := operatorSpelling(view, nil, collectOperatorGroups(view), ids.OID(id), sqltype.Regoperator)

@@ -31,7 +31,7 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		return extension.Address().ObjectID, nil
 	}
 	if operator, ok := object.(*catalog.Operator); ok {
-		if operatorSeeded(operator) {
+		if OperatorSeeded(operator) {
 			return 0, nil
 		}
 		if operator.Function != 0 {

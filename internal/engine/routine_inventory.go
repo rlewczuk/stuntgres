@@ -13,7 +13,7 @@ import (
 // are independent of physical child usages and specialized result descriptors.
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
-var builtinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
+var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{56, ids.PGCatalogNamespaceOID, "boollt", "16,16"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{57, ids.PGCatalogNamespaceOID, "boolgt", "16,16"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{60, ids.PGCatalogNamespaceOID, "booleq", "16,16"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
@@ -1260,10 +1260,15 @@ var builtinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 
 var builtinRoutineByOID = indexBuiltinRoutineDeclarations()
 
+// BuiltinRoutine returns the released declaration with the given OID, or nil.
+func BuiltinRoutine(id ids.OID) *catalog.BuiltinRoutineDeclaration {
+	return builtinRoutineByOID[id]
+}
+
 func indexBuiltinRoutineDeclarations() map[ids.OID]*catalog.BuiltinRoutineDeclaration {
-	byOID := make(map[ids.OID]*catalog.BuiltinRoutineDeclaration, len(builtinRoutineDeclarations))
-	for i := range builtinRoutineDeclarations {
-		d := &builtinRoutineDeclarations[i]
+	byOID := make(map[ids.OID]*catalog.BuiltinRoutineDeclaration, len(BuiltinRoutineDeclarations))
+	for i := range BuiltinRoutineDeclarations {
+		d := &BuiltinRoutineDeclarations[i]
 		byOID[d.Identity.ID] = d
 	}
 	return byOID

@@ -40,7 +40,7 @@ func capturePGOperator(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if !ok {
 			continue
 		}
-		if operatorSeeded(d) && d.Function == 0 {
+		if OperatorSeeded(d) && d.Function == 0 {
 			continue
 		}
 		definitions = append(definitions, d)

@@ -102,8 +102,8 @@ func (b *expressionBinder) coercionInfo(info expr.Info, child expr.Expr) (expr.I
 // Some successful coercion seams deliberately retain their own collation
 // handling. They still select the same actual function-method identity.
 func (b *expressionBinder) coercionRoutineInfo(info expr.Info, child expr.Expr) (expr.Info, error) {
-	if id := embeddedCastOID(child.ResultUsage().Type, info.Usage.Type); id != 0 {
-		return b.selectedBuiltinRoutineInfo(info, builtinRoutineByOID[id])
+	if id := EmbeddedCastOID(child.ResultUsage().Type, info.Usage.Type); id != 0 {
+		return b.selectedBuiltinRoutineInfo(info, BuiltinRoutine(id))
 	}
 	return info, nil
 }

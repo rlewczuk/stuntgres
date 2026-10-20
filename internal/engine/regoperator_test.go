@@ -44,7 +44,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		if !ok || d.Name() != fields[2] || d.Namespace().ObjectID != 11 || d.Left != ids.OID(left) || d.Right != ids.OID(right) || expected[ids.OID(oid)] {
 			t.Fatalf("operator identity %v differs from independent inventory", fields)
 		}
-		if err := (operatorProvider{}).Validate(view, d); err != nil {
+		if err := (OperatorProvider{}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 		if !pgDependPinned(view, nil, address) {

@@ -18,13 +18,13 @@ import (
 // seeds from the built-in tables, plus room for the few seeded outside them:
 // namespaces, tablespaces, catalog sources and the current database.
 func builtinCatalogCapacity(types int) int {
-	return types + len(catalog.BuiltinCollations) + len(builtinConversionRoutines) + len(builtinRoutineDeclarations) +
-		len(catalog.BuiltinConversions) + len(builtinOperators) + 128
+	return types + len(catalog.BuiltinCollations) + len(builtinConversionRoutines) + len(BuiltinRoutineDeclarations) +
+		len(catalog.BuiltinConversions) + BuiltinOperatorCount + 128
 }
 
 // installBuiltinProcedures installs the builtin routine descriptors.
 func (e *Engine) installBuiltinProcedures() {
-	procedures := builtinProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	procedures := BuiltinProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
 	for i := range procedures {
 		d := &procedures[i]
 		e.catalog.state.SetDescriptor(d.Address(), d)
@@ -35,8 +35,8 @@ func (e *Engine) installBuiltinProcedures() {
 // installBuiltinOperators installs the seeded operator descriptors and the
 // shared operator-name index.
 func (e *Engine) installBuiltinOperators() {
-	e.catalog.state.SetOperatorNames(seededOperatorNames)
-	operators := builtinOperatorDescriptors(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	e.catalog.state.SetOperatorNames(SeededOperatorNames())
+	operators := BuiltinOperatorDescriptors(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
 	for i := range operators {
 		d := &operators[i]
 		e.catalog.state.SetDescriptor(d.Address(), d)
@@ -46,7 +46,7 @@ func (e *Engine) installBuiltinOperators() {
 
 // builtinProcedureNames is the procedure-name index of the seeded procedures.
 // Engines share it read-only: ProcedureIndexEdit copies its maps and buckets
-// before the first change, as for seededOperatorNames.
+// before the first change, as for SeededOperatorNames.
 var builtinProcedureNames struct {
 	once  sync.Once
 	index *catalog.ProcedureNameIndex

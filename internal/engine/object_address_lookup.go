@@ -321,7 +321,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 			return missing("42883", noun+" "+sig+" does not exist")
 		}
-		actual := objectRoutineKind(p.ID)
+		actual := ObjectRoutineKind(p.ID)
 		if kind == "aggregate" && actual != "aggregate" {
 			return missing("42809", "function "+sig+" is not an aggregate")
 		}

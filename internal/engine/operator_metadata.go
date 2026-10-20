@@ -2,19 +2,19 @@ package engine
 
 import "stuntgres/internal/engine/ids"
 
-// operatorMetadata is the released metadata projection of existing executable
+// OperatorMetadata is the released metadata projection of existing executable
 // providers. Identity (name, namespace and ordered operands) remains owned by
 // builtinOperators/catalog.Operator, including all identity-only aliases.
 // Values below are fixed REL_18_0 catalog facts, not scan-time provider probes.
-type operatorMetadata struct {
-	oid                                               ids.OID
-	result                                            uint32
-	kind                                              string
-	merge, hash                                       bool
-	commutator, negator, procedure, restriction, join uint32
+type OperatorMetadata struct {
+	OID                                               ids.OID
+	Result                                            uint32
+	Kind                                              string
+	Merge, Hash                                       bool
+	Commutator, Negator, Procedure, Restriction, Join uint32
 }
 
-var supportedOperatorMetadata = [...]operatorMetadata{
+var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{15, 16, "b", true, true, 416, 36, 852, 101, 105},
 	{36, 16, "b", false, false, 417, 15, 853, 102, 106},
 	{37, 16, "b", false, false, 419, 82, 854, 103, 107},
@@ -576,7 +576,7 @@ var supportedOperatorMetadata = [...]operatorMetadata{
 // REL_18_6 pg_proc.dat estimator result facts supplement the existing identity
 // inventory only. They do not publish pg_proc rows or callable providers.
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
-func releasedOperatorEstimatorResult(id ids.OID) ids.OID {
+func ReleasedOperatorEstimatorResult(id ids.OID) ids.OID {
 	switch id {
 	case 101, 102, 103, 104, 105, 106, 107, 108, 139, 140, 336, 337, 386, 398,
 		1300, 1301, 1302, 1303, 1814, 1815, 1816, 1817, 1818, 1819, 1820,

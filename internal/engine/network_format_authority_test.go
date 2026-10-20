@@ -42,7 +42,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			outer, err := expressionRoutineDescriptor(node)
+			outer, err := ExpressionRoutineDescriptor(node)
 			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing original declaration", outer, err)
 			}

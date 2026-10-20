@@ -134,7 +134,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 			}
 			switch d := descriptor.(type) {
 			case *catalog.Operator:
-				if operatorDependsOn(provider.base, d, target) {
+				if OperatorDependsOn(provider.base, d, target) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 				}
 			case *catalog.ForeignObject:

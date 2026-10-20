@@ -125,7 +125,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	if expression == nil {
 		return nil
 	}
-	recipe, err := expressionRecipeDescriptor(expression)
+	recipe, err := ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return err
 	}

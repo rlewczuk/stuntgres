@@ -2,6 +2,9 @@ package engine
 
 import "stuntgres/internal/engine/ids"
 
+// BuiltinOperatorCount is the number of released builtin operators.
+const BuiltinOperatorCount = len(builtinOperators)
+
 // All operator identities in PostgreSQL REL_18_0 pg_operator.dat.
 // Identity availability is independent of executable operator providers.
 var builtinOperators = [...]struct {

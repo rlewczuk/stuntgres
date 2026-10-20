@@ -88,7 +88,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if call.Args[jsonIndex].ResultUsage().Type.ID() != sqltype.JSON || tc.anonymous != call.ResultUsage().Type.IsDeferredRecord() {
 				t.Fatal("SQL-order JSON/base and physical result usages", call)
 			}
-			captured, err := expressionRoutineDescriptor(call)
+			captured, err := ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}

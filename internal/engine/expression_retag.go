@@ -63,7 +63,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	}
 	changed := typ != info.Usage.Type
 	info.Usage.Type = typ
-	if _, failure := expressionRecipeDescriptor(node); failure != nil {
+	if _, failure := ExpressionRecipeDescriptor(node); failure != nil {
 		return nil, false, failure
 	}
 	if recipe != nil && info.RoutineRecipeReference != recipe {
@@ -72,7 +72,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	}
 	var err error
 	if info.RoutineReference != nil {
-		captured, failure := expressionRoutineDescriptor(node)
+		captured, failure := ExpressionRoutineDescriptor(node)
 		if failure != nil {
 			return nil, false, failure
 		}
@@ -577,7 +577,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			arm.condition, arm.result = child(arm.condition), child(arm.result)
 			if arm.routine != nil && view.State() != nil {
 				current, ok := view.Procedure(arm.routine.Address())
-				if !ok || !sameRoutineDeclaration(current, arm.routine) {
+				if !ok || !SameRoutineDeclaration(current, arm.routine) {
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
 				}
 				changed = changed || arm.routine != current

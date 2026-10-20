@@ -29,7 +29,7 @@ func TestOperatorDependsOnMatchesDependencyAddresses(t *testing.T) {
 			continue
 		}
 		operators++
-		dependencies := operatorDependencyAddresses(view, d)
+		dependencies := OperatorDependencyAddresses(view, d)
 		targets := append(slices.Clone(unrelated), d.Address(), d.Namespace())
 		for _, id := range [...]ids.OID{d.Left, d.Right, d.Result} {
 			targets = append(targets, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id, SubID: 1})
@@ -42,7 +42,7 @@ func TestOperatorDependsOnMatchesDependencyAddresses(t *testing.T) {
 			targets = append(targets, procedure, ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id, SubID: 1})
 		}
 		for _, target := range targets {
-			if got, want := operatorDependsOn(view, d, target), slices.Contains(dependencies, target); got != want {
+			if got, want := OperatorDependsOn(view, d, target), slices.Contains(dependencies, target); got != want {
 				t.Fatalf("operator %s (%d) depends on %v = %v, want %v", d.Name(), d.Address().ObjectID, target, got, want)
 			}
 		}

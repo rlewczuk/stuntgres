@@ -76,7 +76,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 			p.Implementation = &uuidOsspProvider{control: catalog.ExtensionControl{Version: "1.1"}}
 		},
 		func(p *catalog.Procedure) { p.RoutineKind = catalog.ProcedureRoutine },
-		func(p *catalog.Procedure) { p.Builtin = builtinRoutineByOID[3432] },
+		func(p *catalog.Procedure) { p.Builtin = BuiltinRoutine(3432) },
 		func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
 		func(p *catalog.Procedure) { p.Implementation = stockFuzzystrmatch },
 		func(p *catalog.Procedure) { p.Implementation = stockUnaccent },

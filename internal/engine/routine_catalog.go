@@ -24,9 +24,9 @@ type builtinRoutineKey struct {
 var builtinRoutineByDeclaration = indexBuiltinRoutineFormals()
 
 func indexBuiltinRoutineFormals() map[builtinRoutineKey]*catalog.BuiltinRoutineDeclaration {
-	byDeclaration := make(map[builtinRoutineKey]*catalog.BuiltinRoutineDeclaration, len(builtinRoutineDeclarations))
-	for i := range builtinRoutineDeclarations {
-		d := &builtinRoutineDeclarations[i]
+	byDeclaration := make(map[builtinRoutineKey]*catalog.BuiltinRoutineDeclaration, len(BuiltinRoutineDeclarations))
+	for i := range BuiltinRoutineDeclarations {
+		d := &BuiltinRoutineDeclarations[i]
 		key := builtinRoutineKey{name: d.Identity.Name}
 		remaining := string(d.Identity.Signature)
 		for remaining != "" {
@@ -44,15 +44,15 @@ func indexBuiltinRoutineFormals() map[builtinRoutineKey]*catalog.BuiltinRoutineD
 	return byDeclaration
 }
 
-// builtinProcedures returns a fresh descriptor for every builtin routine
+// BuiltinProcedures returns a fresh descriptor for every builtin routine
 // declaration, in declaration order, with SQL bodies attached. The engine
 // installs them; descriptor pointers retain the returned backing array.
 // Immutable cells remain stable; later ACL/owner changes still publish
 // ordinary COW records.
-func builtinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
-	procedures := make([]catalog.Procedure, len(builtinRoutineDeclarations))
-	for i := range builtinRoutineDeclarations {
-		declaration := &builtinRoutineDeclarations[i]
+func BuiltinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
+	procedures := make([]catalog.Procedure, len(BuiltinRoutineDeclarations))
+	for i := range BuiltinRoutineDeclarations {
+		declaration := &BuiltinRoutineDeclarations[i]
 		procedures[i] = catalog.Procedure{
 			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID},
 			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.Identity.Namespace},
@@ -69,7 +69,7 @@ func builtinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
 // declaration. Physical child usages are not substituted for declared formals.
 // Metadata borrows the already-owned immutable descriptor pointer; the existing
 // value dependency manifest separately owns the scoped lifetime reference.
-func lookupBuiltinRoutineDeclaration(provider functions.RoutineProvider, name string, inputs []sqltype.ID) (*catalog.BuiltinRoutineDeclaration, error) {
+func LookupBuiltinRoutineDeclaration(provider functions.RoutineProvider, name string, inputs []sqltype.ID) (*catalog.BuiltinRoutineDeclaration, error) {
 	if len(inputs) > 7 {
 		return nil, fmt.Errorf("stuntgres: unsupported builtin routine formal key")
 	}

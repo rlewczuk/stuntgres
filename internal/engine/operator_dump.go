@@ -48,7 +48,7 @@ func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles autho
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err
 	}
-	if err := (operatorProvider{}).Validate(view, d); err != nil {
+	if err := (OperatorProvider{}).Validate(view, d); err != nil {
 		return dumpDomain{}, err
 	}
 	if d.Function == 0 {
@@ -61,7 +61,7 @@ func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles autho
 // both declarations. Shell targets must instead be created by a forward link.
 func operatorDumpDeferredLink(view catalog.Read, source *catalog.Operator, kind int, id ids.OID) bool {
 	peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-	if peer == nil || peer.Function == 0 || operatorSeeded(peer) {
+	if peer == nil || peer.Function == 0 || OperatorSeeded(peer) {
 		return false
 	}
 	reciprocal := peer.Commutator
@@ -168,9 +168,9 @@ func operatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog
 func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles authorization.Read, shell *catalog.Operator) (dumpDomain, error) {
 	var routine *catalog.Procedure
 	negator := false
-	for key, declaration := range builtinOperatorRoutineByDeclaration {
-		comm := shell.Left != 0 && key.left == shell.Right && key.right == shell.Left
-		neg := key.left == shell.Left && key.right == shell.Right && declaration.Result == ids.OID(sqltype.Bool)
+	for key, declaration := range OperatorRoutines() {
+		comm := shell.Left != 0 && key.Left == shell.Right && key.Right == shell.Left
+		neg := key.Left == shell.Left && key.Right == shell.Right && declaration.Result == ids.OID(sqltype.Bool)
 		if !comm && !neg {
 			continue
 		}
@@ -245,7 +245,7 @@ func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph 
 		declaration := dumpEventKey{oid: source.Address().ObjectID}
 		for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 			peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-			if peer == nil || peer.Function == 0 || operatorSeeded(peer) {
+			if peer == nil || peer.Function == 0 || OperatorSeeded(peer) {
 				continue
 			}
 			target := dumpEventKey{oid: id}

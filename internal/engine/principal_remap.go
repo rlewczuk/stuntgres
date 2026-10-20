@@ -165,7 +165,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 		case *catalog.Operator:
 			n := *d
 			var err error
-			n.Owner, err = seedOwner(d.Owner, operatorSeeded(d))
+			n.Owner, err = seedOwner(d.Owner, OperatorSeeded(d))
 			if err != nil {
 				return nil, err
 			}

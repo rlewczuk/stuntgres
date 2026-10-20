@@ -264,7 +264,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 	source, target := New(), New()
 	assertOperatorIndex(t, source.catalog.state)
 	assertOperatorIndex(t, target.catalog.state)
-	if source.catalog.state.OperatorNames() != target.catalog.state.OperatorNames() || source.catalog.state.OperatorNames() != seededOperatorNames {
+	if source.catalog.state.OperatorNames() != target.catalog.state.OperatorNames() || source.catalog.state.OperatorNames() != SeededOperatorNames() {
 		t.Fatal("seed address index not shared")
 	}
 	address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 96}

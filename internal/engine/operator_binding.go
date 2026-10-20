@@ -97,7 +97,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 					continue
 				}
 				available = true
-				if !operatorSeeded(d) {
+				if !OperatorSeeded(d) {
 					custom = true
 					break
 				}
@@ -123,7 +123,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			}
 			seen[key] = true
 			candidates = append(candidates, d)
-			custom = custom || !operatorSeeded(d)
+			custom = custom || !OperatorSeeded(d)
 		}
 	}
 	return operatorCandidateSet{catalog: auth.Catalog, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
@@ -144,8 +144,8 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 		return nil, functions.OperatorError(err, diagnosticLeft, right, raw)
 	}
 	d := candidates[selected]
-	if d.Function == 0 && !operatorSeeded(d) {
-		message := operatorInputName(set.catalog, d.Left, d.Right, raw.Name)
+	if d.Function == 0 && !OperatorSeeded(d) {
+		message := OperatorInputName(set.catalog, d.Left, d.Right, raw.Name)
 		diagnostic := sqlError("42883", "operator is only a shell: "+message).(*sqlstate.Error)
 		if raw.Pos.Character > 0 {
 			diagnostic.Position = strconv.Itoa(raw.Pos.Character)
@@ -156,7 +156,7 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 }
 
 func requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
-	if !operatorSeeded(d) {
+	if !OperatorSeeded(d) {
 		return expr.ErrorAt("0A000", "custom operators are unsupported in this comparison context", pos)
 	}
 	return nil
@@ -234,7 +234,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 			return nil, err
 		}
 	}
-	if operatorSeeded(d) {
+	if OperatorSeeded(d) {
 		// Seed metadata is not an invocation descriptor. Dispatch the selected
 		// builtin through its existing real expression provider, reusing the
 		// operands already bound and coerced by catalog resolution.
@@ -285,21 +285,21 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, arg
 	var err error
 	if d.Builtin != nil && d.Builtin.Providers&functions.OperatorRoutineProvider != 0 {
 		found := false
-		for key, declaration := range builtinOperatorRoutineByDeclaration {
+		for key, declaration := range OperatorRoutines() {
 			if declaration != d.Builtin {
 				continue
 			}
-			if len(args) == 1 && key.left != 0 || len(args) == 2 && key.left == 0 {
+			if len(args) == 1 && key.Left != 0 || len(args) == 2 && key.Left == 0 {
 				continue
 			}
-			signature := strconv.FormatUint(uint64(key.right), 10)
-			if key.left != 0 {
-				signature = strconv.FormatUint(uint64(key.left), 10) + "," + signature
+			signature := strconv.FormatUint(uint64(key.Right), 10)
+			if key.Left != 0 {
+				signature = strconv.FormatUint(uint64(key.Left), 10) + "," + signature
 			}
 			if catalog.ProcedureSignature(signature) != d.Signature {
 				continue
 			}
-			raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: key.name, Pos: pos}}}, Args: rawArgs, Pos: pos}
+			raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: key.Name, Pos: pos}}}, Args: rawArgs, Pos: pos}
 			node, err = b.bindBuiltinOperator(raw, expressionPolicy{context: projectionContext})
 			found = true
 			break
@@ -315,7 +315,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, arg
 	if err != nil {
 		return nil, err
 	}
-	actual, err := expressionRoutineDescriptor(node)
+	actual, err := ExpressionRoutineDescriptor(node)
 	if err != nil {
 		return nil, err
 	}

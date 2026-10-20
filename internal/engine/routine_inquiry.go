@@ -27,7 +27,7 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 		return nil
 	} // Legitimate standalone internal provider fixtures.
 	local := *c
-	recipe, err := expressionRecipeDescriptor(node)
+	recipe, err := ExpressionRecipeDescriptor(node)
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 			return err
 		}
 	}
-	outer, err := expressionRoutineDescriptor(node)
+	outer, err := ExpressionRoutineDescriptor(node)
 	if err != nil || outer == nil {
 		return err
 	}

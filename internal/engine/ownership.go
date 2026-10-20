@@ -35,7 +35,7 @@ func ownershipRoot(view catalog.Read, d catalog.Descriptor) bool {
 	case *catalog.Conversion:
 		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *catalog.Operator:
-		return !operatorSeeded(t)
+		return !OperatorSeeded(t)
 	case *catalog.Procedure:
 		return !t.Seeded() && t.Foreign == nil
 	case *catalog.Database, *catalog.Extension, *catalog.TSDictionary:

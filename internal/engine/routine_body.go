@@ -46,14 +46,14 @@ var builtinRoutineBodyEdges = [...]struct {
 }
 
 // builtinRoutineBodyLinks holds each body edge's outer and inner positions in
-// builtinRoutineDeclarations, resolved once per process so that seeding an
+// BuiltinRoutineDeclarations, resolved once per process so that seeding an
 // engine needs no lookup.
 var builtinRoutineBodyLinks = indexBuiltinRoutineBodies()
 
 func indexBuiltinRoutineBodies() (links [len(builtinRoutineBodyEdges)]struct{ outer, inner int }) {
-	positions := make(map[ids.OID]int, len(builtinRoutineDeclarations))
-	for i := range builtinRoutineDeclarations {
-		positions[builtinRoutineDeclarations[i].Identity.ID] = i
+	positions := make(map[ids.OID]int, len(BuiltinRoutineDeclarations))
+	for i := range BuiltinRoutineDeclarations {
+		positions[BuiltinRoutineDeclarations[i].Identity.ID] = i
 	}
 	for i, edge := range builtinRoutineBodyEdges {
 		outer, ok := positions[edge.outer]
@@ -67,7 +67,7 @@ func indexBuiltinRoutineBodies() (links [len(builtinRoutineBodyEdges)]struct{ ou
 }
 
 // attachBuiltinRoutineBodies points each outer builtin procedure at its body
-// edges. procedures is indexed like builtinRoutineDeclarations. Edges of one
+// edges. procedures is indexed like BuiltinRoutineDeclarations. Edges of one
 // outer routine are adjacent, so each body is one window of a shared array.
 func attachBuiltinRoutineBodies(procedures []catalog.Procedure) {
 	storage := make([]catalog.RoutineBodyEdge, len(builtinRoutineBodyEdges))
@@ -82,7 +82,7 @@ func attachBuiltinRoutineBodies(procedures []catalog.Procedure) {
 	}
 }
 
-func polymorphicBodyArgument(node expr.Expr, id ids.OID) expr.Expr {
+func PolymorphicBodyArgument(node expr.Expr, id ids.OID) expr.Expr {
 	switch n := node.(type) {
 	case functions.StringVariadic:
 		if (id == 1285 || id == 1290) && len(n.Args) == 1 {
@@ -99,7 +99,7 @@ func polymorphicBodyArgument(node expr.Expr, id ids.OID) expr.Expr {
 	return nil
 }
 
-func bodyCastMatches(edge catalog.RoutineBodyEdge, argument expr.Expr) bool {
+func BodyCastMatches(edge catalog.RoutineBodyEdge, argument expr.Expr) bool {
 	if argument == nil {
 		return false
 	}
@@ -109,16 +109,16 @@ func bodyCastMatches(edge catalog.RoutineBodyEdge, argument expr.Expr) bool {
 
 // Lifetime capture is conservative even where strict NULL later removes actual
 // invocation. Only instance-selected polymorphic cast identities participate.
-func walkRoutineBody(outer *catalog.Procedure, node expr.Expr, visit func(*catalog.Procedure) error) error {
-	argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
+func WalkRoutineBody(outer *catalog.Procedure, node expr.Expr, visit func(*catalog.Procedure) error) error {
+	argument := PolymorphicBodyArgument(node, outer.Address().ObjectID)
 	for _, edge := range outer.Body {
-		if (edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText) && !bodyCastMatches(edge, argument) {
+		if (edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText) && !BodyCastMatches(edge, argument) {
 			continue
 		}
 		if err := visit(edge.Routine); err != nil {
 			return err
 		}
-		if err := walkRoutineBody(edge.Routine, nil, visit); err != nil {
+		if err := WalkRoutineBody(edge.Routine, nil, visit); err != nil {
 			return err
 		}
 	}
@@ -127,7 +127,7 @@ func walkRoutineBody(outer *catalog.Procedure, node expr.Expr, visit func(*catal
 
 // Only these already-implemented function-method casts belong to the reviewed
 // SQL-body closure. Other casts/I/O helpers do not gain a fabricated invocation.
-func embeddedCastOID(source, target *sqltype.Descriptor) ids.OID {
+func EmbeddedCastOID(source, target *sqltype.Descriptor) ids.OID {
 	if source == nil || target == nil {
 		return 0
 	}

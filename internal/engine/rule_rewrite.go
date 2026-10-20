@@ -203,7 +203,7 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 		if failure != nil || captured == nil {
 			return
 		}
-		current, err := validateStoredRoutineDescriptor(view, captured)
+		current, err := ValidateStoredRoutineDescriptor(view, captured)
 		if err != nil {
 			failure = err
 			return
@@ -245,16 +245,16 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 				record(arm.routine)
 			}
 		}
-		captured, err := expressionRoutineDescriptor(node)
+		captured, err := ExpressionRoutineDescriptor(node)
 		if err != nil {
 			failure = err
 			return
 		}
 		record(captured)
 		if captured != nil {
-			failure = walkRoutineBody(captured, node, func(body *catalog.Procedure) error {
+			failure = WalkRoutineBody(captured, node, func(body *catalog.Procedure) error {
 				current, ok := view.Procedure(body.Address())
-				if !ok || !sameRoutineDeclaration(current, body) {
+				if !ok || !SameRoutineDeclaration(current, body) {
 					return fmt.Errorf("stuntgres: stale rule DEFAULT SQL body declaration")
 				}
 				// record still requires the original validated source DEFAULT ref.

@@ -274,7 +274,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if err := validateGenerationPlan(e.CatalogRead(), nil, n); err != nil {
 			t.Fatal("original provider", err)
 		}
-		captured, err := expressionRoutineDescriptor(n)
+		captured, err := ExpressionRoutineDescriptor(n)
 		if err != nil || captured == nil {
 			t.Fatal("missing captured original routine", err)
 		}

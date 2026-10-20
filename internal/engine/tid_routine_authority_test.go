@@ -52,7 +52,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual TID operator selection", err)
 			}
-			outer, err := expressionRoutineDescriptor(node)
+			outer, err := ExpressionRoutineDescriptor(node)
 			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing selected declaration", outer, err)
 			}

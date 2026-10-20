@@ -1,89 +1,9 @@
 package engine
 
 import (
-	"fmt"
-
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
-
-// The cross-package interface is an identity carrier, not catalog authority.
-// Dynamic extraction rejects arbitrary implementations and typed nil pointers.
-func expressionRoutineDescriptor(node any) (*catalog.Procedure, error) {
-	call, ok := node.(interface {
-		CallRoutineReference() expr.RoutineReference
-	})
-	if !ok {
-		return nil, nil
-	}
-	reference := call.CallRoutineReference()
-	if reference == nil {
-		return nil, nil
-	}
-	d, ok := reference.(*catalog.Procedure)
-	if !ok || d == nil || d.Address().ClassID != ids.ProcedureClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 {
-		return nil, fmt.Errorf("stuntgres: invalid routine reference carrier")
-	}
-	return d, nil
-}
-
-// Ownership's domain tag proves carrier provenance only. The captured owner and
-// ACL are never used as a permission decision, and a COW ACL/owner replacement
-// does not require captured-descriptor pointer equality with the current root.
-func validateRoutineDescriptor(view catalog.Read, roles authorization.Read, captured *catalog.Procedure) (*catalog.Procedure, error) {
-	if err := roles.ValidatePrincipal(captured.Owner); err != nil {
-		return nil, err
-	}
-	return currentRoutineDeclaration(view, captured)
-}
-
-// validateStoredRoutineDescriptor is validateRoutineDescriptor for stored SQL
-// validation, which holds no role snapshot: the owner's provenance is checked
-// against the principal domain of view's own engine, which is what the
-// engine's committed role root would check.
-func validateStoredRoutineDescriptor(view catalog.Read, captured *catalog.Procedure) (*catalog.Procedure, error) {
-	if _, ok := view.Database(catalog.CurrentDatabaseAddress); !ok || view.Owner() == nil || captured.Owner.ID() == 0 || captured.Owner != view.Owner().Principals.Principal(captured.Owner.ID()) {
-		return nil, fmt.Errorf("stuntgres: foreign or zero principal")
-	}
-	return currentRoutineDeclaration(view, captured)
-}
-
-func currentRoutineDeclaration(view catalog.Read, captured *catalog.Procedure) (*catalog.Procedure, error) {
-	current, ok := view.Procedure(captured.Address())
-	if !ok || !sameRoutineDeclaration(current, captured) {
-		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
-	}
-	return current, nil
-}
-
-func sameRoutineDeclaration(current, captured *catalog.Procedure) bool {
-	return current != nil && captured != nil &&
-		current.Name() == captured.Name() && current.Signature == captured.Signature &&
-		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&
-		current.Strict == captured.Strict && current.Volatility == captured.Volatility &&
-		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
-		current.Conversion == captured.Conversion && current.SQL == captured.SQL
-}
-
-func expressionRecipeDescriptor(node any) (*catalog.Relation, error) {
-	carrier, ok := node.(interface {
-		CallRoutineRecipeReference() expr.RoutineRecipeReference
-	})
-	if !ok || carrier.CallRoutineRecipeReference() == nil {
-		return nil, nil
-	}
-	recipe, ok := carrier.CallRoutineRecipeReference().(*catalog.Relation)
-	if !ok || recipe == nil || recipe.View == nil || recipe.RelationKind != catalog.ViewRelation || recipe.Address().ClassID != ids.RelationClassID || recipe.Address().ObjectID == 0 {
-		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
-	}
-	if consumer, temporary := recipe.View.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != recipe.Address() ||
-		temporary != (ids.SessionToken{}) && consumer != recipe.Address() {
-		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
-	}
-	return recipe, nil
-}
 
 // Only evaluator-local stack copies select graft ancestry. A user replacement
 // cannot inherit the enclosing stored node's manifest or relation owner.

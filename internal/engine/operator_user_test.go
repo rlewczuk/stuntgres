@@ -82,23 +82,23 @@ func TestUserOperatorCatalogValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := e.stageRead(stage)
-	if err := (operatorProvider{}).Validate(candidate, d); err != nil {
+	if err := (OperatorProvider{}).Validate(candidate, d); err != nil {
 		t.Fatal(err)
 	}
 	for _, alter := range []func(*catalog.Operator){func(n *catalog.Operator) { n.Result = 20 }, func(n *catalog.Operator) { n.Left = 21 }, func(n *catalog.Operator) { n.Right = 0 }, func(n *catalog.Operator) { n.Function = 0 }, func(n *catalog.Operator) { n.Negator = n.Address().ObjectID }} {
 		next := *d
 		alter(&next)
-		if err := (operatorProvider{}).Validate(candidate, &next); err == nil {
+		if err := (OperatorProvider{}).Validate(candidate, &next); err == nil {
 			t.Fatal("invalid descriptor accepted", next)
 		}
 	}
 	for _, name := range []string{"#~#", "?-", "%-", "!", "+", "~~"} {
-		if !validOperatorName(name) {
+		if !ValidOperatorName(name) {
 			t.Fatal("valid operator name", name)
 		}
 	}
 	for _, name := range []string{"", "a", "=>", "!=", "--", "/*", "++", "~-a"} {
-		if validOperatorName(name) {
+		if ValidOperatorName(name) {
 			t.Fatal("invalid operator name", name)
 		}
 	}
@@ -113,7 +113,7 @@ func TestUserOperatorCatalogLookupOnlySeedValidation(t *testing.T) {
 	if _, ok := view.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4047}); ok {
 		t.Fatal("lookup-only routine acquired a callable descriptor")
 	}
-	if err := (operatorProvider{}).Validate(view, seed); err != nil {
+	if err := (OperatorProvider{}).Validate(view, seed); err != nil {
 		t.Fatal("lookup-only released seed rejected", err)
 	}
 	for _, alter := range []func(*catalog.Operator){
@@ -123,7 +123,7 @@ func TestUserOperatorCatalogLookupOnlySeedValidation(t *testing.T) {
 	} {
 		next := *seed
 		alter(&next)
-		if err := (operatorProvider{}).Validate(view, &next); err == nil {
+		if err := (OperatorProvider{}).Validate(view, &next); err == nil {
 			t.Fatal("corrupt released metadata accepted", next)
 		}
 	}
@@ -135,7 +135,7 @@ func TestUserOperatorCatalogLookupOnlySeedValidation(t *testing.T) {
 	if err := stage.Create(&custom); err != nil {
 		t.Fatal(err)
 	}
-	if err := (operatorProvider{}).Validate(e.stageRead(stage), &custom); err == nil {
+	if err := (OperatorProvider{}).Validate(e.stageRead(stage), &custom); err == nil {
 		t.Fatal("lookup-only identity accepted as a custom implementation")
 	}
 }
@@ -163,7 +163,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected, err := expressionRoutineDescriptor(node)
+		selected, err := ExpressionRoutineDescriptor(node)
 		if err != nil || selected != routine {
 			t.Fatal("selected routine authority", selected, err)
 		}

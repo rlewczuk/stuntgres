@@ -129,7 +129,7 @@ func storedViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref
 		}
 		return ok && old.Address() == address && old.Revision() != 0 &&
 			old.Owner.ID() != 0 && old.Owner == view.Owner().Principals.Principal(old.Owner.ID()) &&
-			sameRoutineDeclaration(actual, old)
+			SameRoutineDeclaration(actual, old)
 	}
 	return false
 }

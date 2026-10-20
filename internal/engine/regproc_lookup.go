@@ -19,7 +19,7 @@ var routineByOID, routinesByName, routineBySignature = indexBuiltinRoutines()
 var builtinRoutineIdentityDefaults = map[ids.OID]uint8{2096: 1}
 
 func routineIdentityDefaults(id ids.OID) uint8 {
-	if declaration := builtinRoutineByOID[id]; declaration != nil {
+	if declaration := BuiltinRoutine(id); declaration != nil {
 		return declaration.Defaults
 	}
 	return builtinRoutineIdentityDefaults[id]

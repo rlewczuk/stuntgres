@@ -51,7 +51,7 @@ func TestCatalogRelationsBinding(t *testing.T) {
 	if scalar.Arg.ResultUsage().Type.ID() != sqltype.Oid || scalar.ResultUsage().Type.ID() != sqltype.Name || !sourceReturnsSet(set) || sourceReturnsSet(scalar) {
 		t.Fatal("physical signature")
 	}
-	for _, declaration := range builtinRoutineDeclarations {
+	for _, declaration := range BuiltinRoutineDeclarations {
 		if declaration.Identity.ID == 1642 || declaration.Identity.ID == 6159 {
 			if !declaration.Strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != (declaration.Identity.ID == 6159) {
 				t.Fatal("release declaration flags", declaration)

@@ -14,3 +14,7 @@ var seededOperatorNames = func() *catalog.OperatorNameIndex {
 	}
 	return index
 }()
+
+// SeededOperatorNames returns the process-wide name index of the builtin
+// operators. Every engine starts from this one immutable value.
+func SeededOperatorNames() *catalog.OperatorNameIndex { return seededOperatorNames }

@@ -45,7 +45,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if leaf.ResultUsage() != b.typ(sqltype.Text).Usage() || leaf.Property != (expr.Properties{Volatility: tc.volatility}) || leaf.RoutineReference == nil || leaf.RoutineReference.RoutineOID() != uint32(tc.oid) {
 			t.Fatalf("incorrect binding: %#v", leaf)
 		}
-		declaration, err := lookupBuiltinRoutineDeclaration(functions.CatalogRoutineProvider, tc.kind.Name(), nil)
+		declaration, err := LookupBuiltinRoutineDeclaration(functions.CatalogRoutineProvider, tc.kind.Name(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}

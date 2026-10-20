@@ -75,12 +75,12 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		}
 		want[id] = row
 	}
-	production := map[ids.OID]operatorMetadata{}
-	for _, fact := range supportedOperatorMetadata {
-		if _, exists := production[fact.oid]; exists {
-			t.Fatal("duplicate production OID", fact.oid)
+	production := map[ids.OID]OperatorMetadata{}
+	for _, fact := range SupportedOperatorMetadata {
+		if _, exists := production[fact.OID]; exists {
+			t.Fatal("duplicate production OID", fact.OID)
 		}
-		production[fact.oid] = fact
+		production[fact.OID] = fact
 	}
 	universe := pgOperatorReleaseRows(t, "regoperator-pg18-inventory.tsv", 8)
 	seen, admitted := map[ids.OID]bool{}, map[ids.OID]bool{}
@@ -114,7 +114,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				if err != nil || !match {
 					t.Fatal("exclusion provider evaluation", match, err)
 				}
-				if _, ok := want[oid]; !ok || production[oid].result != 16 {
+				if _, ok := want[oid]; !ok || production[oid].Result != 16 {
 					t.Fatal("missing released metadata", oid)
 				}
 				admitted[oid] = true
@@ -171,8 +171,8 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				}
 				if executable {
 					result := physical(integer(expected[9]), textArray)
-					if bound.ResultUsage().Type != result || fact.result != uint32(integer(expected[9])) {
-						t.Errorf("result=%v declared=%s physical=%v production=%d", bound.ResultUsage(), expected[9], result, fact.result)
+					if bound.ResultUsage().Type != result || fact.Result != uint32(integer(expected[9])) {
+						t.Errorf("result=%v declared=%s physical=%v production=%d", bound.ResultUsage(), expected[9], result, fact.Result)
 					}
 					admitted[oid] = true
 				}

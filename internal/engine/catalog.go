@@ -555,7 +555,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *catalog.Operator:
-		if operatorSeeded(d.(*catalog.Operator)) {
+		if OperatorSeeded(d.(*catalog.Operator)) {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *catalog.ForeignObject:

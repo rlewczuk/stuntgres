@@ -25,16 +25,16 @@ func (r scalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) e
 			}
 		}
 	}
-	captured, err := expressionRoutineDescriptor(node)
+	captured, err := ExpressionRoutineDescriptor(node)
 	if err != nil || captured == nil {
 		return err
 	}
 	if err := r.recordStoredRoutineDescriptor(view, captured); err != nil {
 		return err
 	}
-	return walkRoutineBody(captured, node, func(body *catalog.Procedure) error {
+	return WalkRoutineBody(captured, node, func(body *catalog.Procedure) error {
 		current, ok := r.descriptor(view, body.Address()).(*catalog.Procedure)
-		if !ok || !sameRoutineDeclaration(current, body) {
+		if !ok || !SameRoutineDeclaration(current, body) {
 			return fmt.Errorf("stuntgres: stale stored SQL body declaration")
 		}
 		// Body links describe immutable declarations; only this renderer's
@@ -44,7 +44,7 @@ func (r scalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) e
 }
 
 func (r scalarRenderer) recordStoredRoutineDescriptor(view catalog.Read, captured *catalog.Procedure) error {
-	current, err := validateStoredRoutineDescriptor(view, captured)
+	current, err := ValidateStoredRoutineDescriptor(view, captured)
 	if err != nil {
 		return err
 	}

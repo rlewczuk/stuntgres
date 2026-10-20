@@ -38,7 +38,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if !ok || len(binary.Args) != 2 || binary.ResultUsage().Type.ID() != sqltype.Bool || binary.Properties().Volatility != expr.Immutable || binary.LooksLikeFunction() {
 				t.Fatal("selected scalar contract", call)
 			}
-			captured, err := expressionRoutineDescriptor(call)
+			captured, err := ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing executable authority", captured, err)
 			}
@@ -83,7 +83,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			actual, err := expressionRoutineDescriptor(alias)
+			actual, err := ExpressionRoutineDescriptor(alias)
 			if err != nil || actual != captured {
 				t.Fatal("alias lost genuine provider", actual, err)
 			}

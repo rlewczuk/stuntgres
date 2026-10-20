@@ -104,7 +104,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
 	}
-	recipe, recipeErr := expressionRecipeDescriptor(expression)
+	recipe, recipeErr := ExpressionRecipeDescriptor(expression)
 	if recipeErr != nil {
 		return nil, false, recipeErr
 	}

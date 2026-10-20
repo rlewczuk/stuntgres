@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func validOperatorName(name string) bool {
+func ValidOperatorName(name string) bool {
 	if len(name) == 0 || len(name) > 63 || name == "!=" || name == "=>" || strings.Contains(name, "/*") || strings.Contains(name, "--") {
 		return false
 	}
@@ -26,7 +26,7 @@ func validOperatorName(name string) bool {
 	return len(name) == 1 || !strings.ContainsAny(name[len(name)-1:], "+-") || strings.ContainsAny(name, "~!@#^&|`?%")
 }
 
-func operatorOptionName(o parser.OperatorOption) (parser.ObjectName, error) {
+func OperatorOptionName(o parser.OperatorOption) (parser.ObjectName, error) {
 	if !o.HasValue {
 		return parser.ObjectName{}, sqlError("42601", o.Name+" requires a parameter")
 	}
@@ -51,7 +51,7 @@ func operatorOptionName(o parser.OperatorOption) (parser.ObjectName, error) {
 	return parser.ObjectName{}, sqlError("42601", "argument of "+o.Name+" must be a name")
 }
 
-func operatorOptionType(o parser.OperatorOption) (parser.TypeName, error) {
+func OperatorOptionType(o parser.OperatorOption) (parser.TypeName, error) {
 	if !o.HasValue {
 		return parser.TypeName{}, sqlError("42601", o.Name+" requires a parameter")
 	}
@@ -69,14 +69,14 @@ func operatorOptionType(o parser.OperatorOption) (parser.TypeName, error) {
 }
 
 // ALTER's unquoted NONE is a NULL argument; quoted/literal none remains a name.
-func operatorAlterOption(o parser.OperatorOption) parser.OperatorOption {
+func OperatorAlterOption(o parser.OperatorOption) parser.OperatorOption {
 	if o.Kind == parser.OperatorOptionNoneArgument {
 		o.HasValue, o.Kind = false, parser.OperatorOptionNoArgument
 	}
 	return o
 }
 
-func operatorInputName(v catalog.Read, left, right ids.OID, name parser.ObjectName) string {
+func OperatorInputName(v catalog.Read, left, right ids.OID, name parser.ObjectName) string {
 	n := objectNameText(name)
 	if left != 0 {
 		t, _ := v.LookupType(sqltype.ID(left))
@@ -91,7 +91,7 @@ func operatorInputName(v catalog.Read, left, right ids.OID, name parser.ObjectNa
 
 // Both join signatures are legal, but neither wins over the other when both
 // exist. Inputs are lookup identities, not callable provider declarations.
-func operatorEstimatorVariant(name parser.ObjectName, five catalog.RoutineIdentity, fiveCount int, four catalog.RoutineIdentity, fourCount int) (catalog.RoutineIdentity, int, error) {
+func OperatorEstimatorVariant(name parser.ObjectName, five catalog.RoutineIdentity, fiveCount int, four catalog.RoutineIdentity, fourCount int) (catalog.RoutineIdentity, int, error) {
 	if fiveCount != 0 && fourCount != 0 {
 		return catalog.RoutineIdentity{}, 0, sqlError("42725", "join estimator function "+objectNameText(name)+" has multiple matches")
 	}
@@ -101,7 +101,7 @@ func operatorEstimatorVariant(name parser.ObjectName, five catalog.RoutineIdenti
 	return four, fourCount, nil
 }
 
-func validateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result ids.OID, builtin, superuser bool) error {
+func ValidateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result ids.OID, builtin, superuser bool) error {
 	if !builtin && !superuser {
 		return sqlError("42501", "must be superuser to specify a non-built-in selectivity estimation function")
 	}
@@ -118,11 +118,11 @@ func validateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result
 	return nil
 }
 
-func operatorOptionError(name string) error {
+func OperatorOptionError(name string) error {
 	return sqlError("42P13", fmt.Sprintf(`operator attribute "%s" cannot be changed if it has already been set`, name))
 }
 
-func validateOperatorOptions(d *catalog.Operator, comm, neg parser.ObjectName) error {
+func ValidateOperatorOptions(d *catalog.Operator, comm, neg parser.ObjectName) error {
 	// OperatorValidateParams completes binary eligibility before checking
 	// Boolean results, even when an earlier Boolean-only option is also set.
 	if d.Left == 0 {
@@ -159,7 +159,7 @@ func validateOperatorOptions(d *catalog.Operator, comm, neg parser.ObjectName) e
 	return nil
 }
 
-func operatorBoolean(o parser.OperatorOption) (bool, error) {
+func OperatorBoolean(o parser.OperatorOption) (bool, error) {
 	if !o.HasValue {
 		return true, nil
 	}
@@ -208,7 +208,7 @@ func operatorBoolean(o parser.OperatorOption) (bool, error) {
 	return false, sqlError("42601", o.Name+" requires a Boolean value")
 }
 
-func checkOperatorLinkReplacement(d, peer *catalog.Operator, negator bool) error {
+func CheckOperatorLinkReplacement(d, peer *catalog.Operator, negator bool) error {
 	if peer == nil {
 		return nil
 	}
@@ -221,7 +221,7 @@ func checkOperatorLinkReplacement(d, peer *catalog.Operator, negator bool) error
 		if negator {
 			attribute = "negator"
 		}
-		return operatorOptionError(attribute)
+		return OperatorOptionError(attribute)
 	}
 	return nil
 }

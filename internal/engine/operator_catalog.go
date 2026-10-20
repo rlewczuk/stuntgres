@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func operatorSeeded(d *catalog.Operator) bool {
+func OperatorSeeded(d *catalog.Operator) bool {
 	index := sort.Search(len(builtinOperators), func(i int) bool { return builtinOperators[i].oid >= d.Address().ObjectID })
 	if index == len(builtinOperators) {
 		return false
@@ -19,10 +19,10 @@ func operatorSeeded(d *catalog.Operator) bool {
 	return row.oid == d.Address().ObjectID && d.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) && row.name == d.Name() && row.left == d.Left && row.right == d.Right
 }
 
-type operatorProvider struct{}
+type OperatorProvider struct{}
 
-func (operatorProvider) ClassID() ids.OID { return ids.OperatorClassID }
-func (operatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
+func (OperatorProvider) ClassID() ids.OID { return ids.OperatorClassID }
+func (OperatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Operator)
 	if !ok || d.Address().ClassID != ids.OperatorClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid operator descriptor")
@@ -40,20 +40,20 @@ func (operatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 	if d.Right == 0 || (d.Function == 0) != (d.Result == 0) {
 		return fmt.Errorf("stuntgres: invalid operator definition")
 	}
-	seeded := operatorSeeded(d)
+	seeded := OperatorSeeded(d)
 	if seeded {
 		// Released metadata can refer to lookup-only routine identities. It is
 		// not a declaration of a callable implementation provider.
-		index := sort.Search(len(supportedOperatorMetadata), func(i int) bool { return supportedOperatorMetadata[i].oid >= d.Address().ObjectID })
+		index := sort.Search(len(SupportedOperatorMetadata), func(i int) bool { return SupportedOperatorMetadata[i].OID >= d.Address().ObjectID })
 		var result, function ids.OID
-		if index < len(supportedOperatorMetadata) && supportedOperatorMetadata[index].oid == d.Address().ObjectID {
-			row := supportedOperatorMetadata[index]
-			result, function = ids.OID(row.result), ids.OID(row.procedure)
+		if index < len(SupportedOperatorMetadata) && SupportedOperatorMetadata[index].OID == d.Address().ObjectID {
+			row := SupportedOperatorMetadata[index]
+			result, function = ids.OID(row.Result), ids.OID(row.Procedure)
 		}
 		if d.Result != result || d.Function != function {
 			return fmt.Errorf("stuntgres: invalid seeded operator definition")
 		}
-	} else if !validOperatorName(d.Name()) {
+	} else if !ValidOperatorName(d.Name()) {
 		return fmt.Errorf("stuntgres: invalid operator name")
 	}
 	if d.Function != 0 {
@@ -95,24 +95,24 @@ func (operatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 	return nil
 }
 
-// builtinOperatorDescriptors returns a fresh descriptor for every seeded
+// BuiltinOperatorDescriptors returns a fresh descriptor for every seeded
 // operator, in OID order, with its supported metadata merged in. Seeded
 // operators share one engine-owned backing array, like built-in routines.
 // Both tables are sorted by OID, so metadata is merged in one pass.
-func builtinOperatorDescriptors(owner authorization.PrincipalRef) []catalog.Operator {
+func BuiltinOperatorDescriptors(owner authorization.PrincipalRef) []catalog.Operator {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	operators := make([]catalog.Operator, len(builtinOperators))
-	metadata := supportedOperatorMetadata[:]
+	metadata := SupportedOperatorMetadata[:]
 	for i, row := range builtinOperators {
 		d := &operators[i]
 		*d = catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: owner}
-		if len(metadata) != 0 && metadata[0].oid == row.oid {
+		if len(metadata) != 0 && metadata[0].OID == row.oid {
 			m := metadata[0]
 			metadata = metadata[1:]
-			d.Result, d.Function = ids.OID(m.result), ids.OID(m.procedure)
-			d.Commutator, d.Negator = ids.OID(m.commutator), ids.OID(m.negator)
-			d.Restriction, d.Join = ids.OID(m.restriction), ids.OID(m.join)
-			d.Hash, d.Merge = m.hash, m.merge
+			d.Result, d.Function = ids.OID(m.Result), ids.OID(m.Procedure)
+			d.Commutator, d.Negator = ids.OID(m.Commutator), ids.OID(m.Negator)
+			d.Restriction, d.Join = ids.OID(m.Restriction), ids.OID(m.Join)
+			d.Hash, d.Merge = m.Hash, m.Merge
 		}
 	}
 	if len(metadata) != 0 {

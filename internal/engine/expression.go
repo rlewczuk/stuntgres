@@ -424,7 +424,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
 	}
-	recipe, err := expressionRecipeDescriptor(expression)
+	recipe, err := ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return nil, false, err
 	}

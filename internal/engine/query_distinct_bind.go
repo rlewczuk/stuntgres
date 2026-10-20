@@ -65,7 +65,7 @@ func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (ids.Ob
 	base := usage.Type.BaseType()
 	var declaration *catalog.BuiltinRoutineDeclaration
 	if base.IsArray() {
-		declaration = builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{"=", 2277, 2277}]
+		declaration = OperatorRoutine("=", 2277, 2277)
 	} else {
 		var err error
 		declaration, _, err = b.comparisonRoutineDeclaration("=", base, base)

@@ -99,7 +99,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		// an execution capability.
 		return ids.ObjectRef{}, sqlError("0A000", "routine privileges are unsupported for unimplemented routines in embedded mode")
 	}
-	if !grantRoutineKindMatches(kind, p.RoutineKind) {
+	if !GrantRoutineKindMatches(kind, p.RoutineKind) {
 		return ids.ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(v, inputTypes[:inputCount])+") is not a "+noun)
 	}
 	return e.catalog.Domain.Ref(v.Catalog.Epoch(), address), nil

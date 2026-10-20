@@ -30,7 +30,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if call.ResultUsage().Type.ID() != sqltype.JSONB || call.Properties().Volatility != expr.Immutable || sourceReturnsSet(call) {
 		t.Fatal("scalar immutable JSONB contract", call)
 	}
-	captured, err := expressionRoutineDescriptor(call)
+	captured, err := ExpressionRoutineDescriptor(call)
 	if err != nil || captured == nil || captured.Builtin == nil {
 		t.Fatal("missing actual bound declaration", captured, err)
 	}

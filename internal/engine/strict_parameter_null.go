@@ -30,7 +30,7 @@ func foldStrictParameterNull(c *EvalContext, node expr.Expr) (expr.Expr, bool, e
 		// making the whole NULL-aware or multi-comparison expression strict.
 		return node, false, nil
 	}
-	selected, err := expressionRoutineDescriptor(node)
+	selected, err := ExpressionRoutineDescriptor(node)
 	if err != nil {
 		return nil, false, err
 	}

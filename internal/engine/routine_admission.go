@@ -15,7 +15,7 @@ import (
 // descriptor identifies the declaration; neither its ACL nor its address alone
 // supplies authority. Admission borrows the immutable manifest without copying.
 func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation) error {
-	current, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
+	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.Expre
 // have their separate source/project demand point: a pruned FROM source must not
 // acquire EXECUTE merely because its arguments were inspected during planning.
 func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantComputation bool) error {
-	recipe, recipeErr := expressionRecipeDescriptor(node)
+	recipe, recipeErr := ExpressionRecipeDescriptor(node)
 	if recipeErr != nil {
 		return recipeErr
 	}
@@ -87,7 +87,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 			}
 		}
 	}
-	captured, err := expressionRoutineDescriptor(node)
+	captured, err := ExpressionRoutineDescriptor(node)
 	if err != nil || captured == nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 		return admitRoutineDescriptor(auth, c.routineChecks, captured, c.routineConsumer)
 	}
 	if c.routineReferences != nil {
-		if _, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
+		if _, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
 			return err
 		}
 		for _, ref := range c.routineReferences {

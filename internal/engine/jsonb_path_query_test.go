@@ -41,7 +41,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if uint32(call.ResultUsage().Type.ID()) != tc.result || call.Properties().Volatility != expr.Immutable || sourceReturnsSet(call) != tc.set {
 				t.Fatal("typed immutable consumer contract", call)
 			}
-			captured, err := expressionRoutineDescriptor(call)
+			captured, err := ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing actual bound declaration", captured, err)
 			}
