@@ -17,7 +17,7 @@ func (s *StatementScope) namespaceAuthorizationLocked(e *Engine) (AuthorizationV
 		auth.Recapture(e.privateCatalogLocked(s.catalog))
 	}
 	if s.catalog != nil && temporaryNamespace(auth) == (ids.ObjectAddress{}) {
-		for a, d := range s.catalog.descriptors {
+		for a, d := range s.catalog.Descriptors {
 			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
 				auth.stagedTemporary = a
 				break

@@ -22,19 +22,19 @@ func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, stor
 
 func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalog.Relation, store *storage.Relation, shape catalogStorageChange, snapshot visibility.Root, snapshotExists bool, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) (catalogStorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	if slices.Equal(old.Attributes, next.Attributes) {
-		shape.relation = next
+		shape.Relation = next
 		return shape, writes, deletes, nil
 	}
 	if store.Generation == ^uint64(0) {
 		return shape, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
-	shape.fills = maps.Clone(shape.fills)
-	for attribute := range shape.fills {
+	shape.Fills = maps.Clone(shape.Fills)
+	for attribute := range shape.Fills {
 		if !next.HasAttribute(attribute) {
-			delete(shape.fills, attribute)
+			delete(shape.Fills, attribute)
 		}
 	}
-	projection, err := newColumnProjection(old, next, shape.fills)
+	projection, err := newColumnProjection(old, next, shape.Fills)
 	if err != nil {
 		return shape, nil, nil, err
 	}
@@ -42,25 +42,25 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 	if err != nil {
 		return shape, nil, nil, err
 	}
-	shape.replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
-	shape.truncated = false
+	shape.Replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
+	shape.Truncated = false
 	writes, err = projection.versions(ctx, writes)
 	if err != nil {
 		return shape, nil, nil, err
 	}
-	deletes = projectDeletions(deletes, shape.replacement)
-	if stable && snapshotExists && !shape.rewritten {
+	deletes = projectDeletions(deletes, shape.Replacement)
+	if stable && snapshotExists && !shape.Rewritten {
 		if slices.Equal(snapshot.Relation.Attributes, old.Attributes) {
-			shape.snapshot, err = projection.versions(ctx, snapshot.Versions)
+			shape.Snapshot, err = projection.versions(ctx, snapshot.Versions)
 		} else {
-			shape.snapshot, err = projectVersions(ctx, snapshot.Versions, snapshot.Relation, next, shape.fills)
+			shape.Snapshot, err = projectVersions(ctx, snapshot.Versions, snapshot.Relation, next, shape.Fills)
 		}
 		if err != nil {
 			return shape, nil, nil, err
 		}
-		shape.hasSnapshot = true
+		shape.HasSnapshot = true
 	}
-	shape.relation = next
+	shape.Relation = next
 	return shape, writes, deletes, nil
 }
 
@@ -124,7 +124,7 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 	e.mu.Lock()
 	original := e.storage.Relations[old.Address()]
 	store := e.privateStorageLocked(changes, old.Address())
-	shape, exists := changes.storage[old.Address()]
+	shape, exists := changes.Storage[old.Address()]
 	if store == nil || original == nil && !exists {
 		e.mu.Unlock()
 		return nil, nil, false, fmt.Errorf("stuntgres: relation storage is missing")
@@ -135,11 +135,11 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 			e.mu.Unlock()
 			return nil, nil, false, fmt.Errorf("stuntgres: relation storage descriptor is missing")
 		}
-		shape = catalogStorageChange{original: original, root: original.Versions, ends: original.Ends, generation: original.Generation, replacement: store, relation: storageOwner}
+		shape = catalogStorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: storageOwner}
 	}
 	e.mu.Unlock()
 	sourceWrites := writes
-	shape, writes, deletes, err := projectColumnShapeRoots(ctx, stable, shape.relation, next, store, shape, snapshot, snapshotExists, writes, deletes)
+	shape, writes, deletes, err := projectColumnShapeRoots(ctx, stable, shape.Relation, next, store, shape, snapshot, snapshotExists, writes, deletes)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -165,16 +165,16 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 	if err != nil {
 		return nil, nil, false, err
 	}
-	changes.storage[old.Address()] = shape
+	changes.Storage[old.Address()] = shape
 	var transported bool
-	writes, transported, err = transportIndexLayouts(evaluation, stage, changes, next, store, shape.replacement, sourceWrites, writes)
+	writes, transported, err = transportIndexLayouts(evaluation, stage, changes, next, store, shape.Replacement, sourceWrites, writes)
 	if err != nil {
 		return nil, nil, false, err
 	}
-	if err = prepareAlterIndexRoots(evaluation, changes, stage.Base, next, shape.replacement, nil, false); err != nil {
+	if err = prepareAlterIndexRoots(evaluation, changes, stage.Base, next, shape.Replacement, nil, false); err != nil {
 		return nil, nil, false, err
 	}
-	return writes, deletes, shape.replacement != store || transported, nil
+	return writes, deletes, shape.Replacement != store || transported, nil
 }
 
 // Generic utility stages already project their baseline storage. Reuse the
@@ -187,14 +187,14 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 		if !oldOK || !nextOK || slices.Equal(old.Attributes, next.Attributes) {
 			continue
 		}
-		shape := changes.storage[address]
-		shape.fills = maps.Clone(shape.fills)
-		for attribute := range shape.fills {
+		shape := changes.Storage[address]
+		shape.Fills = maps.Clone(shape.Fills)
+		for attribute := range shape.Fills {
 			if !next.HasAttribute(attribute) {
-				delete(shape.fills, attribute)
+				delete(shape.Fills, attribute)
 			}
 		}
-		projection, err := newColumnProjection(old, next, shape.fills)
+		projection, err := newColumnProjection(old, next, shape.Fills)
 		if err != nil {
 			return err
 		}
@@ -207,14 +207,14 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 		stage.owner.mu.Lock()
 		snapshot, snapshotExists := scope.owner.roots[address]
 		stage.owner.mu.Unlock()
-		if stableIsolation(scope.owner.isolation) && snapshotExists && !shape.rewritten {
-			shape.snapshot, err = projectVersions(scope.op.Context(), snapshot.Versions, snapshot.Relation, next, shape.fills)
+		if stableIsolation(scope.owner.isolation) && snapshotExists && !shape.Rewritten {
+			shape.Snapshot, err = projectVersions(scope.op.Context(), snapshot.Versions, snapshot.Relation, next, shape.Fills)
 			if err != nil {
 				return err
 			}
-			shape.hasSnapshot = true
+			shape.HasSnapshot = true
 		}
-		changes.storage[address] = shape
+		changes.Storage[address] = shape
 	}
 	return nil
 }

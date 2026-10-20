@@ -38,7 +38,7 @@ func captureEnumOperationSafety(op *Operation, input *sqltype.InputEnvironment) 
 	if input.EnumMemberSafe != nil || op == nil || op.session == nil || op.session.transactions == nil || op.session.transactions.catalog == nil {
 		return
 	}
-	input.EnumMemberSafe = typedef.EnumSafety(enumJournalOf(op.session.transactions.catalog.enum).UnsafeMembers())
+	input.EnumMemberSafe = typedef.EnumSafety(enumJournalOf(op.session.transactions.catalog.Enum).UnsafeMembers())
 }
 
 // Capture naming only after the caller supplies its coherent catalog authority.

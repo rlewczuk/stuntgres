@@ -17,8 +17,8 @@ func (e *Engine) operationRolesLocked(op *Operation) *access.RoleRecord {
 }
 func (e *Engine) sessionRolesLocked(session *Session) *access.RoleRecord {
 	if session != nil && session.transactions != nil {
-		if c := session.transactions.catalog; c != nil && c.roles != nil {
-			return c.roles
+		if c := session.transactions.catalog; c != nil && c.Roles != nil {
+			return c.Roles
 		}
 	}
 	return e.roles.published
@@ -32,10 +32,10 @@ func (e *Engine) installOperationRolesLocked(op *Operation, next *access.RoleRec
 		return
 	}
 	c := cloneCatalogChanges(t.catalog)
-	if c.rolesBase == nil {
-		c.rolesBase = e.roles.published
+	if c.RolesBase == nil {
+		c.RolesBase = e.roles.published
 	}
-	c.roles = next
+	c.Roles = next
 	t.catalog = c
 }
 
@@ -52,8 +52,8 @@ func (e *Engine) touchOperationIdentityLocked(op *Operation) {
 // catalog validated against the current committed root. Early statement checks
 // must not forbid a later supported removal of an owner's own dependencies.
 func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catalog.State) error {
-	for ref := range c.retiredRoles {
-		if access.DefaultRoleDependencies(e.catalog.read(catalog), e.roles.read(e.catalog.owner(), e.catalog.read(catalog), c.roles), ref, nil) {
+	for ref := range c.RetiredRoles {
+		if access.DefaultRoleDependencies(e.catalog.read(catalog), e.roles.read(e.catalog.owner(), e.catalog.read(catalog), c.Roles), ref, nil) {
 			return ids.ErrCatalogReplaced
 		}
 		for _, descriptor := range catalog.Descriptors() {
@@ -61,7 +61,7 @@ func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catal
 				return ids.ErrCatalogReplaced
 			}
 		}
-		for edge := range c.roles.Root.Read(authorization.PrincipalRef{}).Edges() {
+		for edge := range c.Roles.Root.Read(authorization.PrincipalRef{}).Edges() {
 			if edge.Role == ref || edge.Member == ref || edge.Grantor == ref {
 				return ids.ErrCatalogReplaced
 			}

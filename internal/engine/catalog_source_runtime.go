@@ -227,7 +227,7 @@ func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visi
 			return err
 		}
 		if r.sequenceOwn != nil {
-			if _, overridden := r.sequenceOwn.descriptors[address]; overridden {
+			if _, overridden := r.sequenceOwn.Descriptors[address]; overridden {
 				continue
 			}
 		}
@@ -236,7 +236,7 @@ func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visi
 		}
 	}
 	if r.sequenceOwn != nil {
-		for _, descriptor := range r.sequenceOwn.descriptors {
+		for _, descriptor := range r.sequenceOwn.Descriptors {
 			if err := visit(descriptor); err != nil {
 				return err
 			}

@@ -42,38 +42,38 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		if !changed {
 			continue
 		}
-		shape, exists := changes.storage[a]
+		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = catalogStorageChange{original: rebound.original, root: rebound.original.Versions, ends: rebound.observedEnds, generation: rebound.generation}
+			shape = catalogStorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation}
 		}
-		if shape.replacement != rebound.replacement {
-			shape.truncated = false
+		if shape.Replacement != rebound.replacement {
+			shape.Truncated = false
 		}
-		shape.replacement, shape.relation = rebound.replacement, consumer
-		if shape.fills != nil {
-			shape.fills = maps.Clone(shape.fills)
-			for attribute, value := range shape.fills {
+		shape.Replacement, shape.Relation = rebound.replacement, consumer
+		if shape.Fills != nil {
+			shape.Fills = maps.Clone(shape.Fills)
+			for attribute, value := range shape.Fills {
 				target, _ := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
 				if target != nil && target.SQLType != value.Type() {
 					v, err := typedef.ReownDomainDatum(value, target.SQLType, nil, nil, nil)
 					if err != nil {
 						return err
 					}
-					shape.fills[attribute] = v
+					shape.Fills[attribute] = v
 				}
 			}
 		}
 		if stableIsolation(scope.owner.isolation) {
-			versions := shape.snapshot
-			if !shape.hasSnapshot {
+			versions := shape.Snapshot
+			if !shape.HasSnapshot {
 				if root, ok := scope.owner.roots[a]; ok {
 					versions = root.Versions
-					shape.hasSnapshot = true
+					shape.HasSnapshot = true
 				}
 			}
-			if shape.hasSnapshot {
+			if shape.HasSnapshot {
 				var err error
-				shape.snapshot, err = enumReownVersions(next, versions)
+				shape.Snapshot, err = enumReownVersions(next, versions)
 				if err != nil {
 					return err
 				}
@@ -84,9 +84,9 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		if err != nil {
 			return err
 		}
-		deletes = projectDeletions(deletes, shape.replacement)
+		deletes = projectDeletions(deletes, shape.Replacement)
 		scope.stageProjectedColumnRoots(a, writes, deletes)
-		changes.storage[a] = shape
+		changes.Storage[a] = shape
 	}
 	return nil
 }

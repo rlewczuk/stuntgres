@@ -69,12 +69,12 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *stora
 	return e.storage.Relations[a]
 }
 func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
-	for _, fence := range domainJournalOf(c.domain).ValidationFences() {
+	for _, fence := range domainJournalOf(c.Domain).ValidationFences() {
 		if !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			return catalog.Conflict{}
 		}
 	}
-	for address, root := range domainJournalOf(c.domain).CommittedIndexRoots() {
+	for address, root := range domainJournalOf(c.Domain).CommittedIndexRoots() {
 		if e.storage.IndexRoots[address] != root {
 			return catalog.Conflict{}
 		}
@@ -100,8 +100,8 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		if current.Get(a) != d {
 			return catalog.Conflict{}
 		}
-		if _, ok := c.originals[a]; !ok {
-			c.originals[a] = e.catalog.state.Get(a)
+		if _, ok := c.Originals[a]; !ok {
+			c.Originals[a] = e.catalog.state.Get(a)
 		}
 		return nil
 	}
@@ -109,10 +109,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		if current.Get(catalog.CurrentDatabaseAddress) != s.databaseAuthority || e.catalog.state.Get(catalog.CurrentDatabaseAddress) != s.databasePredecessor {
 			return ids.ErrCatalogReplaced
 		}
-		if original, ok := c.originals[catalog.CurrentDatabaseAddress]; ok && original != s.databasePredecessor {
+		if original, ok := c.Originals[catalog.CurrentDatabaseAddress]; ok && original != s.databasePredecessor {
 			return catalog.Conflict{}
 		}
-		c.originals[catalog.CurrentDatabaseAddress] = s.databasePredecessor
+		c.Originals[catalog.CurrentDatabaseAddress] = s.databasePredecessor
 		if authority != nil {
 			authority.databaseAuthority = s.databaseAuthority
 			authority.databasePredecessor = s.databasePredecessor
@@ -135,10 +135,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			// part of the stage's entry authority, not a later projection.
 			// Its committed absence/name fences already belong to c.
 			if current.Get(ns) == nil {
-				original, created := c.originals[ns]
+				original, created := c.Originals[ns]
 				key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}
-				_, named := c.names[key]
-				if created && original == nil && c.descriptors[ns] == d && named && current.NameAddress(key) == (ids.ObjectAddress{}) {
+				_, named := c.Names[key]
+				if created && original == nil && c.Descriptors[ns] == d && named && current.NameAddress(key) == (ids.ObjectAddress{}) {
 					return nil
 				}
 			}
@@ -170,8 +170,8 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		if snapshot := s.materializedOrZero().sourceView; snapshot != nil {
 			if relation, ok := source.(*catalog.Relation); ok && relation.RelationKind == catalog.MaterializedViewRelation {
 				fence := materializedSourceFence{ref: e.catalog.Domain.Ref(snapshot.Catalog.Epoch(), relation.Address()), relation: relation, storage: snapshot.GenerationAt(relation.Address())}
-				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.Address()] == nil {
-					c.addFence(fence)
+				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.Descriptors[relation.Address()] == nil {
+					c.AddFence(fence)
 					continue
 				}
 			}
@@ -211,8 +211,8 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		if current.NameAddress(k) != a {
 			return catalog.Conflict{}
 		}
-		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.catalog.state.NameAddress(k)
+		if _, ok := c.Names[k]; !ok {
+			c.Names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
 	for parent := range stageIndexes.sets {
@@ -231,7 +231,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 				f.indexes[a] = true
 			}
 		}
-		c.addFence(f)
+		c.AddFence(f)
 	}
 	for a := range s.Removals() {
 		if a.ClassID == ids.NamespaceClassID {
@@ -241,7 +241,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 					f.members[address] = d
 				}
 			}
-			c.addFence(f)
+			c.AddFence(f)
 		}
 	}
 	captureStorage := func(a ids.ObjectAddress) {
@@ -252,7 +252,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			f.ends = store.Ends
 			f.generation = store.Generation
 		}
-		c.addFence(f)
+		c.AddFence(f)
 	}
 	for _, f := range s.partitionReads {
 		captureStorage(f.address)
@@ -270,8 +270,8 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		// Candidate data belongs to the actual overlay target, not the
 		// committed/private predecessor used by captureStorage's read fence.
-		shape, staged := c.storage[index.SQLIndex.Parent]
-		store := shape.replacement
+		shape, staged := c.Storage[index.SQLIndex.Parent]
+		store := shape.Replacement
 		if !staged {
 			store = e.stageStorageLocked(s, index.SQLIndex.Parent)
 		}
@@ -285,14 +285,14 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		captureStorage(index.SQLIndex.Parent)
 	}
-	c.dependencies = append(c.dependencies, s.sequence.identityDependencyList()...)
-	if s.authSession != nil && c.rolesBase == nil {
-		c.rolesBase = e.roles.published
+	c.Dependencies = append(c.Dependencies, s.sequence.identityDependencyList()...)
+	if s.authSession != nil && c.RolesBase == nil {
+		c.RolesBase = e.roles.published
 	}
-	c.domainChanged = c.domainChanged || len(s.domainTargets) != 0
+	c.DomainChanged = c.DomainChanged || len(s.domainTargets) != 0
 	for _, d := range s.Descriptors() {
 		if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsUserDefined() {
-			c.domainChanged = true
+			c.DomainChanged = true
 			break
 		}
 	}

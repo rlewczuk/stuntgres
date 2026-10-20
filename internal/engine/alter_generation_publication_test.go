@@ -55,20 +55,20 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				if _, err := scope.Execute(alterGenerationStatement(action), 0, nil); err != nil {
 					t.Fatal(err)
 				}
-				candidate := scope.catalog.descriptors[ref.Address].(*catalog.Relation)
+				candidate := scope.catalog.Descriptors[ref.Address].(*catalog.Relation)
 				if candidate == old || candidate.Revision() != old.Revision()+1 || e.catalog.state != snapshot || e.storage.Relations[ref.Address] != store {
 					t.Fatal("stage published before Finish")
 				}
-				shape := scope.catalog.storage[ref.Address]
+				shape := scope.catalog.Storage[ref.Address]
 				if drop {
-					if len(candidate.ColumnMeta.Generations) != 0 || shape.replacement != store {
+					if len(candidate.ColumnMeta.Generations) != 0 || shape.Replacement != store {
 						t.Fatal("DROP rewrote source storage")
 					}
 				} else {
-					if shape.replacement == store || candidate.ColumnMeta.Generations[2].OID == old.ColumnMeta.Generations[2].OID {
+					if shape.Replacement == store || candidate.ColumnMeta.Generations[2].OID == old.ColumnMeta.Generations[2].OID {
 						t.Fatal("SET lacked detached rewrite/definition")
 					}
-					for i, r := range shape.replacement.Versions {
+					for i, r := range shape.Replacement.Versions {
 						n, err := r.Values[1].Integer()
 						if err != nil || n != int64(i+3) {
 							t.Fatal(n, err)

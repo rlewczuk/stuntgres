@@ -49,7 +49,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			entry := e.prepared["batch_detached"]
-			if entry == nil || entry.catalog == nil || entry.catalog.roles == nil || owner.authorization.state.CurrentUser != entry.owner || owner.authorization.state.SessionUser != original.SessionUser || owner.transactions.catalog != nil {
+			if entry == nil || entry.catalog == nil || entry.catalog.Roles == nil || owner.authorization.state.CurrentUser != entry.owner || owner.authorization.state.SessionUser != original.SessionUser || owner.transactions.catalog != nil {
 				t.Fatal("prepared role authority was lost or retained by session")
 			}
 			op, err := owner.Acquire(context.Background())

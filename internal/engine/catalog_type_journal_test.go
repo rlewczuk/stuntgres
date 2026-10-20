@@ -21,17 +21,17 @@ func TestCatalogTypeJournalSlotsCopyOnWrite(t *testing.T) {
 	copied := *original
 	domainWritable(&copied).Validations = nil
 	enumWritable(&copied).Unsafe = map[int64]bool{9: true}
-	if len(domainJournalOf(original.domain).ValidationFences()) != 1 || enumJournalOf(original.enum).UnsafeMembers() != nil || !enumJournalOf(original.enum).CreatedTypes()[address] {
+	if len(domainJournalOf(original.Domain).ValidationFences()) != 1 || enumJournalOf(original.Enum).UnsafeMembers() != nil || !enumJournalOf(original.Enum).CreatedTypes()[address] {
 		t.Fatal("write through a by-value journal copy changed the original")
 	}
 
 	clone := cloneCatalogChanges(original)
-	domainJournalOf(clone.domain).CommittedIndexRoots()[address] = nil
-	delete(enumJournalOf(clone.enum).CreatedTypes(), address)
-	if domainJournalOf(original.domain).CommittedIndexRoots()[address] != root || !enumJournalOf(original.enum).CreatedTypes()[address] {
+	domainJournalOf(clone.Domain).CommittedIndexRoots()[address] = nil
+	delete(enumJournalOf(clone.Enum).CreatedTypes(), address)
+	if domainJournalOf(original.Domain).CommittedIndexRoots()[address] != root || !enumJournalOf(original.Enum).CreatedTypes()[address] {
 		t.Fatal("clone shares slot maps with the original")
 	}
-	if empty := cloneCatalogChanges(newCatalogChanges()); empty.domain != nil || empty.enum != nil {
+	if empty := cloneCatalogChanges(newCatalogChanges()); empty.Domain != nil || empty.Enum != nil {
 		t.Fatal("clone allocated slots for an empty journal")
 	}
 }

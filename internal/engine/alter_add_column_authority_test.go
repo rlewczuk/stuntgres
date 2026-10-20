@@ -119,9 +119,9 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				candidate := scope.catalog.descriptors[ref.Address].(*catalog.Relation)
-				shape := scope.catalog.storage[ref.Address]
-				if candidate == old || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater+1 || len(candidate.Columns) != 2 || shape.replacement == stored || !shape.rewritten || generator.Last != 6 {
+				candidate := scope.catalog.Descriptors[ref.Address].(*catalog.Relation)
+				shape := scope.catalog.Storage[ref.Address]
+				if candidate == old || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater+1 || len(candidate.Columns) != 2 || shape.Replacement == stored || !shape.Rewritten || generator.Last != 6 {
 					t.Fatal("complete candidate/backfill missing", candidate, shape, generator.Last)
 				}
 				if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != stored || old.ColumnMeta.HighWater != 1 {

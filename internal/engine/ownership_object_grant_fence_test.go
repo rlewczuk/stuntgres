@@ -93,7 +93,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					t.Fatal(err)
 				}
 				pending := retained.Catalog.MustRelation(root.Address)
-				if pending == table || retained.RoleRecord == oldRoles || retained.PairedCatalog != retained.Catalog || session.transactions.catalog.descriptors[root.Address] != pending {
+				if pending == table || retained.RoleRecord == oldRoles || retained.PairedCatalog != retained.Catalog || session.transactions.catalog.Descriptors[root.Address] != pending {
 					t.Fatal("utility did not stage real paired ACL/role/catalog roots")
 				}
 				found := false

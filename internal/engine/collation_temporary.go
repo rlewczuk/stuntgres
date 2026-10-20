@@ -17,12 +17,12 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	for _, d := range changes.descriptors {
+	for _, d := range changes.Descriptors {
 		if err := stage.Create(d); err != nil {
 			return ids.ObjectRef{}, err
 		}
 	}
-	if len(changes.descriptors) != 0 {
+	if len(changes.Descriptors) != 0 {
 		auth.Catalog = e.stageRead(stage)
 		auth.Recapture(auth.Catalog)
 		if ns, ok := auth.Catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.token {

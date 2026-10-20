@@ -167,7 +167,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			e.mu.Lock()
 			e.catalogChangeLocked(changes, child.Address(), &child)
 			childStore := &storage.Relation{}
-			changes.storage[child.Address()] = catalogStorageChange{replacement: childStore, relation: &child}
+			changes.Storage[child.Address()] = catalogStorageChange{Replacement: childStore, Relation: &child}
 			e.mu.Unlock()
 			one, err := sqltype.Integer(parent.Columns[0].Usage.Type, 1)
 			if err != nil {
@@ -185,21 +185,21 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(writes[parent.Address()]) != 1 || len(writes[child.Address()]) != 1 || changes.descriptors[parent.Address()] != parent || changes.descriptors[child.Address()] != &child || e.catalog.state.Get(child.Address()) != nil {
+			if len(writes[parent.Address()]) != 1 || len(writes[child.Address()]) != 1 || changes.Descriptors[parent.Address()] != parent || changes.Descriptors[child.Address()] != &child || e.catalog.state.Get(child.Address()) != nil {
 				t.Fatal("commit preparation changed prior private/global roots")
 			}
 			if len(nextWrites[parent.Address()]) != 0 {
 				t.Fatal("parent physical action did not clear writes")
 			}
 			if actions.parent == parser.OnCommitDrop {
-				if next.descriptors[parent.Address()] != nil || next.descriptors[child.Address()] != nil || len(nextWrites[child.Address()]) != 0 {
+				if next.Descriptors[parent.Address()] != nil || next.Descriptors[child.Address()] != nil || len(nextWrites[child.Address()]) != 0 {
 					t.Fatal("ON COMMIT DROP omitted descendant closure")
 				}
 			} else if actions.child == parser.OnCommitDelete {
-				if len(nextWrites[child.Address()]) != 0 || next.storage[child.Address()].replacement == childStore {
+				if len(nextWrites[child.Address()]) != 0 || next.Storage[child.Address()].Replacement == childStore {
 					t.Fatal("child's own DELETE action not applied")
 				}
-			} else if !reflect.DeepEqual(nextWrites[child.Address()], writes[child.Address()]) || next.storage[child.Address()].replacement != childStore || next.descriptors[child.Address()] != &child {
+			} else if !reflect.DeepEqual(nextWrites[child.Address()], writes[child.Address()]) || next.Storage[child.Address()].Replacement != childStore || next.Descriptors[child.Address()] != &child {
 				t.Fatal("parent DELETE recursively cleared preserving child")
 			}
 		})

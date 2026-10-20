@@ -18,29 +18,29 @@ import (
 // Transactional descriptors, row shapes and generators share one private overlay.
 // Original descriptors/name bindings are commit preconditions, not undo data.
 type catalogChanges struct {
-	originals        map[ids.ObjectAddress]catalog.Descriptor
-	descriptors      map[ids.ObjectAddress]catalog.Descriptor
-	names            map[ids.NameKey]ids.ObjectAddress
-	defaultACLs      map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	defaultOriginals map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	defaultReads     map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	generators       map[ids.ObjectAddress]*storage.SequenceGenerator
-	storage          map[ids.ObjectAddress]catalogStorageChange
-	dependencies     []catalogDependencyObservation
-	cachedBase       *catalog.State
-	cached           catalog.Read
-	enum             session.EnumSlot
-	rolesBase        *access.RoleRecord
-	roles            *access.RoleRecord
-	retiredRoles     map[authorization.PrincipalRef]struct{}
-	fences           []session.Fence // Feature commit preconditions, in recording order.
-	domain           session.DomainSlot
-	domainChanged    bool
-	indexesSlot      session.IndexSlot
+	Originals        map[ids.ObjectAddress]catalog.Descriptor
+	Descriptors      map[ids.ObjectAddress]catalog.Descriptor
+	Names            map[ids.NameKey]ids.ObjectAddress
+	DefaultACLs      map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	DefaultOriginals map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	DefaultReads     map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	Generators       map[ids.ObjectAddress]*storage.SequenceGenerator
+	Storage          map[ids.ObjectAddress]catalogStorageChange
+	Dependencies     []catalogDependencyObservation
+	CachedBase       *catalog.State
+	Cached           catalog.Read
+	Enum             session.EnumSlot
+	RolesBase        *access.RoleRecord
+	Roles            *access.RoleRecord
+	RetiredRoles     map[authorization.PrincipalRef]struct{}
+	Fences           []session.Fence // Feature commit preconditions, in recording order.
+	Domain           session.DomainSlot
+	DomainChanged    bool
+	Indexes          session.IndexSlot
 }
 
 func newCatalogChanges() *catalogChanges {
-	return &catalogChanges{originals: map[ids.ObjectAddress]catalog.Descriptor{}, descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}, generators: map[ids.ObjectAddress]*storage.SequenceGenerator{}, storage: map[ids.ObjectAddress]catalogStorageChange{}}
+	return &catalogChanges{Originals: map[ids.ObjectAddress]catalog.Descriptor{}, Descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, Names: map[ids.NameKey]ids.ObjectAddress{}, Generators: map[ids.ObjectAddress]*storage.SequenceGenerator{}, Storage: map[ids.ObjectAddress]catalogStorageChange{}}
 }
 func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n := newCatalogChanges()
@@ -48,39 +48,39 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		return n
 	}
 	cloneDefaultChanges(c, n)
-	if c.enum != nil {
-		n.enum = c.enum.Clone()
+	if c.Enum != nil {
+		n.Enum = c.Enum.Clone()
 	}
-	for a, d := range c.originals {
-		n.originals[a] = d
+	for a, d := range c.Originals {
+		n.Originals[a] = d
 	}
-	for a, d := range c.descriptors {
-		n.descriptors[a] = d
+	for a, d := range c.Descriptors {
+		n.Descriptors[a] = d
 	}
-	for k, a := range c.names {
-		n.names[k] = a
+	for k, a := range c.Names {
+		n.Names[k] = a
 	}
-	for a, g := range c.generators {
-		n.generators[a] = g
+	for a, g := range c.Generators {
+		n.Generators[a] = g
 	}
-	for a, shape := range c.storage {
-		n.storage[a] = shape
+	for a, shape := range c.Storage {
+		n.Storage[a] = shape
 	}
-	if c.indexesSlot != nil {
-		n.indexesSlot = c.indexesSlot.Clone()
+	if c.Indexes != nil {
+		n.Indexes = c.Indexes.Clone()
 	}
-	n.dependencies = append(n.dependencies, c.dependencies...)
-	n.rolesBase, n.roles = c.rolesBase, c.roles
-	if len(c.retiredRoles) != 0 {
-		n.retiredRoles = make(map[authorization.PrincipalRef]struct{}, len(c.retiredRoles))
-		for ref := range c.retiredRoles {
-			n.retiredRoles[ref] = struct{}{}
+	n.Dependencies = append(n.Dependencies, c.Dependencies...)
+	n.RolesBase, n.Roles = c.RolesBase, c.Roles
+	if len(c.RetiredRoles) != 0 {
+		n.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(c.RetiredRoles))
+		for ref := range c.RetiredRoles {
+			n.RetiredRoles[ref] = struct{}{}
 		}
 	}
-	n.domainChanged = c.domainChanged
-	n.fences = append(n.fences, c.fences...)
-	if c.domain != nil {
-		n.domain = c.domain.Clone()
+	n.DomainChanged = c.DomainChanged
+	n.Fences = append(n.Fences, c.Fences...)
+	if c.Domain != nil {
+		n.Domain = c.Domain.Clone()
 	}
 	return n
 }
@@ -90,19 +90,19 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) catalog.Read {
 	if c == nil {
 		return e.catalog.read(e.catalog.state)
 	}
-	if c.cachedBase == e.catalog.state && c.cached.State() != nil {
-		return c.cached
+	if c.CachedBase == e.catalog.state && c.Cached.State() != nil {
+		return c.Cached
 	}
-	if len(c.descriptors) == 0 && len(c.defaultACLs) == 0 {
-		c.cachedBase = e.catalog.state
-		c.cached = e.catalog.read(e.catalog.state)
-		return c.cached
+	if len(c.Descriptors) == 0 && len(c.DefaultACLs) == 0 {
+		c.CachedBase = e.catalog.state
+		c.Cached = e.catalog.read(e.catalog.state)
+		return c.Cached
 	}
 	n := catalog.CloneState(e.catalog.state)
-	n.OverlayDefaultACLs(e.catalog.state, c.defaultACLs)
+	n.OverlayDefaultACLs(e.catalog.state, c.DefaultACLs)
 	operators := catalog.OperatorIndexEdit{Index: e.catalog.state.OperatorNames()}
 	procedures := catalog.ProcedureIndexEdit{Index: e.catalog.state.ProcedureNames()}
-	for a, d := range c.descriptors {
+	for a, d := range c.Descriptors {
 		operators.Replace(e.catalog.state.Get(a), d)
 		procedures.Replace(e.catalog.state.Get(a), d)
 		if old := n.Get(a); old != nil {
@@ -115,53 +115,53 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) catalog.Read {
 			n.SetDescriptor(a, d)
 		}
 	}
-	for _, d := range c.descriptors {
+	for _, d := range c.Descriptors {
 		if d != nil {
 			n.BindName(catalog.DescriptorNameKey(d), d.Address())
 		}
 	}
 	n.SetOperatorNames(operators.Index)
 	n.SetProcedureNames(procedures.Index)
-	c.cachedBase, c.cached = e.catalog.state, e.catalog.read(n)
-	return c.cached
+	c.CachedBase, c.Cached = e.catalog.state, e.catalog.read(n)
+	return c.Cached
 }
 func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d catalog.Descriptor) {
-	if _, ok := c.originals[a]; !ok {
-		c.originals[a] = e.catalog.state.Get(a)
+	if _, ok := c.Originals[a]; !ok {
+		c.Originals[a] = e.catalog.state.Get(a)
 	}
-	if original := c.originals[a]; original != nil {
+	if original := c.Originals[a]; original != nil {
 		k := catalog.DescriptorNameKey(original)
-		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.catalog.state.NameAddress(k)
+		if _, ok := c.Names[k]; !ok {
+			c.Names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
 	if d != nil {
 		k := catalog.DescriptorNameKey(d)
-		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.catalog.state.NameAddress(k)
+		if _, ok := c.Names[k]; !ok {
+			c.Names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
-	c.descriptors[a] = d
+	c.Descriptors[a] = d
 	if d == nil {
-		indexJournalOf(c.indexesSlot).forget(a)
+		indexJournalOf(c.Indexes).forget(a)
 	}
-	c.cachedBase = nil
-	c.cached = catalog.Read{}
+	c.CachedBase = nil
+	c.Cached = catalog.Read{}
 }
 func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *storage.SequenceGenerator {
 	if s.catalog != nil {
-		if descriptor, exists := s.catalog.descriptors[a]; exists && descriptor == nil {
+		if descriptor, exists := s.catalog.Descriptors[a]; exists && descriptor == nil {
 			return nil
 		}
-		if g := s.catalog.generators[a]; g != nil {
+		if g := s.catalog.Generators[a]; g != nil {
 			return g
 		}
 	}
 	if c := s.owner.catalog; c != nil {
-		if descriptor, exists := c.descriptors[a]; exists && descriptor == nil {
+		if descriptor, exists := c.Descriptors[a]; exists && descriptor == nil {
 			return nil
 		}
-		if g := c.generators[a]; g != nil {
+		if g := c.Generators[a]; g != nil {
 			return g
 		}
 	}
@@ -176,13 +176,13 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 		return nil, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(c)
-	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.dependencies, c.originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.Dependencies, c.Originals); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
 	e.mu.Unlock()
-	descriptors := maps.All(c.descriptors)
-	if c.domainChanged {
+	descriptors := maps.All(c.Descriptors)
+	if c.DomainChanged {
 		descriptors = view.Descriptors()
 	}
 	for a, d := range descriptors {
@@ -200,15 +200,15 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 	return view.State(), ctx.Err()
 }
 func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
-	if c.rolesBase != nil && e.roles.published != c.rolesBase {
+	if c.RolesBase != nil && e.roles.published != c.RolesBase {
 		return catalog.Conflict{}
 	}
-	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.defaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.defaultReads) {
+	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultReads) {
 		return catalog.Conflict{}
 	}
 	roles := e.roles.published
-	if c.roles != nil {
-		roles = c.roles
+	if c.Roles != nil {
+		roles = c.Roles
 	}
 	view := e.privateCatalogLocked(c)
 	read := e.roles.read(e.catalog.owner(), view, roles)
@@ -221,32 +221,32 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if err := e.catalogFencesCurrentLocked(c, fenceExtensionAuthority); err != nil {
 		return err
 	}
-	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.dependencies, c.originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.Dependencies, c.Originals); err != nil {
 		return err
 	}
 	if err := e.catalogFencesCurrentLocked(c, fenceTruncateGraph); err != nil {
 		return err
 	}
-	for a, shape := range c.storage {
+	for a, shape := range c.Storage {
 		store := e.storage.Relations[a]
-		if store != shape.original || store != nil && (store.Generation != shape.generation || len(store.Versions) != len(shape.root) || store.Ends != shape.ends || !sameVersionRoot(store.Versions, shape.root)) {
+		if store != shape.Original || store != nil && (store.Generation != shape.Generation || len(store.Versions) != len(shape.Root) || store.Ends != shape.Ends || !sameVersionRoot(store.Versions, shape.Root)) {
 			return catalog.Conflict{}
 		}
 	}
 	if err := e.catalogFencesCurrentLocked(c, fenceMaterializedSource); err != nil {
 		return err
 	}
-	for a, original := range c.originals {
+	for a, original := range c.Originals {
 		if e.catalog.state.Get(a) != original {
 			return catalog.Conflict{}
 		}
 	}
-	for k, a := range c.names {
+	for k, a := range c.Names {
 		if e.catalog.state.NameAddress(k) != a {
 			return catalog.Conflict{}
 		}
 	}
-	for _, d := range c.descriptors {
+	for _, d := range c.Descriptors {
 		if d != nil {
 			if err := access.ValidateACL(read, d); err != nil {
 				return err
@@ -263,15 +263,15 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 // admission before removals are overlaid; only new type edges require absence.
 func catalogDependencyPreflight(current, candidate *catalog.State, observations []catalogDependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, observation := range observations {
-		if current == observation.base {
+		if current == observation.Base {
 			continue
 		}
 		for address, descriptor := range current.Descriptors() {
-			if descriptor == observation.base.Get(address) {
+			if descriptor == observation.Base.Get(address) {
 				continue
 			}
 			owner := candidate.Get(address)
-			for _, target := range observation.targets {
+			for _, target := range observation.Targets {
 				switch owner := owner.(type) {
 				case *catalog.Type:
 					if candidate.Get(target) != nil {

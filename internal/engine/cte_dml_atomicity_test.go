@@ -223,7 +223,7 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 				t.Fatal("creation did not join the private statement stage", result, err)
 			}
 			var created ids.ObjectAddress
-			for address, descriptor := range scope.catalog.descriptors {
+			for address, descriptor := range scope.catalog.Descriptors {
 				if address.ClassID == ids.RelationClassID && descriptor.Name() == "copied" {
 					created = address
 				}

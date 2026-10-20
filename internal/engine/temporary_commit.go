@@ -49,22 +49,22 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 	next := cloneCatalogChanges(c)
 	nextWrites, nextDeletes := maps.Clone(writes), maps.Clone(deletes)
 	for _, a := range cleared {
-		shape, exists := next.storage[a]
+		shape, exists := next.Storage[a]
 		if !exists {
 			store := e.storage.Relations[a]
-			shape = catalogStorageChange{original: store, root: store.Versions, ends: store.Ends, generation: store.Generation}
+			shape = catalogStorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
 		}
-		shape.replacement = &storage.Relation{}
-		shape.truncated = false
-		shape.relation = base.MustRelation(a)
-		next.storage[a] = shape
+		shape.Replacement = &storage.Relation{}
+		shape.Truncated = false
+		shape.Relation = base.MustRelation(a)
+		next.Storage[a] = shape
 		e.fenceEmptyIndexStorageLocked(base.State(), next, a)
 		delete(nextWrites, a)
 		delete(nextDeletes, a)
 	}
 	e.mu.Unlock()
 	for _, address := range cleared {
-		if err := transportEmptyIndexStorage(op.Context(), base.State(), next, nil, address, next.storage[address].replacement); err != nil {
+		if err := transportEmptyIndexStorage(op.Context(), base.State(), next, nil, address, next.Storage[address].Replacement); err != nil {
 			return nil, nil, nil, err
 		}
 	}
@@ -109,7 +109,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		err := e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 		if err == nil {
 			for a := range stage.Descriptors() {
-				original, observed := next.originals[a]
+				original, observed := next.Originals[a]
 				if !observed {
 					original = base.Get(a)
 				}
@@ -119,7 +119,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 				}
 			}
 			for a := range stage.Removals() {
-				original, observed := next.originals[a]
+				original, observed := next.Originals[a]
 				if !observed {
 					original = base.Get(a)
 				}

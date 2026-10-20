@@ -106,9 +106,9 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		needsBirthFilter := false
 		var rewrite catalogStorageChange
 		if s.owner.catalog != nil {
-			rewrite = s.owner.catalog.storage[ref.Address]
+			rewrite = s.owner.catalog.Storage[ref.Address]
 		}
-		if !latest && stableIsolation(s.owner.isolation) && !rewrite.rewritten {
+		if !latest && stableIsolation(s.owner.isolation) && !rewrite.Rewritten {
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
 				current, ok := e.catalog.state.Relation(ref.Address)
@@ -131,8 +131,8 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 				// Proven TRUNCATE retirement keeps the original frontier but
 				// uses the current incarnation, never the retained old rows.
 				if s.owner.catalog != nil {
-					if shape, changed := s.owner.catalog.storage[ref.Address]; changed && shape.hasSnapshot {
-						versions = shape.snapshot
+					if shape, changed := s.owner.catalog.Storage[ref.Address]; changed && shape.HasSnapshot {
+						versions = shape.Snapshot
 						needsBirthFilter = false // Projected frozen snapshots retain their birth bound.
 					}
 				}
@@ -140,11 +140,11 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 				versions, ends = nil, nil
 			}
 		}
-		if !latest && rewrite.rewritten && stableIsolation(s.owner.isolation) {
+		if !latest && rewrite.Rewritten && stableIsolation(s.owner.isolation) {
 			if data.RewrittenFrontiers == nil {
 				data.RewrittenFrontiers = make(map[ids.ObjectAddress]ids.CommitSeq)
 			}
-			data.RewrittenFrontiers[ref.Address] = rewrite.frontier
+			data.RewrittenFrontiers[ref.Address] = rewrite.Frontier
 		}
 		data.Committed[ref.Address] = versions
 		if data.Generations != nil {

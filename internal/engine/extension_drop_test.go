@@ -147,7 +147,7 @@ func TestExtensionDropPublication(t *testing.T) {
 						t.Fatal(err)
 					}
 					e.mu.Lock()
-					observations := txOwnerOf(tx).catalog.dependencies
+					observations := txOwnerOf(tx).catalog.Dependencies
 					e.mu.Unlock()
 					extensionDropUnitCaptured(t, observations, target)
 					if consumer == "query_int_array_column_unsupported" {
@@ -235,7 +235,7 @@ func extensionDropUnitRetirement(t *testing.T, e *Engine, ext *catalog.Extension
 func extensionDropUnitCaptured(t *testing.T, observations []catalogDependencyObservation, target ids.ObjectAddress) {
 	t.Helper()
 	for _, observation := range observations {
-		if slices.Contains(observation.targets, target) {
+		if slices.Contains(observation.Targets, target) {
 			return
 		}
 	}
@@ -332,7 +332,7 @@ func extensionDropUnitStorage(t *testing.T, e *Engine) func() {
 	shapes := make(map[ids.ObjectAddress]catalogStorageChange, len(relations))
 	for address, store := range relations {
 		if store != nil {
-			shapes[address] = catalogStorageChange{original: store, root: store.Versions, ends: store.Ends, generation: store.Generation}
+			shapes[address] = catalogStorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
 		}
 	}
 	indexes := maps.Clone(e.storage.IndexRoots)
@@ -343,7 +343,7 @@ func extensionDropUnitStorage(t *testing.T, e *Engine) func() {
 		}
 		for address, shape := range shapes {
 			store := e.storage.Relations[address]
-			if store != shape.original || store.Generation != shape.generation || store.Ends != shape.ends || !sameVersionRoot(store.Versions, shape.root) {
+			if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.Ends || !sameVersionRoot(store.Versions, shape.Root) {
 				t.Error("failed retirement changed committed row root", address)
 			}
 		}
@@ -373,7 +373,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 				current := e.CatalogRead()
 				candidate := catalog.CloneState(current.State())
 				for _, observation := range stage.sequence.identityDependencyList() {
-					for _, address := range observation.targets {
+					for _, address := range observation.Targets {
 						candidate.RemoveDescriptor(address)
 					}
 				}

@@ -35,7 +35,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			changes := a.transactions.catalog
 			ref := a.transactions.ref
 			a.transactions.mu.Unlock()
-			if changes == nil || changes.roles == nil || changes.rolesBase != beforeRoles || ref == (ids.TxRef{}) {
+			if changes == nil || changes.Roles == nil || changes.RolesBase != beforeRoles || ref == (ids.TxRef{}) {
 				t.Fatal("missing joint candidate authority")
 			}
 			e.mu.Lock()
@@ -53,7 +53,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if !ok {
 				t.Fatal("pending index")
 			}
-			if changes.storage[table].original != nil || len(journalIndexesOrZero(changes).uniqueRoots[index].Entries) != 0 || len(a.transactions.writes[table]) != 2 {
+			if changes.Storage[table].Original != nil || len(journalIndexesOrZero(changes).uniqueRoots[index].Entries) != 0 || len(a.transactions.writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
 			if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {
@@ -170,7 +170,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, candidate, before, nil); err != nil {
 		t.Fatal("proposed replacement mistaken for entry predecessor", err)
 	}
-	if candidate.originals[ref.Address] != old || e.catalog.state != before || e.catalog.state.Get(ref.Address) != old {
+	if candidate.Originals[ref.Address] != old || e.catalog.state != before || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal("capture rewrote committed predecessor or published candidate")
 	}
 	peer := catalog.CloneState(before)
@@ -211,12 +211,12 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, candidate, before, nil); err != nil {
 		t.Fatal("authentic pre-stage namespace creation rejected", err)
 	}
-	namespace := candidate.descriptors[ns.Address].(*catalog.Namespace)
+	namespace := candidate.Descriptors[ns.Address].(*catalog.Namespace)
 	key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()}
-	if original, exists := candidate.originals[ns.Address]; !exists || original != nil {
+	if original, exists := candidate.Originals[ns.Address]; !exists || original != nil {
 		t.Fatal("namespace creation lost its committed absence fence")
 	}
-	if original, exists := candidate.names[key]; !exists || original != (ids.ObjectAddress{}) {
+	if original, exists := candidate.Names[key]; !exists || original != (ids.ObjectAddress{}) {
 		t.Fatal("namespace creation lost its name absence fence")
 	}
 	if e.catalog.state != before || before.Get(ns.Address) != nil {
@@ -226,19 +226,19 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 		t.Fatal("valid namespace creation failed committed preflight", err)
 	}
 	missing := cloneCatalogChanges(candidate)
-	delete(missing.originals, ns.Address)
+	delete(missing.Originals, ns.Address)
 	if err := e.captureCatalogStageLocked(stage, missing, before, nil); err == nil {
 		t.Fatal("namespace without creation intent admitted")
 	}
 	missingName := cloneCatalogChanges(candidate)
-	delete(missingName.names, key)
+	delete(missingName.Names, key)
 	if err := e.captureCatalogStageLocked(stage, missingName, before, nil); err == nil {
 		t.Fatal("namespace without creation-name fence admitted")
 	}
 	changed := *namespace
 	changed.ObjectRevision++
 	replaced := cloneCatalogChanges(candidate)
-	replaced.descriptors[ns.Address] = &changed
+	replaced.Descriptors[ns.Address] = &changed
 	if err := e.captureCatalogStageLocked(stage, replaced, before, nil); err == nil {
 		t.Fatal("changed namespace intent admitted")
 	}

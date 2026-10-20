@@ -144,7 +144,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		auth.Catalog = e.privateCatalogLocked(changes)
 		auth.Recapture(auth.Catalog)
-		if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+		if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}
 		if err = auth.CheckCreate(ns); err != nil && !op.replayOrZero().tableDestination {
@@ -208,7 +208,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if restart != nil {
 			initial = *restart
 		}
-		changes.generators[d.Address()] = &storage.SequenceGenerator{Last: initial, Generation: rev}
+		changes.Generators[d.Address()] = &storage.SequenceGenerator{Last: initial, Generation: rev}
 		scope.catalog = changes
 		e.mu.Unlock()
 		return Result{}, nil
@@ -354,7 +354,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			// against that same private catalog, without publishing on rejection.
 			auth.Catalog = e.privateCatalogLocked(changes)
 			auth.Recapture(auth.Catalog)
-			if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+			if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 				auth.stagedTemporary = table.Address()
 			}
 			if err = auth.CheckCreate(ns); err != nil {
@@ -389,7 +389,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if restart != nil {
 				replacement.Last, replacement.Called = *restart, false
 			}
-			changes.generators[d.Address()] = &replacement
+			changes.Generators[d.Address()] = &replacement
 		}
 		if s.Action == "" || persistenceChanged {
 			if m := op.session.sequences.Memory(d.Address()); m != nil {
@@ -484,7 +484,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	for address := range checkStage.Descriptors() {
 		expected := auth.Catalog.Get(address)
-		if original, private := changes.originals[address]; private {
+		if original, private := changes.Originals[address]; private {
 			expected = original
 		}
 		if e.catalog.state.Get(address) != expected {
@@ -493,7 +493,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	for address := range checkStage.Removals() {
 		expected := auth.Catalog.Get(address)
-		if original, private := changes.originals[address]; private {
+		if original, private := changes.Originals[address]; private {
 			expected = original
 		}
 		if e.catalog.state.Get(address) != expected {
@@ -519,7 +519,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, sequence.IdentityDropError(auth.Catalog, d)
 		}
 		e.catalogChangeLocked(changes, ref.Address, nil)
-		delete(changes.generators, ref.Address)
+		delete(changes.Generators, ref.Address)
 	}
 	for address, descriptor := range checkStage.Descriptors() {
 		next, ok := descriptor.(*catalog.Relation)
@@ -538,7 +538,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for address := range checkStage.Removals() {
 		targets = append(targets, address)
 	}
-	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.Catalog.State(), targets: targets})
+	changes.Dependencies = append(changes.Dependencies, catalogDependencyObservation{Base: auth.Catalog.State(), Targets: targets})
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)

@@ -38,14 +38,14 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	f.e.stageDefaultChangesLocked(stage, changes)
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
-	if private.State().DefaultACL(key) != nil || changes.defaultOriginals[key] != record {
+	if private.State().DefaultACL(key) != nil || changes.DefaultOriginals[key] != record {
 		t.Fatal("default-only private overlay")
 	}
 	cloned := cloneCatalogChanges(changes)
-	delete(cloned.defaultACLs, key)
-	delete(cloned.defaultOriginals, key)
-	delete(cloned.defaultReads, key)
-	if _, ok := changes.defaultACLs[key]; !ok || changes.defaultOriginals[key] != record || changes.defaultReads[key] != record {
+	delete(cloned.DefaultACLs, key)
+	delete(cloned.DefaultOriginals, key)
+	delete(cloned.DefaultReads, key)
+	if _, ok := changes.DefaultACLs[key]; !ok || changes.DefaultOriginals[key] != record || changes.DefaultReads[key] != record {
 		t.Fatal("cloned sparse maps aliased source")
 	}
 	// A cached descriptor-empty overlay must invalidate when defaults change.
@@ -68,7 +68,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
-	if f.e.catalog.state != committedCatalog || f.e.roles.published != committedRoles || private.State().DefaultACL(key) == nil || changes.roles == nil || changes.rolesBase != committedRoles {
+	if f.e.catalog.state != committedCatalog || f.e.roles.published != committedRoles || private.State().DefaultACL(key) == nil || changes.Roles == nil || changes.RolesBase != committedRoles {
 		t.Fatal("retained utility leaked or lost private state")
 	}
 	stage := f.e.BeginCatalogStage(private)
@@ -81,7 +81,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	if err != nil || combined.Get(table.Address()) != table || authorization.ACLRights(table.Security.ACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("later retained creation missed default", err)
 	}
-	if _, observed := changes.defaultReads[key]; observed {
+	if _, observed := changes.DefaultReads[key]; observed {
 		t.Fatal("private default output was fenced as committed input")
 	}
 	prepared, err := f.e.preparePrivateCatalog(context.Background(), changes, committedCatalog.Epoch())
@@ -133,8 +133,8 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	removed := cloneRoleFixture(f.e.roles.published)
 	retireFixtureRole(removed, f.reader)
 	changes := newCatalogChanges()
-	changes.roles = removed
-	changes.retiredRoles = map[authorization.PrincipalRef]struct{}{f.reader: {}}
+	changes.Roles = removed
+	changes.RetiredRoles = map[authorization.PrincipalRef]struct{}{f.reader: {}}
 	if err := f.e.roleRetirementPreflightLocked(changes, f.e.catalog.state); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("late default recipient retirement", err)
 	}

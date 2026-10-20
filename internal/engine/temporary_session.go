@@ -98,10 +98,10 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	owner := e.roles.domain.Principal(10)
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.token}
 	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
-	if c.originals == nil {
-		c.originals = make(map[ids.ObjectAddress]catalog.Descriptor)
-		c.descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
-		c.names = make(map[ids.NameKey]ids.ObjectAddress)
+	if c.Originals == nil {
+		c.Originals = make(map[ids.ObjectAddress]catalog.Descriptor)
+		c.Descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
+		c.Names = make(map[ids.NameKey]ids.ObjectAddress)
 	}
 	e.catalogChangeLocked(c, ns.Address(), ns)
 	e.catalogChangeLocked(c, toast.Address(), toast)

@@ -115,7 +115,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 		t.Fatal(err)
 	}
 	entry := e.prepared["boundary"]
-	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.storage) == 0 || len(entry.catalog.generators) == 0 || e.visibility.Serializable.Nodes[entry.ref] == nil || len(e.locks.Inspect(entry.ticket).Journals[entry.ticket]) == 0 {
+	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.Storage) == 0 || len(entry.catalog.Generators) == 0 || e.visibility.Serializable.Nodes[entry.ref] == nil || len(e.locks.Inspect(entry.ticket).Journals[entry.ticket]) == 0 {
 		t.Fatal("fixture did not retain populated row/delete/catalog/generator/SSI/lock roots")
 	}
 	e.mu.Lock()
@@ -211,15 +211,15 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		value.roots = maps.Clone(prepared.roots)
 		if prepared.catalog != nil {
 			catalogue := *prepared.catalog
-			catalogue.originals, catalogue.descriptors = maps.Clone(prepared.catalog.originals), maps.Clone(prepared.catalog.descriptors)
-			catalogue.names, catalogue.storage = maps.Clone(prepared.catalog.names), maps.Clone(prepared.catalog.storage)
-			catalogue.generators = maps.Clone(prepared.catalog.generators)
-			for address, generator := range catalogue.generators {
+			catalogue.Originals, catalogue.Descriptors = maps.Clone(prepared.catalog.Originals), maps.Clone(prepared.catalog.Descriptors)
+			catalogue.Names, catalogue.Storage = maps.Clone(prepared.catalog.Names), maps.Clone(prepared.catalog.Storage)
+			catalogue.Generators = maps.Clone(prepared.catalog.Generators)
+			for address, generator := range catalogue.Generators {
 				frozen := *generator
-				catalogue.generators[address] = &frozen
+				catalogue.Generators[address] = &frozen
 			}
 			journalIndexes(&catalogue).uniqueRoots = maps.Clone(journalIndexesOrZero(prepared.catalog).uniqueRoots)
-			catalogue.dependencies = slices.Clone(prepared.catalog.dependencies)
+			catalogue.Dependencies = slices.Clone(prepared.catalog.Dependencies)
 			value.catalog = &catalogue
 		}
 		s.entries[gid] = value
@@ -295,7 +295,7 @@ func (expression *preparedBoundaryExpression) Eval(ctx expr.Context) (sqltype.Va
 func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session, entry *preparedTransaction) (<-chan struct{}, chan<- struct{}) {
 	t.Helper()
 	arrived, release := make(chan struct{}), make(chan struct{})
-	for _, descriptor := range entry.catalog.cached.Descriptors() {
+	for _, descriptor := range entry.catalog.Cached.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.Name() != "prepared_boundary_index" {
 			continue
@@ -455,7 +455,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 	if !found {
 		t.Fatal("substantive index disappeared")
 	}
-	for address, generator := range entry.catalog.generators {
+	for address, generator := range entry.catalog.Generators {
 		if e.storage.Sequences[address] != generator || generator.Last != 41 || generator.Called {
 			t.Fatal("private generator did not transfer unchanged")
 		}
@@ -591,7 +591,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 			t.Fatal("winning GID row outcome", value, err)
 		}
 	}
-	for address, generator := range entry.catalog.generators {
+	for address, generator := range entry.catalog.Generators {
 		if e.storage.Sequences[address] != generator {
 			t.Fatal("winner generator did not publish")
 		}
@@ -688,7 +688,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	publication := rowPublication{
 		address: parent, store: store, original: original,
 		originalRelation: e.catalog.state.MustRelation(parent),
-		relation:         entry.catalog.cached.MustRelation(parent),
+		relation:         entry.catalog.Cached.MustRelation(parent),
 		root:             store.Versions, writes: entry.writes[parent], ends: store.Ends,
 		deletion: entry.deletes[parent], generation: store.Generation, singleSlot: -1,
 	}
@@ -705,10 +705,10 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	}
 	stores := captureIndexStores(e.storage.Relations, e.catalog.state)
 	rebuild := map[ids.ObjectAddress]bool{}
-	for address, change := range entry.catalog.storage {
-		stores[address], rebuild[address] = change.replacement, true
+	for address, change := range entry.catalog.Storage {
+		stores[address], rebuild[address] = change.Replacement, true
 	}
-	roots, err := e.prepareIndexPublication(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []rowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := e.prepareIndexPublication(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []rowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only PREPARE materialized installable index map/root", roots, err)
 	}
@@ -720,7 +720,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if materialized.next == nil || materialized.nextEnds == nil || len(materialized.slots) != len(publication.writes) || materialized.slots[updatePosition] != predecessorSlot || &materialized.next[0] == &publication.root[0] {
 		t.Fatal("completion omitted separate UPDATE replacement heads/deletion/slot installation roots")
 	}
-	roots, err = e.prepareIndexPublication(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []rowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err = e.prepareIndexPublication(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []rowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || len(roots) == 0 {
 		t.Fatal("completion omitted substantive index installation roots", err)
 	}

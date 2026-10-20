@@ -327,22 +327,22 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 			e.catalog.state = catalog.CloneState(base)
 			e.catalog.state.SetDescriptor(sequence, &current)
 			changes := newCatalogChanges()
-			changes.originals[sequence] = &current
+			changes.Originals[sequence] = &current
 			target := tableRef.Address
 			target.SubID = table.Attributes[0]
 			observationBase := base
 			switch name {
 			case "missing-original":
-				delete(changes.originals, sequence)
+				delete(changes.Originals, sequence)
 			case "stale-original":
-				changes.originals[sequence] = old
+				changes.Originals[sequence] = old
 			case "post-grant-change":
 				later := current
 				e.catalog.state.SetDescriptor(sequence, &later)
 			case "new-identity":
 				observationBase = catalog.CloneState(base)
 				observationBase.RemoveDescriptor(sequence)
-				changes.originals[sequence] = nil
+				changes.Originals[sequence] = nil
 			case "changed-check":
 				changed := *table
 				changed.Constraints.Check = append([]catalog.CheckConstraint(nil), table.Constraints.Check...)
@@ -350,9 +350,9 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 				extra.Name = "late_check"
 				changed.Constraints.Check = append(changed.Constraints.Check, extra)
 				e.catalog.state.SetDescriptor(tableRef.Address, &changed)
-				changes.originals[tableRef.Address] = &changed
+				changes.Originals[tableRef.Address] = &changed
 			}
-			changes.dependencies = append(changes.dependencies, catalogDependencyObservation{observationBase, []ids.ObjectAddress{target}})
+			changes.Dependencies = append(changes.Dependencies, catalogDependencyObservation{observationBase, []ids.ObjectAddress{target}})
 			err := e.catalogPreflightLocked(changes)
 			e.mu.Unlock()
 			if name == "current" {

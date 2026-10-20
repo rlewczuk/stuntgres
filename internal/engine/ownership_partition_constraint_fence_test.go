@@ -48,8 +48,8 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 		changes = newCatalogChanges()
 		database := *committed.(*catalog.Database)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
-		changes.descriptors[catalog.CurrentDatabaseAddress] = &database
-		changes.originals[catalog.CurrentDatabaseAddress] = committed
+		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database
+		changes.Originals[catalog.CurrentDatabaseAddress] = committed
 	}
 	session, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
 	if err != nil {
@@ -154,11 +154,11 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 						t.Fatal("actual drop candidate could not be staged", executeErr)
 					}
 					candidate := message.scope.catalog
-					if candidate == nil || len(candidate.descriptors[root.Address].(*catalog.Relation).Constraints.Unique) != 0 || len(candidate.descriptors[leaf].(*catalog.Relation).Constraints.Unique) != 1 {
+					if candidate == nil || len(candidate.Descriptors[root.Address].(*catalog.Relation).Constraints.Unique) != 0 || len(candidate.Descriptors[leaf].(*catalog.Relation).Constraints.Unique) != 1 {
 						t.Fatal("actual handler did not stage recursive key/index deletion")
 					}
 					for address := range selected {
-						if descriptor, observed := candidate.descriptors[address]; !observed || descriptor != nil {
+						if descriptor, observed := candidate.Descriptors[address]; !observed || descriptor != nil {
 							t.Fatal("actual handler did not stage canonical backing-index tombstone")
 						}
 					}

@@ -150,7 +150,7 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 	// The pending request's manager synchronization establishes that this worker
 	// is suspended after preparation and before any stage or row capture.
 	state := c.scope.inheritance.alter
-	if state == nil || state.stage != nil || c.scope.view != nil || c.scope.partitionsOrZero().validationView != nil || len(state.changes.storage) != 0 {
+	if state == nil || state.stage != nil || c.scope.view != nil || c.scope.partitionsOrZero().validationView != nil || len(state.changes.Storage) != 0 {
 		t.Fatal("queued preparation allocated stage/view or evaluated rows")
 	}
 	for address, prepared := range state.prepared {
@@ -250,7 +250,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 		if !command.scope.holdsColumnDropGrant(ref) {
 			t.Fatal("expanded graph lacks real AX admission", old.Name())
 		}
-		replacement := command.scope.catalog.descriptors[old.Address()].(*catalog.Relation)
+		replacement := command.scope.catalog.Descriptors[old.Address()].(*catalog.Relation)
 		if len(replacement.Columns) != 2 || replacement.Columns[1].Name != "extra" {
 			t.Fatal("new grandchild missed actual provider application", old.Name())
 		}
@@ -326,7 +326,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		if err := inheritanceAlterJoin(t, result, joined); err != nil {
 			t.Fatal("valid root fact reached held/foreign-owner child", err)
 		}
-		if command.scope.holdsColumnDropGrant(e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())) || command.scope.catalog.descriptors[c.Address()] != nil || command.scope.catalog.storage[c.Address()].replacement != nil {
+		if command.scope.holdsColumnDropGrant(e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())) || command.scope.catalog.Descriptors[c.Address()] != nil || command.scope.catalog.Storage[c.Address()].Replacement != nil {
 			t.Fatal("valid NN no-op acquired or changed child")
 		}
 		if err := command.scope.Finish(nil); err != nil {
@@ -352,7 +352,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 			t.Fatal("plain ADD crossed existing-column merge stop", err)
 		}
 		ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), leaf.Address())
-		if command.scope.holdsColumnDropGrant(ref) || command.scope.catalog.descriptors[leaf.Address()] != nil {
+		if command.scope.holdsColumnDropGrant(ref) || command.scope.catalog.Descriptors[leaf.Address()] != nil {
 			t.Fatal("plain ADD locked/owned below actual merge stop")
 		}
 		if err := command.scope.Finish(nil); err != nil {
@@ -644,7 +644,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if err := inheritanceAlterJoin(t, result, joined); err != nil {
 				t.Fatal(err)
 			}
-			candidate := command.scope.catalog.descriptors[p.Address()].(*catalog.Relation)
+			candidate := command.scope.catalog.Descriptors[p.Address()].(*catalog.Relation)
 			if candidate.Constraints.NotNull[0].OID == 0 || candidate.Constraints.NotNull[0].OID == p.Constraints.NotNull[0].OID || candidate.Constraints.Check[0].OID == 0 || candidate.Constraints.Check[0].OID == p.Constraints.Check[0].OID || candidate.Constraints.NotNull[0].Name != cooked.Constraints.NotNull[0].Name || candidate.Constraints.NotNull[0].Attribute != cooked.Constraints.NotNull[0].Attribute || candidate.Constraints.Check[0].Name != cooked.Constraints.Check[0].Name || !analyze.SameGroupExpression(candidate.Constraints.Check[0].Expression, cooked.Constraints.Check[0].Expression) {
 				t.Fatal("sole pipeline lost exact cooked names/keys/recipe or reused removed fact OIDs")
 			}

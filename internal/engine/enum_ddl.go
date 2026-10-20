@@ -167,7 +167,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			}
 			order := typedef.EnumInsertionOrder(members, at)
 			members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
-			if !enumJournalOf(changes.enum).CreatedTypes()[ref.Address] || len(scope.owner.savepoints) != 0 {
+			if !enumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.owner.savepoints) != 0 {
 				journal := enumWritable(changes)
 				if journal.Unsafe == nil {
 					journal.Unsafe = make(map[int64]bool)
@@ -191,11 +191,11 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		}
 		// Existing private replacements must be the inputs to dependent reowning,
 		// rather than the committed stores they already superseded.
-		for a, shape := range changes.storage {
+		for a, shape := range changes.Storage {
 			if stage.rowShapes == nil {
 				stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
 			}
-			stage.rowShapes[a] = catalogRowShape{original: shape.original, replacement: shape.replacement, generation: shape.generation, observedEnds: shape.ends, observedLength: len(shape.root)}
+			stage.rowShapes[a] = catalogRowShape{original: shape.Original, replacement: shape.Replacement, generation: shape.Generation, observedEnds: shape.Ends, observedLength: len(shape.Root)}
 		}
 		if err := e.reownStagedTypeGenerationsLocked(stage); err != nil {
 			return Result{}, err

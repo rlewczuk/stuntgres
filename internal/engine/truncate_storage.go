@@ -48,7 +48,7 @@ func (fence truncateGraphFence) currentLocked(e *Engine, c *catalogChanges) erro
 			// Legitimate own subsequent CREATE/OWNED BY is not an incoming
 			// host edge. Its first committed predecessor is fenced by the
 			// ordinary originals check, including changes hidden by overlays.
-			if _, own := c.descriptors[address]; !own {
+			if _, own := c.Descriptors[address]; !own {
 				return catalog.Conflict{}
 			}
 		}
@@ -142,28 +142,28 @@ func (s *StatementScope) stageTruncate() error {
 			err = fmt.Errorf("stuntgres: storage generation exhausted")
 			break
 		}
-		shape, exists := changes.storage[ref.Address]
+		shape, exists := changes.Storage[ref.Address]
 		if !exists {
 			original := e.storage.Relations[ref.Address]
 			if original == nil {
 				err = ids.ErrCatalogReplaced
 				break
 			}
-			shape = catalogStorageChange{original: original, root: original.Versions, ends: original.Ends, generation: original.Generation}
+			shape = catalogStorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation}
 		}
 		// Do not bridge a preceding ordinary private storage rewrite. The marker
 		// means the entire transition from the first committed predecessor is pure.
-		shape.truncated = !exists || shape.truncated || shape.replacement == shape.original
+		shape.Truncated = !exists || shape.Truncated || shape.Replacement == shape.Original
 		lineage := store.TruncateLineage
 		if lineage == nil {
 			lineage = &storage.TruncateLineage{}
 		}
-		shape.replacement = &storage.Relation{Generation: store.Generation + 1, TruncateLineage: lineage}
-		shape.relation = d
-		shape.rewritten, shape.frontier = true, e.visibility.CommitSeq()
-		shape.snapshot, shape.hasSnapshot = nil, false
-		shape.fills = nil
-		changes.storage[ref.Address] = shape
+		shape.Replacement = &storage.Relation{Generation: store.Generation + 1, TruncateLineage: lineage}
+		shape.Relation = d
+		shape.Rewritten, shape.Frontier = true, e.visibility.CommitSeq()
+		shape.Snapshot, shape.HasSnapshot = nil, false
+		shape.Fills = nil
+		changes.Storage[ref.Address] = shape
 		e.fenceEmptyIndexStorageLocked(auth.Catalog.State(), changes, ref.Address)
 		if err = e.serializableWriteLocked(s, ref, []visibility.SerializableWrite{{Rewrite: true}}); err != nil {
 			break
@@ -181,7 +181,7 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.addFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.session.token, restart: s.truncateOrZero().restart, sequences: sequences})
+		changes.AddFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.session.token, restart: s.truncateOrZero().restart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -191,7 +191,7 @@ func (s *StatementScope) stageTruncate() error {
 	for _, selected := range s.truncateOrZero().relations {
 		address := selected.ref.Address
 		if selected.relation.RelationKind != catalog.PartitionedRelation && selected.relation.RelationKind != catalog.ForeignRelation {
-			if err := transportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage, address, changes.storage[address].replacement); err != nil {
+			if err := transportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage, address, changes.Storage[address].Replacement); err != nil {
 				return err
 			}
 		}

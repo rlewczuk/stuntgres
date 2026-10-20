@@ -174,7 +174,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	oldPeer := e.storage.Relations[peerAddress]
 	oldVersions, oldEnds, oldGeneration := oldPeer.Versions, oldPeer.Ends, oldPeer.Generation
 	scope := truncateUnitStage(t, e, owner, "p")
-	_, stagedPeer := scope.catalog.storage[peerAddress]
+	_, stagedPeer := scope.catalog.Storage[peerAddress]
 	excluded := scope.truncateOrZero().selected[peerAddress] == 0 && !stagedPeer && len(scope.truncateOrZero().relations) == 3
 	lockState := e.locks.Inspect(scope.ticket)
 	_, journaledPeer := lockState.Journals[scope.ticket][lock.Resource{ObjectRef: peerRef}]
@@ -402,7 +402,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 			}
 			if explicit {
 				sessionSQL(t, s, "ROLLBACK TO recover")
-				if !sameVersionRoot(s.transactions.writes[p.Address], priorWrites) || s.transactions.catalog != nil && len(s.transactions.catalog.storage) != 0 {
+				if !sameVersionRoot(s.transactions.writes[p.Address], priorWrites) || s.transactions.catalog != nil && len(s.transactions.catalog.Storage) != 0 {
 					t.Fatal("failed statement/savepoint lost prior private root")
 				}
 				transactionEnd(t, s, tx, false)

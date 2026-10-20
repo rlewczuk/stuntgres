@@ -117,7 +117,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 	if tx.state != TxActive || len(tx.writes[table]) != 2 || tx.deletes[table] == nil || len(tx.deletes[table].Rows) != 3 || tx.catalog == nil {
 		t.Fatal("fixture must contain private appended rows, committed/own deletions and sequence overlay")
 	}
-	g := tx.catalog.generators[sequence]
+	g := tx.catalog.Generators[sequence]
 	if g == nil || g.Last != 100 || g.Called || g == s.Engine().storage.Sequences[sequence] {
 		t.Fatal("fixture must contain a private restarted generator")
 	}
@@ -126,16 +126,16 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 			t.Fatal("fixture reused a published TEMP namespace")
 		}
 		var namespaces, temps int
-		for a, d := range tx.catalog.descriptors {
+		for a, d := range tx.catalog.Descriptors {
 			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.token {
 				namespaces++
-				if tx.catalog.originals[a] != nil || s.Engine().catalog.state.Get(a) != nil {
+				if tx.catalog.Originals[a] != nil || s.Engine().catalog.state.Get(a) != nil {
 					t.Fatal("TEMP namespace was not genuinely new")
 				}
 			}
 			if r, ok := d.(*catalog.Relation); ok && r.Name() == "first_temp" {
 				temps++
-				if tx.catalog.generators[a] == nil || s.Engine().storage.Sequences[a] != nil {
+				if tx.catalog.Generators[a] == nil || s.Engine().storage.Sequences[a] != nil {
 					t.Fatal("TEMP generator is not private")
 				}
 			}

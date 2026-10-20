@@ -181,7 +181,7 @@ func TestDriverBatchRoleACLConflictKeepsPeerRoot(t *testing.T) {
 				}
 			}
 			c := s.transactions.catalog
-			if c == nil || c.rolesBase == nil || c.roles == nil {
+			if c == nil || c.RolesBase == nil || c.Roles == nil {
 				t.Fatal("missing pending role/ACL revision authority")
 			}
 			sessionSQL(t, peer, "CREATE ROLE peer LOGIN")

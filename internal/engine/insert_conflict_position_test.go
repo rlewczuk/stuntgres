@@ -166,7 +166,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				t.Fatal("trusted shape reconstruction", err)
 			}
 			insertConflictWantHints(t, prepared[index.Address()], &shaped, want)
-			changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
+			changes := &catalogChanges{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, Originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
 			if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
@@ -233,7 +233,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	}
 	index := *f.index
 	index.ObjectRevision++
-	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
+	changes := &catalogChanges{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, Originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
 	if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}

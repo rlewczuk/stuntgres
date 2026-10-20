@@ -77,7 +77,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if er != nil {
 			return Result{}, er
 		}
-		if previous, ok := changes.descriptors[d.Address()].(*catalog.ForeignObject); ok {
+		if previous, ok := changes.Descriptors[d.Address()].(*catalog.ForeignObject); ok {
 			d = previous
 		}
 		source, available, er := authorization.ObjectGrantSource(op.Context(), d.Owner, d.ACL, authorization.ACLValue{}, principals, actor.Superuser, authorization.UsagePrivilege)

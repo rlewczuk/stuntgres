@@ -62,7 +62,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
 	e.visibility.ReconcileSerializableWritesLocked(t.ref, func(address ids.ObjectAddress, event visibility.SerializableWrite) bool {
 		if event.Rewrite {
-			return t.catalog != nil && t.catalog.storage[address].rewritten
+			return t.catalog != nil && t.catalog.Storage[address].Rewritten
 		}
 		if event.Deletion {
 			root := t.deletes[address]

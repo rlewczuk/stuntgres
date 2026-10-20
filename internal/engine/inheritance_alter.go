@@ -356,7 +356,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		e.catalogChangeLocked(state.changes, address, nil)
 	}
 	for address, rebound := range stage.rowShapes {
-		state.changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.Versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: stage.Get(address).(*catalog.Relation)}
+		state.changes.Storage[address] = catalogStorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation, Replacement: rebound.replacement, Relation: stage.Get(address).(*catalog.Relation)}
 	}
 	scope.catalog = state.changes
 	e.mu.Unlock()

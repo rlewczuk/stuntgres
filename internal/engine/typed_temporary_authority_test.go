@@ -85,7 +85,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 						}
 					}
 					if candidate != nil {
-						for a := range candidate.storage {
+						for a := range candidate.Storage {
 							if e.storage.Relations[a] != nil {
 								t.Error("failed CREATE published candidate storage", a)
 							}
@@ -146,12 +146,12 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 	roleExecute(t, e, reader, "CREATE TEMP TABLE late OF pair")
 	private := reader.session.transactions.catalog
 	var relation *catalog.Relation
-	for _, d := range private.descriptors {
+	for _, d := range private.Descriptors {
 		if table, ok := d.(*catalog.Relation); ok && table.Name() == "late" {
 			relation = table
 		}
 	}
-	if relation == nil || relation.OfType != source.Address() || private.storage[relation.Address()].replacement == nil {
+	if relation == nil || relation.OfType != source.Address() || private.Storage[relation.Address()].Replacement == nil {
 		t.Fatal("successful statement did not install actual private TEMP attachment/store")
 	}
 	typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})

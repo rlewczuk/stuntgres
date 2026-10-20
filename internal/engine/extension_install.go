@@ -70,14 +70,14 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 	for a, d := range stage.Descriptors() {
 		// Validation ran without the mutex. Capture the stage's exact
 		// predecessor, never whatever a peer published during validation.
-		if _, captured := changes.originals[a]; !captured {
-			changes.originals[a] = stage.Base.Get(a)
+		if _, captured := changes.Originals[a]; !captured {
+			changes.Originals[a] = stage.Base.Get(a)
 		}
 		if _, extension := d.(*catalog.Extension); extension {
 			if old, exists := stage.Base.Extension(a); exists {
 				for _, member := range old.Members {
-					if _, captured := changes.originals[member]; !captured {
-						changes.originals[member] = stage.Base.Get(member)
+					if _, captured := changes.Originals[member]; !captured {
+						changes.Originals[member] = stage.Base.Get(member)
 					}
 				}
 			}
@@ -85,9 +85,9 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 		e.catalogChangeLocked(changes, a, d)
 	}
 	for key, original := range stage.Touched() {
-		changes.names[key] = original
+		changes.Names[key] = original
 	}
-	changes.addFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.roleRevision, Namespace: stage.Base.Get(stage.extensionNamespace), Database: stage.databasePredecessor}})
+	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.roleRevision, Namespace: stage.Base.Get(stage.extensionNamespace), Database: stage.databasePredecessor}})
 	scope.catalog = changes
 	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: catalog.CurrentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()

@@ -22,12 +22,12 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 			e.mu.Lock()
 			e.stageCatalogChangesLocked(stage, changes)
 			e.mu.Unlock()
-			shape := changes.storage[d.Address()]
+			shape := changes.Storage[d.Address()]
 			continuous := true
 			for _, mode := range sequence[:i+1] {
 				continuous = continuous && mode
 			}
-			if shape.original != original || shape.replacement != replacement || shape.materializedConcurrent != concurrent || shape.materializedContinuous != continuous {
+			if shape.Original != original || shape.Replacement != replacement || shape.MaterializedConcurrent != concurrent || shape.MaterializedContinuous != continuous {
 				t.Fatal("lost first predecessor or interrupted provenance", sequence, i, shape)
 			}
 			if original.MaterializedLineage != nil || replacement.MaterializedLineage != nil {
@@ -40,12 +40,12 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	d := concurrentUnitRelation(t, e)
 	private := &storage.Relation{}
 	changes := newCatalogChanges()
-	changes.storage[d.Address()] = catalogStorageChange{replacement: private, relation: d}
+	changes.Storage[d.Address()] = catalogStorageChange{Replacement: private, Relation: d}
 	stage := &CatalogStage{materializedSlot: &materializedStage{replacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &storage.Relation{}, concurrent: true}}}
 	e.mu.Lock()
 	e.stageCatalogChangesLocked(stage, changes)
 	e.mu.Unlock()
-	if shape := changes.storage[d.Address()]; shape.original != nil || shape.materializedContinuous || !shape.materializedConcurrent {
+	if shape := changes.Storage[d.Address()]; shape.Original != nil || shape.MaterializedContinuous || !shape.MaterializedConcurrent {
 		t.Fatal("private CREATE acquired committed provenance", shape)
 	}
 }
@@ -66,12 +66,12 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 		t.Fatal("compatible publication rejected captured source")
 	}
 	changes := newCatalogChanges()
-	changes.fences = []session.Fence{fence}
+	changes.Fences = []session.Fence{fence}
 	clone := cloneCatalogChanges(changes)
 	if err := e.catalogPreflightLocked(clone); err != nil {
 		t.Fatal("source-only retained fence rejected", err)
 	}
-	changes.originals[old.Address()] = old
+	changes.Originals[old.Address()] = old
 	if err := e.catalogPreflightLocked(changes); err == nil {
 		t.Fatal("source proof weakened an exact original fence")
 	}

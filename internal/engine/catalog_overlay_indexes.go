@@ -45,13 +45,13 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return catalog.Conflict{}
 		}
 		old, existed := stage.Base.Relation(parent.Address())
-		shape, replaced := c.storage[parent.Address()]
-		storageChanged := replaced && shape.replacement != e.privateStorageLocked(scope.owner.catalog, parent.Address())
+		shape, replaced := c.Storage[parent.Address()]
+		storageChanged := replaced && shape.Replacement != e.privateStorageLocked(scope.owner.catalog, parent.Address())
 		if !storageChanged && stage.Get(a) == nil && stageIndexes.rebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
 			continue
 		}
 		if !index.SQLIndex.Ready {
-			indexJournalOf(c.indexesSlot).forget(a)
+			indexJournalOf(c.Indexes).forget(a)
 			continue
 		}
 		// Virtual indexes own ancestry/validity metadata, never heap captures or
@@ -92,7 +92,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			fence.ends = committed.Ends
 			fence.generation = committed.Generation
 		}
-		c.addFence(fence)
+		c.AddFence(fence)
 	}
 	e.mu.Unlock()
 	for i := range captures {

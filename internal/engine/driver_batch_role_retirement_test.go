@@ -59,7 +59,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					}
 					if carrier == "prepared" {
 						prepared = e.prepared["retirement_guard"]
-						if prepared == nil || prepared.catalog == nil || prepared.catalog.roles == nil {
+						if prepared == nil || prepared.catalog == nil || prepared.catalog.Roles == nil {
 							t.Fatal("detach lost the private role candidate")
 						}
 					}
@@ -159,15 +159,15 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 	if _, err := m.step(statement(t, "DROP ROLE later")); err != nil {
 		t.Fatal(err)
 	}
-	if len(retirement.retiredRoles) != 1 || len(a.transactions.catalog.retiredRoles) != 2 {
+	if len(retirement.RetiredRoles) != 1 || len(a.transactions.catalog.RetiredRoles) != 2 {
 		t.Fatal("later retirement mutated the saved candidate's obligation set")
 	}
-	if _, ok := retirement.retiredRoles[role.Ref]; !ok {
+	if _, ok := retirement.RetiredRoles[role.Ref]; !ok {
 		t.Fatal("retirement fork lost the exact principal obligation")
 	}
 	a.transactions.catalog = cloneCatalogChanges(before)
 	sessionSQL(t, b, "CREATE SCHEMA restoration_peer AUTHORIZATION restored")
-	if retirement.roles == nil || retirement.roles.Root.Read(authorization.PrincipalRef{}).LookupRef("restored") != (authorization.PrincipalRef{}) {
+	if retirement.Roles == nil || retirement.Roles.Root.Read(authorization.PrincipalRef{}).LookupRef("restored") != (authorization.PrincipalRef{}) {
 		t.Fatal("retirement fork did not carry the private deletion")
 	}
 	if err := m.end(nil); err != nil {

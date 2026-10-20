@@ -163,10 +163,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var shape catalogStorageChange
 	exists := false
 	if changes != nil {
-		shape, exists = changes.storage[ref.Address]
+		shape, exists = changes.Storage[ref.Address]
 	}
 	if !exists {
-		shape = catalogStorageChange{original: original, root: original.Versions, ends: original.Ends, generation: original.Generation, replacement: store, relation: old}
+		shape = catalogStorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
 	}
 	versions, ends, frontier := store.Versions, store.Ends, e.visibility.CommitSeq()
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
@@ -491,7 +491,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				return Result{}, catalog.Conflict{}
 			}
 			e.catalogChangeLocked(changes, address, descriptor)
-			changes.generators[address] = stage.sequence.generator(address)
+			changes.Generators[address] = stage.sequence.generator(address)
 		}
 		for address, removal := range stage.Removals() {
 			sequence, ok := removal.Descriptor.(*catalog.Relation)
@@ -507,7 +507,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				return Result{}, catalog.Conflict{}
 			}
 			e.catalogChangeLocked(changes, address, nil)
-			delete(changes.generators, address)
+			delete(changes.Generators, address)
 		}
 	}
 	scope.catalog = changes
@@ -643,23 +643,23 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	storageOwner := old
-	if accumulated, exists := changes.storage[ref.Address]; exists {
+	if accumulated, exists := changes.Storage[ref.Address]; exists {
 		shape = accumulated
-		store = accumulated.replacement
-		storageOwner = accumulated.relation
+		store = accumulated.Replacement
+		storageOwner = accumulated.Relation
 		versions, ends = store.Versions, store.Ends
 	}
-	if len(fills) != 0 || len(shape.fills) != 0 {
-		shape.fills = maps.Clone(shape.fills)
-		if shape.fills == nil {
-			shape.fills = make(map[int32]sqltype.Value, len(fills))
+	if len(fills) != 0 || len(shape.Fills) != 0 {
+		shape.Fills = maps.Clone(shape.Fills)
+		if shape.Fills == nil {
+			shape.Fills = make(map[int32]sqltype.Value, len(fills))
 		}
 		for attribute, value := range fills {
-			shape.fills[attribute] = value
+			shape.Fills[attribute] = value
 		}
-		for attribute := range shape.fills {
+		for attribute := range shape.Fills {
 			if !next.HasAttribute(attribute) {
-				delete(shape.fills, attribute)
+				delete(shape.Fills, attribute)
 			}
 		}
 	}
@@ -693,14 +693,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 		versions, ends = replacement.Versions, replacement.Ends
-		shape.rewritten, shape.frontier = true, frontier
-		shape.snapshot, shape.hasSnapshot = nil, false
+		shape.Rewritten, shape.Frontier = true, frontier
+		shape.Snapshot, shape.HasSnapshot = nil, false
 	} else if !slices.Equal(storageOwner.Attributes, next.Attributes) {
 		shape, projectedWrites, projectedDeletes, err = projectColumnShape(scope, storageOwner, next, store, shape, snapshot, snapshotExists)
 		if err != nil {
 			return Result{}, err
 		}
-		replacement = shape.replacement
+		replacement = shape.Replacement
 		versions, ends = replacement.Versions, replacement.Ends
 	}
 	for _, action := range s.Actions {
@@ -804,9 +804,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		dependencyTargets = append(dependencyTargets, a)
 	}
 	if len(dependencyTargets) != 0 {
-		changes.dependencies = append(changes.dependencies, catalogDependencyObservation{grantCatalog, dependencyTargets})
+		changes.Dependencies = append(changes.Dependencies, catalogDependencyObservation{grantCatalog, dependencyTargets})
 	}
-	changes.dependencies = append(changes.dependencies, stage.sequence.identityDependencyList()...)
+	changes.Dependencies = append(changes.Dependencies, stage.sequence.identityDependencyList()...)
 	if scope.inheritance.alter == nil {
 		if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 			return Result{}, err
@@ -816,7 +816,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// changes. Include dependent holder stores as well as the directly altered row.
 	for address, rebound := range stage.rowShapes {
 		consumer := stage.Get(address).(*catalog.Relation)
-		changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.Versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: consumer}
+		changes.Storage[address] = catalogStorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation, Replacement: rebound.replacement, Relation: consumer}
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
 	e.mu.Lock()
@@ -853,22 +853,22 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, catalog.Conflict{}
 		}
 		e.catalogChangeLocked(changes, a, nil)
-		delete(changes.generators, a)
+		delete(changes.Generators, a)
 	}
 	for a, generator := range stage.sequence.stagedGenerators() {
 		if _, removed := stage.Removal(a); !removed {
-			changes.generators[a] = generator
+			changes.Generators[a] = generator
 		}
 	}
-	if shape.replacement != replacement {
-		shape.truncated = false
+	if shape.Replacement != replacement {
+		shape.Truncated = false
 	}
-	shape.replacement, shape.relation = replacement, next
+	shape.Replacement, shape.Relation = replacement, next
 	metadataOnly := !changedValues && len(additions) == 0 && slices.Equal(old.Attributes, next.Attributes)
 	// A storage entry requests index reconstruction at publication. Attachment
 	// metadata needs none; retain any earlier private shape without restamping it.
 	if !hasAttachments || !metadataOnly {
-		changes.storage[ref.Address] = shape
+		changes.Storage[ref.Address] = shape
 	}
 	e.mu.Unlock()
 	if !rewrite {

@@ -155,7 +155,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	}
 	mark := savepointMark{catalog: root}
 	candidate := cloneCatalogChanges(root)
-	enumJournalOf(candidate.enum).UnsafeMembers()[members[0].ID] = true
+	enumJournalOf(candidate.Enum).UnsafeMembers()[members[0].ID] = true
 	scope.owner.catalog = candidate
 	b.Input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
 	captureEnumOperationSafety(op, &b.Input)
@@ -163,7 +163,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := b.Input.EnumMemberSafe
-	if enumJournalOf(root.enum).UnsafeMembers()[members[0].ID] || !original.EnumMemberSafe(mood.ID(), members[0].ID) || child(mood.ID(), members[0].ID) {
+	if enumJournalOf(root.Enum).UnsafeMembers()[members[0].ID] || !original.EnumMemberSafe(mood.ID(), members[0].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("candidate mutation changed borrowed root or fresh capture missed it")
 	}
 	scope.owner.catalog = mark.catalog

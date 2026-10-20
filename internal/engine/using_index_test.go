@@ -336,7 +336,7 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 		}
 		tx := transactionBegin(t, s)
 		usingIndexUnitExecute(t, e, s, usingIndexUnitAlter(true))
-		if _, exists := s.transactions.catalog.storage[parent.Address()]; exists {
+		if _, exists := s.transactions.catalog.Storage[parent.Address()]; exists {
 			t.Fatal("metadata attachment registered an index rebuild shape")
 		}
 		if journalIndexesOrZero(s.transactions.catalog).uniqueRoots[index.Address()] != nil || e.storage.IndexRoots[index.Address()] != root || e.storage.Relations[parent.Address()] != store || len(parent.Constraints.Unique) != 0 {
@@ -356,19 +356,19 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 	usingIndexUnitExecute(t, e, s, &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "a"}, TypeName: parser.TypeName{Name: "bigint"}}}})
 	earlier := s.transactions.catalog
 	privateRoot := journalIndexesOrZero(earlier).uniqueRoots[index.Address()]
-	privateStore := earlier.storage[parent.Address()].replacement
+	privateStore := earlier.Storage[parent.Address()].Replacement
 	if privateRoot == nil || privateRoot == committedRoot || privateStore == nil {
 		t.Fatal("real prior TYPE roots absent")
 	}
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "before"}})
 	usingIndexUnitExecute(t, e, s, usingIndexUnitAlter(true))
 	attached := s.transactions.catalog
-	if attached == earlier || journalIndexesOrZero(attached).uniqueRoots[index.Address()] != privateRoot || attached.storage[parent.Address()].replacement != privateStore || earlier.descriptors[index.Address()].(*catalog.Relation).SQLIndex.Constraint != nil || attached.originals[parent.Address()] != parent || attached.originals[index.Address()] != index || e.catalog.state.Get(parent.Address()) != parent || e.catalog.state.Get(index.Address()) != index {
+	if attached == earlier || journalIndexesOrZero(attached).uniqueRoots[index.Address()] != privateRoot || attached.Storage[parent.Address()].Replacement != privateStore || earlier.Descriptors[index.Address()].(*catalog.Relation).SQLIndex.Constraint != nil || attached.Originals[parent.Address()] != parent || attached.Originals[index.Address()] != index || e.catalog.state.Get(parent.Address()) != parent || e.catalog.state.Get(index.Address()) != index {
 		t.Fatal("private attachment copied roots, changed originals or leaked")
 	}
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "attached"}})
 	usingIndexUnitExecute(t, e, s, &parser.AlterTableRenameConstraint{Name: primaryKeyUnitName("t"), Constraint: parser.Identifier{Text: "owned"}, NewName: parser.Identifier{Text: "later"}})
-	if attached.descriptors[index.Address()].Name() != "owned" || s.transactions.catalog.descriptors[index.Address()].Name() != "later" {
+	if attached.Descriptors[index.Address()].Name() != "owned" || s.transactions.catalog.Descriptors[index.Address()].Name() != "later" {
 		t.Fatal("rename mutated saved overlay")
 	}
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.RollbackSavepoint, Name: parser.Identifier{Text: "attached"}})
@@ -376,7 +376,7 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 		t.Fatal("savepoint did not restore exact attachment overlay")
 	}
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.RollbackSavepoint, Name: parser.Identifier{Text: "before"}})
-	if s.transactions.catalog != earlier || earlier.descriptors[index.Address()].Name() != "prebuilt" {
+	if s.transactions.catalog != earlier || earlier.Descriptors[index.Address()].Name() != "prebuilt" {
 		t.Fatal("attachment rollback lost prior private roots")
 	}
 	usingIndexUnitExecute(t, e, s, usingIndexUnitAlter(true))

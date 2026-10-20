@@ -230,7 +230,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	sessionSQL(t, owner, "INSERT INTO private_shape(a,z) VALUES(7,9)")
 	before := cloneCatalogChanges(owner.transactions.catalog)
 	var address ids.ObjectAddress
-	for a, d := range before.descriptors {
+	for a, d := range before.Descriptors {
 		if relation, ok := d.(*catalog.Relation); ok && relation.Name() == "private_shape" {
 			address = a
 			break
@@ -239,8 +239,8 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	originalRows := owner.transactions.writes[address]
 	sessionSQL(t, owner, "SAVEPOINT before_shape")
 	sessionSQL(t, owner, "DROP TABLE private_shape_provider CASCADE")
-	shape := owner.transactions.catalog.storage[address]
-	if shape.original != nil || e.storage.Relations[address] != nil || len(shape.relation.Columns) != 2 {
+	shape := owner.transactions.catalog.Storage[address]
+	if shape.Original != nil || e.storage.Relations[address] != nil || len(shape.Relation.Columns) != 2 {
 		t.Fatal("invented committed predecessor")
 	}
 	rows := owner.transactions.writes[address]
@@ -252,7 +252,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 		t.Fatal("private projected z", value, err)
 	}
 	sessionSQL(t, owner, "ROLLBACK TO before_shape")
-	if len(owner.transactions.writes[address][0].Values) != 3 || owner.transactions.catalog.storage[address].relation != before.storage[address].relation {
+	if len(owner.transactions.writes[address][0].Values) != 3 || owner.transactions.catalog.Storage[address].Relation != before.Storage[address].Relation {
 		t.Fatal("savepoint shape root not restored")
 	}
 	sessionSQL(t, owner, "ROLLBACK")

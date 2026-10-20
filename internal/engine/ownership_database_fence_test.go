@@ -42,12 +42,12 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.captureCatalogStageLocked(stage, changes, auth.Catalog.State(), authority); err != nil {
 				t.Fatal(err)
 			}
-			if changes.originals[catalog.CurrentDatabaseAddress] != committed || authority.databasePredecessor != committed || authority.databaseAuthority != auth.Catalog.Get(catalog.CurrentDatabaseAddress) {
+			if changes.Originals[catalog.CurrentDatabaseAddress] != committed || authority.databasePredecessor != committed || authority.databaseAuthority != auth.Catalog.Get(catalog.CurrentDatabaseAddress) {
 				t.Fatal("entry/private predecessor pairing")
 			}
 			child := cloneCatalogChanges(changes)
 			released := cloneCatalogChanges(child)
-			if child.originals[catalog.CurrentDatabaseAddress] != committed || released.originals[catalog.CurrentDatabaseAddress] != committed {
+			if child.Originals[catalog.CurrentDatabaseAddress] != committed || released.Originals[catalog.CurrentDatabaseAddress] != committed {
 				t.Fatal("savepoint clone lost predecessor")
 			}
 			if err := e.catalogPreflightLocked(released); err != nil {

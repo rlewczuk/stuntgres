@@ -342,11 +342,11 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 	if t := op.session.transactions; t.retainsTransaction() {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.
-		if t.catalog.retiredRoles == nil {
-			t.catalog.retiredRoles = make(map[authorization.PrincipalRef]struct{}, len(ordered))
+		if t.catalog.RetiredRoles == nil {
+			t.catalog.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(ordered))
 		}
 		for _, ref := range ordered {
-			t.catalog.retiredRoles[ref] = struct{}{}
+			t.catalog.RetiredRoles[ref] = struct{}{}
 		}
 	}
 	return Result{}, nil

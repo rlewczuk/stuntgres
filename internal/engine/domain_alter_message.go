@@ -87,32 +87,32 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			return err
 		}
 		scope.stageProjectedColumnRoots(address, rebound.Versions, projectDeletions(deletes, rowShape.replacement))
-		shape := changes.storage[address]
-		if len(shape.fills) != 0 {
-			shape.fills = maps.Clone(shape.fills)
-			for attribute, value := range shape.fills {
+		shape := changes.Storage[address]
+		if len(shape.Fills) != 0 {
+			shape.Fills = maps.Clone(shape.Fills)
+			for attribute, value := range shape.Fills {
 				target := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
-				shape.fills[attribute], err = typedef.ReownDomainDatum(value, target.SQLType, nil, next.ScalarImports(), next.ACLItemImport())
+				shape.Fills[attribute], err = typedef.ReownDomainDatum(value, target.SQLType, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return err
 				}
 			}
 		}
-		if stableIsolation(scope.owner.isolation) && !shape.hasSnapshot {
+		if stableIsolation(scope.owner.isolation) && !shape.HasSnapshot {
 			scope.owner.mu.Lock()
 			snapshot, exists := scope.owner.roots[address]
 			scope.owner.mu.Unlock()
 			if exists {
-				shape.snapshot, shape.hasSnapshot = snapshot.Versions, true
+				shape.Snapshot, shape.HasSnapshot = snapshot.Versions, true
 			}
 		}
-		if shape.hasSnapshot {
-			shape.snapshot, err = enumReownVersions(next, shape.snapshot)
+		if shape.HasSnapshot {
+			shape.Snapshot, err = enumReownVersions(next, shape.Snapshot)
 			if err != nil {
 				return err
 			}
 		}
-		changes.storage[address] = shape
+		changes.Storage[address] = shape
 	}
 	return nil
 }

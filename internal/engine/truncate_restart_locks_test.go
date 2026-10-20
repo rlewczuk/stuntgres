@@ -94,7 +94,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 				sequenceScalar(t, waiter, "SELECT nextval('p_id_seq')", 3)
 				tx := transactionBegin(t, holder)
 				truncateUnitExecute(t, e, holder, truncateRestartUnitAST("p"))
-				candidate := holder.transactions.catalog.generators[ps.Address]
+				candidate := holder.transactions.catalog.Generators[ps.Address]
 				done, _ := truncateRestartUnitAsyncSQL(t, e, waiter, query)
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()

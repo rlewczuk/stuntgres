@@ -273,8 +273,8 @@ func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
 			continue
 		}
-		if _, captured := changes.originals[index.Address()]; !captured {
-			changes.originals[index.Address()] = e.catalog.state.Get(index.Address())
+		if _, captured := changes.Originals[index.Address()]; !captured {
+			changes.Originals[index.Address()] = e.catalog.state.Get(index.Address())
 		}
 	}
 }
@@ -296,7 +296,7 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			return err
 		}
 		if !index.SQLIndex.Ready || !index.SQLIndex.Live || parent.RelationKind == catalog.PartitionedRelation {
-			indexJournalOf(changes.indexesSlot).forget(index.Address())
+			indexJournalOf(changes.Indexes).forget(index.Address())
 			continue
 		}
 		var root *storage.IndexRoot

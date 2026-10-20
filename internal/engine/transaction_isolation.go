@@ -199,8 +199,8 @@ func (s *StatementScope) snapshotDataPhase() error {
 		if !stableIsolation(t.isolation) || t.catalog == nil {
 			return false
 		}
-		for address, shape := range t.catalog.storage {
-			if root, exists := roots[address]; exists && !shape.hasSnapshot && !slices.Equal(root.Relation.Attributes, shape.relation.Attributes) {
+		for address, shape := range t.catalog.Storage {
+			if root, exists := roots[address]; exists && !shape.HasSnapshot && !slices.Equal(root.Relation.Attributes, shape.Relation.Attributes) {
 				return true
 			}
 		}

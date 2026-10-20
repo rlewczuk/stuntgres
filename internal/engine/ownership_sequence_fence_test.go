@@ -73,8 +73,8 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 		changes = newCatalogChanges()
 		database := *committed.(*catalog.Database)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
-		changes.descriptors[catalog.CurrentDatabaseAddress] = &database
-		changes.originals[catalog.CurrentDatabaseAddress] = committed
+		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database
+		changes.Originals[catalog.CurrentDatabaseAddress] = committed
 	}
 	session, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
 	if err != nil {
@@ -209,14 +209,14 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if candidate == nil {
 					t.Fatal("actual OWNER handler did not stage catalog changes")
 				}
-				staged, ok := candidate.descriptors[ref.Address].(*catalog.Relation)
+				staged, ok := candidate.Descriptors[ref.Address].(*catalog.Relation)
 				reader, bootstrap := oldRoles.Root.Read(authorization.PrincipalRef{}).LookupRef("ownership_reader"), oldRoles.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 					objectACLUnitEntry(target, target, authorization.UsagePrivilege|authorization.SelectPrivilege|authorization.UpdatePrivilege, 0),
 					objectACLUnitEntry(target, reader, authorization.UsagePrivilege, 0),
 					objectACLUnitEntry(bootstrap, reader, authorization.SelectPrivilege, 0),
 				}}
-				if !ok || staged == old || staged.Owner != target || !reflect.DeepEqual(staged.Security.ACL, wantACL) || *staged.Sequence != retainedOptions || candidate.generators[ref.Address] != nil || e.catalog.state != originalCatalog {
+				if !ok || staged == old || staged.Owner != target || !reflect.DeepEqual(staged.Security.ACL, wantACL) || *staged.Sequence != retainedOptions || candidate.Generators[ref.Address] != nil || e.catalog.state != originalCatalog {
 					t.Fatal("actual OWNER handler did not stage descriptor/ACL-only transfer without a prefix")
 				}
 				var checkpoint *rangePartitionPhaseContext

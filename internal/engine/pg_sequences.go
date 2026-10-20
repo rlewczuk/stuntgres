@@ -29,7 +29,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		}
 		namespace := base.Get(relation.Namespace())
 		if own != nil {
-			if current, overridden := own.descriptors[relation.Namespace()]; overridden {
+			if current, overridden := own.Descriptors[relation.Namespace()]; overridden {
 				namespace = current
 			}
 		}
@@ -70,7 +70,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	for address, descriptor := range base.Descriptors() {
 		if own != nil {
-			if _, overridden := own.descriptors[address]; overridden {
+			if _, overridden := own.Descriptors[address]; overridden {
 				continue
 			}
 		}
@@ -79,7 +79,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		}
 	}
 	if own != nil {
-		for _, descriptor := range own.descriptors {
+		for _, descriptor := range own.Descriptors {
 			if err := appendDefinition(descriptor); err != nil {
 				return nil, err
 			}

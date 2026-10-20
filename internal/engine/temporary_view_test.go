@@ -120,7 +120,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 			t.Fatal("ON COMMIT DROP missed view closure", d.Name())
 		}
 	}
-	if changes.descriptors[view.Address()] != view || len(writes[table.Address()]) != 1 {
+	if changes.Descriptors[view.Address()] != view || len(writes[table.Address()]) != 1 {
 		t.Fatal("terminal preparation mutated original candidate")
 	}
 }

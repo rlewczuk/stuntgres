@@ -12,27 +12,27 @@ import (
 )
 
 type catalogStorageChange struct {
-	original    *storage.Relation
-	root        []storage.RowVersion
-	ends        *storage.DeletionRoot
-	generation  uint64
-	replacement *storage.Relation
-	relation    *catalog.Relation
-	snapshot    []storage.RowVersion
-	hasSnapshot bool
-	rewritten   bool
-	truncated   bool
-	frontier    ids.CommitSeq
-	fills       map[int32]sqltype.Value
+	Original    *storage.Relation
+	Root        []storage.RowVersion
+	Ends        *storage.DeletionRoot
+	Generation  uint64
+	Replacement *storage.Relation
+	Relation    *catalog.Relation
+	Snapshot    []storage.RowVersion
+	HasSnapshot bool
+	Rewritten   bool
+	Truncated   bool
+	Frontier    ids.CommitSeq
+	Fills       map[int32]sqltype.Value
 	// Latest replacement's diagnostic mode is distinct from uninterrupted
 	// original-to-final concurrent provenance. A plain rewrite breaks the latter.
-	materializedConcurrent bool
-	materializedContinuous bool
+	MaterializedConcurrent bool
+	MaterializedContinuous bool
 }
 
 type catalogDependencyObservation struct {
-	base    *catalog.State
-	targets []ids.ObjectAddress
+	Base    *catalog.State
+	Targets []ids.ObjectAddress
 }
 
 type catalogAuthority struct {
@@ -65,10 +65,10 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 			return catalog.Conflict{}
 		}
 		if c != nil {
-			if original, ok := c.originals[catalog.CurrentDatabaseAddress]; ok && original != a.databasePredecessor {
+			if original, ok := c.Originals[catalog.CurrentDatabaseAddress]; ok && original != a.databasePredecessor {
 				return catalog.Conflict{}
 			}
-			c.originals[catalog.CurrentDatabaseAddress] = a.databasePredecessor
+			c.Originals[catalog.CurrentDatabaseAddress] = a.databasePredecessor
 		}
 	}
 	for _, observed := range a.observations {
@@ -78,10 +78,10 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 			continue
 		}
 		if c != nil {
-			original, owned := c.originals[address]
+			original, owned := c.Originals[address]
 			// Only an exact owner-private provider may use its predecessor.
 			// An installed observation must never be rescued by the overlay.
-			if owned && original != observed && installed == original && c.descriptors[address] == observed {
+			if owned && original != observed && installed == original && c.Descriptors[address] == observed {
 				continue
 			}
 		}
@@ -97,8 +97,8 @@ func sameVersionRoot(a, b []storage.RowVersion) bool {
 // Callers hold Engine.mu; private storage is never installed before Finish/Commit.
 func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *storage.Relation {
 	if c != nil {
-		if shape, ok := c.storage[a]; ok {
-			return shape.replacement
+		if shape, ok := c.Storage[a]; ok {
+			return shape.Replacement
 		}
 	}
 	return e.storage.Relations[a]
@@ -196,15 +196,15 @@ func projectDeletions(root *visibility.PrivateDeletes, store *storage.Relation) 
 // immutable shape map when attaching the matching projection to such a mark.
 func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, roots map[ids.ObjectAddress]visibility.Root) (*catalogChanges, error) {
 	var next *catalogChanges
-	for address, shape := range catalog.storage {
+	for address, shape := range catalog.Storage {
 		root, exists := roots[address]
-		if !exists || shape.rewritten || shape.hasSnapshot || slices.Equal(root.Relation.Attributes, shape.relation.Attributes) {
+		if !exists || shape.Rewritten || shape.HasSnapshot || slices.Equal(root.Relation.Attributes, shape.Relation.Attributes) {
 			continue
 		}
-		versions := shape.replacement.Versions
-		if root.Storage != shape.original || root.Ends != shape.ends || !sameVersionRoot(root.Versions, shape.root) {
+		versions := shape.Replacement.Versions
+		if root.Storage != shape.Original || root.Ends != shape.Ends || !sameVersionRoot(root.Versions, shape.Root) {
 			var err error
-			versions, err = projectVersions(ctx, root.Versions, root.Relation, shape.relation, shape.fills)
+			versions, err = projectVersions(ctx, root.Versions, root.Relation, shape.Relation, shape.Fills)
 			if err != nil {
 				return nil, err
 			}
@@ -212,13 +212,13 @@ func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, r
 		if next == nil {
 			copy := *catalog
 			next = &copy
-			next.storage = make(map[ids.ObjectAddress]catalogStorageChange, len(catalog.storage))
-			for a, entry := range catalog.storage {
-				next.storage[a] = entry
+			next.Storage = make(map[ids.ObjectAddress]catalogStorageChange, len(catalog.Storage))
+			for a, entry := range catalog.Storage {
+				next.Storage[a] = entry
 			}
 		}
-		shape.snapshot, shape.hasSnapshot = versions, true
-		next.storage[address] = shape
+		shape.Snapshot, shape.HasSnapshot = versions, true
+		next.Storage[address] = shape
 	}
 	if next == nil {
 		return catalog, nil

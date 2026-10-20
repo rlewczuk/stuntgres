@@ -10,7 +10,7 @@ import (
 // catalogFencesOf returns the journal's fences of type F in recording order.
 func catalogFencesOf[F catalogFence](c *catalogChanges) []F {
 	var out []F
-	for _, f := range c.fences {
+	for _, f := range c.Fences {
 		if typed, ok := f.(F); ok {
 			out = append(out, typed)
 		}
@@ -43,7 +43,7 @@ func TestCatalogFencesCheckKindsInCallOrder(t *testing.T) {
 		{kind: fenceStorageRead, name: "read-2"},
 	} {
 		f.seen = &seen
-		c.addFence(f)
+		c.AddFence(f)
 	}
 	if err := (&Engine{}).catalogFencesCurrentLocked(c, fenceStorageRead, fenceIndexSet, fenceNamespace); err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestCatalogFencesCheckKindsInCallOrder(t *testing.T) {
 		}
 	}
 	clone := cloneCatalogChanges(c)
-	if len(clone.fences) != len(c.fences) || &clone.fences[0] == &c.fences[0] {
+	if len(clone.Fences) != len(c.Fences) || &clone.Fences[0] == &c.Fences[0] {
 		t.Fatal("journal clone must copy the fence list in order into its own slice")
 	}
 }
@@ -67,8 +67,8 @@ func TestCatalogFencesStopAtFirstFailure(t *testing.T) {
 	var seen []string
 	first, second := errors.New("first"), errors.New("second")
 	c := newCatalogChanges()
-	c.addFence(orderProbeFence{kind: fenceIndexSet, name: "index", err: second, seen: &seen})
-	c.addFence(orderProbeFence{kind: fenceStorageRead, name: "read", err: first, seen: &seen})
+	c.AddFence(orderProbeFence{kind: fenceIndexSet, name: "index", err: second, seen: &seen})
+	c.AddFence(orderProbeFence{kind: fenceStorageRead, name: "read", err: first, seen: &seen})
 	if err := (&Engine{}).catalogFencesCurrentLocked(c, fenceStorageRead, fenceIndexSet); !errors.Is(err, first) {
 		t.Fatalf("got %v, want the earlier kind's error", err)
 	}

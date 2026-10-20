@@ -29,15 +29,15 @@ const (
 	fenceMaterializedSource                          // materializedSourceFence
 )
 
-func (c *catalogChanges) addFence(f session.Fence) {
-	c.fences = append(c.fences, f)
+func (c *catalogChanges) AddFence(f session.Fence) {
+	c.Fences = append(c.Fences, f)
 }
 
 // catalogFencesCurrentLocked checks the fences of each kind in turn, each kind
 // in recording order. Caller holds Engine.mu.
 func (e *Engine) catalogFencesCurrentLocked(c *catalogChanges, kinds ...session.FenceKind) error {
 	for _, kind := range kinds {
-		for _, f := range c.fences {
+		for _, f := range c.Fences {
 			if f.Kind() != kind {
 				continue
 			}

@@ -184,7 +184,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if stage.Get(index.Address()) != final {
 				t.Fatal("coherent validation evolved again")
 			}
-			if changes.originals[index.Address()] != index || changes.storage[survivor.Address()].original != before || !sameVersionRoot(changes.storage[survivor.Address()].root, oldRows) || changes.storage[survivor.Address()].ends != before.Ends || changes.storage[survivor.Address()].generation != before.Generation {
+			if changes.Originals[index.Address()] != index || changes.Storage[survivor.Address()].Original != before || !sameVersionRoot(changes.Storage[survivor.Address()].Root, oldRows) || changes.Storage[survivor.Address()].Ends != before.Ends || changes.Storage[survivor.Address()].Generation != before.Generation {
 				t.Fatal("original publication predecessor lost")
 			}
 			root := journalIndexesOrZero(changes).uniqueRoots[index.Address()]

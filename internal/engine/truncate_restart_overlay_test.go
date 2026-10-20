@@ -18,7 +18,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	sessionSQL(t, s, "SAVEPOINT before_reset")
 	writes, catalog := s.transactions.writes[p.Address], s.transactions.catalog
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-	first := s.transactions.catalog.generators[ps.Address]
+	first := s.transactions.catalog.Generators[ps.Address]
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	if first.Last != 1 || original.Last != 3 || e.storage.Sequences[ps.Address] != original {
 		t.Fatal("replacement mutated original counter")
@@ -38,21 +38,21 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	}
 	sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-	second := s.transactions.catalog.generators[ps.Address]
+	second := s.transactions.catalog.Generators[ps.Address]
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	sessionSQL(t, s, "SAVEPOINT after_reset")
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 2)
 	sessionSQL(t, s, "ROLLBACK TO after_reset")
-	if s.transactions.catalog.generators[ps.Address] != second || second.Last != 2 {
+	if s.transactions.catalog.Generators[ps.Address] != second || second.Last != 2 {
 		t.Fatal("savepoint copied/undid private generator counter")
 	}
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-	third := s.transactions.catalog.generators[ps.Address]
-	if third == second || third.Last != 1 || third.Called || third.Generation == second.Generation || s.transactions.catalog.originals[ps.Address] != descriptor {
+	third := s.transactions.catalog.Generators[ps.Address]
+	if third == second || third.Last != 1 || third.Called || third.Generation == second.Generation || s.transactions.catalog.Originals[ps.Address] != descriptor {
 		t.Fatal("repeat lost binding identity/first original")
 	}
 	sessionSQL(t, s, "ROLLBACK TO after_reset")
-	if s.transactions.catalog.generators[ps.Address] != second || second.Last != 2 {
+	if s.transactions.catalog.Generators[ps.Address] != second || second.Last != 2 {
 		t.Fatal("savepoint did not restore prior private binding")
 	}
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
@@ -185,7 +185,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		root, low, high := roleTableRef(t, e, "r"), roleTableRef(t, e, "low"), roleTableRef(t, e, "high")
 		rs, ls, hs := roleTableRef(t, e, "r_s"), roleTableRef(t, e, "low_s"), roleTableRef(t, e, "high_s")
 		scope := truncateRestartUnitStage(t, e, s, "low")
-		if len(scope.catalog.generators) != 1 || scope.catalog.generators[ls.Address] == nil || scope.catalog.generators[rs.Address] != nil || scope.catalog.generators[hs.Address] != nil || scope.catalog.storage[high.Address].replacement != nil {
+		if len(scope.catalog.Generators) != 1 || scope.catalog.Generators[ls.Address] == nil || scope.catalog.Generators[rs.Address] != nil || scope.catalog.Generators[hs.Address] != nil || scope.catalog.Storage[high.Address].Replacement != nil {
 			t.Fatal("direct leaf widened ownership closure")
 		}
 		if err := scope.Finish(context.Canceled); err != context.Canceled {
@@ -193,7 +193,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		}
 		scope.op.Done()
 		scope = truncateRestartUnitStage(t, e, s, "r")
-		if len(scope.catalog.generators) != 3 || len(scope.catalog.storage) != 2 || e.storage.Relations[root.Address] != nil || scope.catalog.storage[low.Address].replacement == nil || scope.catalog.storage[high.Address].replacement == nil {
+		if len(scope.catalog.Generators) != 3 || len(scope.catalog.Storage) != 2 || e.storage.Relations[root.Address] != nil || scope.catalog.Storage[low.Address].Replacement == nil || scope.catalog.Storage[high.Address].Replacement == nil {
 			t.Fatal("virtual root omitted its sequence/descendant")
 		}
 		for _, ref := range []ids.ObjectRef{rs, ls, hs} {
@@ -222,7 +222,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		foreign := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_s"})
 		original := e.storage.Sequences[foreign]
 		scope := truncateRestartUnitStage(t, e, s, "p")
-		if scope.catalog.generators[own] == nil || scope.catalog.generators[foreign] != nil || len(scope.truncateOrZero().sequences) != 1 {
+		if scope.catalog.Generators[own] == nil || scope.catalog.Generators[foreign] != nil || len(scope.truncateOrZero().sequences) != 1 {
 			t.Fatal("TEMP ownership not isolated")
 		}
 		lockState := e.locks.Inspect(scope.ticket)
@@ -245,7 +245,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		e, s, _, _, ps, _ := truncateRestartUnitFixture(t)
 		tx := transactionBegin(t, s)
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-		replacement := s.transactions.catalog.generators[ps.Address]
+		replacement := s.transactions.catalog.Generators[ps.Address]
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq OWNED BY NONE")
 		sessionSQL(t, s, "CREATE SEQUENCE later START 90 OWNED BY p.id")
 		transactionEnd(t, s, tx, true)

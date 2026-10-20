@@ -16,7 +16,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	target := roleTableRef(t, e, "q").Address
 	run(t, e, `CREATE TABLE t(id INT DEFAULT nextval('q'))`)
 	changes := newCatalogChanges()
-	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base, []ids.ObjectAddress{target}})
+	changes.Dependencies = append(changes.Dependencies, catalogDependencyObservation{base, []ids.ObjectAddress{target}})
 	e.mu.Lock()
 	err := e.catalogPreflightLocked(changes)
 	e.mu.Unlock()

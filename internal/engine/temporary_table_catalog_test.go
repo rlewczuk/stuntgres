@@ -34,7 +34,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.Address(), namespace)
 	e.catalogChangeLocked(c, table.Address(), table)
-	c.storage[table.Address()] = catalogStorageChange{replacement: &storage.Relation{}, relation: table}
+	c.Storage[table.Address()] = catalogStorageChange{Replacement: &storage.Relation{}, Relation: table}
 	e.mu.Unlock()
 	return e, op, c, table
 }
@@ -44,14 +44,14 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 	if err := e.catalogPreflightLocked(c); err != nil {
 		t.Fatal(err)
 	}
-	if c.storage[table.Address()].original != nil || e.storage.Relations[table.Address()] != nil {
+	if c.Storage[table.Address()].Original != nil || e.storage.Relations[table.Address()] != nil {
 		t.Fatal("invented committed predecessor")
 	}
 	mark := cloneCatalogChanges(c)
 	replacement := *table
 	replacement.OnCommit = parser.OnCommitDrop
 	e.catalogChangeLocked(c, table.Address(), &replacement)
-	if mark.descriptors[table.Address()] != table || mark.storage[table.Address()].replacement != c.storage[table.Address()].replacement {
+	if mark.Descriptors[table.Address()] != table || mark.Storage[table.Address()].Replacement != c.Storage[table.Address()].Replacement {
 		t.Fatal("savepoint descriptor/action/store rewritten")
 	}
 	e.mu.Lock()
@@ -91,7 +91,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		if err != nil {
 			t.Fatal(action, err)
 		}
-		if e.catalog.state.Get(table.Address()) != nil || e.storage.Relations[table.Address()] != nil || len(writes[table.Address()]) != 1 || c.descriptors[table.Address()] != table || mark.descriptors[table.Address()] != table {
+		if e.catalog.state.Get(table.Address()) != nil || e.storage.Relations[table.Address()] != nil || len(writes[table.Address()]) != 1 || c.Descriptors[table.Address()] != table || mark.Descriptors[table.Address()] != table {
 			t.Fatal("commit preparation mutated reachable predecessor")
 		}
 		switch action {
@@ -100,11 +100,11 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 				t.Fatal("preserve changed roots")
 			}
 		case parser.OnCommitDelete:
-			if next == c || len(nextWrites[table.Address()]) != 0 || next.storage[table.Address()].replacement == c.storage[table.Address()].replacement || next.descriptors[table.Address()] != table {
+			if next == c || len(nextWrites[table.Address()]) != 0 || next.Storage[table.Address()].Replacement == c.Storage[table.Address()].Replacement || next.Descriptors[table.Address()] != table {
 				t.Fatal("delete did not prepare isolated empty store")
 			}
 		case parser.OnCommitDrop:
-			if next == c || len(nextWrites[table.Address()]) != 0 || next.descriptors[table.Address()] != nil {
+			if next == c || len(nextWrites[table.Address()]) != 0 || next.Descriptors[table.Address()] != nil {
 				t.Fatal("drop did not remove private descriptor/writes")
 			}
 		}
@@ -170,7 +170,7 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.catalog.state != original || e.storage.Relations[table.Address()] != nil || c.descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
+	if !errors.Is(err, context.Canceled) || e.catalog.state != original || e.storage.Relations[table.Address()] != nil || c.Descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
 		t.Fatal("canceled final commit changed catalog/action/write roots", err)
 	}
 }

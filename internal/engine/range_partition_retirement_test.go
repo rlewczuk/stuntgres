@@ -180,7 +180,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 		t.Fatal("retirement preparation mutated original transaction state")
 	}
 	removed := make(map[ids.ObjectAddress]bool)
-	for a, d := range next.descriptors {
+	for a, d := range next.Descriptors {
 		if d != nil {
 			continue
 		}
@@ -191,7 +191,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 		if _, exists := nextDeletes[a]; exists {
 			t.Fatal("removed closure retained private deletes", a)
 		}
-		if next.storage[a].replacement != nil || next.generators[a] != nil || journalIndexesOrZero(next).uniqueRoots[a] != nil {
+		if next.Storage[a].Replacement != nil || next.Generators[a] != nil || journalIndexesOrZero(next).uniqueRoots[a] != nil {
 			t.Fatal("removed closure retained staged storage/generator/index", a)
 		}
 	}

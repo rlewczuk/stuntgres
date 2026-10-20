@@ -18,18 +18,18 @@ type indexJournal struct {
 
 // indexes returns the indexes slot, allocating it on first use.
 func journalIndexes(c *catalogChanges) *indexJournal {
-	if c.indexesSlot == nil {
-		c.indexesSlot = indexSlotOf(new(indexJournal))
+	if c.Indexes == nil {
+		c.Indexes = indexSlotOf(new(indexJournal))
 	}
-	return indexJournalOf(c.indexesSlot)
+	return indexJournalOf(c.Indexes)
 }
 
 // indexesOrZero reads the indexes slot; a nil slot reads as zero.
 func journalIndexesOrZero(c *catalogChanges) indexJournal {
-	if c.indexesSlot == nil {
+	if c.Indexes == nil {
 		return indexJournal{}
 	}
-	return *indexJournalOf(c.indexesSlot)
+	return *indexJournalOf(c.Indexes)
 }
 
 // clone copies the slot for a new journal. The journal is copy-on-write and

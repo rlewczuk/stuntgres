@@ -21,7 +21,7 @@ func (extensionAuthorityFence) Kind() session.FenceKind { return fenceExtensionA
 // the central publication-conflict contract. The name check does not depend
 // on the observation, so repeating it per fence keeps the first error.
 func (f extensionAuthorityFence) currentLocked(e *Engine, c *catalogChanges) error {
-	for key, original := range c.names {
+	for key, original := range c.Names {
 		if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.catalog.state.NameAddress(key) != original {
 			return extension.NameConflict(key.Name)
 		}

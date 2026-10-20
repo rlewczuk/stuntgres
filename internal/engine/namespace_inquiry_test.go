@@ -51,20 +51,20 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal("private first-use candidate", id, path)
 			}
-			if prior && candidate.descriptors[carried.Address()] != carried {
+			if prior && candidate.Descriptors[carried.Address()] != carried {
 				e.mu.Unlock()
 				t.Fatal("lost prior candidate")
 			}
-			before := len(candidate.descriptors)
+			before := len(candidate.Descriptors)
 			auth2, path2, err := scope.schemaInquiryPathLocked(e)
-			if err != nil || temporaryNamespace(auth2) != id || len(path2) != len(path) || len(candidate.descriptors) != before || candidate != scope.catalog {
+			if err != nil || temporaryNamespace(auth2) != id || len(path2) != len(path) || len(candidate.Descriptors) != before || candidate != scope.catalog {
 				e.mu.Unlock()
 				t.Fatal("repeated inquiry allocated or lost overlay", err)
 			}
 			oidType, _ := auth.Catalog.LookupType(sqltype.Oid)
 			boolType, _ := auth.Catalog.LookupType(sqltype.Bool)
 			var toast ids.ObjectAddress
-			for a, d := range candidate.descriptors {
+			for a, d := range candidate.Descriptors {
 				if n, ok := d.(*catalog.Namespace); ok && n.TemporaryToast && n.Temporary == s.token {
 					toast = a
 				}

@@ -19,22 +19,22 @@ import (
 func TestEnumProvenanceSavepoints(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 45000}
 	outer := newCatalogChanges()
-	outer.enum = enumSlotOf(&typedef.EnumJournal{Created: map[ids.ObjectAddress]bool{address: true}, Unsafe: map[int64]bool{9: true}})
+	outer.Enum = enumSlotOf(&typedef.EnumJournal{Created: map[ids.ObjectAddress]bool{address: true}, Unsafe: map[int64]bool{9: true}})
 	child := cloneCatalogChanges(outer)
-	enumJournalOf(child.enum).UnsafeMembers()[10] = true
-	delete(enumJournalOf(child.enum).CreatedTypes(), address)
-	if enumJournalOf(outer.enum).UnsafeMembers()[10] || !enumJournalOf(outer.enum).CreatedTypes()[address] {
+	enumJournalOf(child.Enum).UnsafeMembers()[10] = true
+	delete(enumJournalOf(child.Enum).CreatedTypes(), address)
+	if enumJournalOf(outer.Enum).UnsafeMembers()[10] || !enumJournalOf(outer.Enum).CreatedTypes()[address] {
 		t.Fatal("provenance clone mutated mark")
 	}
 	owner := &transactionOwner{catalog: outer}
 	mark := savepointMark{catalog: owner.catalog}
 	owner.catalog = child
 	// RELEASE retains child roots; ROLLBACK restores the exact marked root.
-	if typedef.EnumSafety(enumJournalOf(owner.catalog.enum).UnsafeMembers())(45000, 10) {
+	if typedef.EnumSafety(enumJournalOf(owner.catalog.Enum).UnsafeMembers())(45000, 10) {
 		t.Fatal("child unsafe member upgraded")
 	}
 	owner.catalog = mark.catalog
-	if !typedef.EnumSafety(enumJournalOf(owner.catalog.enum).UnsafeMembers())(45000, 10) || typedef.EnumSafety(enumJournalOf(owner.catalog.enum).UnsafeMembers())(45000, 9) {
+	if !typedef.EnumSafety(enumJournalOf(owner.catalog.Enum).UnsafeMembers())(45000, 10) || typedef.EnumSafety(enumJournalOf(owner.catalog.Enum).UnsafeMembers())(45000, 9) {
 		t.Fatal("rollback provenance")
 	}
 }

@@ -161,7 +161,7 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 	if err == nil || ref != (ids.ObjectRef{}) {
 		t.Fatal("lazy TEMP denial allocated namespace", ref, err)
 	}
-	if e.catalog.state != base || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || len(changes.descriptors) != 0 || len(changes.names) != 0 || s.temporaryNamespace != (ids.ObjectAddress{}) {
+	if e.catalog.state != base || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || len(changes.Descriptors) != 0 || len(changes.Names) != 0 || s.temporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("TEMP denial consumed catalog identity or staged objects")
 	}
 }

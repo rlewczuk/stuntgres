@@ -206,7 +206,7 @@ func TestSequenceTemporaryNamespacePairAllocationFailure(t *testing.T) {
 		ref, err := e.relationCreationNamespaceLocked(auth, name, "temporary", changes)
 		e.mu.Unlock()
 		op.Done()
-		if err == nil || ref != (ids.ObjectRef{}) || e.catalog.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) || len(changes.descriptors) != 0 || len(changes.names) != 0 {
+		if err == nil || ref != (ids.ObjectRef{}) || e.catalog.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) || len(changes.Descriptors) != 0 || len(changes.Names) != 0 {
 			t.Fatal("partial TEMP pair on second allocation failure", identity, ref, err, changes)
 		}
 		if namespaceUnitCapture(t, e, e.CatalogRead()).Count() != 4 {

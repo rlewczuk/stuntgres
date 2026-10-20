@@ -191,11 +191,11 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if fence.ref.Address != inner.Address() || fence.relation != snapshot.Catalog.Get(inner.Address()) || fence.storage != innerStorage {
 		t.Fatal("generated source fence retargeted", fence)
 	}
-	if _, strict := changes.originals[inner.Address()]; strict {
+	if _, strict := changes.Originals[inner.Address()]; strict {
 		t.Fatal("source-only observation became strict predecessor")
 	}
 	for _, d := range []catalog.Descriptor{outer, index, gate, provider} {
-		if changes.originals[d.Address()] != d {
+		if changes.Originals[d.Address()] != d {
 			t.Fatal("strict target/index/ordinary/provider original lost", d.Address())
 		}
 	}
@@ -209,7 +209,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil); err != nil {
 		t.Fatal(err)
 	}
-	if changes.originals[inner.Address()] != inner {
+	if changes.Originals[inner.Address()] != inner {
 		t.Fatal("provider/source overlap lost strict original")
 	}
 	for _, d := range []catalog.Descriptor{outer, index, provider, inner} {

@@ -52,9 +52,9 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 	if phase != nil && phase.preparing {
 		return true
 	}
-	if c != nil && (len(c.descriptors) != 0 || len(c.names) != 0 || len(c.defaultACLs) != 0 ||
-		len(c.generators) != 0 || len(c.storage) != 0 || c.roles != nil ||
-		indexJournalOf(c.indexesSlot).pending()) {
+	if c != nil && (len(c.Descriptors) != 0 || len(c.Names) != 0 || len(c.DefaultACLs) != 0 ||
+		len(c.Generators) != 0 || len(c.Storage) != 0 || c.Roles != nil ||
+		indexJournalOf(c.Indexes).pending()) {
 		return true
 	}
 	for _, rows := range writes {
@@ -183,7 +183,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		var nextStorage map[ids.ObjectAddress]*storage.Relation
 		var materializedTokens map[ids.ObjectAddress]*storage.MaterializedLineage
 		if c != nil {
-			if c.cachedBase != current {
+			if c.CachedBase != current {
 				e.mu.Unlock()
 				continue
 			}
@@ -192,19 +192,19 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				return err
 			}
 			if materialize {
-				for address, shape := range c.storage {
-					if shape.materializedContinuous && shape.original != nil {
+				for address, shape := range c.Storage {
+					if shape.MaterializedContinuous && shape.Original != nil {
 						if materializedTokens == nil {
 							materializedTokens = make(map[ids.ObjectAddress]*storage.MaterializedLineage)
 						}
-						token := shape.original.MaterializedLineage
+						token := shape.Original.MaterializedLineage
 						if token == nil {
 							token = &storage.MaterializedLineage{}
 						}
 						materializedTokens[address] = token
 					}
 				}
-				nextSequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.storage.Sequences)+len(c.generators))
+				nextSequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.storage.Sequences)+len(c.Generators))
 				for a, g := range e.storage.Sequences {
 					nextSequences[a] = g
 				}
@@ -249,8 +249,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			if nextCatalog != nil {
 				disclosure.Catalog = e.catalog.read(nextCatalog)
 				disclosure.Recapture(disclosure.Catalog)
-				if c != nil && c.roles != nil {
-					disclosure.RoleRecord = c.roles
+				if c != nil && c.Roles != nil {
+					disclosure.RoleRecord = c.Roles
 					disclosure.Recapture(disclosure.Catalog)
 				}
 			}
@@ -268,12 +268,12 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 		}
 		if c != nil {
-			for a, shape := range c.storage {
+			for a, shape := range c.Storage {
 				if materialize {
-					nextStorage[a] = shape.replacement
+					nextStorage[a] = shape.Replacement
 				}
 			}
-			for a, d := range c.descriptors {
+			for a, d := range c.Descriptors {
 				if d == nil && materialize {
 					delete(nextSequences, a)
 					delete(nextStorage, a)
@@ -284,13 +284,13 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				}
 			}
 			if materialize {
-				for a, g := range c.generators {
+				for a, g := range c.Generators {
 					if nextCatalog.Get(a) != nil {
 						nextSequences[a] = g
 					}
 				}
 			}
-			for a, d := range c.descriptors {
+			for a, d := range c.Descriptors {
 				if a.ClassID == ids.NamespaceClassID && current.Get(a) != d {
 					if err := nextCatalog.AdvanceNamespaceGeneration(); err != nil {
 						return err
@@ -312,14 +312,14 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if len(indexPredecessors) != 0 || c != nil {
 			buildStores := indexStores
 			var rebuildIndexes map[ids.ObjectAddress]bool
-			if c != nil && len(c.storage) > 0 {
+			if c != nil && len(c.Storage) > 0 {
 				buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores))
 				for a, store := range indexStores {
 					buildStores[a] = store
 				}
-				rebuildIndexes = make(map[ids.ObjectAddress]bool, len(c.storage))
-				for a, shape := range c.storage {
-					buildStores[a] = shape.replacement
+				rebuildIndexes = make(map[ids.ObjectAddress]bool, len(c.Storage))
+				for a, shape := range c.Storage {
+					buildStores[a] = shape.Replacement
 					rebuildIndexes[a] = true
 				}
 			}
@@ -332,12 +332,12 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 			var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
 			if c != nil {
-				for address, shape := range c.storage {
-					if shape.materializedConcurrent {
+				for address, shape := range c.Storage {
+					if shape.MaterializedConcurrent {
 						if runtimeOwners == nil {
 							runtimeOwners = make(map[ids.ObjectAddress]authorization.PrincipalRef)
 						}
-						runtimeOwners[address] = shape.relation.Owner
+						runtimeOwners[address] = shape.Relation.Owner
 					}
 				}
 			}
@@ -410,7 +410,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		}
 		nextRevision := e.catalog.nextRevision
 		if c != nil && materialize {
-			for _, d := range c.descriptors {
+			for _, d := range c.Descriptors {
 				if d != nil {
 					nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, d)
 				}
@@ -471,17 +471,17 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			p.store.Generation++
 		}
 		if c != nil {
-			for address, shape := range c.storage {
-				if shape.truncated && shape.original != nil {
-					shape.original.TruncateLineage = shape.replacement.TruncateLineage
+			for address, shape := range c.Storage {
+				if shape.Truncated && shape.Original != nil {
+					shape.Original.TruncateLineage = shape.Replacement.TruncateLineage
 				}
 				if token := materializedTokens[address]; token != nil {
-					shape.original.MaterializedLineage = token
-					shape.replacement.MaterializedLineage = token
+					shape.Original.MaterializedLineage = token
+					shape.Replacement.MaterializedLineage = token
 				}
-				if shape.rewritten && shape.relation.RelationKind == catalog.MaterializedViewRelation {
-					for i := range shape.replacement.Versions {
-						shape.replacement.Versions[i].Born = e.visibility.CommitSeq() + 1
+				if shape.Rewritten && shape.Relation.RelationKind == catalog.MaterializedViewRelation {
+					for i := range shape.Replacement.Versions {
+						shape.Replacement.Versions[i].Born = e.visibility.CommitSeq() + 1
 					}
 				}
 			}
@@ -489,10 +489,10 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			e.storage.ReplaceRelationsLocked(nextStorage)
 			e.catalog.state = nextCatalog
 			e.catalog.nextRevision = nextRevision
-			if c.roles != nil {
-				e.roles.published = c.roles
+			if c.Roles != nil {
+				e.roles.published = c.Roles
 			}
-			for a, d := range c.descriptors {
+			for a, d := range c.Descriptors {
 				if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == session.token {
 					session.temporaryNamespace = a
 				}

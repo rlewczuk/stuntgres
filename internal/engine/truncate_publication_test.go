@@ -22,7 +22,7 @@ func TestTruncateGraphPartitions(t *testing.T) {
 	left, right := roleTableRef(t, e, "left_leaf"), roleTableRef(t, e, "right_leaf")
 	oldLeft, oldRight := e.storage.Relations[left.Address], e.storage.Relations[right.Address]
 	scope := truncateUnitStage(t, e, s, "r")
-	if len(scope.truncateOrZero().relations) != 4 || len(scope.catalog.storage) != 2 || e.storage.Relations[root.Address] != nil || e.storage.Relations[nested.Address] != nil {
+	if len(scope.truncateOrZero().relations) != 4 || len(scope.catalog.Storage) != 2 || e.storage.Relations[root.Address] != nil || e.storage.Relations[nested.Address] != nil {
 		t.Fatal("virtual authorities became physical stores or a real leaf was omitted")
 	}
 	for _, ref := range []ids.ObjectRef{root, nested, left, right} {
@@ -77,7 +77,7 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	lockAwait(t, done, context.Canceled)
 	sessionSQL(t, waiter, "ROLLBACK TO preserve")
 	foreignKeyHeldMode(t, e, p, 0, ticket, lock.AccessShare|lock.RowExclusive)
-	if !sameVersionRoot(waiter.transactions.writes[p.Address], writes) || waiter.transactions.catalog != nil && len(waiter.transactions.catalog.storage) != 0 {
+	if !sameVersionRoot(waiter.transactions.writes[p.Address], writes) || waiter.transactions.catalog != nil && len(waiter.transactions.catalog.Storage) != 0 {
 		t.Fatal("canceled upgrade lost earlier roots/left empty generation")
 	}
 	transactionEnd(t, holder, held, false)
@@ -134,7 +134,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 			}
 			if kind != "epoch" {
 				sessionSQL(t, s, "ROLLBACK TO preserve")
-				if !sameVersionRoot(s.transactions.writes[p.Address], writes) || s.transactions.catalog != nil && len(s.transactions.catalog.storage) != 0 {
+				if !sameVersionRoot(s.transactions.writes[p.Address], writes) || s.transactions.catalog != nil && len(s.transactions.catalog.Storage) != 0 {
 					t.Fatal("final veto lost prior overlay roots")
 				}
 			}

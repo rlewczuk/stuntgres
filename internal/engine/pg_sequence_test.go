@@ -171,7 +171,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	base.SetDescriptor(a, &catalog.Relation{ObjectAddress: a, RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
 	own := newCatalogChanges()
-	own.descriptors[a] = nil
+	own.Descriptors[a] = nil
 	for _, tc := range []struct {
 		name string
 		base *catalog.State
@@ -215,11 +215,11 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	newOptions := *options
 	newOptions.Start = -4
 	updated.Sequence = &newOptions
-	own.descriptors[a] = &updated
-	own.descriptors[dropped] = nil
+	own.Descriptors[a] = &updated
+	own.Descriptors[dropped] = nil
 	addition := *d
 	addition.ObjectAddress = added
-	own.descriptors[added] = &addition
+	own.Descriptors[added] = &addition
 	want := map[uint32][]any{20000: {uint32(20000), uint32(21), int64(-4), int64(-3), int64(-1), int64(-32768), int64(1), false}, 20002: {uint32(20002), uint32(21), int64(-1), int64(-3), int64(-1), int64(-32768), int64(1), false}}
 	// Latest publication has none of the retained base's sequence definitions.
 	e.catalog.state = catalog.CloneState(e.catalog.state)

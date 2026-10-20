@@ -30,7 +30,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	auth.Catalog = e.privateCatalogLocked(changes)
 	auth.Recapture(auth.Catalog)
-	if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
 	if op.replayOrZero().tableDestination {
@@ -260,47 +260,47 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalogChanges) {
 	e.stageDefaultChangesLocked(stage, changes)
 	for a, rowShape := range stage.rowShapes {
-		shape, exists := changes.storage[a]
+		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = catalogStorageChange{original: rowShape.original, root: rowShape.root, ends: rowShape.observedEnds, generation: rowShape.generation}
+			shape = catalogStorageChange{Original: rowShape.original, Root: rowShape.root, Ends: rowShape.observedEnds, Generation: rowShape.generation}
 		}
-		if shape.replacement != rowShape.replacement {
-			shape.truncated = false
-			shape.materializedConcurrent, shape.materializedContinuous = false, false
+		if shape.Replacement != rowShape.replacement {
+			shape.Truncated = false
+			shape.MaterializedConcurrent, shape.MaterializedContinuous = false, false
 		}
-		shape.replacement = rowShape.replacement
-		shape.relation, _ = stage.Get(a).(*catalog.Relation)
-		if shape.relation == nil {
+		shape.Replacement = rowShape.replacement
+		shape.Relation, _ = stage.Get(a).(*catalog.Relation)
+		if shape.Relation == nil {
 			// An index-expression-only domain generation changes executable
 			// index authority without changing its parent's column descriptor.
-			shape.relation = stage.Base.MustRelation(a)
+			shape.Relation = stage.Base.MustRelation(a)
 		}
-		changes.storage[a] = shape
+		changes.Storage[a] = shape
 	}
 	if r := stage.materializedOrZero().replacement; r != nil {
 		a := r.original.Address()
-		shape, exists := changes.storage[a]
+		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = catalogStorageChange{original: r.predecessor, root: r.predecessor.Versions, ends: r.ends, generation: r.generation}
+			shape = catalogStorageChange{Original: r.predecessor, Root: r.predecessor.Versions, Ends: r.ends, Generation: r.generation}
 		}
 		if !exists {
-			shape.materializedContinuous = r.concurrent && r.predecessor == e.storage.Relations[a]
+			shape.MaterializedContinuous = r.concurrent && r.predecessor == e.storage.Relations[a]
 		} else {
-			shape.materializedContinuous = shape.materializedContinuous && r.concurrent
+			shape.MaterializedContinuous = shape.MaterializedContinuous && r.concurrent
 		}
-		shape.materializedConcurrent = r.concurrent
+		shape.MaterializedConcurrent = r.concurrent
 		// Keep the first committed predecessor (or genuine private CREATE
 		// absence). A repeated refresh replaces only the latest private root.
-		shape.replacement, shape.relation = r.storage, r.descriptor
-		shape.truncated = false
-		shape.rewritten, shape.frontier = true, e.visibility.CommitSeq()
-		shape.snapshot, shape.hasSnapshot = nil, false
-		changes.storage[a] = shape
+		shape.Replacement, shape.Relation = r.storage, r.descriptor
+		shape.Truncated = false
+		shape.Rewritten, shape.Frontier = true, e.visibility.CommitSeq()
+		shape.Snapshot, shape.HasSnapshot = nil, false
+		changes.Storage[a] = shape
 	}
 	for a, d := range stage.Descriptors() {
 		e.catalogChangeLocked(changes, a, d)
 		if table, ok := d.(*catalog.Relation); ok && table.RelationKind.Stored() && e.privateStorageLocked(changes, a) == nil {
-			changes.storage[a] = catalogStorageChange{replacement: &storage.Relation{}, relation: table}
+			changes.Storage[a] = catalogStorageChange{Replacement: &storage.Relation{}, Relation: table}
 		}
 	}
 	for address, candidate := range stage.indexesOrZero().candidates {
@@ -314,13 +314,13 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	}
 	for a := range stage.Removals() {
 		e.catalogChangeLocked(changes, a, nil)
-		delete(changes.generators, a)
-		delete(changes.storage, a)
-		indexJournalOf(changes.indexesSlot).forget(a)
+		delete(changes.Generators, a)
+		delete(changes.Storage, a)
+		indexJournalOf(changes.Indexes).forget(a)
 		delete(journalIndexesOrZero(changes).rebuilds, a)
 	}
 	for a, g := range stage.sequence.stagedGenerators() {
-		changes.generators[a] = g
+		changes.Generators[a] = g
 	}
 }
 

@@ -12,19 +12,19 @@ import (
 
 func domainWritable(c *catalogChanges) *typedef.DomainJournal {
 	next := new(typedef.DomainJournal)
-	if c.domain != nil {
-		*next = *domainJournalOf(c.domain)
+	if c.Domain != nil {
+		*next = *domainJournalOf(c.Domain)
 	}
-	c.domain = domainSlotOf(next)
+	c.Domain = domainSlotOf(next)
 	return next
 }
 
 func enumWritable(c *catalogChanges) *typedef.EnumJournal {
 	next := new(typedef.EnumJournal)
-	if c.enum != nil {
-		*next = *enumJournalOf(c.enum)
+	if c.Enum != nil {
+		*next = *enumJournalOf(c.Enum)
 	}
-	c.enum = enumSlotOf(next)
+	c.Enum = enumSlotOf(next)
 	return next
 }
 

@@ -46,7 +46,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 			oldPD, oldQD := e.catalog.state.MustRelation(ps.Address), e.catalog.state.MustRelation(qs.Address)
 			frontier := e.visibility.CommitSeq()
 			scope := truncateRestartUnitStage(t, e, s, "p", "q", "p")
-			if len(scope.truncateOrZero().sequences) != 2 || len(scope.catalog.generators) != 2 {
+			if len(scope.truncateOrZero().sequences) != 2 || len(scope.catalog.Generators) != 2 {
 				t.Fatal("owned sequences not deduplicated")
 			}
 			for _, test := range []struct {
@@ -55,12 +55,12 @@ func TestTruncateRestartGeneration(t *testing.T) {
 				d     *catalog.Relation
 				start int64
 			}{{ps, oldPS, oldPD, 1}, {qs, oldQS, oldQD, 44}} {
-				replacement := scope.catalog.generators[test.ref.Address]
-				d := scope.catalog.descriptors[test.ref.Address].(*catalog.Relation)
+				replacement := scope.catalog.Generators[test.ref.Address]
+				d := scope.catalog.Descriptors[test.ref.Address].(*catalog.Relation)
 				if replacement == nil || replacement == test.old || replacement.Last != test.start || replacement.Called || replacement.Generation != d.Revision() || d.SequencePlanStamp != d.Revision() || d.SequencePlanStamp == test.d.SequencePlanStamp || d.Sequence != test.d.Sequence || d.Owner != test.d.Owner || d.Address() != test.d.Address() {
 					t.Fatal("not a fresh configured-start binding with preserved definition")
 				}
-				if scope.catalog.originals[test.ref.Address] != test.d {
+				if scope.catalog.Originals[test.ref.Address] != test.d {
 					t.Fatal("lost committed descriptor fence")
 				}
 			}
@@ -79,7 +79,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 				t.Fatal("predecessor mutated")
 			}
 			if commit {
-				if e.storage.Sequences[ps.Address] != scope.catalog.generators[ps.Address] || e.storage.Sequences[qs.Address] != scope.catalog.generators[qs.Address] || e.storage.Relations[p.Address] == oldP || e.storage.Relations[q.Address] == oldQ || e.visibility.CommitSeq() != frontier+1 {
+				if e.storage.Sequences[ps.Address] != scope.catalog.Generators[ps.Address] || e.storage.Sequences[qs.Address] != scope.catalog.Generators[qs.Address] || e.storage.Relations[p.Address] == oldP || e.storage.Relations[q.Address] == oldQ || e.visibility.CommitSeq() != frontier+1 {
 					t.Fatal("table and generator set not installed at one frontier")
 				}
 			} else if e.storage.Sequences[ps.Address] != oldPS || e.storage.Sequences[qs.Address] != oldQS || e.catalog.state.Get(ps.Address) != oldPD || e.catalog.state.Get(qs.Address) != oldQD || e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || e.visibility.CommitSeq() != frontier {
@@ -102,12 +102,12 @@ func TestTruncateRestartPublication(t *testing.T) {
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
 	second := s.transactions.catalog
-	if first.generators[ps.Address] == second.generators[ps.Address] || second.originals[ps.Address] != oldD || second.storage[p.Address].original != oldP || second.storage[q.Address].original != oldQ || e.storage.Sequences[ps.Address] != oldPS || oldPS.Last != 3 || e.storage.Sequences[qs.Address] != oldQS {
+	if first.Generators[ps.Address] == second.Generators[ps.Address] || second.Originals[ps.Address] != oldD || second.Storage[p.Address].Original != oldP || second.Storage[q.Address].Original != oldQ || e.storage.Sequences[ps.Address] != oldPS || oldPS.Last != 3 || e.storage.Sequences[qs.Address] != oldQS {
 		t.Fatal("repeat lost originals or mutated live binding")
 	}
 	frontier := e.visibility.CommitSeq()
 	transactionEnd(t, s, tx, true)
-	if e.visibility.CommitSeq() != frontier+1 || e.storage.Sequences[ps.Address] != second.generators[ps.Address] || e.storage.Sequences[qs.Address] != second.generators[qs.Address] || e.storage.Relations[p.Address] != second.storage[p.Address].replacement || e.storage.Relations[q.Address] != second.storage[q.Address].replacement {
+	if e.visibility.CommitSeq() != frontier+1 || e.storage.Sequences[ps.Address] != second.Generators[ps.Address] || e.storage.Sequences[qs.Address] != second.Generators[qs.Address] || e.storage.Relations[p.Address] != second.Storage[p.Address].Replacement || e.storage.Relations[q.Address] != second.Storage[q.Address].Replacement {
 		t.Fatal("explicit commit did not install combined candidate once")
 	}
 	sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)

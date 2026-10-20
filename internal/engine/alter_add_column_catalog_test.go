@@ -91,14 +91,14 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	original := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one}}}}
 	historical := []storage.RowVersion{{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	shape := catalogStorageChange{original: original, root: original.Versions, relation: next, replacement: &storage.Relation{}, fills: map[int32]sqltype.Value{2: seven}}
-	catalog := &catalogChanges{storage: map[ids.ObjectAddress]catalogStorageChange{address: shape}}
+	shape := catalogStorageChange{Original: original, Root: original.Versions, Relation: next, Replacement: &storage.Relation{}, Fills: map[int32]sqltype.Value{2: seven}}
+	catalog := &catalogChanges{Storage: map[ids.ObjectAddress]catalogStorageChange{address: shape}}
 	roots := map[ids.ObjectAddress]visibility.Root{address: {Storage: original, Relation: old, Versions: historical}}
 	projected, err := projectPrivateSnapshotRoots(context.Background(), catalog, roots)
-	if err != nil || projected == catalog || !projected.storage[address].hasSnapshot || catalog.storage[address].hasSnapshot {
+	if err != nil || projected == catalog || !projected.Storage[address].HasSnapshot || catalog.Storage[address].HasSnapshot {
 		t.Fatal(projected, err)
 	}
-	rows := projected.storage[address].snapshot
+	rows := projected.Storage[address].Snapshot
 	if len(rows) != 1 || rows[0].Row != 2 || rows[0].Version != 2 || !reflect.DeepEqual(rows[0].Values, []sqltype.Value{seven}) || !reflect.DeepEqual(historical[0].Values, []sqltype.Value{one}) {
 		t.Fatal("equal-width historical root changed", rows, historical)
 	}

@@ -272,7 +272,7 @@ func prepareAlterIndexRoots(evaluation *exec.Context, changes *catalogChanges, s
 		}
 	}
 	for _, build := range validated {
-		descriptor, changed := changes.descriptors[build.index.Address()]
+		descriptor, changed := changes.Descriptors[build.index.Address()]
 		if !changed {
 			descriptor = evaluation.Catalog.Get(build.index.Address())
 		}
@@ -286,7 +286,7 @@ func prepareAlterIndexRoots(evaluation *exec.Context, changes *catalogChanges, s
 		}
 		retainIndexBuild(changes, index, baseline, root)
 	}
-	for address, descriptor := range changes.descriptors {
+	for address, descriptor := range changes.Descriptors {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.Valid {
 			continue
@@ -297,7 +297,7 @@ func prepareAlterIndexRoots(evaluation *exec.Context, changes *catalogChanges, s
 		if candidate, produced := journalIndexesOrZero(changes).candidates[address]; produced && candidate.matchesIndex(index, baseline) {
 			continue
 		}
-		if original := changes.originals[address]; original == descriptor {
+		if original := changes.Originals[address]; original == descriptor {
 			continue
 		}
 		if metadataOnly {

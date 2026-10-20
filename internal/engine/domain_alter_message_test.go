@@ -41,7 +41,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			step("ALTER DOMAIN public.d ADD CONSTRAINT counted CHECK(nextval('public.calls')>0) NOT VALID")
 			step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
 			changes := s.transactions.catalog
-			if len(domainJournalOf(changes.domain).ValidationFences()) != 1 || len(domainJournalOf(cloneCatalogChanges(changes).domain).ValidationFences()) != 1 || domainJournalOf(cloneCatalogChanges(changes).domain).ValidationFences()[0] != domainJournalOf(changes.domain).ValidationFences()[0] {
+			if len(domainJournalOf(changes.Domain).ValidationFences()) != 1 || len(domainJournalOf(cloneCatalogChanges(changes).Domain).ValidationFences()) != 1 || domainJournalOf(cloneCatalogChanges(changes).Domain).ValidationFences()[0] != domainJournalOf(changes.Domain).ValidationFences()[0] {
 				t.Fatal("immutable validation observation lost during clone")
 			}
 			view := e.privateCatalogLocked(changes)
@@ -51,7 +51,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			if e.storage.Sequences[sequence.Address].Last != 2 || domain.DomainChecks[0].NotValid || e.catalog.state != entry {
 				t.Fatal("selected truth count or private publication", e.storage.Sequences[sequence.Address].Last)
 			}
-			if kind == "private_create" && (changes.originals[domain.Address()] != nil || changes.storage[table.Address].original != nil) {
+			if kind == "private_create" && (changes.Originals[domain.Address()] != nil || changes.Storage[table.Address].Original != nil) {
 				t.Fatal("private creation lacks honest committed absence")
 			}
 			if kind == "later_own_container" {
@@ -59,10 +59,10 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			}
 			expectedTruth := int64(2)
 			if kind == "multiple_validations" {
-				first := domainJournalOf(changes.domain).ValidationFences()[0]
+				first := domainJournalOf(changes.Domain).ValidationFences()[0]
 				step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
 				latest := s.transactions.catalog
-				if len(domainJournalOf(latest.domain).ValidationFences()) != 2 || domainJournalOf(latest.domain).ValidationFences()[0] != first || len(domainJournalOf(changes.domain).ValidationFences()) != 1 {
+				if len(domainJournalOf(latest.Domain).ValidationFences()) != 2 || domainJournalOf(latest.Domain).ValidationFences()[0] != first || len(domainJournalOf(changes.Domain).ValidationFences()) != 1 {
 					t.Fatal("repeated validation replaced earliest or sibling fence")
 				}
 				expectedTruth = 4

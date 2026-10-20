@@ -344,7 +344,7 @@ func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 	if f.e.stageRead(stage).State().DumpPriority(source) != 10 {
 		t.Fatal("stage lost source priority")
 	}
-	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{source: nil}}
+	changes := &catalogChanges{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{source: nil}}
 	private := f.e.privateCatalogLocked(changes)
 	if _, exists := private.State().LookupDumpPriority(source); exists {
 		t.Fatal("private removal retained obsolete priority")

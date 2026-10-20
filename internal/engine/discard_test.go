@@ -321,10 +321,10 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	if scope.completed || scope.sessionCompleted || scope.catalog == nil || !scope.projectedRoots {
 		t.Fatal("TEMP bypasses private publication")
 	}
-	if scope.catalog.originals[relation.Address()] != relation || scope.catalog.descriptors[relation.Address()] != nil || e.storage.Relations[relation.Address()] != storage {
+	if scope.catalog.Originals[relation.Address()] != relation || scope.catalog.Descriptors[relation.Address()] != nil || e.storage.Relations[relation.Address()] != storage {
 		t.Fatal("TEMP uses live undo instead of catalog original fence")
 	}
-	if original, present := scope.catalog.originals[privateAddress]; !present || original != nil {
+	if original, present := scope.catalog.Originals[privateAddress]; !present || original != nil {
 		t.Fatal("new private TEMP target lost committed absence fence")
 	}
 	if err := scope.Finish(nil); err != nil {
@@ -411,7 +411,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					op.Done()
 					t.Fatal(err)
 				}
-				if scope.completed || scope.sessionCompleted || !scope.projectedRoots || scope.catalog.originals[survivor.Address()] != survivor || scope.catalog.originals[providerAddress] != provider || scope.catalog.originals[indexAddress] != index {
+				if scope.completed || scope.sessionCompleted || !scope.projectedRoots || scope.catalog.Originals[survivor.Address()] != survivor || scope.catalog.Originals[providerAddress] != provider || scope.catalog.Originals[indexAddress] != index {
 					scope.Finish(errors.New("invalid projection"))
 					op.Done()
 					t.Fatal("private projection lost original descriptor fences")
