@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -25,7 +26,7 @@ func TestRowLockRepeatableRead(t *testing.T) {
 					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					done := deleteAsync(t, b, ctx, "SELECT v FROM t WHERE id=1 "+clause)
-					rowLockQueued(t, e, a.transactions.ticket, queryRowMode(clause))
+					rowLockQueued(t, e, a.transactions.ticket, analyze.RowLockMode(clause))
 					transactionEnd(t, a, ar, commit)
 					if commit && !(clause == "FOR KEY SHARE" && change[0] == 'U') {
 						select {

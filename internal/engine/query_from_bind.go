@@ -398,9 +398,9 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				}
 			}
 		}
-		ref, err := b.host.AdmittedReference(b.query.auth, n.Name, b.query.lockAdmission.tableQueries[n].ref)
+		ref, err := b.host.AdmittedReference(b.query.auth, n.Name, b.query.lockAdmission.TableQueries[n].Ref)
 		if err != nil {
-			return nil, queryNamespace{}, futureCTEError(err, b.query.lockAdmission.futureCTE[n])
+			return nil, queryNamespace{}, analyze.FutureCTEError(err, b.query.lockAdmission.FutureCTE[n])
 		}
 		relation, _ := b.authorityRelation(b.query.auth, ref.Address)
 		if relation.RelationKind == catalog.CompositeRelation {
@@ -420,7 +420,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 		}
 		leaf := len(b.query.sources)
-		b.query.sources = append(b.query.sources, exec.Leaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.host.AuthorizationStorage(b.query.auth, ref.Address), Mark: b.query.lockAdmission.tableMark(n), Table: n, Query: b.query.lockAdmission.tableQueries[n].query, DeleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
+		b.query.sources = append(b.query.sources, exec.Leaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.host.AuthorizationStorage(b.query.auth, ref.Address), Mark: b.query.lockAdmission.TableMark(n), Table: n, Query: b.query.lockAdmission.TableQueries[n].Query, DeleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
 		columns := make([]queryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}

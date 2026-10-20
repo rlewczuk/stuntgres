@@ -1,31 +1,19 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 type cteBinding struct {
 	name       string
 	definition *plan.CTEDefinition
 	contained  bool // This binding is inside its owning WITH's definition bodies.
-}
-
-func futureCTEError(err error, name string) error {
-	var diagnostic *sqlstate.Error
-	if name == "" || !errors.As(err, &diagnostic) || diagnostic.Code != "42P01" {
-		return err
-	}
-	copy := *diagnostic
-	copy.Detail = fmt.Sprintf(`There is a WITH item named "%s", but it cannot be referenced from this part of the query.`, name)
-	copy.Hint = "Use WITH RECURSIVE, or re-order the WITH items to remove forward references."
-	return &copy
 }
 
 func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTableExpression, recursive bool) ([]*plan.CTEDefinition, error) {
@@ -157,7 +145,7 @@ func cteVolatile(root plan.Node) bool {
 		if source, ok := n.(*plan.SourceNode); ok && source.Ref.Address.ClassID == ids.RelationClassID && source.Ref.Address.ObjectID == 12048 {
 			volatile = true
 		}
-		for _, mark := range queryRootRowMarks(n) {
+		for _, mark := range analyze.RootRowMarks(n) {
 			if mark.Mode != 0 {
 				volatile = true
 			}

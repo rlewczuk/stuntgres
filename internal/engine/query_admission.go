@@ -14,69 +14,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*parser.TableReference, []*parser.Select, error) {
-	admissions := make(map[*parser.Select]*queryLockAdmission)
-	var ordered []*queryLockAdmission
-	tableQueries := make(map[*parser.TableReference]preparedSource)
-	future := make(map[*parser.TableReference]string)
-	virtual := make(map[*parser.TableReference]bool)
-	admit := func(query *parser.Select) *queryLockAdmission {
-		if prior := admissions[query]; prior != nil {
-			return prior
-		}
-		indices := make(map[*parser.TableReference]int)
-		_ = parser.VisitQuerySources(&parser.Select{From: query.From}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
-		admission := &queryLockAdmission{selectQuery: query, indices: indices}
-		admissions[query] = admission
-		ordered = append(ordered, admission)
-		return admission
-	}
-	var tables []*parser.TableReference
-	var queries []*parser.Select
-	if err := parser.VisitQuerySources(statement, func(query *parser.Select) error { admit(query); return nil }, func(table *parser.TableReference, query *parser.Select) error {
-		if admissions[query] == nil {
-			admit(query).syntheticOwner = true
-		}
-		tableQueries[table] = preparedSource{query: query}
-		tables = append(tables, table)
-		queries = append(queries, query)
-		return nil
-	}, func(table *parser.TableReference, isVirtual bool, pending string) {
-		virtual[table] = isVirtual
-		future[table] = pending
-	}); err != nil {
-		return queryLockAdmission{}, nil, nil, err
-	}
-	for _, a := range ordered {
-		a.marks, a.err = queryLockTargets(a.selectQuery.From, a.selectQuery.Locking, virtual)
-	}
-	return queryLockAdmission{queries: admissions, ordered: ordered, tableQueries: tableQueries, futureCTE: future, virtualCTE: virtual}, tables, queries, nil
-}
-
-// The original table pointer is stable for every occurrence. Only real SELECT
-// syntax has a stable owning query; the parser regenerates DML source roots.
-func (a *queryLockAdmission) retainedQuery(table *parser.TableReference) *parser.Select {
-	query := a.tableQueries[table].query
-	if owner := a.queries[query]; owner != nil && owner.syntheticOwner {
-		return nil
-	}
-	return query
-}
-
-func (a *queryLockAdmission) tableMark(table *parser.TableReference) plan.RowMark {
-	mark := plan.RowMark{}
-	if a != nil {
-		for _, admission := range a.ordered {
-			if index, ok := admission.indices[table]; ok && index < len(admission.marks) {
-				mark = exec.MergeQueryRowMark(mark, admission.marks[index])
-			}
-		}
-	}
-	return mark
-}
-
 func (s *StatementScope) acquireQueryRelations(statement parser.Statement, authorityStmt parser.Statement, execute bool) error {
-	admission, tables, queries, err := newQueryLockAdmission(statement)
+	admission, tables, queries, err := analyze.NewLockAdmission(statement)
 	if err != nil {
 		return err
 	}
@@ -86,28 +25,28 @@ func (s *StatementScope) acquireQueryRelations(statement parser.Statement, autho
 func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmission, tables []*parser.TableReference, queries []*parser.Select, authorityStmt parser.Statement, execute bool) error {
 	s.queryLockAdmission = admission
 	for i, table := range tables {
-		mark := admission.tableMark(table)
+		mark := admission.TableMark(table)
 		selection := &parser.Select{From: table}
 		if mark.Mode != 0 {
-			selection.Locking = []parser.RowLockClause{{Mode: queryRowClause(mark.Mode), Wait: mark.Wait}}
+			selection.Locking = []parser.RowLockClause{{Mode: analyze.RowLockClause(mark.Mode), Wait: mark.Wait}}
 		}
 		if s.prepared.reuse != nil {
 			prior, ok := s.prepared.reuse.sources[table]
-			if !ok || prior.query != admission.retainedQuery(table) {
+			if !ok || prior.Query != admission.RetainedQuery(table) {
 				return ids.ErrCatalogReplaced
 			}
-			s.queryLockAdmission.tableQueries[table] = preparedSource{query: queries[i], ref: prior.ref}
+			s.queryLockAdmission.TableQueries[table] = preparedSource{Query: queries[i], Ref: prior.Ref}
 		}
 		if err := s.acquireRelationTarget(selection, authorityStmt, execute, true); err != nil {
-			return futureCTEError(err, admission.futureCTE[table])
+			return analyze.FutureCTEError(err, admission.FutureCTE[table])
 		}
 		leaf := &s.querySources[len(s.querySources)-1]
 		// Keep SQL marks in the admission manifest for exact binder validation.
 		// pg_sequences drops only effective physical marks during source capture.
 		leaf.Mark, leaf.Query, leaf.Table, leaf.Only = mark, queries[i], table, table.Only
-		entry := s.queryLockAdmission.tableQueries[table]
-		entry.query, entry.ref = queries[i], leaf.Ref
-		s.queryLockAdmission.tableQueries[table] = entry
+		entry := s.queryLockAdmission.TableQueries[table]
+		entry.Query, entry.Ref = queries[i], leaf.Ref
+		s.queryLockAdmission.TableQueries[table] = entry
 	}
 	return nil
 }

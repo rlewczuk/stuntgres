@@ -226,9 +226,9 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 	}
 	var required ids.ObjectRef
 	if b.query.lockAdmission != nil {
-		for _, target := range b.query.lockAdmission.mutationTargets {
-			if target.statement == statement {
-				required = target.ref
+		for _, target := range b.query.lockAdmission.MutationTargets {
+			if target.Statement == statement {
+				required = target.Ref
 				break
 			}
 		}

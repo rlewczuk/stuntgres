@@ -339,7 +339,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if err == nil {
 		if selection, ok := stmt.(*parser.Select); source && ok {
 			if table, ok := selection.From.(*parser.TableReference); ok {
-				ref = s.queryLockAdmission.tableQueries[table].ref
+				ref = s.queryLockAdmission.TableQueries[table].Ref
 			}
 		} else if s.prepared.reuse != nil {
 			switch stmt.(type) {
@@ -434,9 +434,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 			if source {
 				table := stmt.(*parser.Select).From.(*parser.TableReference)
-				entry := s.queryLockAdmission.tableQueries[table]
-				entry.lexical = lexical
-				s.queryLockAdmission.tableQueries[table] = entry
+				entry := s.queryLockAdmission.TableQueries[table]
+				entry.Lexical = lexical
+				s.queryLockAdmission.TableQueries[table] = entry
 			} else {
 				s.admittedTargetName, s.admittedTargetLexical = name, lexical
 			}

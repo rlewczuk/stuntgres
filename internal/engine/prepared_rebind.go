@@ -26,11 +26,6 @@ type preparedAnalysis struct {
 	dependencies    []catalog.ExpressionDependency
 	needsReanalysis bool // A granted definition evolved after this attempt resolved names.
 }
-type preparedSource struct {
-	query   *parser.Select
-	ref     ids.ObjectRef
-	lexical ids.ObjectRef // Statement-local name observation, never a retained lock choice.
-}
 
 func preparableBody(stmt parser.Statement) bool {
 	switch stmt.(type) {
@@ -151,7 +146,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		return nil, err
 	}
 	if len(s.mutations) != 0 {
-		cell.targets = make(map[parser.Statement]ids.ObjectRef, len(s.queryLockAdmission.mutationTargets))
+		cell.targets = make(map[parser.Statement]ids.ObjectRef, len(s.queryLockAdmission.MutationTargets))
 		for i := range s.mutations {
 			mutation := s.mutations[i]
 			if i == s.activeMutation {
@@ -170,12 +165,12 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 			}
 		}
 	}
-	if len(s.queryLockAdmission.tableQueries) != 0 {
-		cell.sources = make(map[*parser.TableReference]preparedSource, len(s.queryLockAdmission.tableQueries))
+	if len(s.queryLockAdmission.TableQueries) != 0 {
+		cell.sources = make(map[*parser.TableReference]preparedSource, len(s.queryLockAdmission.TableQueries))
 	}
 	for _, leaf := range b.QuerySources {
-		if _, admitted := s.queryLockAdmission.tableQueries[leaf.Table]; admitted {
-			cell.sources[leaf.Table] = preparedSource{query: s.queryLockAdmission.retainedQuery(leaf.Table), ref: leaf.Ref}
+		if _, admitted := s.queryLockAdmission.TableQueries[leaf.Table]; admitted {
+			cell.sources[leaf.Table] = preparedSource{Query: s.queryLockAdmission.RetainedQuery(leaf.Table), Ref: leaf.Ref}
 		}
 		if err := visit(leaf.Ref); err != nil {
 			return nil, err
@@ -261,9 +256,9 @@ func (s *StatementScope) validateAdmissionNamesLocked(e *Engine, auth Authorizat
 			return err
 		}
 	}
-	for table, source := range s.queryLockAdmission.tableQueries {
-		if source.ref.Domain() != nil {
-			if err := check(table.Name, source.lexical); err != nil {
+	for table, source := range s.queryLockAdmission.TableQueries {
+		if source.Ref.Domain() != nil {
+			if err := check(table.Name, source.Lexical); err != nil {
 				return err
 			}
 		}

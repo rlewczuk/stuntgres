@@ -48,9 +48,9 @@ func TestPreparedRebindValidity(t *testing.T) {
 	var source ids.ObjectRef
 	for _, occurrence := range cell.sources {
 		if source == (ids.ObjectRef{}) {
-			source = occurrence.ref
+			source = occurrence.Ref
 		}
-		if occurrence.ref != source || occurrence.query == nil {
+		if occurrence.Ref != source || occurrence.Query == nil {
 			t.Fatal("wrong occurrence identity", occurrence)
 		}
 	}
@@ -155,7 +155,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		}
 		bound := engine.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: late.Address, Name: "t"})[0]
 		for _, source := range description.analysis.sources {
-			if source.ref.Address != bound {
+			if source.Ref.Address != bound {
 				t.Fatal("inaccessible early schema participated in initial resolution")
 			}
 		}
@@ -174,7 +174,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 			t.Fatal("schema-USAGE invalidation did not publish a new identity cell")
 		}
 		for _, source := range description.analysis.sources {
-			if source.ref.Address != bound {
+			if source.Ref.Address != bound {
 				t.Fatal("schema-USAGE grant did not rebind to early identity")
 			}
 		}

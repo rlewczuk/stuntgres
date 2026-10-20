@@ -10,11 +10,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type admittedMutationTarget struct {
-	statement parser.Statement
-	ref       ids.ObjectRef
-}
-
 // Command-local state is switched inside one statement owner. Stage, view,
 // operation, ticket, constraint queues and publication never move with it.
 // The embedded context keeps single-command statements allocation-free.
@@ -76,7 +71,7 @@ func statementCTERoot(statement parser.Statement) parser.Statement {
 // remains lexical authority; target occurrences cannot become virtual scans.
 func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute bool) error {
 	// Validate duplicate/nesting restrictions before resolving any body target.
-	admission, tables, queries, err := newQueryLockAdmission(statement)
+	admission, tables, queries, err := analyze.NewLockAdmission(statement)
 	if err != nil {
 		return err
 	}
@@ -128,7 +123,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 		if mutation.lockedRef.Domain() == nil {
 			continue
 		}
-		s.queryLockAdmission.mutationTargets = append(s.queryLockAdmission.mutationTargets, admittedMutationTarget{mutation.statement, mutation.lockedRef})
+		s.queryLockAdmission.MutationTargets = append(s.queryLockAdmission.MutationTargets, admittedMutationTarget{Statement: mutation.statement, Ref: mutation.lockedRef})
 	}
 	if err := s.acquireViewSources(); err != nil {
 		return err

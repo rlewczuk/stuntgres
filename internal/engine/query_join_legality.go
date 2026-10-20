@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -311,7 +312,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	case *plan.SourceNode:
 		mark := queryOccurrenceMark(marks, n.Occurrence, inherited)
 		if d, ok := view.Relation(n.Ref.Address); ok && d.RelationKind == catalog.ViewRelation {
-			if err := viewRowLockLegality(viewOf(d), queryRowDiagnostic(mark)); err != nil {
+			if err := viewRowLockLegality(viewOf(d), analyze.RowLockDiagnostic(mark)); err != nil {
 				return err
 			}
 			outputUses, err := querySourceReadUses(reads[n.Occurrence], d.Attributes)
@@ -358,7 +359,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 			mark = firstNullableQueryMark(mark, nullableQueryRowMark(n.Left, marks, inherited))
 		}
 		if mark.Mode != 0 {
-			return sqlError("0A000", queryRowClause(mark.Mode)+" cannot be applied to the nullable side of an outer join")
+			return sqlError("0A000", analyze.RowLockClause(mark.Mode)+" cannot be applied to the nullable side of an outer join")
 		}
 		if n.Kind == parser.JoinFull && !emptyInput {
 			facts, err := fullJoinCondition(c, n, n.Predicate, false)
@@ -396,7 +397,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 		}
 	case *plan.DistinctNode:
 		if inherited.Mode != 0 {
-			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
+			return sqlError("0A000", analyze.RowLockClause(analyze.RowLockDiagnostic(inherited))+" is not allowed with DISTINCT clause")
 		}
 		if !n.PresenceOnly {
 			if err := admitQueryGroupings(c, n.Grouping, n.Expressions); err != nil {
@@ -405,7 +406,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 		}
 	case *plan.DistinctOnNode:
 		if inherited.Mode != 0 {
-			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
+			return sqlError("0A000", analyze.RowLockClause(analyze.RowLockDiagnostic(inherited))+" is not allowed with DISTINCT clause")
 		}
 		if !n.PresenceOnly {
 			if err := admitQueryGroupings(c, n.Grouping, n.Expressions); err != nil {

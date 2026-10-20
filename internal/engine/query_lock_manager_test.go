@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -13,7 +14,7 @@ func TestQueryLockConditionalRowManager(t *testing.T) {
 	modes := []lock.Mode{lock.ForKeyShare, lock.ForShare, lock.ForNoKeyUpdate, lock.ForUpdate}
 	for _, held := range modes {
 		for _, requested := range modes {
-			t.Run(queryRowClause(held)+"/"+queryRowClause(requested), func(t *testing.T) {
+			t.Run(analyze.RowLockClause(held)+"/"+analyze.RowLockClause(requested), func(t *testing.T) {
 				e, a, b, _ := rowLockEngineFixture(t)
 				ra := transactionBegin(t, a)
 				t.Cleanup(func() { transactionEnd(t, a, ra, false) })

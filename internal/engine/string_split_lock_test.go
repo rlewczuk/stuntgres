@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
@@ -86,7 +87,7 @@ func TestStringSplitRowMarks(t *testing.T) {
 		{"SELECT * FROM string_to_table('a,b',',') FOR SHARE OF string_to_table", true},
 	} {
 		raw := statement(t, tc.q).(*parser.Select)
-		marks, err := queryLockTargets(raw.From, raw.Locking)
+		marks, err := analyze.RowLockTargets(raw.From, raw.Locking)
 		if len(marks) != 0 || tc.invalid != (err != nil) || err != nil && !strings.Contains(err.Error(), "cannot be applied to a function") {
 			t.Fatal(tc.q, marks, err)
 		}

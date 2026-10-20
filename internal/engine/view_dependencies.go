@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -724,11 +725,11 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 			}
 		case *plan.RowLockNode:
 			project := definition.frames[frame]
-			if marked[frame] || project == nil || len(project.Syntax.Locking) == 0 || queryRowClause(n.FirstMode) != project.Syntax.Locking[0].Mode || len(n.Marks) > len(definition.sources) {
+			if marked[frame] || project == nil || len(project.Syntax.Locking) == 0 || analyze.RowLockClause(n.FirstMode) != project.Syntax.Locking[0].Mode || len(n.Marks) > len(definition.sources) {
 				return fmt.Errorf("stuntgres: invalid stored view rowmark")
 			}
 			for _, mark := range n.Marks {
-				if mark.Mode != 0 && queryRowClause(mark.Mode) == "" || mark.Wait > parser.RowLockNowait {
+				if mark.Mode != 0 && analyze.RowLockClause(mark.Mode) == "" || mark.Wait > parser.RowLockNowait {
 					return fmt.Errorf("stuntgres: invalid stored view rowmark")
 				}
 			}

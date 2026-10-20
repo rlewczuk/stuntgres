@@ -31,7 +31,7 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 		return b, err
 	}
 	if binder.query.lockAdmission == nil {
-		manifest, _, _, err := newQueryLockAdmission(stmt)
+		manifest, _, _, err := analyze.NewLockAdmission(stmt)
 		if err != nil {
 			return b, err
 		}

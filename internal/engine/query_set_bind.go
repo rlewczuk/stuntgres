@@ -229,8 +229,8 @@ func setOrderCollationError() error {
 // Only inline FROM edges propagate outer marks into set analysis. Stored views
 // are bound separately and deliberately have no such admission edge.
 func (b *expressionBinder) inheritedDerivedSetMode(query *parser.Select) string {
-	for _, admission := range b.query.lockAdmission.ordered {
-		parent := admission.selectQuery
+	for _, admission := range b.query.lockAdmission.Ordered {
+		parent := admission.SelectQuery
 		var alias string
 		found := false
 		var visit func(parser.FromItem, string)

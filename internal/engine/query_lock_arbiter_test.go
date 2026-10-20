@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -50,7 +51,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	if err := scope.acquireRelation(raw, true); err != nil {
 		t.Fatal(err)
 	}
-	marks, err := queryLockTargets(raw.From, raw.Locking)
+	marks, err := analyze.RowLockTargets(raw.From, raw.Locking)
 	if err != nil {
 		t.Fatal(err)
 	}

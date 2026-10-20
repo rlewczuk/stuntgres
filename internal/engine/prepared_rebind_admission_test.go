@@ -78,7 +78,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 				late := description.analysis.target
 				if kind == "nested_source" {
 					for _, source := range description.analysis.sources {
-						late = source.ref
+						late = source.Ref
 					}
 				}
 				var early ids.ObjectRef
