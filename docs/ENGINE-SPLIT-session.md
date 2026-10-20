@@ -131,6 +131,65 @@ identity fields into the `sequenceStage` slot.)*
 5. Result: about 70 fields leave the header. Record the final header list
    here.
 
+**13a result** (re-measured at `e8598c73e`, rebased onto `1ecaa1876`): 74
+fields left the header (124 → 50 header fields plus 15 slot fields).
+
+| Slot | Kind | Type, home file | Fields |
+|---|---|---|---|
+| `inquiry` | value | `inquirySnapshot`, `query_sources.go` | the 11 inquiry fields, names kept |
+| `prepared` | value | `preparedRebind`, `prepared_rebind.go` | reuse, invalid, path, namespace, private, epoch, changedDuringAdmission |
+| `sqlRoutine` | value | `sqlRoutineDemand`, `sql_routine_scope.go` | scalar, result, resultPlan (new since the inventory) |
+| `inheritance` | value | `inheritanceScope`, `inheritance_query_scope.go` | relations, catalog, alter |
+| `domains` | value | `domainScope`, `domain_input.go` | evaluation, preparedChecks, inputCatalog |
+| `protocolSlot` | pointer | `protocolScope`, `protocol_portal.go` | bind, resume, simple, simpleCreated, simpleStreaming, simplePortal, command |
+| `presentationSlot` | pointer | `presentationCaches`, `regproc_output.go` | regproc, regprocedure, operators, operatorGroups, regTS, conversionDefaults, pgRegex |
+| `truncateSlot` | pointer | `truncateScope`, `truncate.go` | relations, sequences, restart, names, selected, foreignCascade |
+| `dropsSlot` | pointer | `dropScope`, `drop_provider.go` | consumedColumns |
+| `foreignActionsSlot` | pointer | `foreignActionScope`, `foreign_action_admission.go` | admissions, transitions, settling, exclusionAdded, jobs, keyTargets, alterKeys |
+| `viewCreationSlot` | pointer | `viewCreationScope`, `view.go` | namespace, persistence, binding, changes, active |
+| `materializedSlot` | pointer | `materializedRefreshScope`, `materialized_refresh.go` | refresh, sources, sourceView |
+| `indexesSlot` | pointer | `indexScope`, `index_maintenance.go` | maintenance, existingOutputs, exclusionModes, exclusionStarted |
+| `partitionsSlot` | pointer | `partitionScope`, `partition_routine.go` | programs, validationView |
+| `foreignTablesSlot` | pointer | `foreignTableScope`, `fdw_execute.go` | owner, cursor, statements, modifications, holdPromotions |
+
+Slot rules (also in the comment above the slot fields in `transaction.go`):
+a pointer slot `xSlot` stays nil until its first write through `x()`;
+reads use `xOrZero()`, which returns a copy and never allocates, so nil
+means all zero and the compiler rejects writes through the read accessor.
+Clearing on common paths (Finish, COMMIT, wire portals, held cursors) goes
+through nil-safe slot methods or setters that never allocate a missing slot.
+The SQL routine scratch swaps the `protocolSlot` and `presentationSlot`
+pointers, so a nested body starts empty as before; it saves partially saved
+slots (view `active`, partition `validationView`, foreign `owner`/`cursor`)
+field by field. Nothing else resets a slot to nil.
+
+Deviations from the table above, from re-measurement:
+
+- Value groups, not pointer slots, for `prepared`, `inheritance` and
+  `domains`: every SELECT/DML statement or SQL routine body writes them
+  (`selectPreparedAnalysis`, `acquireInheritanceSources`, the execution
+  input catalog), so a lazy slot would add an allocation per statement and
+  per SQL-function row.
+- `quoteCaptures` stays in the header: every bound statement sets it and the
+  rule scratch saves it with the query state, not with the presentation
+  caches.
+- `initialParameters` stays in the header: the driver path, prepared SQL and
+  SQL routines write it, not only the wire protocol.
+- `rowSecurity` and `activeSQLRoutineDepth` (new) stay in the header.
+
+Final header: `statementMutation` (embedded), `mutations`, `activeMutation`,
+`cteInvocation`, `self`, `owner`, `op`, `ruleActionAuth`, `rowSecurity`,
+`authority`, `routineAuth`, `stage`, `notificationActions`,
+`notificationEvents`, `view`, `finished`, `message`, `messageEnded`,
+`messageResult`, `result`, `worked`, `completed`, `sessionCompleted`,
+`controlOutcome`, `replacementRead`, `ticket`, `multiEvents`,
+`querySources`, `queryLockAdmission`, `queryLocks`, `txRef`, `command`,
+`ownWrites`, `ownDeletes`, `Expected`, `admissionWaited`, `implicit`,
+`input`, `routinePrograms`, `statementStart`, `transactionStart`,
+`timeoutRef`, `output`, `initialParameters`, `activeSQLRoutineDepth`,
+`quoteCaptures`, `catalog`, `catalogAuthority`, `projectedRoots`,
+`foreignActionAuth`, `identity`, then the 15 slot fields.
+
 ### 13b — Operation, journal, stage and owner slots (broad)
 
 1. `Operation`'s Restore and population flags become one `restoreReplay`
@@ -240,7 +299,13 @@ dispatch. The checks in §8.3 pass, including `RACE=1` selections.
 
 ## Status
 
-- [ ] 13a — Statement scope slots
+- [x] 13a — Statement scope slots (`21d5f3a49`, `a4219195b`, `dd7faf016`,
+  `dd018885f`, `df6045183`, `a067c88db`, `40dc0f177`, `3271f3ea1`,
+  `dd2394458`, `ef136c2c5`, `c23fe3429`, `a08db5ff1`, then the docs commit)
+  *(selected unit/`RACE=1` and dual-mode reference proof and quickcheck
+  passed; the only `REFERENCE=1` failures, PostgreSQL-side
+  `PartitionExclusion*` and PG-only `SerialDefaultProviderPublicationHold`,
+  also fail on `master`; racecheck/finalcheck skipped at user request)*
 - [ ] 13b — Operation, journal, stage and owner slots
 - [ ] 13c — Refine (docs only)
 - [ ] 13d — `session` created and moved (sessions per the 13c plan)
@@ -255,3 +320,15 @@ Notes for later steps:
 - The FDW write work (`fdw_*.go`, `b54eae5ef`) added the four foreign-table
   scope fields and the three owner fields listed above; it is included in
   these measurements. Feature work keeps adding fields, so re-measure in 13a.
+- 13a moved no tests; unit tests that set scope fields directly were
+  rewritten in place by the selector tool (for example
+  `conversion_lookup_test.go`, `serial_sequence_test.go`,
+  `alter_tablespace_prefix_test.go`).
+- 13b: steps 15a and 17a already added `CatalogStage` slots (`sequence`,
+  domain ALTER, typed tables) and journal domain/enum slots in their own
+  style (field plus `xState()` accessor and nil-safe read methods). Measure
+  what is left before planning 13b.
+- 13c, §7 decision 7: 13a uses two slot kinds. Value groups (`inquiry`,
+  `prepared`, `sqlRoutine`, `inheritance`, `domains`) are written by every
+  statement; pointer slots are feature-only. Keep that split when slots
+  move with their features.

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `5ed1cfe22d90e592e8a00fcad3e3270530b6e947`. The later-wave plans
+Last verified against `master` at `1ecaa187681e30926ecec41bbe500818c6476ef9`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -17,8 +17,9 @@ as another broad item (§8).
 
 - **Step 10 `plan`** — 10c `plan` created and moved (item 33; broad); 10b
   is done.
-- **In-place untangling** — 13a scope slots (item 22; broad). 12b is done;
-  12c (item 39) still needs 10c (item 33).
+- **In-place untangling** — 13b operation, journal, stage and owner slots
+  (item 23; broad); 13a is done. 12c (item 39) still needs 10c (item 33).
+  10c and 13b are both broad: run them one after the other.
 - **Step 16 `extension`** — 16a (item 28); step 15 Part A (15a, 15b) is
   done.
 
@@ -270,7 +271,10 @@ done; 17c (item 52) waits for 13d (item 44).
   - [ ] 12e — Aliases removed *(broad)*
 - [ ] **Step 13 — `session`** ([prompt](ENGINE-SPLIT-session.md); 13a–13b
   need —; 13c needs 11c, 12d, 8b)
-  - [ ] 13a — Statement scope slots *(broad)*
+  - [x] 13a — Statement scope slots *(broad)* (`21d5f3a49`, `a4219195b`,
+    `dd7faf016`, `dd018885f`, `df6045183`, `a067c88db`, `40dc0f177`,
+    `3271f3ea1`, `dd2394458`, `ef136c2c5`, `c23fe3429`, `a08db5ff1`, then the
+    docs commit) *(racecheck/finalcheck skipped at user request)*
   - [ ] 13b — Operation, journal, stage and owner slots *(broad)*
   - [ ] 13c — Refine (docs only)
   - [ ] 13d — `session` created and moved (several sessions) *(broad)*
@@ -414,8 +418,9 @@ in the prompt file's Status section.
     `7b8cd2e23`, `449bd93c3`, `807bccc88`, `fdd30aa67`, then the docs commit)
     · selected dual-mode proof and quickcheck passed; racecheck/finalcheck
     skipped at user request
-22. [ ] Session 13a: scope slots — [session](ENGINE-SPLIT-session.md) 13a ·
-    needs — · **broad**
+22. [x] Session 13a: scope slots — [session](ENGINE-SPLIT-session.md) 13a ·
+    needs — · **broad** · selected unit/`RACE=1` and dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 23. [ ] Session 13b: operation, journal, stage and owner slots —
     [session](ENGINE-SPLIT-session.md) 13b · needs 22 · **broad**
 

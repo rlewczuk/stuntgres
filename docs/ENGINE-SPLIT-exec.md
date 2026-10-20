@@ -73,6 +73,8 @@ from `execute_bound.go`) → `finalizeQuery` (`query.go`, 4 callers) →
   2, `deparsePath` 2, `conversionProcedure` 1. `expression.go` also wires the
   scope into the output environment (`output.Regclass = c.liveScope()` and
   eight siblings).
+  Since 13a, the inquiry fields are `inquiry.commentCatalog` and
+  `inquiry.deparsePath`, and `inheritanceAlter` is `inheritance.alter`.
 - `.scope.` selectors: `op` 20, `input` 5, `insertConflict` 3,
   `acquireSequence` 3, `inheritanceAlter` 2, `copyIO` 2, `copyCommandError`
   2, and once each `timeoutRef`, `stagePrivateColumnShape`,
