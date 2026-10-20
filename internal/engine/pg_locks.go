@@ -13,7 +13,7 @@ import (
 
 // Existing builtin view allocation, grounded by the pinned PostgreSQL inventory.
 // Its row/array are 12075/12074; these are separate catalog object classes.
-const pgLocksOID ids.OID = 12073
+const LocksOID ids.OID = 12073
 
 var pgLockModes = [...]struct {
 	mode lock.Mode
@@ -37,7 +37,7 @@ func virtualTransaction(owner lock.RecordOwner) string {
 	return strconv.FormatUint(uint64(owner.Session), 10) + "/" + strconv.FormatUint(uint64(owner.Local), 10)
 }
 
-func pgLockRows(ctx context.Context, d *catalog.Relation, database uint32, ordinary, predicates []lock.Record) ([][]sqltype.Value, error) {
+func LockRows(ctx context.Context, d *catalog.Relation, database uint32, ordinary, predicates []lock.Record) ([][]sqltype.Value, error) {
 	count := len(predicates)
 	for _, record := range ordinary {
 		if record.Kind == lock.VirtualRecord || record.Kind == lock.TransactionRecord {

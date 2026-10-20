@@ -120,12 +120,12 @@ func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *catalog.Extension)
 			t.Fatal("retired signature/name retained", key)
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, edge := range edges {
-		if edge.referenced == ext.Address() || edge.dependent == ext.Address() || slices.Contains(ext.Members[:], edge.referenced) || slices.Contains(ext.Members[:], edge.dependent) {
+		if edge.Referenced == ext.Address() || edge.Dependent == ext.Address() || slices.Contains(ext.Members[:], edge.Referenced) || slices.Contains(ext.Members[:], edge.Dependent) {
 			t.Fatal("dangling retirement edge", edge)
 		}
 	}

@@ -14,7 +14,7 @@ import (
 
 // Caller holds e.mu. Policy inventory is public catalog data, not an effective
 // privilege expansion or a schema-USAGE-filtered list of the actor's grants.
-func capturePGDefaultACL(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGDefaultACL(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	roles := in.Roles
@@ -73,7 +73,7 @@ func capturePGDefaultACL(in catalogSourceInput) ([][]sqltype.Value, error) {
 			acl.Entries = slices.Clone(acl.Entries)
 			slices.SortFunc(acl.Entries, defaultACLEntryCompare)
 		}
-		value, err := pgClassACL(in.Owner, roles, source.Columns[4].Usage.Type, acl)
+		value, err := ClassACL(in.Owner, roles, source.Columns[4].Usage.Type, acl)
 		if err != nil {
 			return nil, err
 		}

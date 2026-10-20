@@ -29,12 +29,12 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 	} {
 		roleExecute(t, e, op, statement)
 	}
-	if err := validateCatalogSourceProducers(catalogSourceProducers[:]); err != nil {
+	if err := validateCatalogSourceProducers(Registrations()); err != nil {
 		t.Fatal(err)
 	}
-	for _, invalid := range [][]catalogSourceRegistration{
+	for _, invalid := range [][]Registration{
 		{{1247, capturePGType}, {1247, capturePGAttribute}},
-		{{pgLocksOID, capturePGType}},
+		{{LocksOID, capturePGType}},
 		{{12048, capturePGType}},
 		{{1247, nil}},
 	} {
@@ -67,7 +67,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			continue
 		}
 		oid := d.Address().ObjectID
-		_, producer := catalogSourceProducerFor(oid)
+		_, producer := ProducerFor(oid)
 		if producer == explicitCatalogSource(oid) {
 			t.Fatal("missing or overlapping source owner", d.Name())
 		}
@@ -104,7 +104,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			if len(source.anonymous) == 0 {
 				t.Fatal("real fixture missing from producer", d.Name())
 			}
-		case pgUserMappingsOID:
+		case UserMappingsOID:
 			if len(source.anonymous) != 1 || source.anonymous[0][5].IsNull() || source.anonymous[0][5].ArrayLen() != 1 {
 				t.Fatal("fresh mapping disclosure lost")
 			}
@@ -123,7 +123,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			if !found {
 				t.Fatal("pg_type lost builtin identity")
 			}
-		case pgSettingsOID:
+		case SettingsOID:
 			name, _ := source.anonymous[0][0].Text()
 			value, _ := source.anonymous[0][1].Text()
 			if name != "row_security" || value != "on" {
@@ -133,13 +133,13 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		source.close()
 		seen[oid] = true
 	}
-	for _, entry := range catalogSourceProducers {
-		if !seen[entry.oid] {
-			t.Fatal("producer has no registered consumer", entry.oid)
+	for _, entry := range Registrations() {
+		if !seen[entry.OID] {
+			t.Fatal("producer has no registered consumer", entry.OID)
 		}
 	}
 	for _, virtual := range []bool{false, true} {
-		unknown := *view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID})
+		unknown := *view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: TypeOID})
 		unknown.ObjectAddress.ObjectID = 299999
 		unknown.VirtualView = virtual
 		e.mu.Lock()
@@ -159,8 +159,8 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 func TestCatalogSourceInputProvenance(t *testing.T) {
 	e, foreign := New(), New()
 	view := e.CatalogRead()
-	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID})
-	in := catalogSourceInput{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{}}
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: TypeOID})
+	in := Input{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{}}
 	rows, err := capturePGType(in)
 	if err != nil || len(rows) == 0 {
 		t.Fatal(err)
@@ -183,8 +183,8 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 		done()
 		t.Fatal(err)
 	}
-	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
-	mixed := catalogSourceInput{Context: t.Context(), Catalog: view, Roles: foreign.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: DataTypePrivilegesOID})
+	mixed := Input{Context: t.Context(), Catalog: view, Roles: foreign.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
 	if got, err := captureDataTypePrivileges(mixed); got != nil || err == nil {
 		done()
 		t.Fatal("mixed input/runtime roles admitted", err)
@@ -228,14 +228,14 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 				t.Error(err)
 			}
 		}()
-		for _, oid := range []ids.OID{pgCursorsOID, pgSettingsOID} {
+		for _, oid := range []ids.OID{CursorsOID, SettingsOID} {
 			d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 			e.mu.Lock()
 			source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address()), d.Owner, queryRowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if oid == pgCursorsOID {
+			if oid == CursorsOID {
 				name, _ := source.anonymous[0][0].Text()
 				if name != "producer_runtime" || cursor.position != cursorBefore || cursor.stage != nil {
 					t.Fatal("metadata dispatch demanded or replaced cursor")
@@ -306,7 +306,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		}
 		view := e.CatalogRead()
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12001})
-		in := catalogSourceInput{Context: t.Context(), Catalog: view, Roles: retained, Owner: e.catalog.owner(), Source: d, Runtime: engineCatalogRuntime{engine: e}}
+		in := Input{Context: t.Context(), Catalog: view, Roles: retained, Owner: e.catalog.owner(), Source: d, Runtime: engineCatalogRuntime{engine: e}}
 		e.mu.Lock()
 		expectedXID := e.visibility.AssignedXIDLocked(e.prepared["producer_runtime_gid"].ref)
 		rows, err := capturePreparedSource(in)
@@ -335,8 +335,8 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 func TestCatalogSourceSpecMetadata(t *testing.T) {
 	wantOrder := []ids.OID{1247, 1249, 2615, 1213, 6243, 826, 1262, 2964, 2601, 1255, 3764, 3600, 12007, 12008, 12014, 12077, 12073, 12005, 12004, 3456, 2607, 2605, 2612, 2600, 2616, 3541, 2617, 3501, 3079, 12081, 12085, 12048, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2611, 2610, 2618, 12000, 12001, 12002, 12003, 12006, 2328, 1417, 1418, 3118, 12095, 16200, 16202, 16201}
 	var gotOrder []ids.OID
-	for _, spec := range catalogSourceSpecs {
-		gotOrder = append(gotOrder, spec.oid)
+	for _, spec := range Specs {
+		gotOrder = append(gotOrder, spec.OID)
 	}
 	if !reflect.DeepEqual(gotOrder, wantOrder) {
 		t.Fatal("descriptor registration order", gotOrder)
@@ -412,9 +412,9 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 
 // Used by behavioral coverage with local invalid inventories, without mutating
 // process-global dispatch ownership.
-func validateCatalogSourceProducers(entries []catalogSourceRegistration) error {
+func validateCatalogSourceProducers(entries []Registration) error {
 	for i, entry := range entries {
-		if entry.produce == nil || explicitCatalogSource(entry.oid) || i > 0 && entries[i-1].oid >= entry.oid {
+		if entry.Produce == nil || explicitCatalogSource(entry.OID) || i > 0 && entries[i-1].OID >= entry.OID {
 			return fmt.Errorf("stuntgres: invalid catalog producer ownership")
 		}
 	}

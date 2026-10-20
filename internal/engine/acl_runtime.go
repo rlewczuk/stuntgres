@@ -41,7 +41,7 @@ func (c *EvalContext) ObjectACL(address ids.ObjectAddress, result *sqltype.Descr
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return pgClassACL(e.catalog.owner(), auth.Roles, result, acl)
+	return ClassACL(e.catalog.owner(), auth.Roles, result, acl)
 }
 
 func (c *EvalContext) RoleMembership(actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {

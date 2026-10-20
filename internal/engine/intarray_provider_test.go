@@ -78,17 +78,17 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	members := map[ids.ObjectAddress]bool{}
 	arrayInternal := false
 	for _, edge := range edges {
-		if edge.referenced == ext.Address() && edge.deptype == 'e' {
-			members[edge.dependent] = true
+		if edge.Referenced == ext.Address() && edge.DepType == 'e' {
+			members[edge.Dependent] = true
 		}
-		if edge.dependent == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}) && edge.referenced == base.Address() && edge.deptype == 'i' {
+		if edge.Dependent == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}) && edge.Referenced == base.Address() && edge.DepType == 'i' {
 			arrayInternal = true
 		}
 	}

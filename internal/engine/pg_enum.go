@@ -9,7 +9,7 @@ import (
 
 // Capture immutable definitions from the caller's coherent catalog generation;
 // catalog labels are metadata, not enum datum input (including unsafe members).
-func capturePGEnum(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGEnum(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	source := in.Source

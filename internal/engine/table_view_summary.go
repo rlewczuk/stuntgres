@@ -8,15 +8,15 @@ import (
 
 // Only the represented builtins are classified here. catalogRelation is a
 // virtual-source implementation kind, not a PostgreSQL table/view classifier.
-func representedSummaryTable(oid ids.OID) bool {
+func SummaryTable(oid ids.OID) bool {
 	switch oid {
-	case pgTypeOID, 1213, 1249, 1262, 2600, pgAMOID, 2605, 2612, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ids.ParameterClassID, 826:
+	case TypeOID, 1213, 1249, 1262, 2600, AMOID, 2605, 2612, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ids.ParameterClassID, 826:
 		return true
 	}
 	return false
 }
 
-func captureTableViewSummary(in catalogSourceInput) ([][]sqltype.Value, error) {
+func captureTableViewSummary(in Input) ([][]sqltype.Value, error) {
 	ctx, view, roles, source := in.Context, in.Catalog, in.Roles, in.Source
 	var rows [][]sqltype.Value
 	text := func(i int, value string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, value) }
@@ -29,10 +29,10 @@ func captureTableViewSummary(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if !ok {
 			continue
 		}
-		builtinTable := relation.RelationKind == catalog.CatalogRelation && representedSummaryTable(relation.Address().ObjectID)
+		builtinTable := relation.RelationKind == catalog.CatalogRelation && SummaryTable(relation.Address().ObjectID)
 		builtinDefinition := ""
 		if relation.RelationKind == catalog.CatalogRelation {
-			builtinDefinition = representedSummaryViewDefinition(relation.Address().ObjectID)
+			builtinDefinition = SummaryViewDefinition(relation.Address().ObjectID)
 		}
 		if source.Address().ObjectID == 12003 {
 			if relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation && !builtinTable {
@@ -84,7 +84,7 @@ func captureTableViewSummary(in catalogSourceInput) ([][]sqltype.Value, error) {
 // and PostgreSQL18.0 pg_views reconstruction. These are not native executable
 // stored definitions: absent catalogs/functions are not implemented by this text.
 // In particular native pg_indexes retains its separately documented ACL policy.
-func representedSummaryViewDefinition(oid ids.OID) string {
+func SummaryViewDefinition(oid ids.OID) string {
 	switch oid {
 	case 12081:
 		return ` SELECT e.name,

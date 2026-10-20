@@ -7,7 +7,7 @@ import (
 
 // Condensed projections keep their established result order. Stable attribute
 // numbers instead follow REL_18_0 catalog headers, including omitted neighbors.
-func catalogAttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
+func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 	switch oid {
 	case 1255:
 		switch name {
@@ -58,11 +58,11 @@ func catalogAttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 	return ordinal
 }
 
-func initializeCatalogAttributes(d *catalog.Relation) {
+func InitializeAttributes(d *catalog.Relation) {
 	d.ColumnMeta.CatalogAttributes = make([]catalog.CatalogAttribute, len(d.Columns))
-	view := d.VirtualView || representedSummaryViewDefinition(d.Address().ObjectID) != ""
+	view := d.VirtualView || SummaryViewDefinition(d.Address().ObjectID) != ""
 	for i, column := range d.Columns {
-		attribute := catalogAttributeNumber(d.Address().ObjectID, column.Name, int32(i+1))
+		attribute := AttributeNumber(d.Address().ObjectID, column.Name, int32(i+1))
 		d.Attributes[i], d.Columns[i].OriginAttribute = attribute, int16(attribute)
 		if attribute > d.ColumnMeta.HighWater {
 			d.ColumnMeta.HighWater = attribute
@@ -77,7 +77,7 @@ func initializeCatalogAttributes(d *catalog.Relation) {
 				fact.Collation = 950
 			}
 			switch d.Address().ObjectID {
-			case pgTypeOID:
+			case TypeOID:
 				fact.NotNull = i < 29
 			case 1213:
 				fact.NotNull = i < 3
@@ -89,9 +89,9 @@ func initializeCatalogAttributes(d *catalog.Relation) {
 				fact.NotNull = i < 2
 			case 3456:
 				fact.NotNull = i < 7
-			case pgLanguageOID:
+			case LanguageOID:
 				fact.NotNull = i < 8
-			case pgAggregateOID:
+			case AggregateOID:
 				fact.NotNull = i < 20
 			case 3079:
 				fact.NotNull = i < 6

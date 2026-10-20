@@ -7,7 +7,7 @@ import (
 
 // Project the statement's immutable role root. All role attributes are direct;
 // neither membership edges nor credential material participate in this view.
-func capturePGRoles(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGRoles(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	roles := in.Roles
 	source := in.Source

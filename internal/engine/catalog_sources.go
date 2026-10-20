@@ -9,33 +9,33 @@ import (
 )
 
 func (e *Engine) initializeCatalogSources() error {
-	for _, spec := range catalogSourceSpecs {
-		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: spec.namespace}, spec.name, len(spec.columns))
-		d.History.HasIndexes, d.VirtualView = spec.indexes, spec.virtual
-		if spec.bootstrapOwner {
+	for _, spec := range Specs {
+		d := e.catalogSourceDescriptor(spec.OID, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: spec.Namespace}, spec.Name, len(spec.Columns))
+		d.History.HasIndexes, d.VirtualView = spec.Indexes, spec.Virtual
+		if spec.BootstrapOwner {
 			d.Owner = e.roles.domain.Principal(authorization.BootstrapPrincipalID)
 			d.Security.ACL.Entries[0].Grantor = d.Owner
 		}
-		if spec.noPublic {
+		if spec.NoPublic {
 			d.Security.ACL = authorization.ACLValue{}
 		}
-		for i, column := range spec.columns {
-			typ, ok := e.catalog.read(e.catalog.state).LookupType(column.typ)
+		for i, column := range spec.Columns {
+			typ, ok := e.catalog.read(e.catalog.state).LookupType(column.Type)
 			if !ok {
-				if spec.namespace == ids.PGCatalogNamespaceOID && (spec.oid == ids.ForeignWrapperClassID || spec.oid == ids.ForeignServerClassID || spec.oid == ids.ForeignMappingClassID || spec.oid == ids.ForeignTableClassID || spec.oid == pgUserMappingsOID) {
-					return fmt.Errorf(spec.missingType, column.typ)
+				if spec.Namespace == ids.PGCatalogNamespaceOID && (spec.OID == ids.ForeignWrapperClassID || spec.OID == ids.ForeignServerClassID || spec.OID == ids.ForeignMappingClassID || spec.OID == ids.ForeignTableClassID || spec.OID == UserMappingsOID) {
+					return fmt.Errorf(spec.MissingType, column.Type)
 				}
-				return fmt.Errorf("%s", spec.missingType)
+				return fmt.Errorf("%s", spec.MissingType)
 			}
 			usage := typ.Usage()
-			if column.collation != 0 {
-				usage.Collation.ID = column.collation
+			if column.Collation != 0 {
+				usage.Collation.ID = column.Collation
 			}
-			if column.typmod != -1 {
-				usage.Typmod = column.typmod
+			if column.Typmod != -1 {
+				usage.Typmod = column.Typmod
 			}
-			d.Columns[i] = catalog.Column{Name: column.name, Usage: usage, Nullable: column.nullable, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1), DeclaredDimensions: column.dimensions}
-			d.Index[column.name], d.Attributes[i] = i, int32(i+1)
+			d.Columns[i] = catalog.Column{Name: column.Name, Usage: usage, Nullable: column.Nullable, NullabilityKnown: true, OriginTable: uint32(spec.OID), OriginAttribute: int16(i + 1), DeclaredDimensions: column.Dimensions}
+			d.Index[column.Name], d.Attributes[i] = i, int32(i+1)
 		}
 		e.registerCatalogSource(d)
 	}
@@ -48,7 +48,7 @@ func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddres
 }
 
 func (e *Engine) registerCatalogSource(d *catalog.Relation) {
-	initializeCatalogAttributes(d)
+	InitializeAttributes(d)
 	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
 		row := e.catalog.state.MustType(address)
 		row.OwningRelation, row.Owner = d.Address(), d.Owner
@@ -63,10 +63,10 @@ func (e *Engine) registerCatalogSource(d *catalog.Relation) {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
-	produce, ok := catalogSourceProducerFor(source.Address().ObjectID)
+	produce, ok := ProducerFor(source.Address().ObjectID)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
-	in := catalogSourceInput{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
+	in := Input{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
 	return captureCatalogSourceRows(in, produce)
 }

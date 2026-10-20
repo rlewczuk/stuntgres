@@ -7,25 +7,25 @@ import (
 
 // Pure process-initialized metadata; no descriptor, session or engine ownership.
 // Slices are read-only; registration creates fresh owned descriptors.
-type catalogSourceColumnSpec struct {
-	name       string
-	typ        sqltype.ID
-	nullable   bool
-	collation  uint32 // zero retains the carrier's collation
-	dimensions int16
-	typmod     int32 // -1 retains the carrier's typmod
+type ColumnSpec struct {
+	Name       string
+	Type       sqltype.ID
+	Nullable   bool
+	Collation  uint32 // zero retains the carrier's collation
+	Dimensions int16
+	Typmod     int32 // -1 retains the carrier's typmod
 }
-type catalogSourceSpec struct {
-	oid                                        ids.OID
-	namespace                                  ids.OID
-	name                                       string
-	columns                                    []catalogSourceColumnSpec
-	virtual, indexes, bootstrapOwner, noPublic bool
-	missingType                                string
+type Spec struct {
+	OID                                        ids.OID
+	Namespace                                  ids.OID
+	Name                                       string
+	Columns                                    []ColumnSpec
+	Virtual, Indexes, BootstrapOwner, NoPublic bool
+	MissingType                                string
 }
 
-var catalogSourceSpecs = [...]catalogSourceSpec{
-	{pgTypeOID, ids.PGCatalogNamespaceOID, "pg_type", []catalogSourceColumnSpec{
+var Specs = [...]Spec{
+	{TypeOID, ids.PGCatalogNamespaceOID, "pg_type", []ColumnSpec{
 		{"oid", 26, false, 0, 0, -1},
 		{"typname", 19, false, 0, 0, -1},
 		{"typnamespace", 26, false, 0, 0, -1},
@@ -58,8 +58,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"typdefaultbin", 194, true, 950, 0, -1},
 		{"typdefault", 25, true, 950, 0, -1},
 		{"typacl", 1034, true, 0, 1, -1},
-	}, false, representedCatalogHasIndexes(pgTypeOID), false, false, "stuntgres: missing catalog source type"},
-	{pgAttributeOID, ids.PGCatalogNamespaceOID, "pg_attribute", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(TypeOID), false, false, "stuntgres: missing catalog source type"},
+	{AttributeOID, ids.PGCatalogNamespaceOID, "pg_attribute", []ColumnSpec{
 		{"attrelid", sqltype.Oid, false, 0, 0, -1},
 		{"attname", sqltype.Name, false, 0, 0, -1},
 		{"atttypid", sqltype.Oid, false, 0, 0, -1},
@@ -85,33 +85,33 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"attoptions", sqltype.ID(1009), true, 950, 0, -1},
 		{"attfdwoptions", sqltype.ID(1009), true, 950, 0, -1},
 		{"attmissingval", sqltype.ID(2277), true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(pgAttributeOID), false, false, "stuntgres: missing catalog source type"},
-	{2615, ids.PGCatalogNamespaceOID, "pg_namespace", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(AttributeOID), false, false, "stuntgres: missing catalog source type"},
+	{2615, ids.PGCatalogNamespaceOID, "pg_namespace", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"nspname", sqltype.Name, false, 0, 0, -1},
 		{"nspowner", sqltype.Oid, false, 0, 0, -1},
 		{"nspacl", sqltype.ID(1034), true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2615), false, false, "stuntgres: missing catalog source type"},
-	{1213, ids.PGCatalogNamespaceOID, "pg_tablespace", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2615), false, false, "stuntgres: missing catalog source type"},
+	{1213, ids.PGCatalogNamespaceOID, "pg_tablespace", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"spcname", sqltype.Name, false, 0, 0, -1},
 		{"spcowner", sqltype.Oid, false, 0, 0, -1},
 		{"spcacl", sqltype.ACLItemArray, true, 0, 0, -1},
 		{"spcoptions", sqltype.ID(1009), true, 950, 0, -1},
-	}, false, representedCatalogHasIndexes(1213), true, false, "stuntgres: missing catalog source type"},
-	{ids.ParameterClassID, ids.PGCatalogNamespaceOID, "pg_parameter_acl", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(1213), true, false, "stuntgres: missing catalog source type"},
+	{ids.ParameterClassID, ids.PGCatalogNamespaceOID, "pg_parameter_acl", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"parname", sqltype.Text, false, 950, 0, -1},
 		{"paracl", sqltype.ACLItemArray, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(ids.ParameterClassID), true, false, "stuntgres: missing catalog source type"},
-	{826, ids.PGCatalogNamespaceOID, "pg_default_acl", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(ids.ParameterClassID), true, false, "stuntgres: missing catalog source type"},
+	{826, ids.PGCatalogNamespaceOID, "pg_default_acl", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"defaclrole", sqltype.Oid, false, 0, 0, -1},
 		{"defaclnamespace", sqltype.Oid, false, 0, 0, -1},
 		{"defaclobjtype", sqltype.Char, false, 0, 0, -1},
 		{"defaclacl", sqltype.ACLItemArray, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(826), false, false, "stuntgres: missing catalog source type"},
-	{1262, ids.PGCatalogNamespaceOID, "pg_database", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(826), false, false, "stuntgres: missing catalog source type"},
+	{1262, ids.PGCatalogNamespaceOID, "pg_database", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"datname", sqltype.Name, false, 0, 0, -1},
 		{"datdba", sqltype.Oid, false, 0, 0, -1},
@@ -130,19 +130,19 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"daticurules", sqltype.Text, true, 950, 0, -1},
 		{"datcollversion", sqltype.Text, true, 950, 0, -1},
 		{"datacl", sqltype.ID(1034), true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(1262), false, false, "stuntgres: missing catalog source type"},
-	{2964, ids.PGCatalogNamespaceOID, "pg_db_role_setting", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(1262), false, false, "stuntgres: missing catalog source type"},
+	{2964, ids.PGCatalogNamespaceOID, "pg_db_role_setting", []ColumnSpec{
 		{"setdatabase", sqltype.Oid, false, 0, 0, -1},
 		{"setrole", sqltype.Oid, false, 0, 0, -1},
 		{"setconfig", sqltype.ID(1009), true, 950, 0, -1},
-	}, false, representedCatalogHasIndexes(2964), false, false, "stuntgres: missing catalog source type"},
-	{pgAMOID, ids.PGCatalogNamespaceOID, "pg_am", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2964), false, false, "stuntgres: missing catalog source type"},
+	{AMOID, ids.PGCatalogNamespaceOID, "pg_am", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"amname", sqltype.Name, false, 0, 0, -1},
 		{"amhandler", sqltype.Regproc, false, 0, 0, -1},
 		{"amtype", sqltype.Char, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(pgAMOID), false, false, "stuntgres: missing catalog source type"},
-	{1255, ids.PGCatalogNamespaceOID, "pg_proc", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(AMOID), false, false, "stuntgres: missing catalog source type"},
+	{1255, ids.PGCatalogNamespaceOID, "pg_proc", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"proname", sqltype.Name, false, 0, 0, -1},
 		{"pronamespace", sqltype.Oid, false, 0, 0, -1},
@@ -152,21 +152,21 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"provolatile", sqltype.Char, false, 0, 0, -1},
 		{"proisstrict", sqltype.Bool, false, 0, 0, -1},
 		{"proparallel", sqltype.Char, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(1255), false, false, "stuntgres: missing catalog source type"},
-	{3764, ids.PGCatalogNamespaceOID, "pg_ts_template", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(1255), false, false, "stuntgres: missing catalog source type"},
+	{3764, ids.PGCatalogNamespaceOID, "pg_ts_template", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"tmplname", sqltype.Name, false, 0, 0, -1},
 		{"tmplnamespace", sqltype.Oid, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(3764), false, false, "stuntgres: missing catalog source type"},
-	{3600, ids.PGCatalogNamespaceOID, "pg_ts_dict", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(3764), false, false, "stuntgres: missing catalog source type"},
+	{3600, ids.PGCatalogNamespaceOID, "pg_ts_dict", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"dictname", sqltype.Name, false, 0, 0, -1},
 		{"dictnamespace", sqltype.Oid, false, 0, 0, -1},
 		{"dictowner", sqltype.Oid, false, 0, 0, -1},
 		{"dicttemplate", sqltype.Oid, false, 0, 0, -1},
 		{"dictinitoption", sqltype.Text, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(3600), false, false, "stuntgres: missing catalog source type"},
-	{12007, ids.PGCatalogNamespaceOID, "pg_roles", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(3600), false, false, "stuntgres: missing catalog source type"},
+	{12007, ids.PGCatalogNamespaceOID, "pg_roles", []ColumnSpec{
 		{"rolname", sqltype.Name, true, 0, 0, -1},
 		{"rolsuper", sqltype.Bool, true, 0, 0, -1},
 		{"rolinherit", sqltype.Bool, true, 0, 0, -1},
@@ -180,13 +180,13 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"rolbypassrls", sqltype.Bool, true, 0, 0, -1},
 		{"rolconfig", sqltype.ID(1009), true, 950, 0, -1},
 		{"oid", sqltype.Oid, true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(12007), false, false, "stuntgres: missing catalog source type"},
-	{12008, ids.PGCatalogNamespaceOID, "pg_group", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(12007), false, false, "stuntgres: missing catalog source type"},
+	{12008, ids.PGCatalogNamespaceOID, "pg_group", []ColumnSpec{
 		{"groname", sqltype.Name, true, 0, 0, -1},
 		{"grosysid", sqltype.Oid, true, 0, 0, -1},
 		{"grolist", sqltype.ID(1028), true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(12008), false, false, "stuntgres: missing catalog source type"},
-	{12014, ids.PGCatalogNamespaceOID, "pg_user", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(12008), false, false, "stuntgres: missing catalog source type"},
+	{12014, ids.PGCatalogNamespaceOID, "pg_user", []ColumnSpec{
 		{"usename", sqltype.Name, true, 0, 0, -1},
 		{"usesysid", sqltype.Oid, true, 0, 0, -1},
 		{"usecreatedb", sqltype.Bool, true, 0, 0, -1},
@@ -196,16 +196,16 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"passwd", sqltype.Text, true, 0, 0, -1},
 		{"valuntil", sqltype.Timestamptz, true, 0, 0, -1},
 		{"useconfig", sqltype.ID(1009), true, 950, 0, -1},
-	}, true, representedCatalogHasIndexes(12014), false, false, "stuntgres: missing catalog source type"},
-	{pgCursorsOID, ids.PGCatalogNamespaceOID, "pg_cursors", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(12014), false, false, "stuntgres: missing catalog source type"},
+	{CursorsOID, ids.PGCatalogNamespaceOID, "pg_cursors", []ColumnSpec{
 		{"name", sqltype.Text, true, 0, 0, -1},
 		{"statement", sqltype.Text, true, 0, 0, -1},
 		{"is_holdable", sqltype.Bool, true, 0, 0, -1},
 		{"is_binary", sqltype.Bool, true, 0, 0, -1},
 		{"is_scrollable", sqltype.Bool, true, 0, 0, -1},
 		{"creation_time", sqltype.Timestamptz, true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(pgCursorsOID), false, false, "stuntgres: missing catalog source type"},
-	{pgLocksOID, ids.PGCatalogNamespaceOID, "pg_locks", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(CursorsOID), false, false, "stuntgres: missing catalog source type"},
+	{LocksOID, ids.PGCatalogNamespaceOID, "pg_locks", []ColumnSpec{
 		{"locktype", sqltype.Text, true, 0, 0, -1},
 		{"database", sqltype.Oid, true, 0, 0, -1},
 		{"relation", sqltype.Oid, true, 0, 0, -1},
@@ -222,19 +222,19 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"granted", sqltype.Bool, true, 0, 0, -1},
 		{"fastpath", sqltype.Bool, true, 0, 0, -1},
 		{"waitstart", sqltype.Timestamptz, true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(pgLocksOID), false, false, "stuntgres: missing catalog source type"},
-	{12005, ids.PGCatalogNamespaceOID, "pg_timezone_names", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(LocksOID), false, false, "stuntgres: missing catalog source type"},
+	{12005, ids.PGCatalogNamespaceOID, "pg_timezone_names", []ColumnSpec{
 		{"name", sqltype.Text, true, 0, 0, -1},
 		{"abbrev", sqltype.Text, true, 0, 0, -1},
 		{"utc_offset", sqltype.Interval, true, 0, 0, -1},
 		{"is_dst", sqltype.Bool, true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(12005), false, false, "stuntgres: missing catalog source type"},
-	{12004, ids.PGCatalogNamespaceOID, "pg_timezone_abbrevs", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(12005), false, false, "stuntgres: missing catalog source type"},
+	{12004, ids.PGCatalogNamespaceOID, "pg_timezone_abbrevs", []ColumnSpec{
 		{"abbrev", sqltype.Text, true, 0, 0, -1},
 		{"utc_offset", sqltype.Interval, true, 0, 0, -1},
 		{"is_dst", sqltype.Bool, true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(12004), false, false, "stuntgres: missing catalog source type"},
-	{3456, ids.PGCatalogNamespaceOID, "pg_collation", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(12004), false, false, "stuntgres: missing catalog source type"},
+	{3456, ids.PGCatalogNamespaceOID, "pg_collation", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"collname", sqltype.Name, false, 0, 0, -1},
 		{"collnamespace", sqltype.Oid, false, 0, 0, -1},
@@ -247,8 +247,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"colllocale", sqltype.Text, true, 950, 0, -1},
 		{"collicurules", sqltype.Text, true, 950, 0, -1},
 		{"collversion", sqltype.Text, true, 950, 0, -1},
-	}, false, representedCatalogHasIndexes(3456), false, false, "stuntgres: missing catalog source type"},
-	{2607, ids.PGCatalogNamespaceOID, "pg_conversion", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(3456), false, false, "stuntgres: missing catalog source type"},
+	{2607, ids.PGCatalogNamespaceOID, "pg_conversion", []ColumnSpec{
 		{"oid", sqltype.Oid, true, 0, 0, -1},
 		{"conname", sqltype.Name, true, 0, 0, -1},
 		{"connamespace", sqltype.Oid, true, 0, 0, -1},
@@ -257,16 +257,16 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"contoencoding", sqltype.Int4, true, 0, 0, -1},
 		{"conproc", sqltype.Regproc, true, 0, 0, -1},
 		{"condefault", sqltype.Bool, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2607), false, false, "stuntgres: missing catalog source type"},
-	{2605, ids.PGCatalogNamespaceOID, "pg_cast", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2607), false, false, "stuntgres: missing catalog source type"},
+	{2605, ids.PGCatalogNamespaceOID, "pg_cast", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"castsource", sqltype.Oid, false, 0, 0, -1},
 		{"casttarget", sqltype.Oid, false, 0, 0, -1},
 		{"castfunc", sqltype.Oid, false, 0, 0, -1},
 		{"castcontext", sqltype.Char, false, 0, 0, -1},
 		{"castmethod", sqltype.Char, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2605), false, false, "stuntgres: missing catalog source type"},
-	{pgLanguageOID, ids.PGCatalogNamespaceOID, "pg_language", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2605), false, false, "stuntgres: missing catalog source type"},
+	{LanguageOID, ids.PGCatalogNamespaceOID, "pg_language", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"lanname", sqltype.Name, false, 0, 0, -1},
 		{"lanowner", sqltype.Oid, false, 0, 0, -1},
@@ -276,8 +276,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"laninline", sqltype.Oid, false, 0, 0, -1},
 		{"lanvalidator", sqltype.Oid, false, 0, 0, -1},
 		{"lanacl", sqltype.ACLItemArray, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(pgLanguageOID), false, false, "stuntgres: missing catalog source type"},
-	{pgAggregateOID, ids.PGCatalogNamespaceOID, "pg_aggregate", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(LanguageOID), false, false, "stuntgres: missing catalog source type"},
+	{AggregateOID, ids.PGCatalogNamespaceOID, "pg_aggregate", []ColumnSpec{
 		{"aggfnoid", sqltype.Regproc, false, 0, 0, -1},
 		{"aggkind", sqltype.Char, false, 0, 0, -1},
 		{"aggnumdirectargs", sqltype.Int2, false, 0, 0, -1},
@@ -300,8 +300,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"aggmtransspace", sqltype.Int4, false, 0, 0, -1},
 		{"agginitval", sqltype.Text, true, 950, 0, -1},
 		{"aggminitval", sqltype.Text, true, 950, 0, -1},
-	}, false, representedCatalogHasIndexes(pgAggregateOID), false, false, "stuntgres: missing catalog source type"},
-	{2616, ids.PGCatalogNamespaceOID, "pg_opclass", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(AggregateOID), false, false, "stuntgres: missing catalog source type"},
+	{2616, ids.PGCatalogNamespaceOID, "pg_opclass", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"opcmethod", sqltype.Oid, false, 0, 0, -1},
 		{"opcname", sqltype.Name, false, 0, 0, -1},
@@ -311,8 +311,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"opcintype", sqltype.Oid, false, 0, 0, -1},
 		{"opcdefault", sqltype.Bool, false, 0, 0, -1},
 		{"opckeytype", sqltype.Oid, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2616), false, false, "stuntgres: missing catalog source type"},
-	{pgRangeOID, ids.PGCatalogNamespaceOID, "pg_range", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2616), false, false, "stuntgres: missing catalog source type"},
+	{pgRangeOID, ids.PGCatalogNamespaceOID, "pg_range", []ColumnSpec{
 		{"rngtypid", sqltype.Oid, false, 0, 0, -1},
 		{"rngsubtype", sqltype.Oid, false, 0, 0, -1},
 		{"rngmultitypid", sqltype.Oid, false, 0, 0, -1},
@@ -320,8 +320,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"rngsubopc", sqltype.Oid, false, 0, 0, -1},
 		{"rngcanonical", sqltype.Regproc, false, 0, 0, -1},
 		{"rngsubdiff", sqltype.Regproc, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(pgRangeOID), false, false, "stuntgres: missing catalog source type"},
-	{2617, ids.PGCatalogNamespaceOID, "pg_operator", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(pgRangeOID), false, false, "stuntgres: missing catalog source type"},
+	{2617, ids.PGCatalogNamespaceOID, "pg_operator", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"oprname", sqltype.Name, false, 0, 0, -1},
 		{"oprnamespace", sqltype.Oid, false, 0, 0, -1},
@@ -337,14 +337,14 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"oprcode", sqltype.Regproc, false, 0, 0, -1},
 		{"oprrest", sqltype.Regproc, false, 0, 0, -1},
 		{"oprjoin", sqltype.Regproc, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2617), false, false, "stuntgres: missing catalog source type"},
-	{3501, ids.PGCatalogNamespaceOID, "pg_enum", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2617), false, false, "stuntgres: missing catalog source type"},
+	{3501, ids.PGCatalogNamespaceOID, "pg_enum", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"enumtypid", sqltype.Oid, false, 0, 0, -1},
 		{"enumsortorder", sqltype.Float4, false, 0, 0, -1},
 		{"enumlabel", sqltype.Name, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(3501), false, false, "stuntgres: missing catalog source type"},
-	{3079, ids.PGCatalogNamespaceOID, "pg_extension", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(3501), false, false, "stuntgres: missing catalog source type"},
+	{3079, ids.PGCatalogNamespaceOID, "pg_extension", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"extname", sqltype.Name, false, 0, 0, -1},
 		{"extowner", sqltype.Oid, false, 0, 0, -1},
@@ -353,14 +353,14 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"extversion", sqltype.Text, false, 950, 0, -1},
 		{"extconfig", sqltype.ID(1028), true, 0, 0, -1},
 		{"extcondition", sqltype.ID(1009), true, 950, 0, -1},
-	}, false, representedCatalogHasIndexes(3079), false, false, "stuntgres: missing catalog source type"},
-	{12081, ids.PGCatalogNamespaceOID, "pg_available_extensions", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(3079), false, false, "stuntgres: missing catalog source type"},
+	{12081, ids.PGCatalogNamespaceOID, "pg_available_extensions", []ColumnSpec{
 		{"name", sqltype.Name, true, 0, 0, -1},
 		{"default_version", sqltype.Text, true, 0, 0, -1},
 		{"installed_version", sqltype.Text, true, 950, 0, -1},
 		{"comment", sqltype.Text, true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(12081), false, false, "stuntgres: missing catalog source type"},
-	{12085, ids.PGCatalogNamespaceOID, "pg_available_extension_versions", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(12081), false, false, "stuntgres: missing catalog source type"},
+	{12085, ids.PGCatalogNamespaceOID, "pg_available_extension_versions", []ColumnSpec{
 		{"name", sqltype.Name, true, 0, 0, -1},
 		{"version", sqltype.Text, true, 0, 0, -1},
 		{"installed", sqltype.Bool, true, 0, 0, -1},
@@ -370,8 +370,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"schema", sqltype.Name, true, 0, 0, -1},
 		{"requires", sqltype.ID(1003), true, 0, 0, -1},
 		{"comment", sqltype.Text, true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(12085), false, false, "stuntgres: missing catalog source type"},
-	{12048, ids.PGCatalogNamespaceOID, "pg_sequences", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(12085), false, false, "stuntgres: missing catalog source type"},
+	{12048, ids.PGCatalogNamespaceOID, "pg_sequences", []ColumnSpec{
 		{"schemaname", sqltype.Name, true, 0, 0, -1},
 		{"sequencename", sqltype.Name, true, 0, 0, -1},
 		{"sequenceowner", sqltype.Name, true, 0, 0, -1},
@@ -383,8 +383,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"cycle", sqltype.Bool, true, 0, 0, -1},
 		{"cache_size", sqltype.Int8, true, 0, 0, -1},
 		{"last_value", sqltype.Int8, true, 0, 0, -1},
-	}, true, representedCatalogHasIndexes(12048), false, false, "stuntgres: missing catalog source type"},
-	{2224, ids.PGCatalogNamespaceOID, "pg_sequence", []catalogSourceColumnSpec{
+	}, true, CatalogHasIndexes(12048), false, false, "stuntgres: missing catalog source type"},
+	{2224, ids.PGCatalogNamespaceOID, "pg_sequence", []ColumnSpec{
 		{"seqrelid", sqltype.Oid, false, 0, 0, -1},
 		{"seqtypid", sqltype.Oid, false, 0, 0, -1},
 		{"seqstart", sqltype.Int8, false, 0, 0, -1},
@@ -393,8 +393,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"seqmin", sqltype.Int8, false, 0, 0, -1},
 		{"seqcache", sqltype.Int8, false, 0, 0, -1},
 		{"seqcycle", sqltype.Bool, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2224), false, false, "stuntgres: missing catalog source type"},
-	{2608, ids.PGCatalogNamespaceOID, "pg_depend", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2224), false, false, "stuntgres: missing catalog source type"},
+	{2608, ids.PGCatalogNamespaceOID, "pg_depend", []ColumnSpec{
 		{"classid", sqltype.Oid, false, 0, 0, -1},
 		{"objid", sqltype.Oid, false, 0, 0, -1},
 		{"objsubid", sqltype.Int4, false, 0, 0, -1},
@@ -402,19 +402,19 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"refobjid", sqltype.Oid, false, 0, 0, -1},
 		{"refobjsubid", sqltype.Int4, false, 0, 0, -1},
 		{"deptype", sqltype.Char, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2608), false, false, "stuntgres: missing catalog source type"},
-	{2609, ids.PGCatalogNamespaceOID, "pg_description", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2608), false, false, "stuntgres: missing catalog source type"},
+	{2609, ids.PGCatalogNamespaceOID, "pg_description", []ColumnSpec{
 		{"objoid", sqltype.Oid, false, 0, 0, -1},
 		{"classoid", sqltype.Oid, false, 0, 0, -1},
 		{"objsubid", sqltype.Int4, false, 0, 0, -1},
 		{"description", sqltype.Text, false, 950, 0, -1},
-	}, false, representedCatalogHasIndexes(2609), false, false, "stuntgres: missing catalog source type"},
-	{2396, ids.PGCatalogNamespaceOID, "pg_shdescription", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2609), false, false, "stuntgres: missing catalog source type"},
+	{2396, ids.PGCatalogNamespaceOID, "pg_shdescription", []ColumnSpec{
 		{"objoid", sqltype.Oid, false, 0, 0, -1},
 		{"classoid", sqltype.Oid, false, 0, 0, -1},
 		{"description", sqltype.Text, false, 950, 0, -1},
-	}, false, representedCatalogHasIndexes(2396), false, false, "stuntgres: missing catalog source type"},
-	{2606, ids.PGCatalogNamespaceOID, "pg_constraint", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2396), false, false, "stuntgres: missing catalog source type"},
+	{2606, ids.PGCatalogNamespaceOID, "pg_constraint", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"conname", sqltype.Name, false, 0, 0, -1},
 		{"connamespace", sqltype.Oid, false, 0, 0, -1},
@@ -443,14 +443,14 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"confdelsetcols", sqltype.ID(1005), true, 0, 0, -1},
 		{"conexclop", sqltype.ID(1028), true, 0, 0, -1},
 		{"conbin", sqltype.PgNodeTree, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2606), false, false, "stuntgres: missing catalog source type"},
-	{2604, ids.PGCatalogNamespaceOID, "pg_attrdef", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2606), false, false, "stuntgres: missing catalog source type"},
+	{2604, ids.PGCatalogNamespaceOID, "pg_attrdef", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"adrelid", sqltype.Oid, false, 0, 0, -1},
 		{"adnum", sqltype.Int2, false, 0, 0, -1},
 		{"adbin", sqltype.PgNodeTree, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2604), false, false, "stuntgres: missing catalog source type"},
-	{1259, ids.PGCatalogNamespaceOID, "pg_class", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2604), false, false, "stuntgres: missing catalog source type"},
+	{1259, ids.PGCatalogNamespaceOID, "pg_class", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"relname", sqltype.Name, false, 0, 0, -1},
 		{"relnamespace", sqltype.Oid, false, 0, 0, -1},
@@ -485,14 +485,14 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"relacl", sqltype.ID(1034), true, 0, 0, -1},
 		{"reloptions", sqltype.ID(1009), true, 950, 0, -1},
 		{"relpartbound", sqltype.PgNodeTree, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(1259), false, false, "stuntgres: missing catalog source type"},
-	{2611, ids.PGCatalogNamespaceOID, "pg_inherits", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(1259), false, false, "stuntgres: missing catalog source type"},
+	{2611, ids.PGCatalogNamespaceOID, "pg_inherits", []ColumnSpec{
 		{"inhrelid", sqltype.Oid, false, 0, 0, -1},
 		{"inhparent", sqltype.Oid, false, 0, 0, -1},
 		{"inhseqno", sqltype.Int4, false, 0, 0, -1},
 		{"inhdetachpending", sqltype.Bool, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2611), false, false, "stuntgres: missing catalog source type"},
-	{2610, ids.PGCatalogNamespaceOID, "pg_index", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2611), false, false, "stuntgres: missing catalog source type"},
+	{2610, ids.PGCatalogNamespaceOID, "pg_index", []ColumnSpec{
 		{"indexrelid", sqltype.Oid, false, 0, 0, -1},
 		{"indrelid", sqltype.Oid, false, 0, 0, -1},
 		{"indisunique", sqltype.Bool, false, 0, 0, -1},
@@ -501,36 +501,36 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"indisready", sqltype.Bool, false, 0, 0, -1},
 		{"indislive", sqltype.Bool, false, 0, 0, -1},
 		{"indnullsnotdistinct", sqltype.Bool, false, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2610), false, false, "stuntgres: missing catalog source type"},
-	{2618, ids.PGCatalogNamespaceOID, "pg_rewrite", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2610), false, false, "stuntgres: missing catalog source type"},
+	{2618, ids.PGCatalogNamespaceOID, "pg_rewrite", []ColumnSpec{
 		{"oid", sqltype.Oid, true, 0, 0, -1},
 		{"rulename", sqltype.Name, true, 0, 0, -1},
 		{"ev_class", sqltype.Oid, true, 0, 0, -1},
 		{"ev_type", sqltype.Char, true, 0, 0, -1},
 		{"ev_enabled", sqltype.Char, true, 0, 0, -1},
 		{"is_instead", sqltype.Bool, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(2618), false, false, "stuntgres: missing catalog source type"},
-	{12000, ids.PGCatalogNamespaceOID, "pg_views", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(2618), false, false, "stuntgres: missing catalog source type"},
+	{12000, ids.PGCatalogNamespaceOID, "pg_views", []ColumnSpec{
 		{"schemaname", sqltype.Name, true, 0, 0, -1},
 		{"viewname", sqltype.Name, true, 0, 0, -1},
 		{"viewowner", sqltype.Name, true, 0, 0, -1},
 		{"definition", sqltype.Text, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(12000), false, false, "stuntgres: missing catalog source type"},
-	{12001, ids.PGCatalogNamespaceOID, "pg_prepared_xacts", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(12000), false, false, "stuntgres: missing catalog source type"},
+	{12001, ids.PGCatalogNamespaceOID, "pg_prepared_xacts", []ColumnSpec{
 		{"transaction", sqltype.Xid, true, 0, 0, -1},
 		{"gid", sqltype.Text, true, 0, 0, -1},
 		{"prepared", sqltype.Timestamptz, true, 0, 0, -1},
 		{"owner", sqltype.Name, true, 0, 0, -1},
 		{"database", sqltype.Name, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(12001), false, false, "stuntgres: missing catalog source type"},
-	{12002, ids.PGCatalogNamespaceOID, "pg_indexes", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(12001), false, false, "stuntgres: missing catalog source type"},
+	{12002, ids.PGCatalogNamespaceOID, "pg_indexes", []ColumnSpec{
 		{"schemaname", sqltype.Name, true, 0, 0, -1},
 		{"tablename", sqltype.Name, true, 0, 0, -1},
 		{"indexname", sqltype.Name, true, 0, 0, -1},
 		{"tablespace", sqltype.Name, true, 0, 0, -1},
 		{"indexdef", sqltype.Text, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(12002), false, false, "stuntgres: missing catalog source type"},
-	{12003, ids.PGCatalogNamespaceOID, "pg_tables", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(12002), false, false, "stuntgres: missing catalog source type"},
+	{12003, ids.PGCatalogNamespaceOID, "pg_tables", []ColumnSpec{
 		{"schemaname", sqltype.Name, true, 0, 0, -1},
 		{"tablename", sqltype.Name, true, 0, 0, -1},
 		{"tableowner", sqltype.Name, true, 0, 0, -1},
@@ -539,8 +539,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"hasrules", sqltype.Bool, true, 0, 0, -1},
 		{"hastriggers", sqltype.Bool, true, 0, 0, -1},
 		{"rowsecurity", sqltype.Bool, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(12003), false, false, "stuntgres: missing catalog source type"},
-	{12006, ids.PGCatalogNamespaceOID, "pg_matviews", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(12003), false, false, "stuntgres: missing catalog source type"},
+	{12006, ids.PGCatalogNamespaceOID, "pg_matviews", []ColumnSpec{
 		{"schemaname", sqltype.Name, true, 0, 0, -1},
 		{"matviewname", sqltype.Name, true, 0, 0, -1},
 		{"matviewowner", sqltype.Name, true, 0, 0, -1},
@@ -548,8 +548,8 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"hasindexes", sqltype.Bool, true, 0, 0, -1},
 		{"ispopulated", sqltype.Bool, true, 0, 0, -1},
 		{"definition", sqltype.Text, true, 0, 0, -1},
-	}, false, representedCatalogHasIndexes(12006), false, false, "stuntgres: missing catalog source type"},
-	{ids.ForeignWrapperClassID, ids.PGCatalogNamespaceOID, "pg_foreign_data_wrapper", []catalogSourceColumnSpec{
+	}, false, CatalogHasIndexes(12006), false, false, "stuntgres: missing catalog source type"},
+	{ids.ForeignWrapperClassID, ids.PGCatalogNamespaceOID, "pg_foreign_data_wrapper", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"fdwname", sqltype.Name, false, 0, 0, -1},
 		{"fdwowner", sqltype.Oid, false, 0, 0, -1},
@@ -558,7 +558,7 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"fdwacl", sqltype.ACLItemArray, true, 0, 0, -1},
 		{"fdwoptions", 1009, true, 950, 0, -1},
 	}, false, false, false, false, "stuntgres: missing SQL/MED catalog type %d"},
-	{ids.ForeignServerClassID, ids.PGCatalogNamespaceOID, "pg_foreign_server", []catalogSourceColumnSpec{
+	{ids.ForeignServerClassID, ids.PGCatalogNamespaceOID, "pg_foreign_server", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"srvname", sqltype.Name, false, 0, 0, -1},
 		{"srvowner", sqltype.Oid, false, 0, 0, -1},
@@ -568,18 +568,18 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"srvacl", sqltype.ACLItemArray, true, 0, 0, -1},
 		{"srvoptions", 1009, true, 950, 0, -1},
 	}, false, false, false, false, "stuntgres: missing SQL/MED catalog type %d"},
-	{ids.ForeignMappingClassID, ids.PGCatalogNamespaceOID, "pg_user_mapping", []catalogSourceColumnSpec{
+	{ids.ForeignMappingClassID, ids.PGCatalogNamespaceOID, "pg_user_mapping", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"umuser", sqltype.Oid, false, 0, 0, -1},
 		{"umserver", sqltype.Oid, false, 0, 0, -1},
 		{"umoptions", 1009, true, 950, 0, -1},
 	}, false, false, false, true, "stuntgres: missing SQL/MED catalog type %d"},
-	{ids.ForeignTableClassID, ids.PGCatalogNamespaceOID, "pg_foreign_table", []catalogSourceColumnSpec{
+	{ids.ForeignTableClassID, ids.PGCatalogNamespaceOID, "pg_foreign_table", []ColumnSpec{
 		{"ftrelid", sqltype.Oid, false, 0, 0, -1},
 		{"ftserver", sqltype.Oid, false, 0, 0, -1},
 		{"ftoptions", 1009, true, 950, 0, -1},
 	}, false, false, false, false, "stuntgres: missing SQL/MED catalog type %d"},
-	{pgUserMappingsOID, ids.PGCatalogNamespaceOID, "pg_user_mappings", []catalogSourceColumnSpec{
+	{UserMappingsOID, ids.PGCatalogNamespaceOID, "pg_user_mappings", []ColumnSpec{
 		{"umid", sqltype.Oid, false, 0, 0, -1},
 		{"srvid", sqltype.Oid, false, 0, 0, -1},
 		{"srvname", sqltype.Name, false, 0, 0, -1},
@@ -587,7 +587,7 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"usename", sqltype.Name, true, 0, 0, -1},
 		{"umoptions", 1009, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing SQL/MED catalog type %d"},
-	{tablePrivilegesOID, 13229, "table_privileges", []catalogSourceColumnSpec{
+	{TablePrivilegesOID, 13229, "table_privileges", []ColumnSpec{
 		{"grantor", sqltype.Name, true, 0, 0, -1},
 		{"grantee", sqltype.Name, true, 0, 0, -1},
 		{"table_catalog", sqltype.Name, true, 0, 0, -1},
@@ -597,7 +597,7 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"is_grantable", sqltype.VarChar, true, 950, 0, 7},
 		{"with_hierarchy", sqltype.VarChar, true, 950, 0, 7},
 	}, true, false, false, false, "stuntgres: missing privilege source type"},
-	{pgSettingsOID, ids.PGCatalogNamespaceOID, "pg_settings", []catalogSourceColumnSpec{
+	{SettingsOID, ids.PGCatalogNamespaceOID, "pg_settings", []ColumnSpec{
 		{"name", sqltype.Text, true, 0, 0, -1},
 		{"setting", sqltype.Text, true, 0, 0, -1},
 		{"unit", sqltype.Text, true, 0, 0, -1},
@@ -616,7 +616,7 @@ var catalogSourceSpecs = [...]catalogSourceSpec{
 		{"sourceline", sqltype.Int4, true, 0, 0, -1},
 		{"pending_restart", sqltype.Bool, true, 0, 0, -1},
 	}, true, false, false, false, "stuntgres: missing pg_settings carrier"},
-	{dataTypePrivilegesOID, 13229, "data_type_privileges", []catalogSourceColumnSpec{
+	{DataTypePrivilegesOID, 13229, "data_type_privileges", []ColumnSpec{
 		{"object_catalog", sqltype.Name, true, 0, 0, -1},
 		{"object_schema", sqltype.Name, true, 0, 0, -1},
 		{"object_name", sqltype.Name, true, 0, 0, -1},

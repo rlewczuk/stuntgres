@@ -8,16 +8,16 @@ import (
 
 // Projection coverage is deliberately broader than legacy obj_description.
 // Inquiry dispatch and COMMENT target support remain their owning authorities.
-func catalogDescription(d catalog.Descriptor, sub int32) string {
+func Description(d catalog.Descriptor, sub int32) string {
 	if sub == 0 {
 		switch d := d.(type) {
 		case *catalog.Collation:
 			return collationDescription(d.OID)
 		case *catalog.Conversion:
-			return conversionDescription(d.OID)
+			return ConversionDescription(d.OID)
 		}
 	}
-	return descriptorComment(d, sub)
+	return DescriptorComment(d, sub)
 }
 
 func collationDescription(oid ids.OID) string {
@@ -40,7 +40,7 @@ func collationDescription(oid ids.OID) string {
 	return ""
 }
 
-func conversionDescription(oid ids.OID) string {
+func ConversionDescription(oid ids.OID) string {
 	if oid < 4402 || oid > 4531 || oid == 4450 || oid == 4451 {
 		return ""
 	}
@@ -51,7 +51,7 @@ func conversionDescription(oid ids.OID) string {
 	return builtinConversionDescriptions[index]
 }
 
-func capturePGDescription(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGDescription(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	source := in.Source
@@ -82,7 +82,7 @@ func capturePGDescription(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if err := appendDescription(descriptor.Address(), 0, catalogDescription(descriptor, 0)); err != nil {
+		if err := appendDescription(descriptor.Address(), 0, Description(descriptor, 0)); err != nil {
 			return nil, err
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok {
@@ -90,7 +90,7 @@ func capturePGDescription(in catalogSourceInput) ([][]sqltype.Value, error) {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if err := appendDescription(relation.Address(), attribute, descriptorComment(relation, attribute)); err != nil {
+				if err := appendDescription(relation.Address(), attribute, DescriptorComment(relation, attribute)); err != nil {
 					return nil, err
 				}
 			}
@@ -99,7 +99,7 @@ func capturePGDescription(in catalogSourceInput) ([][]sqltype.Value, error) {
 	return rows, nil
 }
 
-func descriptorComment(d catalog.Descriptor, sub int32) string {
+func DescriptorComment(d catalog.Descriptor, sub int32) string {
 	switch d := d.(type) {
 	case *catalog.Namespace:
 		if sub == 0 {

@@ -28,15 +28,15 @@ type engineCatalogRuntime struct {
 }
 
 func (r engineCatalogRuntime) CursorCount() int { return len(r.cursors.entries) }
-func (r engineCatalogRuntime) VisitCursors(visit func(catalogCursorFact) error) error {
+func (r engineCatalogRuntime) VisitCursors(visit func(CursorFact) error) error {
 	for name, cursor := range r.cursors.entries {
-		if err := visit(catalogCursorFact{name, cursor.statement, cursor.hold, cursor.scroll, cursor.created}); err != nil {
+		if err := visit(CursorFact{name, cursor.statement, cursor.hold, cursor.scroll, cursor.created}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (r engineCatalogRuntime) SessionSettings() catalogSettingsFact {
+func (r engineCatalogRuntime) SessionSettings() SettingsFact {
 	s := r.settings
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -47,15 +47,15 @@ func (r engineCatalogRuntime) SessionSettings() catalogSettingsFact {
 	if _, present := s.values["row_security"]; present {
 		source = "session"
 	}
-	return catalogSettingsFact{s.value("row_security"), s.defaults["row_security"], source}
+	return SettingsFact{s.value("row_security"), s.defaults["row_security"], source}
 }
 func (r engineCatalogRuntime) PreparedCount() int { return len(r.engine.prepared) }
-func (r engineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, visit func(catalogPreparedFact) error) error {
+func (r engineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, visit func(PreparedFact) error) error {
 	for _, entry := range r.engine.prepared {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		fact := catalogPreparedFact{XID: r.engine.visibility.AssignedXIDLocked(entry.ref), GID: entry.gid, Prepared: entry.prepared, Database: entry.database}
+		fact := PreparedFact{XID: r.engine.visibility.AssignedXIDLocked(entry.ref), GID: entry.gid, Prepared: entry.prepared, Database: entry.database}
 		if role, ok := r.engine.roles.published.Root.Read(authorization.PrincipalRef{}).Find(entry.owner); ok {
 			fact.Owner, fact.OwnerPresent = role.Name, true
 		}
@@ -74,14 +74,14 @@ func (r engineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 func (r engineCatalogRuntime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {
 	a := r.auth
 	switch oid {
-	case dataTypePrivilegesOID:
+	case DataTypePrivilegesOID:
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid data_type_privileges capture")
 		}
 		if _, err := a.Object(ref); err != nil {
 			return err
 		}
-	case tablePrivilegesOID:
+	case TablePrivilegesOID:
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog.State() != view.State() || a.RoleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid table_privileges capture")
 		}
@@ -190,9 +190,9 @@ func (r engineCatalogRuntime) PartitionReferences(ctx context.Context, view cata
 func (r engineCatalogRuntime) HasRules(relation *catalog.Relation) bool {
 	return len(rulesOf(relation)) != 0
 }
-func (r engineCatalogRuntime) VisitRules(relation *catalog.Relation, visit func(catalogRuleFact) error) error {
+func (r engineCatalogRuntime) VisitRules(relation *catalog.Relation, visit func(RuleFact) error) error {
 	for _, rule := range rulesOf(relation) {
-		if err := visit(catalogRuleFact{rule.OID, rule.Name, ruleEventCode(rule.event), rule.instead, rule.references}); err != nil {
+		if err := visit(RuleFact{rule.OID, rule.Name, ruleEventCode(rule.event), rule.instead, rule.references}); err != nil {
 			return err
 		}
 	}
@@ -242,14 +242,14 @@ func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visi
 func (r engineCatalogRuntime) ExpressionTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
 	return catalogTree(typ, expression)
 }
-func (r engineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]catalogForeignKeyComparison, error) {
+func (r engineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]ForeignKeyComparison, error) {
 	bound, err := bindForeignKeyComparison(view, child, parent, index, key)
 	if err != nil {
 		return nil, err
 	}
-	comparisons := make([]catalogForeignKeyComparison, len(bound))
+	comparisons := make([]ForeignKeyComparison, len(bound))
 	for i, comparison := range bound {
-		comparisons[i] = catalogForeignKeyComparison{comparison.child, comparison.parent, comparison.comparison}
+		comparisons[i] = ForeignKeyComparison{comparison.child, comparison.parent, comparison.comparison}
 	}
 	return comparisons, nil
 }

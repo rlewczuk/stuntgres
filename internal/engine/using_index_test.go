@@ -524,14 +524,14 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 			t.Fatal("INCLUDE entered equality root")
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, attribute := range parent.Attributes {
 		target := parent.Address()
 		target.SubID = attribute
-		if !slices.Contains(edges, pgDependEdge{dependent: ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.OID}, referenced: target, deptype: 'a'}) {
+		if !slices.Contains(edges, DependEdge{Dependent: ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.OID}, Referenced: target, DepType: 'a'}) {
 			t.Fatal("missing key/include auto dependency", target)
 		}
 	}

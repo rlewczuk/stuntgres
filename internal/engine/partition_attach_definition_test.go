@@ -81,7 +81,7 @@ func TestPartitionAttachSchema(t *testing.T) {
 	}
 	next.Membership = &catalog.PartitionMembership{Parent: parent.Address()}
 	view = inheritanceUnitView(e, parent, next)
-	local, count := nonuniqueConstraintProvenance(view, next, "child_nn", 2, false)
+	local, count := NonuniqueConstraintProvenance(view, next, "child_nn", 2, false)
 	if local || count != 1 {
 		t.Fatal(local, count)
 	}

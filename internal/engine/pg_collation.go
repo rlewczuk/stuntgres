@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGCollation(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGCollation(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	source := in.Source

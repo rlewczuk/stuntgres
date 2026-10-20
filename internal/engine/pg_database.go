@@ -12,16 +12,16 @@ import (
 const nativeDatabaseProvider = "c"
 const nativeDatabaseLocale = "C"
 
-func databaseCollationActualVersion() (*string, error) {
+func DatabaseCollationActualVersion() (*string, error) {
 	locale := nativeDatabaseLocale
-	return collationActualVersion(&catalog.Collation{
+	return CollationActualVersion(&catalog.Collation{
 		Provider: nativeDatabaseProvider, Collate: &locale, CType: &locale,
 	})
 }
 
 // Caller owns e.mu. Only the supplied catalog and paired role read participate;
 // neither session identity nor the live engine catalog replaces captured facts.
-func capturePGDatabase(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGDatabase(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	roles := in.Roles
@@ -59,7 +59,7 @@ func capturePGDatabase(in catalogSourceInput) ([][]sqltype.Value, error) {
 	if database.Owner.ID() > math.MaxUint32 {
 		return nil, fmt.Errorf("stuntgres: unrepresentable database owner")
 	}
-	acl, err := pgClassACL(in.Owner, roles, source.Columns[17].Usage.Type, database.ACL)
+	acl, err := ClassACL(in.Owner, roles, source.Columns[17].Usage.Type, database.ACL)
 	if err != nil {
 		return nil, err
 	}
@@ -92,9 +92,9 @@ func capturePGDatabase(in catalogSourceInput) ([][]sqltype.Value, error) {
 
 var builtinCollationVersion = "1"
 
-func collationActualVersion(d *catalog.Collation) (*string, error) {
+func CollationActualVersion(d *catalog.Collation) (*string, error) {
 	if d.Provider == "d" {
-		return databaseCollationActualVersion()
+		return DatabaseCollationActualVersion()
 	}
 	if _, err := catalog.CollationSemantics(d); err != nil {
 		return nil, err

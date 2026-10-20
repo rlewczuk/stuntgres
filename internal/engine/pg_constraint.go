@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-var pgConstraintTypeIDs = [28]sqltype.ID{
+var ConstraintTypeIDs = [28]sqltype.ID{
 	sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Char,
 	sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool,
 	sqltype.Oid, sqltype.Oid, sqltype.Oid, sqltype.Oid, sqltype.Oid,
@@ -22,18 +22,18 @@ var pgConstraintTypeIDs = [28]sqltype.ID{
 
 // Each capture projects the caller's immutable owner generation, including its
 // transaction overlay. There is no independently mutable constraint registry.
-func capturePGConstraint(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if len(source.Columns) != len(pgConstraintTypeIDs) {
+	if len(source.Columns) != len(ConstraintTypeIDs) {
 		return nil, fmt.Errorf("stuntgres: invalid constraint source shape")
 	}
 	var types [28]*sqltype.Descriptor
-	for i, id := range pgConstraintTypeIDs {
+	for i, id := range ConstraintTypeIDs {
 		owned, ok := view.LookupType(id)
 		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign constraint source type")
@@ -101,7 +101,7 @@ func capturePGConstraint(in catalogSourceInput) ([][]sqltype.Value, error) {
 			if err != nil {
 				return nil, err
 			}
-			local, count := nonuniqueConstraintProvenance(view, table, c.Name, c.Attribute, false)
+			local, count := NonuniqueConstraintProvenance(view, table, c.Name, c.Attribute, false)
 			builder.boolean(row, 7, !c.NotValid)
 			builder.boolean(row, 16, local || c.PartitionLocal)
 			builder.integer(row, 17, count)
@@ -113,7 +113,7 @@ func capturePGConstraint(in catalogSourceInput) ([][]sqltype.Value, error) {
 			if err != nil {
 				return nil, err
 			}
-			local, count := nonuniqueConstraintProvenance(view, table, c.Name, 0, true)
+			local, count := NonuniqueConstraintProvenance(view, table, c.Name, 0, true)
 			builder.boolean(row, 7, !c.NotValid)
 			builder.boolean(row, 16, local)
 			builder.integer(row, 17, count)
@@ -208,7 +208,7 @@ func capturePGConstraint(in catalogSourceInput) ([][]sqltype.Value, error) {
 				if err != nil {
 					return nil, err
 				}
-				id, err := constraintOperator(view, op.Name, inputs[0], inputs[1])
+				id, err := ConstraintOperator(view, op.Name, inputs[0], inputs[1])
 				if err != nil {
 					return nil, err
 				}
@@ -237,7 +237,7 @@ type pgConstraintBuilder struct {
 
 func (b *pgConstraintBuilder) initialize(row []sqltype.Value, namespace, relation, id ids.OID, name, kind string) {
 	for i, typ := range b.types {
-		switch pgConstraintTypeIDs[i] {
+		switch ConstraintTypeIDs[i] {
 		case sqltype.Oid:
 			b.oid(row, i, 0)
 		case sqltype.Bool:
@@ -300,7 +300,7 @@ func (b *pgConstraintBuilder) keys(row []sqltype.Value, i int, attributes []int3
 	}
 	b.vector(row, i, values)
 }
-func (b *pgConstraintBuilder) checkKeys(ctx context.Context, runtime catalogSourceRuntime, row []sqltype.Value, table *catalog.Relation, expression expr.Expr) {
+func (b *pgConstraintBuilder) checkKeys(ctx context.Context, runtime Runtime, row []sqltype.Value, table *catalog.Relation, expression expr.Expr) {
 	var values []sqltype.Value
 	if b.err != nil {
 		b.vector(row, 20, values)
@@ -342,7 +342,7 @@ func constraintAction(typ *sqltype.Descriptor, action parser.ForeignKeyAction) (
 	return sqltype.String(typ, code), nil
 }
 
-func constraintOperator(catalog catalog.Read, name string, left, right sqltype.ID) (ids.OID, error) {
+func ConstraintOperator(catalog catalog.Read, name string, left, right sqltype.ID) (ids.OID, error) {
 	for _, operand := range []*sqltype.ID{&left, &right} {
 		typ, ok := catalog.LookupType(*operand)
 		if !ok {
@@ -365,7 +365,7 @@ func constraintOperator(catalog catalog.Read, name string, left, right sqltype.I
 	return address.ObjectID, nil
 }
 
-func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, runtime catalogSourceRuntime, catalog catalog.Read, row []sqltype.Value, child *catalog.Relation, f catalog.ForeignKeyConstraint) error {
+func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, runtime Runtime, catalog catalog.Read, row []sqltype.Value, child *catalog.Relation, f catalog.ForeignKeyConstraint) error {
 	if len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 		return fmt.Errorf("stuntgres: invalid foreign-key metadata keys")
 	}
@@ -407,7 +407,7 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, runtime cata
 			return err
 		}
 		for triple, pair := range inputs {
-			id, err := constraintOperator(catalog, "=", pair[0], pair[1])
+			id, err := ConstraintOperator(catalog, "=", pair[0], pair[1])
 			if err != nil {
 				return err
 			}
@@ -423,7 +423,7 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, runtime cata
 	return b.err
 }
 
-func nonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation, name string, attribute int32, check bool) (bool, int64) {
+func NonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation, name string, attribute int32, check bool) (bool, int64) {
 	if graph := table.Inheritance; graph != nil {
 		provenance, exists := graph.NotNull[attribute]
 		if check {

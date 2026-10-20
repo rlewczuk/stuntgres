@@ -39,7 +39,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 		}
 		return old, nil
 	}
-	history := relationAttributeMetadata(old, slot)
+	history := AttributeMetadata(old, slot)
 	history.Name = fmt.Sprintf("........pg.dropped.%d........", history.Number)
 	history.TypeID, history.NotNull, history.HasDefault, history.Generated, history.Dropped = 0, false, false, "", true
 	target := ref.Address

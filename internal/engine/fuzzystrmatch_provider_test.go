@@ -66,14 +66,14 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	members := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.Address() && edge.deptype == 'e' {
-			if !addresses[edge.dependent] {
+		if edge.Referenced == ext.Address() && edge.DepType == 'e' {
+			if !addresses[edge.Dependent] {
 				t.Fatal("foreign member edge")
 			}
 			members++

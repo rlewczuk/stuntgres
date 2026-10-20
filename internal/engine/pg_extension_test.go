@@ -108,7 +108,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	for i, c := range d.Columns {
 		root.expressions = append(root.expressions, columnExpression{Info: expr.Info{Usage: c.Usage}, origin: ref, scope: 1, frame: 1, slot: i})
 	}
-	executable, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog)
+	executable, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	for _, width := range []int{0, 7, 9} {
 		invalid := *d
 		invalid.Columns = make([]catalog.Column, width)
-		if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
+		if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 			t.Fatal("malformed width", width, rows, err)
 		}
 	}
@@ -138,7 +138,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		invalid := *d
 		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(c.Usage.Type.ID())
-		if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
+		if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 			t.Fatal("foreign column", i, rows, err)
 		}
 	}
@@ -154,12 +154,12 @@ func TestPGExtensionCapture(t *testing.T) {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
-	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 		t.Fatal("missing array descriptor", rows, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); rows != nil || !errors.Is(err, context.Canceled) {
+	if rows, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)
 	}
 	retained := &indexedStage{source: old, schema: d.Columns}
@@ -177,7 +177,7 @@ func TestPGExtensionCapture(t *testing.T) {
 				t.Fatal("generation not reminted", i)
 			}
 		}
-		if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
+		if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 			t.Fatal("old source accepted in replacement", rows, err)
 		}
 		if !reflect.DeepEqual(retained.Schema(), original) || old.ref != ref || old.count() != 0 {

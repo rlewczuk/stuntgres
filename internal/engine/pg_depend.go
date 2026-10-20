@@ -9,19 +9,19 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type pgDependEdge struct {
-	dependent, referenced ids.ObjectAddress
-	deptype               byte
+type DependEdge struct {
+	Dependent, Referenced ids.ObjectAddress
+	DepType               byte
 }
 
-func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSourceRuntime) ([]pgDependEdge, error) {
+func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]DependEdge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	var edges []pgDependEdge
+	var edges []DependEdge
 	add := func(dependent, referenced ids.ObjectAddress, flavor byte) {
 		if referenced.ObjectID != 0 && !runtime.Pinned(view, referenced) {
-			edges = append(edges, pgDependEdge{dependent, referenced, flavor})
+			edges = append(edges, DependEdge{dependent, referenced, flavor})
 		}
 	}
 	attribute := func(relation ids.ObjectAddress, sub int32) ids.ObjectAddress { relation.SubID = sub; return relation }
@@ -54,7 +54,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSour
 				}
 			}
 		case *catalog.ForeignObject:
-			for _, address := range foreignDependencyAddresses(d) {
+			for _, address := range ForeignDependencies(d) {
 				if address != (ids.ObjectAddress{}) {
 					add(d.Address(), address, 'n')
 				}
@@ -362,7 +362,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSour
 					return nil, err
 				}
 			}
-			if err := runtime.VisitRules(d, func(rule catalogRuleFact) error {
+			if err := runtime.VisitRules(d, func(rule RuleFact) error {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}
 				add(owner, d.Address(), 'a')
 				for _, ref := range rule.References {
@@ -394,9 +394,9 @@ func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSour
 	return edges, nil
 }
 
-func capturePGDepend(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGDepend(in Input) ([][]sqltype.Value, error) {
 	ctx, catalog, source := in.Context, in.Catalog, in.Source
-	edges, err := collectPGDepend(ctx, catalog, in.Runtime)
+	edges, err := CollectDepend(ctx, catalog, in.Runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +406,7 @@ func capturePGDepend(in catalogSourceInput) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		row := make([]sqltype.Value, 7)
-		for i, n := range [6]int64{int64(edge.dependent.ClassID), int64(edge.dependent.ObjectID), int64(edge.dependent.SubID), int64(edge.referenced.ClassID), int64(edge.referenced.ObjectID), int64(edge.referenced.SubID)} {
+		for i, n := range [6]int64{int64(edge.Dependent.ClassID), int64(edge.Dependent.ObjectID), int64(edge.Dependent.SubID), int64(edge.Referenced.ClassID), int64(edge.Referenced.ObjectID), int64(edge.Referenced.SubID)} {
 			if i == 2 || i == 5 {
 				row[i], err = sqltype.Integer(source.Columns[i].Usage.Type, n)
 			} else {
@@ -416,7 +416,7 @@ func capturePGDepend(in catalogSourceInput) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 		}
-		row[6] = sqltype.String(source.Columns[6].Usage.Type, string(edge.deptype))
+		row[6] = sqltype.String(source.Columns[6].Usage.Type, string(edge.DepType))
 		rows = append(rows, row)
 	}
 	if err := ctx.Err(); err != nil {
@@ -425,6 +425,6 @@ func capturePGDepend(in catalogSourceInput) ([][]sqltype.Value, error) {
 	return rows, nil
 }
 
-func foreignDependencyAddresses(d *catalog.ForeignObject) [4]ids.ObjectAddress {
+func ForeignDependencies(d *catalog.ForeignObject) [4]ids.ObjectAddress {
 	return [4]ids.ObjectAddress{d.Wrapper, d.Server, d.Handler, d.Validator}
 }

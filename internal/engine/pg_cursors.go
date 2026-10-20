@@ -5,17 +5,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const pgCursorsOID ids.OID = 12077
+const CursorsOID ids.OID = 12077
 
 // Session admission protects this registry. Only registry membership determines
 // visibility: producer teardown and HOLD promotion do not remove metadata.
-func capturePGCursors(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGCursors(in Input) ([][]sqltype.Value, error) {
 	ctx, d := in.Context, in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0, in.Runtime.CursorCount())
-	err := in.Runtime.VisitCursors(func(cursor catalogCursorFact) error {
+	err := in.Runtime.VisitCursors(func(cursor CursorFact) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}

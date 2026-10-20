@@ -10,7 +10,7 @@ import (
 
 // Capture descriptors and ACLs from the same immutable root as the query's
 // other catalog sources. Later grants cannot mutate already captured rows.
-func capturePGTablespace(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGTablespace(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	roles := in.Roles
@@ -35,7 +35,7 @@ func capturePGTablespace(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		acl, err := pgClassACL(in.Owner, roles, source.Columns[3].Usage.Type, d.ACL)
+		acl, err := ClassACL(in.Owner, roles, source.Columns[3].Usage.Type, d.ACL)
 		if err != nil {
 			return nil, err
 		}

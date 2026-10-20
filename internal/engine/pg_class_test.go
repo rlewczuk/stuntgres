@@ -30,7 +30,7 @@ func TestPgClassProjection(t *testing.T) {
 		}
 	}
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.roles.domain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, History: catalog.PublicationHistory{HasIndexes: true, HasSubclasses: true}, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}, Constraints: catalog.RelationConstraints{Check: make([]catalog.CheckConstraint, 2)}}
-	row, err := pgClassRow(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{}}, relation)
+	row, err := ClassRow(Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{}}, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
 	}
@@ -76,7 +76,7 @@ func TestPgClassProjection(t *testing.T) {
 	}
 	for _, oid := range []ids.OID{1213, 1262, 2396} {
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-		row, err := pgClassRow(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{}}, d)
+		row, err := ClassRow(Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{}}, d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -95,14 +95,14 @@ func TestPgClassKinds(t *testing.T) {
 		kind catalog.RelationKind
 		want string
 	}{{catalog.TableRelation, "r"}, {catalog.SequenceRelation, "S"}, {catalog.ViewRelation, "v"}, {catalog.MaterializedViewRelation, "m"}, {catalog.CompositeRelation, "c"}, {catalog.PartitionedRelation, "p"}} {
-		if got := pgClassKind(view, &catalog.Relation{RelationKind: tc.kind}); got != tc.want {
+		if got := ClassKind(view, &catalog.Relation{RelationKind: tc.kind}); got != tc.want {
 			t.Fatal(tc, got)
 		}
 	}
 	for _, oid := range []ids.OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, 12081} {
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		before := d.VirtualView
-		if got := pgClassKind(view, d); got != "v" || d.VirtualView != before {
+		if got := ClassKind(view, d); got != "v" || d.VirtualView != before {
 			t.Fatal("classification changed dispatch", oid, got)
 		}
 	}
@@ -110,11 +110,11 @@ func TestPgClassKinds(t *testing.T) {
 	state := catalog.CloneState(view.State())
 	state.SetDescriptor(parentAddress, &catalog.Relation{ObjectAddress: parentAddress, Partition: &catalog.PartitionDefinition{}})
 	index := &catalog.Relation{RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: parentAddress}}
-	if got := pgClassKind(e.catalog.read(state), index); got != "I" {
+	if got := ClassKind(e.catalog.read(state), index); got != "I" {
 		t.Fatal(got)
 	}
 	state.RemoveDescriptor(parentAddress)
-	if got := pgClassKind(e.catalog.read(state), index); got != "i" {
+	if got := ClassKind(e.catalog.read(state), index); got != "i" {
 		t.Fatal(got)
 	}
 }
@@ -136,7 +136,7 @@ func TestPgClassACLTranslation(t *testing.T) {
 	} {
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: tc.privilege, GrantOptions: tc.privilege}}}
 		retained := append([]authorization.ACLEntry(nil), acl.Entries...)
-		value, err := pgClassACL(e.catalog.owner(), roles, array, acl)
+		value, err := ClassACL(e.catalog.owner(), roles, array, acl)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,7 +146,7 @@ func TestPgClassACLTranslation(t *testing.T) {
 		}
 	}
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.SelectPrivilege | authorization.UpdatePrivilege, GrantOptions: authorization.UpdatePrivilege}}}
-	value, err := pgClassACL(e.catalog.owner(), roles, array, acl)
+	value, err := ClassACL(e.catalog.owner(), roles, array, acl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,24 +155,24 @@ func TestPgClassACLTranslation(t *testing.T) {
 		t.Fatal("independent grant-option mask", grantee, mask, options, err)
 	}
 	for _, explicit := range []bool{false, true} {
-		v, err := pgClassACL(e.catalog.owner(), roles, array, authorization.ACLValue{Explicit: explicit})
+		v, err := ClassACL(e.catalog.owner(), roles, array, authorization.ACLValue{Explicit: explicit})
 		if err != nil || v.IsNull() == explicit || v.ArrayLen() != 0 {
 			t.Fatal("NULL vs empty", explicit, v, err)
 		}
 	}
 	foreign := &authorization.Domain{}
 	acl.Entries[0].Grantor = foreign.Principal(10)
-	if _, err := pgClassACL(e.catalog.owner(), roles, array, acl); err == nil {
+	if _, err := ClassACL(e.catalog.owner(), roles, array, acl); err == nil {
 		t.Fatal("foreign grantor admitted")
 	}
 	acl.Entries[0].Grantor = owner
 	acl.Entries[0].Grantee.Role = foreign.Principal(10)
-	if _, err := pgClassACL(e.catalog.owner(), roles, array, acl); err == nil {
+	if _, err := ClassACL(e.catalog.owner(), roles, array, acl); err == nil {
 		t.Fatal("foreign grantee admitted")
 	}
 	acl.Entries[0].Grantee.Role = owner
 	acl.Entries[0].GrantOptions = authorization.InsertPrivilege
-	if _, err := pgClassACL(e.catalog.owner(), roles, array, acl); err == nil {
+	if _, err := ClassACL(e.catalog.owner(), roles, array, acl); err == nil {
 		t.Fatal("option absent privilege admitted")
 	}
 	all := authorization.Privileges((1 << 11) - 1)
@@ -180,7 +180,7 @@ func TestPgClassACLTranslation(t *testing.T) {
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: all, GrantOptions: authorization.UpdatePrivilege},
 		{Grantor: roles.LookupRef("acl_translation_grantor"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: all, GrantOptions: all},
 	}}
-	value, err = pgClassACL(e.catalog.owner(), roles, array, combined)
+	value, err = ClassACL(e.catalog.owner(), roles, array, combined)
 	if err != nil {
 		t.Fatal(err)
 	}

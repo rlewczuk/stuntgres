@@ -5,7 +5,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGOpclass(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGOpclass(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	catalog := in.Catalog
 	source := in.Source

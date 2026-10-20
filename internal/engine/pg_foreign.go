@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const pgUserMappingsOID ids.OID = 12095
+const UserMappingsOID ids.OID = 12095
 
 func foreignOptionsValue(typ *sqltype.Descriptor, options []catalog.ForeignOption) (sqltype.Value, error) {
 	if len(options) == 0 {
@@ -21,12 +21,12 @@ func foreignOptionsValue(typ *sqltype.Descriptor, options []catalog.ForeignOptio
 	return sqltype.OwnedArrayValue(typ, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 }
 
-func captureForeignCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
+func captureForeignCatalog(in Input) ([][]sqltype.Value, error) {
 	ctx, source := in.Context, in.Source
 	var descriptors []catalog.Descriptor
 	for _, d := range in.Catalog.Descriptors() {
 		if foreign, ok := d.(*catalog.ForeignObject); ok {
-			if foreign.Address().ClassID == source.Address().ObjectID || source.Address().ObjectID == pgUserMappingsOID && foreign.Address().ClassID == ids.ForeignMappingClassID {
+			if foreign.Address().ClassID == source.Address().ObjectID || source.Address().ObjectID == UserMappingsOID && foreign.Address().ClassID == ids.ForeignMappingClassID {
 				descriptors = append(descriptors, d)
 			}
 		} else if r, ok := d.(*catalog.Relation); ok && source.Address().ObjectID == ids.ForeignTableClassID && r.Foreign != nil {
@@ -71,7 +71,7 @@ func captureForeignCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
 						return nil, err
 					}
 				}
-				row[5], err = pgClassACL(in.Owner, in.Roles, source.Columns[5].Usage.Type, d.ACL)
+				row[5], err = ClassACL(in.Owner, in.Roles, source.Columns[5].Usage.Type, d.ACL)
 				if err != nil {
 					return nil, err
 				}
@@ -90,7 +90,7 @@ func captureForeignCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
 				if d.Version != nil {
 					putString(5, *d.Version)
 				}
-				row[6], err = pgClassACL(in.Owner, in.Roles, source.Columns[6].Usage.Type, d.ACL)
+				row[6], err = ClassACL(in.Owner, in.Roles, source.Columns[6].Usage.Type, d.ACL)
 				if err != nil {
 					return nil, err
 				}
@@ -103,7 +103,7 @@ func captureForeignCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
 					return nil, err
 				}
 				row[3], err = foreignOptionsValue(source.Columns[3].Usage.Type, d.Options)
-			case pgUserMappingsOID:
+			case UserMappingsOID:
 				server, ok := in.Catalog.Foreign(d.Server)
 				if !ok {
 					return nil, ids.ErrCatalogReplaced

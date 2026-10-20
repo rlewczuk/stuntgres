@@ -121,17 +121,17 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	leaf := inheritanceLifecycleTable(e, 20002, "leaf", c.Address())
 	inheritanceLifecycleInstall(e, p, c, leaf)
-	edges, err := collectPGDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []pgDependEdge
+	var got []DependEdge
 	for _, edge := range edges {
-		if edge.dependent == leaf.Address() && edge.referenced.ClassID == ids.RelationClassID {
+		if edge.Dependent == leaf.Address() && edge.Referenced.ClassID == ids.RelationClassID {
 			got = append(got, edge)
 		}
 	}
-	if !reflect.DeepEqual(got, []pgDependEdge{{dependent: leaf.Address(), referenced: c.Address(), deptype: 'n'}}) {
+	if !reflect.DeepEqual(got, []DependEdge{{Dependent: leaf.Address(), Referenced: c.Address(), DepType: 'n'}}) {
 		t.Fatal(got)
 	}
 }

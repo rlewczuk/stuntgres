@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func captureExtensionCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
+func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	source := in.Source
@@ -73,7 +73,7 @@ func captureExtensionCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))
 			integer(3, int64(d.Owner.ID()))
-			integer(4, procedureArity(d))
+			integer(4, ProcedureArity(d))
 			integer(5, int64(d.Result))
 			vol := "v"
 			if d.Volatility == expr.Stable {
@@ -117,7 +117,7 @@ func captureExtensionCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
 	return rows, nil
 }
 
-func procedureArity(p *catalog.Procedure) int64 {
+func ProcedureArity(p *catalog.Procedure) int64 {
 	if p.Signature == "" {
 		return 0
 	}

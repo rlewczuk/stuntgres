@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGIndex(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGIndex(in Input) ([][]sqltype.Value, error) {
 	ctx, view := in.Context, in.Catalog
 	source := in.Source
 	var relations []*catalog.Relation
@@ -42,7 +42,7 @@ func capturePGIndex(in catalogSourceInput) ([][]sqltype.Value, error) {
 	return rows, nil
 }
 
-func capturePGAttrdef(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGAttrdef(in Input) ([][]sqltype.Value, error) {
 	ctx, view := in.Context, in.Catalog
 	source := in.Source
 	var relations []*catalog.Relation
@@ -94,7 +94,7 @@ func capturePGAttrdef(in catalogSourceInput) ([][]sqltype.Value, error) {
 	return rows, nil
 }
 
-func capturePGClass(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGClass(in Input) ([][]sqltype.Value, error) {
 	ctx, view := in.Context, in.Catalog
 	var relations []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
@@ -109,7 +109,7 @@ func capturePGClass(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		row, err := pgClassRow(in, relation)
+		row, err := ClassRow(in, relation)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +118,7 @@ func capturePGClass(in catalogSourceInput) ([][]sqltype.Value, error) {
 	return rows, nil
 }
 
-func capturePGRewrite(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGRewrite(in Input) ([][]sqltype.Value, error) {
 	ctx, view := in.Context, in.Catalog
 	source := in.Source
 	var relations []*catalog.Relation
@@ -147,7 +147,7 @@ func capturePGRewrite(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if relation.View != nil {
 			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.View.RuleOID())), text(1, "_RETURN"), oid(2, uint32(relation.Address().ObjectID)), text(3, "1"), text(4, "O"), boolean(5, true)})
 		}
-		if err := in.Runtime.VisitRules(relation, func(rule catalogRuleFact) error {
+		if err := in.Runtime.VisitRules(relation, func(rule RuleFact) error {
 			rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.Address().ObjectID)), text(3, rule.Event), text(4, "O"), boolean(5, rule.Instead)})
 			return nil
 		}); err != nil {
@@ -160,7 +160,7 @@ func capturePGRewrite(in catalogSourceInput) ([][]sqltype.Value, error) {
 	return rows, nil
 }
 
-func capturePGDBRoleSetting(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGDBRoleSetting(in Input) ([][]sqltype.Value, error) {
 	if err := in.Context.Err(); err != nil {
 		return nil, err
 	}

@@ -93,7 +93,7 @@ func TestPGUserDescriptor(t *testing.T) {
 	if row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 12015 || row.SQLType.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
-	if representedSummaryTable(12014) || representedSummaryViewDefinition(12014) == "" {
+	if SummaryTable(12014) || SummaryViewDefinition(12014) == "" {
 		t.Fatal("pg_user summary classification")
 	}
 }
@@ -119,7 +119,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 	role.ValidUntil = 123456789
 	role.ConnectionLimit = 0
 	putFixtureRole(state, role)
-	source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGUser)
+	source, err := captureCatalogSourceRows(Input{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGUser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 		t.Fatal("detached expiry changed")
 	}
 	retireFixtureRole(updated, low)
-	fresh, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), updated), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGUser)
+	fresh, err := captureCatalogSourceRows(Input{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), updated), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGUser)
 	if err != nil || pgUserUnitRows(t, fresh)[20000] != nil {
 		t.Fatal("high identity resurrected removed low", err)
 	}
@@ -261,14 +261,14 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, roles := range []authorization.Read{e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state)} {
-		source, err := captureCatalogSourceRows(catalogSourceInput{Context: canceled, Roles: roles, Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGUser)
+		source, err := captureCatalogSourceRows(Input{Context: canceled, Roles: roles, Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGUser)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
 		}
 	}
 	for _, at := range []int{2, 3, 5} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGUser)
+		source, err := captureCatalogSourceRows(Input{Context: ctx, Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGUser)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -276,7 +276,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGUser); err == nil || source != nil {
+	if source, err := captureCatalogSourceRows(Input{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGUser); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
@@ -304,7 +304,7 @@ func TestPGUserResolvedWriteTargets(t *testing.T) {
 			if operation == "delete" {
 				targets = nil
 			}
-			err := virtualViewWriteError(d, operation, targets)
+			err := VirtualViewWriteError(d, operation, targets)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) {
 				t.Fatal(err)
@@ -322,7 +322,7 @@ func TestPGUserResolvedWriteTargets(t *testing.T) {
 	renamed := *d
 	renamed.Columns = append([]catalog.Column(nil), d.Columns...)
 	renamed.Columns[6].Name = "alias"
-	if !reflect.DeepEqual(virtualViewWriteError(d, "update", []int{6}), virtualViewWriteError(&renamed, "update", []int{6})) {
+	if !reflect.DeepEqual(VirtualViewWriteError(d, "update", []int{6}), VirtualViewWriteError(&renamed, "update", []int{6})) {
 		t.Fatal("write diagnostic depends on text spelling")
 	}
 }

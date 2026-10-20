@@ -71,14 +71,14 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal("corrupt member inventory", members)
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	count := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.Address() && edge.deptype == 'e' {
-			if !addresses[edge.dependent] {
+		if edge.Referenced == ext.Address() && edge.DepType == 'e' {
+			if !addresses[edge.Dependent] {
 				t.Fatal("foreign member dependency")
 			}
 			count++

@@ -81,7 +81,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		if source.Provider == "d" {
 			return sqlError("42P17", `collation "default" cannot be copied`)
 		}
-		d.Version, err = collationActualVersion(source)
+		d.Version, err = CollationActualVersion(source)
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	actual, err := collationActualVersion(&d)
+	actual, err := CollationActualVersion(&d)
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	next := *d
 	switch s.Action {
 	case "refresh":
-		actual, err := collationActualVersion(d)
+		actual, err := CollationActualVersion(d)
 		if err != nil {
 			return err
 		}

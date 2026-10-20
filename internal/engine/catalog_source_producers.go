@@ -5,14 +5,15 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-type catalogSourceRegistration struct {
-	oid     ids.OID
-	produce catalogSourceProducer
+// Registration pairs one system relation OID with its row producer.
+type Registration struct {
+	OID     ids.OID
+	Produce Producer
 }
 
 // Process-initialized, sorted by relation OID and never mutated. Registration
 // order of descriptors is independent of lookup order here.
-var catalogSourceProducers = [...]catalogSourceRegistration{
+var producers = [...]Registration{
 	{826, capturePGDefaultACL},
 	{1213, capturePGTablespace},
 	{1247, capturePGType},
@@ -68,10 +69,16 @@ var catalogSourceProducers = [...]catalogSourceRegistration{
 	{16202, capturePGSettings},
 }
 
-func catalogSourceProducerFor(oid ids.OID) (catalogSourceProducer, bool) {
-	i := sort.Search(len(catalogSourceProducers), func(i int) bool { return catalogSourceProducers[i].oid >= oid })
-	if i == len(catalogSourceProducers) || catalogSourceProducers[i].oid != oid {
+// Registrations returns a copy of the registry in lookup (OID) order.
+func Registrations() []Registration {
+	return append([]Registration(nil), producers[:]...)
+}
+
+// ProducerFor finds the producer registered for a system relation OID.
+func ProducerFor(oid ids.OID) (Producer, bool) {
+	i := sort.Search(len(producers), func(i int) bool { return producers[i].OID >= oid })
+	if i == len(producers) || producers[i].OID != oid {
 		return nil, false
 	}
-	return catalogSourceProducers[i].produce, true
+	return producers[i].Produce, true
 }

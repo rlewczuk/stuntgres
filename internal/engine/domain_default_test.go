@@ -83,7 +83,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 			t.Fatal("NULL leaf pre-applied inherited typmod")
 		}
 	})
-	facts, err := pgTypeFacts(context.Background(), view, numericMask, sqltype.OutputEnvironment{})
+	facts, err := TypeFacts(context.Background(), view, numericMask, sqltype.OutputEnvironment{})
 	if err != nil || facts.Default != "NULL::numeric" || !facts.HasDefaultTree {
 		t.Fatal("NULL mask recipe metadata", facts, err)
 	}
@@ -291,7 +291,7 @@ func TestDomainDefaultBareNullInternal(t *testing.T) {
 		if err := validateDomainDefault(view, d); err != nil {
 			t.Fatal(name, err)
 		}
-		facts, err := pgTypeFacts(op.Context(), view, d, sqltype.OutputEnvironment{})
+		facts, err := TypeFacts(op.Context(), view, d, sqltype.OutputEnvironment{})
 		if err != nil || facts.HasDefault || facts.HasDefaultTree || facts.Default != "" {
 			t.Fatal("elided NULL catalog presence", name, facts, err)
 		}

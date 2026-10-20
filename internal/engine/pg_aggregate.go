@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const pgAggregateOID ids.OID = 2600
+const AggregateOID ids.OID = 2600
 
 var aggregateColumnTypes = [...]sqltype.ID{
 	sqltype.Regproc, sqltype.Char, sqltype.Int2, sqltype.Regproc, sqltype.Regproc,
@@ -16,7 +16,7 @@ var aggregateColumnTypes = [...]sqltype.ID{
 	sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Oid, sqltype.Int4, sqltype.Text, sqltype.Text,
 }
 
-func capturePGAggregate(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGAggregate(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	ref := in.Ref
@@ -24,7 +24,7 @@ func capturePGAggregate(in catalogSourceInput) ([][]sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source || len(source.Columns) != len(aggregateColumnTypes) {
+	if view.Owner() == nil || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: AggregateOID}) || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source || len(source.Columns) != len(aggregateColumnTypes) {
 		return nil, fmt.Errorf("stuntgres: foreign aggregate source authority")
 	}
 	for i, id := range aggregateColumnTypes {
@@ -33,7 +33,7 @@ func capturePGAggregate(in catalogSourceInput) ([][]sqltype.Value, error) {
 			return nil, fmt.Errorf("stuntgres: foreign aggregate source type")
 		}
 	}
-	count := len(builtinAggregateDefinitions)
+	count := len(AggregateDefinitions)
 	for _, d := range view.Descriptors() {
 		if p, ok := d.(*catalog.Procedure); ok && p.Aggregate != nil {
 			count++
@@ -96,8 +96,8 @@ func capturePGAggregate(in catalogSourceInput) ([][]sqltype.Value, error) {
 		index++
 		return nil
 	}
-	for i := range builtinAggregateDefinitions {
-		if err := put(&builtinAggregateDefinitions[i]); err != nil {
+	for i := range AggregateDefinitions {
+		if err := put(&AggregateDefinitions[i]); err != nil {
 			return nil, err
 		}
 	}

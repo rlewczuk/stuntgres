@@ -6,10 +6,10 @@ import (
 
 // Engine.mu protects the short registry snapshot. Rows own scalar datums and
 // never retain entries or session attachments.
-func capturePreparedSource(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePreparedSource(in Input) ([][]sqltype.Value, error) {
 	source := in.Source
 	rows := make([][]sqltype.Value, 0, in.Runtime.PreparedCount())
-	err := in.Runtime.VisitPreparedTransactions(in.Context, func(fact catalogPreparedFact) error {
+	err := in.Runtime.VisitPreparedTransactions(in.Context, func(fact PreparedFact) error {
 		xid, err := sqltype.XIDValue(source.Columns[0].Usage.Type, fact.XID)
 		if err != nil {
 			return err

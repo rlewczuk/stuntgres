@@ -345,7 +345,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						return catalog.Conflict{}
 					}
 				case *catalog.ForeignObject:
-					for _, dependency := range foreignDependencyAddresses(owner) {
+					for _, dependency := range ForeignDependencies(owner) {
 						if dependency != (ids.ObjectAddress{}) && dependency == target {
 							return catalog.Conflict{}
 						}

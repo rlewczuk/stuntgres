@@ -6,11 +6,11 @@ import (
 )
 
 // Reserved native relation identity, not a PostgreSQL allocator promise.
-const pgSettingsOID ids.OID = 16202
+const SettingsOID ids.OID = 16202
 
 // The supported inventory is exactly row_security. Capture one coherent physical
 // session observation; returned rows retain neither settings locks nor authority.
-func capturePGSettings(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 	ctx, d := in.Context, in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err

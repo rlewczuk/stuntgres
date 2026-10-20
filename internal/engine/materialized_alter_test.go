@@ -112,13 +112,13 @@ func TestMaterializedAlterExtensionAuthority(t *testing.T) {
 			t.Fatal("malformed authority accepted", addresses)
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	x := 0
 	for _, edge := range edges {
-		if edge.dependent == d.Address() && edge.referenced == ext.Address() && edge.deptype == 'x' {
+		if edge.Dependent == d.Address() && edge.Referenced == ext.Address() && edge.DepType == 'x' {
 			x++
 		}
 	}

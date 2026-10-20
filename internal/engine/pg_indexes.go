@@ -10,7 +10,7 @@ import (
 
 // The SQL source owns disclosure, not the ACL-neutral structural projections.
 // Authorization and deparsing both read the exact immutable statement capture.
-func capturePGIndexes(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGIndexes(in Input) ([][]sqltype.Value, error) {
 	ctx, view, ref, source := in.Context, in.Catalog, in.Ref, in.Source
 
 	if err := ctx.Err(); err != nil {

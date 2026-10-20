@@ -10,7 +10,7 @@ import (
 // The initialization-only registry supplies availability; the captured catalog
 // supplies installed state. Neither target-schema visibility nor provider calls
 // participate in this metadata projection.
-func captureAvailableExtensions(in catalogSourceInput) ([][]sqltype.Value, error) {
+func captureAvailableExtensions(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	registry := in.Owner.Extensions
 	catalog := in.Catalog
@@ -46,14 +46,14 @@ func captureAvailableExtensions(in catalogSourceInput) ([][]sqltype.Value, error
 		if source.Address().ObjectID == 12085 {
 			for _, version := range implementation.Versions().Installable() {
 				control.Version = version
-				row, err := projectAvailableExtension(name, control, installed, source)
+				row, err := ProjectAvailableExtension(name, control, installed, source)
 				if err != nil {
 					return nil, err
 				}
 				rows = append(rows, row)
 			}
 		} else {
-			row, err := projectAvailableExtension(name, control, installed, source)
+			row, err := ProjectAvailableExtension(name, control, installed, source)
 			if err != nil {
 				return nil, err
 			}
@@ -68,7 +68,7 @@ func captureAvailableExtensions(in catalogSourceInput) ([][]sqltype.Value, error
 
 // Metadata-only component seam: fixed control schema is not the installed
 // target namespace, and an unknown installed version never creates a package.
-func projectAvailableExtension(name string, registration catalog.ExtensionControl, installed *catalog.Extension, source *catalog.Relation) ([]sqltype.Value, error) {
+func ProjectAvailableExtension(name string, registration catalog.ExtensionControl, installed *catalog.Extension, source *catalog.Relation) ([]sqltype.Value, error) {
 	row := make([]sqltype.Value, len(source.Columns))
 	for i, column := range source.Columns {
 		row[i] = sqltype.Null(column.Usage.Type)

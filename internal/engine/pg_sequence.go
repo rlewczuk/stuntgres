@@ -9,7 +9,7 @@ import (
 // snapshot and current owner's overlay are distinct authorities: an override
 // replaces (or deletes) its base row, and private additions contribute new rows.
 // Caller holds Engine.mu and statement admission; no generator is accessed.
-func capturePGSequence(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGSequence(in Input) ([][]sqltype.Value, error) {
 	ctx, source := in.Context, in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err

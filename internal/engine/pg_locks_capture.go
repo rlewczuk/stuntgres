@@ -51,7 +51,7 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 	if !current {
 		return nil, ids.ErrCatalogReplaced
 	}
-	rows, err := pgLockRows(ctx, d, databaseOID, records, predicates)
+	rows, err := LockRows(ctx, d, databaseOID, records, predicates)
 	if err != nil {
 		return nil, err
 	}

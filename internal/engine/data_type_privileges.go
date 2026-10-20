@@ -11,18 +11,18 @@ import (
 )
 
 // Reserved native relation identity, independent of PostgreSQL's allocator.
-const dataTypePrivilegesOID ids.OID = 16201
+const DataTypePrivilegesOID ids.OID = 16201
 
 // Capture uses only the statement's coherent catalog, role and physical-session
 // authority. The caller holds Engine.mu; no live authority is resampled here.
-func captureDataTypePrivileges(in catalogSourceInput) ([][]sqltype.Value, error) {
+func captureDataTypePrivileges(in Input) ([][]sqltype.Value, error) {
 	ctx, view, ref, source := in.Context, in.Catalog, in.Ref, in.Source
 	database := in.Runtime.DatabaseName()
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := in.Runtime.ValidateCapture(view, in.Roles, ref, source, dataTypePrivilegesOID); err != nil {
+	if err := in.Runtime.ValidateCapture(view, in.Roles, ref, source, DataTypePrivilegesOID); err != nil {
 		return nil, err
 	}
 	var rows [][]sqltype.Value
@@ -48,7 +48,7 @@ func captureDataTypePrivileges(in catalogSourceInput) ([][]sqltype.Value, error)
 		}
 		switch d := descriptor.(type) {
 		case *catalog.Relation:
-			kind := pgClassKind(view, d)
+			kind := ClassKind(view, d)
 			if kind != "r" && kind != "v" && kind != "f" && kind != "p" && kind != "c" {
 				continue
 			}

@@ -11,7 +11,7 @@ import (
 
 // Capture from the statement's immutable role root, never from live engine roles.
 // Password verifiers are deliberately not consulted: the public value is constant.
-func capturePGUser(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGUser(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	roles := in.Roles
 	source := in.Source
@@ -55,7 +55,7 @@ func capturePGUser(in catalogSourceInput) ([][]sqltype.Value, error) {
 
 // Target slots are already resolved by ordinary mutation binding. Readonly
 // rejection follows semantic analysis and does not depend on values or row demand.
-func virtualViewWriteError(d *catalog.Relation, operation string, targets []int) error {
+func VirtualViewWriteError(d *catalog.Relation, operation string, targets []int) error {
 	if d.Address().ObjectID == 12008 {
 		return sqlError("0A000", "catalog source mutation is unsupported")
 	}

@@ -6,9 +6,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const pgLanguageOID ids.OID = 2612
+const LanguageOID ids.OID = 2612
 
-func capturePGLanguage(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGLanguage(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	catalog := in.Catalog
 	source := in.Source

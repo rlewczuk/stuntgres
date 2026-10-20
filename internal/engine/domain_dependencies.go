@@ -139,7 +139,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 				}
 			case *catalog.ForeignObject:
-				for _, dependency := range foreignDependencyAddresses(d) {
+				for _, dependency := range ForeignDependencies(d) {
 					if dependency == (ids.ObjectAddress{}) {
 						continue
 					}

@@ -10,7 +10,7 @@ import (
 
 // Caller owns e.mu. Catalog and paired roles are immutable captured authority;
 // inventory visibility is independent of the actor's schema USAGE privileges.
-func capturePGNamespace(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGNamespace(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	roles := in.Roles
@@ -71,7 +71,7 @@ func capturePGNamespace(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		acl, err := pgClassACL(in.Owner, roles, source.Columns[3].Usage.Type, ns.ACL)
+		acl, err := ClassACL(in.Owner, roles, source.Columns[3].Usage.Type, ns.ACL)
 		if err != nil {
 			return nil, err
 		}

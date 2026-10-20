@@ -190,21 +190,21 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		if !ok || relation.Name() != expected.name || relation.RelationKind != catalog.CatalogRelation {
 			t.Fatalf("missing represented builtin %s (%d)", expected.name, expected.oid)
 		}
-		if representedSummaryTable(expected.oid) != expected.table || (representedSummaryViewDefinition(expected.oid) != "") == expected.table {
+		if SummaryTable(expected.oid) != expected.table || (SummaryViewDefinition(expected.oid) != "") == expected.table {
 			t.Fatalf("incorrect table/view classification for %s", expected.name)
 		}
 	}
 	for _, d := range catalogView.Descriptors() {
 		if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.CatalogRelation {
-			table := representedSummaryTable(relation.Address().ObjectID)
-			view := representedSummaryViewDefinition(relation.Address().ObjectID) != ""
+			table := SummaryTable(relation.Address().ObjectID)
+			view := SummaryViewDefinition(relation.Address().ObjectID) != ""
 			if table && view {
 				t.Fatal("builtin classified twice")
 			}
 		}
 	}
 	e.mu.Lock()
-	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalogView, Roles: e.roles.read(e.catalog.owner(), catalogView, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
+	captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: catalogView, Roles: e.roles.read(e.catalog.owner(), catalogView, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +239,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 		catalog := e.CatalogRead()
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
-		captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
+		captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -277,7 +277,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	capture := func(catalog catalog.Read) []sqltype.Value {
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
-		captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
+		captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

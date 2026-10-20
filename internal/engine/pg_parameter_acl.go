@@ -7,7 +7,7 @@ import (
 
 // Parameter identities and sparse membership belong to the grant owner. Read
 // only actual descriptors, using the statement's matching catalog/role roots.
-func capturePGParameterACL(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGParameterACL(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	roles := in.Roles
@@ -34,7 +34,7 @@ func capturePGParameterACL(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		acl, err := pgClassACL(in.Owner, roles, source.Columns[2].Usage.Type, d.ACL)
+		acl, err := ClassACL(in.Owner, roles, source.Columns[2].Usage.Type, d.ACL)
 		if err != nil {
 			return nil, err
 		}

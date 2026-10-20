@@ -12,7 +12,7 @@ import (
 func TestPGLanguageCaptureOwnership(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLanguageOID}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: LanguageOID}
 	source := view.MustRelation(address)
 	checkTypeLinks := func(catalog catalog.Read, relation *catalog.Relation) {
 		t.Helper()
@@ -29,7 +29,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	}
 	checkTypeLinks(view, source)
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
-	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage)
+	captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 		}
 	}
 	// A second capture must not lend mutable row storage from the first.
-	second, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage)
+	second, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,12 +52,12 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published source", got, err)
 	}
 	invalid := *source
 	invalid.Columns = source.Columns[:8]
-	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || err == nil {
 		t.Fatal("truncated source admitted", got, err)
 	}
 	foreign := New().CatalogRead()
@@ -65,7 +65,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 		invalid := *source
 		invalid.Columns = append([]catalog.Column(nil), source.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.LookupType(column.Usage.Type.ID())
-		if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || err == nil {
+		if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || err == nil {
 			t.Fatal("foreign source type admitted", i, got, err)
 		}
 	}
@@ -78,7 +78,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	if freshSource.Columns[8].Usage.Type == source.Columns[8].Usage.Type {
 		t.Fatal("replacement reused ACL type owner")
 	}
-	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: fresh, Ref: ref, Source: source, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: fresh, Ref: ref, Source: source, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || err == nil {
 		t.Fatal("old generation source admitted", got, err)
 	}
 	for i, value := range captured.anonymous[0] {

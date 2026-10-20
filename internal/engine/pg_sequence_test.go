@@ -148,7 +148,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	e.mu.Lock()
 	e.storage.InstallSequenceLocked(a, &storage.SequenceGenerator{Last: 99, Called: true, Generation: 100})
 	e.mu.Unlock()
-	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{sequenceBase: &state, sequenceOwn: nil}}, capturePGSequence)
+	rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{sequenceBase: &state, sequenceOwn: nil}}, capturePGSequence)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 		{"private drop", &base, own},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{sequenceBase: tc.base, sequenceOwn: tc.own}}, capturePGSequence)
+			rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{sequenceBase: tc.base, sequenceOwn: tc.own}}, capturePGSequence)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -202,7 +202,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	other := *d
 	other.ObjectAddress = dropped
 	base.SetDescriptor(dropped, &other)
-	old, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{sequenceBase: &base, sequenceOwn: nil}}, capturePGSequence)
+	old, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{sequenceBase: &base, sequenceOwn: nil}}, capturePGSequence)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, state := range []*catalog.State{&base, catalog.NewState(0)} {
-		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Ref: ref, Source: source, Runtime: engineCatalogRuntime{sequenceBase: state, sequenceOwn: own}}, capturePGSequence)
+		rows, err := captureCatalogSourceRows(Input{Context: ctx, Ref: ref, Source: source, Runtime: engineCatalogRuntime{sequenceBase: state, sequenceOwn: own}}, capturePGSequence)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)
 		}

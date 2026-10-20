@@ -9,19 +9,19 @@ import (
 )
 
 // Reserved native source identity; not a claim about the oracle's view OID.
-const tablePrivilegesOID ids.OID = 16200
+const TablePrivilegesOID ids.OID = 16200
 
 // This is an ACL-origin projection, not an effective-rights summary: owner
 // authority supplies grantability, never an invented origin on an explicit ACL.
 // All catalog, roles and actor inputs belong to the same immutable statement.
-func captureTablePrivileges(in catalogSourceInput) ([][]sqltype.Value, error) {
+func captureTablePrivileges(in Input) ([][]sqltype.Value, error) {
 	ctx, view, ref, source := in.Context, in.Catalog, in.Ref, in.Source
 	database := in.Runtime.DatabaseName()
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := in.Runtime.ValidateCapture(view, in.Roles, ref, source, tablePrivilegesOID); err != nil {
+	if err := in.Runtime.ValidateCapture(view, in.Roles, ref, source, TablePrivilegesOID); err != nil {
 		return nil, err
 	}
 	actor, actorExists := in.Roles.Find(in.Runtime.CurrentPrincipal())

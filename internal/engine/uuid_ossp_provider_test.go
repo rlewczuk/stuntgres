@@ -19,7 +19,7 @@ func TestUUIDOsspZeroArity(t *testing.T) {
 		want      int64
 	}{{"", 0}, {"25", 1}, {"25,23", 2}, {"25,23,2950,16", 4}} {
 		t.Run(string(tc.signature), func(t *testing.T) {
-			if got := procedureArity(&catalog.Procedure{Signature: tc.signature}); got != tc.want {
+			if got := ProcedureArity(&catalog.Procedure{Signature: tc.signature}); got != tc.want {
 				t.Fatalf("procedureArity(%q)=%d want=%d", tc.signature, got, tc.want)
 			}
 		})
@@ -50,21 +50,21 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	address := ext.Members[0]
 	proc := view.MustProcedure(address)
-	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || procedureArity(proc) != 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
+	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || ProcedureArity(proc) != 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
 		t.Fatal(proc)
 	}
 	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	count := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.Address() && edge.deptype == 'e' {
+		if edge.Referenced == ext.Address() && edge.DepType == 'e' {
 			count++
-			if !slices.Contains(ext.Members, edge.dependent) {
+			if !slices.Contains(ext.Members, edge.Dependent) {
 				t.Fatal(edge)
 			}
 		}

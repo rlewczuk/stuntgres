@@ -13,7 +13,7 @@ func guardedCatalogRelation(d *catalog.Relation) bool {
 	if d == nil || d.RelationKind != catalog.CatalogRelation || d.Address().ClassID != ids.RelationClassID {
 		return false
 	}
-	return d.Address().ObjectID == pgAggregateOID || d.Address().ObjectID == pgAMOID || d.Address().ObjectID == pgTypeOID
+	return d.Address().ObjectID == AggregateOID || d.Address().ObjectID == AMOID || d.Address().ObjectID == TypeOID
 }
 
 // Binding and frame import have completed before mutation admission. Recheck

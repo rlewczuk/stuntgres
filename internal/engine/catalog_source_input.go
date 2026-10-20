@@ -12,25 +12,25 @@ import (
 
 // A producer owns only its rows. The caller chooses coherent immutable roots
 // and owns runtime capture policy, locking and query-source construction.
-type catalogSourceInput struct {
+type Input struct {
 	Context context.Context
 	Catalog catalog.Read
 	Roles   authorization.Read
 	Owner   *catalog.Owner
 	Ref     ids.ObjectRef
 	Source  *catalog.Relation
-	Runtime catalogSourceRuntime
+	Runtime Runtime
 }
 
-type catalogSourceProducer func(catalogSourceInput) ([][]sqltype.Value, error)
+type Producer func(Input) ([][]sqltype.Value, error)
 
-type catalogCursorFact struct {
+type CursorFact struct {
 	Name, Statement string
 	Hold, Scroll    bool
 	Created         sqltype.Value
 }
-type catalogSettingsFact struct{ Value, Reset, Source string }
-type catalogPreparedFact struct {
+type SettingsFact struct{ Value, Reset, Source string }
+type PreparedFact struct {
 	XID          uint32
 	GID          string
 	Prepared     time.Time
@@ -38,11 +38,11 @@ type catalogPreparedFact struct {
 	OwnerPresent bool
 	Database     string
 }
-type catalogForeignKeyComparison struct {
+type ForeignKeyComparison struct {
 	Child, Parent int
 	Comparison    sqltype.IndexForeignKeyComparison
 }
-type catalogRuleFact struct {
+type RuleFact struct {
 	OID         ids.OID
 	Name, Event string
 	Instead     bool
@@ -51,12 +51,12 @@ type catalogRuleFact struct {
 
 // Capabilities take values, not query bindings or live authority objects.
 // Constructing the adapter does not perform any of these operations.
-type catalogSourceRuntime interface {
+type Runtime interface {
 	CursorCount() int
-	VisitCursors(func(catalogCursorFact) error) error
-	SessionSettings() catalogSettingsFact
+	VisitCursors(func(CursorFact) error) error
+	SessionSettings() SettingsFact
 	PreparedCount() int
-	VisitPreparedTransactions(context.Context, func(catalogPreparedFact) error) error
+	VisitPreparedTransactions(context.Context, func(PreparedFact) error) error
 	TimezoneInput() sqltype.InputEnvironment
 	DatabaseName() string
 	TemporaryOwner() ids.SessionToken
@@ -75,14 +75,14 @@ type catalogSourceRuntime interface {
 	IndexReferences(context.Context, catalog.Read, *catalog.IndexDefinition) ([]ids.ObjectAddress, error)
 	PartitionReferences(context.Context, catalog.Read, *catalog.Relation) ([]ids.ObjectAddress, error)
 	HasRules(*catalog.Relation) bool
-	VisitRules(*catalog.Relation, func(catalogRuleFact) error) error
+	VisitRules(*catalog.Relation, func(RuleFact) error) error
 	ViewOptions(*catalog.Relation) []string
 	ViewDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)
 	VisitSequenceDefinitions(context.Context, func(catalog.Descriptor) error) error
 	ExpressionTree(*sqltype.Descriptor, expr.Expr) (sqltype.Value, error)
-	ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]catalogForeignKeyComparison, error)
+	ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]ForeignKeyComparison, error)
 	ValidateType(catalog.Read, *catalog.Type) error
 	TypeOutput(*catalog.Owner, catalog.Read, authorization.Read) sqltype.OutputEnvironment
 	ObjectACL(catalog.Read, ids.ObjectAddress) (authorization.ACLValue, error)

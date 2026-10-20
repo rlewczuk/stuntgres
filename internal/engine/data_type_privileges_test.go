@@ -25,9 +25,9 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) 
 }
 
 func dtpUnitCapture(ctx context.Context, catalog catalog.Read, auth AuthorizationView) (*querySource, error) {
-	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
+	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: DataTypePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
-	return captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges)
+	return captureCatalogSourceRows(Input{Context: ctx, Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges)
 }
 
 // A deterministic cancellation point inside enumeration, without timing races.
@@ -67,15 +67,15 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 			t.Fatal("invalid authority accepted", rows, err)
 		}
 	}
-	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: DataTypePrivilegesOID})
 	ref := f.e.catalog.Domain.Ref(view.Epoch(), source.Address())
 	stale := ref
 	stale.Epoch++
-	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: stale, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges); rows != nil || err == nil {
+	if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: stale, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges); rows != nil || err == nil {
 		t.Fatal("stale ref accepted", rows, err)
 	}
 	copySource := *source
-	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: &copySource, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges); rows != nil || err == nil {
+	if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &copySource, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges); rows != nil || err == nil {
 		t.Fatal("foreign source accepted", rows, err)
 	}
 	for i, column := range source.Columns {
@@ -83,7 +83,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		if i == 3 {
 			want = sqltype.VarChar
 		}
-		if column.Usage.Type.ID() != want || column.Usage.Type.IsDomain() || column.OriginTable != uint32(dataTypePrivilegesOID) || column.OriginAttribute != int16(i+1) || source.Attributes[i] != int32(i+1) || !column.Nullable || !column.NullabilityKnown {
+		if column.Usage.Type.ID() != want || column.Usage.Type.IsDomain() || column.OriginTable != uint32(DataTypePrivilegesOID) || column.OriginAttribute != int16(i+1) || source.Attributes[i] != int32(i+1) || !column.Nullable || !column.NullabilityKnown {
 			t.Fatal("incorrect source carrier/origin", i, column)
 		}
 	}

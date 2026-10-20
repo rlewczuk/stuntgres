@@ -9,7 +9,7 @@ import (
 
 // Hierarchy owners publish these edges with their descriptors. Capture only the
 // caller's immutable generation, including its transaction-private overlay.
-func capturePGInherits(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGInherits(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	view := in.Catalog
 	source := in.Source

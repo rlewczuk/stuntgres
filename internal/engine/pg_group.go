@@ -8,7 +8,7 @@ import (
 
 // Project only current NOLOGIN identities and their direct membership records
 // from the statement's immutable role root. Options and credentials are not read.
-func capturePGGroup(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGGroup(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	roles := in.Roles
 	source := in.Source

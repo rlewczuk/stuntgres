@@ -125,15 +125,15 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	if text == (ids.ObjectAddress{}) || dictionary == (ids.ObjectAddress{}) || text == dictionary {
 		t.Fatal("overloads collapsed")
 	}
-	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	n := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.Address() && edge.deptype == 'e' {
+		if edge.Referenced == ext.Address() && edge.DepType == 'e' {
 			n++
-			if !seen[edge.dependent] {
+			if !seen[edge.Dependent] {
 				t.Fatal("foreign member")
 			}
 		}

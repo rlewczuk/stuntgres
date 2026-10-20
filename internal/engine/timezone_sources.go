@@ -10,7 +10,7 @@ import (
 
 // Called after releasing the engine mutex. The immutable descriptor and captured
 // input belong to this execution; provider loading never extends catalog locks.
-func captureTimezoneSource(in catalogSourceInput) ([][]sqltype.Value, error) {
+func captureTimezoneSource(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	d := in.Source
 	input := in.Runtime.TimezoneInput()

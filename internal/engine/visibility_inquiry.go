@@ -74,9 +74,9 @@ func (c *EvalContext) VisibilityInquiry(kind functions.VisibilityInquiryKind, va
 	if kind == functions.CollationVersionInquiry || kind == functions.DatabaseCollationVersionInquiry {
 		var version *string
 		if kind == functions.DatabaseCollationVersionInquiry {
-			version, err = databaseCollationActualVersion()
+			version, err = DatabaseCollationActualVersion()
 		} else {
-			version, err = collationActualVersion(d.(*catalog.Collation))
+			version, err = CollationActualVersion(d.(*catalog.Collation))
 		}
 		if err != nil {
 			return sqltype.Value{}, err

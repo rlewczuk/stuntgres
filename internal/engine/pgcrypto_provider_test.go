@@ -63,15 +63,15 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	count := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.Address() && edge.deptype == 'e' {
+		if edge.Referenced == ext.Address() && edge.DepType == 'e' {
 			count++
-			if !seen[edge.dependent] {
+			if !seen[edge.Dependent] {
 				t.Fatal(edge)
 			}
 		}

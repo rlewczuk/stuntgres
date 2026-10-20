@@ -8,7 +8,7 @@ import (
 
 const pgRangeOID ids.OID = 3541
 
-func capturePGRange(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGRange(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	catalog := in.Catalog
 	source := in.Source

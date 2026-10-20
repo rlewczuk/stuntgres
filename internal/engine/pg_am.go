@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const pgAMOID ids.OID = 2601
+const AMOID ids.OID = 2601
 
 // Released identities for implemented logical methods, not physical storage
 // algorithms or an inventory of currently instantiated user indexes.
@@ -22,7 +22,7 @@ var pgAMMethods = [...]struct {
 	{783, "gist", 332, "i"},
 }
 
-func capturePGAM(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGAM(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	catalog := in.Catalog
 	source := in.Source

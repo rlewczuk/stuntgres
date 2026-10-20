@@ -53,7 +53,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i == 2) || !column.NullabilityKnown || column.OriginTable != 2964 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Fatal("column", i, column)
 		}
-		metadata := relationAttributeMetadata(d, i)
+		metadata := AttributeMetadata(d, i)
 		dimensions := int16(0)
 		if i == 2 {
 			dimensions = 1
@@ -81,11 +81,11 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	if d.RowType != 10054 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10053 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
-	if !representedCatalogHasIndexes(2964) || !representedSummaryTable(2964) || pgClassKind(view, d) != "r" || pgClassPersistence(view, d) != "p" {
+	if !CatalogHasIndexes(2964) || !SummaryTable(2964) || ClassKind(view, d) != "r" || ClassPersistence(view, d) != "p" {
 		t.Fatal("table discovery")
 	}
 	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := pgClassRow(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: class, Runtime: engineCatalogRuntime{}}, d)
+	facts, err := ClassRow(Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: class, Runtime: engineCatalogRuntime{}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}

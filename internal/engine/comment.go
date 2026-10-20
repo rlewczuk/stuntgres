@@ -28,7 +28,7 @@ func (e *Engine) Comment(r catalog.Read, ref ids.ObjectRef) (string, bool, error
 	default:
 		return "", false, fmt.Errorf("stuntgres: object class has no comment metadata")
 	}
-	text := descriptorComment(r.Get(a), sub)
+	text := DescriptorComment(r.Get(a), sub)
 	return text, text != "", nil
 }
 

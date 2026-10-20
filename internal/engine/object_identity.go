@@ -117,7 +117,7 @@ func objectNamespace(view catalog.Read, namespace ids.ObjectAddress) (actual, ca
 	return
 }
 func objectRelationKind(view catalog.Read, d *catalog.Relation) string {
-	switch pgClassKind(view, d) {
+	switch ClassKind(view, d) {
 	case "S":
 		return "sequence"
 	case "v":
@@ -141,7 +141,7 @@ func objectAttributeName(view catalog.Read, d *catalog.Relation, sub int32) stri
 	if old, ok := d.ColumnMeta.Dropped[sub]; ok {
 		return old.Name
 	}
-	if sub < 0 && sub >= -6 && hasSystemAttributes(view, d) {
+	if sub < 0 && sub >= -6 && HasSystemAttributes(view, d) {
 		return [...]string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid"}[-sub-1]
 	}
 	return ""

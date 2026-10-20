@@ -85,20 +85,20 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if rendered, err := (pgRenderer{view: view}).uniqueConstraintSQL(parent, &parent.Constraints.Unique[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
 		t.Fatal(rendered, err)
 	}
-	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.Constraints.Unique[0].OID}
-	want := []pgDependEdge{{dependent: index.Address(), referenced: constraint, deptype: 'i'}}
+	want := []DependEdge{{Dependent: index.Address(), Referenced: constraint, DepType: 'i'}}
 	for _, attribute := range []int32{1, 2} {
 		column := parent.Address()
 		column.SubID = attribute
-		want = append(want, pgDependEdge{dependent: constraint, referenced: column, deptype: 'a'})
+		want = append(want, DependEdge{Dependent: constraint, Referenced: column, DepType: 'a'})
 	}
-	var got []pgDependEdge
+	var got []DependEdge
 	for _, edge := range edges {
-		if edge.dependent == index.Address() || edge.dependent == constraint {
+		if edge.Dependent == index.Address() || edge.Dependent == constraint {
 			got = append(got, edge)
 		}
 	}

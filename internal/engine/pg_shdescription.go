@@ -7,7 +7,7 @@ import (
 
 // Shared comments follow principal identities, not database-local descriptors.
 // The caller supplies the statement's saved RoleRead, including nested views.
-func capturePGShDescription(in catalogSourceInput) ([][]sqltype.Value, error) {
+func capturePGShDescription(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
 	roles := in.Roles
 	source := in.Source
