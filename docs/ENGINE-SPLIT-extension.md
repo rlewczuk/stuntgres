@@ -121,9 +121,158 @@ Measure `executeExtension`, `stageExtensionLocked`, the provider `stage`
 methods, `executeDropExtension` and `importExtensionOwners`; write the host
 interface and move set; wait for approval.
 
-### 16d — Move the installation handlers
+**16c refine (approved; measured at `1f606f52d`).** The `frontier` tool
+(`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/frontier`; output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-EXTENSION-REFINE/`), with the 12 Part B files
+(about 1.08k lines: the seven `*_stage.go` installers, 472 lines;
+`extension_install.go` 201, `extension_update.go` 166,
+`extension_drop.go` 92, `extension_owner_import.go` 116 and
+`extension_authority_fence.go` 36) as the move set:
 
-Follow 16c. Remove the remaining aliases.
+- **69 engine edges**, in five groups:
+  - *Installer staging* (every `stage`, `stageUpdate`, `stageMembers`; all
+    run under `Engine.mu`): `catalog.allocateOIDLocked`,
+    `catalog.revisionLocked`, `CatalogStage.Create` and `LookupName`, the
+    stage base (the `AuthorizationView` they receive is only used for
+    `auth.Catalog`, which is the stage base), and for cube and intarray
+    `displaceAssociatedArrayLocked`, `associatedArrayName` and
+    `creationTypeACL`. unaccent also re-reads the stage (`stageRead`),
+    recaptures the view, checks USAGE on the target schema as the member
+    owner, builds `effectivePath(…, analyze.InstalledFunctionLookup)` and
+    resolves its two helpers with `analyze.ProcedureInNamespaces`.
+  - *CREATE and ALTER UPDATE staging* (`stageExtensionLocked`,
+    `stageExtensionUpdateLocked`): `authorizationLocked`, notices,
+    `explicitPath`, `AuthorizationView.Effective`/`Check`, the replay flag
+    `operationReplayOrZero(op).tableDestination`, the bootstrap superuser
+    `e.roles.domain.Principal(10)`, OID and revision allocation,
+    `BeginCatalogStage`, `authorizeLocked`, `stage.extensionNamespace`,
+    `Create`/`Replace`. The registry and the object domain are already
+    reachable from the view (`Catalog.Owner().Extensions`, `.Domain`).
+  - *Publication* (`publishExtensionStage`): stage validation and discard,
+    the journal clone and original capture, `catalogChangeLocked`, the
+    authority fence, `scope.catalog` and `scope.catalogAuthority`.
+  - *DROP* (`executeDropExtension`): the target selection (names, notices,
+    owner check) is extension logic; the rest is the root removal pipeline
+    (`ownershipStage`, `referencePath`, `ownershipRelationLocks`,
+    `acquireSequence`, `removeObjectLocked`, `stageExpressionDependencies`,
+    `stageOwnedSequences`, the replacement read release, `publishOwnership`,
+    `viewCascadeNames`), the same shape DROP OWNED has in `owned_roles.go`.
+  - *Owner import and fence*: `importExtensionOwners` needs `Engine.mu`, the
+    import authority (`importTargets`), the cloned state, `roles.read` and
+    `reownCatalogExpressions`; its per-record matching loop reads only the
+    cloned `*catalog.State` and an `authorization.Read`. The fence check
+    reads only the journal names, `catalog.state` and the published role
+    revision; `catalogFence` and the fence kinds are root.
+- **Inbound:** production uses only `execute.go` (three dispatch calls),
+  `control.go` (`importExtensionOwners`) and `engine.go` (the registration
+  list); 14 test files build installers or call the handlers
+  (`aggregate_identity_test.go`, `available_extension_sources_test.go`,
+  `cube_provider_test.go`, `extension_fences_test.go`,
+  `extension_provider_test.go`, `extension_version_graph_test.go`,
+  `extension_version_manifest_test.go`, `extension_version_owners_test.go`,
+  `extension_version_publication_test.go`, `intagg_routine_authority_test.go`,
+  `intarray_provider_test.go`, `pgcrypto_provider_test.go`,
+  `uuid_ossp_namespace_test.go`, `uuid_ossp_provider_test.go`).
+- **Layering.** `analyze` imports `extension`, so `extension` can never
+  import `analyze`: unaccent's helper lookup goes through the host.
+  `extension` may import `access`, `session` and `typedef` (none of them
+  imports it).
+
+Decisions:
+
+1. **Providers own staging; the installers go.** `extension.Installer` is
+   `catalog.ExtensionImplementation` plus `Stage(Stage, *catalog.Extension,
+   authorization.PrincipalRef) error`; fuzzystrmatch also implements
+   `Updater` (`Updates() []UpdateAction`, each an edge and a stage
+   function). The registry holds the `Stock*` providers, registered in the
+   same order. Installed members keep the same provider pointer, so every
+   `*ProviderOf(d) != Stock*` check and the validators are unchanged.
+   Rejected: moving the installer wrapper types into `extension` (two types
+   per provider for nothing, once staging can be a provider method).
+2. **Staging host `extension.Stage`.** Every method is called with
+   `Engine.mu` held: `Read() catalog.Read` (the stage base), `LookupName`,
+   `Create`, `Replace`, `AllocateOID`, `Revision`,
+   `DisplaceAssociatedArray`, `AssociatedArrayName`, `CreationTypeACL` and
+   `ScriptFunctions(owner, namespace, helpers)`. The last one does
+   unaccent's whole script lookup in one call (staged read, recapture,
+   USAGE check, effective path, one lookup per helper, nil for a missing
+   one); `extension` keeps the 42883 texts and their script context.
+   Staging loses its `*Engine` and `AuthorizationView` parameters.
+3. **Statement host `extension.Host`.** Called with `Engine.mu` held:
+   `Context`, `Notice`, `CreationPath` (the explicit path),
+   `ReplayingTableDestination`, `BootstrapSuperuser`, `AllocateOID`,
+   `Revision` and `BeginStage(namespace) Stage` (begins and authorizes the
+   stage, sets its extension namespace). Authority checks go through
+   `extension.Authority` (`Check`, `Effective`, which `AuthorizationView`
+   already has) and the captured `access.View` values. One root adapter,
+   `extensionHost` (engine, operation, captured `AuthorizationView`, and
+   the stage once begun), implements `Host` and `Stage` with a compile-time
+   assertion each; a checked `stageOf` gives the root its `*CatalogStage`
+   back. It is not `statementHost` (§7 decision 8): staging runs under
+   `Engine.mu` with a captured view and a stage, as 12c's `bindingHost`
+   runs over the engine and operation. It is not a defined type over
+   `CatalogStage` either: that would drop `CatalogStage`'s checked
+   `Create`/`Replace` and silently promote `catalog.Candidate`'s unchecked
+   ones.
+4. **Move set.** The staging bodies (as provider methods), `extensionActions`,
+   `validateExtensionActions` and `stageExtensionPath` (as `Actions`,
+   `ValidateActions`, `StagePath`), `StageCreate` and `StageUpdate` (from
+   the two `stage…Locked` functions), `DropTargets` (the DROP selection),
+   `ImportOwners(ctx, *catalog.State, authorization.Read, records)
+   (changed bool, err error)` (the matching loop) and
+   `AuthorityObservation.Current(names, state, roleRevision)` (the fence
+   check).
+5. **Stays in the root (orchestration, as 13c decision 1):**
+   `executeExtension` and `executeExtensionUpdate` (argument count,
+   `Engine.mu`, then publication), `publishExtensionStage`,
+   `executeDropExtension` (lock, `DropTargets`, the removal pipeline, the
+   multi-target 2BP01 text, the cascade notice), `importExtensionOwners`
+   (lock, import authority, clone, reown, publish), `extensionAuthorityFence`
+   (a three-line wrapper over `Current`), `registerExtension` (the
+   registry-closed check; it calls `ValidateActions`), the registration list
+   in `engine.go` and `extensionHost`. "Done when" is corrected to match:
+   the handlers' decisions live in `extension`; dispatch and publication
+   stay in the root.
+6. **No aliases.** Every moved name is unexported engine code with no user
+   outside the engine, so 16d needs no alias step.
+7. **Invariant to guard:** OID and revision allocation order, and the order
+   of checks (so the first error), stay identical: installed OIDs, native
+   Dump bytes, messages and SQLSTATEs must not change.
+
+### 16d — Move the installation handlers (two sessions)
+
+Follow 16c. Each session re-measures its move set with `frontier`, checks
+with `go list` that `extension` imports neither `analyze` nor `routine`,
+`plan` or the engine, and runs the targeted engine units after every
+commit, the 16a reference selection in quick mode and with `REFERENCE=1`,
+the 16a public smoke (identical output on base and branch),
+`make quickcheck` and `make deps`.
+
+#### 16d.1 — Staging (linear item 51a)
+
+1. Seam in place: declare `Stage`, `Installer`, `Updater`, `UpdateAction`
+   and the script helper record in `extension`; add the root `extensionHost`
+   implementing `Stage`; port the seven installers' staging onto it (unaccent
+   through `ScriptFunctions`). Write the seam unit test first and see it
+   fail: the adapter's `Create` refuses a discarded stage.
+2. Move: staging becomes provider methods in `extension` (one
+   `*_stage.go` per provider there), the installer types are deleted, the
+   registry holds the providers, and the three action helpers move. Adapt
+   the tests that build installers or call `stage`
+   (`TestExtensionMembersHoldBareProviders` keeps its member assertion; the
+   `extensionVersionRegistration` fixture embeds the provider).
+3. `make bench` before and after (registration runs at startup).
+
+#### 16d.2 — Handlers (linear item 51b)
+
+1. In place: declare `Host` and `Authority`; rewrite `stageExtensionLocked`
+   and `stageExtensionUpdateLocked` over them in the root; turn the DROP
+   selection, the owner-import loop and the fence check into functions over
+   values.
+2. Move them into `extension` (`StageCreate`, `StageUpdate`, `DropTargets`,
+   `ImportOwners`, `AuthorityObservation.Current`); update the
+   `extension` README (Part B contract, lock contract of both hosts) and
+   the "Stays in the engine" lists.
 
 ## Invariants
 
@@ -151,8 +300,10 @@ Follow 16c. Remove the remaining aliases.
 ## Done when
 
 Part A: provider records, validation, owner metadata and remap live in
-`extension`. Part B: CREATE/DROP EXTENSION handlers live there too. The
-checks in §8.3 pass.
+`extension`. Part B: provider staging and the decisions of the CREATE,
+ALTER EXTENSION UPDATE and DROP EXTENSION handlers and of the owner import
+live there too; dispatch, `Engine.mu` and publication stay in the root
+(16c decision 5). The checks in §8.3 pass.
 
 ## Status
 
@@ -295,17 +446,26 @@ checks in §8.3 pass.
     919 µs/op after, samples 844–1,842 µs/op on both sides; 5,020–5,027
     allocs/op and about 1.64 MB/op on both. Racecheck and finalcheck
     skipped at user request.
-- [ ] 16c — Host refined (docs only; after 13d)
-- [ ] 16d — Installation handlers moved
+- [x] 16c — Host refined (docs only; the commit that records this text)
+- [ ] 16d — Installation handlers moved (two sessions, per the 16c plan)
+  - [ ] 16d.1 — Staging: providers own staging behind `extension.Stage`
+  - [ ] 16d.2 — Handlers: CREATE/UPDATE staging, DROP selection, owner
+    import and fence check behind `extension.Host`
 
 Outstanding aliases: none (16b moved without aliases).
 
 Notes for later steps:
 
-- 16c/16d: the engine installers (`*_stage.go`) are the staging seam to
-  measure; when the handlers move, the installers become `extension`
-  types again (or staging takes the provider as an argument) and the
-  registry may hold the providers directly.
+- 16c/16d: the engine installers (`*_stage.go`) were the staging seam;
+  16c decision 1 settles it: staging becomes a provider method behind
+  `extension.Stage` and the registry holds the providers directly.
+- 16d, for other Part B steps (14c, 15c, 17c): the staging host shape
+  (16c decisions 2 and 3: one root adapter over engine, operation, view and
+  stage; not a defined type over `CatalogStage`) applies to any feature
+  whose DDL stages catalog changes. `displaceAssociatedArrayLocked`,
+  `associatedArrayName` and `creationTypeACL` are also used by domain,
+  enum, composite, view, table and schema DDL;
+  they stay root functions behind the host methods.
 - 10d (done): the installed wrappers' provider checks
   (`extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto`,
   `extension.Stock*.ValidateProcedure`) became engine functions taking the

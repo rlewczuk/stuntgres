@@ -1194,6 +1194,12 @@ validation, membership and owner metadata decoding, extension remap.
 **Part B (16c, 16d)** after step 13: CREATE/DROP EXTENSION, provider staging,
 owner import. Until then the staging lives on engine installers that embed
 the stock providers (16b): Go cannot keep engine methods on moved types.
+Refined in 16c: staging becomes a provider method behind `extension.Stage`
+(the installers go), the decisions of CREATE, ALTER EXTENSION UPDATE, DROP
+EXTENSION and the owner import move behind `extension.Host`, and one root
+adapter `extensionHost` implements both; dispatch, `Engine.mu`, the removal
+pipeline and publication stay in the root. 16d runs in two sessions
+(staging, handlers); details in the prompt file.
 
 **Stays elsewhere.** The installed-function expression wrappers and the
 `pg_extension_update_paths` node stay with the engine's node code and move
@@ -1291,6 +1297,11 @@ These packages get prompt files after the steps above. Each needs `session`
    binders also run without a scope (DDL, defaults, checks, bootstrap).
    13c confirms the pattern for the feature Part B steps: `StatementScope`
    stays in the root, so their handlers reach it only through such hosts.
+   16c adds a third receiver for catalog staging: `extensionHost` over the
+   engine, operation, captured `AuthorizationView` and `CatalogStage`
+   (staging runs under `Engine.mu`), with per-consumer interfaces as above;
+   never a defined type over `CatalogStage`, which would promote
+   `catalog.Candidate`'s unchecked `Create`/`Replace`.
 9. **Where `Eval` lives.** Step 10 keeps node types and `Eval` in `plan`,
    with engine state behind a node runtime capability; the alternative is to
    keep `Eval` for frame-reading nodes in `exec`. Settled in 10b: `Eval`
@@ -1346,7 +1357,7 @@ package-specific scope. This section holds the rules every session follows.
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c refined (state moves, the scope and orchestration stay; decisions 7, 10 and 11 settled); 13d.1 done (`session` created, journal moved with aliases), 13d.2 done (statement lease), 13d.3 done (engine edges: `session.Host`, `engineOf`, owner root functions) 13d.4 done (root payloads: session payload, owner extension, savepoint and operation slots; notification polling on `Engine`) 13d.5 done (file splits: 15 moving-only files; 192 members the root reads exported) and 13d.6 done (session state moved into `session` with type and constant aliases; `Host.NewOperation`); 13e done (aliases removed; the driver and `cmd/stuntgres` import `session`, decision 11 applied) (racecheck/finalcheck skipped at user request) |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |
-| 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c–16d planned |
+| 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c refined (providers own staging behind `extension.Stage`, handler decisions behind `extension.Host`, one root adapter); 16d.1–16d.2 planned |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c–17d planned |
 
 Tracks may run in parallel only on separate branches. Do not run two broad

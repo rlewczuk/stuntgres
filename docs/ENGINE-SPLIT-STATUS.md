@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `ead015634`. The later-wave plans
+Last verified against `master` at `1f606f52d`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -17,13 +17,14 @@ as another broad item (§8).
 
 - **Step 14 `routine`** — 14c, refine (item 46; docs only).
 - **Step 15 `typedef`** — 15c, refine (item 48; docs only).
-- **Step 16 `extension`** — 16c, refine (item 50; docs only).
+- **Step 16 `extension`** — 16d.1, staging (item 51a).
 - **Step 17 `sequence`** — 17c, refine (item 52; docs only).
 - **Postponed packages** — planning round (item 54; docs only).
 
 Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
 (item 45): the session aliases are gone. Part A of steps 14–17 is done;
 with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
+16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b).
 
 ## Task tree
 
@@ -357,8 +358,10 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
   - [x] 16b — `extension` created and clean set moved (`e6ff96286`,
     `a8f3f5a8e`, `d55a47824`, then the docs commit) *(racecheck/finalcheck
     skipped at user request)*
-  - [ ] 16c — Host refined (docs only)
+  - [x] 16c — Host refined (docs only; the docs commit)
   - [ ] 16d — Installation handlers moved
+    - [ ] 16d.1 — Staging behind `extension.Stage`; installers removed
+    - [ ] 16d.2 — Handler decisions behind `extension.Host`
 - [ ] **Step 17 — `sequence`** ([prompt](ENGINE-SPLIT-sequence.md); Part A
   needs Tier C sequence calls; Part B needs 13d)
   - [x] 17a — In place (`6ab03f25b`, `68d49b5a8`, `88c3aac0f`, `d43c3b1fb`,
@@ -637,10 +640,18 @@ in the prompt file's Status section.
 48. [ ] Typedef 15c (refine, docs only) — [typedef](ENGINE-SPLIT-typedef.md)
     15c · needs 44, 27
 49. [ ] Typedef 15d — [typedef](ENGINE-SPLIT-typedef.md) 15d · needs 48
-50. [ ] Extension 16c (refine, docs only) —
-    [extension](ENGINE-SPLIT-extension.md) 16c · needs 44, 29
+50. [x] Extension 16c (refine, docs only) —
+    [extension](ENGINE-SPLIT-extension.md) 16c · needs 44, 29 · (the docs
+    commit) · measured at `1f606f52d`: providers own staging behind
+    `extension.Stage`, handler decisions behind `extension.Host`, one root
+    adapter `extensionHost`; dispatch and publication stay in the root; no
+    aliases
 51. [ ] Extension 16d — [extension](ENGINE-SPLIT-extension.md) 16d · needs
     50
+    - 51a. [ ] 16d.1 staging — [extension](ENGINE-SPLIT-extension.md#16d1--staging-linear-item-51a)
+      · needs 50
+    - 51b. [ ] 16d.2 handlers — [extension](ENGINE-SPLIT-extension.md#16d2--handlers-linear-item-51b)
+      · needs 51a
 52. [ ] Sequence 17c (refine, docs only) —
     [sequence](ENGINE-SPLIT-sequence.md) 17c · needs 44, 31
 53. [ ] Sequence 17d — [sequence](ENGINE-SPLIT-sequence.md) 17d · needs 52
