@@ -559,11 +559,11 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 	if prepared == nil || prepared.old != old || prepared.ref != ref || prepared.next == nil || stage == nil || stage.owner != scope.op.session.Engine() || stage.lifecycle != catalogOpen || stage.invalid != nil || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if _, consumed := scope.consumedColumnDrops[prepared]; consumed {
+	if _, consumed := scope.dropsOrZero().consumedColumns[prepared]; consumed {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if prepared.prior != nil {
-		if _, consumed := scope.consumedColumnDrops[prepared.prior]; !consumed {
+		if _, consumed := scope.dropsOrZero().consumedColumns[prepared.prior]; !consumed {
 			return nil, ids.ErrCatalogReplaced
 		}
 	}
@@ -582,10 +582,10 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 	if err != nil {
 		return nil, err
 	}
-	if scope.consumedColumnDrops == nil {
-		scope.consumedColumnDrops = make(map[*preparedDrop]struct{})
+	if scope.dropsOrZero().consumedColumns == nil {
+		scope.drops().consumedColumns = make(map[*preparedDrop]struct{})
 	}
-	scope.consumedColumnDrops[prepared] = struct{}{}
+	scope.drops().consumedColumns[prepared] = struct{}{}
 	provider := stageDropProvider(scope.op.Context(), stage, scope, changes, nil)
 	for _, effect := range prepared.effects {
 		if err := scope.op.Context().Err(); err != nil {
@@ -861,4 +861,26 @@ func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.De
 func (prepared *preparedDrop) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	provider := &dropProvider{base: prepared.base, prepared: prepared}
 	return provider.indexLayout(address)
+}
+
+// dropScope is the statement's DROP slot: prepared column drops already
+// consumed by this statement.
+type dropScope struct {
+	consumedColumns map[*preparedDrop]struct{}
+}
+
+// drops returns the statement's drops slot, allocating it on first use.
+func (s *StatementScope) drops() *dropScope {
+	if s.dropsSlot == nil {
+		s.dropsSlot = new(dropScope)
+	}
+	return s.dropsSlot
+}
+
+// dropsOrZero reads the drops slot; a nil slot reads as zero.
+func (s *StatementScope) dropsOrZero() dropScope {
+	if s.dropsSlot == nil {
+		return dropScope{}
+	}
+	return *s.dropsSlot
 }

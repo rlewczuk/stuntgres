@@ -649,7 +649,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if cooked.Constraints.NotNull[0].OID != 0 || cooked.Constraints.Check[0].OID != 0 {
 				t.Fatal("normal physical OID assignment mutated immutable preparation")
 			}
-			if _, consumed := command.scope.consumedColumnDrops[drop]; !consumed || state.stage == nil {
+			if _, consumed := command.scope.dropsOrZero().consumedColumns[drop]; !consumed || state.stage == nil {
 				t.Fatal("sole pipeline did not consume actual DROP effects")
 			}
 			if e.CatalogRead().State() != before.State() {

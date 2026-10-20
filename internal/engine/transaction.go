@@ -332,13 +332,6 @@ type StatementScope struct {
 	inheritanceRelations        []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.
 	inheritanceCatalog          catalog.Read // Immutable topology after the last grant/wait reconciliation.
 	inheritanceAlter            *inheritanceAlterState
-	consumedColumnDrops         map[*preparedDrop]struct{}
-	truncateRelations           []truncateRelation
-	truncateSequences           []truncateSequence
-	truncateRestart             bool
-	foreignTruncateCascade      bool
-	truncateNames               []truncateName
-	truncateSelected            map[ids.ObjectAddress]int
 	Expected                    *StatementDescription
 	admissionWaited             bool
 	implicit                    bool
@@ -372,6 +365,8 @@ type StatementScope struct {
 	protocolSlot                *protocolScope
 	prepared                    preparedRebind
 	presentationSlot            *presentationCaches
+	truncateSlot                *truncateScope
+	dropsSlot                   *dropScope
 }
 
 type WriteStage struct {

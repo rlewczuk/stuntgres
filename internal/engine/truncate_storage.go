@@ -108,7 +108,7 @@ func (s *StatementScope) stageTruncate() error {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	for _, named := range s.truncateNames {
+	for _, named := range s.truncateOrZero().names {
 		if lookupErr := e.truncateNameCurrent(auth, named); lookupErr != nil {
 			e.mu.Unlock()
 			return lookupErr
@@ -117,7 +117,7 @@ func (s *StatementScope) stageTruncate() error {
 	changes := cloneCatalogChanges(s.owner.catalog)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, s.op.session)
-	for _, selected := range s.truncateRelations {
+	for _, selected := range s.truncateOrZero().relations {
 		ref := selected.ref
 		d, ok := auth.Catalog.Relation(ref.Address)
 		store := e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -173,23 +173,23 @@ func (s *StatementScope) stageTruncate() error {
 	if err == nil {
 		// Recheck closure against the same coherent catalog used to capture stores.
 		// SQL installation is blocked by selected AX; host replacement is fenced.
-		if len(truncateReferencers(auth.Catalog, s.truncateSelected)) != 0 {
+		if len(truncateReferencers(auth.Catalog, s.truncateOrZero().selected)) != 0 {
 			err = catalog.Conflict{}
 		}
 	}
 	var sequences map[ids.ObjectAddress]*storage.SequenceGenerator
-	if err == nil && s.truncateRestart {
+	if err == nil && s.truncateOrZero().restart {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateSelected, token: s.op.session.token, restart: s.truncateRestart, sequences: sequences})
+		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.session.token, restart: s.truncateOrZero().restart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		return err
 	}
-	for _, selected := range s.truncateRelations {
+	for _, selected := range s.truncateOrZero().relations {
 		address := selected.ref.Address
 		if selected.relation.RelationKind != catalog.PartitionedRelation && selected.relation.RelationKind != catalog.ForeignRelation {
 			if err := transportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage, address, changes.storage[address].replacement); err != nil {

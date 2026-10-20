@@ -75,9 +75,9 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		s.op.snapshotNoticeThreshold()
 	}
 	selected := make(map[ids.ObjectAddress]int)
-	s.truncateSelected = selected
-	s.truncateRestart = stmt.RestartIdentity
-	s.foreignTruncateCascade = stmt.Mode == parser.DropCascade
+	s.truncate().selected = selected
+	s.truncate().restart = stmt.RestartIdentity
+	s.truncate().foreignCascade = stmt.Mode == parser.DropCascade
 	expanded := make(map[ids.ObjectAddress]bool)
 	var open func(ids.ObjectRef, *truncateName, bool, bool, bool, bool) error
 	open = func(ref ids.ObjectRef, name *truncateName, privilege, only, recurse, cascade bool) error {
@@ -171,10 +171,10 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					s.owner.accessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {
-					s.truncateRelations = append(s.truncateRelations, truncateRelation{ref: ref, relation: d, storage: current, privilege: privilege})
-					selected[ref.Address] = len(s.truncateRelations)
+					s.truncate().relations = append(s.truncateOrZero().relations, truncateRelation{ref: ref, relation: d, storage: current, privilege: privilege})
+					selected[ref.Address] = len(s.truncateOrZero().relations)
 				} else if privilege {
-					s.truncateRelations[index-1].privilege = true
+					s.truncate().relations[index-1].privilege = true
 				}
 			}
 		}
@@ -231,7 +231,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err = open(ref, &observation, true, target.Only, !target.Only, false); err != nil {
 			return err
 		}
-		s.truncateNames = append(s.truncateNames, observation)
+		s.truncate().names = append(s.truncateOrZero().names, observation)
 	}
 	for {
 		e.mu.Lock()
@@ -293,4 +293,31 @@ func truncateReferencers(view catalog.Read, selected map[ids.ObjectAddress]int) 
 }
 func truncateForeignKeyError(parent, child string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot truncate a table referenced in a foreign key constraint", Detail: fmt.Sprintf("Table %q references %q.", child, parent), Hint: fmt.Sprintf("Truncate table %q at the same time, or use TRUNCATE ... CASCADE.", child)}
+}
+
+// truncateScope is the statement's TRUNCATE slot: the selected relations and
+// sequences, RESTART IDENTITY and the foreign-table CASCADE request.
+type truncateScope struct {
+	relations      []truncateRelation
+	sequences      []truncateSequence
+	restart        bool
+	names          []truncateName
+	selected       map[ids.ObjectAddress]int
+	foreignCascade bool
+}
+
+// truncate returns the statement's truncate slot, allocating it on first use.
+func (s *StatementScope) truncate() *truncateScope {
+	if s.truncateSlot == nil {
+		s.truncateSlot = new(truncateScope)
+	}
+	return s.truncateSlot
+}
+
+// truncateOrZero reads the truncate slot; a nil slot reads as zero.
+func (s *StatementScope) truncateOrZero() truncateScope {
+	if s.truncateSlot == nil {
+		return truncateScope{}
+	}
+	return *s.truncateSlot
 }

@@ -37,10 +37,10 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	if err == nil {
 		for a, descriptor := range auth.Catalog.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
-			if !ok || !truncateOwnsSequence(d, s.truncateSelected) {
+			if !ok || !truncateOwnsSequence(d, s.truncateOrZero().selected) {
 				continue
 			}
-			s.truncateSequences = append(s.truncateSequences, truncateSequence{
+			s.truncate().sequences = append(s.truncateOrZero().sequences, truncateSequence{
 				ref:      e.catalog.Domain.Ref(s.txRef.Epoch(), a),
 				relation: d, generator: e.sequenceGeneratorLocked(s, a), committed: e.storage.Sequences[a],
 			})
@@ -50,8 +50,8 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	if err != nil {
 		return err
 	}
-	slices.SortFunc(s.truncateSequences, func(a, b truncateSequence) int { return compareTruncateAddress(a.ref.Address, b.ref.Address) })
-	for _, observed := range s.truncateSequences {
+	slices.SortFunc(s.truncateOrZero().sequences, func(a, b truncateSequence) int { return compareTruncateAddress(a.ref.Address, b.ref.Address) })
+	for _, observed := range s.truncateOrZero().sequences {
 		if err = s.acquireSequence(observed.ref, lock.AccessExclusive, true); err != nil {
 			return err
 		}
@@ -78,10 +78,10 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *CatalogStage) (map[ids.ObjectAddress]*storage.SequenceGenerator, error) {
 	e := s.op.session.Engine()
 	var observed map[ids.ObjectAddress]*storage.SequenceGenerator
-	if len(s.truncateSequences) != 0 {
-		observed = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(s.truncateSequences))
+	if len(s.truncateOrZero().sequences) != 0 {
+		observed = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(s.truncateOrZero().sequences))
 	}
-	for _, sequence := range s.truncateSequences {
+	for _, sequence := range s.truncateOrZero().sequences {
 		a := sequence.ref.Address
 		if auth.Catalog.Get(a) != sequence.relation || e.sequenceGeneratorLocked(s, a) != sequence.generator || e.storage.Sequences[a] != sequence.committed {
 			return nil, ids.ErrCatalogReplaced
@@ -94,16 +94,16 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	// Host publication need not honor SQL locks. Do not silently omit an owned
 	// sequence added between closure capture and staging, even for an empty set.
 	for a, descriptor := range auth.Catalog.Descriptors() {
-		if d, ok := descriptor.(*catalog.Relation); ok && truncateOwnsSequence(d, s.truncateSelected) {
+		if d, ok := descriptor.(*catalog.Relation); ok && truncateOwnsSequence(d, s.truncateOrZero().selected) {
 			if _, captured := observed[a]; !captured {
 				return nil, catalog.Conflict{}
 			}
 		}
 	}
-	if len(s.truncateSequences) != 0 {
-		stage.sequenceState().resetGenerators(len(s.truncateSequences))
+	if len(s.truncateOrZero().sequences) != 0 {
+		stage.sequenceState().resetGenerators(len(s.truncateOrZero().sequences))
 	}
-	for _, sequence := range s.truncateSequences {
+	for _, sequence := range s.truncateOrZero().sequences {
 		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
@@ -116,7 +116,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		stage.sequence.setGenerator(d.Address(), &storage.SequenceGenerator{Last: d.Sequence.Start, Generation: rev})
 	}
 	session := s.op.session
-	for _, sequence := range s.truncateSequences {
+	for _, sequence := range s.truncateOrZero().sequences {
 		a := sequence.ref.Address
 		// Reset itself discards the initiating backend's old unused tail,
 		// even if it rolls back without another function demand. Its local

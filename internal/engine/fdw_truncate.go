@@ -13,7 +13,7 @@ type foreignTruncateGroup struct {
 func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error) {
 	e := s.op.session.Engine()
 	var groups []foreignTruncateGroup
-	for _, selected := range s.truncateRelations {
+	for _, selected := range s.truncateOrZero().relations {
 		if selected.relation.RelationKind != catalog.ForeignRelation {
 			continue
 		}
@@ -33,7 +33,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 		}
 		if index < 0 {
 			index = len(groups)
-			groups = append(groups, foreignTruncateGroup{source: f, request: catalog.ForeignTruncateRequest{Cascade: s.foreignTruncateCascade, RestartIdentity: s.truncateRestart}})
+			groups = append(groups, foreignTruncateGroup{source: f, request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().foreignCascade, RestartIdentity: s.truncateOrZero().restart}})
 		}
 		groups[index].request.Tables = append(groups[index].request.Tables, copyForeignRequest(f.request))
 	}
