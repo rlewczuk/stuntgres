@@ -140,7 +140,7 @@ func TestExclusionCompletionDeadlock(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	at, bt := a.transactions.ticket, b.transactions.ticket
-	if len(a.transactions.exclusionModes.events) != 1 || len(b.transactions.exclusionModes.events) != 1 {
+	if len(ownerExtensionOrZero(a.transactions).exclusionModes.events) != 1 || len(ownerExtensionOrZero(b.transactions).exclusionModes.events) != 1 {
 		t.Fatal("crossed admissions must independently enlist both owners")
 	}
 	first := exclusionCommitWorker(t, a, ar)

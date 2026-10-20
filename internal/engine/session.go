@@ -168,7 +168,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if !role.Login {
 		return nil, roleLoginError(role.Name)
 	}
-	// One allocation holds the session and its root payload.
+	// One allocation holds the session, its root payload and the owner extension.
 	allocation := &sessionAllocation{session: Session{host: (*sessionHost)(e), token: e.catalog.Domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}}
 	s, payload := &allocation.session, &allocation.payload
 	s.payload = payload
@@ -204,7 +204,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		resetRole, err = e.initialRole(op.Context(), authenticated, start.Defaults)
 	}
 	if err == nil {
-		transactions := &transactionOwner{session: s}
+		transactions := &transactionOwner{session: s, extension: &allocation.owner}
 		_, err = op.Attach(Transaction, (*transactionSessionEnd)(transactions))
 		if err == nil {
 			s.transactions = transactions

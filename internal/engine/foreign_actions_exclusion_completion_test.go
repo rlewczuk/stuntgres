@@ -27,7 +27,7 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 			sessionSQL(t, control, "SET CONSTRAINTS ALL IMMEDIATE")
 			sessionSQL(t, control, "INSERT INTO guarded VALUES(2)")
 			sessionSQL(t, deferred, "INSERT INTO guarded VALUES(1),(1)")
-			if len(deferred.transactions.exclusionModes.events) != 32 || len(control.transactions.exclusionModes.events) != 0 {
+			if len(ownerExtensionOrZero(deferred.transactions).exclusionModes.events) != 32 || len(ownerExtensionOrZero(control.transactions).exclusionModes.events) != 0 {
 				t.Fatal("fixture did not create real retained deferred versus settled work")
 			}
 			cq, dq := "SELECT 1", "SELECT 1"

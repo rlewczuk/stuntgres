@@ -14,7 +14,7 @@ import (
 
 func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]bool) error {
 	if !s.indexesOrZero().exclusionStarted {
-		s.indexes().exclusionModes = s.owner.exclusionModes
+		s.indexes().exclusionModes = ownerExtensionOrZero(s.owner).exclusionModes
 	}
 	if len(s.indexesOrZero().exclusionModes.events) == 0 {
 		return nil
@@ -71,7 +71,7 @@ func (e *Engine) checkTransactionExclusions(s *StatementScope) error {
 	if err := s.checkExclusionEvents(true, nil); err != nil {
 		return err
 	}
-	s.owner.exclusionModes = s.indexesOrZero().exclusionModes
+	ownerExtensionOf(s.owner).exclusionModes = s.indexesOrZero().exclusionModes
 	return nil
 }
 func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count int) (Result, error) {

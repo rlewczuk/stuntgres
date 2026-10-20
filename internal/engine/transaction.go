@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -76,23 +77,21 @@ type transactionOwner struct {
 	catalog             *catalogChanges
 	savepoints          []savepointMark
 	accessedTemporary   bool
-	exclusionModes      exclusionModes
 	retainedMessage     bool           // Admission spans a direct multi-command message.
 	protocolCycle       *ProtocolCycle // Retention only; never owns admission.
 	identityEntry       authorization.RoleState
 	identityCaptured    bool
 	messageBorn         bool
-	cursorCleanup       []*sqlCursor // Detached under owner lock; drained unlocked.
 	notificationActions []notificationAction
 	notificationEvents  []Notification
-	foreign             foreignTransaction
+	extension           session.OwnerSlot // Root extension; see ownerExtensionOf.
+	savepointSerial     uint64            // Advanced by every SAVEPOINT, never reset; names foreign savepoints.
 }
 
 func clearTransaction(t *transactionOwner) {
-	t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
-	t.foreign.participants = nil
+	ownerExtensionOf(t).retireForeign()
 	if payloadOf(t.session).cursors != nil {
-		t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.endTransaction(t.ref)...)
+		ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.endTransaction(t.ref))
 	}
 	if payloadOf(t.session).preparedSQL != nil {
 		for _, p := range payloadOf(t.session).preparedSQL.portals {
@@ -120,7 +119,7 @@ func clearTransaction(t *transactionOwner) {
 	clear(t.savepoints)
 	t.savepoints = nil
 	t.accessedTemporary = false
-	t.exclusionModes = exclusionModes{}
+	ownerExtensionOf(t).exclusionModes = exclusionModes{}
 }
 
 // transactionSessionEnd is the owner seen as its session's Transaction
@@ -992,10 +991,9 @@ func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]storage.RowVersio
 
 func drainCursorCleanup(t *transactionOwner, ctx context.Context, scope *StatementScope) error {
 	t.mu.Lock()
-	cursors := t.cursorCleanup
-	t.cursorCleanup = nil
-	participants := t.foreign.cleanup
-	t.foreign.cleanup = nil
+	x := ownerExtensionOf(t)
+	cursors, participants := x.cursorCleanup, x.foreign.cleanup
+	x.cursorCleanup, x.foreign.cleanup = nil, nil
 	t.mu.Unlock()
 	wire := scope != nil && (scope.protocolOrZero().command || scope.protocolOrZero().simple)
 	var err error

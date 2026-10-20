@@ -178,7 +178,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	var err error
 	committed := false
 	if commit && t.state != TxAborted {
-		if len(t.exclusionModes.events) != 0 || payloadOf(op.session).cursors.hasCurrentHold(ref) {
+		if len(ownerExtensionOrZero(t).exclusionModes.events) != 0 || payloadOf(op.session).cursors.hasCurrentHold(ref) {
 			if scope == nil {
 				scope = newStatementScope(op, t, statementOperationStart(op))
 			}
@@ -195,13 +195,13 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 				err = e.checkTransactionExclusions(scope)
 			}
 		}
-		if scope != nil && len(t.foreign.participants) != 0 {
+		if scope != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
 			scope.foreignUnlocked()
 		}
 		if cleanupErr := disposeSQLCursors(op.Context(), payloadOf(t.session).cursors.endTransaction(ref)); err == nil {
 			err = cleanupErr
 		}
-		hasForeign := len(t.foreign.participants) != 0
+		hasForeign := len(ownerExtensionOrZero(t).foreign.participants) != 0
 		if chain {
 			e.replacementMu.RLock()
 			chainFence = true

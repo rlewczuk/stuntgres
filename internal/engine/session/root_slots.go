@@ -13,3 +13,10 @@ package session
 type PayloadSlot interface {
 	PayloadSlot()
 }
+
+// OwnerSlot holds a transaction owner's root extension: foreign transaction
+// participants and their cleanup, exclusion constraint modes and the SQL
+// cursors detached for cleanup. The root allocates it with the session.
+type OwnerSlot interface {
+	OwnerSlot()
+}

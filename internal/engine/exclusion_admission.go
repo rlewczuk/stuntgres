@@ -107,7 +107,7 @@ func (s *StatementScope) beginExclusionProjectionLocked(e *Engine) {
 		return
 	}
 	s.indexes().exclusionStarted = true
-	s.indexes().exclusionModes = s.owner.exclusionModes
+	s.indexes().exclusionModes = ownerExtensionOrZero(s.owner).exclusionModes
 }
 func (s *StatementScope) installExclusionProjectionLocked(e *Engine, p *exclusionProjection) {
 	if e.exclusionPending == nil {

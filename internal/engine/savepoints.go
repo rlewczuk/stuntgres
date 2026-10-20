@@ -18,7 +18,7 @@ import (
 // generator counters or snapshots. The outer block keeps the same ticket.
 type savepointMark struct {
 	name                string
-	foreignID           uint64
+	serial              uint64 // the owner's savepointSerial at capture; names foreign savepoints
 	writes              map[ids.ObjectAddress][]storage.RowVersion
 	deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
 	catalog             *catalogChanges
@@ -80,7 +80,7 @@ func (s *sessionSettings) restoreSavepoint(candidate settingsMark, identity auth
 
 func captureSavepoint(t *transactionOwner, name string) savepointMark {
 	writes := maps.Clone(t.writes)
-	t.foreign.markNext++
+	t.savepointSerial++
 	for a, rows := range t.writes {
 		// A later append after rollback must not overwrite a discarded suffix
 		// still retained by a result opened before rollback.
@@ -93,11 +93,11 @@ func captureSavepoint(t *transactionOwner, name string) savepointMark {
 	t.session.mu.Lock()
 	identity := t.session.authorization.state
 	t.session.mu.Unlock()
-	return savepointMark{name: name, foreignID: t.foreign.markNext, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: payloadOf(t.session).cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
+	return savepointMark{name: name, serial: t.savepointSerial, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: payloadOf(t.session).cursors.ordinal, exclusionModes: ownerExtensionOrZero(t).exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
 }
 
 func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settingsMark) {
-	t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.rollback(mark.cursors)...)
+	ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.rollback(mark.cursors))
 	retireProtocolPortalsAfter(t, mark.cursors)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
@@ -107,7 +107,7 @@ func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settings
 	syncCharacteristics(t)
 	e := engineOf(t.session)
 	e.mu.Lock()
-	t.exclusionModes = mark.exclusionModes
+	ownerExtensionOf(t).exclusionModes = mark.exclusionModes
 	if mark.exclusionProjection == nil {
 		delete(e.exclusionPending, t.ticket)
 	} else {
@@ -172,7 +172,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	var settings settingsMark
 	var stack []savepointMark
 	if control.Kind == parser.CreateSavepoint {
-		if t.foreign.markNext == ^uint64(0) {
+		if t.savepointSerial == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: foreign savepoint identity exhausted")
 		}
 		mark = captureSavepoint(t, control.Name.Text)
@@ -204,7 +204,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	}
 	s.foreignUnlocked()
 	t.mu.Unlock()
-	hookErr := foreignSavepoint(t, s.op.Context(), kind, mark.foreignID)
+	hookErr := foreignSavepoint(t, s.op.Context(), kind, mark.serial)
 	t.mu.Lock()
 	if hookErr != nil {
 		return Result{}, hookErr
@@ -238,7 +238,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		case parser.CreateSavepoint:
 			t.savepoints = append(stack, mark)
 		case parser.RollbackSavepoint:
-			t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.rollback(mark.cursors)...)
+			ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.rollback(mark.cursors))
 			retireProtocolPortalsAfter(t, mark.cursors)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
@@ -253,7 +253,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.session.settings.currentIsolation = isolationText(t.isolation)
 			t.session.settings.currentReadOnly = t.readOnly
 			t.session.settings.currentDeferrable = t.deferrable
-			t.exclusionModes = mark.exclusionModes
+			ownerExtensionOf(t).exclusionModes = mark.exclusionModes
 			if mark.exclusionProjection == nil {
 				delete(e.exclusionPending, t.ticket)
 			} else {

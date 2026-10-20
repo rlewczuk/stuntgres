@@ -92,15 +92,15 @@ func TestExclusionPeerCompletion(t *testing.T) {
 	ar, br := transactionBegin(t, a), transactionBegin(t, b)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	at := a.transactions.ticket
-	if len(a.transactions.exclusionModes.events) != 0 {
+	if len(ownerExtensionOrZero(a.transactions).exclusionModes.events) != 0 {
 		t.Fatal("uncontested first admission invented a deferred obligation")
 	}
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	bt := b.transactions.ticket
-	if len(b.transactions.exclusionModes.events) != 1 {
+	if len(ownerExtensionOrZero(b.transactions).exclusionModes.events) != 1 {
 		t.Fatal("peer admission did not enlist its actual row/version")
 	}
-	event := b.transactions.exclusionModes.events[0]
+	event := ownerExtensionOrZero(b.transactions).exclusionModes.events[0]
 	projection := e.exclusionPending[bt]
 	entries := projection.entries[event.index.Address]
 	if len(entries) != 1 || event.row != entries[0].row.Row || event.version != entries[0].row.Version {
@@ -131,7 +131,7 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 		t.Fatal("dirty projection was mutated rather than replaced")
 	}
 	sessionSQL(t, a, "ROLLBACK TO m")
-	if e.exclusionPending[at] != before || len(a.transactions.exclusionModes.byConstraint) != 0 {
+	if e.exclusionPending[at] != before || len(ownerExtensionOrZero(a.transactions).exclusionModes.byConstraint) != 0 {
 		t.Fatal("savepoint did not restore projection and constraint modes")
 	}
 	sessionSQL(t, a, "PREPARE TRANSACTION 'exclusion_unit'")

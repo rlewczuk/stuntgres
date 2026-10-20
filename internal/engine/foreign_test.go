@@ -448,7 +448,7 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	s.settings.mu.Lock()
 	s.mu.Lock()
 	txn.mu.Lock()
-	txn.cursorCleanup = append(txn.cursorCleanup, payloadOf(s).cursors.rollback(0)...)
+	ownerExtensionOf(txn).cursorCleanup = append(ownerExtensionOrZero(txn).cursorCleanup, payloadOf(s).cursors.rollback(0)...)
 	premature := scan.ends
 	txn.mu.Unlock()
 	s.mu.Unlock()
@@ -461,7 +461,7 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	if err := drainCursorCleanup(txn, context.Background(), nil); !errors.Is(err, failure) {
 		t.Fatal("cleanup outcome was swallowed", err)
 	}
-	if len(blocked) != 0 || scan.ends != 1 || len(payloadOf(s).cursors.entries) != 0 || len(txn.cursorCleanup) != 0 || !source.LifetimeClosed || cursor.foreignOwner != nil {
+	if len(blocked) != 0 || scan.ends != 1 || len(payloadOf(s).cursors.entries) != 0 || len(ownerExtensionOrZero(txn).cursorCleanup) != 0 || !source.LifetimeClosed || cursor.foreignOwner != nil {
 		t.Fatal("owner/lock boundary", blocked, scan.ends)
 	}
 	if err := cursor.dispose(context.Background()); !errors.Is(err, failure) || scan.ends != 1 {

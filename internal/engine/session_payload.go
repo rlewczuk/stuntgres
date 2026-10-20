@@ -21,10 +21,12 @@ type sessionPayload struct {
 
 func (*sessionPayload) PayloadSlot() {}
 
-// sessionAllocation places a session and its root payload in one allocation.
+// sessionAllocation places a session, its root payload and its transaction
+// owner's root extension in one allocation.
 type sessionAllocation struct {
 	session Session
 	payload sessionPayload
+	owner   ownerExtension
 }
 
 // payloadOf returns the root payload of s, or nil for a session built without

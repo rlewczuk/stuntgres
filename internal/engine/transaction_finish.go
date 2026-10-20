@@ -176,7 +176,7 @@ func (s *StatementScope) Finish(err error) error {
 					t.notificationActions = notificationActions
 					t.notificationEvents = notificationEvents
 					if s.indexesOrZero().exclusionStarted {
-						t.exclusionModes = s.indexesOrZero().exclusionModes
+						ownerExtensionOf(t).exclusionModes = s.indexesOrZero().exclusionModes
 					}
 					e.reconcileSerializableWritesLocked(t)
 				}
@@ -188,7 +188,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.command++
 		}
 	}
-	if t.state == TxImplicit && err != nil && len(t.foreign.participants) != 0 {
+	if t.state == TxImplicit && err != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
 		t.mu.Unlock()
 		s.foreignUnlocked()
 		_ = disposeSQLCursors(s.op.Context(), payloadOf(t.session).cursors.endTransaction(t.ref))
@@ -200,7 +200,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.mu.Lock()
 	}
 	if len(s.foreignTablesOrZero().holdPromotions) != 0 {
-		if err != nil && !published && len(t.foreign.participants) != 0 {
+		if err != nil && !published && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
 			t.mu.Unlock()
 			err = s.discardForeignHoldPromotions(err)
 			t.mu.Lock()
@@ -223,26 +223,24 @@ func (s *StatementScope) Finish(err error) error {
 		t.session.retireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
 		if errors.Is(err, ids.ErrCatalogReplaced) {
-			t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.clear()...)
+			ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.clear())
 			t.truncateSavepoints(0)
 		}
 		if len(t.savepoints) != 0 {
 			if t.state == TxActive {
 				mark := t.savepoints[len(t.savepoints)-1]
 				t.mu.Unlock()
-				remoteErr := foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 1, mark.foreignID)
+				remoteErr := foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 1, mark.serial)
 				t.mu.Lock()
 				if remoteErr != nil {
-					t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
-					t.foreign.participants = nil
+					ownerExtensionOf(t).retireForeign()
 				}
 				restoreSavepoint(t, mark, mark.settings.clone())
 				e.locks.Restore(t.ticket, mark.locks)
 			}
 			t.state = TxAborted
 		} else {
-			t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
-			t.foreign.participants = nil
+			ownerExtensionOf(t).retireForeign()
 			t.session.settings.finishTransaction(false)
 			e.endSerializable(t.ref, false)
 			t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
@@ -259,7 +257,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.notificationEvents = nil
 			endedTicket = t.ticket
 			t.ticket = nil
-			t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.endTransaction(t.ref)...)
+			ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.endTransaction(t.ref))
 		}
 	}
 	e.endStatementVisibility(s.txRef, t.state != TxIdle && stableIsolation(t.isolation))

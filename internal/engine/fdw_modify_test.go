@@ -308,7 +308,7 @@ func fdwUnitCopyVeto(t *testing.T) {
 	defer scope.Finish(failure)
 	syntax := &parser.Copy{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unit_copy_target"}}}, From: true, Endpoint: parser.CopyStdin}
 	count, err := scope.CopyProtocol(syntax, strings.NewReader("1\n"), nil, CopyProtocolHooks{FinishInput: func() error { return failure }})
-	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || len(scope.owner.foreign.participants) != 0 {
+	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || len(ownerExtensionOrZero(scope.owner).foreign.participants) != 0 {
 		t.Fatal("input veto admitted remote work", count, err, provider.calls, provider.begins)
 	}
 	if err := scope.Finish(err); !errors.Is(err, failure) {
