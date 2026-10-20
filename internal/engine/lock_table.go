@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -34,7 +35,7 @@ func explicitLockMode(mode parser.TableLockMode) lock.Mode {
 
 func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation, mode lock.Mode) error {
 	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.ViewRelation {
-		return tableKind(d, "lock")
+		return analyze.TableKindError(d, "lock")
 	}
 	rights, err := auth.Effective(ref, false)
 	if err != nil {
@@ -166,7 +167,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 			return ids.ErrCatalogReplaced
 		}
 		if child.RelationKind == catalog.MaterializedViewRelation {
-			return tableKind(child, "lock")
+			return analyze.TableKindError(child, "lock")
 		}
 		if child.RelationKind != catalog.TableRelation && child.RelationKind != catalog.PartitionedRelation && child.RelationKind != catalog.ViewRelation {
 			continue

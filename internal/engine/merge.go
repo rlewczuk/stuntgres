@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -59,7 +60,7 @@ func preflightMerge(c *exec.Context, merge *boundMerge, catalog catalog.Read) er
 			}
 			folded, _, err := preflightCoercions(&owner, expression)
 			if err != nil {
-				return insertValueError(catalog, err, arm.Input.Relation.Columns[arm.Input.Targets[j]], arm.Syntax[j], nil)
+				return analyze.InsertValueError(catalog, err, arm.Input.Relation.Columns[arm.Input.Targets[j]], arm.Syntax[j], nil)
 			}
 			arm.Input.Expressions[0][j] = folded
 		}

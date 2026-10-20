@@ -28,66 +28,6 @@ func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorizatio
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for sequence %s", d.Name()))
 }
-func tableKind(d *catalog.Relation, operation string) error {
-	if d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.PartitionedRelation {
-		return nil
-	}
-	if d.RelationKind == catalog.CompositeRelation {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for composite types."}
-	}
-	if d.RelationKind == catalog.MaterializedViewRelation && operation == "change" {
-		return sqlError("42809", fmt.Sprintf(`cannot change materialized view "%s"`, d.Name()))
-	}
-	if operation == "ADD COLUMN" {
-		kind := ""
-		switch d.RelationKind {
-		case catalog.ViewRelation:
-			kind = "views"
-		case catalog.MaterializedViewRelation:
-			kind = "materialized views"
-		case catalog.IndexRelation:
-			kind = "indexes"
-		case catalog.SequenceRelation:
-			kind = "sequences"
-		}
-		if kind != "" {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ADD COLUMN cannot be performed on relation "%s"`, d.Name()), Detail: "This operation is not supported for " + kind + "."}
-		}
-	}
-	if d.RelationKind == catalog.MaterializedViewRelation {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for materialized views."}
-	}
-	if d.RelationKind == catalog.IndexRelation {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for indexes."}
-	}
-	if d.RelationKind == catalog.ViewRelation {
-		return sqlError("0A000", "view mutation is unsupported")
-	}
-	if d.RelationKind == catalog.CatalogRelation {
-		return sqlError("0A000", "catalog source mutation is unsupported")
-	}
-	message := fmt.Sprintf(`cannot change sequence "%s"`, d.Name())
-	detail := ""
-	switch operation {
-	case "like":
-		message = fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, d.Name())
-		detail = "This operation is not supported for sequences."
-	case "comment table":
-		message = fmt.Sprintf(`"%s" is not a table`, d.Name())
-	case "comment column":
-		message = fmt.Sprintf(`cannot set comment on relation "%s"`, d.Name())
-		detail = "This operation is not supported for sequences."
-	case "lock":
-		message = fmt.Sprintf(`cannot lock relation "%s"`, d.Name())
-		detail = "This operation is not supported for sequences."
-	default:
-		if operation != "insert into" && operation != "delete from" && operation != "change" {
-			message = fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, operation, d.Name())
-			detail = "This operation is not supported for sequences."
-		}
-	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: message, Detail: detail}
-}
 func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, reserveReplacement bool) error {
 	e := s.op.session.Engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}

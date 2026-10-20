@@ -8,44 +8,8 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-func tableLikeOptions(options []parser.LikeOption) tableLikeMask {
-	var mask tableLikeMask
-	for _, option := range options {
-		var bit tableLikeMask
-		switch strings.ToLower(option.Name) {
-		case "comments":
-			bit = analyze.LikeComments
-		case "compression":
-			bit = analyze.LikeCompression
-		case "constraints":
-			bit = analyze.LikeConstraints
-		case "defaults":
-			bit = analyze.LikeDefaults
-		case "generated":
-			bit = analyze.LikeGenerated
-		case "identity":
-			bit = analyze.LikeIdentity
-		case "indexes":
-			bit = analyze.LikeIndexes
-		case "statistics":
-			bit = analyze.LikeStatistics
-		case "storage":
-			bit = analyze.LikeStorage
-		case "all":
-			bit = analyze.LikeAll
-		}
-		if option.Including {
-			mask |= bit
-		} else {
-			mask &^= bit
-		}
-	}
-	return mask
-}
 
 func remapLikeExpression(in *createLikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
 	if in.RowRef == nil {

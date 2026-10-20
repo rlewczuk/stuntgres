@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -385,7 +386,7 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 				for _, parentAddress := range graph.Parents {
 					parent := state.definitionRelation(view, parentAddress)
 					if pslot, ok := parent.Index[name]; ok {
-						if err := inheritanceColumnConflict(view, old.Columns[slot], parent.Columns[pslot], true); err != nil {
+						if err := analyze.InheritanceColumnConflict(view, old.Columns[slot], parent.Columns[pslot], true); err != nil {
 							return nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.Name(), name))
 						}
 					}

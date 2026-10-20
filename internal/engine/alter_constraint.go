@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -170,7 +171,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 			}
 		}
 	}
-	definition, err := bindUniqueAttributes(raw, nil, parent.Index, parent.Attributes)
+	definition, err := analyze.BindUniqueAttributes(raw, nil, parent.Index, parent.Attributes)
 	if err != nil {
 		return nil, alterCookingError(err)
 	}

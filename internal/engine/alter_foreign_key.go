@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -61,7 +62,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	}
 	child := auth.Catalog.MustRelation(childRef.Address)
 	if err = auth.Check(access.Requirement{Object: childRef, OwnerOnly: true}); err == nil {
-		err = tableKind(child, "ADD CONSTRAINT")
+		err = analyze.TableKindError(child, "ADD CONSTRAINT")
 	}
 	if err == nil {
 		err = inheritanceAlterActionsGuard(auth.Catalog, child, raw.Actions)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -119,7 +120,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if s.Kind == parser.CommentColumn {
 			operation = "comment column"
 		}
-		if err := tableKind(relation, operation); err != nil {
+		if err := analyze.TableKindError(relation, operation); err != nil {
 			return nil, err
 		}
 		if err := auth.CanUse(e.catalog.Domain.Ref(ref.Epoch, relation.Namespace())); err != nil {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -36,10 +37,10 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if hierarchyRelation(old) && !partitionDefaultReplayAllowed(e, op, auth, s) {
 		return fail(sqlError("0A000", "altering partition hierarchies is unsupported"))
 	}
-	if err := tableKind(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
+	if err := analyze.TableKindError(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
 		return fail(err)
 	}
-	if isSystemColumn(s.Column.Text) {
+	if catalog.IsSystemColumn(s.Column.Text) {
 		return fail(sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text)))
 	}
 	slot, exists := old.Index[s.Column.Text]

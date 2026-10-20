@@ -32,7 +32,7 @@ type identityDropCapture struct {
 // execution and immutable preparation. Only the execution sink owns a stage.
 func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, identityDropCapture, error) {
 	var capture identityDropCapture
-	if isSystemColumn(action.Column.Text) {
+	if catalog.IsSystemColumn(action.Column.Text) {
 		return old, capture, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
 	}
 	slot, present := old.Index[action.Column.Text]

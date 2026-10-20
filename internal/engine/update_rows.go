@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -127,7 +128,7 @@ func bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.U
 	if slot, exists := b.Relation.Index[a.Target.Text]; exists {
 		if _, generated := b.Relation.ColumnMeta.Generations[b.Relation.Attributes[slot]]; generated {
 			if _, requested := a.Value.(parser.DefaultExpr); !requested {
-				return nil, generationWriteError(a.Target.Text, true)
+				return nil, analyze.GenerationWriteError(a.Target.Text, true)
 			}
 			return nil, nil
 		}

@@ -15,16 +15,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func generationWriteError(column string, update bool) error {
-	message := fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column)
-	if update {
-		message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, column)
-	}
-	diagnostic := sqlError("428C9", message).(*sqlstate.Error)
-	diagnostic.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, column)
-	return diagnostic
-}
-
 func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d *catalog.Relation, declarations []createColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
 		if declaration.Generation != nil {

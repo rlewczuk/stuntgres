@@ -226,7 +226,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 		}
 		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
 	}
-	if b.target.mergeWhen && b.frameID() == 1 && name != "tableoid" && isSystemColumn(name) {
+	if b.target.mergeWhen && b.frameID() == 1 && name != "tableoid" && catalog.IsSystemColumn(name) {
 		for _, q := range b.query.namespace.qualifiers {
 			if len(parts) > 1 && (q.name != parts[len(parts)-2].Text || len(parts) == 3 && q.schema != parts[0].Text) {
 				continue

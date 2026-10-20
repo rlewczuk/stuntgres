@@ -6,26 +6,8 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-func literalTypeName(raw parser.Value) string {
-	switch raw.Kind {
-	case parser.BitStringValue:
-		return "bit"
-	case parser.NumericValue:
-		return "numeric"
-	case parser.IntegerValue:
-		if raw.Integer < -2147483648 || raw.Integer > 2147483647 {
-			return "bigint"
-		}
-		return "integer"
-	case parser.BooleanValue:
-		return "boolean"
-	}
-	return "unknown"
-}
 
 func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []catalog.Column, visible []int, relation *catalog.Relation) (string, error) {
 	var b strings.Builder

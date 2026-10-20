@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -37,7 +38,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		return s.acquireCTEMutations(stmt, execute)
 	}
 	if merge, ok := stmt.(*parser.Merge); ok {
-		if err := validateMergeReachability(merge); err != nil {
+		if err := analyze.ValidateMergeReachability(merge); err != nil {
 			return err
 		}
 	}
@@ -122,7 +123,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 		// PostgreSQL validates explicit target identifiers before opening the
 		// source, so a blocked/missing source cannot mask a bad target list.
-		if err := bindInsertTargets(s.lockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
+		if err := analyze.BindInsertTargets(s.lockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
 			return err
 		}
 		return s.acquireQueryRelations(stmt, stmt, execute)

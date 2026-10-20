@@ -13,7 +13,7 @@ import (
 // Only detached generation maps enter the shared ALTER candidate pipeline.
 func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
 	name := action.Column.Text
-	if isSystemColumn(name) {
+	if catalog.IsSystemColumn(name) {
 		return nil, 0, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, name))
 	}
 	slot, exists := old.Index[name]

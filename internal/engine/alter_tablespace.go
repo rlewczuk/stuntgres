@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -107,7 +108,7 @@ func alterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 	default:
 		return fmt.Errorf("stuntgres: invalid ALTER action")
 	}
-	return tableKind(original, label)
+	return analyze.TableKindError(original, label)
 }
 
 func checkAlterTablespaceCreate(auth AuthorizationView, ref ids.ObjectRef) error {

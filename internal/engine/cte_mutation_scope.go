@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -100,7 +101,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 			continue
 		}
 		if merge, ok := command.(*parser.Merge); ok {
-			if err := validateMergeReachability(merge); err != nil {
+			if err := analyze.ValidateMergeReachability(merge); err != nil {
 				return err
 			}
 		}
@@ -111,7 +112,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 			return err
 		}
 		if insert, ok := command.(*parser.Insert); ok {
-			if err := bindInsertTargets(s.lockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
+			if err := analyze.BindInsertTargets(s.lockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
 				return err
 			}
 		}

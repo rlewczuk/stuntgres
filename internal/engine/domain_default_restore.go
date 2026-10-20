@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -270,7 +271,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 		if len(s.Targets) != len(slots) {
 			return nil, fmt.Errorf("stuntgres: invalid native replay target width")
 		}
-		if err := bindInsertTargets(relation, s.Targets, slots); err != nil {
+		if err := analyze.BindInsertTargets(relation, s.Targets, slots); err != nil {
 			return nil, err
 		}
 		for _, target := range s.Targets {

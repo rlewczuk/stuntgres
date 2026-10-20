@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
@@ -257,7 +258,7 @@ func TestSumAnalysisAssignmentBoundary(t *testing.T) {
 	if node == nil || err == nil || node.ResultUsage().Type.ID() != sqltype.Bool || containsValuesAggregateAnalysis(boolean) {
 		t.Fatal("genuine assignment must retain its resolved source", node, err)
 	}
-	diagnostic := insertValueError(e.CatalogRead(), err, column, boolean, node.ResultUsage().Type)
+	diagnostic := analyze.InsertValueError(e.CatalogRead(), err, column, boolean, node.ResultUsage().Type)
 	wantAssignment := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: `column "i" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: "20"}
 	if !reflect.DeepEqual(diagnostic, wantAssignment) {
 		t.Fatalf("bound-source assignment = %#v, want %#v", diagnostic, wantAssignment)

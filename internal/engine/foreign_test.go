@@ -479,7 +479,7 @@ func testFDWForeignMetadataPolicy(t *testing.T) {
 	syntax := &parser.CreateTable{Elements: []parser.TableElement{{Like: like}, {Column: column}}}
 	got := foreignTableSyntax(syntax)
 	want := tableLikeMask(analyze.LikeAll) &^ (analyze.LikeIndexes | analyze.LikeIdentity | analyze.LikeStorage | analyze.LikeCompression)
-	if got == syntax || got.Elements[0].Like == like || tableLikeOptions(got.Elements[0].Like.Options) != want || tableLikeOptions(like.Options) != analyze.LikeAll || got.Elements[1].Column != column {
+	if got == syntax || got.Elements[0].Like == like || analyze.TableLikeOptions(got.Elements[0].Like.Options) != want || analyze.TableLikeOptions(like.Options) != analyze.LikeAll || got.Elements[1].Column != column {
 		t.Fatal("foreign LIKE changed syntax or copied physical properties")
 	}
 	relation := &catalog.Relation{Attributes: []int32{1, 4, 7}, Columns: make([]catalog.Column, 3), ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{7: {Kind: catalog.GenerationVirtual, Planned: plan.ColumnExpr{Slot: 0}}}}}

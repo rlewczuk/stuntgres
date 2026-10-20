@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -23,7 +24,7 @@ type truncateRelation struct {
 }
 
 func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation, privilege, only bool) error {
-	if guardedCatalogRelation(d) {
+	if analyze.GuardedCatalogRelation(d) {
 		return guardedCatalogMutationError(auth, d, true)
 	}
 	if d.RelationKind == catalog.ForeignRelation {

@@ -268,7 +268,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 			d.Keys[i] = key
 			columns[i].Usage = indexKeyCollation(derived.Execution.ResultUsage(), key)
 		} else {
-			if isSystemColumn(raw.Column.Text) {
+			if catalog.IsSystemColumn(raw.Column.Text) {
 				system = true
 				if included {
 					if err := validateIndexInclude(raw); err != nil {

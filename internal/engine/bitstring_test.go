@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -62,7 +63,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 			t.Fatal(d, err)
 		}
 	}
-	if literalTypeName(raw.Value) != "bit" {
+	if analyze.LiteralTypeName(raw.Value) != "bit" {
 		t.Fatal("known literal lost type identity")
 	}
 }

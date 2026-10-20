@@ -14,26 +14,6 @@ import (
 	"unicode/utf8"
 )
 
-// slots may be nil for the target-first lock-analysis checkpoint. Repeated
-// partial targets compose; any repeated whole-column target remains an error.
-func bindInsertTargets(relation *catalog.Relation, targets []parser.InsertTarget, slots []int) error {
-	for i, target := range targets {
-		slot, ok := relation.Index[target.Name]
-		if !ok {
-			return insertError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, target.Name, relation.Name()), target.Pos)
-		}
-		for _, previous := range targets[:i] {
-			if previous.Name == target.Name && (len(previous.Steps) == 0 || len(target.Steps) == 0) {
-				return insertError("42701", fmt.Sprintf(`column "%s" specified more than once`, target.Name), target.Pos)
-			}
-		}
-		if slots != nil {
-			slots[i] = slot
-		}
-	}
-	return nil
-}
-
 func bindInsertSource(out *binding, binder *expressionBinder, auth analyze.Authority, s *parser.Insert) error {
 	var query *plan.Query
 	var err error
@@ -86,7 +66,7 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth analyze.Autho
 			}
 		}
 		if _, generated := out.Relation.ColumnMeta.Generations[out.Relation.Attributes[out.Targets[i]]]; generated {
-			return generationWriteError(target.Name, false)
+			return analyze.GenerationWriteError(target.Name, false)
 		}
 		if identity, ok := out.Relation.ColumnMeta.Identities[out.Relation.Attributes[out.Targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 			return sequence.IdentityInsertError(target.Name)

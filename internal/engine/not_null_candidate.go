@@ -90,7 +90,7 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 			return old, nil
 		}
 	} else {
-		if isSystemColumn(a.Column.Text) {
+		if catalog.IsSystemColumn(a.Column.Text) {
 			message := "system-column nullability is unsupported"
 			if a.Action == parser.AddNotNull {
 				message = fmt.Sprintf(`cannot add not-null constraint on system column "%s"`, a.Column.Text)

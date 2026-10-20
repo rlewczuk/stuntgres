@@ -12,7 +12,7 @@ import (
 )
 
 // Local duplicate detection precedes merging; LIKE remains a local copy, not an edge.
-func describeInheritance(host analyzeHost, auth analyze.Authority, syntax *parser.CreateTable, b *binding, columns []catalog.Column, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]catalog.Column, []createColumnDeclaration, []createLikeConstraint, error) {
+func describeInheritance(host analyzeHost, auth analyze.Authority, syntax *parser.CreateTable, b *binding, columns []catalog.Column, declarations []createColumnDeclaration, likeConstraints []analyze.LikeConstraint) ([]catalog.Column, []createColumnDeclaration, []analyze.LikeConstraint, error) {
 	if len(syntax.Parents) == 0 {
 		return columns, declarations, likeConstraints, nil
 	}
@@ -73,14 +73,14 @@ func describeInheritance(host analyzeHost, auth analyze.Authority, syntax *parse
 			definition, isGenerated := source.ColumnMeta.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
 				host.EmitNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging multiple inherited definitions of column "%s"`, c.Name)})
-				if err := inheritanceColumnConflict(auth.ReadCatalog(), merged[slot], c, false); err != nil {
+				if err := analyze.InheritanceColumnConflict(auth.ReadCatalog(), merged[slot], c, false); err != nil {
 					return nil, nil, nil, err
 				}
 				if generated[c.Name] != isGenerated {
 					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`inherited column "%s" has a generation conflict`, c.Name))
 				}
 				if isGenerated && kinds[c.Name] != definition.Kind {
-					return nil, nil, nil, generationInheritanceError(c.Name, kinds[c.Name], definition.Kind)
+					return nil, nil, nil, analyze.GenerationInheritanceError(c.Name, kinds[c.Name], definition.Kind)
 				}
 			} else {
 				index[c.Name] = len(merged)
@@ -106,7 +106,7 @@ func describeInheritance(host analyzeHost, auth analyze.Authority, syntax *parse
 				detail = "User-specified column moved to the position of the inherited column."
 			}
 			host.EmitNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
-			if err := inheritanceColumnConflict(auth.ReadCatalog(), merged[slot], c, true); err != nil {
+			if err := analyze.InheritanceColumnConflict(auth.ReadCatalog(), merged[slot], c, true); err != nil {
 				return nil, nil, nil, err
 			}
 		} else {
@@ -129,7 +129,7 @@ func describeInheritance(host analyzeHost, auth analyze.Authority, syntax *parse
 				kind = catalog.GenerationStored
 			}
 			if kinds[c.Name] != kind {
-				return nil, nil, nil, generationInheritanceError(c.Name, kinds[c.Name], kind)
+				return nil, nil, nil, analyze.GenerationInheritanceError(c.Name, kinds[c.Name], kind)
 			}
 		}
 		mapping[i] = slot

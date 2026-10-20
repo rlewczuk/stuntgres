@@ -27,7 +27,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
-	if old.RelationKind != catalog.CompositeRelation && isSystemColumn(a.Column.Text) {
+	if old.RelationKind != catalog.CompositeRelation && catalog.IsSystemColumn(a.Column.Text) {
 		return nil, sqlError("0A000", fmt.Sprintf(`cannot drop system column "%s"`, a.Column.Text))
 	}
 	slot, exists := old.Index[a.Column.Text]

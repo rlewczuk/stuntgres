@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -49,7 +50,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(insertError("0A000", "ALTER TABLE action is unsupported", action.Pos))
 		}
 	}
-	if old.RelationKind != catalog.CompositeRelation && isSystemColumn(column.Name) {
+	if old.RelationKind != catalog.CompositeRelation && catalog.IsSystemColumn(column.Name) {
 		return fail(sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, column.Name)))
 	}
 	if _, exists := old.Index[column.Name]; exists {
@@ -84,7 +85,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(err)
 		}
 	}
-	declaration, err := bindCreateColumnDeclaration(column, old.Name())
+	declaration, err := analyze.BindCreateColumnDeclaration(column, old.Name())
 	if err != nil {
 		return fail(err)
 	}

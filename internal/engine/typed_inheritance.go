@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -204,7 +205,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 				if _, survives := graph.Columns[attribute]; !survives {
 					continue
 				}
-				if err := inheritanceColumnConflict(view, old.Columns[slot], member, graph.Columns[attribute].Local); err != nil {
+				if err := analyze.InheritanceColumnConflict(view, old.Columns[slot], member, graph.Columns[attribute].Local); err != nil {
 					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.Name(), member.Name))
 				}
 				provenance := graph.Columns[attribute]

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
@@ -36,7 +37,7 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 			if err == nil {
 				t.Fatal("incompatible assignment accepted")
 			}
-			got := insertValueError(e.CatalogRead(), err, catalog.Column{Name: "v", Usage: d.Usage()}, raw, nil)
+			got := analyze.InsertValueError(e.CatalogRead(), err, catalog.Column{Name: "v", Usage: d.Usage()}, raw, nil)
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "column \"v\" is of type " + tc.destination + " but expression is of type " + tc.identity, Hint: "You will need to rewrite or cast the expression.", Position: "30"}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("got %#v want %#v", got, want)

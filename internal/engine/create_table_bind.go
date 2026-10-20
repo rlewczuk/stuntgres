@@ -22,7 +22,7 @@ func bindCreateTable(host analyzeHost, auth analyze.Authority, s *parser.CreateT
 	var columns []catalog.Column
 	declarations := make([]createColumnDeclaration, 0, len(s.Elements))
 	table := s.Name.Parts[len(s.Name.Parts)-1].Text
-	var inherited []createLikeConstraint
+	var inherited []analyze.LikeConstraint
 	if s.OfType != nil {
 		var err error
 		columns, declarations, b.Create.OfType, err = bindTypedColumns(host, auth, s)
@@ -75,7 +75,7 @@ func bindCreateTable(host analyzeHost, auth analyze.Authority, s *parser.CreateT
 			if err != nil {
 				return err
 			}
-			declaration, err := bindCreateColumnDeclaration(c, table)
+			declaration, err := analyze.BindCreateColumnDeclaration(c, table)
 			if err != nil {
 				return err
 			}
@@ -132,18 +132,18 @@ func bindCreateTable(host analyzeHost, auth analyze.Authority, s *parser.CreateT
 				return err
 			}
 			offset := len(columns)
-			b.Create.Likes = append(b.Create.Likes, createLikeInput{Ref: ref, Source: source, SourceType: sourceType, Offset: offset, Options: tableLikeOptions(like.Options)})
+			b.Create.Likes = append(b.Create.Likes, createLikeInput{Ref: ref, Source: source, SourceType: sourceType, Offset: offset, Options: analyze.TableLikeOptions(like.Options)})
 			start := len(inherited)
 			for _, constraint := range source.Constraints.NotNull {
 				for i, attribute := range source.Attributes {
 					if constraint.Attribute == attribute {
-						inherited = append(inherited, createLikeConstraint{Element: elementIndex, NotNullConstraint: catalog.NotNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
+						inherited = append(inherited, analyze.LikeConstraint{Element: elementIndex, NotNullConstraint: catalog.NotNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
 						break
 					}
 				}
 			}
 			// PostgreSQL copies via its relation/type/name constraint index.
-			slices.SortFunc(inherited[start:], func(a, b createLikeConstraint) int {
+			slices.SortFunc(inherited[start:], func(a, b analyze.LikeConstraint) int {
 				return strings.Compare(a.Name, b.Name)
 			})
 			for _, c := range source.Columns {
@@ -162,15 +162,15 @@ func bindCreateTable(host analyzeHost, auth analyze.Authority, s *parser.CreateT
 	}
 	b.Create.Columns = columns
 	var err error
-	b.Create.ColumnIndex, err = bindCreateColumnIndex(columns)
+	b.Create.ColumnIndex, err = analyze.BindCreateColumnIndex(columns)
 	if err != nil {
 		return err
 	}
-	b.Create.Uniques, err = bindCreateUniques(s, b.Create.ColumnIndex, b.Create.Likes, auth.ReadCatalog())
+	b.Create.Uniques, err = analyze.BindCreateUniques(s, b.Create.ColumnIndex, b.Create.Likes, auth.ReadCatalog())
 	if err != nil {
 		return err
 	}
-	b.Create.NotNull, err = bindCreateNotNull(s, columns, declarations, inherited, b.Create.Uniques, b.Create.ColumnIndex)
+	b.Create.NotNull, err = analyze.BindCreateNotNull(s, columns, declarations, inherited, b.Create.Uniques, b.Create.ColumnIndex)
 	if err != nil {
 		return err
 	}

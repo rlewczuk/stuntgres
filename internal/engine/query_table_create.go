@@ -74,7 +74,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		if _, exists := names[column.Name]; exists {
 			return nil, nil, false, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, column.Name))
 		}
-		if isSystemColumn(column.Name) {
+		if catalog.IsSystemColumn(column.Name) {
 			return nil, nil, false, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, column.Name))
 		}
 		names[column.Name] = i

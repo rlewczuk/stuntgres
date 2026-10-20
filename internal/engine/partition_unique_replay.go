@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -53,7 +54,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if table.Partition == nil || table.Membership == nil || table.Inheritance != nil {
 		return nil
 	}
-	bound, err := bindUniqueAttributes(definition, nil, table.Index, table.Attributes)
+	bound, err := analyze.BindUniqueAttributes(definition, nil, table.Index, table.Attributes)
 	if err != nil {
 		return err
 	}

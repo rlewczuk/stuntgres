@@ -841,7 +841,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 				ref := b.query.sources[0].Ref
 				return plan.TableOIDExpr{Info: b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), Owner: ref}, nil
 			}
-			if isSystemColumn(name) {
+			if catalog.IsSystemColumn(name) {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in column generation expression`, name), raw.Pos)
 			}
 		}

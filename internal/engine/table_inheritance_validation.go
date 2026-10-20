@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -59,7 +60,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 			origins[origin.Parent] = true
 			parent := v.MustRelation(origin.Parent)
 			sourceSlot := slices.Index(parent.Attributes, origin.Attribute)
-			if sourceSlot < 0 || parent.Columns[sourceSlot].Name != d.Columns[slot].Name || inheritanceColumnConflict(v, parent.Columns[sourceSlot], d.Columns[slot], false) != nil {
+			if sourceSlot < 0 || parent.Columns[sourceSlot].Name != d.Columns[slot].Name || analyze.InheritanceColumnConflict(v, parent.Columns[sourceSlot], d.Columns[slot], false) != nil {
 				return invalid()
 			}
 		}

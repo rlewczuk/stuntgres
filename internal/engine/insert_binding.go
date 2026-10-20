@@ -39,7 +39,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 		}
 	} else {
 		b.Targets = make([]int, len(s.Targets))
-		if err := bindInsertTargets(b.Relation, s.Targets, b.Targets); err != nil {
+		if err := analyze.BindInsertTargets(b.Relation, s.Targets, b.Targets); err != nil {
 			return err
 		}
 	}
@@ -137,7 +137,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 				}
 				c := b.Relation.Columns[b.Targets[j]]
 				if _, generated := b.Relation.ColumnMeta.Generations[b.Relation.Attributes[b.Targets[j]]]; generated {
-					return generationWriteError(c.Name, false)
+					return analyze.GenerationWriteError(c.Name, false)
 				}
 				if identity, ok := b.Relation.ColumnMeta.Identities[b.Relation.Attributes[b.Targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 					return sequence.IdentityInsertError(c.Name)
@@ -173,7 +173,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 				}
 			}
 			if _, generated := b.Relation.ColumnMeta.Generations[b.Relation.Attributes[b.Targets[j]]]; generated {
-				return generationWriteError(c.Name, false)
+				return analyze.GenerationWriteError(c.Name, false)
 			}
 			if identity, ok := b.Relation.ColumnMeta.Identities[b.Relation.Attributes[b.Targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 				return sequence.IdentityInsertError(c.Name)
@@ -209,7 +209,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 				if plan != nil {
 					source = plan.ResultUsage().Type
 				}
-				return insertValueError(auth.ReadCatalog(), err, c, v, source)
+				return analyze.InsertValueError(auth.ReadCatalog(), err, c, v, source)
 			}
 			b.Expressions[rowIndex][j] = plan
 		}

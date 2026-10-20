@@ -30,7 +30,7 @@ func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requi
 			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
 		if b.Relation.RelationKind == catalog.IndexRelation {
-			return b, tableKind(b.Relation, "insert into")
+			return b, analyze.TableKindError(b.Relation, "insert into")
 		}
 		binder.target.insertTarget = b.Relation
 		if binder.target.ruleNamespace != nil {
@@ -80,7 +80,7 @@ func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requi
 			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
 		if b.Relation.RelationKind == catalog.IndexRelation {
-			return b, tableKind(b.Relation, "delete from")
+			return b, analyze.TableKindError(b.Relation, "delete from")
 		}
 		if !b.Relation.VirtualView {
 			b.Storage = binder.host.AuthorizationStorage(auth, b.Ref.Address)
@@ -138,10 +138,10 @@ func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requi
 			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
 		if b.Relation.RelationKind == catalog.IndexRelation {
-			return b, tableKind(b.Relation, "change")
+			return b, analyze.TableKindError(b.Relation, "change")
 		}
-		if !b.Relation.VirtualView && b.Relation.RelationKind == catalog.CatalogRelation && !guardedCatalogRelation(b.Relation) {
-			return b, tableKind(b.Relation, "change")
+		if !b.Relation.VirtualView && b.Relation.RelationKind == catalog.CatalogRelation && !analyze.GuardedCatalogRelation(b.Relation) {
+			return b, analyze.TableKindError(b.Relation, "change")
 		}
 		if !b.Relation.VirtualView {
 			b.Storage = binder.host.AuthorizationStorage(auth, b.Ref.Address)

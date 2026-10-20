@@ -37,7 +37,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	if !ok {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if err := tableKind(old, "OF"); err != nil {
+	if err := analyze.TableKindError(old, "OF"); err != nil {
 		return fail(err)
 	}
 	next := *old

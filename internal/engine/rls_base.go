@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -95,7 +96,7 @@ func rowSecurityKind(d *catalog.Relation, action parser.AlterTableActionKind) er
 	case catalog.CompositeRelation:
 		kind = "composite types"
 	default:
-		return tableKind(d, rowSecurityActionLabel(action))
+		return analyze.TableKindError(d, rowSecurityActionLabel(action))
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, rowSecurityActionLabel(action), d.Name()), Detail: "This operation is not supported for " + kind + "."}
 }

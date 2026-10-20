@@ -111,7 +111,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		}
 		b.QuerySources = binder.query.sources
 		if view != nil {
-			if err := bindViewOutput(b.Query, view); err != nil {
+			if err := analyze.BindViewOutput(b.Query, view); err != nil {
 				return b, err
 			}
 		}

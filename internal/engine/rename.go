@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -50,7 +51,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	old := scope.lockedDescriptor.(*catalog.Relation)
 	if columnRename && old.RelationKind == catalog.IndexRelation && !allowIndexColumn {
-		return fail(tableKind(old, "rename"))
+		return fail(analyze.TableKindError(old, "rename"))
 	}
 	var renamed *catalog.Relation
 	if columnRename {
@@ -139,14 +140,14 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	return Result{}, nil
 }
 func renameColumnCandidate(old *catalog.Relation, name, destination string) (*catalog.Relation, error) {
-	if old.RelationKind != catalog.CompositeRelation && isSystemColumn(name) {
+	if old.RelationKind != catalog.CompositeRelation && catalog.IsSystemColumn(name) {
 		return nil, sqlError("0A000", fmt.Sprintf(`cannot rename system column "%s"`, name))
 	}
 	slot, exists := old.Index[name]
 	if !exists {
 		return nil, sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, name))
 	}
-	if old.RelationKind != catalog.CompositeRelation && isSystemColumn(destination) {
+	if old.RelationKind != catalog.CompositeRelation && catalog.IsSystemColumn(destination) {
 		return nil, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, destination))
 	}
 	if _, exists := old.Index[destination]; exists {

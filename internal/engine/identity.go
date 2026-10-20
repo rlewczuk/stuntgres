@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -181,7 +182,7 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 			target := b.Targets[i]
 			value, err := expression.Eval(evaluation)
 			if err != nil {
-				return insertValueError(read, err, b.Relation.Columns[target], syntax[i], nil)
+				return analyze.InsertValueError(read, err, b.Relation.Columns[target], syntax[i], nil)
 			}
 			if len(b.Insert.IdentityDiscard) == 0 || !b.Insert.IdentityDiscard[target] {
 				if len(b.ArrayTargets) != 0 && b.ArrayTargets[i] != nil {
@@ -213,7 +214,7 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 				}
 				value, err := supplied[source].Eval(evaluation)
 				if err != nil {
-					return insertValueError(read, err, b.Relation.Columns[target], syntax[source], nil)
+					return analyze.InsertValueError(read, err, b.Relation.Columns[target], syntax[source], nil)
 				}
 				row[target] = value
 			}

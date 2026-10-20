@@ -51,7 +51,7 @@ func evalSerialSequence(c *exec.Context, values [3]sqltype.Value, result *sqltyp
 		}
 	}
 	if owner.SubID == 0 {
-		if isSystemColumn(column) {
+		if catalog.IsSystemColumn(column) {
 			switch relation.RelationKind {
 			case catalog.TableRelation, catalog.SequenceRelation, catalog.CatalogRelation, catalog.IndexRelation:
 				return sqltype.Null(result), nil

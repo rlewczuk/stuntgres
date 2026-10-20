@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
@@ -133,7 +134,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 							row[target], err = execution.expressions[i][j].Eval(&evaluation)
 						}
 						if err != nil {
-							return Result{}, insertValueError(execution.auth.Catalog, err, b.Relation.Columns[target], rawValue, nil)
+							return Result{}, analyze.InsertValueError(execution.auth.Catalog, err, b.Relation.Columns[target], rawValue, nil)
 						}
 					}
 				}

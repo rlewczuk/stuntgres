@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -97,7 +98,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					}
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
-						return Result{}, insertValueError(auth.Catalog, foldErr, destination.Columns[destinationTargets[j]], b.Insert.Rows[i][j], nil)
+						return Result{}, analyze.InsertValueError(auth.Catalog, foldErr, destination.Columns[destinationTargets[j]], b.Insert.Rows[i][j], nil)
 					}
 					if changed {
 						if privateRow == nil {
@@ -247,7 +248,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	// Preserve effect-free planning errors before catalog mutation admission,
 	// using refreshed role authority before table/source access or row effects.
-	if guardedCatalogRelation(b.Relation) {
+	if analyze.GuardedCatalogRelation(b.Relation) {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 			err := guardedCatalogMutationError(auth, b.Relation, false)
@@ -258,7 +259,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete:
 		if b.ViewWrite == nil && b.Relation.RelationKind != catalog.MaterializedViewRelation && b.Relation.RelationKind != catalog.ForeignRelation {
-			if err := tableKind(b.Relation, "change"); err != nil {
+			if err := analyze.TableKindError(b.Relation, "change"); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
@@ -333,7 +334,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete:
 			e.mu.Unlock()
-			return Result{}, tableKind(b.Relation, "change")
+			return Result{}, analyze.TableKindError(b.Relation, "change")
 		}
 	}
 	switch stmt.(type) {
@@ -658,7 +659,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 					row[target] = value
 				}
 				if err != nil {
-					return Result{}, insertValueError(auth.Catalog, err, c, v, nil)
+					return Result{}, analyze.InsertValueError(auth.Catalog, err, c, v, nil)
 				}
 			}
 			schema := auth.Catalog.Get(b.Relation.Namespace()).Name()

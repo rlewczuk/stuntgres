@@ -229,7 +229,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, old.Name(), kind)))
 	}
 	if old.RelationKind == catalog.CatalogRelation || old.RelationKind == catalog.IndexRelation || old.RelationKind == catalog.CompositeRelation {
-		return fail(tableKind(old, "change"))
+		return fail(analyze.TableKindError(old, "change"))
 	}
 	if kind != "materialized view" {
 		if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {

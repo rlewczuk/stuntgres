@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -64,13 +65,13 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			return nil, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, element.Column.Name))
 		}
 		seenColumns[slot] = true
-		declaration, err := bindCreateColumnDeclaration(element.Column, name)
+		declaration, err := analyze.BindCreateColumnDeclaration(element.Column, name)
 		if err != nil {
 			return nil, err
 		}
 		declarations[slot] = declaration
 	}
-	uniques, err := bindCreateUniques(syntax, d.Index, nil, auth.Catalog)
+	uniques, err := analyze.BindCreateUniques(syntax, d.Index, nil, auth.Catalog)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +82,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		nullSyntax.Elements = append(nullSyntax.Elements, parser.TableElement{NotNull: &parser.NotNullConstraint{Column: parser.Identifier{Text: d.Columns[slot].Name}, Name: parser.Identifier{Text: constraint.Name}}})
 	}
 	nullSyntax.Elements = append(nullSyntax.Elements, syntax.Elements...)
-	d.Constraints.NotNull, err = bindCreateNotNull(&nullSyntax, d.Columns, declarations, nil, uniques, d.Index)
+	d.Constraints.NotNull, err = analyze.BindCreateNotNull(&nullSyntax, d.Columns, declarations, nil, uniques, d.Index)
 	if err != nil {
 		return nil, err
 	}

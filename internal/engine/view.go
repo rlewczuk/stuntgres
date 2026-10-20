@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -68,32 +69,6 @@ func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespa
 		}
 	}
 	return out
-}
-
-func bindViewOutput(query *plan.Query, view *parser.CreateView) error {
-	columns := query.Root.Schema()
-	if len(view.Columns) > len(columns) {
-		return sqlError("42601", "CREATE VIEW specifies more column names than columns")
-	}
-	for i := range columns {
-		if i < len(view.Columns) {
-			columns[i].Name = view.Columns[i].Text
-		}
-		columns[i].Nullable, columns[i].NullabilityKnown = true, true
-	}
-	if !view.Replace {
-		return checkViewOutputTypes(columns)
-	}
-	return nil
-}
-
-func checkViewOutputTypes(columns []catalog.Column) error {
-	for _, column := range columns {
-		if column.Usage.Type.ID() == sqltype.Void {
-			return sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type void`, column.Name))
-		}
-	}
-	return nil
 }
 
 // Output names are downstream definition checks, not SELECT/alias analysis.
@@ -351,7 +326,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	// boundary. Appended VOID columns and CREATE OR REPLACE of a missing
 	// destination still fail before a catalog stage can publish anything.
 	if view.Replace {
-		if err := checkViewOutputTypes(b.Query.Root.Schema()); err != nil {
+		if err := analyze.CheckViewOutputTypes(b.Query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

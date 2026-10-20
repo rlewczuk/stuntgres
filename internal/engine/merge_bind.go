@@ -30,20 +30,6 @@ func mergeRelationKind(relation *catalog.Relation) error {
 	return err
 }
 
-// Reachability is independent of catalog binding and precedes relation admission.
-func validateMergeReachability(s *parser.Merge) error {
-	var unconditional [3]bool
-	for _, arm := range s.Arms {
-		if unconditional[arm.Match] {
-			return sqlError("42601", "unreachable WHEN clause specified after unconditional WHEN clause")
-		}
-		if arm.Condition == nil {
-			unconditional[arm.Match] = true
-		}
-	}
-	return nil
-}
-
 func bindMerge(out *binding, binder *expressionBinder, auth analyze.Authority, requiredRef ids.ObjectRef, s *parser.Merge) error {
 	ref, err := binder.host.AdmittedReference(auth, s.Name, requiredRef)
 	if err != nil {
@@ -54,13 +40,13 @@ func bindMerge(out *binding, binder *expressionBinder, auth analyze.Authority, r
 	}
 	out.Ref = ref
 	out.Relation = auth.ReadCatalog().MustRelation(ref.Address)
-	if !guardedCatalogRelation(out.Relation) {
+	if !analyze.GuardedCatalogRelation(out.Relation) {
 		if err := mergeRelationKind(out.Relation); err != nil {
 			return err
 		}
 	}
 	out.Storage = binder.host.AuthorizationStorage(auth, ref.Address)
-	if out.Storage == nil && out.Relation.RelationKind != catalog.PartitionedRelation && !guardedCatalogRelation(out.Relation) {
+	if out.Storage == nil && out.Relation.RelationKind != catalog.PartitionedRelation && !analyze.GuardedCatalogRelation(out.Relation) {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	binder.target.relation, binder.target.ref = out.Relation, ref

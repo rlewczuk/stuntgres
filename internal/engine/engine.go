@@ -515,42 +515,6 @@ func creationError(err error, name parser.ObjectName) error {
 	return err
 }
 
-func insertValueError(view catalog.Read, err error, column catalog.Column, raw parser.Expr, sourceType *sqltype.Descriptor) error {
-	sqlErr, ok := err.(*sqlstate.Error)
-	if !ok {
-		return err
-	}
-	copy := *sqlErr
-	value := parser.Value{Pos: raw.SourcePosition()}
-	if literal, ok := raw.(parser.LiteralExpr); ok {
-		value = literal.Value
-	}
-	switch copy.Code {
-	case "42804":
-		if strings.HasPrefix(copy.Message, "column \"") {
-			return &copy
-		}
-		var source string
-		if sourceType != nil {
-			source = sourceType.DiagnosticName()
-		} else {
-			source = literalTypeName(value)
-			if literal, ok := raw.(parser.TypedLiteralExpr); ok {
-				found := view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: literal.TypeName.Name})
-				if len(found) == 1 {
-					if typ, ok := view.LookupType(sqltype.ID(found[0].ObjectID)); ok {
-						source = typ.DiagnosticName()
-					}
-				}
-			}
-		}
-		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, column.Usage.Type.DiagnosticName(), source)
-		copy.Hint = "You will need to rewrite or cast the expression."
-		copy.Position = strconv.Itoa(value.Pos.Character)
-	}
-	return &copy
-}
-
 func notNullDetailError(schema, table, column, detail string) error {
 	return &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",

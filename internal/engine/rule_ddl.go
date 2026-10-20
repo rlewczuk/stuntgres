@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -57,7 +58,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(sqlError("0A000", "rules on materialized views are not supported"))
 	}
 	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.PartitionedRelation && old.RelationKind != catalog.ViewRelation {
-		return fail(tableKind(old, "change"))
+		return fail(analyze.TableKindError(old, "change"))
 	}
 	next := *old
 	next.Rules = rulesPayloadOf(slices.Clone(rulesOf(old)))

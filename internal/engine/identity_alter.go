@@ -18,7 +18,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		return next, err
 	}
 	slot, ok := old.Index[action.Column.Text]
-	if isSystemColumn(action.Column.Text) {
+	if catalog.IsSystemColumn(action.Column.Text) {
 		return old, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
 	}
 	if !ok {

@@ -48,7 +48,7 @@ func TestTableLikeOptionMask(t *testing.T) {
 		{[]parser.LikeOption{{Name: "identity"}, {Name: "all", Including: true}}, analyze.LikeAll},
 		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "all"}, {Name: "generated", Including: true}}, analyze.LikeGenerated},
 	} {
-		if got := tableLikeOptions(tc.options); got != tc.mask {
+		if got := analyze.TableLikeOptions(tc.options); got != tc.mask {
 			t.Fatal(got, tc.mask)
 		}
 	}

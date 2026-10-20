@@ -622,7 +622,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			name := w.base.Columns[slot].Name
 			attr := w.base.Attributes[slot]
 			if _, generated := w.base.ColumnMeta.Generations[attr]; generated {
-				return generationWriteError(name, true)
+				return analyze.GenerationWriteError(name, true)
 			}
 			if identity, ok := w.base.ColumnMeta.Identities[attr]; ok && identity.Mode == parser.IdentityAlways {
 				d := sequence.IdentityInsertError(name).(*sqlstate.Error)

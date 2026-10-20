@@ -175,11 +175,3 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	}
 	return Result{}, nil
 }
-
-func isSystemColumn(name string) bool {
-	switch name {
-	case "ctid", "xmin", "cmin", "xmax", "cmax", "tableoid":
-		return true
-	}
-	return false
-}

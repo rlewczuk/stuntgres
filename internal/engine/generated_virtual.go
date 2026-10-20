@@ -120,12 +120,6 @@ func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *e
 	return column.Eval(&local)
 }
 
-func generationInheritanceError(column string, parent, child catalog.GenerationKind) error {
-	err := sqlError("42611", fmt.Sprintf(`column "%s" inherits from generated column of different kind`, column)).(*sqlstate.Error)
-	err.Detail = fmt.Sprintf("Parent column is %s, child column is %s.", parent.SQL(), child.SQL())
-	return err
-}
-
 func rejectVirtualIndexUses(parent *catalog.Relation, slots []int) error {
 	for _, slot := range slots {
 		if definition, ok := parent.ColumnMeta.Generations[parent.Attributes[slot]]; ok && definition.Kind == catalog.GenerationVirtual {

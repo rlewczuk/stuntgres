@@ -28,7 +28,7 @@ func bindTypedColumns(host analyzeHost, auth analyze.Authority, s *parser.Create
 	columns := make([]catalog.Column, len(source.Columns))
 	declarations := make([]createColumnDeclaration, len(columns))
 	for i, member := range source.Columns {
-		if isSystemColumn(member.Name) {
+		if catalog.IsSystemColumn(member.Name) {
 			return nil, nil, nil, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, member.Name))
 		}
 		columns[i] = catalog.Column{Name: member.Name, Usage: member.Usage, Nullable: true, NullabilityKnown: true}
@@ -47,7 +47,7 @@ func bindTypedColumns(host analyzeHost, auth analyze.Authority, s *parser.Create
 			return nil, nil, nil, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, column.Name))
 		}
 		seen[column.Name] = true
-		declaration, err := bindCreateColumnDeclaration(column, s.Name.Parts[len(s.Name.Parts)-1].Text)
+		declaration, err := analyze.BindCreateColumnDeclaration(column, s.Name.Parts[len(s.Name.Parts)-1].Text)
 		if err != nil {
 			return nil, nil, nil, err
 		}
