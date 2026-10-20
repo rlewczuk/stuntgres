@@ -8,6 +8,7 @@ import (
 	"io"
 	"reflect"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -120,7 +121,7 @@ func TestServerProtocolFraming(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c.finish(engine.CleanClose)
+		defer c.finish(session.CleanClose)
 		p := &c.copyStream
 		defer p.closeCommand()
 		p.ctx = context.Background()
@@ -517,31 +518,31 @@ func TestServerProtocolCancellation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		session, err := e.StartSession(context.Background(), engine.SessionStart{ID: 2, Authenticated: principal})
+		sess, err := e.StartSession(context.Background(), session.SessionStart{ID: 2, Authenticated: principal})
 		if err != nil {
 			t.Fatal(err)
 		}
 		operationCtx, cancelOperation := context.WithCancelCause(context.Background())
-		op, err := session.Acquire(operationCtx)
+		op, err := sess.Acquire(operationCtx)
 		if err != nil {
 			cancelOperation(nil)
-			session.RequestEnd(engine.InitFailure)
+			sess.RequestEnd(session.InitFailure)
 			joined, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			cleanupErr := session.WaitEnd(joined)
+			cleanupErr := sess.WaitEnd(joined)
 			cancel()
 			t.Fatal(errors.Join(err, cleanupErr))
 		}
 		physical, closePhysical := context.WithCancel(context.Background())
-		c := &client{server: &server{}, ctx: physical, session: session}
+		c := &client{server: &server{}, ctx: physical, session: sess}
 		c.watchSessionEnd()
 		t.Cleanup(func() {
 			closePhysical()
 			cancelOperation(nil)
-			session.RequestEnd(engine.InvalidConnection)
+			sess.RequestEnd(session.InvalidConnection)
 			op.Done()
 			joined, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			if err := session.WaitEnd(joined); err != nil {
+			if err := sess.WaitEnd(joined); err != nil {
 				t.Error(err)
 			}
 			select {
@@ -555,7 +556,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		// The operation still owns its lease and still has its first cause.
 		// Physical retirement must therefore use independent session authority.
 		select {
-		case <-session.EndRequested():
+		case <-sess.EndRequested():
 		case <-time.After(2 * time.Second):
 			t.Fatal("physical close waited for operation lease")
 		}

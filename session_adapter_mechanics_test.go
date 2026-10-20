@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"testing"
 	"time"
 )
@@ -178,7 +178,7 @@ func TestSessionAdapterMechanics(t *testing.T) {
 func TestSessionFatalNoReplayMechanics(t *testing.T) {
 	c := adapterMechanicsConn(t, NewDriver(), "fatal-no-replay")
 	fatal := &Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "25P04", Message: "terminating connection due to transaction timeout"}
-	c.session.RequestEnd(engine.Terminated)
+	c.session.RequestEnd(session.Terminated)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := c.session.WaitEnd(ctx); err != nil {

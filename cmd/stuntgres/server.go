@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -43,13 +44,13 @@ type client struct {
 	wire           *wireCodec
 	ctx            context.Context
 	cancel         context.CancelFunc
-	session        *engine.Session
+	session        *session.Session
 	db             *database
 	database, user string
 	id             uint32
 	key            [32]byte
 	keyLength      int
-	cycle          *engine.ProtocolCycle
+	cycle          *session.ProtocolCycle
 	messages       <-chan frontendMessage
 	sessionEnded   <-chan error
 	protocolState  protocolState
@@ -189,7 +190,7 @@ func (c *client) watchSessionEnd() <-chan error {
 			// A held COPY codec may already have the user-cancel cause.
 			// Publish physical retirement through the independent session
 			// authority now, before waiting for its operation lease to drain.
-			c.session.RequestEnd(engine.InvalidConnection)
+			c.session.RequestEnd(session.InvalidConnection)
 			return
 		}
 		if c.ctx.Err() != nil {
@@ -209,7 +210,7 @@ func (c *client) watchSessionEnd() <-chan error {
 	}()
 	return events
 }
-func (c *client) finish(reason engine.EndReason) {
+func (c *client) finish(reason session.EndReason) {
 	if c.session != nil {
 		// Preserve the chosen clean/fatal/init reason before canceling the
 		// physical context observed by the existing end-request watcher.

@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -361,11 +361,11 @@ func (c *client) sendReady() error {
 	}
 	var state byte
 	switch c.session.TransactionState() {
-	case engine.TxIdle:
+	case session.TxIdle:
 		state = 'I'
-	case engine.TxActive, engine.TxImplicit:
+	case session.TxActive, session.TxImplicit:
 		state = 'T'
-	case engine.TxAborted:
+	case session.TxAborted:
 		state = 'E'
 	default:
 		return errors.New("stuntgres: unfinished implicit transaction at ReadyForQuery")

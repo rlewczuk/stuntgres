@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -76,11 +77,14 @@ func (d *database) provision(ctx context.Context, name string, users accounts, r
 	if err != nil {
 		return err
 	}
-	boot, err := d.engine.StartSession(ctx, engine.SessionStart{ID: 1, Authenticated: postgres, Defaults: settingNames(d.settings)})
+	boot, err := d.engine.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: postgres, Defaults: settingNames(d.settings)})
 	if err != nil {
 		return err
 	}
-	defer func() { boot.RequestEnd(engine.CleanClose); err = errors.Join(err, boot.WaitEnd(context.Background())) }()
+	defer func() {
+		boot.RequestEnd(session.CleanClose)
+		err = errors.Join(err, boot.WaitEnd(context.Background()))
+	}()
 	ordered := make([]string, 0, len(users))
 	for username, a := range users {
 		// Native dumps retain owners but exclude principals. Seed every known
@@ -105,8 +109,8 @@ func (d *database) provision(ctx context.Context, name string, users accounts, r
 	return nil
 }
 func quoteIdentifier(name string) string { return `"` + strings.ReplaceAll(name, `"`, `""`) + `"` }
-func bootstrapExecute(ctx context.Context, e *engine.Engine, session *engine.Session, source string) (err error) {
-	op, options, err := session.AcquireCommand(ctx)
+func bootstrapExecute(ctx context.Context, e *engine.Engine, sess *session.Session, source string) (err error) {
+	op, options, err := sess.AcquireCommand(ctx)
 	if err != nil {
 		return err
 	}
@@ -129,7 +133,7 @@ func bootstrapExecute(ctx context.Context, e *engine.Engine, session *engine.Ses
 	}
 	return err
 }
-func (d *database) startSession(ctx context.Context, id uint32, user string, defaults startupDefaults) (*engine.Session, error) {
+func (d *database) startSession(ctx context.Context, id uint32, user string, defaults startupDefaults) (*session.Session, error) {
 	for name := range defaults {
 		if _, ok := d.settings[name]; !ok {
 			return nil, &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "42704", Message: fmt.Sprintf(`unrecognized configuration parameter "%s"`, name)}
@@ -139,7 +143,7 @@ func (d *database) startSession(ctx context.Context, id uint32, user string, def
 	if err != nil {
 		return nil, err
 	}
-	return d.engine.StartSession(ctx, engine.SessionStart{ID: ids.SessionID(id), Authenticated: principal, Defaults: defaults})
+	return d.engine.StartSession(ctx, session.SessionStart{ID: ids.SessionID(id), Authenticated: principal, Defaults: defaults})
 }
 func databaseNames(databases map[string]*database) []string {
 	names := make([]string, 0, len(databases))

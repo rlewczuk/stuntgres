@@ -4,7 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/session"
 )
 
 type protocolState uint8
@@ -40,18 +40,18 @@ func (s *server) serve() error {
 	}
 }
 func (c *client) run() {
-	reason := engine.InvalidConnection
+	reason := session.InvalidConnection
 	defer func() { c.finish(reason) }()
 	c.server.log(slog.LevelInfo, "connection opened", "connection_id", c.id)
 	admitted, err := c.startup()
 	if err != nil {
 		_ = c.wire.errorResponse(err, true)
 		_ = c.wire.flush()
-		reason = engine.InitFailure
+		reason = session.InitFailure
 		return
 	}
 	if !admitted {
-		reason = engine.CleanClose
+		reason = session.CleanClose
 		return
 	}
 	c.cycle = c.session.NewProtocolCycle()
@@ -77,7 +77,7 @@ func (c *client) run() {
 		var m frontendMessage
 		select {
 		case terminal := <-c.sessionEnded:
-			reason = engine.Terminated
+			reason = session.Terminated
 			if !c.fatalSent {
 				_ = c.writeSQLError(c.ctx, "", terminal)
 			}
@@ -102,7 +102,7 @@ func (c *client) run() {
 		}
 		if m.tag == 'X' {
 			c.releaseMessage(m)
-			reason = engine.CleanClose
+			reason = session.CleanClose
 			return
 		}
 		if c.protocolState == protocolRecovery && m.tag != 'S' {
@@ -183,7 +183,7 @@ func (c *client) run() {
 		done()
 		if err != nil {
 			if diagnostic(err).Severity == "FATAL" {
-				reason = engine.Terminated
+				reason = session.Terminated
 				if !c.fatalSent {
 					_ = c.writeSQLError(c.ctx, "", err)
 				}
@@ -234,7 +234,7 @@ func (c *client) readyBoundary() error {
 	return c.wire.flush()
 }
 func (c *client) drainNotifications() (<-chan struct{}, error) {
-	if c.ctx.Err() != nil || c.session.TransactionState() != engine.TxIdle {
+	if c.ctx.Err() != nil || c.session.TransactionState() != session.TxIdle {
 		return nil, nil
 	}
 	for {

@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 	"sync"
@@ -109,12 +110,12 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	session, err := c.engine.StartSession(ctx, engine.SessionStart{ID: id, Authenticated: principal})
+	sess, err := c.engine.StartSession(ctx, session.SessionStart{ID: id, Authenticated: principal})
 	if err != nil {
 		return nil, err
 	}
-	native := &conn{engine: c.engine, session: session, noticeHandler: c.noticeHandler}
-	native.cleanup = runtime.AddCleanup(native, cleanupSession, cleanupCapsule{session})
+	native := &conn{engine: c.engine, session: sess, noticeHandler: c.noticeHandler}
+	native.cleanup = runtime.AddCleanup(native, cleanupSession, cleanupCapsule{sess})
 	return native, nil
 }
 

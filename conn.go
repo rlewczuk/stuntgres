@@ -8,22 +8,23 @@ import (
 	"runtime"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"sync/atomic"
 )
 
 type conn struct {
 	engine           *engine.Engine // The engine that hosts session; immutable.
-	session          *engine.Session
+	session          *session.Session
 	cleanup          runtime.Cleanup
 	closed           atomic.Bool
 	terminalReported atomic.Bool
 	noticeHandler    func(Error)
 }
 
-type cleanupCapsule struct{ session *engine.Session }
+type cleanupCapsule struct{ session *session.Session }
 
-func cleanupSession(capsule cleanupCapsule) { capsule.session.RequestEnd(engine.Abandoned) }
+func cleanupSession(capsule cleanupCapsule) { capsule.session.RequestEnd(session.Abandoned) }
 
 func (c *conn) check(ctx context.Context) error {
 	defer runtime.KeepAlive(c)
@@ -53,7 +54,7 @@ func (c *conn) Close() error {
 	defer runtime.KeepAlive(c)
 	c.closed.Store(true)
 	c.cleanup.Stop()
-	c.session.RequestEnd(engine.CleanClose)
+	c.session.RequestEnd(session.CleanClose)
 	return c.session.WaitEnd(context.Background())
 }
 func (c *conn) Ping(ctx context.Context) error {
@@ -77,7 +78,7 @@ func (c *conn) ResetSession(ctx context.Context) error {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return err
 		}
-		c.session.RequestEnd(engine.InvalidConnection)
+		c.session.RequestEnd(session.InvalidConnection)
 		return driver.ErrBadConn
 	}
 	return nil
@@ -89,17 +90,17 @@ func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
-	level := engine.DefaultIsolation
+	level := session.DefaultIsolation
 	switch options.Isolation {
 	case 0:
 	case driver.IsolationLevel(sql.LevelReadCommitted):
-		level = engine.ReadCommitted
+		level = session.ReadCommitted
 	case driver.IsolationLevel(sql.LevelReadUncommitted):
-		level = engine.ReadUncommitted
+		level = session.ReadUncommitted
 	case driver.IsolationLevel(sql.LevelRepeatableRead):
-		level = engine.RepeatableRead
+		level = session.RepeatableRead
 	case driver.IsolationLevel(sql.LevelSerializable):
-		level = engine.Serializable
+		level = session.Serializable
 	default:
 		return nil, errors.New("stuntgres: unsupported transaction isolation level")
 	}
@@ -108,7 +109,7 @@ func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx
 		return nil, c.terminalError(err)
 	}
 	defer op.Done()
-	ref, err := c.engine.Begin(op, engine.TxOptions{Isolation: level, ReadOnly: options.ReadOnly})
+	ref, err := c.engine.Begin(op, session.TxOptions{Isolation: level, ReadOnly: options.ReadOnly})
 	if err != nil {
 		return nil, c.terminalError(op.CommandError(err))
 	}

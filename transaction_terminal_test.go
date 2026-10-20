@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 type transactionTerminalObserver struct {
-	end func(ids.SessionToken, engine.EndReason) error
+	end func(ids.SessionToken, session.EndReason) error
 }
 
-func (o *transactionTerminalObserver) EndSession(token ids.SessionToken, reason engine.EndReason) error {
+func (o *transactionTerminalObserver) EndSession(token ids.SessionToken, reason session.EndReason) error {
 	return o.end(token, reason)
 }
 
@@ -37,19 +37,19 @@ func transactionMechanicalConnection(t *testing.T) *conn {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	if _, err := c.engine.Begin(op, engine.TxOptions{}); err != nil {
+	if _, err := c.engine.Begin(op, session.TxOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	return c
 }
 
 func TestTransactionTerminalReasons(t *testing.T) {
-	for _, reason := range []engine.EndReason{engine.CleanClose, engine.Terminated, engine.Abandoned} {
-		t.Run(map[engine.EndReason]string{engine.CleanClose: "close", engine.Terminated: "terminate", engine.Abandoned: "abandon"}[reason], func(t *testing.T) {
+	for _, reason := range []session.EndReason{session.CleanClose, session.Terminated, session.Abandoned} {
+		t.Run(map[session.EndReason]string{session.CleanClose: "close", session.Terminated: "terminate", session.Abandoned: "abandon"}[reason], func(t *testing.T) {
 			c := transactionMechanicalConnection(t)
 			s := c.session
 			token := s.Token()
-			var order []engine.ResourceKind
+			var order []session.ResourceKind
 			failure := errors.New("terminal observer")
 			op, err := s.Acquire(context.Background())
 			if err != nil {
@@ -58,14 +58,14 @@ func TestTransactionTerminalReasons(t *testing.T) {
 			// PreparedSQL is now a production-owned attachment. The adapter's
 			// terminal-error witness uses the still-unoccupied Temporary slot;
 			// complete resource ordering is independently checked by engine units.
-			_, err = op.Attach(engine.Temporary, &transactionTerminalObserver{end: func(got ids.SessionToken, r engine.EndReason) error {
+			_, err = op.Attach(session.Temporary, &transactionTerminalObserver{end: func(got ids.SessionToken, r session.EndReason) error {
 				if got != token || r != reason {
 					t.Error("terminal identity/reason", got, r, token, reason)
 				}
-				if s.TransactionState() != engine.TxIdle {
+				if s.TransactionState() != session.TxIdle {
 					t.Error("transaction cleanup must precede resource cleanup")
 				}
-				order = append(order, engine.Temporary)
+				order = append(order, session.Temporary)
 				return failure
 			}})
 			if err != nil {
@@ -74,13 +74,13 @@ func TestTransactionTerminalReasons(t *testing.T) {
 			}
 			op.Done()
 			switch reason {
-			case engine.CleanClose:
+			case session.CleanClose:
 				if err := c.Close(); !errors.Is(err, failure) {
 					t.Fatal("Close cleanup error", err)
 				}
-			case engine.Terminated:
-				s.RequestEnd(engine.Terminated)
-			case engine.Abandoned:
+			case session.Terminated:
+				s.RequestEnd(session.Terminated)
+			case session.Abandoned:
 				cleanupSession(cleanupCapsule{s})
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -88,16 +88,16 @@ func TestTransactionTerminalReasons(t *testing.T) {
 			if err := s.WaitEnd(ctx); !errors.Is(err, failure) {
 				t.Fatal("WaitEnd cleanup error", err)
 			}
-			if s.IsLive() || s.TransactionState() != engine.TxIdle || c.IsValid() {
+			if s.IsLive() || s.TransactionState() != session.TxIdle || c.IsValid() {
 				t.Fatal("terminal session remained live/active/valid")
 			}
-			want := []engine.ResourceKind{engine.Temporary}
+			want := []session.ResourceKind{session.Temporary}
 			if !reflect.DeepEqual(order, want) {
 				t.Fatal("resource drain order", order, want)
 			}
-			s.RequestEnd(engine.CleanClose)
-			s.RequestEnd(engine.Terminated)
-			s.RequestEnd(engine.Abandoned)
+			s.RequestEnd(session.CleanClose)
+			s.RequestEnd(session.Terminated)
+			s.RequestEnd(session.Abandoned)
 			if err := s.WaitEnd(ctx); !errors.Is(err, failure) {
 				t.Fatal("repeated end lost cleanup error", err)
 			}
@@ -114,7 +114,7 @@ func TestTransactionRawReuseState(t *testing.T) {
 	if err := c.ResetSession(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if c.session.TransactionState() != engine.TxActive {
+	if c.session.TransactionState() != session.TxActive {
 		t.Fatal("ResetSession ended active transaction")
 	}
 	_, err := normalizeArguments([]driver.NamedValue{{Name: "v", Ordinal: 1, Value: int64(2)}})
@@ -125,7 +125,7 @@ func TestTransactionRawReuseState(t *testing.T) {
 	if errors.As(err, &state) {
 		t.Fatal("adapter rejection fabricated SQLSTATE", err)
 	}
-	if c.session.TransactionState() != engine.TxActive || c.session.Token() != token || !c.IsValid() {
+	if c.session.TransactionState() != session.TxActive || c.session.Token() != token || !c.IsValid() {
 		t.Fatal("adapter rejection changed active physical owner")
 	}
 	if err := c.Close(); err != nil {
@@ -136,7 +136,7 @@ func TestTransactionRawReuseState(t *testing.T) {
 	if err := c.session.WaitEnd(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if c.session.IsLive() || c.session.TransactionState() != engine.TxIdle {
+	if c.session.IsLive() || c.session.TransactionState() != session.TxIdle {
 		t.Fatal("physical close did not end transaction")
 	}
 }
