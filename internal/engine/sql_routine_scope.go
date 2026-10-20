@@ -32,38 +32,33 @@ func (s *StatementScope) leaveSQLRoutine() {
 // existing waits/providers alone release/reacquire it and Finish sees its real flag.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
-	command                           ruleCommandScratch
-	mutations                         []statementMutation
-	activeMutation                    int
-	cteInvocation                     *cteInvocation
-	activeViews                       []ids.ObjectAddress
-	inheritanceRelations              []queryLeaf
-	inheritanceCatalog                catalog.Read
-	authority                         *queryAuthority
-	routineAuth                       AuthorizationView
-	expected                          *StatementDescription
-	prepared                          preparedRebind
-	admissionWaited                   bool
-	sqlRoutine                        sqlRoutineDemand
-	inquiry                           inquirySnapshot
-	initialParameters                 []sqltype.Usage
-	protocol                          *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
-	input                             sqltype.InputEnvironment
-	output                            sqltype.OutputEnvironment
-	view, partitionView               *visibility.View
-	ownWrites                         map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes                        map[ids.ObjectAddress]*visibility.PrivateDeletes
-	domainEvaluation                  *EvalContext
-	domainInputCatalog                catalog.Read
-	foreignOwner                      *foreignScanOwner
-	foreignCursor                     *sqlCursor
-	pgRegex                           sqltype.PGRegexExecution
-	conversionDefaults                map[[2]int]conversionDefault
-	regprocOutput, regprocedureOutput map[uint32]string
-	identity                          identitySnapshot
-	operatorOutput                    map[operatorOutputKey]string
-	operatorGroups                    operatorGroups
-	regTSOutput                       map[regTSOutputKey]string
+	command              ruleCommandScratch
+	mutations            []statementMutation
+	activeMutation       int
+	cteInvocation        *cteInvocation
+	activeViews          []ids.ObjectAddress
+	inheritanceRelations []queryLeaf
+	inheritanceCatalog   catalog.Read
+	authority            *queryAuthority
+	routineAuth          AuthorizationView
+	expected             *StatementDescription
+	prepared             preparedRebind
+	admissionWaited      bool
+	sqlRoutine           sqlRoutineDemand
+	inquiry              inquirySnapshot
+	initialParameters    []sqltype.Usage
+	protocol             *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
+	input                sqltype.InputEnvironment
+	output               sqltype.OutputEnvironment
+	view, partitionView  *visibility.View
+	ownWrites            map[ids.ObjectAddress][]storage.RowVersion
+	ownDeletes           map[ids.ObjectAddress]*visibility.PrivateDeletes
+	domainEvaluation     *EvalContext
+	domainInputCatalog   catalog.Read
+	foreignOwner         *foreignScanOwner
+	foreignCursor        *sqlCursor
+	presentation         *presentationCaches // Swapped as a unit: a nested body starts with empty caches.
+	identity             identitySnapshot
 }
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
@@ -76,9 +71,8 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
 		protocol: s.protocolSlot,
 		view:     s.view, partitionView: s.partitionValidationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
-		domainEvaluation: s.domainEvaluation, domainInputCatalog: s.domainInputCatalog, foreignOwner: s.foreignOwner, foreignCursor: s.foreignCursor, pgRegex: s.pgRegex,
-		conversionDefaults: s.conversionDefaults, regprocOutput: s.regprocOutput, regprocedureOutput: s.regprocedureOutput, identity: s.identity,
-		operatorOutput: s.operatorOutput, operatorGroups: s.operatorGroups, regTSOutput: s.regTSOutput,
+		domainEvaluation: s.domainEvaluation, domainInputCatalog: s.domainInputCatalog, foreignOwner: s.foreignOwner, foreignCursor: s.foreignCursor,
+		presentation: s.presentationSlot, identity: s.identity,
 	}
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
@@ -94,10 +88,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.ownWrites, s.ownDeletes = c.ownWrites, c.ownDeletes
 	s.domainEvaluation, s.domainInputCatalog = c.domainEvaluation, c.domainInputCatalog
 	s.foreignOwner, s.foreignCursor = c.foreignOwner, c.foreignCursor
-	s.pgRegex = c.pgRegex
-	s.conversionDefaults, s.regprocOutput, s.regprocedureOutput = c.conversionDefaults, c.regprocOutput, c.regprocedureOutput
-	s.identity = c.identity
-	s.operatorOutput, s.operatorGroups, s.regTSOutput = c.operatorOutput, c.operatorGroups, c.regTSOutput
+	s.presentationSlot, s.identity = c.presentation, c.identity
 }
 
 func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) error {

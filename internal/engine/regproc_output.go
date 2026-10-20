@@ -72,28 +72,28 @@ func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		return "", fmt.Errorf("stuntgres: missing regproc output snapshot")
 	}
-	if text, ok := s.regprocOutput[id]; ok {
+	if text, ok := s.presentationOrZero().regproc[id]; ok {
 		return text, nil
 	}
 	text := regprocSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id))
-	if s.regprocOutput == nil {
-		s.regprocOutput = make(map[uint32]string)
+	if s.presentationOrZero().regproc == nil {
+		s.presentation().regproc = make(map[uint32]string)
 	}
-	s.regprocOutput[id] = text
+	s.presentation().regproc[id] = text
 	return text, nil
 }
 func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		return "", fmt.Errorf("stuntgres: missing regprocedure output snapshot")
 	}
-	if text, ok := s.regprocedureOutput[id]; ok {
+	if text, ok := s.presentationOrZero().regprocedure[id]; ok {
 		return text, nil
 	}
 	text := routineSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id), true, false)
-	if s.regprocedureOutput == nil {
-		s.regprocedureOutput = make(map[uint32]string)
+	if s.presentationOrZero().regprocedure == nil {
+		s.presentation().regprocedure = make(map[uint32]string)
 	}
-	s.regprocedureOutput[id] = text
+	s.presentation().regprocedure[id] = text
 	return text, nil
 }
 func (r *finalRows) FormatRegproc(id uint32) (string, error) {
@@ -168,4 +168,35 @@ func (r catalogRoutineOutput) FormatRegproc(id uint32) (string, error) {
 }
 func (r catalogRoutineOutput) FormatRegprocedure(id uint32) (string, error) {
 	return routineSpelling(r.view, r.path, ids.OID(id), true, r.qualified), nil
+}
+
+// presentationCaches is the statement's output-presentation slot: reg* and
+// operator spellings, conversion defaults and the regex executor, filled on
+// first use by a single evaluator owner and discarded with the scope.
+type presentationCaches struct {
+	regproc            map[uint32]string
+	regprocedure       map[uint32]string
+	operators          map[operatorOutputKey]string
+	operatorGroups     operatorGroups
+	regTS              map[regTSOutputKey]string
+	conversionDefaults map[[2]int]conversionDefault
+	// Statement execution has a single evaluator owner; this cache never belongs
+	// to a held plan and is discarded with the statement scope.
+	pgRegex sqltype.PGRegexExecution
+}
+
+// presentation returns the statement's presentation slot, allocating it on first use.
+func (s *StatementScope) presentation() *presentationCaches {
+	if s.presentationSlot == nil {
+		s.presentationSlot = new(presentationCaches)
+	}
+	return s.presentationSlot
+}
+
+// presentationOrZero reads the presentation slot; a nil slot reads as zero.
+func (s *StatementScope) presentationOrZero() presentationCaches {
+	if s.presentationSlot == nil {
+		return presentationCaches{}
+	}
+	return *s.presentationSlot
 }

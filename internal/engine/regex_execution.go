@@ -6,7 +6,7 @@ import "stuntgres/internal/sqltype"
 // nodes the statement's physical regex executor.
 func (c *EvalContext) FunctionRegexExecution() *sqltype.PGRegexExecution {
 	if scope := c.liveScope(); scope != nil {
-		return &scope.pgRegex
+		return &scope.presentation().pgRegex
 	}
 	return &c.pgRegex
 }

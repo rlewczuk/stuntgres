@@ -49,14 +49,14 @@ func (s *StatementScope) formatRegTS(id uint32, alias sqltype.ID) (string, error
 		return "", fmt.Errorf("stuntgres: missing text search output snapshot")
 	}
 	key := regTSOutputKey{id, alias}
-	if text, ok := s.regTSOutput[key]; ok {
+	if text, ok := s.presentationOrZero().regTS[key]; ok {
 		return text, nil
 	}
 	text := regTSSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, id, alias, false)
-	if s.regTSOutput == nil {
-		s.regTSOutput = make(map[regTSOutputKey]string)
+	if s.presentationOrZero().regTS == nil {
+		s.presentation().regTS = make(map[regTSOutputKey]string)
 	}
-	s.regTSOutput[key] = text
+	s.presentation().regTS[key] = text
 	return text, nil
 }
 func (s *StatementScope) FormatRegconfig(id uint32) (string, error) {

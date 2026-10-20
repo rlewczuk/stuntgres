@@ -36,11 +36,11 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	view = e.CatalogRead()
 	scope := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.Address(), low.Namespace()}}}
 	procedure, err := scope.conversionProcedure(6, 8)
-	if err != nil || procedure == nil || procedure.Address() != low.Handler || scope.conversionDefaults[[2]int{6, 8}].conversion != first {
+	if err != nil || procedure == nil || procedure.Address() != low.Handler || scope.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != first {
 		t.Fatal("namespace priority", procedure, err)
 	}
 	reversed := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.Address()}}}
-	if _, err = reversed.conversionProcedure(6, 8); err != nil || reversed.conversionDefaults[[2]int{6, 8}].conversion != low {
+	if _, err = reversed.conversionProcedure(6, 8); err != nil || reversed.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != low {
 		t.Fatal("default index OID order, not name order", err)
 	}
 	removedDefault := *first
@@ -51,10 +51,10 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	fresh := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: e.CatalogRead(), visibilityOtherPath: scope.inquiry.visibilityOtherPath}}
-	if _, err = fresh.conversionProcedure(6, 8); err != nil || fresh.conversionDefaults[[2]int{6, 8}].conversion != low {
+	if _, err = fresh.conversionProcedure(6, 8); err != nil || fresh.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != low {
 		t.Fatal("nondefault repaired lookup", err)
 	}
-	if _, err = scope.conversionProcedure(6, 8); err != nil || scope.conversionDefaults[[2]int{6, 8}].conversion != first {
+	if _, err = scope.conversionProcedure(6, 8); err != nil || scope.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != first {
 		t.Fatal("old execution snapshot changed", err)
 	}
 	text, _ := view.LookupType(sqltype.Text)

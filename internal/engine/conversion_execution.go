@@ -18,7 +18,7 @@ func (s *StatementScope) conversionProcedure(source, destination int) (*catalog.
 	if s == nil || s.inquiry.visibilityCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing conversion execution snapshot")
 	}
-	if s.conversionDefaults == nil {
+	if s.presentationOrZero().conversionDefaults == nil {
 		defaults := make(map[[2]int]conversionDefault)
 		for _, namespace := range s.inquiry.visibilityOtherPath {
 			for _, descriptor := range s.inquiry.visibilityCatalog.Descriptors() {
@@ -37,7 +37,7 @@ func (s *StatementScope) conversionProcedure(source, destination int) (*catalog.
 				}
 			}
 		}
-		s.conversionDefaults = defaults
+		s.presentation().conversionDefaults = defaults
 	}
-	return s.conversionDefaults[[2]int{source, destination}].procedure, nil
+	return s.presentationOrZero().conversionDefaults[[2]int{source, destination}].procedure, nil
 }

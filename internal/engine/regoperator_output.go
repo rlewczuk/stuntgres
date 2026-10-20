@@ -62,17 +62,17 @@ func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, er
 		return "", fmt.Errorf("stuntgres: missing operator output snapshot")
 	}
 	key := operatorOutputKey{id, alias}
-	if text, ok := s.operatorOutput[key]; ok {
+	if text, ok := s.presentationOrZero().operators[key]; ok {
 		return text, nil
 	}
-	if s.operatorGroups == nil {
-		s.operatorGroups = collectOperatorGroups(s.inquiry.commentCatalog)
+	if s.presentationOrZero().operatorGroups == nil {
+		s.presentation().operatorGroups = collectOperatorGroups(s.inquiry.commentCatalog)
 	}
-	text := operatorSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, s.operatorGroups, ids.OID(id), alias)
-	if s.operatorOutput == nil {
-		s.operatorOutput = make(map[operatorOutputKey]string)
+	text := operatorSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, s.presentationOrZero().operatorGroups, ids.OID(id), alias)
+	if s.presentationOrZero().operators == nil {
+		s.presentation().operators = make(map[operatorOutputKey]string)
 	}
-	s.operatorOutput[key] = text
+	s.presentation().operators[key] = text
 	return text, nil
 }
 func (s *StatementScope) FormatRegoper(id uint32) (string, error) {
