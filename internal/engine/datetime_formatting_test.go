@@ -48,7 +48,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("template omitted from semantic identity", signature)
 		}
-		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil || !value.IsNull() || value.Type() != result {
 			t.Fatal(value, err)
 		}
@@ -61,7 +61,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 			t.Fatal("provider rebind", rebound, changed, err)
 		}
 		retained := rebound.(functions.DatetimeFormatting)
-		value, err = retained.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		value, err = retained.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil || value.Type() != replacements[signature.result] || node.ResultUsage().Type != result {
 			t.Fatal("rebind changed source authority or retained obsolete result", value, err)
 		}

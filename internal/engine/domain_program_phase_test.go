@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -69,10 +70,10 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			invoker := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}}
+			invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}}
 			local := invoker
 			local.RoutineAuthority = &ownerAuth
-			check := func(evaluation *EvalContext) error {
+			check := func(evaluation *exec.Context) error {
 				// Use the same command-local owner phase slot as real RI
 				// planning/execution, then restore the original caller context.
 				if evaluation == &local {
@@ -179,10 +180,10 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if !ok {
 				t.Fatalf("actual inquiry provider %T", node)
 			}
-			invoker := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}, EvalAdmission: evalAdmission{RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}, EvalAdmission: exec.EvalAdmission{RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			local := invoker
 			local.RoutineAuthority = &ownerAuth
-			enter := func(evaluation *EvalContext) error {
+			enter := func(evaluation *exec.Context) error {
 				if evaluation == &local {
 					scope.foreignActionAuth = &ownerAuth
 					defer func() { scope.foreignActionAuth = nil }()

@@ -34,7 +34,7 @@ type protocolPortal struct {
 	formats           []int16
 	values            []sqltype.Value
 	producer          *sqlCursor
-	rows              RowResult
+	rows              exec.RowResult
 	started, retired  bool
 	state             protocolPortalState
 	tag               string
@@ -44,7 +44,7 @@ type protocolPortal struct {
 	row               []sqltype.Value
 	fields            []ProtocolField
 	scratch           []byte
-	outputRows        *finalRows
+	outputRows        *exec.FinalRows
 }
 type ProtocolExecution struct {
 	CommandTag string
@@ -275,7 +275,7 @@ func (t *transactionOwner) retireProtocolPortalsAfter(frontier uint64) {
 	}
 }
 
-func (s *StatementScope) installProtocolProducer(root plan.Node, source *querySource, values []sqltype.Value) (Result, error) {
+func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.Source, values []sqltype.Value) (Result, error) {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		source.Close()
@@ -284,7 +284,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *querySo
 	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.inquiry.commentCatalog, roles: s.inquiry.commentRoles, routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog, visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
-	c.state = queryState{Source: source, Parameters: values, Input: s.input, Output: s.output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state = exec.State{Source: source, Parameters: values, Input: s.input, Output: s.output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
 	c.state.Output.Regproc, c.state.Output.Regrole, c.state.Output.Operator = nil, nil, nil
@@ -515,7 +515,7 @@ func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
 	s.protocol().resume = false
 }
 
-func (s *StatementScope) captureProtocolOutput(rows *finalRows, values []sqltype.Value, catalog catalog.Read) error {
+func (s *StatementScope) captureProtocolOutput(rows *exec.FinalRows, values []sqltype.Value, catalog catalog.Read) error {
 	// Readers borrow only this row. Reuse their maps without retaining old
 	// spellings or a query-sized history across demands/destinations. The ACL
 	// identity stays engine-owned, and operatorGroups belongs to the catalog.

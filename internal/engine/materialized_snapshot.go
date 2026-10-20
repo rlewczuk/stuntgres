@@ -12,6 +12,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -339,7 +340,7 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operatio
 	environment.FTS = b.resolvers.fts
 	environment.TypeDiagnosticName, environment.EnumMemberSafe = b.resolvers.typeDiagnosticName, b.resolvers.enumMemberSafe
 	scope.routineDependencies = b.dependencies
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Input: environment, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: environment, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
 	evaluation.Input.DomainChecks = &evaluation
 	for _, expressions := range b.expressions {
 		values := make([]sqltype.Value, len(d.Columns))

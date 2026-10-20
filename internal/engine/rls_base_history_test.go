@@ -107,7 +107,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 			if err != nil || selected != source || source.Visible != nil || source.Committed != nil || source.Own != nil {
 				t.Fatal("hidden history revived denied target", err)
 			}
-			stage, err := exec.OpenNode(op.ctx, &queryState{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
+			stage, err := exec.OpenNode(op.ctx, &exec.State{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
 			// The underlying fixture source has id and allowed; the outer
 			// projection narrows its output, not the owned base-source schema.
 			if err != nil || stage.Source != source || len(stage.Columns) != 2 {

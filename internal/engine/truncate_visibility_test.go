@@ -94,7 +94,7 @@ func TestTruncateBuffers(t *testing.T) {
 	root, ends := old.Versions, old.Ends
 	result := sessionSQL(t, s, "SELECT id FROM p ORDER BY id")
 	t.Cleanup(func() { result.Rows.Close() })
-	rows := result.Rows.(*finalRows)
+	rows := result.Rows.(*exec.FinalRows)
 	schema := rows.Schema()
 	count := rows.Count
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))

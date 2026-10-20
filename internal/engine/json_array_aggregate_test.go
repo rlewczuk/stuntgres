@@ -146,7 +146,7 @@ func TestJSONArrayAggregateRunnerNullPresence(t *testing.T) {
 			_, q, source := queryCoreFixture(t, qtext)
 			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			usage := node.Calls[0].Argument.ResultUsage()
-			node.Calls[0].Argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Argument = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated rejected argument")
 				}
@@ -188,7 +188,7 @@ func TestJSONArrayAggregateReachedEagerCancellation(t *testing.T) {
 		input, _ := e.CatalogRead().LookupType(sqltype.Text)
 		result := node.Calls[0].Provider.ResultUsage()
 		node.Calls[0].Provider = jsonArrayProviderUnit(t, input.Usage(), result, false)
-		node.Calls[0].Argument = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
+		node.Calls[0].Argument = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
 		rows, n, err := exec.Finalize(probe, q.Root, source, nil)

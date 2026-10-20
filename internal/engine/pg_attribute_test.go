@@ -29,7 +29,7 @@ func pgAttributeUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*cata
 	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *querySource {
+func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *exec.Source {
 	t.Helper()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
 	e.mu.Lock()
@@ -41,7 +41,7 @@ func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *quer
 	return rows
 }
 
-func pgAttributeUnitRows(t *testing.T, rows *querySource, relation uint32) map[int64][]sqltype.Value {
+func pgAttributeUnitRows(t *testing.T, rows *exec.Source, relation uint32) map[int64][]sqltype.Value {
 	t.Helper()
 	out := make(map[int64][]sqltype.Value)
 	for _, row := range rows.Anonymous {
@@ -293,7 +293,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 		t.Fatal("catalog result carrier", dst, present, err)
 	}
 	column := plan.ColumnExpr{Info: expr.Info{Usage: u}, Slot: 0, Scope: 1, Frame: 1}
-	got, err := column.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{value}}})
+	got, err := column.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{value}}})
 	if err != nil || !got.ValidResult(u) {
 		t.Fatal("projection carrier", got, err)
 	}

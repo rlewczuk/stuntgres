@@ -129,13 +129,13 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("enum dependency", refs, err)
 	}
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.CatalogRead()}}
 	input, err := n.Args[0].Eval(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	count := 0
-	n.Args = []expr.Expr{queryProbe(n.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return input, nil })}
+	n.Args = []expr.Expr{queryProbe(n.Args[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) { count++; return input, nil })}
 	first, err := exec.OpenFunctionSource(c, n)
 	if err != nil {
 		t.Fatal(err)

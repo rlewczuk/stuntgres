@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -43,7 +44,7 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if err != nil || !strings.Contains(unrounded, ".1234") {
 				t.Fatal(unrounded, err)
 			}
-			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -148,7 +149,7 @@ func TestDeparseConstraintsReviewUnknownNullConsumerBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(expression, err)
 		}
-		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(expression, err)
 		}
@@ -208,7 +209,7 @@ func TestDeparseConstraintsReviewSignedConstantNormalization(t *testing.T) {
 		if _, ok := node.(plan.LiteralExpr); !ok || node.ResultUsage().Type.ID() != tc.id {
 			t.Fatal(tc.expression, node)
 		}
-		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -235,7 +236,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	if err != nil || text != "num_nulls(NULL::integer)" {
 		t.Fatal(text, err)
 	}
-	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +255,7 @@ func TestDeparseConstraintsReviewTypedIntervalZoneProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	conversion := node.(functions.Timezone)
-	value, err := conversion.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err := conversion.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}

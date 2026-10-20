@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -50,7 +51,7 @@ func transactionEnd(t *testing.T, s *Session, ref ids.TxRef, commit bool) EndRes
 	}
 	return r
 }
-func transactionRows(t *testing.T, s *Session, q string, want ...int64) *finalRows {
+func transactionRows(t *testing.T, s *Session, q string, want ...int64) *exec.FinalRows {
 	t.Helper()
 	r := sessionSQL(t, s, q)
 	t.Cleanup(func() {
@@ -66,7 +67,7 @@ func transactionRows(t *testing.T, s *Session, q string, want ...int64) *finalRo
 	if !reflect.DeepEqual(got, expected) {
 		t.Fatalf("%s got %v want %v", q, got, expected)
 	}
-	return r.Rows.(*finalRows)
+	return r.Rows.(*exec.FinalRows)
 }
 func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	e := New()
@@ -357,7 +358,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			for _, query := range []string{"INSERT INTO t VALUES(7)", "INSERT INTO t VALUES(8)", "INSERT INTO t VALUES(10)", "INSERT INTO u VALUES(70)"} {
 				sessionSQL(t, b, query)
 			}
-			retained := [2]*finalRows{
+			retained := [2]*exec.FinalRows{
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10),
 				transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70),
 			}

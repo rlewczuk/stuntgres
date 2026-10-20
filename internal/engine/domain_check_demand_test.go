@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -23,7 +24,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	} {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, ddl))
 	}
-	bind := func(query string) (expr.Expr, EvalContext) {
+	bind := func(query string) (expr.Expr, exec.Context) {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
 		e.mu.Lock()
@@ -39,7 +40,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return node, EvalContext{EvalStatement: evalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: b.input}}
+		return node, exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: b.input}}
 	}
 	for _, query := range []string{
 		"SELECT 0::public.preflight_positive",

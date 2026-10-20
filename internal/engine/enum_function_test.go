@@ -41,7 +41,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		return plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	}
 	bound := functions.Enum{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: enumSupportPlan, Args: []expr.Expr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
-	old, err := bound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	old, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	next := mapped.(functions.Enum)
-	value, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || value.Type() != targetArray || value.ArrayElement(0).Type() != targetMood || next.Plan.Enum() != targetMood {
 		t.Fatal(value, err)
 	}
@@ -135,7 +135,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if !conditionalConstantInputs(bound) {
 		t.Fatal("enum closedness")
 	}
-	simplified, changed, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, bound, false)
+	simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
 	if err != nil || changed {
 		t.Fatal("STABLE call folded", changed, err)
 	}

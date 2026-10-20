@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -147,7 +148,7 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 	if !ok {
 		t.Fatal("missing timestamp")
 	}
-	c := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &auth}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	value, count, err := restoreDomainReplayNode(&c, e, op, auth, typ.Usage(), &typedef.DomainReplayNode{Kind: "scalar", Scalar: &text})

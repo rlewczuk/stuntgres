@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -88,7 +89,7 @@ func TestMergeInsertPublication(t *testing.T) {
 			if phase == "close" || phase == "primary_wins_close" {
 				cursor.closeError = cleanup
 			}
-			state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
+			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
 			rows, err := e.assembleMergeRows(op.ctx, scope, b, target, cursor, state, "public", false)
 			if cursor.closed != 1 || len(scope.stage.rows) != 0 {
 				t.Fatal("producer published or did not close exactly once", cursor.closed, scope.stage.rows)
@@ -138,7 +139,7 @@ func TestMergeInsertCancellation(t *testing.T) {
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, ctx, "MERGE INTO t USING (VALUES(1),(2)) s(id) ON t.id=s.id WHEN NOT MATCHED AND s.id>0 THEN INSERT(id) VALUES(s.id)")
 			calls := 0
 			wrap := func(original expr.Expr) expr.Expr {
-				return queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				return queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					value, err := original.Eval(c)
 					if calls == 2 {
@@ -167,7 +168,7 @@ func TestMergeInsertCancellation(t *testing.T) {
 				} else {
 					cursor.beforeClose = cancel
 				}
-				state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
+				state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
 				_, err = e.assembleMergeRows(ctx, scope, b, target, cursor, state, "public", false)
 				if cursor.closed != 1 {
 					t.Fatal("canceled source not closed")

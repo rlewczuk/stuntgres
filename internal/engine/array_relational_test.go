@@ -17,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functions.ArrayRandom, *EvalContext) {
+func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functions.ArrayRandom, *exec.Context) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	args := []parser.Expr{arrayInspectUnitArray(input)}
@@ -32,7 +32,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	}
 	session := &Session{}
 	session.arrayRandom.SeedWords(1, 2)
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: &Operation{session: session}})}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: &Operation{session: session}})}}
 	return node.(functions.ArrayRandom), c
 }
 func arrayRelationalUnitText(t *testing.T, v sqltype.Value) string {
@@ -120,11 +120,11 @@ func TestArrayRelationalSampleCounts(t *testing.T) {
 	call, c := arrayRelationalUnitCall(t, "array_sample", "{1}", -1)
 	failure := errors.New("count evaluation")
 	var order []int
-	call.Args[0] = queryProbe(call.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
+	call.Args[0] = queryProbe(call.Args[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 		order = append(order, 0)
 		return sqltype.Null(call.Usage.Type), nil
 	})
-	call.Args[1] = queryProbe(call.Args[1].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { order = append(order, 1); return sqltype.Value{}, failure })
+	call.Args[1] = queryProbe(call.Args[1].ResultUsage(), func(*exec.Context) (sqltype.Value, error) { order = append(order, 1); return sqltype.Value{}, failure })
 	if _, err := call.Eval(c); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal("strictness skipped ordinary argument evaluation", order, err)
 	}
@@ -148,11 +148,11 @@ func arrayRelationalUnitUnnest(t *testing.T, input string) plan.UnnestExpr {
 	return node.(plan.UnnestExpr)
 }
 func TestArrayRelationalUnnestCursor(t *testing.T) {
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	e := arrayRelationalUnitUnnest(t, "[-2:-1][5:6]={{1,NULL},{3,4}}")
 	var evaluations int
 	input, _ := e.Args[0].Eval(c)
-	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { evaluations++; return input, nil })
+	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) { evaluations++; return input, nil })
 	first, err := exec.OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +233,7 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 		if err := exec.ValidateFunctionFromLayout(node); err != nil {
 			t.Fatal(err)
 		}
-		invocation, err := exec.OpenFunctionInvocation(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, node)
+		invocation, err := exec.OpenFunctionInvocation(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -285,7 +285,7 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 			if err := exec.ValidateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-column layout", err)
 			}
-			invocation, err := exec.OpenFunctionInvocation(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, node)
+			invocation, err := exec.OpenFunctionInvocation(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -462,7 +462,7 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 	if err != nil || changed || &next.(functions.ArrayRandom).Args[0] != &call.Args[0] {
 		t.Fatal("unchanged child mapping copied")
 	}
-	for _, f := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
+	for _, f := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
 		mapped, _, err := f(c, call, false)
 		if err != nil || exec.PlannedPhysicalVolatility(mapped, false) != expr.Volatile {
 			t.Fatal("lost volatile provider", err)

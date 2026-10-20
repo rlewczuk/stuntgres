@@ -9,7 +9,7 @@ import (
 
 // preflightQuery retains schemas and source identity from analysis. Only paths
 // containing folded coercions are copied for this execution.
-func preflightQuery(c *EvalContext, node plan.Node) (plan.Node, error) {
+func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 	if err := exec.EvaluationContext(c); err != nil {
 		return nil, err
 	}
@@ -379,7 +379,7 @@ func preflightQuery(c *EvalContext, node plan.Node) (plan.Node, error) {
 	return node, nil
 }
 
-func preflightJoin(c *EvalContext, n *plan.JoinNode) (plan.Node, error) {
+func preflightJoin(c *exec.Context, n *plan.JoinNode) (plan.Node, error) {
 	left, err := preflightQuery(c, n.Left)
 	if err != nil {
 		return nil, err
@@ -420,7 +420,7 @@ func preflightJoin(c *EvalContext, n *plan.JoinNode) (plan.Node, error) {
 	return n, nil
 }
 
-func preflightSet(c *EvalContext, n *plan.SetNode) (plan.Node, error) {
+func preflightSet(c *exec.Context, n *plan.SetNode) (plan.Node, error) {
 	left, err := preflightQuery(c, n.Left)
 	if err != nil {
 		return nil, err
@@ -461,7 +461,7 @@ func preflightSet(c *EvalContext, n *plan.SetNode) (plan.Node, error) {
 	return n, nil
 }
 
-func preflightDistinct(c *EvalContext, n *plan.DistinctNode) (plan.Node, error) {
+func preflightDistinct(c *exec.Context, n *plan.DistinctNode) (plan.Node, error) {
 	if n.PresenceOnly {
 		child, err := preflightQuery(c, n.Child)
 		if err != nil {
@@ -505,7 +505,7 @@ func preflightDistinct(c *EvalContext, n *plan.DistinctNode) (plan.Node, error) 
 	return n, nil
 }
 
-func preflightDistinctOn(c *EvalContext, n *plan.DistinctOnNode) (plan.Node, error) {
+func preflightDistinctOn(c *exec.Context, n *plan.DistinctOnNode) (plan.Node, error) {
 	child, err := preflightQuery(c, n.Child)
 	if err != nil {
 		return nil, err
@@ -536,7 +536,7 @@ func preflightDistinctOn(c *EvalContext, n *plan.DistinctOnNode) (plan.Node, err
 	return &copy, nil
 }
 
-func preflightFunctionFrom(c *EvalContext, n *plan.FunctionFromNode) (plan.Node, error) {
+func preflightFunctionFrom(c *exec.Context, n *plan.FunctionFromNode) (plan.Node, error) {
 	// Plan every child before simplifying a source call. Keep the analyzed
 	// call carrier: it owns aliases, record expansion and the fixed stage width.
 	planned, err := plan.RewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) {

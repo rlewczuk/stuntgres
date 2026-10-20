@@ -323,7 +323,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 	return b.returningColumnAt(slot, raw.Pos, newValues), nil
 }
 
-func preflightReturning(c *EvalContext, output *boundReturning) (*boundReturning, error) {
+func preflightReturning(c *exec.Context, output *boundReturning) (*boundReturning, error) {
 	var expressions []expr.Expr
 	for i, bound := range output.expressions {
 		// Plan genuine SQL constants before importing frame coercions and before

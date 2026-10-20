@@ -83,7 +83,7 @@ func TestQueryWindowGroupsRemap(t *testing.T) {
 	if oldSource == newSource || newSource.Ref.Address.ObjectID != oldSource.Ref.Address.ObjectID+100 || oldSource.Ref != source.Ref {
 		t.Fatal("source identity remap", oldSource.Ref, newSource.Ref)
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for _, pair := range [][2]plan.WindowBound{{before.Start, next.Specs[0].Frame.Start}, {before.End, next.Specs[0].Frame.End}} {
 		old, bound := pair[0], pair[1]
 		if bound.Kind != old.Kind || bound.Offset == old.Offset || bound.Offset.ResultUsage().Type != types[sqltype.Int8] || old.Offset.ResultUsage().Type == types[sqltype.Int8] || bound.Support != (sqltype.RangeSupport{}) || old.Support != (sqltype.RangeSupport{}) {
@@ -139,7 +139,7 @@ func TestQueryWindowGroupsIdentity(t *testing.T) {
 	if next == original || !reflect.DeepEqual(next.SortIndices, original.SortIndices) {
 		t.Fatal("clone sort ownership", next)
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for i, spec := range original.Specs {
 		if next.Specs[i].Definition != spec.Definition || next.Specs[i].Frame.Unit != spec.Frame.Unit {
 			t.Fatal("lost frame identity")
@@ -350,7 +350,7 @@ func TestQueryWindowGroupsDomainRemap(t *testing.T) {
 	if mappedDomain != types[offsetDomain.ID()] || mappedDomain == offsetDomain || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) {
 		t.Fatal("offset domain remap retained/mutated descriptors", mappedDomain, offsetDomain)
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	value, err := next.Specs[0].Frame.Start.Offset.Eval(&evaluation)
 	n, integerErr := value.Integer()
 	if err != nil || integerErr != nil || n != 1 || value.Type() != types[sqltype.Int8] {

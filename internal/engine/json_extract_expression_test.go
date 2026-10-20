@@ -58,7 +58,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 			t.Fatal("lost descriptor ownership", i)
 		}
 	}
-	value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
 					t.Fatal("lost written call provenance", replaySQL)
 				}
 				replayed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+replaySQL)
-				value, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+				value, err := replayed.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -46,7 +47,7 @@ func TestDomainCheckNominalLiteralAdmissionInternal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: binder.input}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: binder.input}}
 			value, err := node.Eval(&evaluation)
 			if tc.evalCode != "" {
 				var d *sqlstate.Error

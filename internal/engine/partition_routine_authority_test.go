@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -63,9 +64,9 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	}
 	row := []sqltype.Value{text("abc")}
 	sentinel := []sqltype.Value{text("outer")}
-	newEvaluation := func(auth AuthorizationView) EvalContext {
+	newEvaluation := func(auth AuthorizationView) exec.Context {
 		scope := &StatementScope{routineAuth: auth}
-		return EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog}, EvalFrame: evalFrame{Row: sentinel, Scope: 7, Frame: 9}, EvalAdmission: evalAdmission{RoutineAuthority: &auth}}
+		return exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Row: sentinel, Scope: 7, Frame: 9}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	}
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		if plain, ok := descriptor.(*catalog.Relation); ok && plain.Name() == "partition_plain" {

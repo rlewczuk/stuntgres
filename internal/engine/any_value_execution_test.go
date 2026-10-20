@@ -38,7 +38,7 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 			calls, advances, finalizations := 0, 0, 0
 			sentinel := errors.New("late any_value argument")
 			first, _ := sqltype.Integer(usage.Type, 41)
-			node.Calls[0].Argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Argument = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "argument" {
 					cancel()

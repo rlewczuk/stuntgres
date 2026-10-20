@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -144,7 +145,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}
 	// Cancel inside the actual index candidate builder, before any install owner.
-	entries, err := buildIndexEntries(&EvalContext{EvalStatement: evalStatement{Context: counting}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, stage.materializedOrZero().replacement.descriptor, index.SQLIndex, stage.materializedOrZero().replacement.storage, nil)
+	entries, err := buildIndexEntries(&exec.Context{EvalStatement: exec.EvalStatement{Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage.materializedOrZero().replacement.descriptor, index.SQLIndex, stage.materializedOrZero().replacement.storage, nil)
 	if entries != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("index preparation ignored cancellation", err)
 	}

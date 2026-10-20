@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -23,7 +24,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				}
 				f.e.storage.SetFrontierLocked(uint64(size), uint64(size))
 				f.e.visibility.SetCommitSeqLocked(1)
-				root, err := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, f.index.SQLIndex, f.store, nil)
+				root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index.SQLIndex, f.store, nil)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -61,7 +62,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				scope.owner.isolation, scope.owner.frontier = isolation, 1
 				ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
 				action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
-				evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+				evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 				if err := action.selectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 					b.Fatal(err)
 				}

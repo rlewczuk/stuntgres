@@ -11,7 +11,7 @@ import (
 // simplifyCompositeNode simplifies a protocol node's children in order and
 // applies its strict-NULL and fold hooks. done reports that the result skips
 // the shared constant fold.
-func simplifyCompositeNode(c *EvalContext, node expr.Composite, decisiveDefaults bool) (result expr.Expr, changed, done bool, err error) {
+func simplifyCompositeNode(c *exec.Context, node expr.Composite, decisiveDefaults bool) (result expr.Expr, changed, done bool, err error) {
 	strict := expr.StrictNone
 	if hook, ok := node.(expr.StrictFolding); ok {
 		strict = hook.StrictNull()

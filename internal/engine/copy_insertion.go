@@ -67,7 +67,7 @@ func (state *copyInsertionState) full() bool {
 	return state.single || len(state.lines) >= 1000 || state.bytes >= 65535
 }
 
-func (state *copyInsertionState) flush(s *StatementScope, b binding, rows *indexWriteBatch, evaluation *EvalContext) error {
+func (state *copyInsertionState) flush(s *StatementScope, b binding, rows *indexWriteBatch, evaluation *exec.Context) error {
 	insert := func(position int, group *partitionInsertGroup) error {
 		candidate := rows.candidate(position)
 		var err error

@@ -9,7 +9,7 @@ import (
 
 // preflightComposite preflights a function node's children and then applies
 // the fold the node names through expr.Preflighting.
-func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bool) (expr.Expr, bool, error) {
+func preflightComposite(c *exec.Context, node expr.Composite, decisiveDefaults bool) (expr.Expr, bool, error) {
 	kind := expr.PreflightSimplify
 	if hook, ok := node.(expr.Preflighting); ok {
 		kind = hook.PreflightFold()
@@ -80,7 +80,7 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 
 // preflightEvaluate folds an immutable call that depends on no row, stage or
 // domain into its value.
-func preflightEvaluate(c *EvalContext, node expr.Expr, changed bool) (expr.Expr, bool, error) {
+func preflightEvaluate(c *exec.Context, node expr.Expr, changed bool) (expr.Expr, bool, error) {
 	p := node.Properties()
 	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 		value, err := evaluatePlanningExpression(c, node)

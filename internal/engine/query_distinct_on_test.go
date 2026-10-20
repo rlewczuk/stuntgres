@@ -100,12 +100,12 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 				node.Grouping[0].Grouping, _ = sqltype.BindGrouping(usage)
 				armed := &aggregateCancelContext{Context: ctx, at: 4}
 				execution = armed
-				node.Expressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+				node.Expressions[0] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 					armed.armed = true
 					return sqltype.String(text, strings.Repeat("x", 4096)), nil
 				})
 			} else {
-				node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase == "key" {
 						cancel()
@@ -118,7 +118,7 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 				if phase == "prepublication" {
 					expr := project.Expressions[0]
 					published := 0
-					project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+					project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						published++
 						if published == 3 {
 							cancel()
@@ -145,7 +145,7 @@ func TestQueryDistinctOnInsertKeyFailureNoBatch(t *testing.T) {
 	original := node.Expressions[0]
 	calls := 0
 	sentinel := errors.New("late ON INSERT key")
-	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 3 {
 			return sqltype.Value{}, sentinel
@@ -162,11 +162,11 @@ func TestQueryDistinctOnLaterComponentDemand(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v,id) id FROM t")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	first := node.Expressions[0]
-	node.Expressions[0] = queryProbe(first.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(first.ResultUsage().Type, 1) })
+	node.Expressions[0] = queryProbe(first.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Integer(first.ResultUsage().Type, 1) })
 	second := node.Expressions[1]
 	calls := 0
 	sentinel := errors.New("later ON component")
-	node.Expressions[1] = queryProbe(second.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	node.Expressions[1] = queryProbe(second.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 4 {
 			return sqltype.Value{}, sentinel

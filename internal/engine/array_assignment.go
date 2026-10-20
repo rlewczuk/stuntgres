@@ -78,11 +78,11 @@ func (b *expressionBinder) arrayAssignmentDiagnostic(t *plan.ArrayAssignmentTarg
 	return &copy
 }
 
-func preflightArrayTargets(c *EvalContext, targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
+func preflightArrayTargets(c *exec.Context, targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
 	return preflightArrayTargetsWithPlanning(c, targets, false)
 }
 
-func preflightArrayTargetsWithPlanning(c *EvalContext, targets []*plan.ArrayAssignmentTarget, planConstants bool) ([]*plan.ArrayAssignmentTarget, error) {
+func preflightArrayTargetsWithPlanning(c *exec.Context, targets []*plan.ArrayAssignmentTarget, planConstants bool) ([]*plan.ArrayAssignmentTarget, error) {
 	var replacements []*plan.ArrayAssignmentTarget
 	for i, target := range targets {
 		if target == nil {
@@ -105,7 +105,7 @@ func preflightArrayTargetsWithPlanning(c *EvalContext, targets []*plan.ArrayAssi
 	return replacements, nil
 }
 
-func preflightAssignmentTarget(c *EvalContext, target *plan.ArrayAssignmentTarget, planConstants bool) (*plan.ArrayAssignmentTarget, error) {
+func preflightAssignmentTarget(c *exec.Context, target *plan.ArrayAssignmentTarget, planConstants bool) (*plan.ArrayAssignmentTarget, error) {
 	if target == nil {
 		return nil, nil
 	}

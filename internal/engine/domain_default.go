@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -98,7 +99,7 @@ func defaultDestination(node expr.Expr, target sqltype.Usage) expr.Expr {
 type defaultOrigin struct {
 	definition catalog.ColumnDefault
 	consumer   *catalog.Relation
-	quote      quoteOrigin
+	quote      exec.QuoteOrigin
 	requested  bool // UPDATE explicitly selected DEFAULT, including fresh NULL.
 }
 
@@ -106,11 +107,11 @@ func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 	attribute := d.Attributes[slot]
 	usage := d.Columns[slot].Usage
 	if definition, ok := d.ColumnMeta.Defaults[attribute]; ok {
-		return definition.Expression, defaultOrigin{definition: definition, consumer: d, quote: quoteOrigin{Owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), Attribute: attribute, Definition: definition.OID}}
+		return definition.Expression, defaultOrigin{definition: definition, consumer: d, quote: exec.QuoteOrigin{Owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), Attribute: attribute, Definition: definition.OID}}
 	}
 	if definition := typedef.TypeDefault(view, usage.Type); definition != nil {
 		owner := view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
-		return defaultDestination(definition.Expression, usage), defaultOrigin{definition: *definition, quote: quoteOrigin{Owner: owner}}
+		return defaultDestination(definition.Expression, usage), defaultOrigin{definition: *definition, quote: exec.QuoteOrigin{Owner: owner}}
 	}
 	if usage.Type.HasDomainConstraints() {
 		return domainNullInputExpression(usage), defaultOrigin{}
@@ -118,7 +119,7 @@ func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 	return nil, defaultOrigin{}
 }
 
-func (o defaultOrigin) apply(c *EvalContext) {
+func (o defaultOrigin) apply(c *exec.Context) {
 	c.QuoteOrigin = o.quote
 	c.RoutineRecipe, c.RoutineGraft = true, false
 	c.RoutineChecks = nil
@@ -191,10 +192,10 @@ func (b *binding) defaultOriginAt(slot int) defaultOrigin {
 	if definition.Expression == nil {
 		return defaultOrigin{}
 	}
-	return defaultOrigin{definition: definition, consumer: physical.relation, quote: quoteOrigin{Owner: physical.ref, Attribute: attribute, Definition: definition.OID}}
+	return defaultOrigin{definition: definition, consumer: physical.relation, quote: exec.QuoteOrigin{Owner: physical.ref, Attribute: attribute, Definition: definition.OID}}
 }
 
-func evalDefaultExpression(c *EvalContext, node expr.Expr, origin defaultOrigin) (sqltype.Value, error) {
+func evalDefaultExpression(c *exec.Context, node expr.Expr, origin defaultOrigin) (sqltype.Value, error) {
 	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
 	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
 	origin.apply(c)
@@ -205,6 +206,6 @@ func evalDefaultExpression(c *EvalContext, node expr.Expr, origin defaultOrigin)
 	return node.Eval(c)
 }
 
-func (b *binding) evalDefault(c *EvalContext, slot int, node expr.Expr) (sqltype.Value, error) {
+func (b *binding) evalDefault(c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
 	return evalDefaultExpression(c, node, b.defaultOriginAt(slot))
 }

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -60,14 +61,14 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			base.Security.ACL = grant(reader)
 			auth.Recapture(e.catalog.read(e.catalog.state))
 			auth.State.CurrentUser = owner.Ref
-			leaf := queryLeaf{Ref: ruleUnitRef(e, root), Relation: root, Principal: actor.Ref}
-			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...queryLeaf) ([]ids.ObjectRef, error) {
+			leaf := exec.Leaf{Ref: ruleUnitRef(e, root), Relation: root, Principal: actor.Ref}
+			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...exec.Leaf) ([]ids.ObjectRef, error) {
 				t.Helper()
 				e.mu.Lock()
 				defer e.mu.Unlock()
 				return e.queryTableRefsLocked(view, invoker, leaves, nil, ids.SessionToken{}, plan.RowMark{})
 			}
-			assertCollected := func(invoker authorization.PrincipalRef, leaves ...queryLeaf) {
+			assertCollected := func(invoker authorization.PrincipalRef, leaves ...exec.Leaf) {
 				t.Helper()
 				refs, err := collect(auth, invoker, leaves...)
 				if err != nil || !reflect.DeepEqual(refs, []ids.ObjectRef{baseRef}) {

@@ -17,7 +17,7 @@ func TestCountExpressionArgumentVeto(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		sentinel := errors.New("count argument failed")
 		calls := 0
-		node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			if cancelArgument {
 				cancel()
@@ -72,7 +72,7 @@ func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 	original := node.Calls[0].Argument
 	sentinel := errors.New("late INSERT count argument")
 	calls := 0
-	node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 3 {
 			return sqltype.Value{}, sentinel

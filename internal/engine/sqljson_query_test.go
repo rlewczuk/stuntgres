@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -35,17 +36,17 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	expr := subqueryTestExpression(t, e, &bound, parser.SubqueryScalar)
 	expr.Usage = jsonType.Usage()
 	expr.JSONArray = &plan.SQLJSONArrayQuery{Plan: jsonArrayAggregatePlan, Input: column}
-	newCapture := func() *querySource {
-		return &querySource{Ref: base.Ref, Authority: captured.Authority, NestedRoot: inner, NestedInputs: captured, FlatWidth: 1, Materialized: true}
+	newCapture := func() *exec.Source {
+		return &exec.Source{Ref: base.Ref, Authority: captured.Authority, NestedRoot: inner, NestedInputs: captured, FlatWidth: 1, Materialized: true}
 	}
 	bridge := newCapture()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	parent := queryState{Source: bridge, ExecutionContext: ctx}
+	parent := exec.State{Source: bridge, ExecutionContext: ctx}
 	calls, closes := 0, 0
 	secondary := errors.New("nested stage cleanup")
-	var reached *indexedStage
-	expr.JSONArray.Input = queryProbe(inputUsage, func(c *EvalContext) (sqltype.Value, error) {
+	var reached *exec.Stage
+	expr.JSONArray.Input = queryProbe(inputUsage, func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		value, err := column.Eval(c)
 		if err != nil {
@@ -99,11 +100,11 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	for _, phase := range []string{"input", "close"} {
 		t.Run(phase, func(t *testing.T) {
 			execution := newCapture()
-			owner := queryState{Source: execution}
+			owner := exec.State{Source: execution}
 			primary := errors.New("per-row input")
 			inputs, finished := 0, 0
-			var nested *indexedStage
-			expr.JSONArray.Input = queryProbe(inputUsage, func(c *EvalContext) (sqltype.Value, error) {
+			var nested *exec.Stage
+			expr.JSONArray.Input = queryProbe(inputUsage, func(c *exec.Context) (sqltype.Value, error) {
 				inputs++
 				if inputs == 1 {
 					nested = execution.NestedStage

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -261,7 +262,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 
 // Only network signatures opt into imported-parameter Execute planning.
 // Conservative properties survive folding; availability is not SQL constness.
-func networkOperatorExecutionConstant(node expr.Expr, c *EvalContext) bool {
+func networkOperatorExecutionConstant(node expr.Expr, c *exec.Context) bool {
 	if node == nil {
 		return false
 	}

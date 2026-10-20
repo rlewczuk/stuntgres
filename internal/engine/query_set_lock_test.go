@@ -224,9 +224,9 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	} {
 		d := e.catalog.state.MustRelation(tc.ref.Address)
 		scope := &StatementScope{owner: &transactionOwner{}}
-		leaf := queryLeaf{Ref: tc.ref, Relation: d, Mark: tc.mark, Query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
+		leaf := exec.Leaf{Ref: tc.ref, Relation: d, Mark: tc.mark, Query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
 		e.mu.Lock()
-		err := e.initializeQueryLocksLocked(scope, nil, []queryLeaf{leaf})
+		err := e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{leaf})
 		e.mu.Unlock()
 		if tc.code == "" {
 			if err != nil {
@@ -259,7 +259,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e.catalog.state.SetDescriptor(set.Address, &d)
 	scope := &StatementScope{owner: &transactionOwner{}}
 	e.mu.Lock()
-	err := e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{Ref: set, Relation: &d, Mark: localMark}})
+	err := e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: set, Relation: &d, Mark: localMark}})
 	e.mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("set boundary skipped stale arm admission", err)
@@ -267,7 +267,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	// First-mode discovery still finds locally stored marks beneath a set when
 	// there is no inherited outer diagnostic, without granting marks to arms.
 	e.mu.Lock()
-	mode, err := e.firstQueryRowModeLocked(&StatementScope{owner: &transactionOwner{}}, nil, []queryLeaf{{Ref: refs["local_set"], Relation: e.catalog.state.MustRelation(refs["local_set"].Address)}})
+	mode, err := e.firstQueryRowModeLocked(&StatementScope{owner: &transactionOwner{}}, nil, []exec.Leaf{{Ref: refs["local_set"], Relation: e.catalog.state.MustRelation(refs["local_set"].Address)}})
 	e.mu.Unlock()
 	if err != nil || mode != lock.ForUpdate {
 		t.Fatal("local first diagnostic lost", mode, err)
@@ -299,7 +299,7 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 		}
 		ref := refs[tc.name]
 		scope.lockedRef = ref
-		scope.querySources = []queryLeaf{{Ref: ref, Relation: e.catalog.state.MustRelation(ref.Address), Mark: plan.RowMark{Mode: lock.ForUpdate}}}
+		scope.querySources = []exec.Leaf{{Ref: ref, Relation: e.catalog.state.MustRelation(ref.Address), Mark: plan.RowMark{Mode: lock.ForUpdate}}}
 		err = scope.acquireViewSources()
 		if err == nil {
 			for _, want := range []struct {

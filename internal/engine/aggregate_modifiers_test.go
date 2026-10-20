@@ -25,7 +25,7 @@ func TestAggregateModifiersTupleDistinct(t *testing.T) {
 	grouping := []plan.Grouping{{Grouping: family}, {Grouping: family}}
 	a, comma, slash := sqltype.String(typ, "a"), sqltype.String(typ, ","), sqltype.String(typ, "/")
 	null := sqltype.Null(typ)
-	var state aggregateDistinctState
+	var state exec.AggregateDistinctState
 	for i, tc := range []struct {
 		tuple []sqltype.Value
 		admit bool
@@ -59,7 +59,7 @@ func TestAggregateModifiersTupleDistinct(t *testing.T) {
 	if err != nil || admit {
 		t.Fatal(admit, err)
 	}
-	var other aggregateDistinctState
+	var other exec.AggregateDistinctState
 	if admit, err := other.Admit(context.Background(), grouping, []sqltype.Value{a, comma}); err != nil || !admit {
 		t.Fatal("cross-call/group/execution state", admit, err)
 	}
@@ -170,7 +170,7 @@ func TestAggregateModifiersFamilyCancellation(t *testing.T) {
 	}
 	for _, phase := range []string{".Grouping.PrepareKey", ".Grouping.Hash", ".Grouping.Equal"} {
 		t.Run(phase, func(t *testing.T) {
-			var state aggregateDistinctState
+			var state exec.AggregateDistinctState
 			grouping := []plan.Grouping{{Grouping: family}}
 			value := sqltype.String(typ, strings.Repeat("x", 8192))
 			if _, err := state.Admit(context.Background(), grouping, []sqltype.Value{value}); err != nil {
@@ -197,9 +197,9 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 			defer cancel()
 			filters, values, keys, advances, finalizes := 0, 0, 0, 0, 0
 			original := call.Argument
-			call.Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { values++; return original.Eval(c) })
+			call.Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { values++; return original.Eval(c) })
 			boolType := call.Filter.ResultUsage().Type
-			call.Filter = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+			call.Filter = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				filters++
 				if phase == "filter" {
 					cancel()
@@ -207,7 +207,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 				return sqltype.Boolean(boolType, filters != 2), nil
 			})
 			// A matched order expression must never be evaluated separately.
-			call.Order[0].Expression = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			call.Order[0].Expression = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				keys++
 				if phase == "key" {
 					cancel()
@@ -307,7 +307,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	if changed.Order[0].Slot != original.Order[0].Slot || changed.Order[0].Cache != original.Order[0].Cache || changed.StageWidth != original.StageWidth {
 		t.Fatal("target reuse lost across rewrite")
 	}
-	folded, err := preflightQuery(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, node)
+	folded, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
 	if err != nil || folded != node {
 		t.Fatal("unchanged preflight mutated immutable plan", folded, err)
 	}
@@ -366,7 +366,7 @@ func TestAggregateModifiersExecutionStateIsolation(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT f,count(DISTINCT v ORDER BY v) FROM t GROUP BY f ORDER BY f NULLS LAST")
 	for execution := range 2 {
 		if execution > 0 {
-			snapshot := run(t, e, "SELECT * FROM t").Rows.(*finalRows)
+			snapshot := run(t, e, "SELECT * FROM t").Rows.(*exec.FinalRows)
 			var err error
 			source, err = captureQuerySource(context.Background(), snapshot.Source.View, snapshot.Source.Ref)
 			snapshot.Close()

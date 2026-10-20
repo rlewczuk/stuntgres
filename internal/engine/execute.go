@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -276,7 +277,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if saved.Origin.Owner != (ids.ObjectRef{}) {
 					continue
 				}
-				quotes := make([]quoteConstant, 0, len(candidate.quotes)-1)
+				quotes := make([]exec.QuoteConstant, 0, len(candidate.quotes)-1)
 				quotes = append(quotes, candidate.quotes[:i]...)
 				for _, remaining := range candidate.quotes[i+1:] {
 					if remaining.Origin.Owner != (ids.ObjectRef{}) {
@@ -448,7 +449,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.parameters.Count)
 	}
 	canonical := make([]sqltype.Value, count)
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
 	scope.domains.inputCatalog = auth.Catalog
 	scope.routineAuth = auth
 	scope.routineDependencies = b.dependencies
@@ -531,7 +532,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
 	var err error
 	var creationStage *CatalogStage
 	var creationDescriptor *catalog.Relation
@@ -567,9 +568,9 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	}
 	// Native has no cost-based custom/generic planner. Parameterized consumers
 	// fold into a fresh operation-local group, including stored origins.
-	quoteCaptures := quoteCaptureCandidate{}
+	quoteCaptures := exec.QuoteCaptureCandidate{}
 	if b.parameters.Count == 0 {
-		quoteCaptures = quoteCaptureCandidate{Entries: candidate.quotes, Private: quoteCapturesChanged}
+		quoteCaptures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteCapturesChanged}
 		pruneQuoteCaptures(&quoteCaptures, auth.Catalog)
 	}
 	evaluation.QuoteCaptures = &quoteCaptures
@@ -581,7 +582,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 
 // A complete projected row is constrained before another identity source row
 // is demanded. This does not publish rows: the caller still stages one batch.
-func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema string, row []sqltype.Value, evaluation *EvalContext) error {
+func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
 	if scope.partitionInsert != nil {
 		return scope.validatePartitionInsert(b, row, evaluation)
 	}
@@ -590,7 +591,7 @@ func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema stri
 
 // Physical constraints own evaluation and error identity; the original named
 // target owns disclosure authority. The named binding is read-only.
-func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, named *binding, schema string, row []sqltype.Value, evaluation *EvalContext) error {
+func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, named *binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
 	if err := evaluation.Context.Err(); err != nil {
 		return err
 	}
@@ -605,7 +606,7 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 
 // Shared by ordinary insertion and isolated native replacement. Validation does
 // not mutate row values; each caller supplies its existing disclosure authority.
-func validatePhysicalRowConstraints(relation *catalog.Relation, schema string, row []sqltype.Value, evaluation *EvalContext, detail func() (string, error)) error {
+func validatePhysicalRowConstraints(relation *catalog.Relation, schema string, row []sqltype.Value, evaluation *exec.Context, detail func() (string, error)) error {
 	for j, column := range relation.Columns {
 		if column.Nullable {
 			continue

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -10,7 +11,7 @@ import (
 
 // Partition reads reuse the mapped physical-prefix source used by inheritance.
 // Row identities and versions always retain their original physical storage.
-func capturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View, ref ids.ObjectRef, parent *catalog.Relation) (*querySource, error) {
+func capturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View, ref ids.ObjectRef, parent *catalog.Relation) (*exec.Source, error) {
 	// The visibility capture retains the statement's admitted topology, not a
 	// live descriptor that may have gained children while a leaf lock waited.
 	if captured, ok := catalogView.Relation(ref.Address); ok {
@@ -20,7 +21,7 @@ func capturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &querySource{Ref: ref, View: pin, Inheritance: make([]inheritanceQuerySegment, 0)}
+	source := &exec.Source{Ref: ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0)}
 	err := partitionPhysicalDescendants(catalogView, parent, func(leaf *catalog.Relation) error {
 		childRef := ref.Domain().Ref(ref.Epoch, leaf.Address())
 		layout, err := inheritanceQueryLayout(parent, leaf)
@@ -31,7 +32,7 @@ func capturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View
 		if err != nil {
 			return err
 		}
-		segment := inheritanceQuerySegment{Leaf: queryLeaf{Ref: childRef, Relation: leaf}, Prefix: child, Layout: layout}
+		segment := exec.InheritanceQuerySegment{Leaf: exec.Leaf{Ref: childRef, Relation: leaf}, Prefix: child, Layout: layout}
 		if layout != nil {
 			segment.Scratch = make([]sqltype.Value, len(layout))
 		}

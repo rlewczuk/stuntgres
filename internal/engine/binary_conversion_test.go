@@ -73,7 +73,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			eval := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}}
+			eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}}
 			got, err := bound.Eval(eval)
 			if err != nil {
 				t.Fatal(err)

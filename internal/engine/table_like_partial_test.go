@@ -84,7 +84,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			key, _ := sqltype.Integer(integer, 7)
 			n, _ := sqltype.Integer(integer, 2)
 			row := []sqltype.Value{sqltype.String(text, "prefix"), id, key, truth, n}
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			got, err := preparation.predicateMatches(&evaluation, destination, &catalog.IndexDefinition{Predicate: predicate}, row, nil, nil)
 			want, _ := plan.TruthOf(truth)
 			if err != nil || got != (want == plan.True) {

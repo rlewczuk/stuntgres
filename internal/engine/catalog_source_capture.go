@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
 
 // Consumes Engine.mu. These cases select capture policy, never producers: all
 // eligible OIDs use the same immutable registry and common row wrapper.
-func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
 	oid := source.Address().ObjectID
 	// These two sources own multi-stage capture/completion, not row producers.
 	if oid == pgcatalog.LocksOID {
@@ -106,10 +107,10 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 func explicitCatalogSource(oid ids.OID) bool { return oid == pgcatalog.LocksOID || oid == 12048 }
 
 // Engine is the sole owner of querySource construction, including error paths.
-func captureCatalogSourceRows(in pgcatalog.Input, produce pgcatalog.Producer) (*querySource, error) {
+func captureCatalogSourceRows(in pgcatalog.Input, produce pgcatalog.Producer) (*exec.Source, error) {
 	rows, err := produce(in)
 	if err != nil {
 		return nil, err
 	}
-	return &querySource{Ref: in.Ref, Anonymous: rows}, nil
+	return &exec.Source{Ref: in.Ref, Anonymous: rows}, nil
 }

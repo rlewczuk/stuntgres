@@ -57,7 +57,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[inputID] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation remap", next)
 		}
-		cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, next)
+		cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,11 +79,11 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if err != nil || !sameGroupExpression(original, clone) {
 			t.Fatal("stored reconstruction", clone, err)
 		}
-		folded, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
+		folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
 		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
-		folded, _, err = simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
+		folded, _, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
@@ -126,7 +126,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []expr.Expr{series, marker}
-		invocation, err := exec.OpenFunctionInvocation(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
+		invocation, err := exec.OpenFunctionInvocation(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -155,7 +155,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		}
 		// The real target stage stores one record slot instead of FROM fields.
 		node := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: marker.ResultUsage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
-		stage, err := exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
+		stage, err := exec.OpenSetProjectNode(context.Background(), &exec.State{Source: &exec.Source{}, Frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)
 		}

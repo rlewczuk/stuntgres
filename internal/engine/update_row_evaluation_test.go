@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -24,11 +25,11 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		e, q, source := queryJoinsFixture(t, "SELECT k,k+100 FROM a WHERE k=2")
 		project := q.Root.(*plan.ProjectNode)
 		calls := 0
-		subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+		subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			return subqueryTestInteger(t, project.Schema()[0].Usage.Type, int64(calls*10)), nil
 		}))
-		state := queryState{Source: source}
+		state := exec.State{Source: source}
 		defer state.ReleaseMemberships()
 		c := state.Evaluation(context.Background())
 		action := updateRowTestAction(t, e, q)
@@ -52,7 +53,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 	t.Run("zero_and_second_row", func(t *testing.T) {
 		for _, predicate := range []string{"k=9", "k=1"} {
 			e, q, source := queryJoinsFixture(t, "SELECT k,k+100 FROM a WHERE "+predicate)
-			execution := queryState{Source: source}
+			execution := exec.State{Source: source}
 			c := execution.Evaluation(context.Background())
 			action := updateRowTestAction(t, e, q)
 			typ := q.Root.Schema()[0].Usage.Type
@@ -77,11 +78,11 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		e, q, source := queryJoinsFixture(t, "SELECT k,k+100 FROM a WHERE k=2")
 		project := q.Root.(*plan.ProjectNode)
 		calls := 0
-		subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+		subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			return sqltype.Integer(project.Schema()[0].Usage.Type, int64(calls*10))
 		}))
-		execution := queryState{Source: source}
+		execution := exec.State{Source: source}
 		defer execution.ReleaseMemberships()
 		c := execution.Evaluation(context.Background())
 		action := updateRowTestAction(t, e, q)
@@ -106,11 +107,11 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		e := New()
 		typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 		old := []sqltype.Value{subqueryTestInteger(t, typ, 10), subqueryTestInteger(t, typ, 20)}
-		c := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Row: old}}
+		c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Row: old}}
 		calls := [2]int{}
 		action := &boundUpdate{assignments: []expr.Expr{
-			queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) { calls[0]++; return c.Row[1], nil }),
-			queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) { calls[1]++; return c.Row[0], nil }),
+			queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls[0]++; return c.Row[1], nil }),
+			queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls[1]++; return c.Row[0], nil }),
 		}}
 		row, err := evaluateUpdateAssignments(&c, action, []int{0, 1}, old)
 		if err != nil || testExport(row[0]) != int64(20) || testExport(row[1]) != int64(10) || calls != [2]int{1, 1} {
@@ -137,7 +138,7 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 			source := b.update.assignments[0].(plan.SubqueryExpr)
 			project := source.QueryPlan.Root.(*plan.ProjectNode)
 			calls, stagedBeforeCancel := 0, false
-			subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+			subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "late_cardinality" && calls == 3 {
 					stagedBeforeCancel = len(scope.stage.rows[b.ref.Address]) != 0

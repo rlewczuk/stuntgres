@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -34,7 +35,7 @@ func pgGroupUnitRole(e *Engine, state *access.RoleRecord, id uint64, name string
 	return ref
 }
 
-func pgGroupUnitRows(t *testing.T, source *querySource, d *catalog.Relation) map[uint32][]sqltype.Value {
+func pgGroupUnitRows(t *testing.T, source *exec.Source, d *catalog.Relation) map[uint32][]sqltype.Value {
 	t.Helper()
 	if source == nil {
 		t.Fatal("missing capture")
@@ -219,7 +220,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	open := func(s *StatementScope, r ids.ObjectRef) *querySource {
+	open := func(s *StatementScope, r ids.ObjectRef) *exec.Source {
 		t.Helper()
 		e.mu.Lock()
 		source, err := e.openRelationSourceLocked(s, r, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
@@ -234,7 +235,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	setFixtureEdges(updated, nil)
 	e.roles.published = updated
 	second := open(scope, ref)
-	for _, source := range []*querySource{first, second} {
+	for _, source := range []*exec.Source{first, second} {
 		pgGroupUnitMembers(t, pgGroupUnitRows(t, source, d)[20000], 20001)
 	}
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {

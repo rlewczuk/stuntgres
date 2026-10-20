@@ -106,14 +106,14 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		err = visit(leaf.Ref, leaf.Mark.Mode)
 	}
 	if err == nil && s.materializedOrZero().refresh && hasMaterializedSource {
-		var leaves []queryLeaf
+		var leaves []exec.Leaf
 		for ref := range seen {
 			if ref == s.lockedRef {
 				continue
 			}
 			relation := catalogView.MustRelation(ref.Address)
 			if relation.RelationKind.Stored() {
-				leaves = append(leaves, queryLeaf{Ref: ref})
+				leaves = append(leaves, exec.Leaf{Ref: ref})
 			}
 		}
 		var physical []ids.ObjectRef

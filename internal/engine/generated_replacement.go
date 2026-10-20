@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -93,7 +94,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		}
 		stage.mu.Unlock()
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.catalog.read(candidate)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.catalog.read(candidate)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	changed := indexes.trackedGenerations(candidate)
 	if err == nil {
 		err = recomputeRemappedGenerations(ctx, candidate, relations, mapping, evaluation, changed)

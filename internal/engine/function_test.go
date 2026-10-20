@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -43,7 +44,7 @@ func TestNullCountResolver(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, err := bound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		v, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		n, _ := v.Integer()
 		want := int64(100)
 		if name == "num_nonnulls" {
@@ -109,7 +110,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 		if info, err := known.finish(); err != nil || info.Count != 1 || info.Types[0] != known.typ(id).Usage() {
 			t.Fatal(info, err)
 		}
-		v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(known.typ(id))}}})
+		v, err := call.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(known.typ(id))}}})
 		n, _ := v.Integer()
 		if err != nil || n != 0 {
 			t.Fatal(v, err)

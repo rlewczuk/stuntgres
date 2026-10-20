@@ -14,7 +14,7 @@ import (
 
 // Follow the existing queryJoinsFixture capture seam, but on the actual hash
 // owner's engine. No public adapter or testing-only production switch is used.
-func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Query, *querySource, func()) {
+func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
 	ast := statement(t, q)
 	scope, err := e.StartStatement(op)
@@ -31,7 +31,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 	if err == nil {
 		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
-	var source *querySource
+	var source *exec.Source
 	if err == nil {
 		// Logical-stage fixtures supply cancellation contexts directly, but keep
 		// the actual admission alive until every retained stage is closed.
@@ -59,7 +59,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 	t.Cleanup(release)
 	return bound.query, source, release
 }
-func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *querySource, func()) {
+func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
@@ -72,13 +72,13 @@ func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *querySo
 		done()
 	}
 }
-func hashFilterStage(t *testing.T, query *plan.Query, source *querySource, parameters []sqltype.Value) indexedStage {
+func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, parameters []sqltype.Value) exec.Stage {
 	t.Helper()
 	filter := exec.HashQueryFilter(query.Root)
 	if filter == nil {
 		t.Fatal("fixture has no top-level filter")
 	}
-	state := &queryState{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
+	state := &exec.State{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
 	if scope := scopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.input, scope.output
 	}

@@ -346,8 +346,8 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 func TestFDWPlanningSelection(t *testing.T) {
 	request := catalog.ForeignRequest{Columns: []catalog.ForeignColumn{{Attribute: 1}, {Attribute: 3}}, RequiredAttributes: []int32{3}}
 	w := &fdwUnitWrapper{paths: []catalog.ForeignPath{{TotalCost: 10, Attributes: []int32{1, 3}, Private: "expensive"}, {TotalCost: 2, Attributes: []int32{3}, Private: "first-cheapest"}, {TotalCost: 2, Attributes: []int32{3}, Private: "tie"}}}
-	f := &foreignQuerySource{Wrapper: w}
-	execution := &foreignExecution{}
+	f := &exec.ForeignQuerySource{Wrapper: w}
+	execution := &exec.ForeignExecution{}
 	if err := f.Plan(context.Background(), request, execution); err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +356,7 @@ func TestFDWPlanningSelection(t *testing.T) {
 	}
 	for _, paths := range [][]catalog.ForeignPath{nil, {{TotalCost: math.NaN(), Attributes: []int32{3}}}, {{TotalCost: 1, Attributes: []int32{1}}}, {{TotalCost: 1, Attributes: []int32{3, 3}}}, {{StartupCost: 2, TotalCost: 1, Attributes: []int32{3}}}} {
 		w.paths = paths
-		if err := f.Plan(context.Background(), request, &foreignExecution{}); err == nil {
+		if err := f.Plan(context.Background(), request, &exec.ForeignExecution{}); err == nil {
 			t.Fatal("invalid path admitted", paths)
 		}
 	}
@@ -368,10 +368,10 @@ func TestFDWScanState(t *testing.T) {
 	endFailure := errors.New("end outcome")
 	scan := &fdwUnitScan{endErr: endFailure}
 	w := &fdwUnitWrapper{paths: []catalog.ForeignPath{{}}, scan: scan}
-	source := &querySource{Anonymous: [][]sqltype.Value{}, Foreign: &foreignQuerySource{Wrapper: w}}
-	owner := &foreignScanOwner{}
+	source := &exec.Source{Anonymous: [][]sqltype.Value{}, Foreign: &exec.ForeignQuerySource{Wrapper: w}}
+	owner := &exec.ForeignScanOwner{}
 	owner.Add(source.Foreign)
-	state := &queryState{Source: source}
+	state := &exec.State{Source: source}
 	stage, err := exec.OpenForeignStage(ctx, state, source, &plan.SourceNode{})
 	if err != nil {
 		t.Fatal(err)
@@ -437,8 +437,8 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 		check("replacement", e.replacementMu.TryLock, e.replacementMu.Unlock)
 		return failure
 	}}
-	owner := &foreignScanOwner{}
-	source := &foreignQuerySource{Executions: []*foreignExecution{{Scan: scan}}}
+	owner := &exec.ForeignScanOwner{}
+	source := &exec.ForeignQuerySource{Executions: []*exec.ForeignExecution{{Scan: scan}}}
 	owner.Add(source)
 	cursor := &sqlCursor{ordinal: 1, foreignOwner: owner}
 	s.cursors.entries = map[string]*sqlCursor{"child": cursor}

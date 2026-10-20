@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -103,7 +104,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	extensionUnitError(t, err, "0A000")
 	_, err = input.ResolveRegconfig(context.Background(), "a..b")
 	extensionUnitError(t, err, "42602")
-	rows := &finalRows{}
+	rows := &exec.FinalRows{}
 	for _, alias := range []sqltype.ID{sqltype.Regdictionary, sqltype.Regconfig} {
 		typ, _ := view.LookupType(alias)
 		value, _ := sqltype.RegTSValue(typ, 91000)

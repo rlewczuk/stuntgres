@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -70,7 +71,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if !ok || originalRow.FieldProjection != nil {
 		t.Fatal("fresh constructor allocated retained associations", originalField.Base)
 	}
-	initialContext := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Catalog: before}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	initialContext := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: before}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	initialValue, initialErr := originalRow.Eval(&initialContext)
 	if initialErr != nil || initialValue.CompositeLen() != 3 {
 		t.Fatal("normal row changed its declared shape", initialValue, initialErr)
@@ -116,7 +117,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if !found || !constructor || selected.Index != 1 || len(row.Fields) != 3 || len(row.FieldProjection) != 3 || row.FieldProjection[0].Slot != -1 || row.FieldProjection[1].Slot != 0 || row.FieldProjection[2].Slot != -1 {
 		t.Fatal("lost original written child association", selected, row)
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Catalog: after}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: after}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	value, err := selected.Eval(&evaluation)
 	if err != nil {
 		t.Fatal(err)

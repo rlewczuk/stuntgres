@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -115,14 +116,14 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	next.Index = maps.Clone(old.Index)
 	next.Index["c"] = 3
 	calls := 0
-	generated := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+	generated := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *exec.Context) (sqltype.Value, error) {
 		calls++
 		if len(ec.Row) != 4 || ec.Row[0] != integer(31) || ec.Row[3] != integer(5) {
 			t.Fatal("generation evaluated before completed tuple", ec.Row)
 		}
 		return integer(36), nil
 	}}
-	untouched := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(*EvalContext) (sqltype.Value, error) {
+	untouched := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(*exec.Context) (sqltype.Value, error) {
 		t.Fatal("unaffected stored generation demanded")
 		return sqltype.Value{}, errors.New("unexpected evaluation")
 	}}
@@ -139,7 +140,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	insert.Born = 0
 	scope.ownWrites = map[ids.ObjectAddress][]storage.RowVersion{old.Address(): {own, insert}}
 	scope.ownDeletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{old.Address(): {Rows: map[ids.RowID]visibility.DeleteCandidate{4: {Row: 4, Version: 4}}}}
-	transform := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+	transform := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *exec.Context) (sqltype.Value, error) {
 		if len(ec.Row) != 3 || ec.Row[0] != integer(1) {
 			t.Fatal("TYPE lost old row", ec.Row)
 		}
@@ -184,7 +185,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	calls := 0
-	expression := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+	expression := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *exec.Context) (sqltype.Value, error) {
 		calls++
 		if !e.mu.TryLock() {
 			t.Fatal("generation evaluation held Engine.mu")

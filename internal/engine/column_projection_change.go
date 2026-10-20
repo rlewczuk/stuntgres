@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -103,7 +104,7 @@ func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *cata
 	stage.owner.mu.Lock()
 	snapshot, snapshotExists := scope.owner.roots[old.Address()]
 	stage.owner.mu.Unlock()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.isolation), metadataPrepared)
 	if err == nil && projected {
 		scope.stageProjectedColumnRoots(old.Address(), writes, deletes)
@@ -111,13 +112,13 @@ func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *cata
 	return err
 }
 
-func stagePrivateColumnShape(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists, stable bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
+func stagePrivateColumnShape(evaluation *exec.Context, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists, stable bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
 	return stagePrivateColumnShapeMetadata(evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stable, false)
 }
 
 // The prepared path consumes the same physical projector after the immutable
 // descriptor/index/lineage effects have been applied to this sole stage.
-func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists, stable, metadataPrepared bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
+func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists, stable, metadataPrepared bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
 	ctx := evaluation.Context
 	e := stage.owner
 	e.mu.Lock()

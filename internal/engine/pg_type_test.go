@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -23,7 +24,7 @@ func pgTypeUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef
 	}
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
-func pgTypeUnitBag(t *testing.T, source *querySource, d *catalog.Relation) map[uint32][]sqltype.Value {
+func pgTypeUnitBag(t *testing.T, source *exec.Source, d *catalog.Relation) map[uint32][]sqltype.Value {
 	t.Helper()
 	bag := make(map[uint32][]sqltype.Value)
 	for _, row := range source.Anonymous {
@@ -133,7 +134,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		}
 	}
 	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
-	capture := func() *querySource {
+	capture := func() *exec.Source {
 		t.Helper()
 		s, err := captureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGType)
 		if err != nil {
@@ -151,7 +152,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	if !reflect.DeepEqual(pgTypeUnitBag(t, second, d), bag) {
 		t.Fatal("shared capture backing")
 	}
-	ordinary := func(s *querySource, err error) {
+	ordinary := func(s *exec.Source, err error) {
 		t.Helper()
 		if s != nil || err == nil {
 			t.Fatal("invalid capture accepted", s, err)

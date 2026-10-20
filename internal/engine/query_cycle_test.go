@@ -107,7 +107,7 @@ func TestQueryCycleEquality(t *testing.T) {
 	// Force a hash bucket whose first tuple has the same user fields and mark
 	// but different ancestry. Only full path equality may reject that tuple.
 	a = cycleUnitAugment(t, c, a[3], two, one)
-	stage := recursiveUnionStage{Node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: make(plan.QuerySchema, 4), Grouping: grouping}, Definition: &plan.CTEDefinition{UserWidth: 2}, Cycle: c}, Source: &querySource{Flat: append(append([]sqltype.Value(nil), a...), b...)}}
+	stage := exec.RecursiveUnionStage{Node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: make(plan.QuerySchema, 4), Grouping: grouping}, Definition: &plan.CTEDefinition{UserWidth: 2}, Cycle: c}, Source: &exec.Source{Flat: append(append([]sqltype.Value(nil), a...), b...)}}
 	if index, err := stage.FindTuple(ctx, b, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal("full collision equality", index, err)
 	}

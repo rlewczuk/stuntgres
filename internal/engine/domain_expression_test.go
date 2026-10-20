@@ -59,7 +59,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 				t.Fatal(tc.expr, parameters)
 			}
 		} else {
-			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil || value.Type() != node.ResultUsage().Type || value.IsNull() != tc.isNull {
 				t.Fatal(tc.expr, value, err)
 			}
@@ -95,7 +95,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 	if !ok || len(aggregate.Calls) != 1 || query.Root.Schema()[0].Usage.Type.ID() != sqltype.Bool || aggregate.Calls[0].Argument.ResultUsage().Type.ID() != sqltype.Bool {
 		t.Fatal("aggregate did not downcast signature", project.Child, query.Root.Schema())
 	}
-	argument, err := aggregate.Calls[0].Argument.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	argument, err := aggregate.Calls[0].Argument.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,14 +173,14 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	if !ok || coercion.Child.ResultUsage().Type.ID() != sqltype.VarChar || node.ResultUsage() != target {
 		t.Fatal("literal did not preserve base-to-domain coercion", node)
 	}
-	_, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	_, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	domainUnitDiagnostic(t, err, "22001", "value too long for type character varying(3)")
 	raw = statement(t, "SELECT 'abcd'::public.short FROM public.one").(*parser.Select).Targets[0]
 	node, err = b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || value.Type() != target.Type {
 		t.Fatal(value, err)
 	}
@@ -243,7 +243,7 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 			case "anonymous":
 				rows.Anonymous = [][]sqltype.Value{{value}}
 			case "selected source":
-				rows.Source = &querySource{Committed: []storage.RowVersion{{Values: []sqltype.Value{sqltype.Null(domain.SQLType)}}, {Values: []sqltype.Value{value}}}}
+				rows.Source = &exec.Source{Committed: []storage.RowVersion{{Values: []sqltype.Value{sqltype.Null(domain.SQLType)}}, {Values: []sqltype.Value{value}}}}
 				rows.Selection = []int{1}
 				rows.Slots = []int{0}
 			}
@@ -317,7 +317,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 			if !ok || node.ResultUsage() != target || coercion.Child.ResultUsage() != target.BaseUsage() {
 				t.Fatal("lost effective input usage or logical cast identity", expression, node)
 			}
-			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil || value.Type() != target.Type {
 				t.Fatal(expression, value, err)
 			}

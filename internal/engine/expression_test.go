@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -87,18 +88,18 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	frame := []sqltype.Value{sqltype.Null(text), sqltype.Null(integer)}
-	value, err := filter.Predicate.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: frame}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(integer), sqltype.Null(integer), sqltype.Null(typ)}}})
+	value, err := filter.Predicate.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: frame}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(integer), sqltype.Null(integer), sqltype.Null(typ)}}})
 	if err != nil || value.Type() != typ || !value.IsNull() {
 		t.Fatal(value, err)
 	}
-	if _, err := column.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 2, Frame: 1, Row: frame}}); err == nil {
+	if _, err := column.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 2, Frame: 1, Row: frame}}); err == nil {
 		t.Fatal("wrong scope accepted")
 	}
 	var wg sync.WaitGroup
 	for n := range 16 {
 		wg.Go(func() {
 			v := sqltype.String(text, strconv.Itoa(n))
-			got, err := project.Expressions[0].Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{v}}})
+			got, err := project.Expressions[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{v}}})
 			actual, _ := got.Text()
 			if err != nil || actual != strconv.Itoa(n) {
 				t.Error(actual, err)
@@ -111,7 +112,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := project.Expressions[0].Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: frame}}); !errors.Is(err, context.Canceled) {
+	if _, err := project.Expressions[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: frame}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -227,7 +228,7 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 }
 
 func TestExpressionInvalidValuesRemainInvariantErrors(t *testing.T) {
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{{}}}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{{}}}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}
 	for _, expression := range []expr.Expr{
 		plan.LiteralExpr{},
 		plan.ColumnExpr{Scope: 1, Frame: 1, Slot: 0},

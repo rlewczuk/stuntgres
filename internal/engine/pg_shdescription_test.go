@@ -28,7 +28,7 @@ func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
-func pgShDescriptionUnitBag(t *testing.T, source *querySource) map[uint32]string {
+func pgShDescriptionUnitBag(t *testing.T, source *exec.Source) map[uint32]string {
 	t.Helper()
 	if source == nil {
 		t.Fatal("missing captured source")
@@ -137,7 +137,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 		plan.LiteralExpr{Info: expr.Info{Usage: oidUsage}, Value: oid},
 		plan.LiteralExpr{Info: expr.Info{Usage: nameUsage}, Value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}
-	value, err := expr.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}})}})
+	value, err := expr.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}})}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +292,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	replacement.Comment = "new"
 	putFixtureRole(updated, replacement)
 	e.roles.published = updated
-	open := func(scope *StatementScope, ref ids.ObjectRef) *querySource {
+	open := func(scope *StatementScope, ref ids.ObjectRef) *exec.Source {
 		t.Helper()
 		e.mu.Lock()
 		source, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)

@@ -26,7 +26,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if err := exec.SelectQuerySources(op.Context(), inputs); err != nil {
 			t.Fatal(err)
 		}
-		state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
+		state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
 		for _, expr := range b.returning.expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
 		}
@@ -138,7 +138,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if !b.returning.readRequired {
 			t.Fatal("zero-member target whole row lost SELECT demand")
 		}
-		c := EvalContext{EvalStatement: evalStatement{Context: op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, MergeReturning: true, MergeAction: b.merge.arms[0].action}}
+		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, MergeReturning: true, MergeAction: b.merge.arms[0].action}}
 		for i, expr := range b.returning.expressions {
 			v, err := expr.Eval(&c)
 			if err != nil || v.IsNull() != (i == 1) || v.Type().CompositeLen() != 0 {
@@ -157,9 +157,9 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		typ := testUsage(e, sqltype.Int4).Type
 		value, _ := sqltype.Integer(typ, 1)
 		calls := 0
-		expr := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0, MergeSource: true, Virtual: queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return value, nil })}
-		parent := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ)}, MergeReturning: true}}
-		child := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &parent, MergeSourcePresent: true}}
+		expr := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0, MergeSource: true, Virtual: queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; return value, nil })}
+		parent := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ)}, MergeReturning: true}}
+		child := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 8, Outer: &parent, MergeSourcePresent: true}}
 		v, err := expr.Eval(&child)
 		if err != nil || !v.IsNull() || calls != 0 {
 			t.Fatal("absent source recipe invoked", v, err, calls)

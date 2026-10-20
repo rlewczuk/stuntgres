@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -66,7 +67,7 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 					cancel()
 				}
 			}
-			state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
+			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
 			rows, err := e.assembleMergeRows(ctx, scope, b, target, cursor, state, "public", false)
 			want := primary
 			if phase == "close" {

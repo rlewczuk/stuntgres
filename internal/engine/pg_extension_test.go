@@ -165,7 +165,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)
 	}
-	retained := &indexedStage{Source: old, Columns: d.Columns}
+	retained := &exec.Stage{Source: old, Columns: d.Columns}
 	original := append([]catalog.Column(nil), retained.Schema()...)
 	for _, replace := range []func() error{
 		func() error { return e.Reset(context.Background()) },

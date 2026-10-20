@@ -26,7 +26,7 @@ func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
 	}
 	original := node.Expressions[0]
 	calls := 0
-	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
+	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return original.Eval(c) })
 	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 3 || calls != 4 || source.View != nil {
 		t.Fatal(rows, count, calls, err, source.View)
@@ -90,12 +90,12 @@ func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 				node.Grouping[0].Grouping, _ = sqltype.BindGrouping(usage)
 				armed := &aggregateCancelContext{Context: ctx, at: 4}
 				evaluationContext = armed
-				node.Expressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+				node.Expressions[0] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 					armed.armed = true
 					return sqltype.String(text, strings.Repeat("x", 4096)), nil
 				})
 			} else {
-				node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase == "projection" {
 						cancel()
@@ -108,7 +108,7 @@ func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 				if phase == "prepublication" {
 					slot := project.Expressions[0]
 					published := 0
-					project.Expressions[0] = queryProbe(slot.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+					project.Expressions[0] = queryProbe(slot.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						published++
 						if published == 3 {
 							cancel()
@@ -135,7 +135,7 @@ func TestQueryDistinctInsertNoBatchOnLateProjectionFailure(t *testing.T) {
 	original := node.Expressions[0]
 	calls := 0
 	sentinel := errors.New("late distinct INSERT source")
-	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 3 {
 			return sqltype.Value{}, sentinel

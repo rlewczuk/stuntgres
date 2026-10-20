@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/routine"
 )
@@ -22,7 +23,7 @@ type commandRoutineProgram struct {
 	admission routineAdmissionProgram
 }
 
-func admitInquiryBody(c *EvalContext, node expr.Info) error {
+func admitInquiryBody(c *exec.Context, node expr.Info) error {
 	scope := scopeOf(c.LiveHost())
 	if scope == nil {
 		return nil
@@ -61,7 +62,7 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 	if err := programme.admission.record(&local, dependencies, outer); err != nil {
 		return err
 	}
-	local.RoutineBodyContext = routineBodyContext{Outer: outer, Statement: true}
+	local.RoutineBodyContext = exec.RoutineBodyContext{Outer: outer, Statement: true}
 	for _, edge := range outer.Body {
 		body, err := bodyRoutineDescriptor(&local, auth, dependencies, edge)
 		if err == nil {

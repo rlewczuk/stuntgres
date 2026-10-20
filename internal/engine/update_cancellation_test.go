@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
@@ -13,7 +14,7 @@ import (
 
 // Reuse the real binder, admission and view; only the existing evaluator seam
 // is replaced when a test must observe construction between two row payloads.
-func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context, q string) (*Operation, *StatementScope, binding, *querySource) {
+func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context, q string) (*Operation, *StatementScope, binding, *exec.Source) {
 	t.Helper()
 	op, err := s.Acquire(ctx)
 	if err != nil {
@@ -80,7 +81,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 				defer cancel()
 				op, scope, b, source := updateBoundSource(t, e, a, ctx, "UPDATE t SET v=v")
 				calls := 0
-				b.update.assignments[0] = queryProbe(b.relation.Columns[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				b.update.assignments[0] = queryProbe(b.relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						if deadline {

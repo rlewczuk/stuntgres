@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -60,7 +61,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	}
 	next := *old
 	next.Rules = rulesPayloadOf(slices.Clone(rulesOf(old)))
-	var sources []queryLeaf
+	var sources []exec.Leaf
 	switch s := stmt.(type) {
 	case *parser.CreateRule:
 		if strings.EqualFold(s.Event, "SELECT") {
@@ -137,7 +138,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if definition.conditionPresentation != nil {
 				for _, source := range definition.conditionPresentation.sources {
 					d := auth.Catalog.MustRelation(source.ref.Address)
-					sources = append(sources, queryLeaf{Ref: source.ref, Relation: d})
+					sources = append(sources, exec.Leaf{Ref: source.ref, Relation: d})
 				}
 			}
 		}

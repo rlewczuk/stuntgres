@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 				want = context.Canceled
 			}
 			usage := b.relation.Columns[0].Usage
-			b.returning.expressions = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			b.returning.expressions = []expr.Expr{queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if testExport(c.Row[0]).(int64) != testExport(c.OldRow[0]).(int64)+1 {
 					return sqltype.Value{}, fmt.Errorf("incorrect version frames: %v %v", c.Row, c.OldRow)
@@ -80,7 +81,7 @@ func TestUpdateReturningConstraintBeforeProjection(t *testing.T) {
 	for _, q := range []string{"UPDATE t SET v=NULL RETURNING old.v", "UPDATE t SET v=0 RETURNING old.v"} {
 		op, scope, b, source := updateBoundSource(t, e, s, context.Background(), q)
 		calls := 0
-		b.returning.expressions[0] = queryProbe(b.relation.Columns[0].Usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.OldRow[0], nil })
+		b.returning.expressions[0] = queryProbe(b.relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.OldRow[0], nil })
 		r, err := e.executeUpdate(op.Context(), scope, b, source, nil, nil, "public")
 		if err == nil || calls != 0 || r.Rows != nil || r.Count != 0 {
 			t.Fatal(r, err, calls)

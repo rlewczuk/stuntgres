@@ -129,7 +129,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			if !found {
 				t.Fatal("missing original manifest")
 			}
-			admit := func(c *EvalContext, n expr.Expr, r ids.ObjectRef) error {
+			admit := func(c *exec.Context, n expr.Expr, r ids.ObjectRef) error {
 				if aggregate {
 					return admitRoutineReference(c, r, "aggregate")
 				}

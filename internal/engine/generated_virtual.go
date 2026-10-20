@@ -55,7 +55,7 @@ func virtualGenerationSecurity(node expr.Expr) error {
 	return failure
 }
 
-func admitColumnVirtualGeneration(c *EvalContext, e plan.ColumnExpr, view catalog.Read) error {
+func admitColumnVirtualGeneration(c *exec.Context, e plan.ColumnExpr, view catalog.Read) error {
 	if e.VirtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -110,7 +110,7 @@ func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 	return nil
 }
 
-func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *EvalContext) (sqltype.Value, error) {
+func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *exec.Context) (sqltype.Value, error) {
 	if definition, ok := d.ColumnMeta.Generations[d.Attributes[slot]]; !ok || definition.Kind != catalog.GenerationVirtual {
 		return row[slot], nil
 	}

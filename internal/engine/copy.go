@@ -175,7 +175,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err != nil {
 		return 0, err
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
 	selected := make([]bool, len(b.relation.Columns))
 	for _, target := range b.targets {
 		selected[target] = true
@@ -262,7 +262,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		return
 	}
 	var cursor interface {
-		RowCursor
+		exec.RowCursor
 		rowDefaults() []bool
 		diagnostic(error) error
 	}
@@ -435,7 +435,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	}
 	return nil
 }
-func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*finalRows, error) {
+func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*exec.FinalRows, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	view, err := s.acquireDataViewLocked(e, b.ref)

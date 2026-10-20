@@ -45,7 +45,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	if filter == nil {
 		t.Fatal("missing real filter")
 	}
-	state := &queryState{Source: source, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
+	state := &exec.State{Source: source, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
 	if scope := scopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.input, scope.output
 	}
@@ -192,7 +192,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := mergeHashIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: counting}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, index, e.storage.IndexRoots[index.Address()], &p, false, true)
+	candidate, err := mergeHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index, e.storage.IndexRoots[index.Address()], &p, false, true)
 	if err != nil || candidate == nil || candidate.Hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.Hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}

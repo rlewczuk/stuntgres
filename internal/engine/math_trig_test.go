@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -63,7 +64,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 	if err != nil {
 		t.Fatal("binding executed a provider", err)
 	}
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	_, err = node.Eval(c)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "input is out of range"}

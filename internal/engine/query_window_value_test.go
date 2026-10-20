@@ -155,7 +155,7 @@ func TestQueryWindowValueEvaluationCancellation(t *testing.T) {
 				original = call.Argument
 			}
 			entered := false
-			probe := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			probe := queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				value, err := original.Eval(c)
 				entered = true
 				cancel()
@@ -235,12 +235,12 @@ func TestQueryWindowValueCurrentOrdinalAndSelectedEvaluation(t *testing.T) {
 	call := &node.Calls[0]
 	argument, ordinal := call.Argument, call.Ordinal
 	var current, selected []int64
-	call.Ordinal = queryProbe(ordinal.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	call.Ordinal = queryProbe(ordinal.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		current = append(current, id)
 		return ordinal.Eval(c)
 	})
-	call.Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	call.Argument = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		selected = append(selected, id)
 		return argument.Eval(c)

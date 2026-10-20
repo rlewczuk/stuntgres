@@ -70,7 +70,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 			values, separators, keys, advances, finalizes := 0, 0, 0, 0, 0
 			sentinel := errors.New("late string aggregate delimiter")
 			originalValue := call.Argument
-			call.Argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			call.Argument = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				values++
 				if phase == "value" {
 					cancel()
@@ -80,7 +80,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				}
 				return originalValue.Eval(c)
 			})
-			call.Separator = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			call.Separator = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				separators++
 				if phase == "separator" {
 					cancel()
@@ -91,7 +91,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				return sqltype.String(usage.Type, ","), nil
 			})
 			originalKey := call.Order[0].Expression
-			call.Order[0].Expression = queryProbe(originalKey.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			call.Order[0].Expression = queryProbe(originalKey.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				keys++
 				if phase == "key" {
 					cancel()

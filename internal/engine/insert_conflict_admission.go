@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 )
@@ -9,7 +10,7 @@ import (
 func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *boundInsertConflict) binding {
 	return binding{ref: ref, relation: parent, targets: action.targets, insert: insertBinding{conflict: action}, querySources: action.sources, returning: action.returning}
 }
-func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *EvalContext) (bool, error) {
+func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *exec.Context) (bool, error) {
 	action := s.insertConflict
 	if action == nil {
 		return true, s.checkInsertUniqueRow(ref, candidate, prefix)
@@ -94,7 +95,7 @@ func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWri
 			return indexWriteBatch{}, ids.ErrCatalogReplaced
 		}
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output}}
 	if err := s.insertConflict.selectArbiters(&evaluation, binding.parent, s.op.session.Engine().catalog.read(binding.catalog)); err != nil {
 		return indexWriteBatch{}, err
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -92,7 +93,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		binder.consumer.checkConsumer, binder.params.noParameters, binder.query.auth = true, true, &auth
 		binder.stored.checkLiterals = pending.literals
 		binder.query.namespace = &namespace
-		binder.query.sources = []queryLeaf{{Ref: ref, Relation: &replacement}}
+		binder.query.sources = []exec.Leaf{{Ref: ref, Relation: &replacement}}
 		node, err := binder.bindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, projectionContext, "CHECK")
 		e.mu.Unlock()
 		if err != nil {
@@ -146,7 +147,7 @@ type alterRowValidator struct {
 	notNull  []int
 }
 
-func (v alterRowValidator) validate(row []sqltype.Value, evaluation *EvalContext) error {
+func (v alterRowValidator) validate(row []sqltype.Value, evaluation *exec.Context) error {
 	for _, slot := range v.notNull {
 		column := v.relation.Columns[slot]
 		value, err := logicalColumnValue(v.relation, slot, row, evaluation)

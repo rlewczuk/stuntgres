@@ -21,8 +21,8 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 			t.Run(boundary+"/"+invalid, func(t *testing.T) {
 				e := New()
 				d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
-				provider := &pgSequencesSource{}
-				leaf := &querySource{PGSequences: provider}
+				provider := &exec.PGSequencesSource{}
+				leaf := &exec.Source{PGSequences: provider}
 				child := &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}
 				inner := plan.ColumnExpr{Scope: 1, Frame: 2, Slot: 1}
 				project := &plan.ProjectNode{QuerySchema: d.Columns[:1], Child: child, Expressions: []expr.Expr{inner}, Frame: 2}
@@ -57,10 +57,10 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 					node := &plan.DerivedNode{QuerySchema: d.Columns[:1], Query: &plan.Query{Root: project}, ScanFrame: 1}
 					exec.AdmitPGSequencesPredicate(node, leaf, predicate, 0, 1)
 				case "stored_project":
-					source := &querySource{NestedRoot: project, NestedInputs: leaf}
+					source := &exec.Source{NestedRoot: project, NestedInputs: leaf}
 					exec.AdmitPGSequencesSource(source, predicate, 1)
 				case "stored_input":
-					source := &querySource{Input: leaf, Layout: []int{1}}
+					source := &exec.Source{Input: leaf, Layout: []int{1}}
 					exec.AdmitPGSequencesSource(source, predicate, 1)
 				}
 				if len(provider.Predicates) != 0 {
@@ -78,8 +78,8 @@ func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	for _, boundary := range []string{"derived", "stored_project", "stored_input"} {
 		t.Run(boundary, func(t *testing.T) {
-			provider := &pgSequencesSource{}
-			leaf := &querySource{PGSequences: provider}
+			provider := &exec.PGSequencesSource{}
+			leaf := &exec.Source{PGSequences: provider}
 			child := &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}
 			project := &plan.ProjectNode{QuerySchema: d.Columns[:2], Child: child, Expressions: []expr.Expr{
 				plan.ColumnExpr{Scope: 1, Frame: 2, Slot: 1},
@@ -92,10 +92,10 @@ func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 				node := &plan.DerivedNode{QuerySchema: d.Columns[:2], Query: &plan.Query{Root: project}, ScanFrame: 1}
 				exec.AdmitPGSequencesPredicate(node, leaf, plan.NullTestExpr{Child: column}, 3, 1)
 			case "stored_project":
-				source := &querySource{NestedRoot: project, NestedInputs: leaf}
+				source := &exec.Source{NestedRoot: project, NestedInputs: leaf}
 				exec.AdmitPGSequencesSource(source, plan.NullTestExpr{Child: column}, 1)
 			case "stored_input":
-				source := &querySource{Input: leaf, Layout: []int{1, 0}}
+				source := &exec.Source{Input: leaf, Layout: []int{1, 0}}
 				exec.AdmitPGSequencesSource(source, plan.NullTestExpr{Child: column}, 1)
 			}
 			if len(provider.Predicates) != 1 {
@@ -137,13 +137,13 @@ func TestPGSequencesAdmissionDerivedRowLockFrame(t *testing.T) {
 	filter := rowLock.Child.(*plan.FilterNode)
 	derived := filter.Child.(*plan.DerivedNode)
 	inner := derived.Query.Root.(*plan.ProjectNode)
-	state := queryState{Frame: project.Frame}
+	state := exec.State{Frame: project.Frame}
 	evaluation := state.Evaluation(op.Context())
 	if derived.ScanFrame == 0 || derived.ScanFrame != evaluation.Frame || inner.Frame == evaluation.Frame {
 		t.Fatalf("caller/evaluation/derived/inner frames = %d/%d/%d/%d", project.Frame, evaluation.Frame, derived.ScanFrame, inner.Frame)
 	}
-	provider := &pgSequencesSource{}
-	inputs := &querySource{PGSequences: provider}
+	provider := &exec.PGSequencesSource{}
+	inputs := &exec.Source{PGSequences: provider}
 	exec.AdmitPGSequencesPredicate(rowLock, inputs, filter.Predicate, 0, evaluation.Frame)
 	if len(provider.Predicates) != 1 {
 		t.Fatalf("bound local row-lock predicate admitted %d predicates, want 1", len(provider.Predicates))

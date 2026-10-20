@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -10,12 +11,12 @@ import (
 
 // quoteOriginOf reads the opaque occurrence origin the engine stored on e. An
 // unset origin is the zero quoteOrigin.
-func quoteOriginOf(e functions.StringVariadic) quoteOrigin {
-	origin, _ := e.Origin.(quoteOrigin)
+func quoteOriginOf(e functions.StringVariadic) exec.QuoteOrigin {
+	origin, _ := e.Origin.(exec.QuoteOrigin)
 	return origin
 }
 
-func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, bool, error) {
+func foldStringVariadic(c *exec.Context, e functions.StringVariadic) (expr.Expr, bool, error) {
 	p := e.Properties()
 	if e.IntrinsicStable() || p.Volatility != expr.Immutable || !conditionalConstantInputs(e) {
 		return e, false, nil
@@ -24,14 +25,14 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 		return nil, false, err
 	}
 	retained := c.QuoteCaptures != nil && !p.RowDependent && !p.ParameterDependent && !p.StageDependent
-	var entry quoteConstant
+	var entry exec.QuoteConstant
 	index := -1
 	if retained {
 		origin := quoteOriginOf(e)
 		if origin.Owner == (ids.ObjectRef{}) {
 			origin = c.QuoteOrigin
 		}
-		entry = quoteConstant{Offset: e.Pos.Offset, Origin: origin, Frame: e.Frame, Name: e.Name, Anyelement: e.AnyElement, Source: e.Args[0].ResultUsage(), Result: e.Usage}
+		entry = exec.QuoteConstant{Offset: e.Pos.Offset, Origin: origin, Frame: e.Frame, Name: e.Name, Anyelement: e.AnyElement, Source: e.Args[0].ResultUsage(), Result: e.Usage}
 		for i, saved := range c.QuoteCaptures.Entries {
 			if saved.Offset != entry.Offset || saved.Origin != entry.Origin || saved.Frame != entry.Frame || saved.Name != entry.Name || saved.Anyelement != entry.Anyelement {
 				continue
@@ -51,7 +52,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 		entry.Value = value
 		group := c.QuoteCaptures
 		if !group.Private {
-			group.Entries = append([]quoteConstant(nil), group.Entries...)
+			group.Entries = append([]exec.QuoteConstant(nil), group.Entries...)
 			group.Private = true
 		}
 		if index >= 0 {
@@ -65,8 +66,8 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 
 // Definition tokens, not unrelated catalog revisions, retire stored origins.
 // The stable case borrows the entire published group without allocating.
-func pruneQuoteCaptures(g *quoteCaptureCandidate, view catalog.Read) {
-	valid := func(origin quoteOrigin) bool {
+func pruneQuoteCaptures(g *exec.QuoteCaptureCandidate, view catalog.Read) {
+	valid := func(origin exec.QuoteOrigin) bool {
 		if origin.Owner == (ids.ObjectRef{}) {
 			return true
 		}
@@ -86,7 +87,7 @@ func pruneQuoteCaptures(g *quoteCaptureCandidate, view catalog.Read) {
 		if valid(entry.Origin) {
 			continue
 		}
-		next := make([]quoteConstant, 0, len(g.Entries)-1)
+		next := make([]exec.QuoteConstant, 0, len(g.Entries)-1)
 		next = append(next, g.Entries[:i]...)
 		for _, remaining := range g.Entries[i+1:] {
 			if valid(remaining.Origin) {

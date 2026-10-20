@@ -4,6 +4,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -340,7 +341,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					}
 				}
 			}
-			indexRoots, indexErr = e.prepareIndexPublication(&EvalContext{EvalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Input: input, Output: output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates)
+			indexRoots, indexErr = e.prepareIndexPublication(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates)
 			if indexErr != nil {
 				return indexErr
 			}

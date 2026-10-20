@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -30,7 +31,7 @@ func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.
 	return plan.ExtensionPathsExpr{Info: info, Arg: arg}, nil
 }
 
-func (h *statementHost) OpenExtensionPaths(c *EvalContext, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error) {
+func (h *statementHost) OpenExtensionPaths(c *exec.Context, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error) {
 	scope := h.scope()
 	if scope.inquiry.commentCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing extension paths snapshot")

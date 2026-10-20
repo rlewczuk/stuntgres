@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -84,8 +85,8 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	if e.storage.RowFrontier() != before {
 		t.Fatal("failed Apply transferred ownership/allocated identity")
 	}
-	actual := result.Rows.(*finalRows)
-	forgedResult := &finalRows{Self: actual, Source: actual.Source}
+	actual := result.Rows.(*exec.FinalRows)
+	forgedResult := &exec.FinalRows{Self: actual, Source: actual.Source}
 	forgedResult.Close()
 	copiedResult := *actual
 	copiedResult.Close()

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -267,7 +268,7 @@ func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth *Authorizati
 	} else if owner.routineAuth.engine == nil {
 		owner.routineAuth = authority
 	}
-	eval := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(owner), Catalog: read, Input: input, Output: owner.output}, EvalAdmission: evalAdmission{RoutineAuthority: &authority}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(owner), Catalog: read, Input: input, Output: owner.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &authority}}
 	input.DomainChecks = &eval
 	return owner.DecodeLockedDomainInput(ctx, typ, text, typmod, input)
 }

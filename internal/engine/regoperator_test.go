@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
@@ -120,7 +121,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	if got := operatorSpelling(view, namespaces[:1], groups, 91000, sqltype.Regoper); got != "#=#" {
 		t.Fatal(got)
 	}
-	rows := &finalRows{}
+	rows := &exec.FinalRows{}
 	for _, alias := range []sqltype.ID{sqltype.Regoper, sqltype.Regoperator} {
 		typ, _ := view.LookupType(alias)
 		value, err := sqltype.OperatorValue(typ, 91000)

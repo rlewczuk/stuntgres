@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -53,7 +54,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 		if node.Plan.TextUsage().Type != text || node.Args[0].ResultUsage().Type != text {
 			t.Fatal("retag mutated source")
 		}
-		got, err := retained.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		got, err := retained.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if conflict {
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" || diagnostic.Message != "could not determine which collation to use for upper() function" {

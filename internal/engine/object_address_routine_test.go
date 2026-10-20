@@ -294,7 +294,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	// still refuse to cross the domain conversion itself.
 	for _, planner := range []struct {
 		name string
-		run  func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error)
+		run  func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error)
 	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}} {
 		t.Run("domain_sibling_"+planner.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "($1::integer)+(NULL::strict_null_checked)::integer")

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -26,7 +27,7 @@ func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	}
 	collation, _ := view.LookupType(sqltype.Regcollation)
 	namespace, _ := view.LookupType(sqltype.Regnamespace)
-	rows := &finalRows{}
+	rows := &exec.FinalRows{}
 	// Equal numeric payloads in different catalogs must not share presentation.
 	c, _ := sqltype.RegObjectValue(collation, 950)
 	n, _ := sqltype.RegObjectValue(namespace, 950)

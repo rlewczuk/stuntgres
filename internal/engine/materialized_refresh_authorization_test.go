@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -105,7 +106,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		columns := append([]catalog.Column(nil), d.Columns...)
 		columns[0].Usage = routine.Usage()
 		d.Columns = columns
-		probe := queryProbe(text.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+		probe := queryProbe(text.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
 			e.mu.Unlock()

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/sqltype"
@@ -20,7 +21,7 @@ type StatementDescription struct {
 	sequences        *sequence.Analysis
 	regtypes         *regtypeAnalysis
 	analysis         *preparedAnalysis
-	quotes           []quoteConstant
+	quotes           []exec.QuoteConstant
 	quoteGeneration  uint64 // Published separately after successful quote preflight.
 	planOwner        ids.SessionToken
 	planGeneration   uint64

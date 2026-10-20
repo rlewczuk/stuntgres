@@ -21,7 +21,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.consumer.indexConsumer, binder.params.noParameters, binder.query.auth = true, true, &auth
 	binder.query.namespace = &namespace
-	binder.query.sources = []queryLeaf{{Ref: ref, Relation: parent}}
+	binder.query.sources = []exec.Leaf{{Ref: ref, Relation: parent}}
 	return binder
 }
 
@@ -39,7 +39,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].Uses); err != nil {
 		return nil, "", err
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.dependencies
 	evaluation.RoutineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)

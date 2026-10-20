@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -35,7 +36,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			calls := 0
 			node.Info.Property.RowDependent = true
 			node.Args = []expr.Expr{conditionalSpy{Info: expr.Info{Usage: node.Usage, Property: expr.Properties{RowDependent: true}}, value: sqltype.Null(node.Usage.Type), calls: &calls, failure: errors.New("argument demanded")}, node.Args[1]}
-			evaluation := &EvalContext{EvalStatement: evalStatement{Context: ctx}}
+			evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}
 			assert := func(err error) {
 				t.Helper()
 				var diagnostic *sqlstate.Error

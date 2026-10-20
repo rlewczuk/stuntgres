@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -53,7 +54,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 		private, err := preflightUpdate(&evaluation, original)
 		if input == "oops" {
 			state(t, err, "22P02")
@@ -113,14 +114,14 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	whereEvaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{bad}}}
+	whereEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{bad}}}
 	failed, err := preflightUpdate(&whereEvaluation, &whereOnly)
 	state(t, err, "22P02")
 	if failed != nil {
 		t.Fatal("failed WHERE preflight returned a partially prepared update")
 	}
 	unchanged := &boundUpdate{assignments: []expr.Expr{column}}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	same, err := preflightUpdate(&evaluation, unchanged)
 	if err != nil || same != unchanged {
 		t.Fatal("unchanged update allocated/replaced", same, err)

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -13,8 +14,8 @@ import (
 
 type operatorSignature struct{ left, right ids.OID }
 
-func collectOperatorGroups(view catalog.Read) operatorGroups {
-	groups := make(operatorGroups)
+func collectOperatorGroups(view catalog.Read) exec.OperatorGroups {
+	groups := make(exec.OperatorGroups)
 	for key, addresses := range view.State().OperatorNames().Buckets {
 		for _, address := range addresses {
 			d := view.MustOperator(address)
@@ -25,7 +26,7 @@ func collectOperatorGroups(view catalog.Read) operatorGroups {
 }
 
 // Earlier namespaces mask only the same ordered operand signature.
-func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name string) []*catalog.Operator {
+func visibleOperators(groups exec.OperatorGroups, path []ids.ObjectAddress, name string) []*catalog.Operator {
 	var result []*catalog.Operator
 	seen := make(map[operatorSignature]bool)
 	for _, ns := range path {
@@ -46,7 +47,7 @@ func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name stri
 type capturedOperatorInput struct {
 	types     capturedRegtypeInput
 	path      []ids.ObjectAddress
-	groups    operatorGroups
+	groups    exec.OperatorGroups
 	qualified *[]ids.ObjectAddress
 	operands  *[]catalog.ExpressionDependency
 }

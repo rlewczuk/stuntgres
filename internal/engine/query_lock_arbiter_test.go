@@ -59,7 +59,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	root := &plan.RowLockNode{QuerySchema: join.Schema(), Child: join, Marks: marks, FirstMode: lock.ForUpdate}
 	e.mu.Lock()
 	err = e.initializeQueryLocksLocked(scope, root, leaves)
-	var inputs *querySource
+	var inputs *exec.Source
 	if err == nil {
 		inputs, err = e.captureQuerySourcesLocked(scope, leaves, false)
 	}
@@ -72,9 +72,9 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 		t.Fatal(err)
 	}
 	frame := append(append([]sqltype.Value(nil), exec.QuerySourceAt(inputs, 0).Row(0)...), exec.QuerySourceAt(inputs, 1).Row(0)...)
-	candidate := &querySource{Materialized: true, Anonymous: [][]sqltype.Value{frame}, FlatCount: 1, Occurrences: []int{0, 1}, Provenance: []int{0, 0}}
-	child := indexedStage{Source: candidate, Columns: join.Schema(), Pending: exec.AppendPendingRowMarks(nil, marks, inputs)}
-	out, err := exec.ArbitrateViewQuery(op.Context(), &queryState{Source: inputs}, root, child)
+	candidate := &exec.Source{Materialized: true, Anonymous: [][]sqltype.Value{frame}, FlatCount: 1, Occurrences: []int{0, 1}, Provenance: []int{0, 0}}
+	child := exec.Stage{Source: candidate, Columns: join.Schema(), Pending: exec.AppendPendingRowMarks(nil, marks, inputs)}
+	out, err := exec.ArbitrateViewQuery(op.Context(), &exec.State{Source: inputs}, root, child)
 	if err != nil {
 		t.Fatal(err)
 	}

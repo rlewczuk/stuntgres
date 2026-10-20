@@ -19,11 +19,11 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 				cleanup := errors.New("required inner close")
 				failure := errors.New("primary projection failure")
 				closes := 0
-				inner := indexedStage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
+				inner := exec.Stage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
 				if primary {
-					inner.Expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+					inner.Expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 				}
-				bridge := &querySource{Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: 1}
+				bridge := &exec.Source{Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: 1}
 				var child plan.Node = &plan.SourceNode{QuerySchema: project.Schema(), Ref: input.Ref}
 				if mode != "all" {
 					limit := &plan.LimitNode{QuerySchema: project.Schema(), Child: child, Count: queryLimitBound(t, e, 1)}
@@ -56,11 +56,11 @@ func TestQueryLimitEOFCloses(t *testing.T) {
 	project := query.Root.(*plan.ProjectNode)
 	failure := errors.New("EOF close failure")
 	closes := 0
-	child := indexedStage{Source: input, Columns: project.Child.Schema(), Selection: []int{0}, Finish: func() error { closes++; return failure }}
+	child := exec.Stage{Source: input, Columns: project.Child.Schema(), Selection: []int{0}, Finish: func() error { closes++; return failure }}
 	stage := exec.ProducingStage(&child, project.Schema())
 	stage.Expressions = project.Expressions
-	stage.Evaluation = EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 1}}
-	stage.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+	stage.Evaluation = exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	stage.Produce = func(ctx context.Context, out *exec.Stage) (bool, error) {
 		i, present, err := child.NextOccurrence(ctx)
 		if err != nil || !present {
 			return present, err

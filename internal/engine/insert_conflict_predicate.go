@@ -10,7 +10,7 @@ import (
 
 // This consumer deliberately does not change SELECT's exact-conjunction mask.
 // It proves SQL TRUE => TRUE with the owned immutable comparison providers.
-func conflictPredicateImpliedBy(ctx *EvalContext, a, b expr.Expr) (bool, error) {
+func conflictPredicateImpliedBy(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	if b == nil {
 		return true, nil
 	}
@@ -27,7 +27,7 @@ func conflictPredicateImpliedBy(ctx *EvalContext, a, b expr.Expr) (bool, error) 
 	}
 	return conflictPredicateProof(ctx, a, b)
 }
-func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, error) {
+func normalizeConflictPredicate(ctx *exec.Context, node expr.Expr) (expr.Expr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -159,7 +159,7 @@ func negateConflictPredicate(n plan.LogicalExpr) expr.Expr {
 	}
 	return n
 }
-func conflictPredicateProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
+func conflictPredicateProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	if exec.PlannedVolatility(a) != expr.Immutable || exec.PlannedVolatility(b) != expr.Immutable {
 		return false, nil
 	}
@@ -285,7 +285,7 @@ func conflictProofComparison(node expr.Expr) (plan.ComparisonExpr, bool) {
 	}
 	return comparison, true
 }
-func conflictComparisonProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
+func conflictComparisonProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	x, ok := conflictProofComparison(a)
 	if !ok {
 		return false, nil

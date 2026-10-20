@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -161,7 +162,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	if scope.inquiry.commentCatalog != catalog || scope.inquiry.commentRoles != roles {
 		t.Fatal("query opening replaced the statement comment snapshot")
 	}
-	query := queryState{Source: source, Input: scope.input, Output: scope.output}
+	query := exec.State{Source: source, Input: scope.input, Output: scope.output}
 	evaluation := query.Evaluation(ctx)
 	evaluation.RoutineRecipe = true
 	evaluation.RoutineChecks = relation.Constraints.Check[0].Dependencies

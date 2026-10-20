@@ -66,7 +66,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	if err != nil {
 		return Result{}, err
 	}
-	state := &queryState{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Ctes: s.cteInvocation}
+	state := &exec.State{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Ctes: s.cteInvocation}
 	defer state.ReleaseMemberships()
 	m.request.Parameters, err = exec.ForeignParameters(s.op.Context(), state, target.Foreign)
 	if err != nil {
@@ -148,8 +148,8 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	return s.executeForeignRowMutation(m, b, state, &evaluation)
 }
 
-func (s *StatementScope) foreignInsertResult(m *foreignModification, b binding, rows [][]sqltype.Value, evaluation *EvalContext) (Result, error) {
-	var output *finalRows
+func (s *StatementScope) foreignInsertResult(m *foreignModification, b binding, rows [][]sqltype.Value, evaluation *exec.Context) (Result, error) {
+	var output *exec.FinalRows
 	if b.returning != nil {
 		output = exec.NewFinalRows(b.returning.schema, 0)
 		output.Output = s.output
@@ -169,7 +169,7 @@ func (s *StatementScope) foreignInsertResult(m *foreignModification, b binding, 
 	}
 	return s.finishForeignResult(b, output, count)
 }
-func projectForeignReturning(b binding, output *finalRows, row, old []sqltype.Value, evaluation *EvalContext) error {
+func projectForeignReturning(b binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
 	if output == nil {
 		return nil
 	}
@@ -195,7 +195,7 @@ func projectForeignReturning(b binding, output *finalRows, row, old []sqltype.Va
 	output.Count++
 	return nil
 }
-func (s *StatementScope) finishForeignResult(b binding, output *finalRows, count int64) (Result, error) {
+func (s *StatementScope) finishForeignResult(b binding, output *exec.FinalRows, count int64) (Result, error) {
 	if output != nil && b.returning.regclassOutput && count != 0 {
 		if err := s.op.session.Engine().captureRegclassOutput(s.op, output); err != nil {
 			output.Close()
@@ -223,7 +223,7 @@ func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope)
 	f := m.source
 	r := exec.CopyForeignRequest(m.request.ForeignRequest)
 	r.Identity = &m.request.Targets
-	execution := &foreignExecution{}
+	execution := &exec.ForeignExecution{}
 	planning := exec.CopyForeignRequest(r)
 	planning.Transaction = nil
 	if err := f.Plan(ctx, planning, execution); err != nil {
@@ -286,7 +286,7 @@ func foreignIdentityEqual(a, b catalog.ForeignRowIdentity) bool {
 	}
 	return true
 }
-func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b binding, state *queryState, evaluation *EvalContext) (Result, error) {
+func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b binding, state *exec.State, evaluation *exec.Context) (Result, error) {
 	ctx := s.op.Context()
 	rows, err := m.targetRows(ctx, s)
 	if err != nil {
@@ -300,7 +300,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 	} else {
 		from = b.delete.using
 	}
-	var stage indexedStage
+	var stage exec.Stage
 	var frame []sqltype.Value
 	sourceCount := 1
 	if from != nil {
@@ -331,7 +331,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 			frame = make([]sqltype.Value, len(b.relation.Columns)+sourceWidth)
 		}
 	}
-	var output *finalRows
+	var output *exec.FinalRows
 	keep := false
 	if b.returning != nil {
 		output = exec.NewFinalRows(b.returning.schema, 0)
@@ -426,7 +426,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 // owner and cursor, the FDW participants and modifications of this statement,
 // and the hold-cursor promotions owned by this completion.
 type foreignTableScope struct {
-	owner          *foreignScanOwner
+	owner          *exec.ForeignScanOwner
 	cursor         *sqlCursor
 	statements     []*foreignParticipant
 	modifications  []*foreignModification
@@ -450,7 +450,7 @@ func (s *StatementScope) foreignTablesOrZero() foreignTableScope {
 }
 
 // takeOwner detaches the statement's foreign scan owner, if any.
-func (f *foreignTableScope) takeOwner() *foreignScanOwner {
+func (f *foreignTableScope) takeOwner() *exec.ForeignScanOwner {
 	if f == nil {
 		return nil
 	}
@@ -496,7 +496,7 @@ func (s *StatementScope) setForeignCursor(cursor *sqlCursor) {
 
 // setForeignLexical installs the scan owner and cursor saved around a SQL
 // routine body.
-func (s *StatementScope) setForeignLexical(owner *foreignScanOwner, cursor *sqlCursor) {
+func (s *StatementScope) setForeignLexical(owner *exec.ForeignScanOwner, cursor *sqlCursor) {
 	if owner != nil || cursor != nil || s.foreignTablesSlot != nil {
 		f := s.foreignTables()
 		f.owner, f.cursor = owner, cursor

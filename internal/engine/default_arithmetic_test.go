@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -76,7 +77,7 @@ func TestDefaultArithmeticPlanningScopedPolicy(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	node := view.MustRelation(ref.Address).ColumnMeta.Defaults[1].Expression
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	ordinary, changed, err := preflightCoercions(ctx, node)
 	if err != nil || changed {
 		t.Fatal("ordinary arithmetic must remain row-owned", changed, err)

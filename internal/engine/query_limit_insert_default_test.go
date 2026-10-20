@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 			typ := relation.Columns[1].Usage.Type
 			value, _ := sqltype.Integer(typ, 7)
 			calls := 0
-			probe := queryProbe(relation.Columns[1].Usage, func(*EvalContext) (sqltype.Value, error) {
+			probe := queryProbe(relation.Columns[1].Usage, func(*exec.Context) (sqltype.Value, error) {
 				calls++
 				return value, nil
 			})
@@ -51,7 +52,7 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 	value, _ := sqltype.Integer(relation.Columns[1].Usage.Type, 7)
 	failure := errors.New("retained runtime default failure")
 	calls := 0
-	probe := queryProbe(relation.Columns[1].Usage, func(*EvalContext) (sqltype.Value, error) {
+	probe := queryProbe(relation.Columns[1].Usage, func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, failure

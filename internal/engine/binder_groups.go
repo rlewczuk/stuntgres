@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -132,7 +133,7 @@ type groupingState struct {
 // FROM binders save it and restore it around nested levels.
 type queryScopeState struct {
 	auth                  *AuthorizationView
-	sources               []queryLeaf
+	sources               []exec.Leaf
 	lockAdmission         *queryLockAdmission
 	namespace             *queryNamespace
 	hidden                []queryQualifier

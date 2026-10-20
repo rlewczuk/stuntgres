@@ -262,7 +262,7 @@ func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.Create
 	if err != nil {
 		return Result{}, err
 	}
-	rows, err := result.(*finalRows).TakeTableRows(ctx)
+	rows, err := result.(*exec.FinalRows).TakeTableRows(ctx)
 	if err != nil {
 		return Result{}, err
 	}

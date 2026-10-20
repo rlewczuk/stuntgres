@@ -53,7 +53,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.Expre
 // Called during serial planning admission, never by per-row Eval. Retset calls
 // have their separate source/project demand point: a pruned FROM source must not
 // acquire EXECUTE merely because its arguments were inspected during planning.
-func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantComputation bool) error {
+func admitRoutineCall(c *exec.Context, node expr.Expr, scalarPlanning, constantComputation bool) error {
 	recipe, recipeErr := routine.ExpressionRecipeDescriptor(node)
 	if recipeErr != nil {
 		return recipeErr
@@ -121,7 +121,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	return admitRoutineBody(c, node, captured, constantComputation)
 }
 
-func admitCaseEquality(c *EvalContext, arm plan.CaseBranch) error {
+func admitCaseEquality(c *exec.Context, arm plan.CaseBranch) error {
 	if arm.Routine == nil || arm.Routine.Strict && exec.RandomLiteralNull(arm.Condition) {
 		return nil
 	}
@@ -132,7 +132,7 @@ func admitCaseEquality(c *EvalContext, arm plan.CaseBranch) error {
 	return admitRecipeRoutineDescriptor(c, auth, dependencies, arm.Routine)
 }
 
-func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
+func admitRecipeRoutineDescriptor(c *exec.Context, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
 	if err := checkRecipeRoutineDescriptor(c, auth, dependencies, captured); err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 	return nil
 }
 
-func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
+func checkRecipeRoutineDescriptor(c *exec.Context, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
 	if c.RoutineChecks != nil {
 		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer)
 	}
@@ -170,7 +170,7 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 	return admitRoutineDescriptor(auth, dependencies, captured, nil)
 }
 
-func routineAdmissionAuthority(c *EvalContext) (AuthorizationView, []catalog.ExpressionDependency, error) {
+func routineAdmissionAuthority(c *exec.Context) (AuthorizationView, []catalog.ExpressionDependency, error) {
 	var auth AuthorizationView
 	var dependencies []catalog.ExpressionDependency
 	if routineAuth := routineAuthorityView(c); routineAuth != nil {
@@ -196,7 +196,7 @@ func routineAdmissionAuthority(c *EvalContext) (AuthorizationView, []catalog.Exp
 // Aggregate/window carriers already contain the actual provenance-bearing ref.
 // Their admission is once per executable graph occurrence, including empty
 // inputs, and is independent of any comparator or aggregate support function.
-func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error {
+func admitRoutineReference(c *exec.Context, ref ids.ObjectRef, noun string) error {
 	auth, dependencies, err := routineAdmissionAuthority(c)
 	if err != nil || auth.engine == nil {
 		return err
@@ -240,7 +240,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 // Child folds have already discarded non-invocations and cleared their carrier;
 // still-live callable children must be admitted before an enclosing Eval can
 // invoke them. No permission lookup is added to row evaluation.
-func evaluatePlanningExpression(c *EvalContext, node expr.Expr) (sqltype.Value, error) {
+func evaluatePlanningExpression(c *exec.Context, node expr.Expr) (sqltype.Value, error) {
 	var failure error
 	plan.WalkExpression(node, func(call expr.Expr) {
 		if failure == nil {
@@ -255,7 +255,7 @@ func evaluatePlanningExpression(c *EvalContext, node expr.Expr) (sqltype.Value, 
 
 // Query equality is caller-checked; index/hash support and native semantic-tree
 // grouping are deliberately not callable PostgreSQL routines.
-func admitQueryGroupings(c *EvalContext, groups []plan.Grouping, keys []expr.Expr) error {
+func admitQueryGroupings(c *exec.Context, groups []plan.Grouping, keys []expr.Expr) error {
 	if len(groups) != len(keys) {
 		return fmt.Errorf("stuntgres: missing query grouping identity")
 	}

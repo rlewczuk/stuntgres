@@ -67,12 +67,12 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
 			binder.consumer.partitionConsumer, binder.params.noParameters, binder.query.auth = "partition key expression", true, &auth
 			binder.query.namespace = &namespace
-			binder.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
+			binder.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
 			node, err := binder.bind(r.Expression, expressionPolicy{context: projectionContext})
 			if err != nil {
 				return nil, err
 			}
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			planned, _, err := preflightCoercionsWithPolicy(&evaluation, node, true)
 			if err != nil {
 				return nil, err
@@ -203,7 +203,7 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 	return storageDestination(node, key.Usage, node.SourcePosition())
 }
 
-func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evaluation *EvalContext) error {
+func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evaluation *exec.Context) error {
 	if p.bound.Strategy == parser.PartitionHash {
 		return scope.op.Context().Err()
 	}

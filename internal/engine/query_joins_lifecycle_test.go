@@ -65,7 +65,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	if err == nil {
 		binding, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
-	var source *querySource
+	var source *exec.Source
 	if err == nil {
 		source, err = e.captureQuerySourcesLocked(scope, binding.querySources, false)
 	}
@@ -385,7 +385,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 				done := make(chan error, 1)
 				var result Result
 				var capturedScope *StatementScope
-				var capturedSources []queryLeaf
+				var capturedSources []exec.Leaf
 				go func() {
 					op, err := reader.Acquire(context.Background())
 					if err != nil {
@@ -402,7 +402,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 					scope.Expected = expected
 					result, err = scope.Execute(ast, 0, nil)
 					// Observe admission metadata before Finish clears grants.
-					capturedSources = append([]queryLeaf(nil), scope.querySources...)
+					capturedSources = append([]exec.Leaf(nil), scope.querySources...)
 					err = scope.Finish(err)
 					if result.Rows != nil {
 						result.Rows.Close()
@@ -477,7 +477,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 	sessionSQL(t, s, "DELETE FROM unrelated WHERE k=9")
 	sessionSQL(t, s, "INSERT INTO unrelated VALUES(10)")
 	unrelated := roleTableRef(t, e, "unrelated")
-	var held RowResult
+	var held exec.RowResult
 	for _, private := range []bool{false, true} {
 		if private {
 			sessionSQL(t, s, "DELETE FROM a WHERE k=1")
@@ -485,7 +485,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO b VALUES(3)")
 		}
 		var query *plan.Query
-		source, finish := func() (*querySource, func(error) error) {
+		source, finish := func() (*exec.Source, func(error) error) {
 			op := transactionOperation(t, s)
 			t.Cleanup(op.Done)
 			scope, err := e.StartStatement(op)
@@ -518,7 +518,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			if err == nil {
 				bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 			}
-			var source *querySource
+			var source *exec.Source
 			if err == nil {
 				source, err = e.captureQuerySourcesLocked(scope, bound.querySources, false)
 			}

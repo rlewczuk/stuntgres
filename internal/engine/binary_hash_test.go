@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -38,7 +39,7 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			// Local child units own runtime order/error propagation; retain
 			// real owner remap and exact payload comparison here.
 			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}}}
-			got, err := expr.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			got, err := expr.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,7 +51,7 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			if !ok || next.Plan.Name() != name || next.Plan.ResultUsage().Type != replacement[id] || next.Args[0].ResultUsage().Type != replacement[sqltype.Bytea] {
 				t.Fatal(rebound)
 			}
-			result, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			result, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)
 			}

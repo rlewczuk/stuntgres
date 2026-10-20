@@ -22,7 +22,7 @@ func TestExpressionFloatingArithmeticCancellationBeforePublication(t *testing.T)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	evaluated := false
-	project.Expressions[0] = queryProbe(real.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	project.Expressions[0] = queryProbe(real.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		v, err := real.Eval(c)
 		if err != nil {
 			return v, err
@@ -111,7 +111,7 @@ func TestExpressionFloatingArithmeticCanceledInsertFinish(t *testing.T) {
 
 // Keep these seam witnesses in native typed values: the unrelated legacy
 // testExport helper intentionally covers only its original primitive types.
-func assertFloatingArithmeticRows(t *testing.T, rows RowResult, expected [][]any) {
+func assertFloatingArithmeticRows(t *testing.T, rows exec.RowResult, expected [][]any) {
 	t.Helper()
 	if len(rows.Schema()) != 2 {
 		t.Fatal("floating row width", rows.Schema())

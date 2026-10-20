@@ -16,9 +16,9 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		calls := 0
-		join := &plan.JoinNode{QuerySchema: project.Child.Schema(), Left: project.Child, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
+		join := &plan.JoinNode{QuerySchema: project.Child.Schema(), Left: project.Child, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
 		project.Child = &plan.LimitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
-		inputs := &querySource{Sources: []*querySource{source, {Anonymous: [][]sqltype.Value{{}}}}}
+		inputs := &exec.Source{Sources: []*exec.Source{source, {Anonymous: [][]sqltype.Value{{}}}}}
 		rows, n, err := exec.Finalize(ctx, project, inputs, nil)
 		if rows != nil || n != 0 || err != context.Canceled || calls != 1 || source.View != nil {
 			t.Fatal(rows, n, err, calls, source.View)
@@ -38,7 +38,7 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 			calls := 0
 			sort.CacheWidth = 1
 			sort.Keys[0].Cache = 0
-			sort.Keys[0].Expression = queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			sort.Keys[0].Expression = queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
 				calls++
 				if calls == len(source.Committed) {
 					ctx.remaining = 8

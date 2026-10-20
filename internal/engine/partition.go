@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -223,7 +224,7 @@ type partitionEvaluatedKey struct {
 	hash    uint64
 }
 
-func partitionRowKey(d *catalog.Relation, row []sqltype.Value, evaluation *EvalContext, buffer []catalog.PartitionDatum) (partitionEvaluatedKey, error) {
+func partitionRowKey(d *catalog.Relation, row []sqltype.Value, evaluation *exec.Context, buffer []catalog.PartitionDatum) (partitionEvaluatedKey, error) {
 	keys := d.Partition.Keys
 	result := partitionEvaluatedKey{values: buffer[:len(keys)]}
 	for i, key := range keys {
@@ -274,7 +275,7 @@ func partitionContains(ctx context.Context, keys []catalog.PartitionKeyEntry, bo
 
 // DEFAULT is always the live complement; no copied DEFAULT predicate can
 // outlive an explicit sibling's publication or its atomic removal.
-func partitionAccepts(view catalog.Read, parent *catalog.Relation, child *catalog.Relation, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
+func partitionAccepts(view catalog.Read, parent *catalog.Relation, child *catalog.Relation, row []sqltype.Value, evaluation *exec.Context) (bool, error) {
 	var buffer [32]catalog.PartitionDatum
 	key, err := partitionRowKey(parent, row, evaluation, buffer[:])
 	if err != nil {

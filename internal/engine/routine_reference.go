@@ -2,12 +2,13 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 )
 
 // Only evaluator-local stack copies select graft ancestry. A user replacement
 // cannot inherit the enclosing stored node's manifest or relation owner.
-func selectExpressionRecipe(c *EvalContext, recipe *catalog.Relation) error {
+func selectExpressionRecipe(c *exec.Context, recipe *catalog.Relation) error {
 	c.RoutineGraft = recipe != nil
 	c.RoutineRecipe = recipe != nil
 	c.RoutineReferences = nil

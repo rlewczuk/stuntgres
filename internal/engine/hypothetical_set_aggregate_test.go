@@ -35,7 +35,7 @@ func (in hypotheticalUnit) tuple(i int) []sqltype.Value {
 }
 
 func (in hypotheticalUnit) borrowed() functions.OrderedInput {
-	return orderedAggregateInput{Values: in.values, Indices: in.indices, Width: in.width, Order: in.order}.Borrowed(in.target)
+	return exec.OrderedAggregateInput{Values: in.values, Indices: in.indices, Width: in.width, Order: in.order}.Borrowed(in.target)
 }
 
 func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ...string) (*functions.HypotheticalSet, hypotheticalUnit) {
@@ -193,7 +193,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			child := &plan.ValuesNode{Rows: [][]expr.Expr{{}}}
 			aggregate := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: node.ResultUsage()}}, Child: child, Calls: []plan.AggregateCall{call}}
 			root := &plan.ProjectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: node.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
-			rows, count, err := exec.Finalize(context.Background(), root, &querySource{}, nil)
+			rows, count, err := exec.Finalize(context.Background(), root, &exec.Source{}, nil)
 			if err != nil || count != 1 {
 				t.Fatal("49-key private execution", count, err)
 			}
@@ -325,7 +325,7 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 			directCalls, keyCalls := []int{}, 0
 			var direct []expr.Expr
 			for i := range 2 {
-				direct = append(direct, queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) {
+				direct = append(direct, queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) {
 					directCalls = append(directCalls, i)
 					if phase == "direct_first" && i == 0 || phase == "direct_later" && i == 1 {
 						cancel()
@@ -333,7 +333,7 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 					return in.target[2], nil
 				}))
 			}
-			key := queryProbe(input.Usage(), func(c *EvalContext) (sqltype.Value, error) { keyCalls++; return c.Row[0], nil })
+			key := queryProbe(input.Usage(), func(c *exec.Context) (sqltype.Value, error) { keyCalls++; return c.Row[0], nil })
 			call := plan.AggregateCall{Provider: p, Direct: direct, Operation: p.Operation(), StageWidth: 4, IncludeNulls: true, Order: []plan.SortKey{{Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 2}, {Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 3}}}
 			child := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: input.Usage()}}}
 			for i := range in.len() {
@@ -343,10 +343,14 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 			root := &plan.ProjectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: p.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 			if phase == "prepublication" {
 				result := root.Expressions[0]
-				root.Expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })
+				root.Expressions[0] = queryProbe(p.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+					value, err := result.Eval(c)
+					cancel()
+					return value, err
+				})
 			}
-			owned := &querySource{Anonymous: [][]sqltype.Value{{sqltype.Null(input)}}, Flat: []sqltype.Value{sqltype.Null(input)}}
-			source := &querySource{Sources: []*querySource{owned}}
+			owned := &exec.Source{Anonymous: [][]sqltype.Value{{sqltype.Null(input)}}, Flat: []sqltype.Value{sqltype.Null(input)}}
+			source := &exec.Source{Sources: []*exec.Source{owned}}
 			rows, count, err := exec.Finalize(execution, root, source, nil)
 			if phase == "success" {
 				if err != nil || count != 1 || !reflect.DeepEqual(directCalls, []int{0, 1}) || keyCalls != 6 {

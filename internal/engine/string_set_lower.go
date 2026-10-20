@@ -179,7 +179,7 @@ func replaceStringSortExpressions(keys []plan.SortKey, expressions []expr.Expr) 
 	}
 }
 
-func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error) {
+func preflightQuerySet(c *exec.Context, n *plan.SetProjectNode) (plan.Node, error) {
 	if n.Template == nil {
 		return n, nil
 	}

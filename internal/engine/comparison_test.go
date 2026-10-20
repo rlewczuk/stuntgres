@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -181,7 +182,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(c)
 			}
-			value, err := c.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			value, err := c.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			truth, truthErr := value.Boolean()
 			if err != nil || truthErr != nil || !truth || !reflect.DeepEqual(before, desc.temporals) {
 				e.mu.Unlock()

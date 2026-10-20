@@ -76,7 +76,7 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 		if err != nil || !changed || rebound.ResultUsage().Type != replacements[signature.result] {
 			t.Fatal("remap", signature, rebound, changed, err)
 		}
-		value, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: env}})
+		value, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: env}})
 		if err != nil || value.Type() != rebound.ResultUsage().Type {
 			t.Fatal("remapped provider", signature, value, err)
 		}
@@ -129,7 +129,7 @@ func TestDatetimeZoneStrictConstantNullAndPrecancellation(t *testing.T) {
 	}
 	expression := node.(functions.DatetimeZoneCalendar)
 	expression.Args[0] = plan.LiteralExpr{Info: expr.InfoOf(expression.Args[0]), Value: sqltype.Null(expression.Args[0].ResultUsage().Type)}
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	simplified, changed, err := preflightCoercions(ctx, expression)
 	if err != nil || !changed {
 		t.Fatal(simplified, changed, err)

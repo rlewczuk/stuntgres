@@ -41,20 +41,20 @@ type sqlCursor struct {
 	storeOffset                                 int64
 	root                                        *plan.ProjectNode
 	schema                                      []catalog.Column
-	source                                      *querySource
-	state                                       queryState
-	stage                                       *indexedStage
-	authority                                   *queryAuthority
-	foreignOwner                                *foreignScanOwner
+	source                                      *exec.Source
+	state                                       exec.State
+	stage                                       *exec.Stage
+	authority                                   *exec.Authority
+	foreignOwner                                *exec.ForeignScanOwner
 	position                                    cursorPosition
 	scroll                                      bool
 	ordinalPosition                             int64
 	atEnd                                       bool
 	cleanupError                                error
-	currentSource                               *querySource
+	currentSource                               *exec.Source
 	currentIndex                                int
-	leaves                                      []queryLeaf
-	locks                                       *queryLockContext
+	leaves                                      []exec.Leaf
+	locks                                       *exec.LockContext
 	catalog                                     catalog.Read
 	roles                                       authorization.Read
 	routineDependencies                         []catalog.ExpressionDependency // Original immutable binding lifetimes, not permissions.
@@ -92,7 +92,7 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 		c.source = nil
 	}
 	c.state.ReleaseMemberships()
-	c.state = queryState{}
+	c.state = exec.State{}
 	c.root = nil
 	c.leaves, c.locks = nil, nil
 	c.catalog = catalog.Read{}
@@ -171,7 +171,7 @@ func forwardSQLCursorError() error {
 	return err
 }
 
-func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, root plan.Node, source *querySource, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, root plan.Node, source *exec.Source, parameters []sqltype.Value) (Result, error) {
 	keep := false
 	defer func() {
 		s.routineAuth = AuthorizationView{}
@@ -204,7 +204,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
 	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
-	c.state = queryState{Source: source, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state = exec.State{Source: source, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
@@ -319,7 +319,7 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	if err := s.authorizeSQLCursor(c); err != nil {
 		return Result{}, err
 	}
-	var rows *finalRows
+	var rows *exec.FinalRows
 	if !fetch.Move {
 		rows = exec.NewFinalRows(c.schema, 0)
 		rows.Output = c.state.Output

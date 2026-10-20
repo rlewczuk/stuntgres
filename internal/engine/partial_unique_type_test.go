@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -40,7 +41,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				writes = []storage.RowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
-			roots, err := validateAlterIndexBuilds(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, f.auth, f.auth.Catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.Attributes[3], rewrite: true}}, nil, nil, true)
+			roots, err := validateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.auth, f.auth.Catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.Attributes[3], rewrite: true}}, nil, nil, true)
 			if overlay == "none" || overlay == "member_successor" {
 				if roots != nil {
 					t.Fatal("failed TYPE returned baseline")
@@ -79,7 +80,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	definition.Predicate = &predicate
 	next.SQLIndex = &definition
 	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{next.Address(): &next}, originals: map[ids.ObjectAddress]catalog.Descriptor{next.Address(): f.index}}
-	if err := prepareAlterIndexRoots(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.auth.Catalog, f.parent, &baseline, nil, false); err != nil {
+	if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, changes, f.auth.Catalog, f.parent, &baseline, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	root := changes.indexesOrZero().uniqueRoots[next.Address()]
@@ -100,7 +101,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	}
 	validated := map[string]*alterIndexBuild{next.Name(): {index: &next, root: root, store: &baseline}}
 	other := &catalogChanges{descriptors: changes.descriptors, originals: changes.originals}
-	if err := prepareAlterIndexRoots(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, other, f.auth.Catalog, f.parent, &baseline, validated, false); err != nil {
+	if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, other, f.auth.Catalog, f.parent, &baseline, validated, false); err != nil {
 		t.Fatal(err)
 	}
 	if other.indexesOrZero().uniqueRoots[next.Address()] != root {

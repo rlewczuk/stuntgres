@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -47,7 +48,7 @@ func TestMathHyperbolicEvaluationPhase(t *testing.T) {
 		if err != nil {
 			t.Fatal("binding evaluated provider", err)
 		}
-		c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+		c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 		_, err = node.Eval(c)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {

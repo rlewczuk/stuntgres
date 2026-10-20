@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -121,7 +122,7 @@ type partitionAttachRowConstraint struct {
 
 func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, parent *catalog.Relation, bound *catalog.PartitionMembership, jobs []partitionAttachScan) error {
 	ctx := scope.op.Context()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
 	for _, job := range jobs {
 		constraints := make([]partitionAttachRowConstraint, 0, 2)
 		add := func(p *catalog.Relation, m *catalog.PartitionMembership) error {

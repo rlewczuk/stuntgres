@@ -114,7 +114,7 @@ func TestRLSBaseDecision(t *testing.T) {
 		if source.View == nil || !source.RlsDenied || len(source.Committed) != 0 || len(source.Own) != 0 || source.HashIndexes != nil || source.PartialMask != nil {
 			t.Fatal("denied source lost ownership or captured physical rows/indexes")
 		}
-		stage, err := exec.OpenNode(op.ctx, &queryState{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
+		stage, err := exec.OpenNode(op.ctx, &exec.State{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
 		if err != nil {
 			t.Fatal(err)
 		}

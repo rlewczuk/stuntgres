@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) IdentityValue(c *EvalContext, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *statementHost) IdentityValue(c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	identity := s.identity
 	if c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {
@@ -73,7 +74,7 @@ func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 		return err
 	}
 	session, sessionExists := auth.Roles.Find(auth.State.SessionUser)
-	s.identity = identitySnapshot{Database: sqltype.String(name, s.op.session.databaseName), System: sqltype.Null(text), CurrentPrincipal: auth.State.CurrentUser}
+	s.identity = exec.IdentitySnapshot{Database: sqltype.String(name, s.op.session.databaseName), System: sqltype.Null(text), CurrentPrincipal: auth.State.CurrentUser}
 	if sessionExists {
 		s.identity.Session = sqltype.String(name, session.Name)
 	} else {
@@ -88,7 +89,7 @@ func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 }
 
 // Match current_user's expression identity, not the view's relation check owner.
-func expressionPrincipal(c *EvalContext) authorization.PrincipalRef {
+func expressionPrincipal(c *exec.Context) authorization.PrincipalRef {
 	s := scopeOf(c.LiveHost())
 	if s.foreignActionAuth != nil {
 		return s.foreignActionAuth.State.CurrentUser

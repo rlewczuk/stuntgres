@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
@@ -26,7 +27,7 @@ func defaultACLUnitSource(t *testing.T, e *Engine, c catalog.Read) (*catalog.Rel
 	}
 	return d, e.catalog.Domain.Ref(c.Epoch(), a)
 }
-func defaultACLUnitCapture(t *testing.T, f defaultUnitFixture, c catalog.Read) *querySource {
+func defaultACLUnitCapture(t *testing.T, f defaultUnitFixture, c catalog.Read) *exec.Source {
 	t.Helper()
 	d, ref := defaultACLUnitSource(t, f.e, c)
 	f.e.mu.Lock()

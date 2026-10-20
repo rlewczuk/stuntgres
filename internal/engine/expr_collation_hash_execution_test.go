@@ -21,7 +21,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		rhs := node.QueryPlan.Root.(*plan.ProjectNode)
 		usage := rhs.Schema()[0].Usage
 		calls := 0
-		probe := queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+		probe := queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			return sqltype.Integer(usage.Type, int64(calls))
 		}).(queryProbeExpression)
@@ -31,7 +31,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		ref, conflict := node.Comparisons[0].Predicate.InputCollation()
 		properties := node.Properties()
 		for execution, want := range [][]any{{true, true, nil, false}, {false, false, nil, true}} {
-			state := queryState{Source: source}
+			state := exec.State{Source: source}
 			stage, err := exec.OpenQueryProjectStage(context.Background(), &state, project)
 			if err != nil {
 				t.Fatal(err)
@@ -70,7 +70,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			if len(state.Memberships) != 1 {
 				t.Fatal("borrowed stage close erased retained membership", len(state.Memberships))
 			}
-			retained := state.Memberships[subqueryMembershipKey{Plan: node.QueryPlan, Source: source}]
+			retained := state.Memberships[exec.SubqueryMembershipKey{Plan: node.QueryPlan, Source: source}]
 			if retained == nil || len(retained.Flat) != 1 {
 				t.Fatal("owner lost the successfully built tuple")
 			}
@@ -87,11 +87,11 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		rhs := expr.QueryPlan.Root.(*plan.ProjectNode)
 		usage := rhs.Schema()[0].Usage
 		calls := 0
-		subqueryTestTarget(t, rhs, queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+		subqueryTestTarget(t, rhs, queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			return sqltype.Null(usage.Type), nil
 		}))
-		state := queryState{Source: source}
+		state := exec.State{Source: source}
 		defer state.ReleaseMemberships()
 		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, project)
 		if err != nil {
@@ -120,13 +120,13 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			primary := errors.New("demanded RHS target")
 			leftCalls, rightCalls := 0, 0
 			leftUsage := expr.Comparisons[0].Left.ResultUsage()
-			expr.Comparisons[0].Left = queryProbe(leftUsage, func(*EvalContext) (sqltype.Value, error) {
+			expr.Comparisons[0].Left = queryProbe(leftUsage, func(*exec.Context) (sqltype.Value, error) {
 				leftCalls++
 				return sqltype.Integer(leftUsage.Type, 1)
 			})
 			project.Expressions[0] = expr
 			usage := rhs.Schema()[0].Usage
-			subqueryTestTarget(t, rhs, queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+			subqueryTestTarget(t, rhs, queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 				rightCalls++
 				if mode == "rhs-error" {
 					return sqltype.Value{}, primary
@@ -134,7 +134,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 				cancel()
 				return sqltype.Integer(usage.Type, 1)
 			}))
-			state := queryState{Source: source}
+			state := exec.State{Source: source}
 			stage, err := exec.OpenQueryProjectStage(ctx, &state, project)
 			if err != nil {
 				t.Fatal(err)
@@ -195,7 +195,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		if len(source.Sources) != 2 || source.Sources[0].NestedInputs == nil || source.Sources[1].NestedInputs == nil || source.Sources[0].NestedInputs == source.Sources[1].NestedInputs {
 			t.Fatal("real view aliases did not capture distinct source occurrences")
 		}
-		state := queryState{Source: source, Input: scope.input, Output: scope.output}
+		state := exec.State{Source: source, Input: scope.input, Output: scope.output}
 		defer state.ReleaseMemberships()
 		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, bound.query.Root.(*plan.ProjectNode))
 		if err != nil {

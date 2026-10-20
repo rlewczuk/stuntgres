@@ -344,7 +344,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 	e, op, scope := jsonbRecordRoutineUnitFixture(t)
 	var nodes []expr.Expr
-	var evaluations []EvalContext
+	var evaluations []exec.Context
 	for _, expression := range []string{
 		"jsonb_populate_record(NULL::strict_null_rows,NULL::jsonb)",
 		"jsonb_populate_recordset(NULL::strict_null_rows,NULL::jsonb)",

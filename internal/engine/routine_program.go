@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -14,12 +15,12 @@ type routineAdmission struct {
 	routine   *catalog.Procedure
 	reference ids.ObjectRef
 	consumer  *catalog.Relation
-	body      routineBodyContext
+	body      exec.RoutineBodyContext
 	actor     authorization.PrincipalRef
 }
 type routineAdmissionProgram struct{ calls []routineAdmission }
 
-func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure) error {
+func (p *routineAdmissionProgram) record(c *exec.Context, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure) error {
 	var ref ids.ObjectRef
 	if c.RoutineReferences != nil {
 		for _, candidate := range c.RoutineReferences {

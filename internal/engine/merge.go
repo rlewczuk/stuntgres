@@ -258,7 +258,7 @@ func mergeTargetUnion(union, targets []int) []int {
 
 // Each Execute has a newly analyzed binding. Preflight mutates only that private
 // binding, never a stored source/default definition or held prepared statement.
-func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) error {
+func preflightMerge(c *exec.Context, merge *boundMerge, catalog catalog.Read) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	var err error
@@ -411,7 +411,7 @@ func (merge *boundMerge) hasVirtualReads() bool {
 	return false
 }
 
-func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b binding, target, inputs *querySource, parameters []sqltype.Value, schema string) (Result, error) {
+func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b binding, target, inputs *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
 	defer target.Close()
 	defer inputs.Close()
 	unique, err := scope.bindUniqueWrite(b.ref)
@@ -421,7 +421,7 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 		return Result{}, err
 	}
-	state := &queryState{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: b.merge.hasVirtualReads()}
+	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: b.merge.hasVirtualReads()}
 	if b.returning != nil {
 		for _, expr := range b.returning.expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)

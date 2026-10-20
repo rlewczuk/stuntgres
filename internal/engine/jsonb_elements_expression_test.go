@@ -36,7 +36,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		if _, err := original.Reconstruct(original.Info, []expr.Expr{arg, arg}); err == nil {
 			t.Fatal("two children accepted")
 		}
-		if _, err := original.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); err == nil {
+		if _, err := original.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err == nil {
 			t.Fatal("unlifted evaluation accepted")
 		}
 		fresh := jsonObjectUnitTypes()
@@ -47,7 +47,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		next := mapped.(functions.JSONBElements)
 		assertFirst := func(call expr.Expr, result *sqltype.Descriptor, want string) {
 			t.Helper()
-			cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, call)
+			cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, call)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +67,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		replacement := queryProbe(arg.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return replacementValue, nil })
+		replacement := queryProbe(arg.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { return replacementValue, nil })
 		rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return replacement, true, nil
@@ -82,8 +82,8 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		draws := 0
 		// Use the reminted argument captured before replacing its expression.
 		input := mapped.(functions.JSONBElements).Args[0]
-		next.Args = []expr.Expr{queryProbe(fresh[sqltype.JSONB].Usage(), func(c *EvalContext) (sqltype.Value, error) { draws++; return input.Eval(c) })}
-		cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, next)
+		next.Args = []expr.Expr{queryProbe(fresh[sqltype.JSONB].Usage(), func(c *exec.Context) (sqltype.Value, error) { draws++; return input.Eval(c) })}
+		cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -108,8 +108,8 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			t.Fatal("repeated child evaluation", draws)
 		}
 		failure := errors.New("selected child failure")
-		next.Args = []expr.Expr{queryProbe(fresh[sqltype.JSONB].Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
-		if c, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, next); !errors.Is(err, failure) || c.Type != nil {
+		next.Args = []expr.Expr{queryProbe(fresh[sqltype.JSONB].Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+		if c, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, next); !errors.Is(err, failure) || c.Type != nil {
 			t.Fatal("published failed invocation", c, err)
 		}
 	}

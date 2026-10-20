@@ -120,7 +120,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	s.routineAuth, s.routineDependencies = auth, binder.dependencies
 	s.input = binder.input
 	s.domains.inputCatalog = auth.Catalog
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
 	evaluation.Input.DomainChecks = &evaluation
 	e.mu.Unlock()
 	formats, err := protocolFormats(input)

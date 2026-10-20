@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -59,7 +60,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		}
 		plan.input.TypeDiagnosticName = name
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: plan.input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &auth}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: plan.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	if plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
@@ -240,7 +241,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if plan != nil {
 		input = plan.input
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: ownerAuth.Catalog, Input: input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &ownerAuth}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: ownerAuth.Catalog, Input: input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &ownerAuth}}
 	if plan != nil && plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -119,7 +120,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 			if restored.Get(bound.Procedure.Address()) != bound.Procedure || restored.Get(bound.Dictionary.Address()) != bound.Dictionary || restored.Get(bound.Template.Address()) != bound.Template {
 				t.Fatal("bound callable no longer authentic")
 			}
-			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			text, _ := value.Text()
 			if err != nil || text != "Hotel" {
 				t.Fatal("retained callable", text, err)

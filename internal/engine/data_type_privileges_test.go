@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -25,7 +26,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) 
 	return auth
 }
 
-func dtpUnitCapture(ctx context.Context, catalog catalog.Read, auth AuthorizationView) (*querySource, error) {
+func dtpUnitCapture(ctx context.Context, catalog catalog.Read, auth AuthorizationView) (*exec.Source, error) {
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.DataTypePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
 	return captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges)
@@ -113,7 +114,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selectIDs := func(source *querySource) []string {
+	selectIDs := func(source *exec.Source) []string {
 		var ids []string
 		for _, row := range source.Anonymous {
 			name, _ := row[2].Text()

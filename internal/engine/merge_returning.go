@@ -44,7 +44,7 @@ func (b *expressionBinder) mergeReturningFrame(frame uint32) bool {
 // and the request's sole Finish. It reuses one full target-first/source frame.
 type mergeReturningOutput struct {
 	returning *boundReturning
-	rows      *finalRows
+	rows      *exec.FinalRows
 	frame     []sqltype.Value
 }
 
@@ -56,7 +56,7 @@ func newMergeReturningOutput(b binding, s *StatementScope) *mergeReturningOutput
 	rows.Output = s.output
 	return &mergeReturningOutput{returning: b.returning, rows: rows, frame: make([]sqltype.Value, b.merge.targetWidth+b.merge.sourceWidth)}
 }
-func (o *mergeReturningOutput) project(b binding, c *EvalContext, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
+func (o *mergeReturningOutput) project(b binding, c *exec.Context, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
 	if o == nil {
 		return nil
 	}

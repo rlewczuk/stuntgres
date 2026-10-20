@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -274,13 +275,13 @@ type StatementScope struct {
 	statementMutation
 	mutations      []statementMutation
 	activeMutation int
-	cteInvocation  *cteInvocation
+	cteInvocation  *exec.CTEInvocation
 	self           *StatementScope
 	owner          *transactionOwner
 	op             *Operation
 	ruleActionAuth *AuthorizationView
 	rowSecurity    bool // Immutable effective setting for this admitted statement.
-	authority      *queryAuthority
+	authority      *exec.Authority
 	// Borrowed only during this statement's admission/execution. Admission
 	// refreshes this coherent snapshot serially before publishing parallel reads;
 	// it is neither prepared-plan state nor a cached permission decision.
@@ -301,9 +302,9 @@ type StatementScope struct {
 	replacementRead       bool
 	ticket                *lock.Ticket
 	multiEvents           []lock.MultiEvent
-	querySources          []queryLeaf
+	querySources          []exec.Leaf
 	queryLockAdmission    queryLockAdmission
-	queryLocks            *queryLockContext
+	queryLocks            *exec.LockContext
 	txRef                 ids.TxRef
 	command               ids.CommandID
 	ownWrites             map[ids.ObjectAddress][]storage.RowVersion
@@ -318,13 +319,13 @@ type StatementScope struct {
 	timeoutRef            ids.TxRef // admission projection for preparse ERROR timer retirement
 	output                sqltype.OutputEnvironment
 	initialParameters     []sqltype.Usage
-	activeSQLRoutineDepth int                    // Root invocation owner; never saved/reset as lexical scratch.
-	quoteCaptures         *quoteCaptureCandidate // sealed before executor/source publication
+	activeSQLRoutineDepth int                         // Root invocation owner; never saved/reset as lexical scratch.
+	quoteCaptures         *exec.QuoteCaptureCandidate // sealed before executor/source publication
 	catalog               *catalogChanges
 	catalogAuthority      *catalogAuthority
 	projectedRoots        bool
 	foreignActionAuth     *AuthorizationView
-	identity              identitySnapshot
+	identity              exec.IdentitySnapshot
 	// Feature state lives in slots. Groups that every statement writes are
 	// values. A pointer slot xSlot stays nil until its first write through
 	// x(); reads use xOrZero(), which never allocates, so nil means all zero.

@@ -24,7 +24,7 @@ func TestQueryOrderCacheAndCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("late ordering key")
-			key := queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			key := queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if calls == 2 && failure == "late-key" {
 					return sqltype.Value{}, sentinel

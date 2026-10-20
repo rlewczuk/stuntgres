@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
 
@@ -44,12 +45,12 @@ func regroleContextFormatter(ctx context.Context) sqltype.RegroleFormatter {
 
 func (s *StatementScope) FormatRegrole(id uint32) (string, error) {
 	if s == nil {
-		return detachedPresentation{}.FormatRegrole(id)
+		return exec.DetachedPresentation{}.FormatRegrole(id)
 	}
 	return (capturedRegroleOutput{owner: s.inquiry.commentCatalog.Owner(), roles: s.inquiry.commentRoles, quoteAll: s.output.QuoteAllIdentifiers}).FormatRegrole(id)
 }
 
-func captureRegroleOutputValue(rows *finalRows, output capturedRegroleOutput, value sqltype.Value) error {
+func captureRegroleOutputValue(rows *exec.FinalRows, output capturedRegroleOutput, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegrole() {
 		return nil
 	}

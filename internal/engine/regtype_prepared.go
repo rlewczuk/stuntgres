@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -202,7 +203,7 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, coercionPlan sql
 	if p.Volatility != expr.Immutable || p.RowDependent || p.ParameterDependent || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion || sqltype.ContainsDomainConstraints(info.Usage.Type) || id != sqltype.Oid && id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 && !sqltype.IsRoutineAlias(id) {
 		return nil, false, nil
 	}
-	value, err := child.Eval(&EvalContext{EvalStatement: evalStatement{Context: b.ctx, Input: b.input}})
+	value, err := child.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: b.ctx, Input: b.input}})
 	if err != nil {
 		return nil, true, err
 	}

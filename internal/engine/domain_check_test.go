@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -99,7 +100,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	sentinel := sqltype.Boolean(boolean, true)
-	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: view}, EvalFrame: evalFrame{DomainValue: sentinel, DomainValueActive: true}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}, EvalFrame: exec.EvalFrame{DomainValue: sentinel, DomainValueActive: true}}
 	eval.Input.DomainChecks = &eval
 	for _, tc := range []struct {
 		domain            string

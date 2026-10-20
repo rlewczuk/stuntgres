@@ -92,7 +92,7 @@ func overlapsTreeCost(node expr.Expr) int {
 // Simplification of caller children precedes SQL wrapper evaluation/inlining.
 // A partial constant body addition can fail during inlining even when another
 // pair uses table columns. Stable zoned addition is never ordinarily folded.
-func simplifyOverlapsRoute(c *EvalContext, e functions.DatetimeOverlaps) (functions.DatetimeOverlaps, bool, error) {
+func simplifyOverlapsRoute(c *exec.Context, e functions.DatetimeOverlaps) (functions.DatetimeOverlaps, bool, error) {
 	old := e.WrapperContext
 	oldFolded := e.Folded
 	e.WrapperContext = !overlapsInlineSafe(e)

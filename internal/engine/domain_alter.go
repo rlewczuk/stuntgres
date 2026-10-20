@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -154,7 +155,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		chosen := next
 		chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
 		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		if err != nil {
 			return Result{}, err
@@ -233,7 +234,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	return Result{}, err
 }
 
-func validateSelectedDomainRows(c *EvalContext, view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
+func validateSelectedDomainRows(c *exec.Context, view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
 	violations := make([]error, len(use.Columns))
 	for i, column := range use.Columns {
 		violations[i] = typedef.DomainHistoricalViolation(view, use.Relation, column)

@@ -73,7 +73,7 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 
 // Only occurrence-preserving nodes may expose an unlocked physical scan.
 // A real sort/aggregate/join/set frontier is not a simply updatable scan.
-func cursorSimpleScan(node plan.Node, inputs *querySource) *querySource {
+func cursorSimpleScan(node plan.Node, inputs *exec.Source) *exec.Source {
 	switch n := node.(type) {
 	case *plan.ProjectNode:
 		return cursorSimpleScan(n.Child, inputs)
@@ -104,7 +104,7 @@ func cursorSimpleScan(node plan.Node, inputs *querySource) *querySource {
 
 // Resolve one occurrence directly, without allocating the all-leaf vector used
 // by locking rechecks. Cached effective versions win over DECLARE-era versions.
-func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *queryLockContext) storage.RowVersion {
+func cursorOccurrenceVersion(source *exec.Source, index, occurrence int, locks *exec.LockContext) storage.RowVersion {
 	if source == nil || index == exec.AbsentQueryIndex {
 		return storage.RowVersion{}
 	}
@@ -146,9 +146,9 @@ func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *
 	return source.VersionAt(source.RawIndex(index))
 }
 
-func cursorOccurrencePhysicalRow(source *querySource, index, occurrence int, locks *queryLockContext) queryPhysicalRow {
+func cursorOccurrencePhysicalRow(source *exec.Source, index, occurrence int, locks *exec.LockContext) exec.QueryPhysicalRow {
 	if source == nil || index == exec.AbsentQueryIndex {
-		return queryPhysicalRow{}
+		return exec.QueryPhysicalRow{}
 	}
 	if source.Input != nil {
 		return cursorOccurrencePhysicalRow(source.Input, source.InputIndex(index), occurrence, locks)
@@ -169,10 +169,10 @@ func cursorOccurrencePhysicalRow(source *querySource, index, occurrence int, loc
 			}
 		}
 	} else if source.Occurrence != occurrence {
-		return queryPhysicalRow{}
+		return exec.QueryPhysicalRow{}
 	}
 	if visible == exec.AbsentQueryIndex || occurrence < 0 || occurrence >= len(locks.Leaves) {
-		return queryPhysicalRow{}
+		return exec.QueryPhysicalRow{}
 	}
 	leaf := locks.Leaves[occurrence]
 	version := cursorOccurrenceVersion(source, index, occurrence, locks)

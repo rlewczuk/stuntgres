@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -146,7 +147,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if !exists || provider != usage.Type || usage != imported.Columns[1].Usage {
 		t.Fatal("imported default uses a noninstalled type provider")
 	}
-	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

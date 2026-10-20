@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -75,7 +76,7 @@ func TestCheckCompletedRowValidator(t *testing.T) {
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
 	table := d.(*catalog.Relation)
 	old := []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}
-	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Row: old, Scope: 7, Frame: 9}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Row: old, Scope: 7, Frame: 9}}
 	for _, n := range []int64{1, 2} {
 		v, err := sqltype.Integer(table.Columns[0].Usage.Type, n)
 		if err != nil {

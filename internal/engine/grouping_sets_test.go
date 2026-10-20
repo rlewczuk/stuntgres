@@ -86,13 +86,13 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	if !reflect.DeepEqual(grouping.Masks, []int32{0, 3}) || grouping.Slot != 1 {
 		t.Fatal(grouping)
 	}
-	grouping.Args = []expr.Expr{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+	grouping.Args = []expr.Expr{queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 		t.Fatal("GROUPING evaluated its argument")
 		return sqltype.Value{}, nil
 	})}
 	occurrence, _ := sqltype.Integer(usage.Type, 1)
-	outer := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(usage.Type), occurrence}}}
-	value, err := grouping.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 2, Outer: outer}})
+	outer := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(usage.Type), occurrence}}}
+	value, err := grouping.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 2, Outer: outer}})
 	mask, _ := value.Integer()
 	if err != nil || mask != 3 || value.Type().ID() != sqltype.Int4 {
 		t.Fatal(mask, err)
@@ -146,8 +146,8 @@ func TestGroupingSetsOncePerSourceModifiers(t *testing.T) {
 	call := &node.Calls[0]
 	filter, argument := call.Filter, call.Argument
 	filters, values := 0, 0
-	call.Filter = queryProbe(filter.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { filters++; return filter.Eval(c) })
-	call.Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { values++; return argument.Eval(c) })
+	call.Filter = queryProbe(filter.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { filters++; return filter.Eval(c) })
+	call.Argument = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { values++; return argument.Eval(c) })
 	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 3 || filters != 4 || values != 4 {
 		t.Fatal(count, err, filters, values)

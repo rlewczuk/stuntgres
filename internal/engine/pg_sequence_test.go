@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -24,7 +25,7 @@ func pgSequenceUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Objec
 	}
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
-func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
+func pgSequenceUnitBag(t *testing.T, source *exec.Source) map[uint32][]any {
 	t.Helper()
 	bag := make(map[uint32][]any)
 	for _, row := range source.Anonymous {

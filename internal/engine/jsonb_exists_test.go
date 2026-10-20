@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -98,7 +99,7 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		got, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		got, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || got != sqltype.Boolean(replacement[sqltype.Bool], true) {
 			t.Fatal(got, err)
 		}

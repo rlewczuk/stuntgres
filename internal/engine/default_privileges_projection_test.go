@@ -9,13 +9,14 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth AuthorizationView) (*querySource, [][]string) {
+func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth AuthorizationView) (*exec.Source, [][]string) {
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TablePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/typedef"
@@ -584,7 +585,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		s.prepared.changedDuringAdmission = true
 	}
 	if source {
-		s.querySources = append(s.querySources, queryLeaf{Ref: ref, Relation: descriptor, Only: sourceOnly(stmt), Storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
+		s.querySources = append(s.querySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: sourceOnly(stmt), Storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor

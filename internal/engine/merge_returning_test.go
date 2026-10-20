@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -28,8 +29,8 @@ func TestMergeReturningFrames(t *testing.T) {
 	}
 	row := []sqltype.Value{integer(1), integer(17), integer(1), integer(7)}
 	old := []sqltype.Value{integer(1), integer(10)}
-	owner := EvalContext{EvalStatement: evalStatement{Context: op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: row, OldRow: old, MergeReturning: true, MergeSourcePresent: true}}
-	child := EvalContext{EvalStatement: evalStatement{Context: op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &owner, MergeReturning: true, MergeAction: parser.MergeDeleteAction}}
+	owner := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row, OldRow: old, MergeReturning: true, MergeSourcePresent: true}}
+	child := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 8, Outer: &owner, MergeReturning: true, MergeAction: parser.MergeDeleteAction}}
 	for _, action := range []parser.MergeAction{parser.MergeInsertAction, parser.MergeUpdateAction, parser.MergeDeleteAction} {
 		owner.MergeAction = action
 		owner.OldRow = old
@@ -53,7 +54,7 @@ func TestMergeReturningFrames(t *testing.T) {
 	whole := b.returning.expressions[4].(plan.ReturningWholeRowExpr)
 	calls := 0
 	member := whole.Members[0]
-	whole.Members[0] = queryProbe(member.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return member.Eval(c) })
+	whole.Members[0] = queryProbe(member.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return member.Eval(c) })
 	owner.MergeAction = parser.MergeInsertAction
 	owner.OldRow = nil
 	v, err := whole.Eval(&child)
@@ -105,7 +106,7 @@ func TestMergeReturningPublication(t *testing.T) {
 			}
 			calls := 0
 			if b.returning != nil {
-				b.returning.expressions[1] = queryProbe(b.returning.schema[1].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				b.returning.expressions[1] = queryProbe(b.returning.schema[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if cursor.closed != 1 || len(scope.stage.rows) != 0 || c.MergeAction != parser.MergeUpdateAction {
 						t.Fatal("projection crossed source/publication boundary", cursor.closed, calls)
@@ -119,7 +120,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					return c.Row[1], nil
 				})
 			}
-			state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
+			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
 			rows, err := e.assembleMergeRows(op.Context(), scope, b, target, cursor, state, "public", false)
 			if phase == "producerClose" || phase == "outputLate" || phase == "typeDrift" {
 				if rows != nil || err == nil {

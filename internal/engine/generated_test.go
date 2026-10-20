@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -46,7 +47,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	row := []sqltype.Value{value, sqltype.Null(value.Type())}
-	eval := EvalContext{}
+	eval := exec.Context{}
 	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +63,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	if err := evaluateGenerations(canceled, d, row, &eval); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	wrong := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 2, Frame: 1, Row: row}}
+	wrong := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 2, Frame: 1, Row: row}}
 	if _, err := node.Eval(&wrong); err == nil {
 		t.Fatal("wrong frame accepted")
 	}
@@ -79,7 +80,7 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	b.target.generatedOwner = d
 	b.query.auth = &auth
 	b.query.namespace = &ns
-	b.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
+	b.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	raw := func(name string) parser.ColumnExpr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}
@@ -115,7 +116,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := remapped.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}})
+	value, err := remapped.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +228,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	candidate.SetDescriptor(d.Address(), d)
 	relations := map[ids.ObjectAddress]*storage.Relation{d.Address(): rows}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
-	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, nil); err != nil {
+	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {
@@ -238,12 +239,12 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := recomputeRemappedGenerations(canceled, candidate, relations, mapping, EvalContext{EvalStatement: evalStatement{Context: canceled}}, nil); !errors.Is(err, context.Canceled) {
+	if err := recomputeRemappedGenerations(canceled, candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
 	d.Constraints.Check = []catalog.CheckConstraint{{Name: "blocked", Expression: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}}
-	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, nil); err == nil {
+	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
@@ -137,7 +138,7 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 
 // All RHS expressions read the unchanged action frame. Partial assignments
 // compose only in the replacement, never in the frame seen by the next RHS.
-func evaluateUpdateAssignments(eval *EvalContext, action *boundUpdate, targets []int, old []sqltype.Value) ([]sqltype.Value, error) {
+func evaluateUpdateAssignments(eval *exec.Context, action *boundUpdate, targets []int, old []sqltype.Value) ([]sqltype.Value, error) {
 	row := make([]sqltype.Value, len(old))
 	copy(row, old)
 	oldOutputs, oldReady := eval.UpdateOutputs, eval.UpdateOutputsReady

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -50,7 +51,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					auth.Roles = e.roles.read(e.catalog.owner(), auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).binding
-					original.querySources = []queryLeaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
+					original.querySources = []exec.Leaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
 					if effective {
 						original.querySources[0].Principal = reader.Ref
 					}
@@ -73,7 +74,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					action.binding.expressions = nil
 					action.binding.commandQuery = true
 					action.binding.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
-					action.binding.querySources = []queryLeaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
+					action.binding.querySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
 					src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}})
 					program := ruleProgram{count: -1, returning: -1}
 					e.mu.Lock()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -19,7 +20,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	original := e.storage.Relations[d.Address()]
 	scope := refreshUnitScope(t, e, context.Background())
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	scope.querySources = []queryLeaf{{Ref: ref, Relation: d, Storage: original}, {Ref: ref, Relation: d, Storage: original}}
+	scope.querySources = []exec.Leaf{{Ref: ref, Relation: d, Storage: original}, {Ref: ref, Relation: d, Storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 	current := e.storage.Relations[d.Address()]
 	e.mu.Lock()

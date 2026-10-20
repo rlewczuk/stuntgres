@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -42,7 +43,7 @@ func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {
 	return rows[1:]
 }
 
-func pgOperatorUnitBag(t *testing.T, rows *querySource, source *catalog.Relation) map[uint32][]string {
+func pgOperatorUnitBag(t *testing.T, rows *exec.Source, source *catalog.Relation) map[uint32][]string {
 	t.Helper()
 	bag := map[uint32][]string{}
 	for _, row := range rows.Anonymous {

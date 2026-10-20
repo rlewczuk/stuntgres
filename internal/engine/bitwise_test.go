@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -52,7 +53,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 	if _, err := defaultSQL(context.Background(), view, shift); err == nil {
 		t.Fatal("SMALLINT bound shift count accepted")
 	}
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	ordinary, changed, err := preflightCoercions(ctx, root)
 	if err != nil || changed {
 		t.Fatal(ordinary, changed, err)
@@ -113,7 +114,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 		typ, _ := replacement.CatalogRead().LookupType(d.ID())
 		return typ
 	}
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for _, attribute := range []int32{1, 2} {
 		original := table.ColumnMeta.Defaults[attribute].Expression
 		rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), original, retag)
@@ -181,8 +182,8 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{bad}}}
-	for _, simplify := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){preflightCoercionsWithPolicy, simplifyConditional} {
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{bad}}}
+	for _, simplify := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){preflightCoercionsWithPolicy, simplifyConditional} {
 		for _, reverse := range []bool{false, true} {
 			root := plan.BitwiseExpr{Info: info, Left: null, Right: conversion, Provider: provider, Operator: sqltype.BitwiseAnd}
 			if reverse {
@@ -276,7 +277,7 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	planned, changed, err := preflightCoercionsWithPolicy(ctx, original, true)
 	if err != nil || !changed {
 		t.Fatal(planned, changed, err)

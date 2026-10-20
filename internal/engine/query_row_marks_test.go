@@ -57,7 +57,7 @@ func TestQueryLockNullableNormalizedDiagnostics(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			e, query, _ := queryJoinsFixture(t, tc.q)
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			root, err := preflightQuery(&evaluation, query.Root)
 			if err != nil {
 				t.Fatal(err)
@@ -135,10 +135,10 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 }
 
 func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
-	inputs := &querySource{Sources: []*querySource{{Occurrence: 0}, {Occurrence: 1}}}
-	inputs.Locks = &queryLockContext{Leaves: []queryLockLeaf{
-		{Leaf: queryLeaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
-		{Leaf: queryLeaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
+	inputs := &exec.Source{Sources: []*exec.Source{{Occurrence: 0}, {Occurrence: 1}}}
+	inputs.Locks = &exec.LockContext{Leaves: []exec.QueryLockLeaf{
+		{Leaf: exec.Leaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
+		{Leaf: exec.Leaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
 	marks := []plan.RowMark{{Mode: lock.ForUpdate, Wait: parser.RowLockSkip}, {Mode: lock.ForShare, Wait: parser.RowLockNowait}}
 	pending := exec.AppendPendingRowMarks(nil, marks, inputs)
@@ -156,14 +156,14 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	view := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	table := &catalog.Relation{RelationKind: catalog.TableRelation}
 	requested := plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
-	locks := &queryLockContext{Leaves: []queryLockLeaf{
-		{Leaf: queryLeaf{Relation: view, Mark: requested}, Mark: exec.EffectiveQueryRowMark(view, requested)},
-		{Leaf: queryLeaf{Relation: table, Mark: requested}, Mark: exec.EffectiveQueryRowMark(table, requested)},
+	locks := &exec.LockContext{Leaves: []exec.QueryLockLeaf{
+		{Leaf: exec.Leaf{Relation: view, Mark: requested}, Mark: exec.EffectiveQueryRowMark(view, requested)},
+		{Leaf: exec.Leaf{Relation: table, Mark: requested}, Mark: exec.EffectiveQueryRowMark(table, requested)},
 	}}
 	// A transparent stored/derived expansion may contain both the SQL-only
 	// catalog occurrence and a genuinely marked table. Preserve its identities.
-	expanded := &querySource{Materialized: true, Occurrences: []int{0, 1}}
-	inputs := &querySource{Sources: []*querySource{expanded}, Locks: locks}
+	expanded := &exec.Source{Materialized: true, Occurrences: []int{0, 1}}
+	inputs := &exec.Source{Sources: []*exec.Source{expanded}, Locks: locks}
 	pending := exec.AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs)
 	if len(pending) != 1 || !reflect.DeepEqual(pending[0].Occurrences, []int{1}) || pending[0].Mark != requested {
 		t.Fatal("effective expansion changed ordinary physical mark", pending)
@@ -171,7 +171,7 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	if !reflect.DeepEqual(expanded.Occurrences, []int{0, 1}) || locks.Leaves[0].Leaf.Mark != requested || locks.Leaves[0].Mark != (plan.RowMark{}) {
 		t.Fatal("effective decision mutated SQL marks or source identities")
 	}
-	inputs.Sources[0] = &querySource{Occurrence: 0}
+	inputs.Sources[0] = &exec.Source{Occurrence: 0}
 	if pending := exec.AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs); len(pending) != 0 {
 		t.Fatal("SQL-only catalog mark reached physical arbitration", pending)
 	}

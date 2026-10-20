@@ -12,7 +12,7 @@ import (
 // Conditional planning folds immutable SQL constants; the common post-child
 // strict-NULL rule can additionally eliminate a call using an execution-known
 // parameter. It neither substitutes parameters generally nor runs domain truth.
-func simplifyConditional(c *EvalContext, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+func simplifyConditional(c *exec.Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	node, changed, err := simplifyConditionalNode(c, expression, decisiveDefaults)
 	if err != nil {
 		return nil, false, err
@@ -21,7 +21,7 @@ func simplifyConditional(c *EvalContext, expression expr.Expr, decisiveDefaults 
 	return node, changed || folded, err
 }
 
-func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	if expression == nil {
 		return nil, false, nil
 	}

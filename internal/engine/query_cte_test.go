@@ -31,15 +31,15 @@ func cteUnitValue(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype.Value 
 	}
 	return value
 }
-func cteUnitScan(expressions []expr.Expr, schema plan.QuerySchema, rows int) (*cteInvocation, *queryState, *plan.DerivedNode) {
+func cteUnitScan(expressions []expr.Expr, schema plan.QuerySchema, rows int) (*exec.CTEInvocation, *exec.State, *plan.DerivedNode) {
 	project := &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{Rows: make([][]expr.Expr, rows)}, Expressions: expressions, Frame: 2}
 	definition := &plan.CTEDefinition{Query: &plan.Query{Root: project}, Owner: 1, References: 2, Hint: parser.CTEMaterialized}
-	state := &queryState{Source: &querySource{Materialized: true}}
-	owner := &cteInvocation{Frame: 1, State: *state}
+	state := &exec.State{Source: &exec.Source{Materialized: true}}
+	owner := &exec.CTEInvocation{Frame: 1, State: *state}
 	state.Ctes = owner
 	return owner, state, &plan.DerivedNode{QuerySchema: schema, Query: definition.Query, CTE: definition}
 }
-func cteUnitNext(t *testing.T, stage *indexedStage) []sqltype.Value {
+func cteUnitNext(t *testing.T, stage *exec.Stage) []sqltype.Value {
 	t.Helper()
 	index, present, err := stage.NextOccurrence(context.Background())
 	if err != nil || !present {
@@ -51,7 +51,7 @@ func cteUnitNext(t *testing.T, stage *indexedStage) []sqltype.Value {
 func TestQueryCTESharedFrontierAndReaderLifetime(t *testing.T) {
 	typ := cteUnitType(t)
 	draws := 0
-	expression := queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
+	expression := queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
 	owner, state, node := cteUnitScan([]expr.Expr{expression}, plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, 3)
 	first, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
@@ -113,7 +113,7 @@ func TestQueryCTEZeroWidthAndNullRows(t *testing.T) {
 			var schema plan.QuerySchema
 			if width == 1 {
 				typ := cteUnitType(t)
-				expressions = []expr.Expr{queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Null(typ), nil })}
+				expressions = []expr.Expr{queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Null(typ), nil })}
 				schema = plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}
 			}
 			owner, state, node := cteUnitScan(expressions, schema, 2)
@@ -148,7 +148,7 @@ func TestQueryCTEStickyFailureAndCloseOnce(t *testing.T) {
 			primary := errors.New("original producer failure")
 			cleanup := errors.New("cleanup failure")
 			draws := 0
-			expression := queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			expression := queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
 				draws++
 				if draws == 2 {
 					return sqltype.Value{}, primary
@@ -214,7 +214,7 @@ func TestQueryCTESuccessfulCloseFailureVeto(t *testing.T) {
 func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 	typ := cteUnitType(t)
 	draws := 0
-	probe := queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
+	probe := queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
 	outer, state, outerNode := cteUnitScan([]expr.Expr{probe}, plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, 1)
 	first, err := exec.OpenCTEScan(context.Background(), state, outerNode)
 	if err != nil {
@@ -226,8 +226,8 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 		localProject := &plan.ProjectNode{QuerySchema: outerNode.Schema(), Child: &plan.SingletonNode{}, Expressions: []expr.Expr{correlated}, Frame: 3}
 		localDefinition := &plan.CTEDefinition{Query: &plan.Query{Root: localProject}, Owner: 2, Hint: parser.CTEMaterialized}
 		localState := *state
-		localState.Outer = &EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{cteUnitValue(t, typ, value)}}}
-		local := &cteInvocation{Frame: 2, Parent: outer, State: localState}
+		localState.Outer = &exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{cteUnitValue(t, typ, value)}}}
+		local := &exec.CTEInvocation{Frame: 2, Parent: outer, State: localState}
 		localState.Ctes = local
 		inherited, err := exec.OpenCTEScan(context.Background(), &localState, outerNode)
 		if err != nil {
@@ -249,7 +249,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	fresh := &cteInvocation{Frame: 1, State: outer.State}
+	fresh := &exec.CTEInvocation{Frame: 1, State: outer.State}
 	freshState := outer.State
 	freshState.Ctes = fresh
 	stage, err := exec.OpenCTEScan(context.Background(), &freshState, outerNode)
@@ -270,7 +270,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 
 func TestQueryCTEWholeDefinitionVolatility(t *testing.T) {
 	typ := cteUnitType(t)
-	volatile := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) {
+	volatile := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*exec.Context) (sqltype.Value, error) {
 		t.Fatal("analysis evaluated target")
 		return sqltype.Value{}, nil
 	}}
@@ -369,7 +369,7 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 	input := &plan.ValuesNode{QuerySchema: inputSchema, Rows: [][]expr.Expr{{literal(false)}, {literal(true)}}}
 	local := plan.ColumnExpr{Info: expr.Info{Usage: boolean.Usage()}, Scope: 1, Frame: 2, Slot: 0}
 	draws := 0
-	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "keep", Usage: boolean.Usage()}, {Name: "n", Usage: integer.Usage()}}, Child: input, Expressions: []expr.Expr{local, queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 42) })}, Frame: 2}
+	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "keep", Usage: boolean.Usage()}, {Name: "n", Usage: integer.Usage()}}, Child: input, Expressions: []expr.Expr{local, queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 42) })}, Frame: 2}
 	definition := &plan.CTEDefinition{Query: &plan.Query{Root: project}, Owner: 1, References: 2, Hint: parser.CTENotMaterialized}
 	scan := &plan.DerivedNode{QuerySchema: project.Schema(), Query: definition.Query, CTE: definition, ScanFrame: 1, Demand: []bool{false, true}}
 	parent := plan.ColumnExpr{Info: expr.Info{Usage: boolean.Usage()}, Scope: 1, Frame: 1, Slot: 0}
@@ -380,7 +380,7 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 	if project.Child != input || scan.Query.Root != project || mapped == scan {
 		t.Fatal("fold mutated original")
 	}
-	stage, err := exec.OpenDerivedNode(context.Background(), &queryState{Source: &querySource{Materialized: true}}, mapped.(*plan.DerivedNode))
+	stage, err := exec.OpenDerivedNode(context.Background(), &exec.State{Source: &exec.Source{Materialized: true}}, mapped.(*plan.DerivedNode))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +406,7 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 func TestQueryCTEProjectDispatcherOwnsInvocation(t *testing.T) {
 	typ := cteUnitType(t)
 	draws := 0
-	expression := queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	expression := queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		draws++
 		return sqltype.Integer(typ, int64(draws))
 	})
@@ -501,7 +501,7 @@ func TestQueryCTEFilterDemandGate(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			draws := 0
-			expression := queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 1) })
+			expression := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 1) })
 			owner, state, child := cteUnitScan([]expr.Expr{expression}, plan.QuerySchema{{Name: "n", Usage: integer.Usage()}}, 1)
 			defer owner.Close()
 			state.Parameters = tc.parameters
@@ -544,10 +544,10 @@ func TestQueryCTEFilterDoesNotPreEvaluatePredicate(t *testing.T) {
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	integer := cteUnitType(t)
 	draws, evaluations := 0, 0
-	expression := queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 1) })
+	expression := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 1) })
 	owner, state, child := cteUnitScan([]expr.Expr{expression}, plan.QuerySchema{{Name: "n", Usage: integer.Usage()}}, 1)
 	defer owner.Close()
-	predicate := queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	predicate := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		evaluations++
 		if draws == 0 {
 			return sqltype.Value{}, errors.New("predicate evaluated before child demand")
@@ -568,23 +568,23 @@ func TestQueryCTEFilterDoesNotPreEvaluatePredicate(t *testing.T) {
 }
 
 func TestQueryCTEMandatoryPhysicalFrontier(t *testing.T) {
-	marked := &querySource{Occurrence: 0}
-	unmarked := &querySource{Occurrence: 1}
-	locks := &queryLockContext{Leaves: []queryLockLeaf{
+	marked := &exec.Source{Occurrence: 0}
+	unmarked := &exec.Source{Occurrence: 1}
+	locks := &exec.LockContext{Leaves: []exec.QueryLockLeaf{
 		{Source: marked, Mark: plan.RowMark{Mode: lock.ForUpdate}},
 		{Source: unmarked},
 	}}
 	marked.Locks, unmarked.Locks = locks, locks
-	inputs := &querySource{Sources: []*querySource{marked, unmarked}}
+	inputs := &exec.Source{Sources: []*exec.Source{marked, unmarked}}
 	physical := &plan.SourceNode{Occurrence: 0}
 	unmarkedPhysical := &plan.SourceNode{Occurrence: 1}
 	aggregate := &plan.AggregateNode{Child: physical}
 	if len(exec.PendingQueryMarks(aggregate, inputs, nil)) != 0 || !exec.QueryHasMandatoryPhysicalFrontier(aggregate, inputs) {
 		t.Fatal("consumed physical marks mistaken for absent demand")
 	}
-	storedInputs := &querySource{Sources: []*querySource{unmarked, marked}}
-	stored := &querySource{NestedRoot: &plan.ProjectNode{Child: &plan.AggregateNode{Child: &plan.SourceNode{Occurrence: 1}}}, NestedInputs: storedInputs}
-	adapter := &querySource{Input: stored}
+	storedInputs := &exec.Source{Sources: []*exec.Source{unmarked, marked}}
+	stored := &exec.Source{NestedRoot: &plan.ProjectNode{Child: &plan.AggregateNode{Child: &plan.SourceNode{Occurrence: 1}}}, NestedInputs: storedInputs}
+	adapter := &exec.Source{Input: stored}
 	if !exec.QueryHasMandatoryPhysicalFrontier(&plan.SourceNode{}, adapter) {
 		t.Fatal("stored adapter lost nestedInputs occurrence mapping")
 	}
@@ -632,7 +632,7 @@ func TestQueryCTEDeadZeroWidthOwner(t *testing.T) {
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	_, state, child := cteUnitScan(nil, plan.QuerySchema{}, 2)
 	state.Ctes = nil
-	state.Source.Locks = &queryLockContext{Leaves: []queryLockLeaf{{Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
+	state.Source.Locks = &exec.LockContext{Leaves: []exec.QueryLockLeaf{{Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
 	filter := &plan.FilterNode{QuerySchema: child.Schema(), Child: child, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 	root := &plan.ProjectNode{QuerySchema: child.Schema(), Child: filter, Frame: 1, CTEOwner: true}
 	stage, err := exec.OpenNode(context.Background(), state, root)

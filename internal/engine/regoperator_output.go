@@ -3,11 +3,12 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups operatorGroups, id ids.OID, alias sqltype.ID) string {
+func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups exec.OperatorGroups, id ids.OID, alias sqltype.ID) string {
 	descriptor, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
@@ -54,11 +55,11 @@ func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups operat
 func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		if alias == sqltype.Regoperator {
-			return detachedPresentation{}.FormatRegoperator(id)
+			return exec.DetachedPresentation{}.FormatRegoperator(id)
 		}
-		return detachedPresentation{}.FormatRegoper(id)
+		return exec.DetachedPresentation{}.FormatRegoper(id)
 	}
-	key := operatorOutputKey{ID: id, Alias: alias}
+	key := exec.OperatorOutputKey{ID: id, Alias: alias}
 	if text, ok := s.presentationOrZero().operators[key]; ok {
 		return text, nil
 	}
@@ -67,7 +68,7 @@ func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, er
 	}
 	text := operatorSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, s.presentationOrZero().operatorGroups, ids.OID(id), alias)
 	if s.presentationOrZero().operators == nil {
-		s.presentation().operators = make(map[operatorOutputKey]string)
+		s.presentation().operators = make(map[exec.OperatorOutputKey]string)
 	}
 	s.presentation().operators[key] = text
 	return text, nil
@@ -78,7 +79,7 @@ func (s *StatementScope) FormatRegoper(id uint32) (string, error) {
 func (s *StatementScope) FormatRegoperator(id uint32) (string, error) {
 	return s.formatOperator(id, sqltype.Regoperator)
 }
-func captureOperatorOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureOperatorOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
@@ -102,7 +103,7 @@ func captureOperatorOutputValue(rows *finalRows, view catalog.Read, path []ids.O
 	if err != nil {
 		return err
 	}
-	key := operatorOutputKey{ID: id, Alias: value.Type().BaseType().ID()}
+	key := exec.OperatorOutputKey{ID: id, Alias: value.Type().BaseType().ID()}
 	if _, ok := rows.OperatorOutput[key]; ok {
 		return nil
 	}
@@ -110,7 +111,7 @@ func captureOperatorOutputValue(rows *finalRows, view catalog.Read, path []ids.O
 		rows.OperatorGroups = collectOperatorGroups(view)
 	}
 	if rows.OperatorOutput == nil {
-		rows.OperatorOutput = make(map[operatorOutputKey]string)
+		rows.OperatorOutput = make(map[exec.OperatorOutputKey]string)
 	}
 	rows.OperatorOutput[key] = operatorSpelling(view, path, rows.OperatorGroups, ids.OID(id), key.Alias)
 	rows.Output.Operator = rows

@@ -56,7 +56,7 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 		if !ok || call.Plan.Name() != tc.name || node.ResultUsage().Type.ID() != tc.id || node.Properties().Volatility != expr.Immutable || node.Properties().StageDependent {
 			t.Fatal(node)
 		}
-		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || value.IsNull() {
 			t.Fatal(value, err)
 		}
@@ -79,7 +79,7 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal("eager shape evaluation", err)
 	}
-	_, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	_, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" || diagnostic.Position != "" {
 		t.Fatal(err)
@@ -141,7 +141,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if next.ResultUsage().Type != fresh[sqltype.Text] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.Plan.ResultUsage() != next.ResultUsage() || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 		t.Fatal(next)
 	}
-	cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, next)
+	cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, next)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,11 +164,11 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if err != nil || !sameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}
-	folded, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
+	folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
 	if err != nil || !exec.SourceReturnsSet(folded) {
 		t.Fatal("preflight folded set", folded, err)
 	}
-	folded, _, err = simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
+	folded, _, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 	if err != nil || !exec.SourceReturnsSet(folded) {
 		t.Fatal("conditional folded set", folded, err)
 	}
@@ -201,9 +201,9 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 	b := jsonFunctionUnitMarker(t, jsonb, text, `{"x":1}`, 20)
 	draws := 0
 	input := a.Args[0].(plan.LiteralExpr).Value
-	a.Args = []expr.Expr{queryProbe(json.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return input, nil })}
+	a.Args = []expr.Expr{queryProbe(json.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return input, nil })}
 	n := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{a, b}, Frame: 1})
-	stage, err := exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{Materialized: true}, Frame: 1}, n)
+	stage, err := exec.OpenSetProjectNode(context.Background(), &exec.State{Source: &exec.Source{Materialized: true}, Frame: 1}, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 	empty := jsonFunctionUnitMarker(t, json, text, `{}`, 30)
 	empty.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: json.Usage()}, Value: sqltype.Null(json)}}
 	n = regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{empty}, Frame: 1})
-	stage, err = exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{Materialized: true}, Frame: 1}, n)
+	stage, err = exec.OpenSetProjectNode(context.Background(), &exec.State{Source: &exec.Source{Materialized: true}, Frame: 1}, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,8 +221,8 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 		t.Fatal("strict singleton NULL set", got)
 	}
 	failure := errors.New("selected child failure")
-	a.Args = []expr.Expr{queryProbe(json.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
-	if cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, a); !errors.Is(err, failure) || cursor.Type != nil {
+	a.Args = []expr.Expr{queryProbe(json.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+	if cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, a); !errors.Is(err, failure) || cursor.Type != nil {
 		t.Fatal("published failed invocation", cursor, err)
 	}
 }

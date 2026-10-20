@@ -283,7 +283,7 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				execution = probe
 			}
 			calls := 0
-			direct := queryProbe(provider.FractionType().Usage(), func(c *EvalContext) (sqltype.Value, error) {
+			direct := queryProbe(provider.FractionType().Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "direct" {
 					cancel()
@@ -301,8 +301,8 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 				root.Child = &plan.FilterNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 			}
-			owned := &querySource{Anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, Flat: []sqltype.Value{sqltype.Null(p.InputType())}}
-			source := &querySource{Sources: []*querySource{owned}}
+			owned := &exec.Source{Anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, Flat: []sqltype.Value{sqltype.Null(p.InputType())}}
+			source := &exec.Source{Sources: []*exec.Source{owned}}
 			rows, count, err := exec.Finalize(execution, root, source, nil)
 			if phase == "having" {
 				if err != nil || rows == nil || count != 0 || calls != 2 {
@@ -458,14 +458,14 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				}
 				inputCalls, directCalls := 0, 0
 				inputError := errors.New("ordered-set input must be evaluated before direct finalization")
-				argument := queryProbe(provider.InputType().Usage(), func(c *EvalContext) (sqltype.Value, error) {
+				argument := queryProbe(provider.InputType().Usage(), func(c *exec.Context) (sqltype.Value, error) {
 					inputCalls++
 					if tc.inputError && inputCalls == 2 {
 						return sqltype.Value{}, inputError
 					}
 					return c.Row[0], nil
 				})
-				direct := queryProbe(fractionType.Usage(), func(*EvalContext) (sqltype.Value, error) { directCalls++; return directValue, nil })
+				direct := queryProbe(fractionType.Usage(), func(*exec.Context) (sqltype.Value, error) { directCalls++; return directValue, nil })
 				values := []string{"30", "10", "20"}
 				if family.id == sqltype.Interval {
 					values = []string{"30 days", "10 days", "20 days"}
@@ -486,7 +486,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: ".Comparison.Compare"}
-				rows, count, err := exec.Finalize(probe, root, &querySource{}, nil)
+				rows, count, err := exec.Finalize(probe, root, &exec.Source{}, nil)
 				if rows != nil {
 					defer rows.Close()
 				}

@@ -15,7 +15,7 @@ import (
 
 func TestRuleStaticOperatorPreflight(t *testing.T) {
 	constant := preflightCast(t, "SELECT 1/(2-2) FROM t")
-	ordinary := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ordinary := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	if _, changed, err := preflightCoercions(&ordinary, constant); err != nil || changed {
 		t.Fatalf("ordinary arithmetic demand changed: changed=%v error=%v", changed, err)
 	}
@@ -56,7 +56,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			modeOnly := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true}}
+			modeOnly := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true}}
 			mapped, _, err := preflightCoercions(&modeOnly, original)
 			if err != nil || !mapped.Properties().ParameterDependent {
 				t.Fatalf("mode-only parameter barrier lost: %v", err)
@@ -95,7 +95,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		} {
 			recipe := original
 			recipe.Property = expr.MergeProperties(recipe.Property, barrier)
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true, SpecializeRuleParameters: true}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 			mapped, changed, err := preflightCoercions(&evaluation, recipe)
 			if err != nil || !changed {
 				t.Fatalf("specialization crossed runtime barrier %+v: %v", barrier, err)
@@ -118,7 +118,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		child := &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
 		derived := &plan.DerivedNode{QuerySchema: schema, Query: &plan.Query{Root: child}, ScanFrame: 1}
 		outer := &plan.ProjectNode{QuerySchema: schema, Child: derived, Expressions: []expr.Expr{good}, Frame: 1}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		prepared, err := preflightQuery(&evaluation, outer)
 		if err != nil {
 			t.Fatalf("unused pure child was prepared: %v", err)
@@ -231,7 +231,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if !joined.CorrelatedRight || !joined.Right.(*plan.ProjectNode).RuleInvocation {
 				t.Fatal("unit did not reach the real correlated rule invocation")
 			}
-			planning := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: auth.Catalog, PlanStaticOperators: true}}
+			planning := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: auth.Catalog, PlanStaticOperators: true}}
 			prepared, err := preflightQuery(&planning, composed.query.Root)
 			if err != nil {
 				t.Fatalf("row-dependent payload was evaluated during planning: %v", err)
@@ -244,7 +244,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 					t.Fatalf("inherited-frame supplier datum was pruned: value=%v error=%v access=%v", value, err, accessErr)
 				}
 			}
-			rows, count, err := exec.Finalize(context.Background(), prepared, &querySource{}, nil)
+			rows, count, err := exec.Finalize(context.Background(), prepared, &exec.Source{}, nil)
 			if shape == "demanded" {
 				if err == nil && rows != nil {
 					_, err = rows.Next(context.Background(), make([]sqltype.Value, 1))
@@ -303,7 +303,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		// Match DELETE's established order: source preparation first, then
 		// predicate preparation. Liveness must not evaluate the predicate early.
 		prepared, err := preflightQuery(&evaluation, private.delete.using)
@@ -322,7 +322,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil || truth != plan.True {
 			t.Fatalf("prepared DELETE predicate truth=%v error=%v", truth, err)
 		}
-		rows, count, err := exec.Finalize(context.Background(), prepared.(*plan.DerivedNode).Query.Root, &querySource{}, nil)
+		rows, count, err := exec.Finalize(context.Background(), prepared.(*plan.DerivedNode).Query.Root, &exec.Source{}, nil)
 		if err != nil || rows == nil || count != 1 {
 			t.Fatalf("row-presence source was lost: count=%d error=%v", count, err)
 		}

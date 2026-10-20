@@ -294,7 +294,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			t.Fatal("current OID repaired missing original routine manifest")
 		}
 		if len(n.(expr.Composite).Children()) != 0 && tc.name != "age" {
-			value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+			value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			if err != nil || !value.IsNull() {
 				t.Fatal("typed strict null", err)
 			}

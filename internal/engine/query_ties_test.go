@@ -20,7 +20,7 @@ func TestQueryTiesPeerCacheIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := []plan.SortKey{{Cache: 0, Comparison: comparison}, {Cache: 1, Comparison: comparison}}
-	child := indexedStage{CacheWidth: 2, OrderValues: []sqltype.Value{one, one, two, two, one, one}, CacheOccurrences: []int{2, 1, 0}}
+	child := exec.Stage{CacheWidth: 2, OrderValues: []sqltype.Value{one, one, two, two, one, one}, CacheOccurrences: []int{2, 1, 0}}
 	boundary := make([]sqltype.Value, 2)
 	exec.CaptureQueryTiesBoundary(&child, 0, keys, boundary)
 	for _, tc := range []struct {
@@ -49,7 +49,7 @@ func TestQueryTiesNullAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := []plan.SortKey{{Cache: 0, Comparison: comparison}, {Cache: 1, Comparison: comparison}}
-	child := indexedStage{CacheWidth: 2, OrderValues: []sqltype.Value{null, one, null, one, null, null, one, one}}
+	child := exec.Stage{CacheWidth: 2, OrderValues: []sqltype.Value{null, one, null, one, null, null, one, one}}
 	boundary := []sqltype.Value{null, one}
 	for _, tc := range []struct {
 		i    int
@@ -79,7 +79,7 @@ func TestQueryTiesLookaheadFailureAtomic(t *testing.T) {
 			original := project.Expressions[0]
 			calls := 0
 			sentinel := errors.New("lookahead projection")
-			probe := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			probe := queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if calls == 2 {
 					if cancelled {
@@ -134,8 +134,8 @@ func TestQueryTiesBorrowedBoundaryAndComparisonFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := &querySource{Input: &querySource{Anonymous: [][]sqltype.Value{{one}, {two}, {one}}}, Layout: []int{0}, Scratch: make([]sqltype.Value, 1)}
-	child := indexedStage{Source: source, Selection: []int{0, 1, 2}}
+	source := &exec.Source{Input: &exec.Source{Anonymous: [][]sqltype.Value{{one}, {two}, {one}}}, Layout: []int{0}, Scratch: make([]sqltype.Value, 1)}
+	child := exec.Stage{Source: source, Selection: []int{0, 1, 2}}
 	keys := []plan.SortKey{{Slot: 0, Cache: -1, Comparison: comparison}}
 	boundary := make([]sqltype.Value, 1)
 	exec.CaptureQueryTiesBoundary(&child, 0, keys, boundary)

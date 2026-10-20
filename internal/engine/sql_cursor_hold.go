@@ -153,7 +153,7 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 	if c.stage != nil {
 		return nil
 	}
-	c.authority.Expression = &cursorExpressionData{Identity: s.identity, StatementStart: s.statementStart}
+	c.authority.Expression = &exec.CursorExpressionData{Identity: s.identity, StatementStart: s.statementStart}
 	c.state.Retain = c.scroll
 	stage, err := exec.OpenQueryProjectStage(s.op.Context(), &c.state, c.root)
 	if err != nil {
@@ -233,7 +233,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 
 // Live producer output retains DECLARE interpretation. Exported output instead
 // uses the ordinary current-catalog capture seam at each stored FETCH.
-func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog catalog.Read) error {
+func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog catalog.Read) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
@@ -278,7 +278,7 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 			_ = c.dispose(s.op.Context())
 		}
 	}()
-	var rows *finalRows
+	var rows *exec.FinalRows
 	if !fetch.Move {
 		rows = exec.NewFinalRows(c.schema, 0)
 		rows.Output = s.output

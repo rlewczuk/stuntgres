@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -29,7 +30,7 @@ func inheritanceQueryLayout(parent, child *catalog.Relation) ([]int, error) {
 	return layout, nil
 }
 
-func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
+func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf exec.Leaf, token ids.SessionToken) (*exec.Source, error) {
 	if leaf.Only || !inheritanceHasChildren(catalogView, leaf.Ref.Address) {
 		return captureQueryPrefix(view, leaf.Ref)
 	}
@@ -37,7 +38,7 @@ func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.Vi
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &querySource{Ref: leaf.Ref, View: pin, Inheritance: make([]inheritanceQuerySegment, 0)}
+	source := &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0)}
 	err := inheritanceQueryClosure(catalogView, leaf.Relation, token, func(physical *catalog.Relation) error {
 		child := leaf
 		child.Ref.Address, child.Relation = physical.Address(), physical
@@ -50,7 +51,7 @@ func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.Vi
 		if err != nil {
 			return err
 		}
-		segment := inheritanceQuerySegment{Leaf: child, Prefix: prefix, Layout: layout}
+		segment := exec.InheritanceQuerySegment{Leaf: child, Prefix: prefix, Layout: layout}
 		if layout != nil {
 			segment.Scratch = make([]sqltype.Value, len(layout))
 		}

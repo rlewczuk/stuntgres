@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -69,7 +70,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 			if len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].Uses, tc.uses) {
 				t.Fatal("ordinary source occurrence uses", bound.querySources, tc.uses)
 			}
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
 			err := validateQueryJoinExecution(&evaluation, bound.query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error
@@ -138,7 +139,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 			}
 			occurrences := bundle.Sources
 			if occurrences == nil {
-				occurrences = []*querySource{bundle}
+				occurrences = []*exec.Source{bundle}
 			}
 			if len(occurrences) != len(tc.want) {
 				t.Fatal("nested occurrence count", len(occurrences), len(tc.want))
@@ -219,7 +220,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 					t.Fatal("domain reset discarded child properties/dependencies", left.Properties(), bound.querySources)
 				}
 			}
-			value, err := comparison.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
+			value, err := comparison.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
 			if tc.conflict {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}) {

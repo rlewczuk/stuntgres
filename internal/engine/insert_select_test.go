@@ -132,7 +132,7 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 	}
 }
 
-func insertSelectEvaluationFixture(t *testing.T, sql string) (binding, *querySource) {
+func insertSelectEvaluationFixture(t *testing.T, sql string) (binding, *exec.Source) {
 	t.Helper()
 	e, q, source := queryCoreFixture(t, sql)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
@@ -152,13 +152,13 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 			calls := 0
 			if phase == "rejected scan" {
 				filter := project.Child.(*plan.SortNode).Child.(*plan.FilterNode)
-				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					cancel()
 					return sqltype.Boolean(filter.Predicate.ResultUsage().Type, false), nil
 				})
 			} else if phase != "sorting" {
-				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase == "late source" && calls == 2 {
 						return sqltype.Value{}, sentinel
@@ -188,7 +188,7 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 }
 
 type insertCloseCursor struct {
-	RowCursor
+	exec.RowCursor
 	closeErr error
 	closes   int
 	cancel   context.CancelFunc
@@ -205,7 +205,7 @@ func (c *insertCloseCursor) Close() error {
 func TestInsertSelectRequiredClose(t *testing.T) {
 	for _, primary := range []bool{false, true} {
 		b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
-		stage, err := exec.OpenNode(context.Background(), &queryState{Source: source}, b.query.Root)
+		stage, err := exec.OpenNode(context.Background(), &exec.State{Source: source}, b.query.Root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,7 +234,7 @@ func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 	defer source.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stage, err := exec.OpenNode(ctx, &queryState{Source: source}, b.query.Root)
+	stage, err := exec.OpenNode(ctx, &exec.State{Source: source}, b.query.Root)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ func objectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Valu
 	return sqltype.OwnedArrayValue(d, dims, values)
 }
 
-func (h *statementHost) LookupObjectAddress(c *EvalContext, values [3]sqltype.Value) (ids.ObjectAddress, error) {
+func (h *statementHost) LookupObjectAddress(c *exec.Context, values [3]sqltype.Value) (ids.ObjectAddress, error) {
 	scope := h.scope()
 	if scope.inquiry.commentCatalog.State() == nil {
 		return ids.ObjectAddress{}, fmt.Errorf("stuntgres: missing object address snapshot")
@@ -27,18 +28,18 @@ func (h *statementHost) LookupObjectAddress(c *EvalContext, values [3]sqltype.Va
 	return lookupObjectAddress(c.Context, scope, values)
 }
 
-func (h *statementHost) IdentifyObject(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *statementHost) IdentifyObject(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return identifyObjectValues(c, values, result, functions.IdentifyObject)
 }
 
-func (h *statementHost) IdentifyObjectAddress(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *statementHost) IdentifyObjectAddress(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return identifyObjectValues(c, values, result, functions.IdentifyObjectAddress)
 }
 
-func (h *statementHost) DescribeObject(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *statementHost) DescribeObject(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return identifyObjectValues(c, values, result, functions.DescribeObject)
 }
-func identifyObjectValues(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {
+func identifyObjectValues(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {
 	scope := scopeOf(c.LiveHost())
 	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")

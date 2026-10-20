@@ -12,10 +12,10 @@ import (
 
 // prepareStoredQueryLocked consumes Engine.mu on all returns. Both ordinary
 // views and refresh execute the frozen tree through current attribute bridges.
-func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark, locks *queryLockContext, outputUses []int) (plan.Node, *querySource, error) {
+func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (plan.Node, *exec.Source, error) {
 	ctx := scope.op.Context()
 	if scope.authority == nil {
-		scope.authority = &queryAuthority{Host: hostOf(scope)}
+		scope.authority = &exec.Authority{Host: hostOf(scope)}
 	}
 	auth, err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark)
 	if err != nil {
@@ -24,9 +24,9 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	e.mu.Unlock()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.QuoteCaptures = scope.quoteCaptures
-	evaluation.QuoteOrigin = quoteOrigin{Owner: ref, Definition: definition.rule, Revision: definition.quoteRevision}
+	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.rule, Revision: definition.quoteRevision}
 	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || viewOf(consumer) != definition {
 		return nil, nil, ids.ErrCatalogReplaced
@@ -52,7 +52,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	if definition.invoker {
 		relationPrincipal = invoker
 	}
-	leaves := make([]queryLeaf, len(definition.sources))
+	leaves := make([]exec.Leaf, len(definition.sources))
 	for i, leaf := range definition.sources {
 		relation := catalog.MustRelation(leaf.ref.Address)
 		use, err := storedViewUseReference(catalog, consumer, leaf.ref)
@@ -60,7 +60,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		leaves[i] = queryLeaf{Ref: use, Relation: relation, Only: leaf.only, Principal: relationPrincipal, Storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), Mark: viewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.analysisOnly}
+		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.only, Principal: relationPrincipal, Storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), Mark: viewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.analysisOnly}
 		leaves[i].Uses, err = querySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {
 			e.mu.Unlock()
@@ -113,7 +113,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 					}
 				}
 			}
-			child = &querySource{Ref: leaves[i].Ref, Input: child, Layout: layout, Scratch: make([]sqltype.Value, len(layout)), Authority: scope.authority, Locks: child.Locks, Occurrence: child.Occurrence}
+			child = &exec.Source{Ref: leaves[i].Ref, Input: child, Layout: layout, Scratch: make([]sqltype.Value, len(layout)), Authority: scope.authority, Locks: child.Locks, Occurrence: child.Occurrence}
 			borrowQueryAuthority(child, scope)
 		}
 		if leaf.ref != leaves[i].Ref {
@@ -141,7 +141,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 
 // Legality and source opening consume the same execution-owned projection and
 // scheduled producers. Frozen authorization reads and dependencies are unchanged.
-func prepareStoredExecutionRoot(c *EvalContext, definition *viewDefinition, outputUses []int) (plan.Node, map[int][]int32, error) {
+func prepareStoredExecutionRoot(c *exec.Context, definition *viewDefinition, outputUses []int) (plan.Node, map[int][]int32, error) {
 	demanded := definition.query.Root
 	if project, ok := demanded.(*plan.ProjectNode); ok {
 		var err error

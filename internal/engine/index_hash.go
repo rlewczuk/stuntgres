@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -69,7 +70,7 @@ func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (storag
 }
 
 // Both AMs use the same typed/expression extraction authority.
-func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, evaluation *EvalContext) (sqltype.Value, error) {
+func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, evaluation *exec.Context) (sqltype.Value, error) {
 	if slot >= 0 {
 		return values[slot], nil
 	}
@@ -77,7 +78,7 @@ func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, eva
 	return expression.Eval(evaluation)
 }
 
-func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, materialize bool, capture *indexBuildCapture) (*storage.IndexRoot, error) {
+func buildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, materialize bool, capture *indexBuildCapture) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	binding, err := bindHashIndex(parent, d) // Eager even on empty/all-NULL input.
 	if err != nil {
@@ -148,7 +149,7 @@ func publicationSlot(p *rowPublication, i int) int {
 	return len(p.root) + i
 }
 
-func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, old *storage.IndexRoot, p *rowPublication, reconstruct, materialize bool) (*storage.IndexRoot, error) {
+func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old *storage.IndexRoot, p *rowPublication, reconstruct, materialize bool) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {

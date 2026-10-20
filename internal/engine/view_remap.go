@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 
@@ -1157,7 +1158,7 @@ func remapQuoteOwner(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef) expr
 	if !ok {
 		return node
 	}
-	origin, _ := annotated.Annotation().(quoteOrigin)
+	origin, _ := annotated.Annotation().(exec.QuoteOrigin)
 	if origin.Owner == (ids.ObjectRef{}) {
 		return node
 	}

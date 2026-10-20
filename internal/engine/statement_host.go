@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,10 +16,10 @@ import (
 // not widen the public StatementScope facade.
 type statementHost StatementScope
 
-var _ execHost = (*statementHost)(nil)
+var _ exec.Host = (*statementHost)(nil)
 
 // hostOf returns an untyped nil for a nil scope, never a typed nil.
-func hostOf(scope *StatementScope) execHost {
+func hostOf(scope *StatementScope) exec.Host {
 	if scope == nil {
 		return nil
 	}
@@ -27,7 +28,7 @@ func hostOf(scope *StatementScope) execHost {
 
 // scopeOf is the checked conversion back for engine code that reads the scope
 // behind a runtime record's host.
-func scopeOf(host execHost) *StatementScope {
+func scopeOf(host exec.Host) *StatementScope {
 	h, _ := host.(*statementHost)
 	return (*StatementScope)(h)
 }
@@ -39,11 +40,11 @@ func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.Output
 	return h.input, h.output
 }
 
-func (h *statementHost) StatementStart() time.Time     { return h.statementStart }
-func (h *statementHost) CTEInvocation() *cteInvocation { return h.cteInvocation }
+func (h *statementHost) StatementStart() time.Time          { return h.statementStart }
+func (h *statementHost) CTEInvocation() *exec.CTEInvocation { return h.cteInvocation }
 
 // QueryLocks is the statement's row-lock context, read at recheck time.
-func (h *statementHost) QueryLocks() *queryLockContext { return h.queryLocks }
+func (h *statementHost) QueryLocks() *exec.LockContext { return h.queryLocks }
 
 func (h *statementHost) ReleaseReplacementRead() { h.scope().foreignUnlocked() }
 func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {

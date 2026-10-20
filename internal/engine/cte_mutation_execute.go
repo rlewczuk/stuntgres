@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -31,7 +32,7 @@ type preparedCTEProgram struct {
 // This dispatch never binds, imports parameters, creates a scope or publishes.
 // The existing executors own their command semantics; one Finish owns the stage.
 // Engine.mu is held on entry and released on every return.
-func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
+func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
 	if len(b.ctes) == 0 {
 		return e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, nil)
 	}
@@ -45,7 +46,7 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 
 // Prepare the complete auxiliary/primary tree without executing any command.
 // Enter held; all outcomes release Engine.mu.
-func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCTEProgram) (Result, error) {
+func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCTEProgram) (Result, error) {
 	if scope.ruleActionAuth == nil {
 		scope.routineAuth = auth
 	}
@@ -176,14 +177,14 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		}
 		if mutation.lockedRef.Domain() != nil {
 			if len(leaves) == len(b.querySources) {
-				leaves = append([]queryLeaf(nil), leaves...)
+				leaves = append([]exec.Leaf(nil), leaves...)
 			}
-			leaves = append(leaves, queryLeaf{Ref: mutation.lockedRef, Relation: mutation.lockedDescriptor.(*catalog.Relation), Only: true})
+			leaves = append(leaves, exec.Leaf{Ref: mutation.lockedRef, Relation: mutation.lockedDescriptor.(*catalog.Relation), Only: true})
 			leaves = append(leaves, mutation.inheritedTargets...)
 		}
 	}
 	if len(scope.mutations) == 0 && b.ref.Domain() != nil {
-		leaves = append(append([]queryLeaf(nil), leaves...), queryLeaf{Ref: b.ref, Relation: b.relation})
+		leaves = append(append([]exec.Leaf(nil), leaves...), exec.Leaf{Ref: b.ref, Relation: b.relation})
 	}
 	collectAuth := auth
 	collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
@@ -196,7 +197,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	var source *querySource
+	var source *exec.Source
 	if b.cteSelectBodies {
 		source, err = e.captureQuerySourcesLocked(scope, b.querySources, true)
 		if err != nil {
@@ -207,13 +208,13 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		// Completed modifiers need only a lifetime/authority header, not a
 		// second physical capture of every command's own input sources.
 		if scope.authority == nil {
-			scope.authority = &queryAuthority{Host: hostOf(scope)}
+			scope.authority = &exec.Authority{Host: hostOf(scope)}
 		}
-		source = &querySource{Materialized: true, FlatCount: 1, Authority: scope.authority, Locks: scope.queryLocks}
+		source = &exec.Source{Materialized: true, FlatCount: 1, Authority: scope.authority, Locks: scope.queryLocks}
 	}
 	previousOwner := scope.cteInvocation
 	owner := previousOwner
-	findOwner := func(frame uint32) *cteInvocation {
+	findOwner := func(frame uint32) *exec.CTEInvocation {
 		for current := owner; current != nil; current = current.Parent {
 			if current.Frame == frame {
 				return current
@@ -226,7 +227,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			if findOwner(definition.Owner) != nil {
 				continue
 			}
-			current := &cteInvocation{Frame: definition.Owner, Parent: owner, State: queryState{Source: source, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: source.Locks != nil}}
+			current := &exec.CTEInvocation{Frame: definition.Owner, Parent: owner, State: exec.State{Source: source, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: source.Locks != nil}}
 			current.State.Ctes = current
 			owner = current
 		}
@@ -287,23 +288,23 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 }
 
-func completeCTEMutation(o *cteInvocation, definition *plan.CTEDefinition, result Result) error {
+func completeCTEMutation(o *exec.CTEInvocation, definition *plan.CTEDefinition, result Result) error {
 	if o.Closed || o.Producers[definition] != nil {
 		if result.Rows != nil {
 			result.Rows.Close()
 		}
 		return fmt.Errorf("stuntgres: CTE modifier completed more than once")
 	}
-	producer := &cteProducer{Done: true, Closed: true, Affected: result.Count}
+	producer := &exec.CTEProducer{Done: true, Closed: true, Affected: result.Count}
 	if mutation, _ := mutationBinding(definition); mutation.returning != nil {
-		rows, ok := result.Rows.(*finalRows)
+		rows, ok := result.Rows.(*exec.FinalRows)
 		if !ok {
 			if result.Rows != nil {
 				result.Rows.Close()
 			}
 			return fmt.Errorf("stuntgres: CTE modifier lacks typed output")
 		}
-		producer.Source = &querySource{Flat: rows.Values, FlatWidth: len(rows.Columns), FlatCount: rows.Count, Materialized: true, Authority: o.State.Source.Authority, Host: o.State.Source.Host, Locks: o.State.Source.Locks}
+		producer.Source = &exec.Source{Flat: rows.Values, FlatWidth: len(rows.Columns), FlatCount: rows.Count, Materialized: true, Authority: o.State.Source.Authority, Host: o.State.Source.Host, Locks: o.State.Source.Locks}
 		rows.Values = nil // Transfer the typed buffer, never Scan/reimport/copy.
 		if err := rows.Close(); err != nil {
 			return err
@@ -313,7 +314,7 @@ func completeCTEMutation(o *cteInvocation, definition *plan.CTEDefinition, resul
 		return fmt.Errorf("stuntgres: no-RETURNING CTE produced a relation")
 	}
 	if o.Producers == nil {
-		o.Producers = make(map[*plan.CTEDefinition]*cteProducer)
+		o.Producers = make(map[*plan.CTEDefinition]*exec.CTEProducer)
 	}
 	o.Producers[definition] = producer
 	o.Order = append(o.Order, producer)

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -106,7 +107,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	text, _ := value.Text()
 	if err != nil || text != "Hotel" {
 		t.Fatal(text, err)

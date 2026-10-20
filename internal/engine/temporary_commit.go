@@ -3,6 +3,7 @@ package engine
 import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -71,7 +72,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
 		input, output := sessionPresentation(op.session)
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: input, Output: output, Catalog: base}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: input, Output: output, Catalog: base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		project := func(old, replacement *catalog.Relation) error {
 			owner := op.session.transactions
 			snapshot, exists := owner.roots[old.Address()]

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -19,7 +20,7 @@ import (
 type serialSequenceUnit struct {
 	engine   *Engine
 	view     catalog.Read
-	context  *EvalContext
+	context  *exec.Context
 	table    *catalog.Relation
 	sequence *catalog.Relation
 	node     functions.Deparse
@@ -59,7 +60,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		Signature: functions.DeparseSerialSequence, Args: []expr.Expr{literal(`"Mixed.Schema"."Owned"`), literal("ID")},
 	}
 	scope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: view, deparseAuth: catalogAuthorization(e, view)}}
-	return serialSequenceUnit{e, view, &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}}, table, sequence, node}
+	return serialSequenceUnit{e, view, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}}, table, sequence, node}
 }
 
 func TestSerialSequenceOwnership(t *testing.T) {
@@ -122,7 +123,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	fresh.inquiry.commentCatalog = f.engine.catalog.read(f.engine.catalog.state)
 	fresh.inquiry.deparseAuth.Catalog = fresh.inquiry.commentCatalog
 	fresh.inquiry.deparseAuth.PairedCatalog = fresh.inquiry.deparseAuth.Catalog
-	value, err = f.node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(&fresh)}})
+	value, err = f.node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&fresh)}})
 	if err != nil || !value.IsNull() {
 		t.Fatal("fresh snapshot ignored NONE", value, err)
 	}
@@ -213,10 +214,10 @@ func TestSerialSequenceExpression(t *testing.T) {
 	node := f.node
 	node.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}, plan.ParameterExpr{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}}
 	node.Property.ParameterDependent = true
-	if _, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); err == nil {
+	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("NULL suppressed demanded child")
 	}
-	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{sqltype.String(text, "missing")}}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{sqltype.String(text, "missing")}}})
 	if err != nil || !value.IsNull() || value.Type() != text {
 		t.Fatal("strict NULL required catalog", value, err)
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -98,7 +99,7 @@ func TestMathGcdLcmBindingExecutionPhase(t *testing.T) {
 		if err != nil {
 			t.Fatal("binding invoked provider", q, err)
 		}
-		c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+		c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 		_, _, err = preflightCoercions(c, node)
 		message := "integer out of range"
 		if strings.Contains(q, "bigint") {

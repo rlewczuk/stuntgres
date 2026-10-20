@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -36,7 +37,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 				t.Fatal(err)
 			}
 			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: v}}}
-			got, err := expr.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			got, err := expr.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -48,7 +49,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if !ok || next.Plan.Name() != name || next.Plan.ResultUsage().Type != replacement[sqltype.Int4] || next.Args[0].ResultUsage().Type != replacement[id] {
 				t.Fatal(rebound)
 			}
-			result, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			result, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			retagged, retagErr := got.Retag(replacement[sqltype.Int4])
 			if err != nil || retagErr != nil || result != retagged {
 				t.Fatal(result, retagged, err, retagErr)

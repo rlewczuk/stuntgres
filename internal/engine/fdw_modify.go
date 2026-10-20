@@ -13,7 +13,7 @@ import (
 )
 
 type foreignModification struct {
-	source         *foreignQuerySource
+	source         *exec.ForeignQuerySource
 	request        catalog.ForeignModifyRequest
 	state          any
 	copy           bool
@@ -66,7 +66,7 @@ func foreignModifyAdmission(view catalog.Read, relation *catalog.Relation, opera
 	}
 	return nil
 }
-func (s *StatementScope) planForeignModification(ctx context.Context, source *foreignQuerySource, operation catalog.ForeignModifyOperation, copying bool) (*foreignModification, error) {
+func (s *StatementScope) planForeignModification(ctx context.Context, source *exec.ForeignQuerySource, operation catalog.ForeignModifyOperation, copying bool) (*foreignModification, error) {
 	s.foreignUnlocked()
 	if err := foreignOperationSupported(source.Wrapper, operation, source.Request.Table); err != nil {
 		return nil, err

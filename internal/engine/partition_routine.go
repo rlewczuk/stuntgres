@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/visibility"
@@ -19,7 +20,7 @@ type partitionRoutineIdentity struct {
 	ri    bool
 }
 
-func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
+func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
 	key := owner.Partition.Keys[keyIndex].Derived
 	local := indexRecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1

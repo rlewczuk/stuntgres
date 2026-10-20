@@ -21,7 +21,7 @@ type indexExecutionPreparation struct {
 	constantsPrepared, predicatePrepared, keysPrepared bool
 }
 
-func indexRecipeEvaluation(evaluation *EvalContext, dependencies []ids.ObjectRef, parent *catalog.Relation) EvalContext {
+func indexRecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRef, parent *catalog.Relation) exec.Context {
 	local := *evaluation
 	local.RoutineGraft = false
 	local.RoutineRecipe = true
@@ -30,7 +30,7 @@ func indexRecipeEvaluation(evaluation *EvalContext, dependencies []ids.ObjectRef
 	return local
 }
 
-func prepareIndexRecipe(evaluation *EvalContext, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *routineAdmissionProgram, executable bool) (expr.Expr, error) {
+func prepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *routineAdmissionProgram, executable bool) (expr.Expr, error) {
 	local := indexRecipeEvaluation(evaluation, dependencies, parent)
 	local.RoutineProgram = admission
 	prepared, _, err := preflightCoercionsWithPolicy(&local, expression, true)
@@ -46,7 +46,7 @@ func prepareIndexRecipe(evaluation *EvalContext, expression expr.Expr, dependenc
 
 // SQL constant planning is demanded by the first real tuple, before predicate
 // truth. Nonconstant key initialization still waits for a true predicate.
-func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *storage.HashBinding) error {
+func (p *indexExecutionPreparation) prepareConstants(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *storage.HashBinding) error {
 	if p.constantsPrepared {
 		return nil
 	}
@@ -89,7 +89,7 @@ func (p *indexExecutionPreparation) keyProgram(i int, ordering *indexOrdering, h
 	return p.ordinary[i]
 }
 
-func (p *indexExecutionPreparation) prepareKeys(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *storage.HashBinding) error {
+func (p *indexExecutionPreparation) prepareKeys(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *storage.HashBinding) error {
 	if p.keysPrepared {
 		return nil
 	}
@@ -110,7 +110,7 @@ func (p *indexExecutionPreparation) prepareKeys(evaluation *EvalContext, parent 
 	return nil
 }
 
-func (p *indexExecutionPreparation) prepareOrdinaryKeys(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition) error {
+func (p *indexExecutionPreparation) prepareOrdinaryKeys(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition) error {
 	return p.prepareKeys(evaluation, parent, definition, nil, nil)
 }
 
@@ -128,7 +128,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].Uses); err != nil {
 		return nil, err
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.dependencies
 	evaluation.RoutineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
@@ -159,7 +159,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 // Shared build/maintenance/private-admission contract:
 // absent includes; only TRUE includes; errors and cancellation veto publication.
 // The caller owns the evaluation frame and row, with no per-row allocation.
-func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, row []sqltype.Value, ordering *indexOrdering, hash *storage.HashBinding) (bool, error) {
+func (p *indexExecutionPreparation) predicateMatches(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, row []sqltype.Value, ordering *indexOrdering, hash *storage.HashBinding) (bool, error) {
 	if err := exec.EvaluationContext(evaluation); err != nil {
 		return false, err
 	}

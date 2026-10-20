@@ -420,7 +420,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 		}
 		leaf := len(b.query.sources)
-		b.query.sources = append(b.query.sources, queryLeaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.host.AuthorizationStorage(*b.query.auth, ref.Address), Mark: b.query.lockAdmission.tableMark(n), Table: n, Query: b.query.lockAdmission.tableQueries[n].query, DeleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
+		b.query.sources = append(b.query.sources, exec.Leaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.host.AuthorizationStorage(*b.query.auth, ref.Address), Mark: b.query.lockAdmission.tableMark(n), Table: n, Query: b.query.lockAdmission.tableQueries[n].query, DeleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
 		columns := make([]queryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}

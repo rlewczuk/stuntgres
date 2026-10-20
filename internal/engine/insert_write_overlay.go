@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -55,7 +56,7 @@ func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (storage.
 	return s.ownWrites[ref.Address][slot], true
 }
 
-func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, evaluation *EvalContext, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose indexProbePurpose) error {
+func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose indexProbePurpose) error {
 	member, keys, err := s.existingUniqueOutput(bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return err
@@ -71,7 +72,7 @@ func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, ev
 	return nil
 }
 
-func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value, excluded []storage.RowVersion, purpose indexProbePurpose) (storage.RowVersion, bool, error) {
+func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose indexProbePurpose) (storage.RowVersion, bool, error) {
 	c := s.writeOverlay()
 	if c.overlays == nil {
 		c.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)

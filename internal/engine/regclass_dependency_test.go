@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -53,7 +54,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := next.Constraints.Check[0].Expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}}})
+	result, err := next.Constraints.Check[0].Expression.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}}})
 	if err != nil {
 		t.Fatal("surviving CHECK slot migration", err)
 	}

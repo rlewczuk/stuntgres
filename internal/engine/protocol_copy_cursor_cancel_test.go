@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -95,7 +96,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 			}
 			scope.protocol().command = true
 			defer scope.Finish(context.Canceled)
-			var cursor RowCursor
+			var cursor exec.RowCursor
 			text := &copyCursor{
 				scope: scope,
 				binding: binding{

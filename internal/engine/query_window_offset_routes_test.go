@@ -86,12 +86,12 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if !ok {
 		t.Fatalf("no executable marker stage: %T", root)
 	}
-	stage, err := exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 7}, node)
+	stage, err := exec.OpenSetProjectNode(context.Background(), &exec.State{Source: &exec.Source{}, Frame: 7}, node)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stage.Close()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 7}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 7}}
 	var rows [][]any
 	for {
 		occurrence, present, err := stage.NextOccurrence(context.Background())

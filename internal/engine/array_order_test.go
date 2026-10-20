@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -49,7 +50,7 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 		node  plan.ComparisonExpr
 	}{{e, original}, {target, rebound}} {
 		node := entry.node
-		result, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		result, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

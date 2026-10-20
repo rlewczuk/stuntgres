@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -91,7 +92,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if c.Usage.Type.ID() != sqltype.NameArray || c.Usage.Type.Name() != "_name" || c.Usage.Type.DatabaseName() != "_NAME" || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 950 || c.OriginTable != 0 || c.OriginAttribute != 0 || table.Columns[0].Usage != c.Usage {
 		t.Fatal(c, table.Columns)
 	}
-	value, err := query.Root.(*plan.ProjectNode).Expressions[0].Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}})
+	value, err := query.Root.(*plan.ProjectNode).Expressions[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}})
 	if err != nil {
 		t.Fatal(err)
 	}

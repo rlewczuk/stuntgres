@@ -79,7 +79,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 	e := New()
 	d, _ := e.CatalogRead().LookupType(sqltype.Int4Range)
 	p := rangeAggregateUnitProvider(t, d, sqltype.RangeAggregateIntersection)
-	build := func(failure error) (*plan.ProjectNode, *querySource, *int) {
+	build := func(failure error) (*plan.ProjectNode, *exec.Source, *int) {
 		calls := new(int)
 		child := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: d.Usage()}}}
 		for _, text := range []string{"empty", "[1,4)", "[2,3)"} {
@@ -87,9 +87,9 @@ func rangeAggregateEagerUnit(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			child.Rows = append(child.Rows, []expr.Expr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return v, nil })})
+			child.Rows = append(child.Rows, []expr.Expr{queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) { return v, nil })})
 		}
-		argument := queryProbe(d.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+		argument := queryProbe(d.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 			(*calls)++
 			if *calls == 3 && failure != nil {
 				return sqltype.Value{}, failure
@@ -98,8 +98,8 @@ func rangeAggregateEagerUnit(t *testing.T) {
 		})
 		schema := plan.QuerySchema{{Name: "i", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}
 		node := &plan.AggregateNode{QuerySchema: schema, Child: child, Calls: []plan.AggregateCall{{Provider: p, Argument: argument, Operation: functions.AggregateRangeIntersection}}}
-		project := &plan.ProjectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })}}
-		return project, &querySource{}, calls
+		project := &plan.ProjectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{queryProbe(p.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { return c.Row[0], nil })}}
+		return project, &exec.Source{}, calls
 	}
 	root, source, calls := build(nil)
 	rows, count, err := exec.Finalize(context.Background(), root, source, nil)
@@ -129,7 +129,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 			n.Calls[0].Operation = functions.AggregateRangeUnion
 			n.QuerySchema[0].Usage = union.ResultUsage()
 			root.QuerySchema[0].Usage = union.ResultUsage()
-			root.Expressions[0] = queryProbe(union.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })
+			root.Expressions[0] = queryProbe(union.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { return c.Row[0], nil })
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &rangeAggregateCancelContext{Context: ctx, cancel: cancel, target: target}

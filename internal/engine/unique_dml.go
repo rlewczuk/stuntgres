@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -217,19 +218,19 @@ retry:
 	return b, nil
 }
 
-func (b *uniqueBoundKey) load(row []sqltype.Value, evaluation *EvalContext) ([]sqltype.Value, error) {
+func (b *uniqueBoundKey) load(row []sqltype.Value, evaluation *exec.Context) ([]sqltype.Value, error) {
 	err := b.fillKeys(row, b.key, evaluation)
 	return b.key, err
 }
 
-func (b *uniqueBoundKey) fillKeys(row, keys []sqltype.Value, evaluation *EvalContext) error {
+func (b *uniqueBoundKey) fillKeys(row, keys []sqltype.Value, evaluation *exec.Context) error {
 	if err := b.preparation.prepareKeys(evaluation, b.parent, b.index.SQLIndex, &b.ordering, nil); err != nil {
 		return err
 	}
 	return b.ordering.fillKeys(row, keys, evaluation)
 }
 
-func (b *uniqueBoundKey) matches(evaluation *EvalContext, values, key []sqltype.Value) (bool, error) {
+func (b *uniqueBoundKey) matches(evaluation *exec.Context, values, key []sqltype.Value) (bool, error) {
 	member, err := b.preparation.predicateMatches(evaluation, b.parent, b.index.SQLIndex, values, &b.ordering, nil)
 	if err != nil || !member {
 		return false, err
@@ -246,7 +247,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersio
 	if err != nil {
 		return err
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.Catalog = s.op.session.Engine().catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
@@ -355,7 +356,7 @@ retry:
 	}
 	e := s.op.session.Engine()
 	ctx := s.op.Context()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.Catalog = e.catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName

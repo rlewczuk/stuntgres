@@ -16,7 +16,7 @@ import (
 func TestSourceProtocolSubstitution(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	original := jsonRecordUnitCall(t, b, "json_to_record", true)
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	value, err := original.Args[0].Eval(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 	if fresh == value.Type() {
 		t.Fatal("test requires distinct descriptor owners")
 	}
-	replacement := queryProbe(fresh.Usage(), func(*EvalContext) (sqltype.Value, error) { return value, nil })
+	replacement := queryProbe(fresh.Usage(), func(*exec.Context) (sqltype.Value, error) { return value, nil })
 	node := &plan.FunctionFromNode{Calls: []expr.Expr{original}}
 	mapped, err := plan.RewriteQueryExpressions(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == original.Args[0] {
@@ -133,7 +133,7 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 
 func TestSourceProtocolBorrowedLifetime(t *testing.T) {
 	call := arrayRelationalUnitUnnest(t, "{1,NULL,3}")
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	first, err := exec.OpenFunctionSource(ctx, call)
 	if err != nil {
 		t.Fatal(err)
@@ -188,7 +188,7 @@ func TestSourceProtocolBorrowedLifetime(t *testing.T) {
 }
 
 func TestSourceProtocolCursorOwnership(t *testing.T) {
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	d := seriesUnitType(t, sqltype.Numeric)
 	call := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	first, err := exec.OpenFunctionSource(ctx, call)
@@ -253,13 +253,13 @@ func TestSourceProtocolPresence(t *testing.T) {
 		}
 		call := plan.UnnestExpr{Info: expr.Info{Usage: empty.Usage()}, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
 		for _, reverse := range []bool{false, true} {
-			borrowed, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, call)
+			borrowed, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, call)
 			if err != nil {
 				t.Fatal(err)
 			}
 			scalar := expr.ScalarSource(sqltype.Null(integer))
 			calls := []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}}, call}
-			invocation := functionSetInvocation{Cursors: []expr.SourceCursor{scalar, borrowed}}
+			invocation := exec.FunctionSetInvocation{Cursors: []expr.SourceCursor{scalar, borrowed}}
 			if reverse {
 				calls[0], calls[1] = calls[1], calls[0]
 				invocation.Cursors[0], invocation.Cursors[1] = invocation.Cursors[1], invocation.Cursors[0]
@@ -282,15 +282,15 @@ func TestSourceProtocolCancellation(t *testing.T) {
 	call := seriesUnit(t, d, 1, 2)
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	call.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	call.Args[0] = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		t.Fatal("precanceled open evaluated an argument")
 		return sqltype.Value{}, nil
 	})
-	if cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: canceled}}, call); !errors.Is(err, context.Canceled) || cursor.Type != nil {
+	if cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, call); !errors.Is(err, context.Canceled) || cursor.Type != nil {
 		t.Fatal("precanceled source published state", cursor, err)
 	}
 	healthy := seriesUnit(t, d, 1, 1)
-	cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, healthy)
+	cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, healthy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +301,7 @@ func TestSourceProtocolCancellation(t *testing.T) {
 	if _, present, err := cursor.Next(canceled); present || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost at exhausted boundary", present, err)
 	}
-	reopened, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, healthy)
+	reopened, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, healthy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,12 +314,12 @@ func TestSourceProtocolCancellation(t *testing.T) {
 }
 
 func TestSourceProtocolCleanup(t *testing.T) {
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	d := seriesUnitType(t, sqltype.Numeric)
 	first := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	failure := errors.New("later source argument")
 	later := seriesUnit(t, seriesUnitType(t, sqltype.Int4), 1, 2)
-	later.Args[0] = queryProbe(later.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
+	later.Args[0] = queryProbe(later.Args[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	invocation, err := exec.OpenFunctionInvocation(ctx, &plan.FunctionFromNode{Calls: []expr.Expr{first, later}})
 	if !errors.Is(err, failure) || invocation.Cursors != nil {
 		t.Fatal("partial open exposed an invocation", invocation, err)
@@ -343,7 +343,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	record := jsonRecordUnitCall(t, b, "json_to_record", true)
-	input, err := record.Args[0].Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	input, err := record.Args[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,11 +374,11 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "record", Usage: call.Usage}}, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
-	planned, err := preflightQuery(&EvalContext{EvalStatement: evalStatement{Context: ctx, Catalog: engine.CatalogRead()}}, project)
+	planned, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: engine.CatalogRead()}}, project)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage, err := exec.OpenNode(ctx, &queryState{Source: &querySource{}, Frame: 1}, planned)
+	stage, err := exec.OpenNode(ctx, &exec.State{Source: &exec.Source{}, Frame: 1}, planned)
 	if err != nil {
 		t.Fatal(err)
 	}

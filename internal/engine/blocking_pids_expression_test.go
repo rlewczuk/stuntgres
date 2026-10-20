@@ -52,8 +52,8 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if b.sameGroupExpression(n, other) {
 			t.Fatal("different inquiries collapsed")
 		}
-		for _, rewrite := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
-			next, _, err := rewrite(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, n, false)
+		for _, rewrite := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
+			next, _, err := rewrite(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, n, false)
 			if err != nil || next.Properties().Volatility != expr.Volatile {
 				t.Fatal("live recipe precomputed", next, err)
 			}

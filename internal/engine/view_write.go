@@ -270,7 +270,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
 			return rewriteViewExpression(auth.Catalog, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
 				if q, ok := n.(functions.StringVariadic); ok && quoteOriginOf(q).Owner == (ids.ObjectRef{}) {
-					q = q.WithOrigin(quoteOrigin{Owner: ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision})
+					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision})
 					q.RoutineRecipeReference = d
 					var args []expr.Expr
 					// A changed leaf exits the shared mapper before its children.

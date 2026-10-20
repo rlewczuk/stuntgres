@@ -11,11 +11,11 @@ func init() { exec.InstallPreparation(enginePreparation{}) }
 
 type enginePreparation struct{}
 
-func (enginePreparation) PreflightCoercions(c *EvalContext, e expr.Expr) (expr.Expr, bool, error) {
+func (enginePreparation) PreflightCoercions(c *exec.Context, e expr.Expr) (expr.Expr, bool, error) {
 	return preflightCoercions(c, e)
 }
 
-func (enginePreparation) DomainCatalog(c *EvalContext) catalog.Read {
+func (enginePreparation) DomainCatalog(c *exec.Context) catalog.Read {
 	return domainCatalog(c)
 }
 

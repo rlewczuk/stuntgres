@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -36,7 +37,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			defer cancel()
 			scope.op.ctx = ctx
 			calls := 0
-			probe := queryProbe(integer.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+			probe := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				root := scope.stage.deletes[b.ref.Address]
 				if root == nil || len(root.Rows) != calls {

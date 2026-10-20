@@ -311,7 +311,7 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 	}
 }
 
-func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
+func (v AuthorizationView) checkQuerySources(sources []exec.Leaf) error {
 	for _, source := range sources {
 		if source.AnalysisOnly {
 			continue

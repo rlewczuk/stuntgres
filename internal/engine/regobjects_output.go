@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -25,18 +26,18 @@ func regObjectSpelling(view catalog.Read, path []ids.ObjectAddress, class, id id
 
 func (s *StatementScope) FormatRegcollation(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return detachedPresentation{}.FormatRegcollation(id)
+		return exec.DetachedPresentation{}.FormatRegcollation(id)
 	}
 	return regObjectSpelling(s.inquiry.commentCatalog, s.inquiry.collationPath, ids.CollationClassID, ids.OID(id)), nil
 }
 func (s *StatementScope) FormatRegnamespace(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return detachedPresentation{}.FormatRegnamespace(id)
+		return exec.DetachedPresentation{}.FormatRegnamespace(id)
 	}
 	return regObjectSpelling(s.inquiry.commentCatalog, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }
 
-func captureRegObjectOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegObjectOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegObject() {
 		return nil
 	}
@@ -71,7 +72,7 @@ func captureRegObjectOutputValue(rows *finalRows, view catalog.Read, path []ids.
 	return nil
 }
 
-func (e *Engine) captureRegObjectRowsValueLocked(rows *finalRows, auth AuthorizationView, path *[]ids.ObjectAddress, value sqltype.Value) error {
+func (e *Engine) captureRegObjectRowsValueLocked(rows *exec.FinalRows, auth AuthorizationView, path *[]ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegObject() {
 		return nil
 	}

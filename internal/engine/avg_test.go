@@ -134,7 +134,7 @@ func TestAvgEagerCancellation(t *testing.T) {
 				}}
 			case "prepublication":
 				expr := project.Expressions[0]
-				project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
+				project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
 			}
 			rows, count, err := exec.Finalize(ctx, q.Root, source, nil)
 			cancel()

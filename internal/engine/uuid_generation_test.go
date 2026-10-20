@@ -76,7 +76,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		for _, preflight := range []bool{false, true} {
 			for _, decisive := range []bool{false, true} {
 				// Deliberately omit the session: any provider demand would fail.
-				evaluation := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+				evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 				var planned expr.Expr
 				var changed bool
 				if preflight {
@@ -107,7 +107,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		planned, _, err := preflightCoercionsWithPolicy(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, analyzed, true)
+		planned, _, err := preflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, analyzed, true)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -20,7 +20,7 @@ import (
 )
 
 type parallelTestOutcome struct {
-	rows  RowResult
+	rows  exec.RowResult
 	count int
 	err   error
 }
@@ -55,7 +55,7 @@ func parallelTestStart(t *testing.T, call func(context.Context) parallelTestOutc
 	return ctx, cancel, join
 }
 
-func parallelTestIDs(t *testing.T, rows RowResult) []int64 {
+func parallelTestIDs(t *testing.T, rows exec.RowResult) []int64 {
 	t.Helper()
 	defer rows.Close()
 	values := make([]sqltype.Value, len(rows.Schema()))
@@ -146,12 +146,12 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 			if !eligible || ordered != nil {
 				t.Fatal("ordinary scan not eligible")
 			}
-			entered := make(chan *queryState, 2)
+			entered := make(chan *exec.State, 2)
 			release := make(chan struct{})
 			var mu sync.Mutex
 			seen := map[int64]int{}
-			workers := map[*queryState]bool{}
-			gate := func(c *EvalContext) error {
+			workers := map[*exec.State]bool{}
+			gate := func(c *exec.Context) error {
 				mu.Lock()
 				first := !workers[c.Query]
 				workers[c.Query] = true
@@ -169,7 +169,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 				return nil
 			}
 			if phase == "target" {
-				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					if err := gate(c); err != nil {
 						return sqltype.Value{}, err
 					}
@@ -177,7 +177,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 				})
 			} else {
 				filter := project.Child.(*plan.FilterNode)
-				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					if err := gate(c); err != nil {
 						return sqltype.Value{}, err
 					}
@@ -188,7 +188,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 				r, n, e := exec.FinalizeParallelQuery(ctx, project, nil, source, nil, 2)
 				return parallelTestOutcome{r, n, e}
 			})
-			states := make([]*queryState, 2)
+			states := make([]*exec.State, 2)
 			for i := range states {
 				select {
 				case states[i] = <-entered:
@@ -229,9 +229,9 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 func TestQueryParallelSnapshot(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
-	entered := make(chan *queryState, 2)
+	entered := make(chan *exec.State, 2)
 	releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
-	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		if int(id) == c.Query.ScanStart+1 {
 			entered <- c.Query
@@ -246,7 +246,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	// Exercise the same real worker executor separately so completion of worker0
 	// deterministically establishes its release while worker1 remains in Eval.
 	type workerOutcome struct {
-		run queryParallelRun
+		run exec.QueryParallelRun
 		err error
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -271,7 +271,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 			done[i] <- workerOutcome{r, err}
 		}(i)
 	}
-	states := make([]*queryState, 2)
+	states := make([]*exec.State, 2)
 	for range 2 {
 		select {
 		case s := <-entered:
@@ -308,7 +308,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	if second.err != nil {
 		t.Fatal(second.err)
 	}
-	rows, err := exec.GatherQueryRuns(ctx, project, nil, source, []queryParallelRun{first.run, second.run}, nil, false, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	rows, err := exec.GatherQueryRuns(ctx, project, nil, source, []exec.QueryParallelRun{first.run, second.run}, nil, false, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,12 +348,12 @@ func TestQueryParallelEligibility(t *testing.T) {
 			t.Fatalf("unsupported %T admitted", node)
 		}
 	}
-	for _, mutate := range []func(*querySource){
-		func(s *querySource) { s.Locks = &queryLockContext{} }, func(s *querySource) { s.Lineage = &queryLockLineage{} }, func(s *querySource) { s.Inherited.Mode = 1 },
-		func(s *querySource) { s.Sources = []*querySource{s} }, func(s *querySource) { s.PartialMask = &storage.IndexRoot{} }, func(s *querySource) { s.HashIndexes = []capturedHashIndex{} },
-		func(s *querySource) { s.Inheritance = []inheritanceQuerySegment{} }, func(s *querySource) { s.Anonymous = [][]sqltype.Value{} }, func(s *querySource) { s.Singleton = true },
-		func(s *querySource) { s.Materialized = true }, func(s *querySource) { s.Final = &finalRows{} }, func(s *querySource) { s.Input = &querySource{} }, func(s *querySource) { s.NestedRoot = &plan.SingletonNode{} },
-		func(s *querySource) { s.Window = true }, func(s *querySource) { s.Scratch = []sqltype.Value{} }, func(s *querySource) { s.RlsDenied = true }, func(s *querySource) { s.StoredRef = s.Ref },
+	for _, mutate := range []func(*exec.Source){
+		func(s *exec.Source) { s.Locks = &exec.LockContext{} }, func(s *exec.Source) { s.Lineage = &exec.QueryLockLineage{} }, func(s *exec.Source) { s.Inherited.Mode = 1 },
+		func(s *exec.Source) { s.Sources = []*exec.Source{s} }, func(s *exec.Source) { s.PartialMask = &storage.IndexRoot{} }, func(s *exec.Source) { s.HashIndexes = []exec.CapturedHashIndex{} },
+		func(s *exec.Source) { s.Inheritance = []exec.InheritanceQuerySegment{} }, func(s *exec.Source) { s.Anonymous = [][]sqltype.Value{} }, func(s *exec.Source) { s.Singleton = true },
+		func(s *exec.Source) { s.Materialized = true }, func(s *exec.Source) { s.Final = &exec.FinalRows{} }, func(s *exec.Source) { s.Input = &exec.Source{} }, func(s *exec.Source) { s.NestedRoot = &plan.SingletonNode{} },
+		func(s *exec.Source) { s.Window = true }, func(s *exec.Source) { s.Scratch = []sqltype.Value{} }, func(s *exec.Source) { s.RlsDenied = true }, func(s *exec.Source) { s.StoredRef = s.Ref },
 	} {
 		copy := *source
 		mutate(&copy)
@@ -391,7 +391,7 @@ func TestQueryParallelErrorIdentity(t *testing.T) {
 	blocked := make(chan struct{})
 	var joined atomic.Bool
 	sentinel := errors.New("primary worker failure")
-	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		if c.Query.ScanStart == 0 {
 			select {
 			case <-blocked:
@@ -426,7 +426,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 			defer cancel()
 			var calls atomic.Int64
 			probe := func(usage sqltype.Usage) expr.Expr {
-				return queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+				return queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls.Add(1)
 					cancel()
 					return sqltype.Value{}, c.Context.Err()
@@ -455,10 +455,10 @@ func TestQueryParallelCancellation(t *testing.T) {
 	// The live admission authority must not overwrite sibling cancellation.
 	_, _, source := queryCoreFixture(t, "SELECT id FROM t")
 	scope := &StatementScope{}
-	source.Authority = &queryAuthority{Host: hostOf(scope)}
+	source.Authority = &exec.Authority{Host: hostOf(scope)}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	state := &queryState{Source: source, ExecutionContext: ctx}
+	state := &exec.State{Source: source, ExecutionContext: ctx}
 	evaluation := state.Evaluation(context.Background())
 	if evaluation.Context != ctx || evaluation.Context.Err() != context.Canceled {
 		t.Fatal("worker cancellation replaced by authority")
@@ -512,7 +512,7 @@ func TestQueryParallelOwnership(t *testing.T) {
 		if err != nil || n != 4 {
 			t.Fatal(n, err)
 		}
-		result := rows.(*finalRows)
+		result := rows.(*exec.FinalRows)
 		computed := q == "SELECT id+1 AS id FROM t"
 		if computed && source.View != nil {
 			t.Fatal("computed input retained")

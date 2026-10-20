@@ -65,8 +65,8 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	parent := queryLeaf{Ref: ref(p), Relation: p, Storage: e.storage.Relations[p.Address()]}
-	scope.querySources = []queryLeaf{parent}
+	parent := exec.Leaf{Ref: ref(p), Relation: p, Storage: e.storage.Relations[p.Address()]}
+	scope.querySources = []exec.Leaf{parent}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parent.Ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err == nil {
 		view, err = scope.acquireDataViewsLocked(e, refs)
 	}
-	var source *querySource
+	var source *exec.Source
 	if err == nil {
 		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, parent, op.session.token)
 	}

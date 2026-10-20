@@ -34,13 +34,13 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 	if !exec.SourceReturnsSet(e) || !exec.SourceAdmitted(e) || len(expr.Expr(e).(expr.Composite).Children()) != 1 {
 		t.Fatal("missing SRF classification")
 	}
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	if _, err := e.Eval(c); err == nil {
 		t.Fatal("unlifted scalar execution")
 	}
 	count := 0
 	value := e.Args[0].(plan.LiteralExpr).Value
-	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return value, nil })
+	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) { count++; return value, nil })
 	first, err := exec.OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {
 			t.Fatal(node, err)
 		}
-		got, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -11,7 +11,7 @@ import (
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
 // principals affect ACL and row-security checks; expressions keep the invoker.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *queryLockContext, outputUses []int) (*querySource, error) {
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (*exec.Source, error) {
 	ctx := scope.op.Context()
 	if err := ctx.Err(); err != nil {
 		e.mu.Unlock()
@@ -51,16 +51,16 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		if err != nil {
 			return nil, err
 		}
-		bridge := &querySource{Ref: ref, Authority: scope.authority, Locks: locks, NestedRoot: root, NestedInputs: source, Materialized: true, FlatWidth: len(root.Schema()), Inherited: mark}
+		bridge := &exec.Source{Ref: ref, Authority: scope.authority, Locks: locks, NestedRoot: root, NestedInputs: source, Materialized: true, FlatWidth: len(root.Schema()), Inherited: mark}
 		borrowQueryAuthority(bridge, scope)
 		if locks != nil {
 			occurrences := exec.QueryTreeOccurrences(root, source, nil)
-			bridge.Lineage = &queryLockLineage{Root: root, Inputs: source, Stage: &querySource{Materialized: true, Occurrences: occurrences}}
+			bridge.Lineage = &exec.QueryLockLineage{Root: root, Inputs: source, Stage: &exec.Source{Materialized: true, Occurrences: occurrences}}
 		}
 		return bridge, nil
 	case catalog.PartitionedRelation:
-		var leaves [1]queryLeaf
-		leaves[0] = queryLeaf{Ref: ref, Relation: d}
+		var leaves [1]exec.Leaf
+		leaves[0] = exec.Leaf{Ref: ref, Relation: d}
 		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves[:], false, invoker, mark, locks)
 		e.mu.Unlock()
 		if err != nil {

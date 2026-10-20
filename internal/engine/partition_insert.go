@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -20,7 +21,7 @@ type partitionInsertState struct {
 	auth        AuthorizationView
 	target      *catalog.Relation
 	destination *catalog.Relation
-	layouts     map[ids.ObjectAddress]*inheritanceQuerySegment
+	layouts     map[ids.ObjectAddress]*exec.InheritanceQuerySegment
 	physicalRow []sqltype.Value
 	namedRow    []sqltype.Value
 	groups      map[ids.ObjectAddress]*partitionInsertGroup
@@ -55,9 +56,9 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		}
 		if layout != nil {
 			if state.layouts == nil {
-				state.layouts = make(map[ids.ObjectAddress]*inheritanceQuerySegment)
+				state.layouts = make(map[ids.ObjectAddress]*exec.InheritanceQuerySegment)
 			}
-			state.layouts[d.Address()] = &inheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, len(layout))}
+			state.layouts[d.Address()] = &exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, len(layout))}
 		}
 		return nil
 	}
@@ -96,7 +97,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	return nil
 }
 
-func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value, evaluation *EvalContext) error {
+func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value, evaluation *exec.Context) error {
 	state := s.partitionInsert
 	state.namedRow = row
 	if state.target.Partition != nil {
@@ -157,7 +158,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	return nil
 }
 
-func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqltype.Value, evaluation *EvalContext) error {
+func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqltype.Value, evaluation *exec.Context) error {
 	state := s.partitionInsert
 	for child := state.target; child.Membership != nil; {
 		parent := state.catalog.MustRelation(child.Membership.Parent)

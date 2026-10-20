@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -44,12 +45,12 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	baseRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address())
 	mvRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	viewOf(d).sources = []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1}}}
-	mvSources := []queryLeaf{{Ref: mvRef, Relation: d, Uses: []int{0}}}
+	mvSources := []exec.Leaf{{Ref: mvRef, Relation: d, Uses: []int{0}}}
 	if err := auth.checkQuerySources(mvSources); err != nil {
 		t.Fatal("MV SELECT demanded base ACL:", err)
 	}
 	var denied *sqlstate.Error
-	if err := auth.checkQuerySources([]queryLeaf{{Ref: baseRef, Relation: &base, Uses: []int{0}}}); !errors.As(err, &denied) || denied.Code != "42501" || denied.Message != "permission denied for table unit_base" {
+	if err := auth.checkQuerySources([]exec.Leaf{{Ref: baseRef, Relation: &base, Uses: []int{0}}}); !errors.As(err, &denied) || denied.Code != "42501" || denied.Message != "permission denied for table unit_base" {
 		t.Fatalf("base unexpectedly readable: %v", err)
 	}
 	e.mu.Lock()

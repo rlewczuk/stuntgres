@@ -29,7 +29,7 @@ func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) plan
 
 func numericSeriesUnitRead(t *testing.T, e plan.SeriesExpr) []sqltype.Value {
 	t.Helper()
-	cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, e)
+	cursor, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,19 +74,19 @@ func TestNumericSeriesInvocation(t *testing.T) {
 	var calls []int
 	for i, arg := range e.Args {
 		v := arg.(plan.LiteralExpr).Value
-		e.Args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, i); return v, nil })
+		e.Args[i] = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) { calls = append(calls, i); return v, nil })
 	}
 	if got := numericSeriesUnitRead(t, e); len(got) != 3 || !reflect.DeepEqual(calls, []int{0, 1, 2}) {
 		t.Fatal(got, calls)
 	}
 	calls = nil
-	e.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, 0); return sqltype.Null(d), nil })
+	e.Args[0] = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) { calls = append(calls, 0); return sqltype.Null(d), nil })
 	if got := numericSeriesUnitRead(t, e); len(got) != 0 || !reflect.DeepEqual(calls, []int{0, 1, 2}) {
 		t.Fatal(got, calls)
 	}
 	sentinel := errors.New("sibling evaluation")
-	e.Args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
-	if _, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
+	e.Args[1] = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
+	if _, err := exec.OpenFunctionSource(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }
@@ -160,10 +160,10 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
 		func() (expr.Expr, bool, error) {
-			return preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
+			return preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
 		},
 		func() (expr.Expr, bool, error) {
-			return simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
+			return simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 		},
 	} {
 		n, _, err := fold()

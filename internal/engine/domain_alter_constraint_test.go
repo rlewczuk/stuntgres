@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -50,8 +51,8 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	sentinel := sqltype.Boolean(boolean, true)
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: view}, EvalFrame: evalFrame{DomainValue: sentinel, DomainFrameUsage: boolean.Usage(), DomainValueActive: true}}
-	prior := &EvalContext{}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}, EvalFrame: exec.EvalFrame{DomainValue: sentinel, DomainFrameUsage: boolean.Usage(), DomainValueActive: true}}
+	prior := &exec.Context{}
 	evaluation.Input.DomainChecks = prior
 	selected := *child
 	selected.DomainChecks = []catalog.DomainCheckConstraint{child.DomainChecks[1]}

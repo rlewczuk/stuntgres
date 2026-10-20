@@ -34,7 +34,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if definition.Folded() {
 				t.Fatal("modifier folded")
 			}
-			owner := &cteInvocation{Frame: 1, State: queryState{Source: &querySource{Materialized: true}}}
+			owner := &exec.CTEInvocation{Frame: 1, State: exec.State{Source: &exec.Source{Materialized: true}}}
 			var first *sqltype.Value
 			if width != 0 {
 				first = &rows.Values[0]
@@ -50,7 +50,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 				t.Fatal("typed output buffer copied")
 			}
 			scan := &plan.DerivedNode{QuerySchema: schema, CTE: definition}
-			state := &queryState{Source: owner.State.Source, Ctes: owner}
+			state := &exec.State{Source: owner.State.Source, Ctes: owner}
 			left, err := exec.OpenCTEScan(context.Background(), state, scan)
 			if err != nil {
 				t.Fatal(err)
@@ -84,8 +84,8 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if err := owner.Close(); err != nil {
 				t.Fatal(err)
 			}
-			fresh := &cteInvocation{Frame: 1, State: owner.State}
-			if _, err := exec.OpenCTEScan(context.Background(), &queryState{Source: fresh.State.Source, Ctes: fresh}, scan); err == nil {
+			fresh := &exec.CTEInvocation{Frame: 1, State: owner.State}
+			if _, err := exec.OpenCTEScan(context.Background(), &exec.State{Source: fresh.State.Source, Ctes: fresh}, scan); err == nil {
 				t.Fatal("fresh invocation inherited completed producer")
 			}
 			if err := completeCTEMutation(owner, definition, Result{}); err == nil {
@@ -94,7 +94,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 		}
 	}
 	noReturning := &plan.CTEDefinition{Owner: 1, Mutation: &binding{}}
-	completion := &cteInvocation{Frame: 1}
+	completion := &exec.CTEInvocation{Frame: 1}
 	if err := completeCTEMutation(completion, noReturning, Result{Count: 2}); err != nil {
 		t.Fatal(err)
 	}
@@ -107,8 +107,8 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 	}
 	failure := errors.New("producer close failure")
 	closes := 0
-	producer := &cteProducer{Opened: true, Inner: indexedStage{Finish: func() error { closes++; return failure }}}
-	owner := &cteInvocation{Order: []*cteProducer{producer}}
+	producer := &exec.CTEProducer{Opened: true, Inner: exec.Stage{Finish: func() error { closes++; return failure }}}
+	owner := &exec.CTEInvocation{Order: []*exec.CTEProducer{producer}}
 	if owner.Close() != failure || owner.Close() != failure || closes != 1 || !producer.Closed {
 		t.Fatal("close failure was not sticky/once-only", closes)
 	}

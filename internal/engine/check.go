@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -79,7 +80,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		binder.consumer.checkConsumer, binder.params.noParameters = true, true
 		binder.query.auth = &auth
 		binder.query.namespace = &ns
-		binder.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
+		binder.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
 		if altering {
 			e.mu.Lock()
 			if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
@@ -448,7 +449,7 @@ func validateChecks(view catalog.Read, d *catalog.Relation, names map[string]boo
 // validateCheckRow is the shared DML-independent completed-row validator. A
 // future ADD/VALIDATE consumer supplies its own traversal and publication stage.
 // UNKNOWN passes, unlike WHERE. The no-CHECK path does not allocate or bind.
-func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *EvalContext) (*catalog.CheckConstraint, error) {
+func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *exec.Context) (*catalog.CheckConstraint, error) {
 	if len(d.Constraints.Check) == 0 {
 		return nil, nil
 	}

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
 
@@ -65,12 +66,12 @@ func (r aclItemValidationOutput) FormatACLRole(authority *sqltype.ACLAuthority, 
 
 func (s *StatementScope) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.Owner() == nil {
-		return detachedPresentation{}.FormatACLRole(authority, id)
+		return exec.DetachedPresentation{}.FormatACLRole(authority, id)
 	}
 	return (capturedACLItemOutput{owner: s.inquiry.commentCatalog.Owner(), roles: s.inquiry.commentRoles}).FormatACLRole(authority, id)
 }
 
-func captureACLItemOutputValue(rows *finalRows, output capturedACLItemOutput, value sqltype.Value) error {
+func captureACLItemOutputValue(rows *exec.FinalRows, output capturedACLItemOutput, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsACLItem() {
 		return nil
 	}

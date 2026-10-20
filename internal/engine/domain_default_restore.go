@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -90,7 +91,7 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 	return typedef.DomainReplayNode{Kind: "scalar", Scalar: &literal}, nil
 }
 
-func restoreDomainReplayNode(c *EvalContext, e *Engine, op *Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, int, error) {
+func restoreDomainReplayNode(c *exec.Context, e *Engine, op *Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, int, error) {
 	bad := func() (sqltype.Value, int, error) {
 		return sqltype.Value{}, 0, fmt.Errorf("stuntgres: invalid native domain replay value")
 	}
@@ -278,7 +279,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 			}
 		}
 	}
-	c := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &auth}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	scope.routineAuth = auth

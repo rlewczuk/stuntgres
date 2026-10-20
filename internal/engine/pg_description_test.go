@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -23,7 +24,7 @@ func pgDescriptionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Ob
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
-func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddress]string {
+func pgDescriptionUnitBag(t *testing.T, source *exec.Source) map[ids.ObjectAddress]string {
 	t.Helper()
 	bag := make(map[ids.ObjectAddress]string)
 	for _, row := range source.Anonymous {

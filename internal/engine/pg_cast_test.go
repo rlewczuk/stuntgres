@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -81,7 +82,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	}
 }
 
-func pgCastUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][]any {
+func pgCastUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uint32][]any {
 	t.Helper()
 	bag, pairs := map[uint32][]any{}, map[[2]uint32]bool{}
 	for _, row := range rows.Anonymous {

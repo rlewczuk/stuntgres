@@ -127,7 +127,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			scope.lockedRef = viewRef
-			scope.querySources = []queryLeaf{{Ref: viewRef, Relation: view, Mark: plan.RowMark{Mode: tc.mark}}}
+			scope.querySources = []exec.Leaf{{Ref: viewRef, Relation: view, Mark: plan.RowMark{Mode: tc.mark}}}
 			mode := lock.AccessShare
 			if tc.mark != 0 {
 				mode = lock.RowShare
@@ -136,13 +136,13 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tc.direct {
-				scope.querySources = append(scope.querySources, queryLeaf{Ref: parentRef, Relation: parent, Storage: parentStorage})
+				scope.querySources = append(scope.querySources, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage})
 				if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if tc.overlapping {
-				scope.querySources = append(scope.querySources, queryLeaf{Ref: otherRef, Relation: otherView})
+				scope.querySources = append(scope.querySources, exec.Leaf{Ref: otherRef, Relation: otherView})
 				if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: otherRef}, lock.AccessShare); err != nil {
 					t.Fatal(err)
 				}
@@ -260,9 +260,9 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if captureErr == nil {
 				snapshot, captureErr = scope.acquireDataViewsLocked(e, refs)
 			}
-			var source *querySource
+			var source *exec.Source
 			if captureErr == nil {
-				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, queryLeaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).sources[0].only}, op.session.token)
+				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).sources[0].only}, op.session.token)
 			}
 			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.catalog, parent.Address()) == parentStorage
 			e.mu.Unlock()

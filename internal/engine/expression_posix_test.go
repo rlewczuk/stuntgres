@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -59,7 +60,7 @@ func TestPosixCommonStatementOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), PGRegex: sqltype.PGRegexExecution{}}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PGRegex: sqltype.PGRegexExecution{}}}
 	p := functions.Posix{Info: expr.Info{Usage: boolean.Usage()}, Left: literal("AbC"), Right: literal("abc"), Provider: pp, Operator: "~*"}
 	s := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: literal("AbC"), Right: literal("abc"), Provider: sp, Operator: "~"}
 	for _, node := range []expr.Expr{p, s, p} {

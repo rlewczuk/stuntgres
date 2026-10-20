@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -53,7 +54,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if err := binary.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			got, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,7 +84,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if next.Plan == binary.Plan {
 				t.Fatal("provider retained old owner")
 			}
-			after, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			after, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			want, retagErr := got.Retag(replacements[tc.result])
 			if err != nil || retagErr != nil || after != want {
 				t.Fatal(tc.name, after, want, err)
@@ -162,7 +163,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 		if source.ResultUsage() != sourceUsage || node.ResultUsage().Typmod != -1 {
 			t.Fatal(name, "source or result width changed")
 		}
-		if _, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); err != nil {
+		if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err != nil {
 			t.Fatal(name, err)
 		}
 	}

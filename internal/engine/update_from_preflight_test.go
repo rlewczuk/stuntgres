@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		eval := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
+		eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 		private, err := preflightUpdate(&eval, original)
 		if input == "bad" {
 			state(t, err, "22P02")
@@ -70,7 +71,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 		}
 	}
 	unchanged := &boundUpdate{assignments: []expr.Expr{output.expressions[1]}, from: join.Left}
-	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	same, err := preflightUpdate(&eval, unchanged)
 	if err != nil || same != unchanged {
 		t.Fatal("unchanged tree replaced", same, err)

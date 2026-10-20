@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -57,7 +58,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	e.mu.Unlock()
 	defer func() { e.DiscardCatalogStage(pending.stage) }()
 	if !bound.DefaultBound {
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}}
 		if err = pending.evaluateBounds(scope, &evaluation); err != nil {
 			return Result{}, err
 		}

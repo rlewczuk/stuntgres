@@ -5,19 +5,20 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
 	base := e.catalog.state
 	if scope.owner.sequenceCatalog != nil {
 		base = scope.owner.sequenceCatalog
 	}
 	own := scope.owner.catalog
 	rows := make([][]sqltype.Value, 0)
-	provider := &pgSequencesSource{Host: hostOf(scope)}
+	provider := &exec.PGSequencesSource{Host: hostOf(scope)}
 	appendDefinition := func(descriptor catalog.Descriptor) error {
 		if err := scope.op.Context().Err(); err != nil {
 			return err
@@ -84,7 +85,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 			}
 		}
 	}
-	return &querySource{Ref: ref, Anonymous: rows, PGSequences: provider}, nil
+	return &exec.Source{Ref: ref, Anonymous: rows, PGSequences: provider}, nil
 }
 
 // CompletePGSequence fills a pg_sequences row's last_value: it acquires the

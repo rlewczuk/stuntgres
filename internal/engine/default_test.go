@@ -143,7 +143,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		}
 	}
 	// Rebinding under a different operation clock must not change already-bound leaves.
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for _, attribute := range []int32{2, 3} {
 		value, err := defaults[attribute].Expression.Eval(c)
 		if err != nil {
@@ -229,7 +229,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			ref := roleTableRef(t, e, "d")
 			d := view.MustRelation(ref.Address)
 			original := d.ColumnMeta.Defaults[d.Attributes[0]]
-			c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+			c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 			planned, changed, err := preflightCoercionsWithPolicy(c, original.Expression, true)
 			if err != nil || !changed {
 				t.Fatal(planned, changed, err)

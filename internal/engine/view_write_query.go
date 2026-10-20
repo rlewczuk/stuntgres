@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -54,7 +55,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 			if err != nil {
 				return 0, err
 			}
-			b.querySources = append(b.querySources, queryLeaf{Ref: use, Relation: relation, FrozenAttributes: leaf.attributes, Mark: leaf.mark})
+			b.querySources = append(b.querySources, exec.Leaf{Ref: use, Relation: relation, FrozenAttributes: leaf.attributes, Mark: leaf.mark})
 			b.subqueryDemand = true
 		}
 		return slot, nil
@@ -167,7 +168,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 // Raw prefixes must be selected before frozen-layout bridges are installed.
 // Detach bundle ownership while replacing occurrences, as stored view opening
 // does; the returned head owns every input and each bridge's private scratch.
-func freezeViewWriteSources(scope *StatementScope, source *querySource, leaves []queryLeaf) *querySource {
+func freezeViewWriteSources(scope *StatementScope, source *exec.Source, leaves []exec.Leaf) *exec.Source {
 	sources := source.Sources
 	source.Sources = nil
 	for i, leaf := range leaves {
@@ -189,7 +190,7 @@ func freezeViewWriteSources(scope *StatementScope, source *querySource, leaves [
 	return source
 }
 
-func frozenViewSource(scope *StatementScope, source *querySource, attributes, live []int32) *querySource {
+func frozenViewSource(scope *StatementScope, source *exec.Source, attributes, live []int32) *exec.Source {
 	if attributes == nil {
 		return source
 	}
@@ -215,7 +216,7 @@ func frozenViewSource(scope *StatementScope, source *querySource, attributes, li
 			}
 		}
 	}
-	bridge := &querySource{Ref: source.Ref, Input: source, Layout: layout, Scratch: make([]sqltype.Value, len(layout)), Authority: scope.authority, Locks: source.Locks, Occurrence: source.Occurrence}
+	bridge := &exec.Source{Ref: source.Ref, Input: source, Layout: layout, Scratch: make([]sqltype.Value, len(layout)), Authority: scope.authority, Locks: source.Locks, Occurrence: source.Occurrence}
 	borrowQueryAuthority(bridge, scope)
 	return bridge
 }

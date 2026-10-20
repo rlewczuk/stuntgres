@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		goodPin, badPin, badCell := good.source.View, bad.source.View, bad.authority
 		original, calls := bad.root.Expressions[0], 0
 		sentinel := errors.New("remaining projection failed")
-		bad.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
+		bad.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 			calls++
 			if calls == 2 {
 				return sqltype.Value{}, sentinel
@@ -59,7 +60,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT nextval('hold_ssi_draw') AS n")
 		c := s.cursors.entries["h"]
 		original, calls := c.root.Expressions[0], 0
-		c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(eval *EvalContext) (sqltype.Value, error) {
+		c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
 			calls++
 			return original.Eval(eval)
 		})
@@ -166,7 +167,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 				defer transactionEnd(t, holder, holderRef, false)
 			} else {
 				original, calls := c.root.Expressions[0], 0
-				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(eval *EvalContext) (sqltype.Value, error) {
+				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						close(entered)

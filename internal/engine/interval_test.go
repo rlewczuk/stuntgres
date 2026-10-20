@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -28,11 +29,11 @@ func TestIntervalImmutableConstantCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		a, err := first.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		a, err := first.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		v, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

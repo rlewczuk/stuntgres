@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 )
@@ -70,7 +71,7 @@ func indexLayoutSlotsUnchanged(index, oldParent, parent *catalog.Relation) bool 
 
 // A layout projection preserves surviving cells and exact row/version order.
 // Both baseline entries and private row outputs therefore travel without SQL.
-func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
+func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
 	if len(stage.indexesOrZero().layouts) == 0 {
 		return writes, false, nil
 	}

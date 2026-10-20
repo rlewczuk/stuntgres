@@ -3,6 +3,7 @@ package engine
 import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -19,15 +20,15 @@ type ruleCommandScratch struct {
 	descriptor catalog.Descriptor
 	storage    *storage.Relation
 	viewWrite  *viewWrite
-	sources    []queryLeaf
+	sources    []exec.Leaf
 	unique     *uniqueWriteBinding
 	conflict   *boundInsertConflict
 	returning  *insertReturningOutput
 	partition  *partitionInsertState
-	locks      *queryLockContext
+	locks      *exec.LockContext
 	admission  queryLockAdmission
 	auth       *AuthorizationView
-	quotes     *quoteCaptureCandidate
+	quotes     *exec.QuoteCaptureCandidate
 }
 
 func (s *StatementScope) ruleScratch() ruleCommandScratch {
@@ -128,12 +129,12 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		}
 		physical := command.binding.physicalBinding()
 		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.ref, descriptor: physical.relation, storage: physical.storage, viewWrite: command.binding.viewWrite, sources: command.binding.querySources, auth: &program.commands[i].auth})
-		captures := &quoteCaptureCandidate{}
+		captures := &exec.QuoteCaptureCandidate{}
 		if command.binding.parameters.Count == 0 {
-			*captures = quoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
+			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
 			pruneQuoteCaptures(captures, command.auth.Catalog)
 		}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 		e.mu.Lock()
 		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, command.auth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
 			return Result{}, err

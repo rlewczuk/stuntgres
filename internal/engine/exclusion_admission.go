@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -139,7 +140,7 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWrit
 }
 func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []storage.RowVersion, precheck bool, purpose indexProbePurpose) (storage.RowVersion, error) {
 	e := s.op.session.Engine()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: e.catalog.read(binding.catalog)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: e.catalog.read(binding.catalog)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
 	}
@@ -340,7 +341,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 		if !found {
 			return uniqueConflict{}, false, nil
 		}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: scan.view}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: scan.view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if binding.typeName != nil {
 			evaluation.Input.TypeDiagnosticName = binding.typeName
 		}

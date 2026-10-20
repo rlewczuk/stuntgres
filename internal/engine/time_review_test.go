@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -49,7 +50,7 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := bound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}

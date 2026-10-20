@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -89,7 +90,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					prefixes[i][j].Values = append([]sqltype.Value(nil), root[j].Values...)
 				}
 			}
-			retained := [2]*finalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
+			retained := [2]*exec.FinalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
 			retainedCatalog := e.catalog.state
 			retainedEpoch := e.catalog.state.Epoch()
 			retainedFrontier := e.visibility.CommitSeq()

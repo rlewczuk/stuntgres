@@ -8,7 +8,7 @@ import (
 )
 
 type foreignTruncateGroup struct {
-	source  *foreignQuerySource
+	source  *exec.ForeignQuerySource
 	request catalog.ForeignTruncateRequest
 }
 

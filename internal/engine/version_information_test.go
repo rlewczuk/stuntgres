@@ -98,7 +98,7 @@ func TestVersionInformationRemap(t *testing.T) {
 		if copy.Kind != kind || copy.Pos != leaf.Pos || copy.Usage.Type == leaf.Usage.Type || copy.RoutineReference == nil || copy.RoutineReference.RoutineOID() != leaf.RoutineReference.RoutineOID() || copy.Validate(expr.PropertiesMatch(copy.Property, kind.IntrinsicRule())) != nil {
 			t.Fatal("lost remap identity", leaf, copy)
 		}
-		value, err := copy.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		value, err := copy.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil || value.Type() != copy.Usage.Type || value.IsNull() != (kind == functions.VersionInformationICU) {
 			t.Fatal("lost result ownership", value, err)
 		}

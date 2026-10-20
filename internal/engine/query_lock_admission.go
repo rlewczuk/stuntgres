@@ -43,7 +43,7 @@ func queryRootRowMode(node plan.Node) lock.Mode {
 		}
 	}
 }
-func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, leaves []queryLeaf) (lock.Mode, error) {
+func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) (lock.Mode, error) {
 	view := e.privateCatalogLocked(scope.owner.catalog)
 	if _, err := validateViewReadGraph(view, leaves); err != nil {
 		return 0, err
@@ -234,7 +234,7 @@ func stringInheritedRowMark(node plan.Node) bool {
 
 // Called before any source expression is opened. Inherited rowmark legality,
 // kind and authorization checks remain Execute-only.
-func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []queryLeaf) error {
+func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) error {
 	marked := queryRootRowMode(root) != 0
 	view := e.privateCatalogLocked(scope.owner.catalog)
 	visibilityDemand, err := validateViewReadGraph(view, leaves)
@@ -290,13 +290,13 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 		}
 	}
 	if marked {
-		scope.queryLocks = &queryLockContext{}
+		scope.queryLocks = &exec.LockContext{}
 	}
 	return nil
 }
 
 func (v AuthorizationView) checkViewRowMarks(d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
-	if _, err := validateViewReadGraph(v.Catalog, []queryLeaf{{Relation: d}}); err != nil {
+	if _, err := validateViewReadGraph(v.Catalog, []exec.Leaf{{Relation: d}}); err != nil {
 		return err
 	}
 	return v.checkViewRowMarksExpanded(d, inherited, invoker)

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -24,7 +25,7 @@ type capturedRegtypeInput struct {
 	temporary ids.ObjectAddress
 	token     ids.SessionToken
 	op        *Operation
-	authority *queryAuthority
+	authority *exec.Authority
 	position  parser.Position
 	portal    string
 	qualified *[]ids.ObjectAddress

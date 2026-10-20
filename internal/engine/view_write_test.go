@@ -179,7 +179,7 @@ func TestViewWriteDefaults(t *testing.T) {
 		SQLIndex:      &catalog.IndexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
 	conflict := &boundInsertConflict{}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	if err := conflict.selectArbiters(&evaluation, b.physicalBinding().relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -194,13 +194,13 @@ func TestViewWriteDefaults(t *testing.T) {
 func TestViewWriteDemand(t *testing.T) {
 	f := viewWriteMechanics(t)
 	calls := 0
-	unsafe := queryProbe(f.boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	unsafe := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("hidden user work")
 	})
 	guard := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, false)}
 	expression := viewWritePredicate([]expr.Expr{guard}, unsafe)
-	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	matched, err := exec.UpdateMatches(&eval, expression)
 	if err != nil || matched || calls != 0 {
 		t.Fatal("hidden row demanded user work", matched, err, calls)
@@ -250,7 +250,7 @@ func TestViewWriteDemand(t *testing.T) {
 		store := f.e.storage.Relations[f.base.Address()]
 		store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2}}}
 		scope, op := f.scope(t)
-		leaves := []queryLeaf{{Ref: f.baseRef, Relation: f.base, Storage: store, FrozenAttributes: []int32{11, 7}}}
+		leaves := []exec.Leaf{{Ref: f.baseRef, Relation: f.base, Storage: store, FrozenAttributes: []int32{11, 7}}}
 		f.e.mu.Lock()
 		source, err := f.e.captureQuerySourcesLocked(scope, leaves, false)
 		f.e.mu.Unlock()
@@ -316,11 +316,11 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
 	}
-	predicate := queryProbe(f.boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+	predicate := queryProbe(f.boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 		n, _ := c.Row[1].Integer()
 		return sqltype.Boolean(f.boolean, n > 5), nil
 	})
-	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: current.Values}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: current.Values}}
 	matched, err := exec.UpdateMatches(&eval, viewWritePredicate([]expr.Expr{predicate}, nil))
 	if err != nil || matched {
 		t.Fatal("latest predecessor bypassed view qualification", matched, err)

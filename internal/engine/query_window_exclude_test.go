@@ -70,9 +70,9 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 			case parser.FrameRange:
 				spec := plan.WindowSpec{}
 				bound := plan.WindowBound{Kind: parser.FrameCurrentRow}
-				head, err = exec.WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, false, sqltype.InputEnvironment{})
+				head, err = exec.WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, exec.WindowOrderState{}, []int{0, 1, 2}, first, last, 0, false, sqltype.InputEnvironment{})
 				if err == nil {
-					tail, err = exec.WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, true, sqltype.InputEnvironment{})
+					tail, err = exec.WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, exec.WindowOrderState{}, []int{0, 1, 2}, first, last, 0, true, sqltype.InputEnvironment{})
 				}
 			}
 			if err != nil {
@@ -346,7 +346,7 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 		t.Fatal("SUM argument children not captured", binder.capture.literals, binder.capture.columns)
 	}
 	for _, literal := range binder.capture.literals {
-		value, err := literal.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := literal.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		n, integerErr := value.Integer()
 		if err != nil || integerErr != nil || n != 1 {
 			t.Fatal(value, err, integerErr)

@@ -52,7 +52,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	if reminted.Args[0].ResultUsage().Type != types[sqltype.Text] || reminted.Usage.Type != types[sqltype.JSON] || bound.Args[0].ResultUsage().Type == reminted.Args[0].ResultUsage().Type {
 		t.Fatal("retag mutated source or lost authority")
 	}
-	got, err := reminted.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	got, err := reminted.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal("retag did not rebind creation plan", err)
 	}
@@ -86,7 +86,7 @@ func TestJSONCreateRecordParameterOccurrence(t *testing.T) {
 		t.Fatal("repeated RECORD formal minted incompatible identity")
 	}
 	node := first.(functions.JSONCreate)
-	eval := &EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(signature.Types[0].Type)}}}
+	eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(signature.Types[0].Type)}}}
 	got, err := node.Eval(eval)
 	if err != nil || !got.IsNull() || got.Type().ID() != sqltype.JSON {
 		t.Fatal("RECORD parameter NULL lost", got, err)
@@ -101,7 +101,7 @@ func TestJSONCreateRecordParameterOccurrence(t *testing.T) {
 	if err != nil || !sameStatementUsage(signature.Types[0], current.Types[0]) || !current.Types[0].Type.IsComposite() {
 		t.Fatal("RECORD parameter signature changed", current, err)
 	}
-	got, err = rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(current.Types[0].Type)}}})
+	got, err = rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(current.Types[0].Type)}}})
 	if err != nil || !got.IsNull() {
 		t.Fatal("reanalysed RECORD NULL failed", got, err)
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -46,10 +47,10 @@ func inheritanceQueryClosure(view catalog.Read, root *catalog.Relation, token id
 
 // Called under Engine.mu. Stored views expose their named source's scan mode,
 // not a flattened set of leaves or the mode of an unrelated SQL occurrence.
-func inheritanceQueryLeaves(view catalog.Read, roots []queryLeaf, token ids.SessionToken, visit func(queryLeaf) error) error {
+func inheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.SessionToken, visit func(exec.Leaf) error) error {
 	var active []ids.ObjectAddress
-	var walk func(queryLeaf) error
-	walk = func(leaf queryLeaf) error {
+	var walk func(exec.Leaf) error
+	walk = func(leaf exec.Leaf) error {
 		d, ok := view.Relation(leaf.Ref.Address)
 		if !ok || leaf.Ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
@@ -71,7 +72,7 @@ func inheritanceQueryLeaves(view catalog.Read, roots []queryLeaf, token ids.Sess
 				if err != nil {
 					return err
 				}
-				if err := walk(queryLeaf{Ref: ref, Only: child.only, Mark: viewLeafRowMark(viewOf(d), i, leaf.Mark)}); err != nil {
+				if err := walk(exec.Leaf{Ref: ref, Only: child.only, Mark: viewLeafRowMark(viewOf(d), i, leaf.Mark)}); err != nil {
 					return err
 				}
 			}
@@ -111,7 +112,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		roots = append([]queryLeaf(nil), roots...)
+		roots = append([]exec.Leaf(nil), roots...)
 		for _, leaf := range viewOf(d).sources {
 			if leaf.analysisOnly {
 				continue
@@ -121,7 +122,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 				e.mu.Unlock()
 				return err
 			}
-			roots = append(roots, queryLeaf{Ref: ref, Only: leaf.only})
+			roots = append(roots, exec.Leaf{Ref: ref, Only: leaf.only})
 		}
 		e.mu.Unlock()
 	}
@@ -134,8 +135,8 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 				return err
 			}
 		}
-		var pending []queryLeaf
-		err := inheritanceQueryLeaves(view, roots, s.op.session.token, func(leaf queryLeaf) error {
+		var pending []exec.Leaf
+		err := inheritanceQueryLeaves(view, roots, s.op.session.token, func(leaf exec.Leaf) error {
 			if leaf.Relation.RelationKind != catalog.TableRelation {
 				return nil
 			}
@@ -243,7 +244,7 @@ func (s *StatementScope) inheritanceRead(current catalog.Read) catalog.Read {
 // ALTER TABLE recursion state. Every query admission writes it, so it is a
 // value group rather than a pointer slot.
 type inheritanceScope struct {
-	relations []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.
+	relations []exec.Leaf  // Exact physical SELECT grants, separate from SQL occurrences.
 	catalog   catalog.Read // Immutable topology after the last grant/wait reconciliation.
 	alter     *inheritanceAlterState
 }

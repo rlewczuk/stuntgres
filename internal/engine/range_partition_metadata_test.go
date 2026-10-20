@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -80,13 +81,13 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 			t.Fatal(test, inside, err)
 		}
 		row := []sqltype.Value{tuple[0].Value, tuple[1].Value}
-		accepted, err := partitionAccepts(e.CatalogRead(), root, rest, row, &EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		accepted, err := partitionAccepts(e.CatalogRead(), root, rest, row, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || accepted == test.explicit {
 			t.Fatal(test, accepted, err)
 		}
 	}
 	nullRow := []sqltype.Value{sqltype.Null(keys[0].Usage.Type), rangePartitionIntegerTuple(t, keys, 1, 1)[1].Value}
-	accepted, err := partitionAccepts(e.CatalogRead(), root, rest, nullRow, &EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	accepted, err := partitionAccepts(e.CatalogRead(), root, rest, nullRow, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || !accepted {
 		t.Fatal("NULL must reach DEFAULT", accepted, err)
 	}
@@ -111,17 +112,17 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 		if catalog.State() == e.CatalogRead().State() {
 			parent, child = newRoot, newRest
 		}
-		accepted, err := partitionAccepts(catalog, parent, child, row, &EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		accepted, err := partitionAccepts(catalog, parent, child, row, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || !accepted {
 			t.Fatal(accepted, err)
 		}
 	}
 	formerlyExplicit := rangePartitionIntegerTuple(t, keys, 1, 2)
-	accepted, err = partitionAccepts(e.CatalogRead(), newRoot, newRest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	accepted, err = partitionAccepts(e.CatalogRead(), newRoot, newRest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || !accepted {
 		t.Fatal("DEFAULT did not track removal", accepted, err)
 	}
-	oldAccepted, err := partitionAccepts(retained, root, rest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	oldAccepted, err := partitionAccepts(retained, root, rest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || oldAccepted {
 		t.Fatal("retained topology changed", oldAccepted, err)
 	}

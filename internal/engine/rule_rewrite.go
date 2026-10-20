@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -17,7 +18,7 @@ import (
 type ruleProducer struct {
 	root     plan.Node
 	old, new []expr.Expr
-	sources  []queryLeaf
+	sources  []exec.Leaf
 }
 
 type ruleCommandSource uint8
@@ -119,7 +120,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 			}
 		}
 	} else {
-		p.sources = append([]queryLeaf{{Ref: b.ref, Relation: d, Storage: b.storage, Uses: b.usedColumns}}, b.querySources...)
+		p.sources = append([]exec.Leaf{{Ref: b.ref, Relation: d, Storage: b.storage, Uses: b.usedColumns}}, b.querySources...)
 		p.root = &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: b.ref, Occurrence: 0}
 		var from plan.Node
 		var condition expr.Expr
@@ -558,7 +559,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		return b, err
 	}
 	condition := r.condition
-	var conditionSources []queryLeaf
+	var conditionSources []exec.Leaf
 	if r.conditionBinding != nil {
 		cb, refreshErr := refreshRuleSources(auth, *r.conditionBinding)
 		if refreshErr != nil {
@@ -1147,7 +1148,7 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 
 func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	catalog := auth.Catalog
-	var sources []queryLeaf
+	var sources []exec.Leaf
 	for i, source := range b.querySources {
 		current, ok := catalog.Relation(source.Ref.Address)
 		if !ok || source.Relation == nil || source.Ref.Domain() != auth.Owner.Domain || source.Ref.Epoch != catalog.Epoch() || source.Ref.Address.SubID != 0 {

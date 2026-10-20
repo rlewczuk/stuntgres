@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -44,7 +45,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 				return err
 			}
 		}
-		var pending []queryLeaf
+		var pending []exec.Leaf
 		err := inheritanceQueryClosure(view, root, s.op.session.token, func(child *catalog.Relation) error {
 			if child.Address() == root.Address() {
 				return nil
@@ -56,7 +57,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 			ref := s.lockedRef
 			ref.Address = child.Address()
-			pending = append(pending, queryLeaf{Ref: ref, Relation: child, Storage: e.privateStorageLocked(s.owner.catalog, child.Address()), Only: true})
+			pending = append(pending, exec.Leaf{Ref: ref, Relation: child, Storage: e.privateStorageLocked(s.owner.catalog, child.Address()), Only: true})
 			return nil
 		})
 		e.mu.Unlock()
@@ -124,7 +125,7 @@ func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 
 // Capture the already admitted manifest, never rediscover a graph after the
 // command view has frozen its roots. Each segment retains real physical rows.
-func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibility.View, b binding) (*querySource, error) {
+func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibility.View, b binding) (*exec.Source, error) {
 	if s.rlsTargetDenied {
 		return captureDeniedQuerySource(view, b.ref)
 	}
@@ -135,8 +136,8 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &querySource{Ref: b.ref, View: pin, Inheritance: make([]inheritanceQuerySegment, 0, len(s.inheritedTargets)+1), InheritanceEnds: make([]int, len(s.inheritedTargets)+1)}
-	root := queryLeaf{Ref: b.ref, Relation: b.relation, Storage: b.storage, Only: true}
+	source := &exec.Source{Ref: b.ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0, len(s.inheritedTargets)+1), InheritanceEnds: make([]int, len(s.inheritedTargets)+1)}
+	root := exec.Leaf{Ref: b.ref, Relation: b.relation, Storage: b.storage, Only: true}
 	for i := 0; i <= len(s.inheritedTargets); i++ {
 		target := root
 		if i != 0 {
@@ -152,7 +153,7 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 			source.Close()
 			return nil, err
 		}
-		segment := inheritanceQuerySegment{Leaf: target, Prefix: prefix, Layout: layout}
+		segment := exec.InheritanceQuerySegment{Leaf: target, Prefix: prefix, Layout: layout}
 		if layout != nil {
 			segment.Scratch = make([]sqltype.Value, len(layout))
 		}
@@ -166,9 +167,9 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 	return source, nil
 }
 
-func mutationPhysicalRow(source *querySource, index int, b binding) queryPhysicalRow {
+func mutationPhysicalRow(source *exec.Source, index int, b binding) exec.QueryPhysicalRow {
 	version := source.VersionAt(source.RawIndex(index))
-	return source.PhysicalRow(index, queryLeaf{Ref: b.ref, Relation: b.relation, Storage: b.storage}, version)
+	return source.PhysicalRow(index, exec.Leaf{Ref: b.ref, Relation: b.relation, Storage: b.storage}, version)
 }
 
 type mutationRowIdentity struct {
@@ -178,7 +179,7 @@ type mutationRowIdentity struct {
 
 // Physical generation/checks use the full physical proposal; diagnostic values
 // and SELECT rights are projected back to the named mutation target.
-func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, physical queryPhysicalRow, schema string, row []sqltype.Value, eval *EvalContext) error {
+func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, physical exec.QueryPhysicalRow, schema string, row []sqltype.Value, eval *exec.Context) error {
 	if physical.Leaf.Ref == named.ref {
 		return e.validateMutationRow(s, named, schema, row, eval)
 	}
@@ -222,7 +223,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, 
 	return nil
 }
 
-func scatterMutationRow(physical queryPhysicalRow, old storage.RowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
+func scatterMutationRow(physical exec.QueryPhysicalRow, old storage.RowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
 	if physical.Segment == nil || physical.Segment.Layout == nil {
 		return named
 	}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -66,7 +67,7 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 				if named && b.input.TypeDiagnosticName(pair.ID()) != "retained-name" {
 					t.Fatal("catalog input capture replaced existing diagnostic authority")
 				}
-				actual, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: b.input}})
+				actual, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: b.input}})
 				if err != nil {
 					t.Fatal("retained coercion lost catalog input authority", err)
 				}

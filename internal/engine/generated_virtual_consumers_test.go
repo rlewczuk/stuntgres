@@ -17,13 +17,13 @@ func TestGeneratedVirtualMissingIdentity(t *testing.T) {
 	one, _ := sqltype.Integer(typ, 1)
 	calls := 0
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 0, RowWidth: 1, QueryOccurrence: 1, Virtual: generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}}
-	for _, state := range []*queryState{nil, {}, {Source: &querySource{Occurrence: 4}}, {Source: &querySource{Sources: []*querySource{nil}}}} {
-		c := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, Query: state}}
+	for _, state := range []*exec.State{nil, {}, {Source: &exec.Source{Occurrence: 4}}, {Source: &exec.Source{Sources: []*exec.Source{nil}}}} {
+		c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, Query: state}}
 		if _, err := column.Eval(&c); err == nil || calls != 0 {
 			t.Fatal("missing authority succeeded or demanded recipe", err, calls)
 		}
 	}
-	c := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, Query: &queryState{Source: &querySource{Occurrence: 4}}, QueryOccurrences: []int{4}, QueryProvenance: []int{0}}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, Query: &exec.State{Source: &exec.Source{Occurrence: 4}}, QueryOccurrences: []int{4}, QueryProvenance: []int{0}}}
 	column.QueryOccurrence = 2
 	if _, err := column.Eval(&c); err == nil || calls != 0 {
 		t.Fatal("invalid local occurrence did not fail", err, calls)
@@ -59,10 +59,10 @@ func TestGeneratedVirtualWindowInputIdentityAdapter(t *testing.T) {
 	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
-	leaf := &querySource{Anonymous: [][]sqltype.Value{{one}, {two}}, Occurrence: 7}
-	lineage := &queryLockLineage{Stage: leaf, Selection: []int{0, 1}}
-	input := &querySource{Anonymous: [][]sqltype.Value{{one}, {two}}, Lineage: lineage}
-	window := &querySource{Input: input, Window: true, WindowCount: 2, WindowIndices: []int{1, 0}, Scratch: make([]sqltype.Value, 1)}
+	leaf := &exec.Source{Anonymous: [][]sqltype.Value{{one}, {two}}, Occurrence: 7}
+	lineage := &exec.QueryLockLineage{Stage: leaf, Selection: []int{0, 1}}
+	input := &exec.Source{Anonymous: [][]sqltype.Value{{one}, {two}}, Lineage: lineage}
+	window := &exec.Source{Input: input, Window: true, WindowCount: 2, WindowIndices: []int{1, 0}, Scratch: make([]sqltype.Value, 1)}
 	if value, _ := window.Row(0)[0].Integer(); value != 2 {
 		t.Fatal("row adapter did not translate", value)
 	}
@@ -97,8 +97,8 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 			index = 0
 			wantCalls = 1
 		}
-		joined := &querySource{Materialized: true, FlatWidth: 2, FlatCount: 1, Anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, Occurrence: 4, Occurrences: []int{4}, Provenance: []int{index}}
-		state := &queryState{Source: joined, VirtualReads: true}
+		joined := &exec.Source{Materialized: true, FlatWidth: 2, FlatCount: 1, Anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, Occurrence: 4, Occurrences: []int{4}, Provenance: []int{index}}
+		state := &exec.State{Source: joined, VirtualReads: true}
 		node := &plan.EvaluationNode{QuerySchema: d.Columns, Child: &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: column}}}
 		stage, err := exec.OpenEvaluationNode(context.Background(), state, node)
 		if err != nil {
@@ -126,13 +126,13 @@ func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 		if present {
 			index, wantCalls = 0, 1
 		}
-		input := &querySource{Materialized: true, FlatWidth: 2, FlatCount: 1, Anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, Occurrence: 4, Occurrences: []int{4}, Provenance: []int{index}}
+		input := &exec.Source{Materialized: true, FlatWidth: 2, FlatCount: 1, Anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, Occurrence: 4, Occurrences: []int{4}, Provenance: []int{index}}
 		probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
 		column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 1, RowWidth: 2, QueryOccurrence: 1, Virtual: probe}
 		schema := plan.QuerySchema{d.Columns[1]}
 		project := &plan.ProjectNode{QuerySchema: schema, Frame: 1, Child: &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{column}}
-		view := &querySource{Materialized: true, FlatWidth: 1, NestedRoot: project, NestedInputs: input}
-		state := &queryState{Source: view}
+		view := &exec.Source{Materialized: true, FlatWidth: 1, NestedRoot: project, NestedInputs: input}
+		state := &exec.State{Source: view}
 		stage, err := exec.OpenSourceStage(context.Background(), state, view, schema)
 		if err != nil {
 			t.Fatal(err)
@@ -157,7 +157,7 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 	calls := 0
 	probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 1, Virtual: probe, RowWidth: 2, QueryOccurrence: 1}
-	source := &querySource{
+	source := &exec.Source{
 		Materialized: true, FlatWidth: 2, FlatCount: 3, Occurrence: 4,
 		Anonymous: [][]sqltype.Value{
 			{sqltype.Null(typ), sqltype.Null(typ)},
@@ -166,12 +166,12 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 		},
 		Occurrences: []int{4}, Provenance: []int{0, exec.AbsentQueryIndex, 1},
 	}
-	state := &queryState{Source: source, VirtualReads: true}
-	stage := indexedStage{
+	state := &exec.State{Source: source, VirtualReads: true}
+	stage := exec.Stage{
 		Source: source, Columns: []catalog.Column{d.Columns[1]},
 		Expressions: []expr.Expr{column}, Retain: true,
 		Permutation: []int{2, 0, 1},
-		Evaluation:  EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 1, Query: state}},
+		Evaluation:  exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: state}},
 	}
 	dst := make([]sqltype.Value, 1)
 	for _, seek := range []struct {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -34,7 +35,7 @@ type boundInsertConflict struct {
 	update        *boundUpdate
 	updateTargets []int
 	actionReads   []int
-	sources       []queryLeaf
+	sources       []exec.Leaf
 	returning     *boundReturning
 	frame         []sqltype.Value
 	width         int
@@ -193,7 +194,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth Authorization
 	return nil
 }
 
-func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *catalog.Relation, view catalog.Read) error {
+func (c *boundInsertConflict) selectArbiters(ctx *exec.Context, parent *catalog.Relation, view catalog.Read) error {
 	c.selected = c.selected[:0]
 	if c.constraint != (ids.ObjectAddress{}) && c.namedIndex == (ids.ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")

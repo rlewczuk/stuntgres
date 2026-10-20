@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ import (
 // The input resolver, type graph and CHECK evaluator are already captured; the
 // unlocked phase never resolves a new name or retries a side-effecting CHECK.
 func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error) {
-	eval, ok := input.DomainChecks.(*EvalContext)
+	eval, ok := input.DomainChecks.(*exec.Context)
 	if !ok || scopeOf(eval.Host) != s || eval.Catalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing captured domain input authority")
 	}
@@ -70,8 +71,8 @@ func (b *expressionBinder) decodeLiteralInput(text string, typ *sqltype.Descript
 // Every statement execution sets the input catalog, so it is a value group
 // rather than a pointer slot.
 type domainScope struct {
-	evaluation     *EvalContext
-	preparedChecks map[*catalog.Type]domainCheckProgram
+	evaluation     *exec.Context
+	preparedChecks map[*catalog.Type]exec.DomainCheckProgram
 	inputCatalog   catalog.Read
 }
 

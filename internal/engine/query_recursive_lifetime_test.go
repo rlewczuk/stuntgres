@@ -58,7 +58,7 @@ func TestQueryRecursiveCTEPrimaryErrorAndRequiredClose(t *testing.T) {
 		closes := 0
 		if primaryFailure {
 			n := node.Query.Root.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
-			n.RightExpressions = []expr.Expr{queryProbe(n.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) {
+			n.RightExpressions = []expr.Expr{queryProbe(n.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) {
 				producer.Recursion.Arm.Inner.Finish = func() error { closes++; return cleanup }
 				return sqltype.Value{}, primary
 			})}
@@ -86,7 +86,7 @@ func TestQueryRecursiveCTELongIterationAndFreshInvocation(t *testing.T) {
 	defer initial.Close()
 	for range 2 {
 		stateCopy := *base
-		owner := &cteInvocation{Frame: 1, State: stateCopy}
+		owner := &exec.CTEInvocation{Frame: 1, State: stateCopy}
 		stateCopy.Ctes = owner
 		state := &stateCopy
 		stage, err := exec.OpenCTEScan(context.Background(), state, node)

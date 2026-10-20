@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -152,7 +153,7 @@ func TestViewCheckMapping(t *testing.T) {
 		t.Fatal(mapped, ok)
 	}
 	old := f.e.storage.Relations[f.base.Address()].Versions[0].Values
-	ctx := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{old[1], old[0], old[2]}}}
+	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{old[1], old[0], old[2]}}}
 	got, err := mapped.Eval(&ctx)
 	if err != nil || got != old[1] {
 		t.Fatal(got, err)
@@ -165,7 +166,7 @@ func TestViewCheckPredicate(t *testing.T) {
 	row := f.e.storage.Relations[f.base.Address()].Versions[0].Values
 	old := []sqltype.Value{sqltype.Null(f.integer)}
 	calls := 0
-	pass := queryProbe(f.boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+	pass := queryProbe(f.boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if len(c.Row) != 3 || c.Row[1] != row[1] {
 			t.Fatal("not coherent physical NEW", c.Row)
@@ -174,7 +175,7 @@ func TestViewCheckPredicate(t *testing.T) {
 	})
 	for _, value := range []sqltype.Value{sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)} {
 		b := binding{relation: f.base, ref: f.baseRef, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: &catalog.Relation{ObjectName: "outer"}, predicates: []expr.Expr{pass}}, {relation: f.view, predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: value}}}}}}
-		eval := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: old}}
+		eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
 		err := f.e.checkViewRow(scope, &b, row, &eval)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "44000" || d.Message != `new row violates check option for view "logical"` || d.Detail != "Failing row contains (1, 10, 42)." || calls != 0 || len(eval.Row) != 1 {
@@ -182,7 +183,7 @@ func TestViewCheckPredicate(t *testing.T) {
 		}
 	}
 	b := binding{relation: f.base, ref: f.baseRef, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{pass}}}}}
-	eval := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: old}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
 	if err := f.e.checkViewRow(scope, &b, row, &eval); err != nil || calls != 1 || len(eval.Row) != 1 {
 		t.Fatal("produced NEW check skipped or OLD frame replaced", err, calls, eval.Row)
 	}
@@ -194,7 +195,7 @@ func TestViewCheckAdmission(t *testing.T) {
 		scope, _ := f.scope(t)
 		calls := 0
 		failure := errors.New("required close veto")
-		guard := queryProbe(f.boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		guard := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			return sqltype.Boolean(f.boolean, closeFailure || calls == 1), nil
 		})
@@ -236,9 +237,9 @@ func TestViewCheckCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(scope.op.Context())
 	defer cancel()
-	guard := queryProbe(f.boolean.Usage(), func(*EvalContext) (sqltype.Value, error) { cancel(); return sqltype.Boolean(f.boolean, true), nil })
+	guard := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) { cancel(); return sqltype.Boolean(f.boolean, true), nil })
 	b := binding{relation: f.base, ref: f.baseRef, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{guard}}}}}
-	eval := EvalContext{EvalStatement: evalStatement{Context: ctx, Output: scope.output}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Output: scope.output}}
 	err := f.e.checkViewRow(scope, &b, row, &eval)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
@@ -284,7 +285,7 @@ func TestViewCheckFinish(t *testing.T) {
 	row[1], _ = sqltype.Integer(f.integer, 99)
 	w.checks = []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}}}}
 	b := binding{relation: f.base, ref: f.baseRef, viewWrite: w}
-	eval := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Output: scope.output}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Output: scope.output}}
 	if err := f.e.checkViewRow(scope, &b, row, &eval); err != nil {
 		t.Fatal(err)
 	}

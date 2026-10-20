@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -36,7 +37,7 @@ func TestJSONBSetViewReplayCastBoundaries(t *testing.T) {
 				if err != nil {
 					t.Fatal(round, err)
 				}
-				eval := EvalContext{EvalStatement: evalStatement{Context: ctx, Catalog: engine.CatalogRead()}}
+				eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: engine.CatalogRead()}}
 				eval.Input.DomainChecks = &eval
 				value, err := node.Eval(&eval)
 				if tc.domainError {

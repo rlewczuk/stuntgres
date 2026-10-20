@@ -55,14 +55,14 @@ func coercionProperties(child expr.Expr, plan sqltype.CoercionPlan) expr.Propert
 // preflightCoercions materializes immutable conversions from the imported
 // execution frame, never rows or stages. Only changed branches are copied;
 // analyzed nodes and their conservative dependence metadata remain immutable.
-func preflightCoercions(c *EvalContext, expression expr.Expr) (expr.Expr, bool, error) {
+func preflightCoercions(c *exec.Context, expression expr.Expr) (expr.Expr, bool, error) {
 	return preflightCoercionsWithPolicy(c, expression, false)
 }
 
 // Consumed stored defaults and standalone CHECK preparation use decisive
 // constant planning. Ordinary source, DELETE and supplied-value preflight
 // retain their existing traversal demand.
-func preflightCoercionsWithPolicy(c *EvalContext, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+func preflightCoercionsWithPolicy(c *exec.Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	node, changed, err := preflightCoercionNode(c, expression, decisiveDefaults)
 	if err != nil {
 		return nil, false, err
@@ -71,7 +71,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression expr.Expr, decisive
 	return node, changed || folded, err
 }
 
-func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	if err := exec.EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
@@ -640,7 +640,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	return expression, false, nil
 }
 
-func preflightValue(c *EvalContext, info expr.Info, value sqltype.Value, err error) (expr.Expr, bool, error) {
+func preflightValue(c *exec.Context, info expr.Info, value sqltype.Value, err error) (expr.Expr, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}

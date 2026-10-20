@@ -35,7 +35,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 		t.Fatal(mapped, changed, err)
 	}
 	next := mapped.(functions.RangeInspect)
-	value, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || value.Type() != fresh.typ(sqltype.Numeric) {
 		t.Fatal(value, err)
 	}
@@ -57,11 +57,11 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if !generationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
 		t.Fatal("immutable carrier properties")
 	}
-	folded, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, next)
+	folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, next)
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
 	}
-	value, err = folded.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err = folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || value.Type() != fresh.typ(sqltype.Numeric) {
 		t.Fatal("folded authority", value, err)
 	}
@@ -89,7 +89,7 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	n, _ := got.Integer()
 	if err != nil || n != 1 || got.Type() != b.typ(sqltype.Int4) {
 		t.Fatal(got, err)
@@ -131,7 +131,7 @@ func TestRangeInspectTextDiagnosticEnvelope(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			if err != nil || value.Type() != b.typ(sqltype.Text) {
 				t.Fatal(value, err)
 			}

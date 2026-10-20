@@ -178,7 +178,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	return nil
 }
 
-func (s *StatementScope) executeDelete(b binding, view *visibility.View, inputs *querySource, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) executeDelete(b binding, view *visibility.View, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
 	source, err := s.captureMutationSource(s.op.Context(), view, b)
 	if err != nil {
 		if inputs != nil {
@@ -191,7 +191,7 @@ func (s *StatementScope) executeDelete(b binding, view *visibility.View, inputs 
 	return s.deleteSource(b, source, inputs, parameters)
 }
 
-func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
 	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.View.Data().GenerationAt(b.ref.Address) {
 		if inputs != nil {
 			inputs.Close()
@@ -210,7 +210,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 	}
 	ctx := s.op.Context()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: parameters, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if inputs != nil {
 		if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err
@@ -219,7 +219,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 			inputs = freezeViewWriteSources(s, inputs, b.querySources)
 		}
 		defer inputs.Close()
-		state := &queryState{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}
+		state := &exec.State{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}
 		defer state.ReleaseMemberships()
 		inputs.Host = hostOf(s)
 		evaluation.Query = state
@@ -228,7 +228,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		return s.deleteUsingSource(b, source, &evaluation, positioned)
 	}
 	var count int64
-	var rows *finalRows
+	var rows *exec.FinalRows
 	keep := false
 	if b.returning != nil {
 		rows = exec.NewFinalRows(b.returning.schema, 0)
@@ -360,7 +360,7 @@ func (s *StatementScope) latestDeleteRow(candidate visibility.DeleteCandidate) (
 }
 
 // The nil selection path remains allocation-free for undeleted prefixes.
-func captureQuerySource(ctx context.Context, view *visibility.View, ref ids.ObjectRef) (*querySource, error) {
+func captureQuerySource(ctx context.Context, view *visibility.View, ref ids.ObjectRef) (*exec.Source, error) {
 	source, err := captureQueryPrefix(view, ref)
 	if err != nil {
 		return nil, err
@@ -369,7 +369,7 @@ func captureQuerySource(ctx context.Context, view *visibility.View, ref ids.Obje
 	return exec.SelectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
 }
 
-func captureQueryPrefix(view *visibility.View, ref ids.ObjectRef) (*querySource, error) {
+func captureQueryPrefix(view *visibility.View, ref ids.ObjectRef) (*exec.Source, error) {
 	pin := view.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
@@ -383,5 +383,5 @@ func captureQueryPrefix(view *visibility.View, ref ids.ObjectRef) (*querySource,
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}
-	return &querySource{View: pin, Ref: ref, Committed: data.Committed[ref.Address], Own: data.Own[ref.Address], NeedsBirthFilter: data.NeedsBirthFilterAt(ref.Address)}, nil
+	return &exec.Source{View: pin, Ref: ref, Committed: data.Committed[ref.Address], Own: data.Own[ref.Address], NeedsBirthFilter: data.NeedsBirthFilterAt(ref.Address)}, nil
 }

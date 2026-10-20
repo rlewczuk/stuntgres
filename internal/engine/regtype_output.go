@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -76,12 +77,12 @@ func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID
 
 func (s *StatementScope) FormatRegtype(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return detachedPresentation{}.FormatRegtype(id)
+		return exec.DetachedPresentation{}.FormatRegtype(id)
 	}
 	return regtypeSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
 }
 
-func captureRegtypeOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegtypeOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegtype() {
 		return nil
 	}

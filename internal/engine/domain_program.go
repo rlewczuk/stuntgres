@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -12,7 +13,7 @@ func (domainPhaseList) DomainCheckPhasesSlot() {}
 
 // programPhases returns the programme's phases. The list shares its backing
 // array with the slot, so an indexed update is seen through the programme.
-func programPhases(p domainCheckProgram) domainPhaseList {
+func programPhases(p exec.DomainCheckProgram) domainPhaseList {
 	phases, _ := p.Phases.(domainPhaseList)
 	return phases
 }

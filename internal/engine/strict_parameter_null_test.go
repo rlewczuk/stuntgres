@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -41,7 +42,7 @@ func strictNullUnitFixture(t *testing.T) (*Engine, *Operation, *StatementScope) 
 	return e, op, scope
 }
 
-func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *StatementScope, text string) (expr.Expr, *expressionBinder, EvalContext) {
+func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *StatementScope, text string) (expr.Expr, *expressionBinder, exec.Context) {
 	t.Helper()
 	raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
 	ref := roleTableRef(t, e, "strict_null_rows")
@@ -60,13 +61,13 @@ func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *Statement
 	if err != nil {
 		t.Fatal("actual provider binding", text, err)
 	}
-	return node, b, EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
+	return node, b, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
 }
 
 func TestStrictParameterNullPlanning(t *testing.T) {
 	planners := []struct {
 		name string
-		run  func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error)
+		run  func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error)
 	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}}
 	for _, planner := range planners {
 		t.Run(planner.name, func(t *testing.T) {
@@ -173,7 +174,7 @@ func TestStrictParameterNullBoundaries(t *testing.T) {
 func TestStrictParameterNullCompoundSemantics(t *testing.T) {
 	for _, planner := range []struct {
 		name string
-		run  func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error)
+		run  func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error)
 	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}} {
 		t.Run(planner.name, func(t *testing.T) {
 			e, op, scope := strictNullUnitFixture(t)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -28,12 +29,12 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, scope, b, target, from := updateFromBoundSources(t, e, writer, ctx, "UPDATE t SET v=s.k FROM s JOIN r ON s.k=r.k WHERE t.id=s.k RETURNING s.k")
-				children := append([]*querySource(nil), from.Sources...)
+				children := append([]*exec.Source(nil), from.Sources...)
 				calls := 0
 				switch phase {
 				case "source_rejected":
 					join := b.update.from.(*plan.JoinNode)
-					join.Predicate = queryProbe(join.Predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+					join.Predicate = queryProbe(join.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -42,7 +43,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 					})
 				case "candidate_rejected":
 					usage := b.update.predicate.ResultUsage()
-					b.update.predicate = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+					b.update.predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -51,7 +52,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 					})
 				default:
 					original := b.returning.expressions[0]
-					b.returning.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+					b.returning.expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if phase == "output" && calls == 2 {
 							cancel()

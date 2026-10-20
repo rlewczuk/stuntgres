@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -69,7 +70,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	frame := make([]sqltype.Value, count)
 	scope, _ := input.LockedDomainInput.(*StatementScope)
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: hostOf(scope), Catalog: view}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: hostOf(scope), Catalog: view}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
 	if scope != nil {
 		scope.domains.inputCatalog = view
 	}

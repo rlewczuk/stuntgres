@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -70,7 +71,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "é")},
 		plan.LiteralExpr{Info: expr.Info{Usage: name.Usage()}, Value: sqltype.String(name, "LATIN1")},
 	}}
-	result, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(fresh)}})
+	result, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(fresh)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,11 +80,11 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal("actual selected handler output", raw, err)
 	}
 	missing := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}}
-	if _, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(missing)}}); err == nil {
+	if _, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(missing)}}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
 	node.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "")}
-	if _, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); err != nil {
+	if _, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err != nil {
 		t.Fatal("empty input demanded default snapshot", err)
 	}
 }
@@ -201,7 +202,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := &finalRows{}
+	rows := &exec.FinalRows{}
 	if err = captureRegprocOutputValue(rows, view, path, value); err != nil {
 		t.Fatal(err)
 	}

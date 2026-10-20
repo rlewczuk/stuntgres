@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -53,7 +54,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if next.Plan.ResultUsage().Type != replacement[sqltype.JSON] || next.Args[0].ResultUsage().Type != replacement[1009] {
 			t.Fatal(next)
 		}
-		got, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		got, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}

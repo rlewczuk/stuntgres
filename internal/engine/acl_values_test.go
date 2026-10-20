@@ -5,18 +5,19 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func aclValuesUnitContext(t *testing.T) (*Engine, *EvalContext) {
+func aclValuesUnitContext(t *testing.T) (*Engine, *exec.Context) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	return e, &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: op})}}
+	return e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: op})}}
 }
 func TestACLValuesZeroIdentity(t *testing.T) {
 	e, c := aclValuesUnitContext(t)
@@ -35,7 +36,7 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 	if err != nil || text != "=r*/0" {
 		t.Fatal(text, err)
 	}
-	rows := &finalRows{}
+	rows := &exec.FinalRows{}
 	if err := captureACLItemOutputValue(rows, output, value); err != nil {
 		t.Fatal(err)
 	}

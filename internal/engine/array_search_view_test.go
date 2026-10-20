@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -121,7 +122,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	const sourceTextSQL = "array_positions(array_replace(('{a,b,NULL}'::text[] COLLATE as_unit_source), 'a'::text, 'b'::text), 'b'::text)"
 	const targetTextSQL = "array_positions(array_replace(('{a,b,NULL}'::text[] COLLATE as_unit_target), 'a'::text, 'b'::text), 'b'::text)"
 	assertValue := func(node expr.Expr, typ *sqltype.Descriptor, want string) sqltype.Value {
-		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

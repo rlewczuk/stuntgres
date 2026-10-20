@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -176,7 +177,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 		if bad.Validate() == nil {
 			t.Fatal("immutable inquiry accepted")
 		}
-		value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || !value.IsNull() || value.Type() != n.ResultUsage().Type {
 			t.Fatal("strict typed NULL", value, err)
 		}

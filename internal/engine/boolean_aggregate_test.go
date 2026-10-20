@@ -64,7 +64,7 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 				defer cancel()
 				calls, advances := 0, 0
 				sentinel := errors.New("late Boolean argument error")
-				node.Calls[0].Argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+				node.Calls[0].Argument = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase == "argument" {
 						cancel()

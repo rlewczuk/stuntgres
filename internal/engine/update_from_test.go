@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -16,14 +17,14 @@ import (
 
 // This fixture exercises package admission/binding/capture functions, not the
 // public driver. Captures use exactly the executor's combined relation set.
-func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx context.Context, q string) (*Operation, *StatementScope, binding, *querySource, *querySource) {
+func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx context.Context, q string) (*Operation, *StatementScope, binding, *exec.Source, *exec.Source) {
 	t.Helper()
 	op, err := session.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var scope *StatementScope
-	var source, from *querySource
+	var source, from *exec.Source
 	// Register ownership before parsing, admission or capture can fail. Normal
 	// callers still release immediately; these idempotent fallbacks also cover
 	// Fatal/panic exits before a caller reaches Finish/Done.
@@ -152,12 +153,12 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 				sessionSQL(t, a, q)
 			}
 			op, scope, b, target, from := updateFromBoundSources(t, e, a, context.Background(), "UPDATE t SET a=id FROM s WHERE id=k RETURNING old.a,new.a,s.k")
-			children := append([]*querySource(nil), from.Sources...)
+			children := append([]*exec.Source(nil), from.Sources...)
 			saved := append([]storage.RowVersion(nil), target.Committed...)
 			calls, outputs := 0, 0
 			sentinel := errors.New("losing UPDATE FROM assignment failure")
 			rhs := b.update.assignments[0]
-			b.update.assignments[0] = queryProbe(rhs.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			b.update.assignments[0] = queryProbe(rhs.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if failLast && calls == 6 {
 					return sqltype.Value{}, sentinel
@@ -165,7 +166,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 				return rhs.Eval(c)
 			})
 			out := b.returning.expressions[0]
-			b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { outputs++; return out.Eval(c) })
+			b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { outputs++; return out.Eval(c) })
 			r, err := e.executeUpdate(op.ctx, scope, b, target, from, nil, "public")
 			if calls != 6 || outputs != 2 {
 				t.Fatal("pair versus successful-target demand", calls, outputs)

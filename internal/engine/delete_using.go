@@ -12,12 +12,12 @@ import (
 type deleteUsingCandidate struct {
 	visibility.DeleteCandidate
 	sourceIndex int
-	physical    queryPhysicalRow
+	physical    exec.QueryPhysicalRow
 }
 
 // The source stage owns immutable joined frames. Only qualifying identities and
 // occurrence indexes are retained, before any target row arbitration can wait.
-func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext, positioned mutationRowIdentity) (Result, error) {
+func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evaluation *exec.Context, positioned mutationRowIdentity) (Result, error) {
 	ctx := evaluation.Context
 	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.delete.using) || exec.BoundHasVirtualReads(b.predicate)
 	if b.returning != nil {
@@ -74,7 +74,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 	if len(candidates) != 0 {
 		deletedIDs = make(map[mutationRowIdentity]bool, min(len(candidates), source.Count()))
 	}
-	var rows *finalRows
+	var rows *exec.FinalRows
 	keep := false
 	if b.returning != nil {
 		rows = exec.NewFinalRows(b.returning.schema, 0)

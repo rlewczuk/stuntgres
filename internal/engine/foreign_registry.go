@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -61,7 +62,7 @@ func ValidateForeignValidator(def ForeignValidatorDefinition) (ForeignValidatorD
 // InstallForeignDefinitions runs only before an Engine becomes reachable from
 // its Driver. It never invokes application code. Later catalog publication uses
 // immutable procedure tokens, not a mutable name-to-callback fallback.
-func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefinition, validators []ForeignValidatorDefinition, importer ForeignValueImporter, exporter ForeignValueExporter) error {
+func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefinition, validators []ForeignValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) error {
 	e.foreignValueImporter = importer
 	e.foreignValueExporter = exporter
 	e.foreignWrappers = append([]ForeignDataWrapperDefinition(nil), wrappers...)

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
@@ -201,7 +202,7 @@ func viewOptions(options []parser.ViewOption) (barrier, invoker bool, mode viewC
 
 // Relation occurrences, including unused/join/subquery leaves, determine PG18
 // inference. Expression-only regclass/sequence dependencies deliberately do not.
-func requestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sources []queryLeaf) string {
+func requestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sources []exec.Leaf) string {
 	if view.Persistence == "temporary" {
 		return "temporary"
 	}

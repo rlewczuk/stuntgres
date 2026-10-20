@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -19,7 +20,7 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 			replaced[row.Row] = true
 		}
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	scan := func(rows []storage.RowVersion, committed bool) error {
 		for _, row := range rows {
 			if err := s.op.Context().Err(); err != nil {

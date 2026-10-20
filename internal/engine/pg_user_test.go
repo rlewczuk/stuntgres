@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -26,7 +27,7 @@ func pgUserUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
-func pgUserUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Value {
+func pgUserUnitRows(t *testing.T, source *exec.Source) map[uint32][]sqltype.Value {
 	t.Helper()
 	if source == nil {
 		t.Fatal("missing pg_user capture")
@@ -190,7 +191,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	open := func(r ids.ObjectRef) *querySource {
+	open := func(r ids.ObjectRef) *exec.Source {
 		t.Helper()
 		e.mu.Lock()
 		source, err := e.openRelationSourceLocked(scope, r, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
@@ -206,7 +207,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	putFixtureRole(updated, replacement)
 	e.roles.published = updated
 	second := open(ref)
-	for _, source := range []*querySource{first, second} {
+	for _, source := range []*exec.Source{first, second} {
 		flag, _ := pgUserUnitRows(t, source)[20000][2].Boolean()
 		if flag {
 			t.Fatal("source opening resampled roles")

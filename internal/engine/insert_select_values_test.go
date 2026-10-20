@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		expressions := make([][]expr.Expr, count)
 		for i := range expressions {
 			index := i
-			expressions[i] = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			expressions[i] = []expr.Expr{queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls[index]++
 				if index == 3 {
 					return sqltype.Null(typ), nil
@@ -44,7 +45,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		projection := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 		sorted := &plan.SortNode{QuerySchema: schema, Child: values, Keys: []plan.SortKey{{Expression: projection, Slot: 0, Cache: -1, Comparison: comparison}}}
 		query := &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: sorted, Expressions: []expr.Expr{projection}}}
-		source := &querySource{}
+		source := &exec.Source{}
 		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 		if err != nil || len(rows.values) != count || source.Anonymous != nil {
 			t.Fatal(rows, err, source.Anonymous)

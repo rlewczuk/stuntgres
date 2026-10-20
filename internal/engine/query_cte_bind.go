@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -174,7 +175,7 @@ func cteVolatile(root plan.Node) bool {
 // definitions using the same identity-bound graph authority as view expansion;
 // no source is opened and no expression is evaluated during this analysis.
 func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
-	var leaves []queryLeaf
+	var leaves []exec.Leaf
 	var sourceErr error
 	plan.VisitCTEQuery(root, func(node plan.Node) {
 		if source, ok := node.(*plan.SourceNode); ok {
@@ -182,7 +183,7 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 			if relation == nil {
 				sourceErr = ids.ErrCatalogReplaced
 			} else if relation.RelationKind == catalog.ViewRelation {
-				leaves = append(leaves, queryLeaf{Relation: relation})
+				leaves = append(leaves, exec.Leaf{Relation: relation})
 			}
 		}
 	}, func(expr.Expr) {}, true)
@@ -225,7 +226,7 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 	return false, nil
 }
 
-func activateCTESources(root plan.Node, leaves []queryLeaf) {
+func activateCTESources(root plan.Node, leaves []exec.Leaf) {
 	plan.VisitExecutableQuery(root, func(n plan.Node) {
 		if source, ok := n.(*plan.SourceNode); ok && source.Occurrence >= 0 && source.Occurrence < len(leaves) {
 			leaves[source.Occurrence].AnalysisOnly = false

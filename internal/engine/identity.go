@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
@@ -171,7 +172,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 // Ordinary single VALUES is a destination-attribute projection. Multirow VALUES
 // first demands the complete source row, like the shared query source cursor.
 // Bound expressions and imported parameters survive USER pruning in both cases.
-func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
+func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *exec.Context) error {
 	if sourceFirst {
 		for i, expression := range supplied {
 			if expression == nil {

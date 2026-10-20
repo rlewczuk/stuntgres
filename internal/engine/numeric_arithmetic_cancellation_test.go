@@ -22,7 +22,7 @@ func TestExpressionNumericArithmeticCancellationBeforePublication(t *testing.T) 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	evaluated := false
-	project.Expressions[0] = queryProbe(real.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	project.Expressions[0] = queryProbe(real.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		v, err := real.Eval(c)
 		if err != nil {
 			return v, err
@@ -107,7 +107,7 @@ func TestExpressionNumericArithmeticCanceledRestoreInstallationFence(t *testing.
 	assertNumericArithmeticRows(t, current.Rows, [][]any{{"99", "99"}})
 }
 
-func assertNumericArithmeticRows(t *testing.T, rows RowResult, expected [][]any) {
+func assertNumericArithmeticRows(t *testing.T, rows exec.RowResult, expected [][]any) {
 	t.Helper()
 	if len(rows.Schema()) != 2 {
 		t.Fatal(rows.Schema())

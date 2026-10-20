@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func pgAMUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) 
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
-func pgAMUnitFacts(t *testing.T, source *querySource, d *catalog.Relation) [][]any {
+func pgAMUnitFacts(t *testing.T, source *exec.Source, d *catalog.Relation) [][]any {
 	t.Helper()
 	if len(source.Anonymous) != 4 {
 		t.Fatal("access-method count", len(source.Anonymous))

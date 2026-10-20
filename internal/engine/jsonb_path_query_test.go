@@ -69,7 +69,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 				}
 			}
 			for slot, want := range map[int]string{2: "{}", 3: "f"} {
-				value, err := args[slot].Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+				value, err := args[slot].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 				if err != nil || value.IsNull() {
 					t.Fatal("default is not a real child", slot, value, err)
 				}
@@ -131,7 +131,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 		return call
 	}
 	call := bind(`[1,2]`, `$[*]`)
-	c := &EvalContext{EvalStatement: evalStatement{Context: ctx}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}
 	cursor, err := exec.OpenFunctionSource(c, call)
 	if err != nil || len(cursor.Values) != 2 {
 		t.Fatal(cursor, err)

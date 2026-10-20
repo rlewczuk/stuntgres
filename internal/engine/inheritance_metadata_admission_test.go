@@ -8,6 +8,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -217,7 +218,7 @@ func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, curr
 		if action == "set_default" {
 			want = 7
 		}
-		value, err := definition.Expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}})
+		value, err := definition.Expression.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.CatalogRead()}})
 		if err != nil || !reflect.DeepEqual(value, inheritanceQueryInt(e, want)) {
 			t.Fatal("wrong independent physical default value", current.Name(), value, err)
 		}
@@ -267,7 +268,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					if !present {
 						t.Fatal("queued metadata provider exposed a partial default removal", old.Name())
 					}
-					value, err := definition.Expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: grown}})
+					value, err := definition.Expression.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: grown}})
 					if err != nil || !reflect.DeepEqual(value, inheritanceQueryInt(e, 9)) {
 						t.Fatal("queued metadata provider exposed a partial default change", old.Name(), value, err)
 					}

@@ -24,8 +24,8 @@ func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *plan.FunctionFromNode {
 	n.QuerySchema = append(n.QuerySchema, catalog.Column{Name: "ordinality", Usage: seriesUnitType(t, sqltype.Int8).Usage()})
 	return n
 }
-func srfFromUnitState() *queryState {
-	return &queryState{Source: &querySource{Materialized: true}, Frame: 1}
+func srfFromUnitState() *exec.State {
+	return &exec.State{Source: &exec.Source{Materialized: true}, Frame: 1}
 }
 func srfFromUnitRows(t *testing.T, n plan.Node) [][]any {
 	t.Helper()
@@ -167,7 +167,7 @@ func TestSRFFromInvocation(t *testing.T) {
 	var order []int
 	for i, arg := range call.Args {
 		index, value := i, arg.(plan.LiteralExpr).Value
-		call.Args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { order = append(order, index); return value, nil })
+		call.Args[i] = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) { order = append(order, index); return value, nil })
 	}
 	probed := srfFromUnitNode(t, call)
 	for range 2 {
@@ -212,9 +212,9 @@ func TestSRFFromOwnership(t *testing.T) {
 	}
 	failure := errors.New("second source argument failed")
 	bad := seriesUnit(t, d, 1, 2)
-	bad.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
+	bad.Args[0] = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	// First member opens successfully; failed partial open must close the group.
-	invocation, err := exec.OpenFunctionInvocation(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
+	invocation, err := exec.OpenFunctionInvocation(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
 	if !errors.Is(err, failure) || len(invocation.Cursors) != 0 {
 		t.Fatal(invocation, err)
 	}
@@ -273,7 +273,7 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 		}
 		args := append([]expr.Expr(nil), expr.Expr(original).(expr.Composite).Children()...)
 		first := args[0]
-		args[0] = queryProbe(first.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return first.Eval(c) })
+		args[0] = queryProbe(first.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { return first.Eval(c) })
 		mapped, err := expr.Substitute(expr.Expr(original).(expr.Composite), expr.InfoOf(original), args)
 		if err != nil || !exec.SourceAdmitted(mapped) {
 			t.Fatal(mapped, err)

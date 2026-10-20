@@ -37,7 +37,7 @@ func levenshteinUnitExpression(t *testing.T, e *Engine) plan.InstalledLevenshtei
 func TestLevenshteinExpressionIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	n := levenshteinUnitExpression(t, e)
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Integer()
 	if err != nil || readErr != nil || integer != 10 || n.Ref.Address != ext.Members[4] || value.Type() != n.ResultUsage().Type || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
@@ -192,7 +192,7 @@ func TestLevenshteinRemap(t *testing.T) {
 		if err := validateInstalledLevenshtein(n, view); err != nil {
 			t.Fatal(err)
 		}
-		value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		number, readErr := value.Integer()
 		if err != nil || readErr != nil || number != 10 || value.Type() != n.ResultUsage().Type {
 			t.Fatal(value, err, readErr)

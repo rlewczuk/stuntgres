@@ -30,11 +30,11 @@ type boundUpdate struct {
 
 // Reuse the shared coercion traversal; only changed execution branches are
 // copied. In particular, imported-frame literals never replace analyzed nodes.
-func preflightUpdate(c *EvalContext, original *boundUpdate, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
+func preflightUpdate(c *exec.Context, original *boundUpdate, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
 	return preflightUpdateWithPlanning(c, original, true, sourceDemand...)
 }
 
-func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planConstants bool, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
+func preflightUpdateWithPlanning(c *exec.Context, original *boundUpdate, planConstants bool, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
 	result := original
 	var assignments []expr.Expr
 	targets, err := preflightArrayTargetsWithPlanning(c, original.arrayTargets, planConstants)
@@ -48,7 +48,7 @@ func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planCons
 	}
 	for i, expression := range original.assignments {
 		owner := c
-		var recipe EvalContext
+		var recipe exec.Context
 		if len(original.defaultOrigins) != 0 && original.defaultOrigins[i].requested {
 			recipe = *c
 			original.defaultOrigins[i].apply(&recipe)
@@ -106,7 +106,7 @@ func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planCons
 	return result, nil
 }
 
-func preflightUpdateExpression(c *EvalContext, expression expr.Expr, planConstants bool) (expr.Expr, bool, error) {
+func preflightUpdateExpression(c *exec.Context, expression expr.Expr, planConstants bool) (expr.Expr, bool, error) {
 	changed := false
 	if planConstants {
 		// Plan SQL constants before importing execution-frame coercions:
@@ -222,7 +222,7 @@ type updateCandidate struct {
 	storage.RowVersion
 	slot        int
 	sourceIndex int
-	physical    queryPhysicalRow
+	physical    exec.QueryPhysicalRow
 }
 
 func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate updateCandidate) (storage.RowVersion, bool, error) {
@@ -253,7 +253,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 	return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
 }
 
-func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *querySource, parameters []sqltype.Value, schema string) (Result, error) {
+func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.Close()
 	source.Host = hostOf(s)
 	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.View.Data().GenerationAt(b.ref.Address) {
@@ -284,7 +284,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		defer from.Close()
 		inputs = from
 	}
-	state := queryState{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}
+	state := exec.State{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}
 	defer state.ReleaseMemberships()
 	eval := state.Evaluation(ctx)
 	var smallUpdateOutputs [4]sqltype.Value
@@ -295,7 +295,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			eval.UpdateOutputScratch = make([]sqltype.Value, b.update.outputWidth)
 		}
 	}
-	var stage indexedStage
+	var stage exec.Stage
 	var frame []sqltype.Value
 	var updated map[mutationRowIdentity]bool
 	sourceCount := 1
@@ -331,7 +331,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			updated = make(map[mutationRowIdentity]bool)
 		}
 	}
-	var output *finalRows
+	var output *exec.FinalRows
 	keep := false
 	if b.returning != nil {
 		output = exec.NewFinalRows(b.returning.schema, 0)
@@ -572,7 +572,7 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 }
 
 // Public UPDATE and admitted RI assignment share generation and local checks.
-func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string, row []sqltype.Value, eval *EvalContext) error {
+func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string, row []sqltype.Value, eval *exec.Context) error {
 	generationEval := *eval
 	if err := evaluateGenerations(eval.Context, b.relation, row, &generationEval); err != nil {
 		return err

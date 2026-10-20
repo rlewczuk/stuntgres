@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -39,15 +40,15 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	}
 	null := plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}
 	node := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: null, Right: normalizer, Provider: mp, Operator: "~"}
-	_, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, node)
+	_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
 	state(t, err, "22025")
 	normalizer.Pattern = null
 	node.Right = normalizer
-	folded, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, node)
+	folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := folded.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err := folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || !value.IsNull() {
 		t.Fatal(value, err)
 	}

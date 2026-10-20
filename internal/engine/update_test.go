@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -160,7 +161,7 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 	}
 	sentinel := errors.New("late evaluator failure")
 	calls := 0
-	bound.update.assignments[0] = queryProbe(bound.relation.Columns[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+	bound.update.assignments[0] = queryProbe(bound.relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, sentinel

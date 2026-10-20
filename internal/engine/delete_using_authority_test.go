@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"testing"
@@ -112,14 +113,14 @@ func TestDeleteUsingReferenceKindDoesNotConferSourceLocks(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "seq")
 	e.mu.Lock()
 	relation := e.catalog.state.MustRelation(ref.Address)
-	err = e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{Ref: ref, Relation: relation, DeleteReference: true}})
+	err = e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: ref, Relation: relation, DeleteReference: true}})
 	e.mu.Unlock()
 	waitsDiagnostic(t, err, "42809", `cannot lock rows in sequence "seq"`)
 	if scope.queryLocks != nil {
 		t.Fatal("reference-kind rejection created tuple-lock authority")
 	}
 	e.mu.Lock()
-	err = e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{Ref: ref, Relation: relation}})
+	err = e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: ref, Relation: relation}})
 	e.mu.Unlock()
 	if err != nil || scope.queryLocks != nil {
 		t.Fatal("DELETE kind policy leaked into ordinary source reads", err)

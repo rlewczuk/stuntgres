@@ -1034,7 +1034,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if r := s.materializedOrZero().replacement; r != nil && r.concurrent {
 			runtimeOwners = map[ids.ObjectAddress]authorization.PrincipalRef{r.original.Address(): r.original.Owner}
 		}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: p.ctx, Host: hostOf(scope)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: p.ctx, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if scope != nil {
 			evaluation.Input, evaluation.Output = scope.input, scope.output
 		} else if op != nil {
@@ -1359,7 +1359,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
 			}
-			selected, err := exec.SelectQuerySource(ctx, &querySource{Committed: source[a].Versions}, frontier, source[a].Ends, nil)
+			selected, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: source[a].Versions}, frontier, source[a].Ends, nil)
 			if err != nil {
 				return err
 			}

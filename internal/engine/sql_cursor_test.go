@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -37,7 +38,7 @@ func cursorUnitBatch(t *testing.T, s *Session, q string, want [][]driver.Value) 
 	if result.Count != int64(len(want)) || !reflect.DeepEqual(tuples(result), want) {
 		t.Fatalf("%s: count=%d rows=%v want=%v", q, result.Count, tuples(result), want)
 	}
-	rows := result.Rows.(*finalRows)
+	rows := result.Rows.(*exec.FinalRows)
 	if rows.Source != nil || rows.Anonymous != nil {
 		t.Fatal("FETCH batch borrows source rows")
 	}
@@ -156,7 +157,7 @@ func TestSQLCursorNoLookaheadAndFailedBatch(t *testing.T) {
 	original := cursor.root.Expressions[0]
 	draws := 0
 	sentinel := errors.New("cursor projected failure")
-	cursor.root.Expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	cursor.root.Expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		draws++
 		if draws == 3 {
 			return sqltype.Value{}, sentinel
@@ -216,7 +217,7 @@ func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 			}
 			original := expressions[1]
 			expected, calls := "first", 0
-			expressions[1] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			expressions[1] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				scope := scopeOf(c.LiveHost())
 				if scope == nil || scope.finished || scope.op.done || c.Context.Value(cursorUnitContextKey{}) != expected {
 					t.Fatalf("nested %s borrows old admission: scope=%p context=%v expected=%s", route, scope, c.Context.Value(cursorUnitContextKey{}), expected)
@@ -261,7 +262,7 @@ func TestSQLCursorCancellationClearsAuthority(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	original := cursor.stage.Expressions[0]
-	cursor.stage.Expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })}
+	cursor.stage.Expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { cancel(); return original.Eval(c) })}
 	result, err := cursorUnitExecute(t, s, ctx, "FETCH 1 FROM c")
 	if !errors.Is(err, context.Canceled) || result.Rows != nil || result.Count != 0 || cursor.authority.Host != nil || cursor.source != nil || cursor.position != cursorFailed {
 		t.Fatal(result, err, cursor)
@@ -325,7 +326,7 @@ func TestSQLCursorFirstDemandExpressionData(t *testing.T) {
 	}
 	sessionSQL(t, s, "SELECT statement_timestamp()")
 	second := sessionSQL(t, s, "FETCH 1 FROM c")
-	if cursor.authority.Expression != snapshot || !reflect.DeepEqual(first.Rows.(*finalRows).Values, second.Rows.(*finalRows).Values) {
+	if cursor.authority.Expression != snapshot || !reflect.DeepEqual(first.Rows.(*exec.FinalRows).Values, second.Rows.(*exec.FinalRows).Values) {
 		t.Fatal("second FETCH recaptures stable expression data")
 	}
 	sessionSQL(t, s, "CLOSE c")
@@ -404,7 +405,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 		if first.Count != 1 || !reflect.DeepEqual(tuples(first), want) {
 			t.Fatalf("completed FETCH loses delivered row: count=%d rows=%v", first.Count, tuples(first))
 		}
-		rows := first.Rows.(*finalRows)
+		rows := first.Rows.(*exec.FinalRows)
 		if rows.Source != nil || rows.Anonymous != nil || cursor.authority.Host != nil || cursor.position != cursorOn {
 			t.Fatal("completed FETCH is not detached or retains admission", rows, cursor)
 		}

@@ -77,7 +77,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			if err := call.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+			v, err := call.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(tc.name, err)
 			}
@@ -102,10 +102,10 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			if exec.PlannedPhysicalVolatility(call, false) != volatility || generationImmutable(call) != (volatility == expr.Immutable) {
 				t.Fatal("lost intrinsic volatility")
 			}
-			if _, _, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, call, false); err != nil {
+			if _, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, call, false); err != nil {
 				t.Fatal(err)
 			}
-			if _, _, err := preflightCoercionsWithPolicy(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, call, false); err != nil {
+			if _, _, err := preflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, call, false); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -138,7 +138,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	if err != nil || !strings.Contains(sql, "\"descending\" =>") || !strings.Contains(sql, "\"array\" =>") {
 		t.Fatal(sql, err)
 	}
-	v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	v, err := call.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	if !cat.Operator || cat.Kind != functions.ArrayConcatenate {
 		t.Fatal(cat)
 	}
-	v, err = cat.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	v, err = cat.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 		if err := call.Validate(); err != nil {
 			t.Fatal(err)
 		}
-		v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		v, err := call.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

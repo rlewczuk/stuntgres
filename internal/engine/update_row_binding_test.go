@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -104,7 +105,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 	if err != nil || mapped.(plan.SubqueryExpr).UpdateWidth != 2 || original.QueryPlan != u.assignments[0].(plan.SubqueryExpr).QueryPlan {
 		t.Fatal("lost marker or mutated template", err)
 	}
-	ctx := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	prepared, err := preflightUpdateWithPlanning(&ctx, u, false)
 	if err != nil || prepared != u {
 		t.Fatal("unchanged preflight replaced immutable source", prepared, err)

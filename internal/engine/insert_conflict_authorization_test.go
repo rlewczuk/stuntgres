@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	definition := *f.index.SQLIndex
 	definition.Predicate = nil
 	f.index.SQLIndex = &definition
-	root, buildErr := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
+	root, buildErr := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 	if buildErr != nil {
 		t.Fatal(buildErr)
 	}
@@ -135,7 +136,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal(err)
 	}
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if err := action.selectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}

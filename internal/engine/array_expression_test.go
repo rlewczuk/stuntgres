@@ -33,7 +33,7 @@ func TestArrayExpressionCommonTypeAndExplicitTarget(t *testing.T) {
 	if node.ResultUsage().Type.Element().ID() != sqltype.Int8 || node.Properties().RowDependent {
 		t.Fatal(node.ResultUsage(), node.Properties())
 	}
-	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || value.ArrayLen() != 3 || !value.ArrayElement(1).IsNull() || value.ArrayElement(1).Type() != b.typ(sqltype.Int8) {
 		t.Fatal(value, err)
 	}
@@ -46,7 +46,7 @@ func TestArrayExpressionCommonTypeAndExplicitTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err = empty.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err = empty.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || value.IsNull() || value.ArrayLen() != 0 {
 		t.Fatal(value, err)
 	}
@@ -84,7 +84,7 @@ func TestArrayExpressionParameterManifestAndTraversal(t *testing.T) {
 	}
 	lower, _ := sqltype.Integer(b.typ(sqltype.Int4), 0)
 	upper, _ := sqltype.Integer(b.typ(sqltype.Int4), 1)
-	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{input, lower, upper}}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{input, lower, upper}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	if err != nil || !changed || retagged.ResultUsage().Type == original.ResultUsage().Type {
 		t.Fatal(retagged, changed, err)
 	}
-	value, err := retagged.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	value, err := retagged.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,14 +136,14 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := original.Eval(&EvalContext{EvalStatement: evalStatement{Context: canceled}}); !errors.Is(err, context.Canceled) {
+	if _, err := original.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
 
 type arrayDemandExpression struct {
 	expr.Info
-	evaluate func(*EvalContext) (sqltype.Value, error)
+	evaluate func(*exec.Context) (sqltype.Value, error)
 }
 
 func (n arrayDemandExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -155,7 +155,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	typ := b.typ(sqltype.Int4)
 	arr := b.typ(typ.AssociatedArray())
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	one, _ := sqltype.Integer(typ, 1)
 	input, err := arr.Input(ctx.Context, "{{7}}", -1)
 	if err != nil {
@@ -163,7 +163,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	}
 	var order []string
 	child := func(label string, value sqltype.Value) expr.Expr {
-		return arrayDemandExpression{b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, label); return value, nil }}
+		return arrayDemandExpression{b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), func(*exec.Context) (sqltype.Value, error) { order = append(order, label); return value, nil }}
 	}
 	node := plan.SubscriptExpr{Info: b.info(arr.Usage(), parser.Position{}, expr.Properties{}), Base: child("base", input), Slice: true, Subscripts: []plan.BoundArraySubscript{{Lower: child("l1", one), Upper: child("u1", one), Slice: true}, {Lower: child("l2", one), Upper: child("u2", one), Slice: true}}}
 	if _, err := node.Eval(ctx); err != nil {
@@ -198,7 +198,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	}
 	order = nil
 	stop := errors.New("lower evaluation failed")
-	target.Node.Subscripts[1].Lower = arrayDemandExpression{b.info(typ.Usage(), parser.Position{}, expr.Properties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, "l2"); return sqltype.Value{}, stop }}
+	target.Node.Subscripts[1].Lower = arrayDemandExpression{b.info(typ.Usage(), parser.Position{}, expr.Properties{}), func(*exec.Context) (sqltype.Value, error) { order = append(order, "l2"); return sqltype.Value{}, stop }}
 	_, err = target.ApplyExpression(ctx, input, child("rhs", input))
 	if !errors.Is(err, stop) || !reflect.DeepEqual(order, []string{"u1", "u2", "l1", "l2"}) {
 		t.Fatal("bound error must precede NULL check and RHS", order, err)
@@ -284,7 +284,7 @@ func TestArrayExpressionNullCountComposition(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}

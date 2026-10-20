@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -44,7 +45,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 				if !ok || provider.ResultUsage().Type != b.typ(sqltype.UUID) || len(provider.Args) != 1 || provider.Args[0].ResultUsage().Type != b.typ(sqltype.Interval) {
 					t.Fatalf("round%d lost selected UUID interval signature: %T", round, node)
 				}
-				value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+				value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 				if err != nil || !value.IsNull() || value.Type() != b.typ(sqltype.UUID) {
 					t.Fatal("serialized strict NULL demand", value, err)
 				}

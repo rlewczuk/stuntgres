@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +23,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 	if err != nil || node.ResultUsage().Type.ID() != sqltype.Bit || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation != (sqltype.CollationRef{}) {
 		t.Fatal(node, err)
 	}
-	v, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	v, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +40,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	v, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || v.Type().ID() != sqltype.VarBit {
 		t.Fatal(v, err)
 	}

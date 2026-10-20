@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
 
@@ -10,10 +11,10 @@ func TestStatementHostNilScopeIsUntypedNil(t *testing.T) {
 	if host := hostOf(nil); host != nil {
 		t.Fatalf("hostOf(nil) = %#v, want untyped nil", host)
 	}
-	if host := (&EvalContext{}).LiveHost(); host != nil {
+	if host := (&exec.Context{}).LiveHost(); host != nil {
 		t.Fatalf("scope-less EvalContext host = %#v, want untyped nil", host)
 	}
-	if host := (&querySource{}).LiveHost(); host != nil {
+	if host := (&exec.Source{}).LiveHost(); host != nil {
 		t.Fatalf("scope-less querySource host = %#v, want untyped nil", host)
 	}
 	if scope := scopeOf(nil); scope != nil {
@@ -37,27 +38,29 @@ func TestStatementHostRoundTrip(t *testing.T) {
 func TestStatementHostDetachedPresentation(t *testing.T) {
 	cases := []struct {
 		name   string
-		format func(presentationFormatters) (string, error)
+		format func(exec.PresentationFormatters) (string, error)
 		want   string
 	}{
-		{"regclass", func(p presentationFormatters) (string, error) { return p.FormatRegclass(1) }, "stuntgres: missing regclass output snapshot"},
-		{"regtype", func(p presentationFormatters) (string, error) { return p.FormatRegtype(1) }, "stuntgres: missing regtype output snapshot"},
-		{"regproc", func(p presentationFormatters) (string, error) { return p.FormatRegproc(1) }, "stuntgres: missing regproc output snapshot"},
-		{"regprocedure", func(p presentationFormatters) (string, error) { return p.FormatRegprocedure(1) }, "stuntgres: missing regprocedure output snapshot"},
-		{"regrole", func(p presentationFormatters) (string, error) { return p.FormatRegrole(1) }, "stuntgres: missing regrole output snapshot"},
-		{"regoper", func(p presentationFormatters) (string, error) { return p.FormatRegoper(1) }, "stuntgres: missing operator output snapshot"},
-		{"regoperator", func(p presentationFormatters) (string, error) { return p.FormatRegoperator(1) }, "stuntgres: missing operator output snapshot"},
-		{"regcollation", func(p presentationFormatters) (string, error) { return p.FormatRegcollation(1) }, "stuntgres: missing regcollation output snapshot"},
-		{"regnamespace", func(p presentationFormatters) (string, error) { return p.FormatRegnamespace(1) }, "stuntgres: missing regnamespace output snapshot"},
-		{"regconfig", func(p presentationFormatters) (string, error) { return p.FormatRegconfig(1) }, "stuntgres: missing text search output snapshot"},
-		{"regdictionary", func(p presentationFormatters) (string, error) { return p.FormatRegdictionary(1) }, "stuntgres: missing text search output snapshot"},
-		{"aclitem", func(p presentationFormatters) (string, error) { return p.FormatACLRole(&sqltype.ACLAuthority{}, 1) }, "stuntgres: missing ACL output snapshot"},
+		{"regclass", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegclass(1) }, "stuntgres: missing regclass output snapshot"},
+		{"regtype", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegtype(1) }, "stuntgres: missing regtype output snapshot"},
+		{"regproc", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegproc(1) }, "stuntgres: missing regproc output snapshot"},
+		{"regprocedure", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegprocedure(1) }, "stuntgres: missing regprocedure output snapshot"},
+		{"regrole", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegrole(1) }, "stuntgres: missing regrole output snapshot"},
+		{"regoper", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegoper(1) }, "stuntgres: missing operator output snapshot"},
+		{"regoperator", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegoperator(1) }, "stuntgres: missing operator output snapshot"},
+		{"regcollation", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegcollation(1) }, "stuntgres: missing regcollation output snapshot"},
+		{"regnamespace", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegnamespace(1) }, "stuntgres: missing regnamespace output snapshot"},
+		{"regconfig", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegconfig(1) }, "stuntgres: missing text search output snapshot"},
+		{"regdictionary", func(p exec.PresentationFormatters) (string, error) { return p.FormatRegdictionary(1) }, "stuntgres: missing text search output snapshot"},
+		{"aclitem", func(p exec.PresentationFormatters) (string, error) {
+			return p.FormatACLRole(&sqltype.ACLAuthority{}, 1)
+		}, "stuntgres: missing ACL output snapshot"},
 	}
-	formatters := map[string]presentationFormatters{
-		"detached":      detachedPresentation{},
+	formatters := map[string]exec.PresentationFormatters{
+		"detached":      exec.DetachedPresentation{},
 		"nil scope":     (*StatementScope)(nil),
 		"no snapshot":   &StatementScope{},
-		"scope-less ev": (&EvalContext{}).Presentation(),
+		"scope-less ev": (&exec.Context{}).Presentation(),
 	}
 	for _, tc := range cases {
 		for name, p := range formatters {

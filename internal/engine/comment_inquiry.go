@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -9,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) CommentInquiry(c *EvalContext, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *statementHost) CommentInquiry(c *exec.Context, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	if err := admitInquiryBody(c, provenance); err != nil {
 		return sqltype.Value{}, err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -45,7 +46,7 @@ func TestStringIdentBinding(t *testing.T) {
 				}
 				copy.Args[i] = mathObservedArgument{Info: expr.InfoOf(arg), value: v, order: &observed, index: i, err: childError}
 			}
-			v, err := copy.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			v, err := copy.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			want := []int{0, 1}
 			if failing == 0 {
 				want = []int{0}
@@ -90,7 +91,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 		if err != nil {
 			t.Fatal("frozen view named replay", sql, err)
 		}
-		value, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := replayed.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || value.ArrayLen() != 2 {
 			t.Fatal("frozen view replay result", sql, value, err)
 		}
@@ -129,7 +130,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 			if err != nil {
 				t.Fatal("bound presentation replay", i, pretty, rendered, err)
 			}
-			value, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			value, err := replayed.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal("bound presentation evaluation", i, pretty, rendered, err)
 			}
@@ -148,11 +149,11 @@ func TestStringIdentReconstruction(t *testing.T) {
 		if err != nil {
 			t.Fatal("canonical named replay", sql, err)
 		}
-		replayedValue, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		replayedValue, err := replayed.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || replayedValue.ArrayLen() != 2 {
 			t.Fatal("canonical named replay result", sql, replayedValue, err)
 		}
-		v, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		v, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || v.Type() != node.ResultUsage().Type || v.Type().Element() != node.Plan.TextUsage().Type || v.ArrayLen() != 2 {
 			t.Fatal(v, err)
 		}

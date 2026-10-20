@@ -55,7 +55,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	rhs := predicate
 	rhs.Slot = 1
 	unchanged("right reference", join, rhs)
-	unsupported := &queryProbeExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, eval: func(*EvalContext) (sqltype.Value, error) {
+	unsupported := &queryProbeExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, eval: func(*exec.Context) (sqltype.Value, error) {
 		t.Fatal("placement evaluated predicate")
 		return sqltype.Value{}, nil
 	}}
@@ -71,7 +71,7 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	join := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
 	column := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
 	calls := 0
-	volatile := &queryProbeExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) {
+	volatile := &queryProbeExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(usage.Type, true), nil
 	}}
@@ -92,7 +92,7 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	// the TRUE row reaches three members, evaluating the volatile residual
 	// three times rather than once per source or once per unfiltered member.
 	for _, value := range []sqltype.Value{sqltype.Boolean(usage.Type, true), sqltype.Boolean(usage.Type, false), sqltype.Null(usage.Type)} {
-		evaluation := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{value}}}
+		evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{value}}}
 		selected, err := predecessor.Predicate.Eval(evaluation)
 		if err != nil {
 			t.Fatal(err)
@@ -141,7 +141,7 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	not := plan.LogicalExpr{Info: column.Info, Op: parser.LogicalNot, Left: column}
 	query := and(column, column)
 	query.QueryRight = true
-	unsupported := &queryProbeExpression{Info: expr.Info{Usage: usage}, eval: func(*EvalContext) (sqltype.Value, error) {
+	unsupported := &queryProbeExpression{Info: expr.Info{Usage: usage}, eval: func(*exec.Context) (sqltype.Value, error) {
 		t.Fatal("partition evaluated expression")
 		return sqltype.Value{}, nil
 	}}

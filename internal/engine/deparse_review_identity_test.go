@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -52,7 +53,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 				t.Fatal(node.ResultUsage())
 			}
 			// Valid runtime evaluation requires statement authority. Printing must not.
-			if _, err := node.Eval((*EvalContext)(nil)); err == nil {
+			if _, err := node.Eval((*exec.Context)(nil)); err == nil {
 				t.Fatal("identity unexpectedly evaluates without authority")
 			}
 			original := node

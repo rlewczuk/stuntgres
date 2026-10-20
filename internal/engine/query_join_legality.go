@@ -15,7 +15,7 @@ import (
 // Planning-only restrictions run on execution-owned parameters, never Prepare.
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
-func validateQueryJoinExecution(c *EvalContext, node plan.Node, catalog catalog.Read, inherited lock.Mode) error {
+func validateQueryJoinExecution(c *exec.Context, node plan.Node, catalog catalog.Read, inherited lock.Mode) error {
 	reads := queryExecutionSourceReads(node, nil)
 	if source, ok := node.(*plan.SourceNode); ok {
 		reads[source.Occurrence] = nil
@@ -66,7 +66,7 @@ func nullableQueryRowMark(node plan.Node, marks []plan.RowMark, inherited plan.R
 
 // Mutation targets and RETURNING are planned even when their input selects no
 // rows. Walk only the execution-owned expressions that the binding consumes.
-func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]expr.Expr, catalog catalog.Read) error {
+func validateMutationJoinExecution(c *exec.Context, b *binding, expressions [][]expr.Expr, catalog catalog.Read) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	validateTargets := func(targets []*plan.ArrayAssignmentTarget) error {
@@ -124,7 +124,7 @@ func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]e
 	return nil
 }
 
-func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catalog catalog.Read) error {
+func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, catalog catalog.Read) error {
 	if expression == nil {
 		return nil
 	}
@@ -183,7 +183,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	})
 	return failure
 }
-func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, marks []plan.RowMark, inherited plan.RowMark, emptyInput bool, ignoredProject *plan.ProjectNode, reads map[int][]int32) error {
+func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read, marks []plan.RowMark, inherited plan.RowMark, emptyInput bool, ignoredProject *plan.ProjectNode, reads map[int][]int32) error {
 
 	if node == nil {
 		return nil
@@ -319,7 +319,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 				return err
 			}
 			child := *c
-			child.QuoteOrigin = quoteOrigin{Owner: n.Ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision}
+			child.QuoteOrigin = exec.QuoteOrigin{Owner: n.Ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision}
 			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = viewOf(d).dependencies, nil, d
 			child.RoutineRecipe, child.RoutineGraft = true, false
 			root, storedReads, err := prepareStoredExecutionRoot(&child, viewOf(d), outputUses)
@@ -436,7 +436,7 @@ type fullJoinFacts struct {
 // OR retains only structurally common keys in the same operand order. NOT is
 // pushed through Boolean nodes with SQL three-valued truth. At the resulting
 // match boundary, FALSE and UNKNOWN both reject a pair.
-func fullJoinCondition(c *EvalContext, join *plan.JoinNode, bound expr.Expr, negate bool) (fullJoinFacts, error) {
+func fullJoinCondition(c *exec.Context, join *plan.JoinNode, bound expr.Expr, negate bool) (fullJoinFacts, error) {
 	if bound == nil {
 		return fullJoinFacts{constant: true, truth: plan.True}, nil
 	}

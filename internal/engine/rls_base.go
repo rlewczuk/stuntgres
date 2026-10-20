@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 
 // Empty protected inputs still own their immutable visibility catalog. Do not
 // capture physical prefixes or permit later live-version selection to revive rows.
-func captureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*querySource, error) {
+func captureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*exec.Source, error) {
 	pin := view.Retain()
 	if pin == nil {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
@@ -23,7 +24,7 @@ func captureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*queryS
 		pin.Release()
 		return nil, fmt.Errorf("stuntgres: invalid visibility target")
 	}
-	return &querySource{View: pin, Ref: ref, RlsDenied: true}, nil
+	return &exec.Source{View: pin, Ref: ref, RlsDenied: true}, nil
 }
 
 func rowSecurityAction(action parser.AlterTableActionKind) bool {

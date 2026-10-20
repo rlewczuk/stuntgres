@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -52,7 +53,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		if node.ResultUsage() != b.typ(id).Usage() || node.Properties() != (expr.Properties{}) {
 			t.Fatal(tc.name, node.ResultUsage(), node.Properties())
 		}
-		got, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		text, textErr := got.Bits()
 		if err != nil || textErr != nil || text != tc.want {
 			t.Fatal(tc.name, text, err, textErr)
@@ -72,7 +73,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		if err != nil || !changed || rebound.ResultUsage().Type == node.ResultUsage().Type {
 			t.Fatal(tc.name, changed, err)
 		}
-		after, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		after, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		want, retagErr := got.Retag(rebound.ResultUsage().Type)
 		if err != nil || retagErr != nil || after != want {
 			t.Fatal(tc.name, after, want, err, retagErr)
@@ -138,19 +139,19 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal("width checked during analysis", err)
 	}
-	_, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, bad)
+	_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bad)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22026" || d.Message != "cannot AND bit strings of different sizes" || d.Position != "" {
 		t.Fatal(err)
 	}
-	folded, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, root)
+	folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, root)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
 	if _, ok := folded.(plan.LiteralExpr); !ok {
 		t.Fatal("constant bit operator not folded")
 	}
-	got, err := folded.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	got, err := folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	text, _ := got.Bits()
 	if err != nil || text != "00001" {
 		t.Fatal(got, err)
@@ -161,7 +162,7 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	left := dependent.Left.(plan.LiteralExpr)
 	left.Property.ParameterDependent = true
 	dependent.Left = left
-	if _, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, dependent); err != nil || changed {
+	if _, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, dependent); err != nil || changed {
 		t.Fatal("parameter-dependent bit expression folded", changed, err)
 	}
 }
@@ -176,11 +177,11 @@ func TestBitStringOperatorsOperandEvaluation(t *testing.T) {
 	}
 	for _, reverse := range []bool{false, true} {
 		var calls []string
-		null := queryProbe(bit.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		null := queryProbe(bit.Usage(), func(*exec.Context) (sqltype.Value, error) {
 			calls = append(calls, "null")
 			return sqltype.Null(bit), nil
 		})
-		failure := queryProbe(bit.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		failure := queryProbe(bit.Usage(), func(*exec.Context) (sqltype.Value, error) {
 			calls = append(calls, "error")
 			return sqltype.Value{}, &sqlstate.Error{Code: "22026", Message: "cannot AND bit strings of different sizes"}
 		})
@@ -188,7 +189,7 @@ func TestBitStringOperatorsOperandEvaluation(t *testing.T) {
 		if reverse {
 			root.Left, root.Right = root.Right, root.Left
 		}
-		_, err := root.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		_, err := root.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "22026" {
 			t.Fatal(err)
@@ -227,7 +228,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 		if source.ResultUsage() != usage {
 			t.Fatal("source width mutated")
 		}
-		got, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		text, _ := got.Bits()
 		if err != nil || text != "101101" {
 			t.Fatal(got, err)

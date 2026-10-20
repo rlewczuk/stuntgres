@@ -52,7 +52,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		}
 	}
 	for slot, want := range map[int]string{2: "{}", 3: "f"} {
-		value, err := call.Args[slot].Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		value, err := call.Args[slot].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil || value.IsNull() {
 			t.Fatal("default is not a real nonnull child", slot, value, err)
 		}

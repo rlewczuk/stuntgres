@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				}
 				return s
 			}
-			open := func(s *StatementScope, oid ids.OID) *querySource {
+			open := func(s *StatementScope, oid ids.OID) *exec.Source {
 				t.Helper()
 				d, ref := availableUnitSource(e, oid)
 				e.mu.Lock()
@@ -54,7 +55,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			}
 			old := capture()
 			before := old.inquiry.commentCatalog.State()
-			sources := map[ids.OID]*querySource{first: open(old, first)}
+			sources := map[ids.OID]*exec.Source{first: open(old, first)}
 			retained := make([][]sqltype.Value, len(sources[first].Anonymous))
 			for i, row := range sources[first].Anonymous {
 				retained[i] = append([]sqltype.Value(nil), row...)
@@ -74,7 +75,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			if !reflect.DeepEqual(retained, sources[first].Anonymous) {
 				t.Fatal("publication mutated already-opened rows")
 			}
-			assertAvailable := func(source *querySource, oid ids.OID, installed bool) {
+			assertAvailable := func(source *exec.Source, oid ids.OID, installed bool) {
 				t.Helper()
 				var unaccentVersion any
 				if installed {

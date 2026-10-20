@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -22,7 +23,7 @@ type statementMutation struct {
 	lockedDescriptor      catalog.Descriptor
 	lockedStorage         *storage.Relation
 	lockedIdentityOnly    bool
-	inheritedTargets      []queryLeaf
+	inheritedTargets      []exec.Leaf
 	viewWrite             *viewWrite
 	routineDependencies   []catalog.ExpressionDependency // Borrowed immutable manifest follows command activation.
 	uniqueBinding         *uniqueWriteBinding

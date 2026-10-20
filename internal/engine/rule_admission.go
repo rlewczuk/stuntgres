@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -67,7 +68,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}
 		collectAuth := command.auth
 		collectAuth.Recapture(scope.inheritanceRead(command.auth.Catalog))
-		principal := func(leaf queryLeaf) authorization.PrincipalRef {
+		principal := func(leaf exec.Leaf) authorization.PrincipalRef {
 			if leaf.Principal != (authorization.PrincipalRef{}) {
 				return leaf.Principal
 			}

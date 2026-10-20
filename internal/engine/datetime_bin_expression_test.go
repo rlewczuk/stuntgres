@@ -52,7 +52,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 		if node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node.ResultUsage(), node.Properties())
 		}
-		v, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
+		v, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
 		n, failure := v.Timestamp()
 		if err != nil || failure != nil || n != 86400000000 {
 			t.Fatal(tc, v, err, failure)
@@ -102,7 +102,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 				t.Fatal("retained child authority")
 			}
 		}
-		v, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
+		v, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
 		if err != nil || v.Type() != replacements[e.Usage.Type.ID()] {
 			t.Fatal(v, err)
 		}
@@ -113,7 +113,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		for i := range e.Args {
 			null := e
 			null.Args[i] = plan.LiteralExpr{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(e.Args[i].ResultUsage().Type)}
-			simplified, changed, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, null, false)
+			simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, null, false)
 			if err != nil || !changed || !generationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
 			}
@@ -184,14 +184,14 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Args[1] = plan.CoercionExpr{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Child: text, Plan: coercionPlan, Mode: sqltype.Explicit}
-	_, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, e)
+	_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
+	if _, err := e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }

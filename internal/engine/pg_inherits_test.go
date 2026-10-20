@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -92,7 +93,7 @@ func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 	return e.catalog.read(&state)
 }
 
-func pgInheritsUnitEdges(t *testing.T, captured *querySource, view catalog.Read) map[[3]int64]int {
+func pgInheritsUnitEdges(t *testing.T, captured *exec.Source, view catalog.Read) map[[3]int64]int {
 	t.Helper()
 	got := make(map[[3]int64]int)
 	for _, row := range captured.Anonymous {
@@ -158,7 +159,7 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, old := range []*querySource{captured, again} {
+	for _, old := range []*exec.Source{captured, again} {
 		if got := pgInheritsUnitEdges(t, old, view); !reflect.DeepEqual(got, want) {
 			t.Fatal("retained generation changed", got, want)
 		}

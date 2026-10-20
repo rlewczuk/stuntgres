@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -90,7 +91,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	old := storage.RowVersion{Row: 7, Version: 11, Base: 5, Born: 3, Values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
-	physical := queryPhysicalRow{Leaf: queryLeaf{Ref: ref(c), Relation: c, Storage: &storage.Relation{}}, Version: old, Hint: 6, Segment: &inheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}}
+	physical := exec.QueryPhysicalRow{Leaf: exec.Leaf{Ref: ref(c), Relation: c, Storage: &storage.Relation{}}, Version: old, Hint: 6, Segment: &exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}}
 	proposed := []sqltype.Value{inheritanceQueryInt(e, 8), inheritanceQueryInt(e, 2)}
 	scattered := scatterMutationRow(physical, old, proposed, []int{0})
 	want := []sqltype.Value{old.Values[0], old.Values[1], proposed[0]}
@@ -109,7 +110,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	if !own.Deletion().Own {
 		t.Fatal("prior-own provenance lost")
 	}
-	identity := queryPhysicalRow{}
+	identity := exec.QueryPhysicalRow{}
 	if got := scatterMutationRow(identity, old, proposed, []int{0}); &got[0] != &proposed[0] {
 		t.Fatal("identity scatter copied proposal")
 	}

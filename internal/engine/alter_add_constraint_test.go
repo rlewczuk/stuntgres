@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -102,7 +103,7 @@ func TestAlterAddConstraintValidationSelection(t *testing.T) {
 	if len(v.notNull) != 0 || len(v.checks.Constraints.Check) != 0 {
 		t.Fatal("historical selection contains invalid jobs", v)
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for _, row := range e.storage.Relations[d.Address()].Versions {
 		if err := v.validate(row.Values, &evaluation); err != nil {
 			t.Fatal(err)
@@ -273,7 +274,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = validateAlterIndexBuilds(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: e.stageRead(stage)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, auth, e.stageRead(stage), next, store, nil, nil, "public", sqltype.OutputEnvironment{}, nil, nil, []ids.ObjectAddress{next.Constraints.Unique[1].Index}, false)
+	_, err = validateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, auth, e.stageRead(stage), next, store, nil, nil, "public", sqltype.OutputEnvironment{}, nil, nil, []ids.ObjectAddress{next.Constraints.Unique[1].Index}, false)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("no real private root validation", err)

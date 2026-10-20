@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -42,7 +43,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+			v, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -384,7 +384,7 @@ func valuesOrderColumnError(schema []catalog.Column, name string, pos parser.Pos
 
 // evaluateInsertQuery owns the source pin and all destination rows. Evaluation
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
-func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (indexWriteBatch, error) {
+func evaluateInsertQuery(ctx context.Context, b binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (indexWriteBatch, error) {
 	defer source.Close()
 	project, ok := b.query.Root.(*plan.ProjectNode)
 	if !ok {
@@ -401,7 +401,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 		}
 		unique = len(bound.keys) != 0 || bound.checked
 	}
-	state := &queryState{Source: source, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
+	state := &exec.State{Source: source, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
 	defer state.ReleaseMemberships()
 	stage, err := exec.OpenQueryProjectStage(ctx, state, project)
 	if err != nil {
@@ -410,7 +410,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope, unique, parameters, state)
 }
 
-func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool, parameters []sqltype.Value, query *queryState) (rows indexWriteBatch, err error) {
+func assembleInsertRows(ctx context.Context, b binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool, parameters []sqltype.Value, query *exec.State) (rows indexWriteBatch, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -439,7 +439,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		copyInsert = newCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: hostOf(scope)}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Query: query}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}
 	copyInput := scope != nil && scope.op.copyInput.active.Load()
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if copyInput {

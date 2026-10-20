@@ -14,7 +14,7 @@ import (
 type preparedCommandExecution struct {
 	binding     binding
 	auth        AuthorizationView
-	evaluation  EvalContext
+	evaluation  exec.Context
 	queryRoot   plan.Node
 	expressions [][]expr.Expr
 	primaryTag  string
@@ -22,7 +22,7 @@ type preparedCommandExecution struct {
 
 // Enter with Engine.mu held; every outcome releases it. Binding, signature and
 // parameter import are statement-wide and have already completed exactly once.
-func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCommandExecution) (Result, error) {
+func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCommandExecution) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
 	var err error
@@ -453,7 +453,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		var target *querySource
+		var target *exec.Source
 		if scope.rlsTargetDenied {
 			target, err = captureDeniedQuerySource(view, b.ref)
 		} else {
@@ -509,7 +509,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		var from *querySource
+		var from *exec.Source
 		if b.update.from != nil || b.subqueryDemand {
 			from, err = e.captureQuerySourcesLocked(scope, b.querySources, false)
 			if err != nil {
@@ -578,7 +578,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				e.mu.Unlock()
 				return Result{}, sourceErr
 			}
-			state := &queryState{Source: inputs, Parameters: canonical, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, Ctes: scope.cteInvocation}
+			state := &exec.State{Source: inputs, Parameters: canonical, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, Ctes: scope.cteInvocation}
 			defer state.ReleaseMemberships()
 			evaluation.Query = state
 			evaluation.Scope, evaluation.Frame = 1, 1
@@ -705,7 +705,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		} else {
 			view, viewErr = scope.acquireDataViewLocked(e, b.ref)
 		}
-		var inputs *querySource
+		var inputs *exec.Source
 		if viewErr == nil && (b.delete.using != nil || b.subqueryDemand) {
 			inputs, viewErr = e.captureQuerySourcesLocked(scope, b.querySources, false)
 		} else if viewErr == nil && b.returning != nil {
@@ -723,7 +723,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		// Even an unlocked cursor retains physical lineage through derived/view
 		// projections. Zero-mode entries capture identity, never row grants.
 		if scope.queryLocks == nil {
-			scope.queryLocks = &queryLockContext{IdentityOnly: true}
+			scope.queryLocks = &exec.LockContext{IdentityOnly: true}
 		}
 		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Query.From == nil && s.Query.Values == nil)
 		e.mu.Unlock()
@@ -759,7 +759,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, queryErr
 		}
 		if b.query.RegclassOutput && count != 0 {
-			if err := e.captureRegclassOutput(op, rows.(*finalRows)); err != nil {
+			if err := e.captureRegclassOutput(op, rows.(*exec.FinalRows)); err != nil {
 				rows.Close()
 				return Result{}, err
 			}

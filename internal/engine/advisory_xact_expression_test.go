@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -90,14 +91,14 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 		for _, preflight := range []bool{false, true} {
 			var folded expr.Expr
 			if preflight {
-				folded, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, bound)
+				folded, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound)
 			} else {
-				folded, _, err = simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, bound, false)
+				folded, _, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
 			}
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, err := folded.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+			value, err := folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			wantType := sqltype.Void
 			if strings.Contains(q, "pg_try_advisory_xact_lock") {
 				wantType = sqltype.Bool

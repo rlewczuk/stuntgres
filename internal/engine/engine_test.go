@@ -91,8 +91,8 @@ func run(t *testing.T, e *Engine, sql string, args ...any) Result {
 
 // Tuple assertions use an independent retained cursor so lifetime tests may
 // inspect the original result later without rewinding its public position.
-func independentFinalRows(original RowResult) *finalRows {
-	old := original.(*finalRows)
+func independentFinalRows(original exec.RowResult) *exec.FinalRows {
+	old := original.(*exec.FinalRows)
 	r := exec.NewFinalRows(old.Columns, old.Count)
 	r.Values, r.Selection, r.Slots = old.Values, old.Selection, old.Slots
 	r.Anonymous = old.Anonymous

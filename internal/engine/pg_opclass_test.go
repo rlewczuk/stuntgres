@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/storage"
@@ -24,7 +25,7 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Object
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
-func pgOpclassUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][]any {
+func pgOpclassUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uint32][]any {
 	t.Helper()
 	if len(rows.Anonymous) != 62 {
 		t.Fatal("class count", len(rows.Anonymous))
@@ -188,7 +189,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		root, err := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, parent, index.SQLIndex, &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}, nil)
+		root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, index.SQLIndex, &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}, nil)
 		if err != nil || root == nil || (root.Hash != nil) != (tc.method == catalog.HashMethod) {
 			t.Fatal("real root", tc, root, err)
 		}

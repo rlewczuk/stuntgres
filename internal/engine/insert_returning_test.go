@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -53,7 +54,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query str
 	}
 	scope.insertConflict = b.insert.conflict
 	if b.insert.conflict != nil {
-		c := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if err := b.insert.conflict.selectArbiters(&c, b.relation, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
@@ -71,10 +72,10 @@ func TestInsertReturningModes(t *testing.T) {
 	three, _ := sqltype.Integer(typ, 3)
 	seven, _ := sqltype.Integer(typ, 7)
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0}
-	outer := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{three}, OldRow: []sqltype.Value{seven}}}
-	inner := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer}}
+	outer := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{three}, OldRow: []sqltype.Value{seven}}}
+	inner := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 8, Outer: &outer}}
 	calls := 0
-	probe := queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return column.Eval(c) })
+	probe := queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return column.Eval(c) })
 	for _, tc := range []struct {
 		name                 string
 		old, absent, missing bool
@@ -126,7 +127,7 @@ func TestInsertReturningWholeRow(t *testing.T) {
 			for i, col := range b.relation.Columns {
 				row[i] = sqltype.Null(col.Usage.Type)
 			}
-			c := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}}
+			c := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row}}
 			for i, expr := range b.returning.expressions {
 				v, err := expr.Eval(&c)
 				if err != nil || v.Type() != typ || v.IsNull() != (i == 0) {
@@ -167,7 +168,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 				cursor := &insertConflictInputCursor{schema: b.relation.Columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(3), integer(30)}}}
 				calls := 0
 				injected := errors.New("late private output veto")
-				b.returning.expressions[0] = queryProbe(b.relation.Columns[1].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				b.returning.expressions[0] = queryProbe(b.relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if len(scope.stage.rows[b.ref.Address]) != calls || cursor.position != calls {
 						t.Fatal("projection preceded final stage or next proposal", calls, cursor.position, scope.stage.rows)
@@ -210,7 +211,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
 		ten, _ := sqltype.Integer(b.relation.Columns[1].Usage.Type, 10)
 		row := []sqltype.Value{one, ten}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		admitted, err := scope.admitInsertRow(b.ref, &indexWriteCandidate{values: row}, indexWriteBatch{}, &evaluation)
 		if err != nil || !admitted {
 			t.Fatal(admitted, err)
@@ -239,7 +240,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 			t.Fatal("stale provider admitted output", accepted, retry, err, scope.stage.rows)
 		}
 		calls := 0
-		b.returning.expressions[0] = queryProbe(b.relation.Columns[1].Usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[1], nil })
+		b.returning.expressions[0] = queryProbe(b.relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[1], nil })
 		if _, err := scope.admitInsertProducer(b, &indexWriteCandidate{values: row}, indexWriteBatch{}, &evaluation); err != nil {
 			t.Fatal(err)
 		}

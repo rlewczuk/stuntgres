@@ -27,7 +27,7 @@ type mergeRows struct {
 	indexWriteBatch
 	predecessors []storage.RowVersion
 	actions      []mergeActionRow
-	returning    *finalRows
+	returning    *exec.FinalRows
 }
 
 func (rows *mergeRows) stage(w *WriteStage, ref ids.ObjectRef) error {
@@ -69,7 +69,7 @@ type mergeCandidate struct {
 
 // Source completion and ON membership precede every action wait. Match marks
 // refer to captured occurrences, preserving equal values and RR old+own bags.
-func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b binding, target *querySource, cursor RowCursor, state *queryState, schema string, unique bool) (*mergeRows, error) {
+func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b binding, target *exec.Source, cursor exec.RowCursor, state *exec.State, schema string, unique bool) (*mergeRows, error) {
 	sourceSchema := cursor.Schema()
 	width := len(sourceSchema)
 	scratch := make([]sqltype.Value, width)
@@ -77,10 +77,10 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	var occurrences, provenance []int
 	// The borrowed stage closes before actions, but executeMerge's input owner
 	// keeps the source namespace and any action-subquery leaves live until exit.
-	var stage *indexedStage
+	var stage *exec.Stage
 	if state.VirtualReads {
 		var ok bool
-		stage, ok = cursor.(*indexedStage)
+		stage, ok = cursor.(*exec.Stage)
 		if !ok {
 			cursor.Close()
 			return nil, errors.New("stuntgres: invalid MERGE source identity")
@@ -110,7 +110,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			}
 			provenance = exec.AppendQueryProvenance(provenance, stage.Source, stage.Index(stage.Position-1))
 		}
-		if stage, ok := cursor.(*indexedStage); ok && stage.Source.PresenceCount != 0 {
+		if stage, ok := cursor.(*exec.Stage); ok && stage.Source.PresenceCount != 0 {
 			presenceSlots, presenceCount = stage.Source.PresenceSlots, stage.Source.PresenceCount
 			presence = append(presence, stage.Source.PresenceRow(stage.Index(stage.Position-1))...)
 		}
@@ -362,7 +362,7 @@ func mergeCardinalityError() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: "MERGE command cannot affect row a second time", Hint: "Ensure that not more than one source row matches any one target row."}
 }
 
-func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *EvalContext, schema string, unique bool, arm *boundMergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
+func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *exec.Context, schema string, unique bool, arm *boundMergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
 	if arm.action == parser.MergeDeleteAction {
 		if accepted[old.Row] {
 			return mergeCardinalityError()
@@ -468,7 +468,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 	return nil
 }
 
-func mergeMatches(evaluation *EvalContext, on expr.Expr) (bool, error) {
+func mergeMatches(evaluation *exec.Context, on expr.Expr) (bool, error) {
 	value, err := on.Eval(evaluation)
 	if err != nil {
 		return false, err
@@ -477,7 +477,7 @@ func mergeMatches(evaluation *EvalContext, on expr.Expr) (bool, error) {
 	return truth == plan.True, err
 }
 
-func (merge *boundMerge) selectArm(evaluation *EvalContext, class parser.MergeMatch) (*boundMergeArm, error) {
+func (merge *boundMerge) selectArm(evaluation *exec.Context, class parser.MergeMatch) (*boundMergeArm, error) {
 	for i := range merge.arms {
 		arm := &merge.arms[i]
 		if arm.match != class {

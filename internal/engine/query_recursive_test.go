@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64) (*cteInvocation, *queryState, *plan.DerivedNode) {
+func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64) (*exec.CTEInvocation, *exec.State, *plan.DerivedNode) {
 	t.Helper()
 	typ := cteUnitType(t)
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
@@ -31,7 +31,7 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 	left := &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{QuerySchema: schema, Rows: rows}, Expressions: []expr.Expr{column(2)}, Frame: 2}
 	self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{QuerySchema: schema, CTE: d, ScanFrame: 3}}
 	read := column(3)
-	predicate := queryProbe(boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+	predicate := queryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 		value, err := read.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -39,7 +39,7 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		n, err := value.Integer()
 		return sqltype.Boolean(boolean, n < terminal), err
 	})
-	successor := queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+	successor := queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 		value, err := read.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -61,13 +61,13 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 	}
 	project := &plan.ProjectNode{QuerySchema: schema, Child: n, Expressions: []expr.Expr{column(4)}, Frame: 4}
 	d.Query = &plan.Query{Root: project}
-	state := &queryState{Source: &querySource{Materialized: true}}
-	owner := &cteInvocation{Frame: 1, State: *state}
+	state := &exec.State{Source: &exec.Source{Materialized: true}}
+	owner := &exec.CTEInvocation{Frame: 1, State: *state}
 	state.Ctes = owner
 	return owner, state, &plan.DerivedNode{QuerySchema: schema, Query: d.Query, CTE: d}
 }
 
-func recursiveUnitGeneration(t *testing.T, s *recursiveUnionStage, indexes []int) []int64 {
+func recursiveUnitGeneration(t *testing.T, s *exec.RecursiveUnionStage, indexes []int) []int64 {
 	t.Helper()
 	var values []int64
 	for _, index := range indexes {
@@ -335,7 +335,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	}
 	project := n.Definition.Query.Root.(*plan.ProjectNode)
 	original := n.LeftExpressions[0]
-	replacement := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) })
+	replacement := queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { return original.Eval(c) })
 	rewritten, err := plan.RewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
 			return replacement, true, nil

@@ -34,18 +34,18 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 			project := *query.Root.(*plan.ProjectNode)
 			project.QuerySchema = []catalog.Column{{Name: "v", Usage: mood.Usage()}}
 			project.Expressions = []expr.Expr{producer}
-			bridge := &querySource{Ref: input.Ref, NestedRoot: &project, NestedInputs: input, Materialized: true, FlatWidth: 1}
+			bridge := &exec.Source{Ref: input.Ref, NestedRoot: &project, NestedInputs: input, Materialized: true, FlatWidth: 1}
 			if name == "semanticFalse" || name == "identityFalse" {
 				// A real captured occurrence below a consuming owner, not merely
 				// a semantic context shared with another query branch.
-				input.Locks = &queryLockContext{IdentityOnly: name == "identityFalse", Leaves: []queryLockLeaf{{Source: input, Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
+				input.Locks = &exec.LockContext{IdentityOnly: name == "identityFalse", Leaves: []exec.QueryLockLeaf{{Source: input, Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
 				bridge.Locks = input.Locks
 				project.Child = &plan.AggregateNode{Child: project.Child}
 			} else if name == "contextFalse" {
-				bridge.Locks = &queryLockContext{Leaves: []queryLockLeaf{{Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
+				bridge.Locks = &exec.LockContext{Leaves: []exec.QueryLockLeaf{{Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
 			}
 			t.Cleanup(bridge.Close)
-			state := &queryState{Source: bridge, Input: sqltype.InputEnvironment{EnumMemberSafe: typedef.EnumSafety(map[int64]bool{102: true})}}
+			state := &exec.State{Source: bridge, Input: sqltype.InputEnvironment{EnumMemberSafe: typedef.EnumSafety(map[int64]bool{102: true})}}
 			value := sqltype.Boolean(boolean, false)
 			live := name == "literalTrue" || name == "parameterTrue"
 			if live {
@@ -84,7 +84,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 }
 
 func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for _, expression := range []expr.Expr{plan.ColumnExpr{}, &plan.WindowExpr{}, plan.SubqueryExpr{}} {
 		if rejects, err := exec.QueryPredicateRejectsAll(c, expression); rejects || err != nil {
 			t.Fatal("row/stage/subquery expression used as empty-input proof", expression, rejects, err)
@@ -92,7 +92,7 @@ func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
 	}
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	calls := 0
-	dynamic := queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	dynamic := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(boolean, false), nil
 	})
@@ -105,7 +105,7 @@ func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := exec.OpenNode(ctx, &queryState{}, &plan.FilterNode{Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}})
+	_, err := exec.OpenNode(ctx, &exec.State{}, &plan.FilterNode{Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("empty-input gate erased cancellation", err)
 	}
@@ -115,17 +115,17 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	for _, value := range []sqltype.Value{sqltype.Boolean(boolean, false), sqltype.Null(boolean), sqltype.Boolean(boolean, true)} {
 		for _, parameter := range []bool{false, true} {
-			c := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
+			c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 			var user expr.Expr = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: value}
 			if parameter {
 				user = plan.ParameterExpr{Info: expr.Info{Usage: boolean.Usage()}, Number: 1}
 			}
 			var order []string
-			outer := queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			outer := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 				order = append(order, "outer")
 				return sqltype.Boolean(boolean, true), nil
 			})
-			inner := queryProbe(boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+			inner := queryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				order = append(order, "inner")
 				// Detect a second parameter read after the qualification. The
 				// admitted physical value must be returned unchanged, not reread.
@@ -148,16 +148,16 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 		}
 	}
 	var order []string
-	hidden := queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	hidden := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		order = append(order, "hidden")
 		return sqltype.Boolean(boolean, false), nil
 	})
-	user := queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	user := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		order = append(order, "user")
 		return sqltype.Boolean(boolean, true), nil
 	})
 	expression := plan.ViewQualificationExpr{Info: expr.Info{Usage: boolean.Usage()}, Predicates: []expr.Expr{hidden}, User: user}
-	got, err := expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	got, err := expression.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	truth, truthErr := plan.TruthOf(got)
 	if err != nil || truthErr != nil || truth != plan.False || len(order) != 1 || order[0] != "hidden" {
 		t.Fatal("arbitrary user work ran ahead of hidden-row qualification", order, err)
@@ -165,7 +165,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	expression.User = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}
-	if _, err := expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) || len(order) != 1 {
+	if _, err := expression.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) || len(order) != 1 {
 		t.Fatal("empty user input erased cancellation", order, err)
 	}
 }

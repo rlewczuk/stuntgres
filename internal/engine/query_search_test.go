@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -147,7 +148,7 @@ func TestQuerySearchIdentity(t *testing.T) {
 		}
 		grouping := make([]plan.Grouping, 1)
 		grouping[0].Grouping, _ = sqltype.BindGrouping(typ.Usage())
-		stage := recursiveUnionStage{Node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, Source: &querySource{Flat: []sqltype.Value{one, child, one, anchor}}}
+		stage := exec.RecursiveUnionStage{Node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, Source: &exec.Source{Flat: []sqltype.Value{one, child, one, anchor}}}
 		if index, err := stage.FindTuple(ctx, []sqltype.Value{one, anchor}, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored sequence", index, err)
 		}

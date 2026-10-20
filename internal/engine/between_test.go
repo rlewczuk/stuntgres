@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -139,7 +140,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 					t.Fatal(err)
 				}
 				node := rebound.query.Root.(*plan.ProjectNode).Expressions[0]
-				value, evalErr := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+				value, evalErr := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 				truth, truthErr := value.Boolean()
 				want := form == "BETWEEN" || form == "BETWEEN SYMMETRIC"
 				if evalErr != nil || truthErr != nil || truth != want || !reflect.DeepEqual(desc.temporals, before) || len(rebound.prepared.temporals) != 0 {

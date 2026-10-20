@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 				}
 				return s
 			}
-			open := func(s *StatementScope, oid ids.OID) *querySource {
+			open := func(s *StatementScope, oid ids.OID) *exec.Source {
 				_, ref := availableUnitSource(e, oid)
 				e.mu.Lock()
 				source, err := e.openRelationSourceLocked(s, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
@@ -37,7 +38,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 				return source
 			}
 			old := capture()
-			sources := map[ids.OID]*querySource{first: open(old, first)}
+			sources := map[ids.OID]*exec.Source{first: open(old, first)}
 			retained := make([][]sqltype.Value, len(sources[first].Anonymous))
 			for i, row := range sources[first].Anonymous {
 				retained[i] = append([]sqltype.Value(nil), row...)
@@ -54,7 +55,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 			if !reflect.DeepEqual(retained, sources[first].Anonymous) || old.inquiry.commentCatalog.MustExtension(ext.Address()) != ext || fresh.inquiry.commentCatalog.MustExtension(ext.Address()).Version != "1.2" {
 				t.Fatal("old frontier mutated during update")
 			}
-			assert := func(source *querySource, oid ids.OID, version string) {
+			assert := func(source *exec.Source, oid ids.OID, version string) {
 				if oid == ids.ExtensionClassID {
 					if source.Count() != 1 {
 						t.Fatal("extension frontier count")

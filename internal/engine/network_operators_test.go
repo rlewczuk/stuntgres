@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -44,7 +45,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if node.ResultUsage() != b.typ(tc.result).Usage() || node.Properties() != (expr.Properties{}) {
 				t.Fatal(node.ResultUsage(), node.Properties())
 			}
-			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +68,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if err != nil || !changed || rebound.ResultUsage().Type == node.ResultUsage().Type {
 				t.Fatal(changed, err)
 			}
-			after, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+			after, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,17 +101,17 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 		t.Fatal(err)
 	}
 	var calls []string
-	null := queryProbe(inet.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	null := queryProbe(inet.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		calls = append(calls, "left")
 		return sqltype.Null(inet), nil
 	})
 	failure := errors.New("network child failure")
-	right := queryProbe(inet.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	right := queryProbe(inet.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		calls = append(calls, "right")
 		return sqltype.Value{}, failure
 	})
 	node := plan.BitwiseExpr{Info: expr.Info{Usage: inet.Usage()}, Left: null, Right: right, Network: p, Operator: sqltype.BitwiseAnd}
-	if _, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, failure) || !reflect.DeepEqual(calls, []string{"left", "right"}) {
+	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); !errors.Is(err, failure) || !reflect.DeepEqual(calls, []string{"left", "right"}) {
 		t.Fatal(calls, err)
 	}
 }
@@ -196,7 +197,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	family.Right = plan.LiteralExpr{Info: expr.Info{Usage: inet.Usage()}, Value: v6}
 	family.Property = parameter.Property
 	for _, frame := range [][]sqltype.Value{{v4}, {v6}, {sqltype.Null(inet)}, {v4}} {
-		c := &EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: frame}}
+		c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: frame}}
 		folded, changed, err := preflightCoercions(c, family)
 		if frame[0] == v4 {
 			var d *sqlstate.Error
@@ -216,7 +217,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	for _, barrier := range []expr.Properties{{RowDependent: true}, {StageDependent: true}, {DomainDependent: true}, {RuntimeDomainConversion: true}, {Volatility: expr.Stable}, {Volatility: expr.Volatile}} {
 		lazy := family
 		lazy.Property = expr.MergeProperties(lazy.Property, barrier)
-		if _, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{v4}}}, lazy); err != nil || changed {
+		if _, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{v4}}}, lazy); err != nil || changed {
 			t.Fatal("network preflight crossed barrier", barrier, changed, err)
 		}
 	}
@@ -249,7 +250,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := plan.ArithmeticExpr{Info: expr.Info{Usage: tc.result.Usage(), Property: expr.Properties{ParameterDependent: true}}, Left: tc.left, Right: tc.right, Provider: provider, Operator: tc.op}
-		_, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: tc.frame}}, n)
+		_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: tc.frame}}, n)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Context != tc.context || d.Position != "" {
 			t.Fatal(err)
@@ -300,7 +301,7 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	c := &EvalContext{EvalStatement: evalStatement{Context: ctx}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}
 	if networkOperatorExecutionConstant(nil, c) {
 		t.Fatal("absent root is not an available expression")
 	}

@@ -73,7 +73,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 	b.query.auth = &auth
 	b.query.namespace = ns
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	b.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
+	b.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	column := d.Columns[slot]
 	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
 	if kind == catalog.GenerationVirtual {
@@ -91,7 +91,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: b.input, Catalog: auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: b.input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
 	node, _, err = simplifyConditional(&evaluation, node, true)
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
@@ -246,7 +246,7 @@ func generationRecipeExpression(definition catalog.ColumnGeneration) expr.Expr {
 // One execution owner uses one fixed generation program for this descriptor.
 // ALTER borrows its existing selected-slot vector; ordinary writes demand all
 // stored slots. Neither path admits unused recipes or checks rights per row.
-func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []int, consumer *catalog.Relation) ([]expr.Expr, error) {
+func prepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []int, consumer *catalog.Relation) ([]expr.Expr, error) {
 	program, prepared := c.PreparedGenerations[d]
 	if prepared {
 		return program, nil
@@ -298,7 +298,7 @@ func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []in
 	return program, nil
 }
 
-func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype.Value, c *EvalContext) error {
+func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype.Value, c *exec.Context) error {
 	if len(d.ColumnMeta.Generations) == 0 {
 		return ctx.Err()
 	}
@@ -424,7 +424,7 @@ func generationHasTableOID(node expr.Expr) bool {
 
 // Replacement candidates own detached vectors; the source and retained TEMP
 // roots are never modified. Only owner-dependent stored cells are recomputed.
-func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval EvalContext, changed map[ids.ObjectAddress]map[int32]bool) error {
+func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval exec.Context, changed map[ids.ObjectAddress]map[int32]bool) error {
 	for source, target := range mapping {
 		if source == target {
 			continue

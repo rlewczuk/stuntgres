@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -22,7 +23,7 @@ func TestArrayCompareReduction(t *testing.T) {
 		t.Fatal(err)
 	}
 	left := plan.LiteralExpr{Info: b.info(integer.Usage(), parser.Position{}, expr.Properties{}), Value: leftValue}
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for _, tc := range []struct {
 		input string
 		null  bool
@@ -91,7 +92,7 @@ func TestArrayCompareReduction(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	last := queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return leftValue, nil })
+	last := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; return leftValue, nil })
 	node := plan.ScalarArrayComparisonExpr{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: left, Items: []expr.Expr{left, last}, Predicate: predicate, Operator: "="}
 	value, err := node.Eval(c)
 	truth, truthErr := plan.TruthOf(value)
@@ -100,7 +101,7 @@ func TestArrayCompareReduction(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: canceled}}); !errors.Is(err, context.Canceled) {
+	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -142,7 +143,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		if err != nil || !changed || mapped.ResultUsage().Type == original.ResultUsage().Type {
 			t.Fatal(mapped, changed, err)
 		}
-		value, err := mapped.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := mapped.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		truth, truthErr := plan.TruthOf(value)
 		if err != nil || truthErr != nil || truth != plan.True {
 			t.Fatal("predicate not rebound to actual child generations", truth, err, truthErr)
@@ -161,7 +162,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		if err != nil || !changed || reflect.DeepEqual(next.Left, node.Left) {
 			t.Fatal(next, changed, err)
 		}
-		value, err = original.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err = original.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		truth, truthErr = plan.TruthOf(value)
 		if err != nil || truthErr != nil || truth != plan.True {
 			t.Fatal("copy-on-change modified analyzed tree", truth, err, truthErr)

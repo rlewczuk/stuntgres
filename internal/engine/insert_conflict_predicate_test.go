@@ -14,7 +14,7 @@ import (
 type insertConflictProofFixture struct {
 	integer, boolean *sqltype.Descriptor
 	column           plan.ColumnExpr
-	ctx              EvalContext
+	ctx              exec.Context
 }
 
 func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
@@ -22,7 +22,7 @@ func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	return insertConflictProofFixture{integer: integer, boolean: boolean, column: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}, ctx: EvalContext{EvalStatement: evalStatement{Context: context.Background()}}}
+	return insertConflictProofFixture{integer: integer, boolean: boolean, column: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}, ctx: exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}}
 }
 func (f insertConflictProofFixture) comparison(t *testing.T, op string, left, right expr.Expr) plan.ComparisonExpr {
 	t.Helper()

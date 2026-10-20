@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -85,7 +86,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 
 // CheckDomain prepares the domain's CHECK programme for the context's phase
 // and evaluates it. The context may have no statement scope (DDL admission).
-func (enginePreparation) CheckDomain(ctx context.Context, c *EvalContext, target *sqltype.Descriptor, candidate sqltype.Value) error {
+func (enginePreparation) CheckDomain(ctx context.Context, c *exec.Context, target *sqltype.Descriptor, candidate sqltype.Value) error {
 	view := domainCatalog(c)
 	if view.State() == nil {
 		return fmt.Errorf("stuntgres: missing domain CHECK catalog")
@@ -121,7 +122,7 @@ func (enginePreparation) CheckDomain(ctx context.Context, c *EvalContext, target
 
 // Expression initialization prepares recipes even for an empty consumer. It
 // never supplies a candidate or executes CHECK truth; that remains row demand.
-func prepareDomainConversion(c *EvalContext, source, target *sqltype.Descriptor) error {
+func prepareDomainConversion(c *exec.Context, source, target *sqltype.Descriptor) error {
 	if source == target {
 		return nil
 	}
@@ -147,7 +148,7 @@ func prepareDomainConversion(c *EvalContext, source, target *sqltype.Descriptor)
 	return nil
 }
 
-func prepareDomainChecks(c *EvalContext, d *catalog.Type) error {
+func prepareDomainChecks(c *exec.Context, d *catalog.Type) error {
 	if base := d.SQLType.DomainBase().Type; base.IsDomain() && base.HasDomainChecks() {
 		parent, ok := domainCatalog(c).Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
 		if !ok || parent.SQLType != base {
@@ -162,7 +163,7 @@ func prepareDomainChecks(c *EvalContext, d *catalog.Type) error {
 
 // Historical validation initializes only the selected own programme; ordinary
 // conversions retain the ancestor traversal above.
-func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
+func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 	scope := scopeOf(c.LiveHost())
 	if scope != nil {
 		c.PreparedDomainChecks = scope.domains.preparedChecks
@@ -223,7 +224,7 @@ func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
 	}
 	programme.Phases = append(programPhases(programme), phase)
 	if c.PreparedDomainChecks == nil {
-		c.PreparedDomainChecks = make(map[*catalog.Type]domainCheckProgram)
+		c.PreparedDomainChecks = make(map[*catalog.Type]exec.DomainCheckProgram)
 	}
 	c.PreparedDomainChecks[d] = programme
 	if scope != nil {
@@ -232,7 +233,7 @@ func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
 	return nil
 }
 
-func domainCatalog(c *EvalContext) catalog.Read {
+func domainCatalog(c *exec.Context) catalog.Read {
 	if c.Catalog.State() != nil {
 		return c.Catalog
 	}
@@ -253,7 +254,7 @@ func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descri
 		if catalog.State() == nil {
 			catalog = s.ResolutionCatalog()
 		}
-		s.domains.evaluation = &EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(s), Catalog: catalog, Input: s.input, Output: s.output}}
+		s.domains.evaluation = &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Catalog: catalog, Input: s.input, Output: s.output}}
 	}
 	return s.domains.evaluation.CheckDomain(ctx, target, value)
 }

@@ -74,7 +74,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(layout, []int{1, 2}) {
 		t.Fatal(layout, err)
 	}
-	segment := inheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}
+	segment := exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}
 	values := []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 3), inheritanceQueryInt(e, 8)}
 	mapped := segment.MapValues(values)
 	if !reflect.DeepEqual(mapped, values[1:3]) || &mapped[0] != &segment.Scratch[0] {
@@ -88,7 +88,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	if err != nil || identity != nil {
 		t.Fatal(identity, err)
 	}
-	borrowed := (&inheritanceQuerySegment{}).MapValues(values)
+	borrowed := (&exec.InheritanceQuerySegment{}).MapValues(values)
 	if &borrowed[0] != &values[0] {
 		t.Fatal("identity mapping copied rows")
 	}
@@ -97,7 +97,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	if err != nil || zero == nil || len(zero) != 0 {
 		t.Fatal("zero-column projection lost nonidentity mapping", zero, err)
 	}
-	if values := (&inheritanceQuerySegment{Layout: zero}).MapValues(values); len(values) != 0 {
+	if values := (&exec.InheritanceQuerySegment{Layout: zero}).MapValues(values); len(values) != 0 {
 		t.Fatal(values)
 	}
 	child.Columns[1].Usage = testUsage(e, sqltype.Int8)
@@ -116,11 +116,11 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	one := storage.RowVersion{Row: 1, Version: 1, Values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
 	two := storage.RowVersion{Row: 1, Version: 2, Values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
 	ps, cs := &storage.Relation{}, &storage.Relation{}
-	parent := queryLeaf{Ref: ref(p), Relation: p, Storage: ps}
-	child := queryLeaf{Ref: ref(c), Relation: c, Storage: cs}
-	source := &querySource{Ref: parent.Ref, Inheritance: []inheritanceQuerySegment{
-		{Leaf: parent, Prefix: &querySource{Committed: []storage.RowVersion{one}}},
-		{Leaf: child, Prefix: &querySource{Committed: []storage.RowVersion{{}, two}, Visible: []int{1}}, Layout: []int{1}, Scratch: make([]sqltype.Value, 1)},
+	parent := exec.Leaf{Ref: ref(p), Relation: p, Storage: ps}
+	child := exec.Leaf{Ref: ref(c), Relation: c, Storage: cs}
+	source := &exec.Source{Ref: parent.Ref, Inheritance: []exec.InheritanceQuerySegment{
+		{Leaf: parent, Prefix: &exec.Source{Committed: []storage.RowVersion{one}}},
+		{Leaf: child, Prefix: &exec.Source{Committed: []storage.RowVersion{{}, two}, Visible: []int{1}}, Layout: []int{1}, Scratch: make([]sqltype.Value, 1)},
 	}, InheritanceEnds: []int{1, 2}}
 	first := source.PhysicalRow(0, parent, one)
 	second := source.PhysicalRow(1, parent, two)
@@ -163,8 +163,8 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	leaf := queryLeaf{Ref: ref, Relation: p, Storage: e.storage.Relations[p.Address()]}
-	scope.querySources = []queryLeaf{leaf}
+	leaf := exec.Leaf{Ref: ref, Relation: p, Storage: e.storage.Relations[p.Address()]}
+	scope.querySources = []exec.Leaf{leaf}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err == nil {
 		view, err = scope.acquireDataViewsLocked(e, refs)
 	}
-	var source *querySource
+	var source *exec.Source
 	if err == nil {
 		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, leaf, op.session.token)
 	}
@@ -225,7 +225,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	}
 	e.mu.Lock()
 	incomplete, err := failed.acquireDataViewsLocked(e, []ids.ObjectRef{ref})
-	var partial *querySource
+	var partial *exec.Source
 	if err == nil {
 		partial, err = captureInheritanceQueryPrefix(incomplete.Catalog(), incomplete, leaf, failOp.session.token)
 	}
@@ -282,7 +282,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 			t.Fatal("replacement lost source mode or mutated frozen authority")
 		}
 		var got []ids.ObjectAddress
-		err = inheritanceQueryLeaves(e.CatalogRead(), []queryLeaf{{Ref: remapped.ref, Only: remapped.only}}, ids.SessionToken{}, func(leaf queryLeaf) error { got = append(got, leaf.Ref.Address); return nil })
+		err = inheritanceQueryLeaves(e.CatalogRead(), []exec.Leaf{{Ref: remapped.ref, Only: remapped.only}}, ids.SessionToken{}, func(leaf exec.Leaf) error { got = append(got, leaf.Ref.Address); return nil })
 		want := []ids.ObjectAddress{p.Address()}
 		if !only {
 			want = append(want, c.Address())

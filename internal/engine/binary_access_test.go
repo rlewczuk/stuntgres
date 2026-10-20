@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -114,8 +115,8 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			t.Fatal(name, changed, err)
 		}
 		next := rebound.(functions.Binary)
-		got, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
-		before, oldErr := original.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		got, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+		before, oldErr := original.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		want, retagErr := before.Retag(replacement[result])
 		if err != nil || oldErr != nil || retagErr != nil || got != want {
 			t.Fatal(name, got, want, err)

@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -36,7 +37,7 @@ func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*c
 	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog catalog.Read, roles authorization.Read) *querySource {
+func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog catalog.Read, roles authorization.Read) *exec.Source {
 	t.Helper()
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, roles, ref, d)
@@ -293,7 +294,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if oldID != newID || before.Get(address) != old || old.Name() != "pacl_unit.snapshot" || len(old.ACL.Entries) != 2 {
 		t.Fatal("immutable identity/root")
 	}
-	retained := &finalRows{}
+	retained := &exec.FinalRows{}
 	if err := captureACLItemOutputValue(retained, capturedACLItemOutput{owner: e.catalog.owner(), roles: roles}, captured.Anonymous[0][2]); err != nil {
 		t.Fatal(err)
 	}

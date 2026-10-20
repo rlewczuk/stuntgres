@@ -193,14 +193,14 @@ func TestJSONObjectAggregateRunnerNullPresence(t *testing.T) {
 			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			keyUsage, valueUsage := node.Calls[0].Argument.ResultUsage(), node.Calls[0].Separator.ResultUsage()
 			keys, values := 0, 0
-			node.Calls[0].Argument = queryProbe(keyUsage, func(*EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Argument = queryProbe(keyUsage, func(*exec.Context) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated key")
 				}
 				keys++
 				return sqltype.Integer(keyUsage.Type, 1)
 			})
-			node.Calls[0].Separator = queryProbe(valueUsage, func(*EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Separator = queryProbe(valueUsage, func(*exec.Context) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated value")
 				}
@@ -241,8 +241,8 @@ func TestJSONObjectAggregateReachedEagerCancellation(t *testing.T) {
 		input, _ := e.CatalogRead().LookupType(sqltype.Text)
 		result := node.Calls[0].Provider.ResultUsage()
 		node.Calls[0].Provider = jsonObjectProviderUnit(t, input.Usage(), input.Usage(), result, tc.name == "jsonb_object_agg_strict")
-		node.Calls[0].Argument = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
-		node.Calls[0].Separator = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "value"), nil })
+		node.Calls[0].Argument = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
+		node.Calls[0].Separator = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "value"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
 		rows, n, err := exec.Finalize(probe, q.Root, source, nil)

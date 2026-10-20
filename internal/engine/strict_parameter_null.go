@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -22,7 +23,7 @@ func strictScalarRoutine(routine *catalog.Procedure) bool {
 // argument, but a separate known-NULL argument can discard runtime siblings,
 // including domain coercions. No domain truth or provider is sampled here.
 // The analyzed tree and its original dependency manifest remain untouched.
-func foldStrictParameterNull(c *EvalContext, node expr.Expr) (expr.Expr, bool, error) {
+func foldStrictParameterNull(c *exec.Context, node expr.Expr) (expr.Expr, bool, error) {
 	if node == nil || len(c.Parameters) == 0 || !node.Properties().ParameterDependent {
 		return node, false, nil
 	}
@@ -67,7 +68,7 @@ func strictRoutineArguments(node expr.Expr, visit func(expr.Expr)) {
 	plan.ExpressionChildren(node, visit)
 }
 
-func executionKnownNullArgument(c *EvalContext, node expr.Expr) (bool, error) {
+func executionKnownNullArgument(c *exec.Context, node expr.Expr) (bool, error) {
 	if node == nil || node.Properties().RuntimeDomainConversion {
 		return false, nil
 	}

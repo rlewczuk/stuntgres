@@ -11,7 +11,7 @@ import (
 
 // COPY owns the initialized cursor directly; its capture carrier has no name,
 // registry entry, birth or portal execution lifecycle.
-func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (RowResult, error) {
+func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowResult, error) {
 	expected, binding := s.Expected, s.protocolOrZero().bind
 	s.Expected = nil
 	s.setProtocolBind(nil)
@@ -50,7 +50,7 @@ type protocolCopyQueryRows struct {
 	scope    *StatementScope
 	producer *sqlCursor
 	schema   []catalog.Column
-	output   *finalRows
+	output   *exec.FinalRows
 }
 
 func (r *protocolCopyQueryRows) Schema() []catalog.Column                     { return r.schema }

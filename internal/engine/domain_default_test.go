@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -56,7 +57,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 		if origin.definition.OID != 0 || origin.consumer != nil || origin.quote.Owner.Address != tc.d.Address() || origin.quote.Attribute != 0 || origin.quote.Definition != 0 {
 			t.Fatal("domain recipe lost type origin or invented column identity")
 		}
-		c := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: view}}
+		c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
 		value, err := evalDefaultExpression(&c, node, origin)
 		if err != nil {
 			t.Fatal(tc.d.Name(), err)
@@ -74,7 +75,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 		}
 	}
 	// NULL cooking never executes the immediate constrained base. Demand does.
-	c := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: view}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
 	_, err := mask.DomainDefault.Expression.Eval(&c)
 	domainUnitDiagnostic(t, err, "23502", "domain public.base_default does not allow null values")
 	if !structuralNull(mask.DomainDefault.Expression) {

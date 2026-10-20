@@ -16,8 +16,8 @@ func TestQueryLimitViewCancellation(t *testing.T) {
 	defer cancel()
 	bt, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	calls := 0
-	filter.Predicate = queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
-	bridge := &querySource{Ref: input.Ref, NestedRoot: inner, NestedInputs: input, Materialized: true, FlatWidth: 1}
+	filter.Predicate = queryProbe(bt.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
+	bridge := &exec.Source{Ref: input.Ref, NestedRoot: inner, NestedInputs: input, Materialized: true, FlatWidth: 1}
 	leaf := &plan.SourceNode{QuerySchema: inner.Schema(), Ref: input.Ref}
 	limit := &plan.LimitNode{QuerySchema: inner.Schema(), Child: leaf, Count: queryLimitBound(t, e, 1)}
 	outer := &plan.ProjectNode{QuerySchema: inner.Schema(), Child: limit, Expressions: inner.Expressions}

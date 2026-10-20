@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -72,7 +73,7 @@ func materializedSameRow(a, b []sqltype.Value) bool {
 
 func materializedNewEntries(ctx context.Context, ordering indexOrdering, rows [][]sqltype.Value) ([]storage.IndexEntry, error) {
 	entries := make([]storage.IndexEntry, len(rows))
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for i, values := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err

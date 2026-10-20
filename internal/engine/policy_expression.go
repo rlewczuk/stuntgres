@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	b.clause.aggregateClause = "policy expressions"
 	b.target.relation = d
 	b.query.auth, b.query.namespace = &auth, &ns
-	b.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
+	b.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	node, err := b.bindBoolean(raw, projectionContext, "POLICY")
 	if err != nil {
 		return nil, alterCookingError(err)

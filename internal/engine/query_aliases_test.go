@@ -80,7 +80,7 @@ func TestQueryAliasesCancellation(t *testing.T) {
 			defer cancel()
 			project := query.Root.(*plan.ProjectNode)
 			calls := 0
-			project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+			project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "projection" || calls == 2 {
 					cancel()

@@ -3,6 +3,7 @@ package engine
 import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -35,11 +36,11 @@ type sqlRoutineScratch struct {
 	command              ruleCommandScratch
 	mutations            []statementMutation
 	activeMutation       int
-	cteInvocation        *cteInvocation
+	cteInvocation        *exec.CTEInvocation
 	activeViews          []ids.ObjectAddress
-	inheritanceRelations []queryLeaf
+	inheritanceRelations []exec.Leaf
 	inheritanceCatalog   catalog.Read
-	authority            *queryAuthority
+	authority            *exec.Authority
 	routineAuth          AuthorizationView
 	expected             *StatementDescription
 	prepared             preparedRebind
@@ -53,12 +54,12 @@ type sqlRoutineScratch struct {
 	view, partitionView  *visibility.View
 	ownWrites            map[ids.ObjectAddress][]storage.RowVersion
 	ownDeletes           map[ids.ObjectAddress]*visibility.PrivateDeletes
-	domainEvaluation     *EvalContext
+	domainEvaluation     *exec.Context
 	domainInputCatalog   catalog.Read
-	foreignOwner         *foreignScanOwner
+	foreignOwner         *exec.ForeignScanOwner
 	foreignCursor        *sqlCursor
 	presentation         *presentationCaches // Swapped as a unit: a nested body starts with empty caches.
-	identity             identitySnapshot
+	identity             exec.IdentitySnapshot
 }
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {

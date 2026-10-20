@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
@@ -59,7 +60,7 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	return nil
 }
 
-func (c *boundInsertConflict) preflightUpdate(evaluation *EvalContext) error {
+func (c *boundInsertConflict) preflightUpdate(evaluation *exec.Context) error {
 	if c.update == nil {
 		return nil
 	}

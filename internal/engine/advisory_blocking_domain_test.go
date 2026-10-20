@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -27,7 +28,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	outer := domainUnitType(t, view, "advisory_outer")
 	target := outer.SQLType
 	integer, _ := view.LookupType(sqltype.Int4)
-	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: view}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
 	// Volatile calls are not admitted in stored domain declarations. Exercise
 	// the real active-frame executor instead, replacing only this context's
 	// detached executable recipe after ordinary programme initialization.
@@ -99,7 +100,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	}
 	original := boundCase.(functions.BlockingInquiry)
 	original.Property.RowDependent = true
-	simplified, _, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
+	simplified, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -22,7 +23,7 @@ func pgIndexesUnitSource(t *testing.T, c catalog.Read) (*catalog.Relation, ids.O
 	}
 	return d, c.Owner().Domain.Ref(c.Epoch(), a)
 }
-func pgIndexesUnitCapture(t *testing.T, c catalog.Read, auth AuthorizationView) *querySource {
+func pgIndexesUnitCapture(t *testing.T, c catalog.Read, auth AuthorizationView) *exec.Source {
 	t.Helper()
 	d, ref := pgIndexesUnitSource(t, c)
 	s, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Ref: ref, Source: d, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth)}}, capturePGIndexes)
@@ -31,7 +32,7 @@ func pgIndexesUnitCapture(t *testing.T, c catalog.Read, auth AuthorizationView) 
 	}
 	return s
 }
-func pgIndexesUnitRows(t *testing.T, s *querySource) [][]any {
+func pgIndexesUnitRows(t *testing.T, s *exec.Source) [][]any {
 	t.Helper()
 	var rows [][]any
 	for _, row := range s.Anonymous {
@@ -269,7 +270,7 @@ func TestPGIndexesSourceInvokerAndFreshAuthorization(t *testing.T) {
 	parent := roleTableRef(t, e, "pgi_unit_table")
 	reader, _ := e.Roles().Lookup("pgi_unit_reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION pgi_unit_reader")
-	capture := func() *querySource {
+	capture := func() *exec.Source {
 		t.Helper()
 		scope, err := e.StartStatement(op)
 		if err != nil {

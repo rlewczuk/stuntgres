@@ -4,6 +4,7 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 )
@@ -19,7 +20,7 @@ type indexInsertionBinding struct {
 	hash        storage.HashBinding
 }
 
-func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding, evaluation *EvalContext) error {
+func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding, evaluation *exec.Context) error {
 	if output, exists := r.indexes[bound.index.Address()]; exists {
 		if !indexOutputMatches(output, bound.index) {
 			return ids.ErrCatalogReplaced

@@ -84,7 +84,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 			project := q.Root.(*plan.ProjectNode)
 			sentinel := errors.New("final target")
 			calls := 0
-			probe := queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel })
+			probe := queryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel })
 			// An ORDER output owns its cache; replace that key instead of assuming
 			// a target ordinal is also an evaluation cache ordinal.
 			ordered := false
@@ -113,7 +113,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			parent := queryState{Source: source}
+			parent := exec.State{Source: source}
 			c := parent.Evaluation(context.Background())
 			c.Frame = 99
 			exists := subqueryTestExpression(t, e, plan, parser.SubqueryExists)
@@ -147,7 +147,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 		found := false
 		for frame, project := range frames {
 			if frame != root.Frame {
-				subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel }))
+				subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel }))
 				found = true
 			}
 		}
@@ -158,7 +158,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		parent := queryState{Source: source}
+		parent := exec.State{Source: source}
 		c := parent.Evaluation(context.Background())
 		exists := subqueryTestExpression(t, e, presence, parser.SubqueryExists)
 		if _, err = exists.Eval(&c); err != sentinel || calls == 0 {
@@ -172,12 +172,12 @@ func TestQuerySubqueryCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sentinelCalls := 0
-	subqueryTestTarget(t, q.Root.(*plan.ProjectNode), queryProbe(q.Root.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) {
+	subqueryTestTarget(t, q.Root.(*plan.ProjectNode), queryProbe(q.Root.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) {
 		sentinelCalls++
 		cancel()
 		return sqltype.Value{}, context.Canceled
 	}))
-	parent := queryState{Source: source}
+	parent := exec.State{Source: source}
 	c := parent.Evaluation(ctx)
 	scalar := subqueryTestExpression(t, e, q, parser.SubqueryScalar)
 	if _, err := scalar.Eval(&c); err != context.Canceled || sentinelCalls != 1 {
@@ -194,15 +194,15 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 			primary := errors.New("primary")
 			secondary := errors.New("close")
 			closes := 0
-			stage := indexedStage{Source: &querySource{Singleton: true}, Finish: func() error { closes++; return secondary }}
+			stage := exec.Stage{Source: &exec.Source{Singleton: true}, Finish: func() error { closes++; return secondary }}
 			switch phase {
 			case "producer":
 				stage.Selection = []int{}
-				stage.Produce = func(context.Context, *indexedStage) (bool, error) { return false, primary }
+				stage.Produce = func(context.Context, *exec.Stage) (bool, error) { return false, primary }
 			case "projection":
 				stage.Columns = []catalog.Column{{}}
-				stage.Expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
-				stage.Evaluation = EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+				stage.Expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, primary })}
+				stage.Evaluation = exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 			case "close":
 				if err := stage.Close(); err != secondary {
 					t.Fatal(err)
@@ -315,12 +315,12 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	if bound.querySources[0].Mark.Mode != 0 || bound.querySources[1].Mark.Mode != 0 || bound.querySources[2].Mark.Mode == 0 {
 		t.Fatal("row marks leaked across query boundaries")
 	}
-	changed := append([]queryLeaf(nil), bound.querySources...)
+	changed := append([]exec.Leaf(nil), bound.querySources...)
 	changed[0], changed[1] = changed[1], changed[0]
 	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("reordered admission accepted", err)
 	}
-	changed = append([]queryLeaf(nil), bound.querySources...)
+	changed = append([]exec.Leaf(nil), bound.querySources...)
 	changed[2].Mark = plan.RowMark{}
 	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("weakened row mark admitted", err)
@@ -418,7 +418,7 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 					bound.Ordering = append(bound.Ordering, comparison)
 				}
 			}
-			c := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 9, Row: tc.right}}
+			c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 9, Row: tc.right}}
 			answer, err := bound.Compare(&c, tc.left)
 			truth, _ := answer.Boolean()
 			if err != nil || answer.IsNull() != tc.unknown || (!tc.unknown && truth != tc.want) {
@@ -438,9 +438,9 @@ func TestQuerySubqueryOperandDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	leftCalls, targetCalls := 0, 0
-	project.Expressions[0] = queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
-	bound.Comparisons = []plan.ComparisonExpr{{Left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), Right: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
-	parent := queryState{Source: source}
+	project.Expressions[0] = queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
+	bound.Comparisons = []plan.ComparisonExpr{{Left: queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), Right: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
+	parent := exec.State{Source: source}
 	c := parent.Evaluation(context.Background())
 	for demand := 1; demand <= 2; demand++ {
 		answer, err := bound.Eval(&c)

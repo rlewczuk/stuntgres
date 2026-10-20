@@ -13,8 +13,8 @@ func TestProtocolPortalProducer(t *testing.T) {
 	root := query.Root.(*plan.ProjectNode)
 	original := root.Expressions[0]
 	calls := 0
-	root.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
-	state := queryState{Source: source, HashFilter: exec.HashQueryFilter(root)}
+	root.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return original.Eval(c) })
+	state := exec.State{Source: source, HashFilter: exec.HashQueryFilter(root)}
 	stage, err := exec.OpenQueryProjectStage(context.Background(), &state, root)
 	if err != nil {
 		t.Fatal(err)

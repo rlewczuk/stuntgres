@@ -29,7 +29,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "g")
 	old := e.catalog.state.MustRelation(ref.Address)
-	capture := func() *querySource {
+	capture := func() *exec.Source {
 		t.Helper()
 		scope, err := e.StartStatement(admin)
 		if err != nil {
@@ -68,14 +68,14 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	defer current.Close()
 	// The persisted view exposes its original two slots even though the current
 	// recipe needs the third physical input. Its captured raw source owns that input.
-	bridge := &querySource{Input: current, Layout: []int{0, 1}, Scratch: make([]sqltype.Value, 2), Occurrence: 0}
-	evaluate := func(source *querySource, want int64, latest [][]sqltype.Value) {
+	bridge := &exec.Source{Input: current, Layout: []int{0, 1}, Scratch: make([]sqltype.Value, 2), Occurrence: 0}
+	evaluate := func(source *exec.Source, want int64, latest [][]sqltype.Value) {
 		t.Helper()
-		state := &queryState{Source: source, VirtualReads: true}
+		state := &exec.State{Source: source, VirtualReads: true}
 		frame := state.Evaluation(context.Background())
 		frame.BindQueryRow(source, 0)
 		frame.QueryCurrentRows = latest
-		outer := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 2, Frame: 2, Outer: &frame, QueryCurrentRows: [][]sqltype.Value{}}}
+		outer := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 2, Frame: 2, Outer: &frame, QueryCurrentRows: [][]sqltype.Value{}}}
 		value, err := frozen.Eval(&outer)
 		n, numberErr := value.Integer()
 		if err != nil || numberErr != nil || n != want {
@@ -98,7 +98,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	if len(old.Columns) != 2 || previous.View.Load().Catalog.Get(ref.Address) != old || !reflect.DeepEqual(frozen.Virtual, old.ColumnMeta.Generations[2].Planned) {
 		t.Fatal("frozen source recipe changed")
 	}
-	recipeContext := EvalContext{}
+	recipeContext := exec.Context{}
 	if allocations := testing.AllocsPerRun(10, func() {
 		recipe, row, err := recipeContext.ColumnCapturedGeneration(frozen, current, 0, nil)
 		if err != nil || recipe == nil || len(row) != 3 {

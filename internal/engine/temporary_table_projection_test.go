@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -78,7 +79,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			case "CurrentRows":
 				sessionSQL(t, owner, "INSERT INTO public.shape_survivor(a,z) VALUES(11,13)")
 			case "AffectedIndexRoot":
-				root, err := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, survivor, index.SQLIndex, e.storage.Relations[survivor.Address()], nil)
+				root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, survivor, index.SQLIndex, e.storage.Relations[survivor.Address()], nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -181,7 +182,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 		t.Fatal("maximum index root reused")
 	}
 	// A real changed root invalidates the prepared attempt even at equal maxima.
-	changedRoot, err := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, &maximum, maximumIndex.SQLIndex, &maximumStore, nil)
+	changedRoot, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, &maximum, maximumIndex.SQLIndex, &maximumStore, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,7 +361,7 @@ func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 		}
 	}
 	sessionSQL(t, owner, "INSERT INTO shape_survivor(a,z) VALUES(8,10)")
-	frozen := sessionSQL(t, owner, "SELECT * FROM shape_survivor ORDER BY a").Rows.(*finalRows)
+	frozen := sessionSQL(t, owner, "SELECT * FROM shape_survivor ORDER BY a").Rows.(*exec.FinalRows)
 	defer frozen.Close()
 	original := e.storage.Relations[survivor.Address()].Versions
 	check := func(phase string) {

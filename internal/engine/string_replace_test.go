@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -96,7 +97,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 			t.Fatal("formal owner mutation", i)
 		}
 	}
-	got, err := retained.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	got, err := retained.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	s, _ := got.Text()
 	if err != nil || s != "aXc" || got.Type() != fresh[sqltype.Text] {
 		t.Fatal(got, err)
@@ -126,7 +127,7 @@ func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	if n.ResultUsage() != boolean.Usage() || n.CollationIndeterminate() || !n.Plan.CollationIndeterminate() {
 		t.Fatal("input conflict leaked to BOOL", n)
 	}
-	_, err = n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	_, err = n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 		t.Fatal("empty prefix bypassed demand", err)

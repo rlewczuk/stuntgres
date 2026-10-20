@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -177,7 +178,7 @@ func indexAttributeAffected(definition *catalog.IndexDefinition, attribute int32
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
+func validateAlterIndexBuilds(evaluation *exec.Context, auth AuthorizationView, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
 	ctx := evaluation.Context
 	if parent.Partition != nil {
 		return nil, nil
@@ -255,7 +256,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 
 // A genuine DDL build is reusable even with an own overlay: derive the baseline
 // from produced entries, and carry exact private pins rather than invoking SQL.
-func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, source catalog.Read, parent *catalog.Relation, baseline *storage.Relation, validated map[string]*alterIndexBuild, metadataOnly bool) error {
+func prepareAlterIndexRoots(evaluation *exec.Context, changes *catalogChanges, source catalog.Read, parent *catalog.Relation, baseline *storage.Relation, validated map[string]*alterIndexBuild, metadataOnly bool) error {
 	if parent.Partition != nil {
 		return nil
 	}

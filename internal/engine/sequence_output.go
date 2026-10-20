@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,7 +12,7 @@ import (
 
 // Output presentation is captured once before returning Rows. The internal
 // datum stays an OID, and retained Rows never consult later catalog authority.
-func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
+func (e *Engine) captureRegclassOutput(op *Operation, rows *exec.FinalRows) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(op)
@@ -81,7 +82,7 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 	return nil
 }
 
-func captureRegclassOutputValue(rows *finalRows, catalog catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegclassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if err := captureRegprocOutputValue(rows, catalog, path, value); err != nil {
 		return err
 	}
@@ -143,7 +144,7 @@ func captureRegclassOutputValue(rows *finalRows, catalog catalog.Read, path []id
 // without changing the canonical OID datum or consulting a later live catalog.
 func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return detachedPresentation{}.FormatRegclass(id)
+		return exec.DetachedPresentation{}.FormatRegclass(id)
 	}
 	return regclassSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
 }

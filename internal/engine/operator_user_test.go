@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -169,7 +170,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 		if err != nil || selected != procedure {
 			t.Fatal("selected routine authority", selected, err)
 		}
-		result, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		result, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,7 +190,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	result, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +387,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		}
 		_, auth := conversionUnitAuth(t, e)
 		auth.Recapture(view)
-		recipe := EvalContext{EvalAdmission: evalAdmission{RoutineRecipe: true, RoutineReferences: manifest}}
+		recipe := exec.Context{EvalAdmission: exec.EvalAdmission{RoutineRecipe: true, RoutineReferences: manifest}}
 		if err := checkRecipeRoutineDescriptor(&recipe, auth, nil, routine); err != nil {
 			t.Fatal("stored provider admission", err)
 		}

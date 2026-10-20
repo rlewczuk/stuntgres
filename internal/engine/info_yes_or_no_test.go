@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -72,7 +73,7 @@ func infoYesOrNoUnitEvaluate(t *testing.T, view catalog.Read, d *catalog.Type) {
 	t.Helper()
 	base := d.SQLType.DomainBase().Type
 	ctx := context.Background()
-	eval := EvalContext{EvalStatement: evalStatement{Context: ctx, Catalog: view}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: view}}
 	eval.Input.DomainChecks = &eval
 	plan, err := sqltype.PlanCoercion(base.Usage(), d.SQLType.Usage(), sqltype.Assignment)
 	if err != nil {

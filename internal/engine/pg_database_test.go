@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catal
 	return source, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *querySource {
+func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *exec.Source {
 	t.Helper()
 	source, ref := pgDatabaseUnitSource(t, e, catalog)
 	e.mu.Lock()
@@ -184,7 +185,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	private := e.stageRead(stage)
 	own := pgDatabaseUnitCapture(t, e, private)
 	peer := pgDatabaseUnitCapture(t, e, base)
-	check := func(rows *querySource, owner uint32, public bool) {
+	check := func(rows *exec.Source, owner uint32, public bool) {
 		t.Helper()
 		row := rows.Anonymous[0]
 		if id, err := row[2].OID(); err != nil || id != owner {
@@ -219,7 +220,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	check(pgDatabaseUnitCapture(t, e, e.CatalogRead()), uint32(successor.Ref.ID()), true)
 	check(old, 10, false)
 	check(peer, 10, false)
-	retained := &indexedStage{Source: old, Columns: d.Columns}
+	retained := &exec.Stage{Source: old, Columns: d.Columns}
 	schema := append([]catalog.Column(nil), retained.Schema()...)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)

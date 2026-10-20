@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -23,13 +24,13 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	seven, _ := sqltype.Integer(typ, 7)
 	ten, _ := sqltype.Integer(typ, 10)
 	row := []sqltype.Value{two, seven}
-	eval := EvalContext{}
+	eval := exec.Context{}
 	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() || row[1].Type() != typ {
 		t.Fatal(row, err)
 	}
 	generated := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 2}.WithGeneration(d, 1, 1)
-	outer := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{ten, two, row[1]}, OldRow: []sqltype.Value{ten, seven, row[1]}}}
-	inner := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer}}
+	outer := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{ten, two, row[1]}, OldRow: []sqltype.Value{ten, seven, row[1]}}}
+	inner := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 8, Outer: &outer}}
 	v, err := generated.Eval(&inner)
 	if n, e := v.Integer(); err != nil || e != nil || n != 2 {
 		t.Fatal(v, err, e)
@@ -128,15 +129,15 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
+	b.query.sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	node := b.queryColumnAt(queryColumn{descriptor: d.Columns[1], slot: 1, leaf: 0, physical: 1}, parser.Position{})
 	if len(b.query.sources[0].Uses) != 1 || b.query.sources[0].Uses[0] != 1 {
 		t.Fatal("base SELECT widened", b.query.sources[0].Uses)
 	}
 	value, _ := sqltype.Integer(typ, 9)
 	row := []sqltype.Value{value, sqltype.Null(typ)}
-	source := &querySource{Anonymous: [][]sqltype.Value{row}, Occurrence: 0}
-	state := &queryState{Source: source, VirtualReads: true}
+	source := &exec.Source{Anonymous: [][]sqltype.Value{row}, Occurrence: 0}
+	state := &exec.State{Source: source, VirtualReads: true}
 	eval := state.Evaluation(context.Background())
 	eval.BindQueryRow(source, 0)
 	if v, err := node.Eval(&eval); err != nil || v.IsNull() {
@@ -170,13 +171,13 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
 	next.SetDescriptor(d.Address(), d)
-	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, EvalContext{}, nil); err != nil {
+	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, exec.Context{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !store.Versions[0].Values[1].IsNull() {
 		t.Fatal("virtual owner was materialized")
 	}
-	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: store.Versions[0].Values}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: store.Versions[0].Values}}
 	v, err := logicalColumnValue(d, 1, eval.Row, &eval)
 	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.Address().ObjectID {
 		t.Fatal(v, err, e)

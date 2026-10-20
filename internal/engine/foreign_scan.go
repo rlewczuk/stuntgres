@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -14,7 +15,7 @@ import (
 
 // Capture only metadata while locked. Planning, source admission, conversion,
 // restart and teardown all run from internal demand after the mutex is released.
-func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation, invoker authorization.PrincipalRef, uses []int, mark plan.RowMark) (*querySource, error) {
+func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation, invoker authorization.PrincipalRef, uses []int, mark plan.RowMark) (*exec.Source, error) {
 	if mark.Mode != 0 {
 		return nil, sqlError("0A000", "foreign row locking is unsupported in embedded mode")
 	}
@@ -59,9 +60,9 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if e.foreignValueImporter == nil || e.foreignValueExporter == nil {
 		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
 	}
-	f := &foreignQuerySource{Wrapper: handler.Wrapper, Request: request, Columns: slices.Clone(relation.Columns), ImportValue: e.foreignValueImporter, ExportValue: e.foreignValueExporter}
+	f := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request, Columns: slices.Clone(relation.Columns), ImportValue: e.foreignValueImporter, ExportValue: e.foreignValueExporter}
 	scope.ownForeignSource(f)
-	return &querySource{Ref: ref, Anonymous: [][]sqltype.Value{}, Foreign: f}, nil
+	return &exec.Source{Ref: ref, Anonymous: [][]sqltype.Value{}, Foreign: f}, nil
 }
 
 // Logical virtual-column ACL uses remain unchanged. Only their existing bound

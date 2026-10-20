@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -175,7 +176,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := functions.VisibilityInquiry{Info: expr.Info{Usage: boolean.Usage()}, Kind: functions.TableVisibility, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oid.Usage()}, Value: value}}
-	got, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope)}})
+	got, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope)}})
 	if err != nil {
 		t.Fatal(err)
 	}

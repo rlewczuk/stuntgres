@@ -40,7 +40,7 @@ func TestRangeOperatorCarrierEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := e.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	got, err := e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || got.IsNull() || counts != [2]int{1, 1} {
 		t.Fatal(got, counts, err)
 	}
@@ -55,7 +55,7 @@ func TestRangeOperatorCarrierEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, failure) || counts != [2]int{1, 0} {
+	if _, err := e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); !errors.Is(err, failure) || counts != [2]int{1, 0} {
 		t.Fatal("child demand", counts, err)
 	}
 	args[1] = plan.LiteralExpr{Info: b.info(d.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(d)}
@@ -64,7 +64,7 @@ func TestRangeOperatorCarrierEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err = e.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	got, err = e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || !got.IsNull() || counts != [2]int{} {
 		t.Fatal("literal NULL demanded child", got, counts, err)
 	}
@@ -89,7 +89,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 		t.Fatal(mapped, changed, err)
 	}
 	next := mapped.(functions.RangeOperator)
-	value, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || value.Type() != fresh.typ(sqltype.NumRange) {
 		t.Fatal(value, err)
 	}
@@ -102,11 +102,11 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if !generationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
 		t.Fatal("immutable carrier properties")
 	}
-	folded, did, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, next)
+	folded, did, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, next)
 	if err != nil || !did {
 		t.Fatal(folded, did, err)
 	}
-	value, err = folded.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err = folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || value.Type() != fresh.typ(sqltype.NumRange) {
 		t.Fatal("folded generation", value, err)
 	}

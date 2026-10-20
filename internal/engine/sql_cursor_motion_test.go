@@ -68,10 +68,10 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 }
 
 func TestSQLCursorRetainedProducerReset(t *testing.T) {
-	source := &querySource{Singleton: true}
-	child := indexedStage{Source: source, Selection: []int{}, Done: true, Position: 1}
+	source := &exec.Source{Singleton: true}
+	child := exec.Stage{Source: source, Selection: []int{}, Done: true, Position: 1}
 	resets := 0
-	child.Reset = func(ctx context.Context, s *indexedStage) (bool, error) {
+	child.Reset = func(ctx context.Context, s *exec.Stage) (bool, error) {
 		resets++
 		s.Selection = s.Selection[:0]
 		s.Done = false
@@ -92,12 +92,12 @@ func TestSQLCursorRetainedProducerReset(t *testing.T) {
 		t.Fatal("cached boundary invalidates child", out, resets)
 	}
 	t.Run("cached_parent_frontier", func(t *testing.T) {
-		source := &querySource{Materialized: true, FlatCount: 3}
-		child := indexedStage{Source: source, Position: 1}
+		source := &exec.Source{Materialized: true, FlatCount: 3}
+		child := exec.Stage{Source: source, Position: 1}
 		out := exec.ProducingStage(&child, nil)
 		out.Selection = append(out.Selection, 0)
 		out.Position = 1
-		out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+		out.Produce = func(ctx context.Context, out *exec.Stage) (bool, error) {
 			i, present, err := child.NextOccurrence(ctx)
 			if present && err == nil {
 				exec.RetainOccurrence(out, &child, i)

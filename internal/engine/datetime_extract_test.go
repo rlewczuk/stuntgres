@@ -76,7 +76,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 					t.Fatal("child authority retained")
 				}
 			}
-			value, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone}}})
+			value, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone}}})
 			if err != nil {
 				t.Fatal(source, api, err)
 			}
@@ -156,7 +156,7 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || generationImmutable(e) {
 				t.Fatal(e.Properties(), e.DateWrapperContext)
 			}
-			_, err = e.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: input, Host: hostOf(scope)}})
+			_, err = e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: input, Host: hostOf(scope)}})
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "0A000" || d.Message != `unit "timezone" not supported for type timestamp without time zone` || d.Context != "" {
 				t.Fatal(err)

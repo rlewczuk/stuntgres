@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -107,7 +108,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 			project := b.query.Root.(*plan.ProjectNode)
 			original := project.Expressions[0]
 			calls := 0
-			project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if calls == 1 {
 					var err error

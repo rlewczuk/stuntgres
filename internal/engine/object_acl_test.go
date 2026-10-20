@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -153,7 +154,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			t.Fatal("accepted immutable inquiry")
 		}
 		if query == "SELECT pg_get_acl(NULL,NULL,NULL)" {
-			value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if err != nil || !value.IsNull() || value.Type().ID() != sqltype.ACLItemArray {
 				t.Fatal("strict typed NULL without authority", value, err)
 			}

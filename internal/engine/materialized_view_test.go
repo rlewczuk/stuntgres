@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -109,7 +110,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	defer done()
 	source := &catalog.Relation{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
-	b := binding{query: viewOf(d).query, querySources: []queryLeaf{{Ref: ref, Relation: source, Uses: []int{1}}}, dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
+	b := binding{query: viewOf(d).query, querySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {

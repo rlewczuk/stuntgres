@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -85,7 +86,7 @@ func indexOutputMatches(r storage.IndexOutput, index *catalog.Relation) bool {
 	return r.Index != nil && sameIndexKeySemantics(r.Index, index)
 }
 
-func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *EvalContext, precheck bool, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
+func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *exec.Context, precheck bool, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
 	index := bound.index
 	if purpose == indexProbeRuntime && !index.SQLIndex.HasRuntimeDomainConversion() {
 		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.SQLIndex, r.values, &bound.ordering, nil)
@@ -145,7 +146,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	return member, output.Keys, nil
 }
 
-func (r *indexWriteCandidate) matchesUnique(bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value) (bool, error) {
+func (r *indexWriteCandidate) matchesUnique(bound *uniqueBoundKey, evaluation *exec.Context, key []sqltype.Value) (bool, error) {
 	if !bound.index.SQLIndex.HasRuntimeDomainConversion() && r.indexes == nil {
 		return bound.matches(evaluation, r.values, key)
 	}
@@ -194,7 +195,7 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 	return nil
 }
 
-func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecutionPreparation, parent, index *catalog.Relation, ordering *indexOrdering, hash *storage.HashBinding, values []sqltype.Value) (storage.IndexOutput, error) {
+func materializeIndexOutput(evaluation *exec.Context, preparation *indexExecutionPreparation, parent, index *catalog.Relation, ordering *indexOrdering, hash *storage.HashBinding, values []sqltype.Value) (storage.IndexOutput, error) {
 	if index.SQLIndex.Method != catalog.HashMethod {
 		hash = nil
 	}
@@ -220,7 +221,7 @@ func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecution
 	return output, err
 }
 
-func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage.RowVersion, evaluation *EvalContext, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
+func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
 	index := bound.index
 	read := func(output storage.IndexOutput) (bool, []sqltype.Value, error) {
 		if !indexOutputMatches(output, index) {
@@ -386,7 +387,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 	return true, bound.scratch, err
 }
 
-func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row storage.RowVersion, evaluation *EvalContext, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
+func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
 	if purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() && row.IndexOutputs == nil {
 		return bound.matches(evaluation, row.Values, key)
 	}

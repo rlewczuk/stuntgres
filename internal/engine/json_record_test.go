@@ -38,14 +38,14 @@ func TestJSONRecordBinding(t *testing.T) {
 	if exec.SourceReturnsSet(scalar) || !exec.SourceAdmitted(scalar) || scalar.ResultUsage().Type.IsComposite() || !scalar.ResultUsage().Type.IsDeferredRecord() || exec.PlannedVolatility(scalar) != expr.Stable {
 		t.Fatal("deferred scalar/set identity", scalar)
 	}
-	if _, err := scalar.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); err == nil {
+	if _, err := scalar.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("fabricated runtime shape")
 	}
 	bound := jsonRecordUnitCall(t, b, "json_to_record", true)
 	if !bound.Defined || bound.ResultUsage().Type.CompositeLen() != 2 || !validExpressionUsage(e.CatalogRead(), bound.ResultUsage()) {
 		t.Fatal("contextual source authority", bound)
 	}
-	v, err := bound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	v, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || v.Type() != bound.ResultUsage().Type || !v.CompositeField(1).IsNull() {
 		t.Fatal(v, err)
 	}
@@ -68,7 +68,7 @@ func TestJSONRecordRemap(t *testing.T) {
 	if next.ResultUsage().Type == original.ResultUsage().Type || next.Plan.ResultUsage() != next.ResultUsage() || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Int4] || !next.Defined {
 		t.Fatal("foreign plan/result authority", next)
 	}
-	v, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	v, err := next.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || v.Type() != next.ResultUsage().Type || v.CompositeField(0).Type() != fresh[sqltype.Int4] {
 		t.Fatal(v, err)
 	}
@@ -89,7 +89,7 @@ func TestJSONRecordRemap(t *testing.T) {
 	if err != nil || !strings.Contains(text, "json_to_record(") || !strings.Contains(text, "::json") {
 		t.Fatal(text, err)
 	}
-	folded, _, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
+	folded, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 	if err != nil || folded.ResultUsage() != original.ResultUsage() || exec.PlannedVolatility(folded) != expr.Stable {
 		t.Fatal("folded STABLE call", folded, err)
 	}

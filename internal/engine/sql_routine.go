@@ -107,7 +107,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 
 // Query demand is selected before opening producers. Sort/aggregate semantics
 // remain query-owned; only unnecessary later projected output is not requested.
-func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value) (rows RowResult, count int, err error) {
+func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (rows exec.RowResult, count int, err error) {
 	defer source.Close()
 	defer func() {
 		finishErr := exec.FinishForeignSources(ctx, source)
@@ -119,7 +119,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *queryS
 	if !ok || len(project.Schema()) != 1 {
 		return nil, 0, fmt.Errorf("invalid SQL routine projection")
 	}
-	state := queryState{Source: source, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
+	state := exec.State{Source: source, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
 	defer state.ReleaseMemberships()
 	if scope := scopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.input, scope.output

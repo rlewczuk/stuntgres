@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -117,7 +118,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 		t.Fatal("datum identity not reminted", newID)
 	}
 	definition := newRelation.ColumnMeta.Defaults[newRelation.Attributes[0]]
-	literal, err := definition.Expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	literal, err := definition.Expression.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
@@ -164,7 +165,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return nil
 	}
 	ctx := scope.op.Context()
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
 	if !p.bound.DefaultBound {
 		if err := p.evaluateBounds(scope, &evaluation); err != nil {
 			return err
@@ -189,7 +190,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 			if err != nil {
 				return err
 			}
-			mapping := inheritanceQuerySegment{Layout: layout}
+			mapping := exec.InheritanceQuerySegment{Layout: layout}
 			if layout != nil {
 				mapping.Scratch = make([]sqltype.Value, len(layout))
 			}

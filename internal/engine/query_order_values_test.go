@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
 
@@ -29,7 +30,7 @@ func TestQueryOrderValuesSourceOrder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := evaluateInsertQuery(context.Background(), bound, &querySource{}, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+		rows, err := evaluateInsertQuery(context.Background(), bound, &exec.Source{}, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 		if err != nil || len(rows.values) != 4 {
 			t.Fatal(rows, err)
 		}

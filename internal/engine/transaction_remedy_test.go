@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -114,7 +115,7 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			store := e.storage.Relations[ref.Address]
 			changes, copied := 0, 0
-			var retained *finalRows
+			var retained *exec.FinalRows
 			for i := range n {
 				old := store.Versions
 				sessionSQL(t, s, "INSERT INTO t VALUES(1)")
@@ -145,7 +146,7 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "INSERT INTO t VALUES(2)")
 			sessionSQL(t, s, "INSERT INTO u VALUES(3)")
-			own := sessionSQL(t, s, "SELECT v FROM t").Rows.(*finalRows)
+			own := sessionSQL(t, s, "SELECT v FROM t").Rows.(*exec.FinalRows)
 			defer own.Close()
 			data := own.Source.View.Data()
 			if len(data.Committed) != 1 || len(data.Own) != 1 || len(data.Committed[ref.Address]) != n || len(data.Own[ref.Address]) != 1 {

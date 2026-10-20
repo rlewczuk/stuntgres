@@ -65,7 +65,7 @@ func TestExprCollationRowOperandDemand(t *testing.T) {
 				{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(0, tc.left, nil), Right: probe(1, tc.right, nil), Predicate: predicate, Operator: "<"},
 				{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(2, one, failure), Right: probe(3, two, errors.New("later right operand")), Predicate: predicate, Operator: "<"},
 			}}
-			value, err := row.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+			value, err := row.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			if !reflect.DeepEqual(order, tc.want) {
 				t.Fatal("row pair operand order/demand", order, tc.want, err)
 			}
@@ -127,7 +127,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		id, _ := view.LookupType(sqltype.Int4)
 		text, _ := view.LookupType(sqltype.Text)
 		one, _ := sqltype.Integer(id, 1)
-		ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: project.Frame, Row: []sqltype.Value{one, sqltype.String(text, "A"), sqltype.String(text, "A")}}}
+		ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: project.Frame, Row: []sqltype.Value{one, sqltype.String(text, "A"), sqltype.String(text, "A")}}}
 		_, err := original.Eval(ctx)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {

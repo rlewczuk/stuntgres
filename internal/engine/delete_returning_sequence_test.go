@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -43,7 +44,7 @@ func TestDeleteReturningSequenceDemand(t *testing.T) {
 		if err != nil || draw != want {
 			t.Fatal(draw, err, want)
 		}
-		name, err := result.Rows.(*finalRows).RegclassText(values[1])
+		name, err := result.Rows.(*exec.FinalRows).RegclassText(values[1])
 		if err != nil || name != "seq" {
 			t.Fatal(name, err)
 		}

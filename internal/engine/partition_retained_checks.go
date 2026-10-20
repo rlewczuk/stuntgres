@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -186,7 +187,7 @@ type partitionRetainedChecks struct {
 	recipeAffected []bool
 }
 
-func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *indexSnapshot, evaluation *EvalContext) (*catalog.Relation, error) {
+func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *indexSnapshot, evaluation *exec.Context) (*catalog.Relation, error) {
 	if !p.initialized {
 		p.descriptor = *d
 		p.descriptor.Constraints.Check = slices.Clone(d.Constraints.Check)

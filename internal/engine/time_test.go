@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -35,7 +36,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil || value.Type() != current || node.ResultUsage().Typmod != 3 {
 		t.Fatal(value, err)
 	}
@@ -48,7 +49,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	out, _ = current.Output(ctx, value)
 	if err != nil || out != "04:05:07" {
 		t.Fatal(out, err)
@@ -57,7 +58,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	out, _ = value.Type().Output(ctx, value)
 	if err != nil || out != "2003-07-07 04:05:06.4995" {
 		t.Fatal(out, err)
@@ -79,7 +80,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	out, _ = current.Output(ctx, value)
 	if err != nil || out != "04:05:06.4995" {
 		t.Fatal(out, err)

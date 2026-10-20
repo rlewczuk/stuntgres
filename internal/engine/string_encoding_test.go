@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -87,7 +88,7 @@ func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 				t.Fatal("formal ownership", query, i)
 			}
 		}
-		value, err := retained.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+		value, err := retained.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || value.Type() != retained.ResultUsage().Type {
 			t.Fatal("retained evaluation", query, value, err)
 		}
@@ -122,7 +123,7 @@ func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	if !b.sameGroupExpression(named, bind("SELECT to_ascii('é','LATIN1')")) || b.sameGroupExpression(named, bind("SELECT to_ascii('é',8)")) {
 		t.Fatal("overload structural identity")
 	}
-	folded, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, bind("SELECT unistr('plain')"))
+	folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bind("SELECT unistr('plain')"))
 	if err != nil || !changed {
 		t.Fatal("immutable preflight", folded, changed, err)
 	}

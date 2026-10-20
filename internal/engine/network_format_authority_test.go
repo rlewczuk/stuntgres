@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -60,7 +61,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.id: true}) {
 				t.Fatal("exact selected dependencies", found)
 			}
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}

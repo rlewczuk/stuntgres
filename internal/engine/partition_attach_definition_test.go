@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -31,7 +32,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	one, _ := sqltype.Integer(parent.Columns[0].Usage.Type, 1)
 	two, _ := sqltype.Integer(parent.Columns[0].Usage.Type, 2)
 	physical := []sqltype.Value{two, one}
-	segment := inheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}
+	segment := exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}
 	logical := segment.MapValues(physical)
 	if !sqltype.SameDatum(logical[0], one) || !sqltype.SameDatum(logical[1], two) || !sqltype.SameDatum(physical[0], two) {
 		t.Fatal("physical tuple rewritten")
@@ -40,7 +41,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	back := inheritanceQuerySegment{Layout: inverse, Scratch: make([]sqltype.Value, 2)}
+	back := exec.InheritanceQuerySegment{Layout: inverse, Scratch: make([]sqltype.Value, 2)}
 	if !reflect.DeepEqual(back.MapValues(logical), physical) {
 		t.Fatal("inverse mapping")
 	}
@@ -48,11 +49,11 @@ func TestPartitionAttachLayout(t *testing.T) {
 	if err != nil || identity != nil {
 		t.Fatal(identity, err)
 	}
-	borrow := inheritanceQuerySegment{}
+	borrow := exec.InheritanceQuerySegment{}
 	if got := borrow.MapValues(physical); &got[0] != &physical[0] {
 		t.Fatal("identity copied")
 	}
-	state := partitionInsertState{target: parent, destination: child, layouts: map[ids.ObjectAddress]*inheritanceQuerySegment{child.Address(): &back}}
+	state := partitionInsertState{target: parent, destination: child, layouts: map[ids.ObjectAddress]*exec.InheritanceQuerySegment{child.Address(): &back}}
 	state.physicalRow = state.rowFor(child, logical)
 	owned := append([]sqltype.Value(nil), logical...)
 	scope := StatementScope{statementMutation: statementMutation{partitionInsert: &state}}

@@ -26,7 +26,7 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 		}
 		original := cached[0]
 		calls := 0
-		probe := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
+		probe := queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return original.Eval(c) })
 		switch input := node.Child.(type) {
 		case *plan.EvaluationNode:
 			input.Expressions[0] = probe
@@ -61,7 +61,7 @@ func TestQueryDistinctOnScratchKeyMutation(t *testing.T) {
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	usage := node.Expressions[0].ResultUsage()
 	scratch := make([]sqltype.Value, 1)
-	node.Expressions[0] = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+	node.Expressions[0] = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 		id, err := c.Row[0].Integer()
 		if err != nil {
 			return sqltype.Value{}, err
@@ -101,10 +101,10 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 		closeFailure := errors.New("ON child close")
 		primary := errors.New("ON key or sort primary")
 		closed := 0
-		inner := &indexedStage{Source: &querySource{Anonymous: [][]sqltype.Value{{one}}}, Columns: schema, Expressions: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: one}}, Evaluation: EvalContext{}, Finish: func() error { closed++; return closeFailure }}
-		bridge := &querySource{Materialized: true, FlatWidth: 1, NestedRoot: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}}, NestedStage: inner}
-		source := &querySource{Sources: []*querySource{bridge}}
-		key := queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+		inner := &exec.Stage{Source: &exec.Source{Anonymous: [][]sqltype.Value{{one}}}, Columns: schema, Expressions: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: one}}, Evaluation: exec.Context{}, Finish: func() error { closed++; return closeFailure }}
+		bridge := &exec.Source{Materialized: true, FlatWidth: 1, NestedRoot: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}}, NestedStage: inner}
+		source := &exec.Source{Sources: []*exec.Source{bridge}}
+		key := queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 			if phase == "key" {
 				return sqltype.Value{}, primary
 			}
@@ -116,7 +116,7 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			child = &plan.SortNode{QuerySchema: schema, Child: child, CacheWidth: 1, Keys: []plan.SortKey{{Cache: 0, Slot: -1, Comparison: comparison, Expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
+			child = &plan.SortNode{QuerySchema: schema, Child: child, CacheWidth: 1, Keys: []plan.SortKey{{Cache: 0, Slot: -1, Comparison: comparison, Expression: queryProbe(usage, func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
 		}
 		node := &plan.DistinctOnNode{QuerySchema: schema, Child: child, Expressions: []expr.Expr{key}, Grouping: []plan.Grouping{{Grouping: family}}}
 		root := &plan.ProjectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: usage}, Scope: 1, Frame: 1, Slot: 0}}}

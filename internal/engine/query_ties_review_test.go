@@ -24,12 +24,12 @@ func TestQueryTiesPresenceOnly(t *testing.T) {
 	}
 	calls := 0
 	failure := errors.New("ignored bounds or ORDER executed")
-	limit.Count = queryProbe(limit.Count.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
-	probe := queryProbe(ordered.Keys[0].Expression.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
+	limit.Count = queryProbe(limit.Count.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
+	probe := queryProbe(ordered.Keys[0].Expression.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
 	ordered.Keys = append([]plan.SortKey(nil), ordered.Keys...)
 	ordered.Keys[0].Expression = probe
 	limit.PeerKeys = ordered.Keys
-	state := &queryState{Source: source}
+	state := &exec.State{Source: source}
 	stage, err := exec.OpenLimitNode(context.Background(), state, limit)
 	if err != nil {
 		t.Fatal(err)
@@ -59,13 +59,13 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 		for _, mode := range []string{"ties hidden", "only hidden", "only visible"} {
 			t.Run(properties.name+"/"+mode, func(t *testing.T) {
 				calls := 0
-				expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: properties.properties}, eval: func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
+				expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: properties.properties}, eval: func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
 				ordered := &plan.SortNode{Keys: []plan.SortKey{{Cache: 0, Expression: expr, Output: mode == "only visible"}, {Cache: 0, Expression: expr, Output: mode == "only visible"}}, CacheWidth: 1}
 				if mode == "ties hidden" {
 					limit := &plan.LimitNode{WithTies: true}
 					limit.FinishTies(ordered)
 				}
-				evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{OrderValues: []sqltype.Value{one}}}
+				evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{OrderValues: []sqltype.Value{one}}}
 				if err := exec.RefreshLockedOrder(ordered, []sqltype.Value{two}, &evaluation); err != nil {
 					t.Fatal(err)
 				}
@@ -114,7 +114,7 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls := 0
-			expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, eval: func(c *EvalContext) (sqltype.Value, error) {
+			expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, eval: func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				switch phase {
 				case "type":
@@ -133,7 +133,7 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			ordered := &plan.SortNode{Keys: []plan.SortKey{{Cache: slot, Expression: expr}}, CacheWidth: 1}
 			limit := &plan.LimitNode{WithTies: true}
 			limit.FinishTies(ordered)
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx}, EvalFrame: evalFrame{OrderValues: []sqltype.Value{one}}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{OrderValues: []sqltype.Value{one}}}
 			err := exec.RefreshLockedOrder(ordered, []sqltype.Value{one}, &evaluation)
 			if evaluation.OrderValues[0] != one {
 				t.Fatal("failed key refresh published value")

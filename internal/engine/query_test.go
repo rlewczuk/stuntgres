@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func queryCoreFixture(t *testing.T, sql string) (*Engine, *plan.Query, *querySource) {
+func queryCoreFixture(t *testing.T, sql string) (*Engine, *plan.Query, *exec.Source) {
 	t.Helper()
 	// Parsing may terminate the test; never do it while holding e.mu, since
 	// deferred session teardown needs that mutex before WaitEnd can return.
@@ -23,7 +23,7 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *plan.Query, *querySou
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT NOT NULL,v INT,f BOOL)")
 	run(t, e, "INSERT INTO t VALUES(1,1,TRUE),(2,NULL,NULL),(3,2,FALSE),(4,1,TRUE)")
-	captured := run(t, e, "SELECT * FROM t").Rows.(*finalRows)
+	captured := run(t, e, "SELECT * FROM t").Rows.(*exec.FinalRows)
 	source, captureErr := captureQuerySource(context.Background(), captured.Source.View, captured.Source.Ref)
 	if captureErr != nil {
 		t.Fatal(captureErr)
@@ -60,13 +60,13 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *plan.Query, *querySou
 
 type queryProbeExpression struct {
 	expr.Info
-	eval func(*EvalContext) (sqltype.Value, error)
+	eval func(*exec.Context) (sqltype.Value, error)
 }
 
 func (e queryProbeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.eval(evalContext(ctx))
 }
-func queryProbe(usage sqltype.Usage, eval func(*EvalContext) (sqltype.Value, error)) expr.Expr {
+func queryProbe(usage sqltype.Usage, eval func(*exec.Context) (sqltype.Value, error)) expr.Expr {
 	return queryProbeExpression{Info: expr.Info{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
 }
 
@@ -77,7 +77,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 		usage := project.Schema()[0].Usage
 		sentinel := errors.New("later target")
 		calls := 0
-		project.Expressions[0] = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+		project.Expressions[0] = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			if calls == 3 {
 				return sqltype.Value{}, sentinel
@@ -93,7 +93,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
 		project := query.Root.(*plan.ProjectNode)
 		calls := 0
-		project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+		project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			id, _ := c.Row[0].Integer()
 			if id == 2 || id == 3 {
@@ -134,13 +134,13 @@ func TestQueryCoreCancellation(t *testing.T) {
 			if phase == "rejected scan" {
 				typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
 				filter := project.Child.(*plan.FilterNode)
-				filter.Predicate = queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+				filter.Predicate = queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					cancel()
 					return sqltype.Boolean(typ, false), nil
 				})
 			} else {
-				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase == "projection" || calls == 2 {
 						cancel()
@@ -235,13 +235,13 @@ func TestQueryCoreResultOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r := rows.(*finalRows)
+			r := rows.(*exec.FinalRows)
 			if r.Source != source || r.Selection != nil {
 				t.Fatal("direct-column fast path lost")
 			}
 			other := independentFinalRows(rows)
 			defer other.Close()
-			forged := &finalRows{Self: r, Source: source}
+			forged := &exec.FinalRows{Self: r, Source: source}
 			forged.Close()
 			copied := *r
 			copied.Close()
@@ -348,11 +348,11 @@ func TestQueryCoreStageContractsAndDescriptors(t *testing.T) {
 		t.Run(q, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, q)
 			project := query.Root.(*plan.ProjectNode)
-			stage, err := exec.OpenNode(context.Background(), &queryState{Source: source}, project.Child)
+			stage, err := exec.OpenNode(context.Background(), &exec.State{Source: source}, project.Child)
 			if err != nil {
 				t.Fatal(err)
 			}
-			var cursor RowCursor = &stage
+			var cursor exec.RowCursor = &stage
 			if len(cursor.Schema()) != 3 {
 				t.Fatal("hidden input schema lost", cursor.Schema())
 			}

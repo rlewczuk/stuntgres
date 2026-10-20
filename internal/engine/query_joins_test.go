@@ -17,7 +17,7 @@ import (
 	"testing"
 )
 
-func queryJoinsFixture(t *testing.T, q string) (*Engine, *plan.Query, *querySource) {
+func queryJoinsFixture(t *testing.T, q string) (*Engine, *plan.Query, *exec.Source) {
 	t.Helper()
 	e, query, source, _ := queryJoinsAdmittedFixture(t, q, false)
 	return e, query, source
@@ -25,7 +25,7 @@ func queryJoinsFixture(t *testing.T, q string) (*Engine, *plan.Query, *querySour
 
 // Explicit admission allows immutable captured rows to outlive catalog replacement
 // without bypassing the replacement reservation held by implicit statements.
-func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, *plan.Query, *querySource, func()) {
+func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, *plan.Query, *exec.Source, func()) {
 	t.Helper()
 	ast := statement(t, q)
 	e := New()
@@ -37,7 +37,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 		t.Fatal(err)
 	}
 	var scope *StatementScope
-	var source *querySource
+	var source *exec.Source
 	released := false
 	release := func() {
 		if released {
@@ -143,7 +143,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 	for _, mode := range []string{"reject_cancel", "admitted_error", "rejected_error", "late_target", "merge_error", "second_open", "bad_width", "bad_usage"} {
 		t.Run(mode, func(t *testing.T) {
 			e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON a.k=b.k")
-			children := append([]*querySource(nil), source.Sources...)
+			children := append([]*exec.Source(nil), source.Sources...)
 			project := query.Root.(*plan.ProjectNode)
 			join := project.Child.(*plan.JoinNode)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -155,7 +155,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			switch mode {
 			case "reject_cancel":
 				want = context.Canceled
-				join.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+				join.Predicate = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						cancel()
@@ -163,7 +163,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 					return sqltype.Boolean(boolType, false), nil
 				})
 			case "admitted_error", "rejected_error":
-				join.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+				join.Predicate = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -172,7 +172,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 				})
 			case "late_target":
 				original := project.Expressions[0]
-				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -182,7 +182,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			case "merge_error":
 				usage := project.Expressions[0].ResultUsage()
 				join.QuerySchema = append(join.QuerySchema, catalog.Column{Usage: usage})
-				join.Merges = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+				join.Merges = []expr.Expr{queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -194,7 +194,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			case "bad_width":
 				join.LeftWidth++
 			case "bad_usage":
-				join.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[1], nil })
+				join.Predicate = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) { return c.Row[1], nil })
 			}
 			rows, n, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil || n != 0 || err == nil {
@@ -226,7 +226,7 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 	calls := 0
 	usage := join.Predicate.ResultUsage()
-	join.Predicate = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+	join.Predicate = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(usage.Type, false), nil
 	})
@@ -243,7 +243,7 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 		runtime.ReadMemStats(&before)
 		for range 5 {
 			calls = 0
-			stage, err := exec.OpenJoinNode(context.Background(), &queryState{Source: source}, join)
+			stage, err := exec.OpenJoinNode(context.Background(), &exec.State{Source: source}, join)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -269,7 +269,7 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	if err != nil || n != 4 {
 		t.Fatal(rows, n, err)
 	}
-	final := rows.(*finalRows)
+	final := rows.(*exec.FinalRows)
 	if final.Source != singleSource || final.Values != nil || final.Source.Flat != nil || final.Source.Anonymous != nil {
 		t.Fatal("single-source direct scan copied tuples", final)
 	}
@@ -352,7 +352,7 @@ func TestQueryJoinsAdmittedFrameLayout(t *testing.T) {
 	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 	left := append([]sqltype.Value(nil), source.Sources[0].Row(0)...)
 	right := append([]sqltype.Value(nil), source.Sources[1].Row(0)...)
-	stage, err := exec.OpenJoinNode(context.Background(), &queryState{Source: source}, join)
+	stage, err := exec.OpenJoinNode(context.Background(), &exec.State{Source: source}, join)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +378,7 @@ func TestQueryJoinsAdmittedFrameLayout(t *testing.T) {
 
 func TestQueryJoinsEmptyOperandStillPreflightsOtherChild(t *testing.T) {
 	e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a CROSS JOIN (b JOIN c ON b.k=int4($1::text))")
-	children := append([]*querySource(nil), source.Sources...)
+	children := append([]*exec.Source(nil), source.Sources...)
 	source.Committed = nil
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	rows, n, err := exec.Finalize(context.Background(), query.Root, source, []sqltype.Value{sqltype.String(text, "oops")})

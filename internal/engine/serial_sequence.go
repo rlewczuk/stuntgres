@@ -4,13 +4,14 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // evalSerialSequence reads the statement's catalog, not defaults or generator
 // state. AUTO (serial/manual) and INTERNAL (identity) share the same owned address.
-func evalSerialSequence(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+func evalSerialSequence(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := scopeOf(c.LiveHost())
 	view := scope.inquiry.commentCatalog
 	table, err := values[0].Text()

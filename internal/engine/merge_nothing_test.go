@@ -18,7 +18,7 @@ func TestMergeNothingSelection(t *testing.T) {
 			defer op.Done()
 			defer target.Close()
 			defer source.Close()
-			c := EvalContext{EvalStatement: evalStatement{Context: op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+			c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			arm, err := b.merge.selectArm(&c, parser.MergeMatched)
 			want := parser.MergeDeleteAction
 			if pred == "TRUE" {
@@ -56,7 +56,7 @@ func TestMergeNothingPreflight(t *testing.T) {
 			if !b.merge.hasNothing || len(b.merge.arms[0].input.expressions) != 0 || len(b.merge.arms[0].input.insert.defaults) != 0 {
 				t.Fatal("no-op mutation schedule", b.merge)
 			}
-			c := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Catalog: scope.inquiry.commentCatalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+			c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Catalog: scope.inquiry.commentCatalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			if err := preflightMerge(&c, b.merge, scope.inquiry.commentCatalog); err != nil {
 				t.Fatal("no-op preflight indexed mutation input", err)
 			}
@@ -64,7 +64,7 @@ func TestMergeNothingPreflight(t *testing.T) {
 				if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 					t.Fatal(err)
 				}
-				query := &queryState{Source: source, Input: scope.input, Output: scope.output}
+				query := &exec.State{Source: source, Input: scope.input, Output: scope.output}
 				c.Query = query
 				_, err := b.merge.selectArm(&c, parser.MergeMatched)
 				query.ReleaseMemberships()
@@ -91,7 +91,7 @@ func TestMergeNothingPublication(t *testing.T) {
 			if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 				t.Fatal(err)
 			}
-			query := &queryState{Source: source, Input: scope.input, Output: scope.output}
+			query := &exec.State{Source: source, Input: scope.input, Output: scope.output}
 			defer query.ReleaseMemberships()
 			cursor, err := exec.OpenNode(op.Context(), query, b.merge.source)
 			if err != nil {

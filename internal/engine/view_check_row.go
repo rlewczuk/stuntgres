@@ -10,7 +10,7 @@ import (
 
 // Called only for admitted, finalized rows, after base constraints/uniqueness.
 // A stack copy separates NEW from UPDATE FROM's OLD/source/RETURNING frame.
-func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.Value, evaluation *EvalContext) error {
+func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.Value, evaluation *exec.Context) error {
 	if b.viewWrite == nil || len(b.viewWrite.checks) == 0 {
 		return nil
 	}

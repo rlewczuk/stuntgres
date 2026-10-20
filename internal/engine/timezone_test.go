@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
 		if node.Properties().Volatility != expr.Stable {
 			t.Fatal(query, node.Properties())
 		}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Input: sqltype.InputEnvironment{Zone: ny, TransactionStart: clock}, Output: sqltype.OutputEnvironment{Zone: ny}}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{Zone: ny, TransactionStart: clock}, Output: sqltype.OutputEnvironment{Zone: ny}}}
 		planned, _, err := preflightCoercions(&evaluation, node)
 		if err != nil {
 			t.Fatal(query, err)
@@ -71,11 +72,11 @@ func TestTimezonePreparedTemporalPayloads(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		a, err := original.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		a, err := original.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		b, err := replayed.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil || !sqltype.SameDatum(a, b) {
 			t.Fatal(tc, a, b, err)
 		}
@@ -109,7 +110,7 @@ func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}

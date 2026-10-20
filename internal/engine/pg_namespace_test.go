@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqlstate"
@@ -23,7 +24,7 @@ func namespaceUnitSource(t *testing.T, e *Engine, c catalog.Read) (*catalog.Rela
 	}
 	return d, e.catalog.Domain.Ref(c.Epoch(), a)
 }
-func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource {
+func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *exec.Source {
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.mu.Lock()
@@ -34,7 +35,7 @@ func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource 
 	}
 	return rows
 }
-func namespaceUnitRow(t *testing.T, rows *querySource, id uint32) []sqltype.Value {
+func namespaceUnitRow(t *testing.T, rows *exec.Source, id uint32) []sqltype.Value {
 	t.Helper()
 	var found []sqltype.Value
 	for _, row := range rows.Anonymous {
@@ -130,7 +131,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 	if err != nil || got != "renamed_public" {
 		t.Fatal(got, err)
 	}
-	for _, snapshot := range []*querySource{old, namespaceUnitCapture(t, e, c)} {
+	for _, snapshot := range []*exec.Source{old, namespaceUnitCapture(t, e, c)} {
 		got, err := namespaceUnitRow(t, snapshot, 2200)[1].Text()
 		if err != nil || got != "public" {
 			t.Fatal("captured root changed", got, err)

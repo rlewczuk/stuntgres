@@ -146,13 +146,13 @@ func TestRowLockOrderedCacheRefreshCounts(t *testing.T) {
 	}
 	calls := [3]int{}
 	probe := func(slot int, properties expr.Properties) expr.Expr {
-		return queryProbeExpression{Info: expr.Info{Usage: usage, Property: properties}, eval: func(*EvalContext) (sqltype.Value, error) { calls[slot]++; return value, nil }}
+		return queryProbeExpression{Info: expr.Info{Usage: usage, Property: properties}, eval: func(*exec.Context) (sqltype.Value, error) { calls[slot]++; return value, nil }}
 	}
 	volatile := probe(0, expr.Properties{Volatility: expr.Volatile})
 	hidden := probe(1, expr.Properties{Volatility: expr.Volatile})
 	immutable := probe(2, expr.Properties{})
 	sorted := &plan.SortNode{Keys: []plan.SortKey{{Expression: volatile, Cache: 0, Output: true}, {Expression: volatile, Cache: 0, Output: true}, {Expression: hidden, Cache: 1}, {Expression: immutable, Cache: 2, Output: true}}}
-	evaluation := &EvalContext{EvalFrame: evalFrame{OrderValues: []sqltype.Value{value, value, value}}}
+	evaluation := &exec.Context{EvalFrame: exec.EvalFrame{OrderValues: []sqltype.Value{value, value, value}}}
 	if err := exec.RefreshLockedOrder(sorted, nil, evaluation); err != nil {
 		t.Fatal(err)
 	}

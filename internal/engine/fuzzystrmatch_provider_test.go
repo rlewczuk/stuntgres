@@ -204,7 +204,7 @@ func (a daitchCountingArgument) Eval(expr.Context) (sqltype.Value, error) {
 func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	n := daitchUnitExpression(t, e, "Bierschbach")
-	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	value, err := n.Eval(ctx)
 	text, _ := n.Usage.Type.Output(ctx.Context, value)
 	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
@@ -284,7 +284,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	}
 	ctxCanceled, cancel := context.WithCancel(ctx.Context)
 	cancel()
-	if _, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctxCanceled}}); !errors.Is(err, context.Canceled) || calls != 1 {
+	if _, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctxCanceled}}); !errors.Is(err, context.Canceled) || calls != 1 {
 		t.Fatal("precanceled evaluation", calls, err)
 	}
 	unaccent, _, _ := extensionUnitInstalled(t)
@@ -298,7 +298,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 func TestDaitchMokotoffRemap(t *testing.T) {
 	source, ext := daitchUnitInstalled(t)
 	old := daitchUnitExpression(t, source, "John")
-	oldValue, err := old.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	oldValue, err := old.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +335,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 		t.Fatal("retag", changed, err)
 	}
 	n := mapped.(plan.InstalledTextExpr)
-	v, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	v, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
 	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.Procedure != target.catalog.state.Get(imported.Members[0]) || n.Dictionary != nil || n.Template != nil {
@@ -356,7 +356,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if err != nil || retainedText != "{160000,460000}" {
 		t.Fatal("retained array data changed", retainedText, err)
 	}
-	retainedValue, err := old.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
+	retainedValue, err := old.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || retainedValue.Type() != sourceArray || retainedValue.ArrayElement(0).Type() != sourceText {
 		t.Fatal("retained source expression generation changed", retainedValue, err)
 	}

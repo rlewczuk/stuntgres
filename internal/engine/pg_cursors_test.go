@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -25,7 +26,7 @@ func TestPGCursorsSource(t *testing.T) {
 	cursor := s.cursors.entries["own"]
 	original := cursor.root.Expressions[0]
 	calls := 0
-	cursor.root.Expressions[0] = queryProbe(original.ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
+	cursor.root.Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("metadata opened cursor producer")
 	})
@@ -85,7 +86,7 @@ func TestPGCursorsSource(t *testing.T) {
 	// The recovered failed entry is still observable without rerunning it.
 	cursor.root.Expressions[0] = original
 	sessionSQL(t, s, "SAVEPOINT recover")
-	cursor.root.Expressions[0] = queryProbe(original.ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
+	cursor.root.Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("failed producer")
 	})

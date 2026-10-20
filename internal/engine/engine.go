@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"sync"
@@ -51,8 +52,8 @@ type Engine struct {
 	foreignWrappers      []ForeignDataWrapperDefinition
 	foreignValidators    []ForeignValidatorDefinition
 	foreignNamespaces    map[ids.ObjectAddress]string // Immutable auto-installed namespace identities.
-	foreignValueImporter ForeignValueImporter
-	foreignValueExporter ForeignValueExporter
+	foreignValueImporter exec.ForeignValueImporter
+	foreignValueExporter exec.ForeignValueExporter
 }
 type ParameterInfo struct {
 	Count int
@@ -61,8 +62,8 @@ type ParameterInfo struct {
 type Result struct {
 	CommandTag string
 	Count      int64
-	Rows       RowResult
-	RowSets    []RowResult
+	Rows       exec.RowResult
+	RowSets    []exec.RowResult
 	created    ids.ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
 }
 
@@ -80,7 +81,7 @@ type binding struct {
 	query              *plan.Query
 	ctes               []*plan.CTEDefinition
 	cteSelectBodies    bool
-	querySources       []queryLeaf
+	querySources       []exec.Leaf
 	visibilitySnapshot bool
 	subqueryDemand     bool
 	commandQuery       bool

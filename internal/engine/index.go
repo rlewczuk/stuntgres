@@ -211,7 +211,7 @@ func (o indexOrdering) compare(ctx context.Context, a, b storage.IndexEntry) (in
 	}
 	return 0, nil
 }
-func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, evaluation *EvalContext) error {
+func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, evaluation *exec.Context) error {
 	for i, slot := range o.slots {
 		var expression expr.Expr
 		if slot < 0 {
@@ -226,7 +226,7 @@ func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, ev
 	return nil
 }
 
-func (o indexOrdering) entry(row storage.RowVersion, evaluation *EvalContext) (storage.IndexEntry, error) {
+func (o indexOrdering) entry(row storage.RowVersion, evaluation *exec.Context) (storage.IndexEntry, error) {
 	keys := make([]sqltype.Value, len(o.slots))
 	if err := o.fillKeys(row.Values, keys, evaluation); err != nil {
 		return storage.IndexEntry{}, err
@@ -275,7 +275,7 @@ func (o indexOrdering) sort(ctx context.Context, entries []storage.IndexEntry) e
 	copy(entries, src)
 	return nil
 }
-func buildIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) (*storage.IndexRoot, error) {
+func buildIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) (*storage.IndexRoot, error) {
 	if d.Method == catalog.HashMethod {
 		return buildHashIndexRoot(evaluation, parent, d, store, true, capture)
 	}
@@ -286,7 +286,7 @@ func buildIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalo
 	return newLogicalIndexRoot(d, entries), nil
 }
 
-func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) ([]storage.IndexEntry, error) {
+func buildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) ([]storage.IndexEntry, error) {
 	ctx := evaluation.Context
 	o, err := bindIndexKeys(parent, d)
 	if err != nil {
@@ -333,7 +333,7 @@ func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *cat
 	}
 	return entries, nil
 }
-func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, old []storage.IndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*storage.IndexRoot, error) {
+func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old []storage.IndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)

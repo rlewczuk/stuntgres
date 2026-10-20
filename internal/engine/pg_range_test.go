@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -29,7 +30,7 @@ func pgRangeUnitFacts() [][7]uint32 {
 		{3912, 1082, 4535, 0, 3122, 3915, 3925}, {3926, 20, 4536, 0, 3124, 3928, 3923},
 	}
 }
-func pgRangeUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][7]uint32 {
+func pgRangeUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uint32][7]uint32 {
 	t.Helper()
 	if len(rows.Anonymous) != 6 {
 		t.Fatal("range count", len(rows.Anonymous))

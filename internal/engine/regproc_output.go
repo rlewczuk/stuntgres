@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -69,7 +70,7 @@ func regprocSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) st
 
 func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return detachedPresentation{}.FormatRegproc(id)
+		return exec.DetachedPresentation{}.FormatRegproc(id)
 	}
 	if text, ok := s.presentationOrZero().regproc[id]; ok {
 		return text, nil
@@ -83,7 +84,7 @@ func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 }
 func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return detachedPresentation{}.FormatRegprocedure(id)
+		return exec.DetachedPresentation{}.FormatRegprocedure(id)
 	}
 	if text, ok := s.presentationOrZero().regprocedure[id]; ok {
 		return text, nil
@@ -96,7 +97,7 @@ func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
 	return text, nil
 }
 
-func captureRegprocOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegprocOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
@@ -161,9 +162,9 @@ func (r catalogRoutineOutput) FormatRegprocedure(id uint32) (string, error) {
 type presentationCaches struct {
 	regproc            map[uint32]string
 	regprocedure       map[uint32]string
-	operators          map[operatorOutputKey]string
-	operatorGroups     operatorGroups
-	regTS              map[regTSOutputKey]string
+	operators          map[exec.OperatorOutputKey]string
+	operatorGroups     exec.OperatorGroups
+	regTS              map[exec.RegTSOutputKey]string
 	conversionDefaults map[[2]int]conversionDefault
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.

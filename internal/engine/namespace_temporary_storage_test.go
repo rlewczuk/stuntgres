@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -60,14 +61,14 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	ownerAuth, peerAuth := namespaceCapturedAuthorization(t, owner), namespaceCapturedAuthorization(t, peer)
 	collect := func(view catalog.Read, relation *catalog.Relation, only, analysis bool, token ids.SessionToken) ([]ids.ObjectRef, error) {
 		t.Helper()
-		leaf := queryLeaf{Ref: e.catalog.Domain.Ref(view.Epoch(), relation.Address()), Relation: relation, Only: only, AnalysisOnly: analysis}
+		leaf := exec.Leaf{Ref: e.catalog.Domain.Ref(view.Epoch(), relation.Address()), Relation: relation, Only: only, AnalysisOnly: analysis}
 		auth := peerAuth
 		if token == owner.token {
 			auth = ownerAuth
 		}
 		auth.Recapture(view)
 		e.mu.Lock()
-		refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{leaf}, nil, token, plan.RowMark{})
+		refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []exec.Leaf{leaf}, nil, token, plan.RowMark{})
 		e.mu.Unlock()
 		return refs, err
 	}

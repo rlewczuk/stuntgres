@@ -60,7 +60,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				t.Fatal("missing actual implicit serializable consumer")
 			}
 			e.mu.Lock()
-			source, err := e.captureQuerySourcesLocked(scope, []queryLeaf{{Ref: sourceRef, Relation: sourceDescriptor, Storage: e.storage.Relations[sourceRef.Address]}}, false)
+			source, err := e.captureQuerySourcesLocked(scope, []exec.Leaf{{Ref: sourceRef, Relation: sourceDescriptor, Storage: e.storage.Relations[sourceRef.Address]}}, false)
 			e.mu.Unlock()
 			if err != nil {
 				outcome = err
@@ -75,7 +75,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			usage := project.Schema()[0].Usage
 			project.Expressions = []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: sourceRef, Scope: 1, Frame: 1, Slot: 0}}
 			predicates := 0
-			project.Child = &plan.FilterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
+			project.Child = &plan.FilterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *exec.Context) (sqltype.Value, error) {
 				predicates++
 				value, _ := c.Row[0].Integer()
 				threshold := int64(2)
@@ -89,7 +89,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				outcome = err
 				t.Fatal(err)
 			}
-			rows, err := result.(*finalRows).TakeTableRows(op.Context())
+			rows, err := result.(*exec.FinalRows).TakeTableRows(op.Context())
 			wanted := 2
 			if tc.empty {
 				wanted = 0

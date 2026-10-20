@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -61,7 +62,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	}
 }
 
-func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *querySource {
+func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *exec.Source {
 	t.Helper()
 	d, ref := pgCollationUnitSource(t, e, view)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
@@ -166,7 +167,7 @@ func TestPGCollationCapture(t *testing.T) {
 	if old.Count() != 9 {
 		t.Fatal("configured identity population", old.Count())
 	}
-	check := func(rows *querySource, name string) {
+	check := func(rows *exec.Source, name string) {
 		t.Helper()
 		for _, row := range rows.Anonymous {
 			id, _ := row[0].OID()

@@ -10,6 +10,7 @@ import (
 	"math"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -229,7 +230,7 @@ func (c *copyBinaryCursor) diagnostic(err error) error {
 	result.Context = prefix
 	return &result
 }
-func (s *StatementScope) copyBinaryOutput(rows RowResult, w io.Writer) (int64, error) {
+func (s *StatementScope) copyBinaryOutput(rows exec.RowResult, w io.Writer) (int64, error) {
 	schema := rows.Schema()
 	if len(schema) > math.MaxInt16 {
 		return 0, sqlError("54000", "too many binary COPY columns")

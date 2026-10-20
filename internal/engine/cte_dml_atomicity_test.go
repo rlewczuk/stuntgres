@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -159,13 +160,13 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			primary := errors.New("later actual RETURNING failure")
 			closeFailure := errors.New("actual producer Close veto")
 			calls, closes := 0, 0
-			probe := queryProbe(integer.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+			probe := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if len(scope.stage.rows[a.Address]) != 1 {
 					t.Fatal("later output did not follow accepted earlier private write")
 				}
 				if phase == "close_veto" || phase == "close_veto_exec" || phase == "primary_error_before_close" {
-					producer := &cteProducer{Opened: true, Inner: indexedStage{Finish: func() error { closes++; return closeFailure }}}
+					producer := &exec.CTEProducer{Opened: true, Inner: exec.Stage{Finish: func() error { closes++; return closeFailure }}}
 					scope.cteInvocation.Order = append(scope.cteInvocation.Order, producer)
 				}
 				if phase == "output_cancel" {
@@ -178,8 +179,8 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 				return c.Row[0], nil
 			})
 			cteMutationOf(bound.ctes[1]).returning.expressions = []expr.Expr{probe}
-			quotes := quoteCaptureCandidate{}
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: &quotes}}
+			quotes := exec.QuoteCaptureCandidate{}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: &quotes}}
 			e.mu.Lock()
 			result, err := e.executeCTECommandsLocked(scope, ast, bound, auth, nil, evaluation, nil, nil)
 			want := primary

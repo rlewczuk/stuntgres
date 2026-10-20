@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -30,7 +31,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	}
 	calls := 0
 	out := b.returning.expressions[0]
-	b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if root := scope.stage.deletes[b.ref.Address]; root == nil || len(root.Rows) != calls {
 			t.Fatal("output precedes actual unique staging", calls, root)
@@ -92,14 +93,14 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, scope, b, target, inputs := updateFromBoundSources(t, e, writer, ctx, "DELETE FROM t USING s JOIN r ON s.k=r.k WHERE t.id=s.k RETURNING t.id")
-				children := append([]*querySource(nil), inputs.Sources...)
+				children := append([]*exec.Source(nil), inputs.Sources...)
 				calls := 0
 				sentinel := errors.New("late DELETE USING output failure")
 				switch phase {
 				case "source_rejected":
 					join := b.delete.using.(*plan.JoinNode)
 					usage := join.Predicate.ResultUsage()
-					join.Predicate = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+					join.Predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -108,7 +109,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					})
 				case "candidate_rejected":
 					usage := b.predicate.ResultUsage()
-					b.predicate = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+					b.predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -117,7 +118,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					})
 				default:
 					out := b.returning.expressions[0]
-					b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+					b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if len(scope.stage.deletes[b.ref.Address].Rows) != calls {
 							t.Fatal("output before stage")

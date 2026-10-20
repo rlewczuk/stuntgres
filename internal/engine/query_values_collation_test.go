@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -38,7 +39,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert("coercion", coerced)
-	folded, _, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, coerced, false)
+	folded, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, coerced, false)
 	if err != nil {
 		t.Fatal(err)
 	}

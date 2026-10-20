@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
@@ -21,7 +22,7 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 	sentinel := errors.New("latest-target recheck failure")
 	predicate := b.predicate
 	failed := false
-	b.predicate = queryProbe(predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	b.predicate = queryProbe(predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		if testExport(c.Row[1]) == int64(21) {
 			root := scope.stage.deletes[b.ref.Address]
 			if root == nil || len(root.Rows) != 1 {

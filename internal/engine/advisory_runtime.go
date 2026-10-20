@@ -3,13 +3,14 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) Advisory(c *EvalContext, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	if s.op == nil || s.op.session == nil || s.op.session.advisory.ticket == nil {
 		return sqltype.Value{}, errors.New("stuntgres: missing advisory session scope")

@@ -48,14 +48,14 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 func TestDeleteCurrentOfOccurrenceVersions(t *testing.T) {
 	old := storage.RowVersion{Row: 3, Version: 4}
 	effective := storage.RowVersion{Row: 3, Version: 9}
-	leaf := &querySource{Occurrence: 2, Committed: []storage.RowVersion{old}}
-	locks := &queryLockContext{Leaves: make([]queryLockLeaf, 3)}
+	leaf := &exec.Source{Occurrence: 2, Committed: []storage.RowVersion{old}}
+	locks := &exec.LockContext{Leaves: make([]exec.QueryLockLeaf, 3)}
 	locks.Leaves[2].Source = leaf
-	materialized := &querySource{Materialized: true, Occurrences: []int{1, 2}, Provenance: []int{-1, 0}, Versions: []storage.RowVersion{{}, effective}}
+	materialized := &exec.Source{Materialized: true, Occurrences: []int{1, 2}, Provenance: []int{-1, 0}, Versions: []storage.RowVersion{{}, effective}}
 	if got := cursorOccurrenceVersion(materialized, 0, 2, locks); got.Row != effective.Row || got.Version != effective.Version {
 		t.Fatal("effective rowmark version lost", got)
 	}
-	bridge := &querySource{Lineage: &queryLockLineage{Stage: materialized, Selection: []int{0}}}
+	bridge := &exec.Source{Lineage: &exec.QueryLockLineage{Stage: materialized, Selection: []int{0}}}
 	if got := cursorOccurrenceVersion(bridge, 0, 2, locks); got.Version != effective.Version {
 		t.Fatal("lineage version lost", got)
 	}

@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -41,17 +42,17 @@ func regTSSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, alias
 func (s *StatementScope) formatRegTS(id uint32, alias sqltype.ID) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		if alias == sqltype.Regdictionary {
-			return detachedPresentation{}.FormatRegdictionary(id)
+			return exec.DetachedPresentation{}.FormatRegdictionary(id)
 		}
-		return detachedPresentation{}.FormatRegconfig(id)
+		return exec.DetachedPresentation{}.FormatRegconfig(id)
 	}
-	key := regTSOutputKey{ID: id, Alias: alias}
+	key := exec.RegTSOutputKey{ID: id, Alias: alias}
 	if text, ok := s.presentationOrZero().regTS[key]; ok {
 		return text, nil
 	}
 	text := regTSSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, id, alias, false)
 	if s.presentationOrZero().regTS == nil {
-		s.presentation().regTS = make(map[regTSOutputKey]string)
+		s.presentation().regTS = make(map[exec.RegTSOutputKey]string)
 	}
 	s.presentation().regTS[key] = text
 	return text, nil
@@ -62,7 +63,7 @@ func (s *StatementScope) FormatRegconfig(id uint32) (string, error) {
 func (s *StatementScope) FormatRegdictionary(id uint32) (string, error) {
 	return s.formatRegTS(id, sqltype.Regdictionary)
 }
-func captureRegTSOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegTSOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegTS() {
 		return nil
 	}
@@ -86,12 +87,12 @@ func captureRegTSOutputValue(rows *finalRows, view catalog.Read, path []ids.Obje
 	if err != nil {
 		return err
 	}
-	key := regTSOutputKey{ID: id, Alias: value.Type().BaseType().ID()}
+	key := exec.RegTSOutputKey{ID: id, Alias: value.Type().BaseType().ID()}
 	if _, ok := rows.RegTSOutput[key]; ok {
 		return nil
 	}
 	if rows.RegTSOutput == nil {
-		rows.RegTSOutput = make(map[regTSOutputKey]string)
+		rows.RegTSOutput = make(map[exec.RegTSOutputKey]string)
 	}
 	rows.RegTSOutput[key] = regTSSpelling(view, path, id, key.Alias, false)
 	rows.Output.RegTS = rows

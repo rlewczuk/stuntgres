@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -65,7 +66,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		}
 		return mapper.query(root)
 	}
-	mapSources := func(sources []queryLeaf) ([]queryLeaf, error) {
+	mapSources := func(sources []exec.Leaf) ([]exec.Leaf, error) {
 		next := slices.Clone(sources)
 		for i := range next {
 			old := next[i].Relation

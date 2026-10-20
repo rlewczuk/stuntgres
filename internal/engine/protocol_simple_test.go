@@ -14,7 +14,7 @@ import (
 )
 
 type protocolDisposalProbe struct {
-	RowResult
+	exec.RowResult
 	close func() error
 }
 
@@ -92,7 +92,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 	t.Run("closed_error", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT 1/(2-2) FROM t")
 		defer source.Close()
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		_, err := preflightQuery(&evaluation, query.Root)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
@@ -104,13 +104,13 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		original := query.Root.(*plan.ProjectNode)
 		variable := original.Expressions[0]
 		calls := 0
-		probe := queryProbe(variable.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		probe := queryProbe(variable.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			return variable.Eval(c)
 		}).(queryProbeExpression)
 		probe.Property.Volatility = expr.Volatile
 		original.Expressions[0] = probe
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		prepared, err := preflightQuery(&evaluation, original)
 		if err != nil {
 			source.Close()
@@ -121,7 +121,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			source.Close()
 			t.Fatal("planning demanded volatile target", calls)
 		}
-		state := queryState{Source: source, HashFilter: exec.HashQueryFilter(root)}
+		state := exec.State{Source: source, HashFilter: exec.HashQueryFilter(root)}
 		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, root)
 		if err != nil {
 			source.Close()
@@ -148,7 +148,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true}}
 		mapped, _, err := preflightCoercions(&evaluation, original)
 		if err != nil || !mapped.Properties().ParameterDependent {
 			t.Fatal("planning crossed imported parameter barrier", err)
@@ -174,7 +174,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 					t.Fatal(err)
 				}
 				exists := subqueryTestExpression(t, e, plan, parser.SubqueryExists)
-				planning := EvalContext{EvalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
+				planning := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
 				prepared, _, err := preflightCoercions(&planning, exists)
 				if tc.code != "" {
 					var diagnostic *sqlstate.Error
@@ -186,7 +186,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 				if err != nil {
 					t.Fatal("EXISTS demanded its discarded target", err)
 				}
-				parent := queryState{Source: source}
+				parent := exec.State{Source: source}
 				evaluation := parent.Evaluation(context.Background())
 				evaluation.Frame = 99
 				value, err := prepared.Eval(&evaluation)

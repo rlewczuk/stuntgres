@@ -31,7 +31,7 @@ func TestBitwiseAggregateEagerEvaluation(t *testing.T) {
 				if name == "bit_xor" {
 					want = 7
 				}
-				node.Calls[0].Argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+				node.Calls[0].Argument = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 4 {
 						if phase == "late error" {
@@ -146,7 +146,7 @@ func TestBitwiseAggregateActualBitLoopCancellation(t *testing.T) {
 			digit = "0"
 		}
 		input, _ := sqltype.BitString(d, strings.Repeat(digit, 8193))
-		node.Calls[0].Argument = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return input, nil })
+		node.Calls[0].Argument = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) { return input, nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: ".BitStringAggregateProvider.fold"}
 		rows, n, err := exec.Finalize(probe, q.Root, source, nil)
@@ -171,7 +171,7 @@ func TestBitwiseAggregateEagerWidthFailure(t *testing.T) {
 		}
 		node.Calls[0].Provider = functions.NewBitStringAggregateProvider(d.Usage(), operator)
 		calls := 0
-		node.Calls[0].Argument = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		node.Calls[0].Argument = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			text := "0"
 			if calls == 2 {

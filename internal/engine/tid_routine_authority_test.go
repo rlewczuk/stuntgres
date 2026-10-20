@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -83,7 +84,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if procedures != 1 {
 				t.Fatal("exact original routine manifest", binder.dependencies)
 			}
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority", err)
 			}

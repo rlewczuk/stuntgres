@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -436,7 +437,7 @@ func appendCopyText(dst []byte, text string, delimiter byte) []byte {
 	}
 	return dst
 }
-func (s *StatementScope) copyOutput(rows RowResult, o copyOptions, w io.Writer) (count int64, err error) {
+func (s *StatementScope) copyOutput(rows exec.RowResult, o copyOptions, w io.Writer) (count int64, err error) {
 	if o.format == copyFormatBinary {
 		return s.copyBinaryOutput(rows, w)
 	}

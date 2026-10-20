@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
@@ -44,7 +45,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
-	capture := func(value, source string) *querySource {
+	capture := func(value, source string) *exec.Source {
 		t.Helper()
 		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings)
 		if err != nil || len(rows.Anonymous) != 1 {

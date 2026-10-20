@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +27,7 @@ func (c *sqlCursor) rewind(ctx context.Context) error {
 	return nil
 }
 
-func (c *sqlCursor) run(backward bool, count int64, all bool, rows *finalRows, s *StatementScope) (int64, error) {
+func (c *sqlCursor) run(backward bool, count int64, all bool, rows *exec.FinalRows, s *StatementScope) (int64, error) {
 	if backward && !c.scroll {
 		return 0, forwardSQLCursorError()
 	}
@@ -116,7 +117,7 @@ func (c *sqlCursor) run(backward bool, count int64, all bool, rows *finalRows, s
 	return moved, nil
 }
 
-func (c *sqlCursor) motion(m *parser.FetchCursor, rows *finalRows, s *StatementScope) (int64, error) {
+func (c *sqlCursor) motion(m *parser.FetchCursor, rows *exec.FinalRows, s *StatementScope) (int64, error) {
 	count := m.Count
 	direction := m.Direction
 	if direction == parser.CursorRelative && count != 0 {

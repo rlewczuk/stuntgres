@@ -7,13 +7,14 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*catalog.Relation, *querySource) {
+func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*catalog.Relation, *exec.Source) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1213}
 	d, ok := e.catalog.state.Relation(address)
@@ -28,7 +29,7 @@ func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*catalog.Relation, *query
 	return d, source
 }
 
-func pgTablespaceUnitRows(t *testing.T, source *querySource) {
+func pgTablespaceUnitRows(t *testing.T, source *exec.Source) {
 	t.Helper()
 	if len(source.Anonymous) != 2 {
 		t.Fatal("builtin-only row bag", source.Anonymous)

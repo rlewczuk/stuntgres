@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -18,7 +19,7 @@ func (h *statementHost) ACLAuthority() *sqltype.ACLAuthority {
 	return &scope.op.session.Engine().roles.aclAuthority
 }
 
-func (h *statementHost) ObjectACL(c *EvalContext, address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *statementHost) ObjectACL(c *exec.Context, address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	e := scope.op.session.Engine()
 	e.mu.Lock()
@@ -34,7 +35,7 @@ func (h *statementHost) ObjectACL(c *EvalContext, address ids.ObjectAddress, res
 	return pgcatalog.ClassACL(e.catalog.owner(), auth.Roles, result, acl)
 }
 
-func (h *statementHost) RoleMembership(c *EvalContext, actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {
+func (h *statementHost) RoleMembership(c *exec.Context, actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {
 	scope := h.scope()
 	e := scope.op.session.Engine()
 	e.mu.Lock()
@@ -60,7 +61,7 @@ func (h *statementHost) RoleMembership(c *EvalContext, actor *functions.AccessRo
 	return authorization.HasRole(c.Context, auth.Roles, &e.roles.domain, actorID, targetID, mask)
 }
 
-func (h *statementHost) RowSecurityActive(c *EvalContext, relation functions.AccessRelation) (bool, error) {
+func (h *statementHost) RowSecurityActive(c *exec.Context, relation functions.AccessRelation) (bool, error) {
 	scope := h.scope()
 	e := scope.op.session.Engine()
 	e.mu.Lock()
@@ -99,7 +100,7 @@ func (h *statementHost) RowSecurityActive(c *EvalContext, relation functions.Acc
 
 // aclInquiryAuthorizationLocked is the statement's write authorization over
 // its private catalog, if any. The caller holds e.mu.
-func aclInquiryAuthorizationLocked(c *EvalContext, scope *StatementScope, e *Engine) (AuthorizationView, error) {
+func aclInquiryAuthorizationLocked(c *exec.Context, scope *StatementScope, e *Engine) (AuthorizationView, error) {
 	auth, err := scope.writeAuthorizationLocked(e)
 	if err != nil {
 		return AuthorizationView{}, err

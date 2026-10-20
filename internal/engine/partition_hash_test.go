@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -90,7 +91,7 @@ func TestHashPartitionInvariants(t *testing.T) {
 		}
 	}
 	leaf.Membership = &original
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	var scratch [32]catalog.PartitionDatum
 	value, err := sqltype.Integer(root.Columns[0].Usage.Type, 0)
 	if err != nil {
@@ -168,7 +169,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		sourceIndex.Address():      {index: sourceIndex, parent: source, frontier: 1},
 		destinationIndex.Address(): {index: destinationIndex, parent: &destination, frontier: 1},
 	}}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: view}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	dirty := map[ids.ObjectAddress]bool{source.Address(): true, destination.Address(): true}
 	if err := snapshot.repair(evaluation.Context, &evaluation, relations, nil, dirty, AuthorizationView{}); err != nil {
 		t.Fatal(err)

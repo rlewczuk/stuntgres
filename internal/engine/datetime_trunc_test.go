@@ -60,7 +60,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		if rebound.ResultUsage().Type != replacements[tc.result] {
 			t.Fatal("retained result authority")
 		}
-		v, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
+		v, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
 		if err != nil || v.Type() != replacements[tc.result] {
 			t.Fatal(v, err)
 		}
@@ -81,7 +81,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	for _, i := range []int{0, 1, 2} {
 		n := e
 		n.Args[i] = plan.LiteralExpr{Info: b.info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(n.Args[i].ResultUsage().Type)}
-		simplified, changed, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, n, false)
+		simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, n, false)
 		if err != nil || !changed || exec.PlannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)
 		}

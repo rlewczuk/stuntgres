@@ -35,7 +35,7 @@ func foreignCapabilityError() error {
 // A live cursor's producer spans requests, but each FETCH/ReScan touches the
 // current statement's participant mark. Do not cache an old request context or
 // allocate another mark for each row in the same eager batch.
-func (h *statementHost) TouchForeignScan(ctx context.Context, source *foreignQuerySource) error {
+func (h *statementHost) TouchForeignScan(ctx context.Context, source *exec.ForeignQuerySource) error {
 	s := h.scope()
 	if _, ok := source.Wrapper.(catalog.ForeignTransactionProvider); !ok {
 		return nil

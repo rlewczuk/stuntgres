@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -54,14 +55,14 @@ func TestMathTraversal(t *testing.T) {
 		plan.LiteralExpr{Info: expr.Info{Usage: int4.Usage()}, Value: zero},
 	}}
 	expr := functions.Math{Info: expr.Info{Usage: numeric.Usage()}, Plan: mathPlan, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: numeric.Usage()}, Value: sqltype.Null(numeric)}, mod}}
-	_, _, err = simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, expr, false)
+	_, _, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, expr, false)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {
 		t.Fatal("immutable sibling before strict NULL", err)
 	}
 	// Query/DML preflight must reach the same policy without a CASE wrapper,
 	// including the selected-call singleton source used by public diagnostics.
-	_, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, expr)
+	_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, expr)
 	diagnostic = nil
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {
 		t.Fatal("math execution preflight bypassed immutable simplification", err)

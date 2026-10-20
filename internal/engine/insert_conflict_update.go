@@ -15,7 +15,7 @@ import (
 
 // Each proposal is already projected and constrained. Only arbitration is
 // restarted after a row wait; defaults, the source and SET are never replayed.
-func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate *indexWriteCandidate, proposalEvaluation *EvalContext) error {
+func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate *indexWriteCandidate, proposalEvaluation *exec.Context) error {
 	proposal := candidate.values
 	c := s.insertConflict
 	e := s.op.session.Engine()

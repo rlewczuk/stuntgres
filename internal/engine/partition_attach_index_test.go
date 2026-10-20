@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
@@ -68,7 +69,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			f.e.mu.Lock()
 			f.e.storage.InstallRelationLocked(f.leaf.Address(), store)
 			f.e.mu.Unlock()
-			oldRoot, err := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, f.leaf, local.SQLIndex, store, nil)
+			oldRoot, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.leaf, local.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -79,7 +80,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			beforeEntries := slices.Clone(oldRoot.Entries)
 			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.storage.IndexRoots)
 			captured := captureIndexStores(f.e.storage.Relations, next)
-			roots, err := f.e.prepareIndexPublication(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, current, next, captured, f.e.storage.IndexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+			roots, err := f.e.prepareIndexPublication(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, next, captured, f.e.storage.IndexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if f.e.catalog.state != beforeCatalog || !maps.Equal(f.e.storage.IndexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.Entries, beforeEntries) {
 				t.Fatal("private index build mutated original catalog/store/backing")
 			}

@@ -67,8 +67,8 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	parentRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	parent := queryLeaf{Ref: parentRef, Relation: p, Storage: e.storage.Relations[p.Address()]}
-	scope.querySources = []queryLeaf{parent}
+	parent := exec.Leaf{Ref: parentRef, Relation: p, Storage: e.storage.Relations[p.Address()]}
+	scope.querySources = []exec.Leaf{parent}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err = fresh.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	fresh.querySources = []queryLeaf{parent}
+	fresh.querySources = []exec.Leaf{parent}
 	if err = e.locks.Acquire(freshOp.Context(), fresh.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err == nil {
 		view, err = fresh.acquireDataViewsLocked(e, refs)
 	}
-	var source *querySource
+	var source *exec.Source
 	if err == nil {
 		source, err = captureInheritanceQueryPrefix(fresh.inheritance.catalog, view, parent, freshOp.session.token)
 	}

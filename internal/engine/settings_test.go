@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -40,7 +41,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	if !scope.completed || session.transactions.state != TxIdle {
 		t.Fatal("utility retained implicit transaction ownership")
 	}
-	actual, ok := result.Rows.(*finalRows)
+	actual, ok := result.Rows.(*exec.FinalRows)
 	if !ok || actual.Self != actual || actual.Count != 1 {
 		t.Fatal("invalid anonymous snapshot owner")
 	}

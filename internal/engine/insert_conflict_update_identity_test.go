@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -36,7 +37,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			t.Fatal("provider physical hint after real tombstone, without copying", isolation, hit, entry, err)
 		}
 		old := hit.row
-		evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if admitted, err := scope.admitInsertRow(b.ref, &indexWriteCandidate{values: proposal}, indexWriteBatch{}, &evaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
@@ -62,7 +63,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		if err != nil || own.committed || own.row.Row != prior.Row || own.row.Version != prior.Version || len(b2.insert.conflict.affectedRows) != 0 {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}
-		nextEvaluation := EvalContext{EvalStatement: evalStatement{Context: op2.Context(), Input: scope2.input, Output: scope2.output, Host: hostOf(scope2)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op2.Context(), Input: scope2.input, Output: scope2.output, Host: hostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if admitted, err := scope2.admitInsertRow(b2.ref, &indexWriteCandidate{values: nextProposal}, indexWriteBatch{}, &nextEvaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}

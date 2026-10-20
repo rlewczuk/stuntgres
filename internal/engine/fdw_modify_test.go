@@ -104,7 +104,7 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			op := transactionOperation(t, session)
 			defer op.Done()
 			s := newStatementScope(op, session.transactions, statementOperationStart(op))
-			m := &foreignModification{source: &foreignQuerySource{Wrapper: tc.wrapper}}
+			m := &foreignModification{source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
 			count, err := m.insertRows(context.Background(), s, make([][]sqltype.Value, 5), false, nil)
 			if (err != nil) != tc.bad || count != tc.count {
 				t.Fatalf("count=%d err=%v", count, err)
@@ -257,7 +257,7 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		} else {
 			p.endError = failure
 		}
-		m, err := s.planForeignModification(op.Context(), &foreignQuerySource{Wrapper: p}, catalog.ForeignInsert, false)
+		m, err := s.planForeignModification(op.Context(), &exec.ForeignQuerySource{Wrapper: p}, catalog.ForeignInsert, false)
 		if err != nil {
 			t.Fatal(err)
 		}

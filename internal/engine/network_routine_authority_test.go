@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -83,7 +84,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, want) {
 				t.Fatal("exact original routine manifest", found, want)
 			}
-			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority", err)
 			}

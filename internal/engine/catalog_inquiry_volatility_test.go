@@ -21,7 +21,7 @@ func TestCatalogInquiryRetainedVolatility(t *testing.T) {
 	if node.Properties().Volatility != expr.Volatile || plannedIntrinsicVolatility(node) != expr.Volatile {
 		t.Fatal("analysis fallback lost eliminated-arm volatility", node.Properties())
 	}
-	simplified, changed, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, node, false)
+	simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

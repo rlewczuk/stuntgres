@@ -44,7 +44,7 @@ func checkTemporaryStorageAccess(catalog catalog.Read, relation *catalog.Relatio
 
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
-func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited plan.RowMark) ([]ids.ObjectRef, error) {
+func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []exec.Leaf, refs []ids.ObjectRef, token ids.SessionToken, inherited plan.RowMark) ([]ids.ObjectRef, error) {
 	view := auth.Catalog
 	if auth.engine != e || view.Owner() != e.catalog.owner() || view.State() == nil {
 		return nil, ids.ErrCatalogReplaced

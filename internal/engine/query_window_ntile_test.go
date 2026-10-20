@@ -29,7 +29,7 @@ func TestQueryWindowNtileState(t *testing.T) {
 		{3, math.MaxInt32, []int64{1, 2, 3}},
 		{1, 1, []int64{1}},
 	} {
-		var state windowNtileState
+		var state exec.WindowNtileState
 		if err := state.Initialize(tc.total, tc.buckets); err != nil {
 			t.Fatal(err)
 		}
@@ -40,7 +40,7 @@ func TestQueryWindowNtileState(t *testing.T) {
 		}
 	}
 	for _, buckets := range []int64{0, -1} {
-		var state windowNtileState
+		var state exec.WindowNtileState
 		err := state.Initialize(3, buckets)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22014" || diagnostic.Message != "argument of ntile must be greater than zero" || diagnostic.Position != "" || state.Bucket != 0 {
@@ -48,7 +48,7 @@ func TestQueryWindowNtileState(t *testing.T) {
 		}
 	}
 	// Conceptual partitions beyond INT4 size, without allocating their rows.
-	var large windowNtileState
+	var large exec.WindowNtileState
 	if err := large.Initialize(int64(math.MaxInt32)+2, 2); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 		call := &node.Calls[0]
 		argument := call.Argument
 		var evaluated []int64
-		call.Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		call.Argument = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 			id, _ := c.Row[0].Integer()
 			evaluated = append(evaluated, id)
 			if id <= prefix {
@@ -137,7 +137,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 		var evaluated [2][]int64
 		for i := range node.Calls {
 			original := node.Calls[i].Argument
-			node.Calls[i].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			node.Calls[i].Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				id, _ := c.Row[0].Integer()
 				evaluated[i] = append(evaluated[i], id)
 				return original.Eval(c)
@@ -293,7 +293,7 @@ func TestQueryWindowNtileEvaluationCancellation(t *testing.T) {
 			ctx := &ntileOutputCancellation{Context: base, cancel: cancel}
 			original := node.Calls[0].Argument
 			entered := 0
-			node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				value, err := original.Eval(c)
 				entered++
 				if phase == "argument" {

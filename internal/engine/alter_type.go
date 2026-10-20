@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -88,7 +89,7 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
 	binder.target.relation, binder.target.ref, binder.params.noParameters, binder.query.auth = original, ref, true, &auth
 	binder.query.namespace = namespace
-	binder.query.sources = []queryLeaf{{Ref: ref, Relation: original}}
+	binder.query.sources = []exec.Leaf{{Ref: ref, Relation: original}}
 	node, err := binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
 	if err == nil && (binder.prepared.regclassConcat || binder.consumer.catalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)
@@ -409,7 +410,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 			replaced[row.Row] = true
 		}
 	}
-	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	preparedTransforms := false
 	var generationProgram []expr.Expr
 	preparedGeneration := false

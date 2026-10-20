@@ -34,10 +34,10 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 		run  func() (expr.Expr, bool, error)
 	}{
 		{"preflight", func() (expr.Expr, bool, error) {
-			return preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, node)
+			return preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node)
 		}},
 		{"conditional", func() (expr.Expr, bool, error) {
-			return simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, node, false)
+			return simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node, false)
 		}},
 	} {
 		got, changed, err := rewrite.run()
@@ -48,7 +48,7 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 			t.Fatalf("lost format node: %T", got)
 		}
 	}
-	if _, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); err == nil {
+	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); err == nil {
 		t.Fatal("runtime must reject the unsupported integer format verb")
 	}
 	query, err := b.bindSelect(&parser.Select{Targets: []parser.Expr{nullCountRaw("format", formatUnitLiteral("%s"), formatUnitLiteral("x"))}}, false)
@@ -114,7 +114,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := bound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(stored, err)
 	}
@@ -174,7 +174,7 @@ func TestFormatNullAndUnusedDoNotHideRealChildErrors(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = bound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+		_, err = bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 	}
 }
@@ -206,7 +206,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 	if fresh.RawUnknown != node.RawUnknown || fresh.Int4 != types[sqltype.Int4] || fresh.ResultUsage().Type != types[sqltype.Text] || fresh.Args[0].ResultUsage().Type != types[sqltype.Text] || node.Int4 == fresh.Int4 || node.Args[0].ResultUsage().Type == fresh.Args[0].ResultUsage().Type {
 		t.Fatal("retag must own a new immutable descriptor generation")
 	}
-	value, err := fresh.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err := fresh.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if fresh.Args[1].ResultUsage().Type.BaseType().Element() != types[sqltype.Name] || node.Args[1].ResultUsage().Type == fresh.Args[1].ResultUsage().Type || fresh.Args[1].ResultUsage().Type != types[sqltype.NameArray] {
 		t.Fatal("VARIADIC descriptors not retained")
 	}
-	value, err := fresh.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
+	value, err := fresh.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}

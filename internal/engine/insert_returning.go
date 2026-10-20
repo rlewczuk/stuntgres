@@ -12,7 +12,7 @@ import (
 
 type insertReturningOutput struct {
 	binding binding
-	rows    *finalRows
+	rows    *exec.FinalRows
 	overlay insertWriteOverlay
 }
 
@@ -24,7 +24,7 @@ func (s *StatementScope) beginInsertReturning(b binding) {
 	rows.Output = s.output
 	s.insertReturning = &insertReturningOutput{binding: b, rows: rows}
 }
-func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *EvalContext) error {
+func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exec.Context) error {
 	output := s.insertReturning
 	if output == nil {
 		return nil
@@ -59,7 +59,7 @@ func (s *StatementScope) finishInsertReturning() (Result, error) {
 }
 
 // Revalidate the proposal before output, never output before possible filtering.
-func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *indexWriteCandidate, evaluation *EvalContext) (bool, error) {
+func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *indexWriteCandidate, evaluation *exec.Context) (bool, error) {
 	row := candidate.values
 	if s.insertConflict != nil && s.insertConflict.update != nil {
 		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
@@ -193,7 +193,7 @@ func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionIn
 
 // Returning actions own their immutable payload in WriteStage, so callers must
 // not retain a duplicate producer prefix. Upsert projects at its action seam.
-func (s *StatementScope) admitInsertProducer(b binding, candidate *indexWriteCandidate, prefix indexWriteBatch, c *EvalContext) (bool, error) {
+func (s *StatementScope) admitInsertProducer(b binding, candidate *indexWriteCandidate, prefix indexWriteBatch, c *exec.Context) (bool, error) {
 	row := candidate.values
 	if s.insertReturning == nil {
 		return s.admitInsertRow(b.ref, candidate, prefix, c)
