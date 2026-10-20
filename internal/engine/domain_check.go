@@ -200,14 +200,14 @@ func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
 	ri := scope != nil && scope.foreignActionAuth != nil &&
 		scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	programme, exists := c.preparedDomainChecks[d]
-	for _, phase := range programme.phases {
+	for _, phase := range programPhases(programme) {
 		if phase.number == c.domainPhase && phase.actor == auth.State.CurrentUser && phase.ri == ri {
 			return nil // Same initialized programme phase; never a per-row ACL lookup.
 		}
 	}
 	phase := domainCheckPhase{number: c.domainPhase, actor: auth.State.CurrentUser, ri: ri}
 	if exists {
-		if err := phase.admission.initializePhase(&programme.phases[0].admission, auth); err != nil {
+		if err := phase.admission.initializePhase(&programPhases(programme)[0].admission, auth); err != nil {
 			return err
 		}
 	} else {
@@ -239,7 +239,7 @@ func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
 	if program := routineProgramOf(c); program != nil && scope == nil {
 		program.include(&phase.admission)
 	}
-	programme.phases = append(programme.phases, phase)
+	programme.phases = append(programPhases(programme), phase)
 	if c.preparedDomainChecks == nil {
 		c.preparedDomainChecks = make(map[*catalog.Type]domainCheckProgram)
 	}

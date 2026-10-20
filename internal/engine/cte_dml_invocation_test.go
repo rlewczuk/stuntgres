@@ -38,7 +38,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if width != 0 {
 				first = &rows.values[0]
 			}
-			if err := owner.completeMutation(definition, Result{Count: 3, Rows: rows}); err != nil {
+			if err := completeCTEMutation(owner, definition, Result{Count: 3, Rows: rows}); err != nil {
 				t.Fatal(err)
 			}
 			producer := owner.producers[definition]
@@ -87,14 +87,14 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if _, err := openCTEScan(context.Background(), &queryState{source: fresh.state.source, ctes: fresh}, scan); err == nil {
 				t.Fatal("fresh invocation inherited completed producer")
 			}
-			if err := owner.completeMutation(definition, Result{}); err == nil {
+			if err := completeCTEMutation(owner, definition, Result{}); err == nil {
 				t.Fatal("modifier completed twice")
 			}
 		}
 	}
 	noReturning := &plan.CTEDefinition{Owner: 1, Mutation: &binding{}}
 	completion := &cteInvocation{frame: 1}
-	if err := completion.completeMutation(noReturning, Result{Count: 2}); err != nil {
+	if err := completeCTEMutation(completion, noReturning, Result{Count: 2}); err != nil {
 		t.Fatal(err)
 	}
 	modifier := completion.producers[noReturning]

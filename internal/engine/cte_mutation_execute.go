@@ -268,7 +268,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		if commandOwner == nil {
 			return Result{}, fmt.Errorf("stuntgres: missing admitted CTE owner")
 		}
-		if err := commandOwner.completeMutation(command.definition, output); err != nil {
+		if err := completeCTEMutation(commandOwner, command.definition, output); err != nil {
 			return Result{}, err
 		}
 		e.mu.Lock()
@@ -287,7 +287,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 }
 
-func (o *cteInvocation) completeMutation(definition *plan.CTEDefinition, result Result) error {
+func completeCTEMutation(o *cteInvocation, definition *plan.CTEDefinition, result Result) error {
 	if o.closed || o.producers[definition] != nil {
 		if result.Rows != nil {
 			result.Rows.Close()

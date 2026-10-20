@@ -12,8 +12,23 @@ import (
 // not cached permission results. No CHECK truth is recorded or replayed.
 type domainCheckProgram struct {
 	expressions []expr.Expr
-	phases      []domainCheckPhase
+	phases      domainCheckPhases
 }
+
+// The runtime reads only a programme's expressions; its phases are an opaque
+// slot that holds a domainPhaseList, which only engine helpers look inside.
+type domainCheckPhases interface{ DomainCheckPhasesSlot() }
+type domainPhaseList []domainCheckPhase
+
+func (domainPhaseList) DomainCheckPhasesSlot() {}
+
+// programPhases returns the programme's phases. The list shares its backing
+// array with the slot, so an indexed update is seen through the programme.
+func programPhases(p domainCheckProgram) domainPhaseList {
+	phases, _ := p.phases.(domainPhaseList)
+	return phases
+}
+
 type domainCheckPhase struct {
 	number    typedef.DomainCheckIdentity
 	actor     authorization.PrincipalRef
@@ -23,8 +38,9 @@ type domainCheckPhase struct {
 
 func (s *StatementScope) readmitPreparedPrograms(auth AuthorizationView) error {
 	for _, programme := range s.domains.preparedChecks {
-		for i := range programme.phases {
-			if err := programme.phases[i].admission.readmit(auth); err != nil {
+		phases := programPhases(programme)
+		for i := range phases {
+			if err := phases[i].admission.readmit(auth); err != nil {
 				return err
 			}
 		}
