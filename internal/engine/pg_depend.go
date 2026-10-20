@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -21,7 +20,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSour
 	}
 	var edges []pgDependEdge
 	add := func(dependent, referenced ids.ObjectAddress, flavor byte) {
-		if referenced.ObjectID != 0 && !pgDependPinned(view, nil, referenced) {
+		if referenced.ObjectID != 0 && !runtime.Pinned(view, referenced) {
 			edges = append(edges, pgDependEdge{dependent, referenced, flavor})
 		}
 	}
@@ -49,8 +48,8 @@ func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSour
 		}
 		switch d := descriptor.(type) {
 		case *catalog.Operator:
-			if !routine.OperatorSeeded(d) {
-				for _, address := range routine.OperatorDependencyAddresses(view, d) {
+			if !runtime.OperatorSeeded(d) {
+				for _, address := range runtime.OperatorDependencies(view, d) {
 					add(d.Address(), address, 'n')
 				}
 			}
@@ -71,7 +70,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSour
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(input.Type.ID())}, 'n')
 				}
 			}
-			if intarrayProviderOf(d) != nil || cubeProviderOf(d) != nil {
+			if runtime.TypeProviderProcedure(d) {
 				if d.Name() == "bqarr_in" || d.Name() == "cube_in" {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
 				} else {
@@ -98,7 +97,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSour
 				add(d.Address(), d.Handler, 'n')
 			}
 		case *catalog.Type:
-			if pgDependPinned(view, nil, d.Address()) {
+			if runtime.Pinned(view, d.Address()) {
 				continue
 			}
 			add(d.Address(), d.Extension, 'e')

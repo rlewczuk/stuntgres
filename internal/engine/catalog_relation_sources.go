@@ -74,14 +74,14 @@ func capturePGAttrdef(in catalogSourceInput) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		for attribute, definition := range relation.ColumnMeta.Defaults {
-			tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
+			tree, err := in.Runtime.ExpressionTree(source.Columns[3].Usage.Type, definition.Expression)
 			if err != nil {
 				return nil, err
 			}
 			rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.Address().ObjectID)), integer(2, int64(attribute)), tree})
 		}
 		for attribute, definition := range relation.ColumnMeta.Generations {
-			tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
+			tree, err := in.Runtime.ExpressionTree(source.Columns[3].Usage.Type, definition.Expression)
 			if err != nil {
 				return nil, err
 			}

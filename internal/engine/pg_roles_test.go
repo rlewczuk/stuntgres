@@ -187,14 +187,14 @@ func TestPGRolesCancellation(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, roles := range []authorization.Read{e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state)} {
-		source, err := captureCatalogSourceRows(catalogSourceInput{Context: canceled, Roles: roles, Ref: ref, Source: d}, capturePGRoles)
+		source, err := captureCatalogSourceRows(catalogSourceInput{Context: canceled, Roles: roles, Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGRoles)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
 		}
 	}
 	for _, at := range []int{2, 3, state.Root.Read(authorization.PrincipalRef{}).RoleCount() + 2} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d}, capturePGRoles)
+		source, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGRoles)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -202,7 +202,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[12].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: &invalid}, capturePGRoles); err == nil || source != nil {
+	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGRoles); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
@@ -243,7 +243,7 @@ func TestPGRolesProjection(t *testing.T) {
 			role.ConnectionLimit = 9
 			role.HasValidUntil, role.ValidUntil, role.Password = expiry.has, expiry.stamp, password
 			putFixtureRole(state, role)
-			source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d}, capturePGRoles)
+			source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGRoles)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -301,7 +301,7 @@ func TestPGRolesProjection(t *testing.T) {
 				t.Fatal("retained role changed")
 			}
 			retireFixtureRole(updated, low)
-			fresh, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), updated), Ref: ref, Source: d}, capturePGRoles)
+			fresh, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), updated), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGRoles)
 			if err != nil || pgRolesUnitRows(t, fresh)[20000] != nil {
 				t.Fatal("high identity aliased removed role", err)
 			}

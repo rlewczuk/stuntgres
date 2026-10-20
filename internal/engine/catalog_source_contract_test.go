@@ -160,7 +160,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 	e, foreign := New(), New()
 	view := e.CatalogRead()
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID})
-	in := catalogSourceInput{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source}
+	in := catalogSourceInput{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{}}
 	rows, err := capturePGType(in)
 	if err != nil || len(rows) == 0 {
 		t.Fatal(err)

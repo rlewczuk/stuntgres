@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -237,6 +238,48 @@ func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visi
 		}
 	}
 	return nil
+}
+func (r engineCatalogRuntime) ExpressionTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
+	return catalogTree(typ, expression)
+}
+func (r engineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]catalogForeignKeyComparison, error) {
+	bound, err := bindForeignKeyComparison(view, child, parent, index, key)
+	if err != nil {
+		return nil, err
+	}
+	comparisons := make([]catalogForeignKeyComparison, len(bound))
+	for i, comparison := range bound {
+		comparisons[i] = catalogForeignKeyComparison{comparison.child, comparison.parent, comparison.comparison}
+	}
+	return comparisons, nil
+}
+func (r engineCatalogRuntime) ValidateType(view catalog.Read, d *catalog.Type) error {
+	return (typeProvider{}).Validate(view, d)
+}
+func (r engineCatalogRuntime) TypeOutput(owner *catalog.Owner, view catalog.Read, roles authorization.Read) sqltype.OutputEnvironment {
+	return sqltype.OutputEnvironment{
+		Regclass: catalogRegclassOutput{view: view},
+		Regrole:  capturedRegroleOutput{owner: owner, roles: roles},
+		ACLItem:  capturedACLItemOutput{owner: owner, roles: roles},
+	}
+}
+func (r engineCatalogRuntime) ObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {
+	return access.RawObjectACL(view, address)
+}
+func (r engineCatalogRuntime) ValidateACL(roles authorization.Read, d catalog.Descriptor) error {
+	return access.ValidateACL(roles, d)
+}
+func (r engineCatalogRuntime) Pinned(view catalog.Read, address ids.ObjectAddress) bool {
+	return pgDependPinned(view, nil, address)
+}
+func (r engineCatalogRuntime) OperatorSeeded(d *catalog.Operator) bool {
+	return routine.OperatorSeeded(d)
+}
+func (r engineCatalogRuntime) OperatorDependencies(view catalog.Read, d *catalog.Operator) []ids.ObjectAddress {
+	return routine.OperatorDependencyAddresses(view, d)
+}
+func (r engineCatalogRuntime) TypeProviderProcedure(d *catalog.Procedure) bool {
+	return intarrayProviderOf(d) != nil || cubeProviderOf(d) != nil
 }
 func catalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
 	if auth.session != nil {

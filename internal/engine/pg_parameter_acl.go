@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
@@ -28,7 +27,7 @@ func capturePGParameterACL(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if err := in.Runtime.ValidateParameter(view, d); err != nil {
 			return nil, err
 		}
-		if err := access.ValidateACL(roles, d); err != nil {
+		if err := in.Runtime.ValidateACL(roles, d); err != nil {
 			return nil, err
 		}
 		id, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))

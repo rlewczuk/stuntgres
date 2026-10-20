@@ -38,6 +38,10 @@ type catalogPreparedFact struct {
 	OwnerPresent bool
 	Database     string
 }
+type catalogForeignKeyComparison struct {
+	Child, Parent int
+	Comparison    sqltype.IndexForeignKeyComparison
+}
 type catalogRuleFact struct {
 	OID         ids.OID
 	Name, Event string
@@ -77,4 +81,14 @@ type catalogSourceRuntime interface {
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)
 	VisitSequenceDefinitions(context.Context, func(catalog.Descriptor) error) error
+	ExpressionTree(*sqltype.Descriptor, expr.Expr) (sqltype.Value, error)
+	ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]catalogForeignKeyComparison, error)
+	ValidateType(catalog.Read, *catalog.Type) error
+	TypeOutput(*catalog.Owner, catalog.Read, authorization.Read) sqltype.OutputEnvironment
+	ObjectACL(catalog.Read, ids.ObjectAddress) (authorization.ACLValue, error)
+	ValidateACL(authorization.Read, catalog.Descriptor) error
+	Pinned(catalog.Read, ids.ObjectAddress) bool
+	OperatorSeeded(*catalog.Operator) bool
+	OperatorDependencies(catalog.Read, *catalog.Operator) []ids.ObjectAddress
+	TypeProviderProcedure(*catalog.Procedure) bool
 }

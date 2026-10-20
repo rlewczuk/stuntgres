@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -137,7 +136,7 @@ func capturePGType(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if address != d.Address() {
 			return nil, fmt.Errorf("stuntgres: invalid type address authority")
 		}
-		if err := (typeProvider{}).Validate(view, d); err != nil {
+		if err := in.Runtime.ValidateType(view, d); err != nil {
 			return nil, err
 		}
 		if _, err := roles.Descriptor(d.Owner); err != nil {
@@ -146,11 +145,7 @@ func capturePGType(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if d.Owner.ID() > math.MaxUint32 {
 			return nil, fmt.Errorf("stuntgres: unrepresentable type owner")
 		}
-		f, err := pgTypeFacts(ctx, view, d, sqltype.OutputEnvironment{
-			Regclass: catalogRegclassOutput{view: view},
-			Regrole:  capturedRegroleOutput{owner: in.Owner, roles: roles},
-			ACLItem:  capturedACLItemOutput{owner: in.Owner, roles: roles},
-		})
+		f, err := pgTypeFacts(ctx, view, d, in.Runtime.TypeOutput(in.Owner, view, roles))
 		if err != nil {
 			return nil, err
 		}
@@ -210,7 +205,7 @@ func capturePGType(in catalogSourceInput) ([][]sqltype.Value, error) {
 				row[i] = sqltype.Null(column.Usage.Type)
 				if f.HasDefaultTree {
 					if d.DomainDefault != nil && !d.SQLType.IsBuiltin() {
-						row[i], err = catalogTree(column.Usage.Type, d.DomainDefault.Expression)
+						row[i], err = in.Runtime.ExpressionTree(column.Usage.Type, d.DomainDefault.Expression)
 					} else {
 						row[i], err = sqltype.Tree(column.Usage.Type, pgTypeDefaultTree(f.DefaultTree))
 					}
@@ -222,7 +217,7 @@ func capturePGType(in catalogSourceInput) ([][]sqltype.Value, error) {
 				}
 			case sqltype.ACLItemArray:
 				var acl authorization.ACLValue
-				acl, err = access.RawObjectACL(view, address)
+				acl, err = in.Runtime.ObjectACL(view, address)
 				if err == nil {
 					row[i], err = pgClassACL(in.Owner, roles, column.Usage.Type, acl)
 				}

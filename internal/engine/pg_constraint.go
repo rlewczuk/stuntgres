@@ -69,7 +69,7 @@ func capturePGConstraint(in catalogSourceInput) ([][]sqltype.Value, error) {
 				builder.oid(row, 9, domain.Address().ObjectID)
 				builder.boolean(row, 7, !check.NotValid)
 				var err error
-				row[27], err = catalogTree(types[27], check.Expression)
+				row[27], err = in.Runtime.ExpressionTree(types[27], check.Expression)
 				if err != nil {
 					return nil, err
 				}
@@ -119,7 +119,7 @@ func capturePGConstraint(in catalogSourceInput) ([][]sqltype.Value, error) {
 			builder.integer(row, 17, count)
 			builder.boolean(row, 18, c.NoInherit)
 			builder.checkKeys(ctx, in.Runtime, row, table, c.Expression)
-			row[27], err = catalogTree(types[27], c.Expression)
+			row[27], err = in.Runtime.ExpressionTree(types[27], c.Expression)
 			if err != nil {
 				return nil, err
 			}
@@ -167,7 +167,7 @@ func capturePGConstraint(in catalogSourceInput) ([][]sqltype.Value, error) {
 			builder.keys(row, 20, c.Attributes)
 			builder.keys(row, 21, c.Referenced)
 			builder.keys(row, 25, c.DeleteAttributes)
-			if err := builder.foreignOperators(ctx, view, row, table, c); err != nil {
+			if err := builder.foreignOperators(ctx, in.Runtime, view, row, table, c); err != nil {
 				return nil, err
 			}
 		}
@@ -365,7 +365,7 @@ func constraintOperator(catalog catalog.Read, name string, left, right sqltype.I
 	return address.ObjectID, nil
 }
 
-func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog catalog.Read, row []sqltype.Value, child *catalog.Relation, f catalog.ForeignKeyConstraint) error {
+func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, runtime catalogSourceRuntime, catalog catalog.Read, row []sqltype.Value, child *catalog.Relation, f catalog.ForeignKeyConstraint) error {
 	if len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 		return fmt.Errorf("stuntgres: invalid foreign-key metadata keys")
 	}
@@ -377,7 +377,7 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog cata
 	if !ok || index.SQLIndex == nil {
 		return fmt.Errorf("stuntgres: missing foreign-key index metadata")
 	}
-	comparisons, err := bindForeignKeyComparison(catalog, child, parent, index, f)
+	comparisons, err := runtime.ForeignKeyComparisons(catalog, child, parent, index, f)
 	if err != nil {
 		return err
 	}
@@ -392,7 +392,7 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog cata
 		childSlot, parentSlot := slices.Index(child.Attributes, attribute), slices.Index(parent.Attributes, f.Referenced[i])
 		matched := -1
 		for at, comparison := range comparisons {
-			if comparison.child == childSlot && comparison.parent == parentSlot {
+			if comparison.Child == childSlot && comparison.Parent == parentSlot {
 				if matched != -1 {
 					return fmt.Errorf("stuntgres: ambiguous foreign-key operator metadata")
 				}
@@ -402,7 +402,7 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog cata
 		if matched < 0 {
 			return fmt.Errorf("stuntgres: missing foreign-key operator metadata")
 		}
-		inputs, err := comparisons[matched].comparison.EqualityInputs()
+		inputs, err := comparisons[matched].Comparison.EqualityInputs()
 		if err != nil {
 			return err
 		}
