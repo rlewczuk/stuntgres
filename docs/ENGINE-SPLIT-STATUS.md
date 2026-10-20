@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `faaebbf0d`. The later-wave plans
+Last verified against `master` at `d76cc93a1`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,8 +15,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 11 `exec`** — 11a refine (item 35; docs only); 10c and 13a are
-  done.
+- **Step 11 `exec`** — 11b host seam (item 36); 11a is done.
 - **Step 12 `analyze`** — 12c refine, then host seam (item 39); 12b and 10c
   are done.
 
@@ -258,7 +257,8 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     `3860f511e`, `9ba165e93`, `3f66996a4`, `50e07094a`, then the docs commit)
     *(racecheck/finalcheck skipped at user request)*
 - [ ] **Step 11 — `exec`** ([prompt](ENGINE-SPLIT-exec.md); needs 10c, 13a)
-  - [ ] 11a — Refine (docs only)
+  - [x] 11a — Refined (docs only; host list, move set, §7 decisions 8 and
+    11; the commit that records this status)
   - [ ] 11b — Host seam in place
   - [ ] 11c — `exec` created and executor moved *(broad)*
   - [ ] 11d — Aliases removed *(broad)*
@@ -473,8 +473,9 @@ in the prompt file's Status section.
     `50e07094a`, then the docs commit) · with the three 10c follow-ups ·
     selected dual-mode proof and quickcheck passed; racecheck/finalcheck
     skipped at user request
-35. [ ] Exec 11a (refine, docs only) — [exec](ENGINE-SPLIT-exec.md) 11a ·
-    needs 33, 22
+35. [x] Exec 11a (refine, docs only) — [exec](ENGINE-SPLIT-exec.md) 11a ·
+    needs 33, 22 · (docs: the commit that records this status) · docs-only;
+    quickcheck passed; racecheck/finalcheck skipped at user request
 36. [ ] Exec 11b — [exec](ENGINE-SPLIT-exec.md) 11b · needs 35
 37. [ ] Exec 11c — [exec](ENGINE-SPLIT-exec.md) 11c · needs 36 · **broad**
 38. [ ] Exec 11d — [exec](ENGINE-SPLIT-exec.md) 11d · needs 37 · **broad**
