@@ -15,12 +15,3 @@ type StatementLease struct {
 	// preparse ERROR timer retirement. Session.mu guards it.
 	TimeoutRef ids.TxRef
 }
-
-// scopeOfLease returns the statement scope that holds l, or nil.
-func scopeOfLease(l *StatementLease) *StatementScope {
-	if l == nil {
-		return nil
-	}
-	s, _ := l.Statement.(*StatementScope)
-	return s
-}

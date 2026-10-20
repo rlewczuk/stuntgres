@@ -1,38 +1,12 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"io"
 
 	"stuntgres/internal/engine/ids"
 )
 
-// Admission remains held for ordinary statements. Only a reserved COPY drops
-// the mutex across external I/O; every owner mutator waits on its logical lease.
-func (t *transactionOwner) acquireAdmission(ctx context.Context, op *Operation) error {
-	waited := false
-	for {
-		t.admission.Lock()
-		if t.copyLease == nil {
-			if waited && op != nil {
-				if err := validateSessionOperation(t.session.token.Domain(), op); err != nil {
-					t.admission.Unlock()
-					return err
-				}
-			}
-			return nil
-		}
-		done := t.copyDone
-		t.admission.Unlock()
-		select {
-		case <-done:
-			waited = true
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-}
 func (s *StatementScope) reserveCopy() error {
 	if err := s.active(); err != nil {
 		return err

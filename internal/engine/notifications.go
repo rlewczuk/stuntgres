@@ -4,21 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
+
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
-	"sync/atomic"
 )
-
-// Notification carries a committed local event. PID is the full logical session
-// identity, not an operating-system process ID.
-type Notification struct {
-	PID              uint64
-	Channel, Payload string
-}
-type notificationAction struct {
-	channel     string
-	listen, all bool
-}
 
 // Each immutable link belongs to one recipient; event storage is shared by all
 // recipients of a publication. Back lists are newest-first, front lists FIFO.

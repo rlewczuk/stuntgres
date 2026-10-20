@@ -1,11 +1,8 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"time"
-
-	"stuntgres/internal/engine/settings"
 )
 
 func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start time.Time) *StatementScope {
@@ -124,39 +121,4 @@ func (s *StatementScope) ownsMessageScope() bool {
 	owned := registered && !s.op.done && s.op.lease == &s.lease
 	s.op.session.mu.Unlock()
 	return owned
-}
-
-// Caller holds the transaction mutex where required by existing gates.
-func (t *transactionOwner) inBlock() bool {
-	return t.state == TxActive || t.state == TxImplicit && t.retainsTransaction()
-}
-
-func (op *Operation) refreshStatementBudget() error {
-	if err := op.commandContext.Err(); err != nil {
-		return err
-	}
-	store := op.session.settings
-	store.mu.Lock()
-	timeout := store.typedValue("statement_timeout").Number
-	transactionTimeout := store.typedValue("transaction_timeout").Number
-	lockTimeout := store.typedValue("lock_timeout").Number
-	threshold, _ := messageLevel(store.value(settings.ClientMinMessages.Name))
-	store.mu.Unlock()
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
-	if op.timerCancel != nil {
-		op.timerCancel()
-		op.timerCancel = nil
-	}
-	op.ctx = op.commandContext
-	op.statementDeadline = time.Time{}
-	op.lockTimeout = time.Duration(lockTimeout) * time.Millisecond
-	op.noticeThreshold = threshold
-	op.sqlFinished = false
-	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
-		deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
-		op.ctx, op.timerCancel = context.WithDeadlineCause(op.commandContext, deadline, statementTimeoutCause)
-		op.statementDeadline = deadline
-	}
-	return nil
 }

@@ -9,21 +9,6 @@ import (
 	"stuntgres/internal/engine/lock"
 )
 
-// This delegate owns only the physical lifetime handle. Counts, granted modes,
-// queues and terminal decisions belong exclusively to lock.Manager.
-type sessionAdvisory struct {
-	ticket *lock.Ticket
-	locks  *lock.Manager
-}
-
-func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error {
-	if a.ticket.Session() != token {
-		return errors.New("stuntgres: foreign advisory session")
-	}
-	a.locks.End(a.ticket)
-	return nil
-}
-
 func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime functions.AdvisoryLifetime, try bool) (bool, error) {
 	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: try, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, Provenance: s.txRef}

@@ -5,10 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"stuntgres/internal/parser"
-
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/parser"
 )
 
 var statementTimeoutCause = errors.New("stuntgres: statement timeout")
@@ -53,4 +52,34 @@ func (op *Operation) CommandError(err error) error {
 		return sqlError("57014", "canceling statement due to statement timeout")
 	}
 	return op.fatalError(err)
+}
+
+func (op *Operation) refreshStatementBudget() error {
+	if err := op.commandContext.Err(); err != nil {
+		return err
+	}
+	store := op.session.settings
+	store.mu.Lock()
+	timeout := store.typedValue("statement_timeout").Number
+	transactionTimeout := store.typedValue("transaction_timeout").Number
+	lockTimeout := store.typedValue("lock_timeout").Number
+	threshold, _ := messageLevel(store.value(settings.ClientMinMessages.Name))
+	store.mu.Unlock()
+	op.session.mu.Lock()
+	defer op.session.mu.Unlock()
+	if op.timerCancel != nil {
+		op.timerCancel()
+		op.timerCancel = nil
+	}
+	op.ctx = op.commandContext
+	op.statementDeadline = time.Time{}
+	op.lockTimeout = time.Duration(lockTimeout) * time.Millisecond
+	op.noticeThreshold = threshold
+	op.sqlFinished = false
+	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
+		deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
+		op.ctx, op.timerCancel = context.WithDeadlineCause(op.commandContext, deadline, statementTimeoutCause)
+		op.statementDeadline = deadline
+	}
+	return nil
 }
