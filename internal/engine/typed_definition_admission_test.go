@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
+	osexec "os/exec"
 	"runtime"
 	"testing"
 	"time"
@@ -24,7 +24,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, binary, "-test.run=^TestTypedPublicationDefinitionProviderReservation$", "-test.count=1", "-test.timeout=10s")
+		cmd := osexec.CommandContext(ctx, binary, "-test.run=^TestTypedPublicationDefinitionProviderReservation$", "-test.count=1", "-test.timeout=10s")
 		cmd.Env = append(os.Environ(), "STUNTGRES_TYPED_DEFINITION_HOLD_CHILD=1")
 		output, err := cmd.CombinedOutput()
 		if err != nil {

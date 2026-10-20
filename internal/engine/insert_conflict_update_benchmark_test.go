@@ -38,7 +38,7 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 					}
 					return stmt[0]
 				}
-				exec := func(stmt parser.Statement) Result {
+				execute := func(stmt parser.Statement) Result {
 					op, err := s.Acquire(context.Background())
 					if err != nil {
 						b.Fatal(err)
@@ -54,12 +54,12 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 					}
 					return result
 				}
-				exec(parse("CREATE TABLE t(k INT UNIQUE,v INT)"))
+				execute(parse("CREATE TABLE t(k INT UNIQUE,v INT)"))
 				seedSize := size
 				if mode == "mixed" {
 					seedSize /= 2
 				}
-				exec(parse("INSERT INTO t VALUES" + conflictUpdateBatchValues(seedSize, 10)))
+				execute(parse("INSERT INTO t VALUES" + conflictUpdateBatchValues(seedSize, 10)))
 				begin := parse("BEGIN")
 				prior := parse("UPDATE t SET v=11")
 				rollback := parse("ROLLBACK")
@@ -76,12 +76,12 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for range b.N {
-					exec(begin)
+					execute(begin)
 					if mode == "prior_own" {
-						exec(prior)
+						execute(prior)
 					}
 					b.StartTimer()
-					result := exec(command)
+					result := execute(command)
 					b.StopTimer()
 					if result.Count != int64(size) {
 						b.Fatal("exact mixed action count", result.Count, size)
@@ -102,7 +102,7 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 							b.Fatal("exact final row", i, row, want)
 						}
 					}
-					exec(rollback)
+					execute(rollback)
 				}
 				b.ReportMetric(float64(size), "proposals/op")
 				b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(size), "ns/proposal")

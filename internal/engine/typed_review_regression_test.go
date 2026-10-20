@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
+	osexec "os/exec"
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
@@ -32,7 +32,7 @@ func TestTypedPublicationCallbackReplacement(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			cmd := exec.CommandContext(ctx, binary, "-test.run=^TestTypedPublicationCallbackReplacement$", "-test.count=1", "-test.timeout=8s")
+			cmd := osexec.CommandContext(ctx, binary, "-test.run=^TestTypedPublicationCallbackReplacement$", "-test.count=1", "-test.timeout=8s")
 			cmd.Env = append(os.Environ(), "STUNTGRES_TYPED_CALLBACK_CASE="+kind)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
