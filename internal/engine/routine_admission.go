@@ -59,7 +59,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	}
 	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
 		local := *c
-		if err := local.selectExpressionRecipe(recipe); err != nil {
+		if err := selectExpressionRecipe(&local, recipe); err != nil {
 			return err
 		}
 		c = &local
@@ -96,7 +96,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	if scalarPlanning && procedureReturnsSet(captured) {
 		return nil
 	}
-	auth, dependencies, err := c.routineAdmissionAuthority()
+	auth, dependencies, err := routineAdmissionAuthority(c)
 	if err != nil || auth.engine == nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func admitCaseEquality(c *EvalContext, arm plan.CaseBranch) error {
 	if arm.Routine == nil || arm.Routine.Strict && randomLiteralNull(arm.Condition) {
 		return nil
 	}
-	auth, dependencies, err := c.routineAdmissionAuthority()
+	auth, dependencies, err := routineAdmissionAuthority(c)
 	if err != nil || auth.engine == nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 	if err := checkRecipeRoutineDescriptor(c, auth, dependencies, captured); err != nil {
 		return err
 	}
-	if program := c.routineAdmissionProgram(); program != nil {
+	if program := routineProgramOf(c); program != nil {
 		return program.record(c, dependencies, captured)
 	}
 	return nil
@@ -169,10 +169,10 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 	return admitRoutineDescriptor(auth, dependencies, captured, nil)
 }
 
-func (c *EvalContext) routineAdmissionAuthority() (AuthorizationView, []catalog.ExpressionDependency, error) {
+func routineAdmissionAuthority(c *EvalContext) (AuthorizationView, []catalog.ExpressionDependency, error) {
 	var auth AuthorizationView
 	var dependencies []catalog.ExpressionDependency
-	if routineAuth := c.routineAuthorityView(); routineAuth != nil {
+	if routineAuth := routineAuthorityView(c); routineAuth != nil {
 		auth = *routineAuth
 	} else if scope := scopeOf(c.liveHost()); scope != nil {
 		if scope.finished {
@@ -196,7 +196,7 @@ func (c *EvalContext) routineAdmissionAuthority() (AuthorizationView, []catalog.
 // Their admission is once per executable graph occurrence, including empty
 // inputs, and is independent of any comparator or aggregate support function.
 func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error {
-	auth, dependencies, err := c.routineAdmissionAuthority()
+	auth, dependencies, err := routineAdmissionAuthority(c)
 	if err != nil || auth.engine == nil {
 		return err
 	}

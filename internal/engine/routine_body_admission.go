@@ -97,7 +97,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 }
 
 func validateInquiryBodyLifetime(c *EvalContext, node expr.Expr, outer *catalog.Procedure) error {
-	auth, dependencies, err := c.routineAdmissionAuthority()
+	auth, dependencies, err := routineAdmissionAuthority(c)
 	if err != nil || auth.engine == nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func admitRoutineBody(c *EvalContext, node expr.Expr, outer *catalog.Procedure, 
 	if len(outer.Body) == 0 || inquiryRoutine(outer) {
 		return nil
 	}
-	auth, dependencies, err := c.routineAdmissionAuthority()
+	auth, dependencies, err := routineAdmissionAuthority(c)
 	if err != nil || auth.engine == nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) e
 	if err != nil || outer == nil {
 		return err
 	}
-	auth, dependencies, err := c.routineAdmissionAuthority()
+	auth, dependencies, err := routineAdmissionAuthority(c)
 	if err != nil || auth.engine == nil {
 		return err
 	}

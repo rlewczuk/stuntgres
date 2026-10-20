@@ -24,13 +24,13 @@ func programSlot(program *routineAdmissionProgram) admissionProgram {
 }
 
 // routineAuthorityView is the borrowed local DDL admission authority, or nil.
-func (c *EvalContext) routineAuthorityView() *AuthorizationView {
+func routineAuthorityView(c *EvalContext) *AuthorizationView {
 	auth, _ := c.routineAuthority.(*AuthorizationView)
 	return auth
 }
 
-// routineAdmissionProgram is the borrowed serial preparation footprint, or nil.
-func (c *EvalContext) routineAdmissionProgram() *routineAdmissionProgram {
+// routineProgramOf is the borrowed serial preparation footprint, or nil.
+func routineProgramOf(c *EvalContext) *routineAdmissionProgram {
 	program, _ := c.routineProgram.(*routineAdmissionProgram)
 	return program
 }

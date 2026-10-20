@@ -35,7 +35,7 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 	}
 	// Preserve the actual trusted caller captured before input, including a
 	// local RI actor; later session capture cannot substitute another principal.
-	if routineAuth := eval.routineAuthorityView(); routineAuth != nil {
+	if routineAuth := routineAuthorityView(eval); routineAuth != nil {
 		current.State.CurrentUser = routineAuth.State.CurrentUser
 		if err := current.Roles.ValidatePrincipal(current.State.CurrentUser); err != nil {
 			return sqltype.Value{}, err

@@ -28,7 +28,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 		local.domainPhase = typedef.DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
 		local.preparedDomainChecks = scope.domains.preparedChecks
 	}
-	auth, _, err := local.routineAdmissionAuthority()
+	auth, _, err := routineAdmissionAuthority(&local)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -59,7 +59,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 			}
 			scope.partitions().programs[identity] = expressions
 			scope.routinePrograms = append(scope.routinePrograms, commandRoutineProgram{admission: admission})
-		} else if program := local.routineAdmissionProgram(); program != nil {
+		} else if program := routineProgramOf(&local); program != nil {
 			program.include(&admission)
 		}
 	}

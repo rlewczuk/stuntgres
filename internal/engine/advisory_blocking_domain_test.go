@@ -32,7 +32,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	// the real active-frame executor instead, replacing only this context's
 	// detached executable recipe after ordinary programme initialization.
 	// Nothing is published or rendered as a supported SQL domain definition.
-	if err := c.prepareDomainChecks(outer); err != nil {
+	if err := prepareDomainChecks(c, outer); err != nil {
 		t.Fatal(err)
 	}
 	probeBinder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)

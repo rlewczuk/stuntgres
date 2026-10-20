@@ -42,7 +42,7 @@ func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.
 	if ref.Address != (routine.Address()) {
 		return fmt.Errorf("stuntgres: missing consumed routine lifetime")
 	}
-	auth, _, err := c.routineAdmissionAuthority()
+	auth, _, err := routineAdmissionAuthority(c)
 	if err != nil {
 		return err
 	}

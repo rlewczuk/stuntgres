@@ -23,7 +23,7 @@ func (h *statementHost) DeparseInquiry(c *EvalContext, signature functions.Depar
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
 	if signature == functions.DeparseSerialSequence {
-		return c.evalSerialSequence(values, result)
+		return evalSerialSequence(c, values, result)
 	}
 	view := scope.inquiry.commentCatalog
 	pretty := false
@@ -41,7 +41,7 @@ func (h *statementHost) DeparseInquiry(c *EvalContext, signature functions.Depar
 		index = 0
 	}
 	if signature >= functions.DeparseIndex {
-		return c.deparseRelation(signature, values, result, pretty)
+		return deparseRelation(c, signature, values, result, pretty)
 	}
 	id, err := values[index].OID()
 	if err != nil {
@@ -180,7 +180,7 @@ func deparseAttribute(relation *catalog.Relation, attr int32) (string, error) {
 	}
 	return "", sqlError("XX000", fmt.Sprintf("invalid attnum %d for relation %q", attr, relation.Name()))
 }
-func (c *EvalContext) deparseRelation(signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor, pretty bool) (sqltype.Value, error) {
+func deparseRelation(c *EvalContext, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor, pretty bool) (sqltype.Value, error) {
 	scope := scopeOf(c.liveHost())
 	catalog := scope.inquiry.commentCatalog
 	var address ids.ObjectAddress

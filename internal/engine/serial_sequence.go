@@ -10,7 +10,7 @@ import (
 
 // evalSerialSequence reads the statement's catalog, not defaults or generator
 // state. AUTO (serial/manual) and INTERNAL (identity) share the same owned address.
-func (c *EvalContext) evalSerialSequence(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+func evalSerialSequence(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := scopeOf(c.liveHost())
 	view := scope.inquiry.commentCatalog
 	table, err := values[0].Text()

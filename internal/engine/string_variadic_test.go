@@ -151,23 +151,23 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	}
 	published := collision.entries
 	stableOrigins := quoteCaptureCandidate{entries: published}
-	stableOrigins.prune(e.CatalogRead())
+	pruneQuoteCaptures(&stableOrigins, e.CatalogRead())
 	if stableOrigins.private || &stableOrigins.entries[0] != &published[0] {
 		t.Fatal("valid origin pruning copied group")
 	}
 	sessionSQL(t, s, "ALTER TABLE sv_quote_origins RENAME COLUMN a TO renamed")
-	stableOrigins.prune(e.CatalogRead())
+	pruneQuoteCaptures(&stableOrigins, e.CatalogRead())
 	if stableOrigins.private {
 		t.Fatal("unrelated rename invalidated DEFAULT output")
 	}
 	sessionSQL(t, s, "ALTER TABLE sv_quote_origins ALTER COLUMN renamed SET DEFAULT quote_ident('new')")
 	retired := quoteCaptureCandidate{entries: published}
-	retired.prune(e.CatalogRead())
+	pruneQuoteCaptures(&retired, e.CatalogRead())
 	if !retired.private || len(retired.entries) != 3 || len(published) != 4 || retired.entries[0].origin != origins[1] {
 		t.Fatal("default replacement retained old origin or mutated publication")
 	}
 	sessionSQL(t, s, "CREATE OR REPLACE VIEW sv_quote_origin_view AS SELECT quote_ident('changed') AS v")
-	retired.prune(e.CatalogRead())
+	pruneQuoteCaptures(&retired, e.CatalogRead())
 	if len(retired.entries) != 2 || len(published) != 4 {
 		t.Fatal("view replacement retained prior defining revision")
 	}

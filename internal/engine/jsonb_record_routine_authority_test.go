@@ -233,7 +233,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("retag manufactured destination manifest")
 				}
 			}
-			changed := *evaluation.routineAuthorityView()
+			changed := *routineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict
@@ -320,7 +320,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 			// Select the genuine owning recipe just as normal admission does,
 			// then remove its own selected-call authority. Do not allow a
 			// recipe reselection to replace the deliberately absent manifest.
-			if err := probe.selectExpressionRecipe(recipe); err != nil {
+			if err := selectExpressionRecipe(&probe, recipe); err != nil {
 				t.Fatal("select stored owning recipe", err)
 			}
 			probe.routineChecks = manifest
@@ -352,7 +352,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 		"jsonb_populate_record_valid(NULL::strict_null_rows,NULL::jsonb)",
 	} {
 		node, _, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-		scope.routineAuth = *evaluation.routineAuthorityView()
+		scope.routineAuth = *routineAuthorityView(&evaluation)
 		evaluation.routineAuthority = nil
 		if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
 			t.Fatal("live owning scope", err)

@@ -159,7 +159,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if err != nil {
 			return Result{}, err
 		}
-		if err := evaluation.prepareOwnDomainChecks(&chosen); err != nil {
+		if err := prepareOwnDomainChecks(&evaluation, &chosen); err != nil {
 			return Result{}, err
 		}
 		fence, discoveryErr := typedef.DomainUsesAt(auth.Catalog, ref.Address, diagnosticPath)

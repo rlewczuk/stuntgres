@@ -102,7 +102,7 @@ func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 }
 
 // Match current_user's expression identity, not the view's relation check owner.
-func (c *EvalContext) expressionPrincipal() authorization.PrincipalRef {
+func expressionPrincipal(c *EvalContext) authorization.PrincipalRef {
 	s := scopeOf(c.liveHost())
 	if s.foreignActionAuth != nil {
 		return s.foreignActionAuth.State.CurrentUser

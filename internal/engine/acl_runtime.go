@@ -44,7 +44,7 @@ func (h *statementHost) ObjectACL(c *EvalContext, address ids.ObjectAddress, res
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth, err := c.aclInquiryAuthorizationLocked(scope, e)
+	auth, err := aclInquiryAuthorizationLocked(c, scope, e)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -68,11 +68,11 @@ func (h *statementHost) RoleMembership(c *EvalContext, actor *functions.AccessRo
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth, err := c.aclInquiryAuthorizationLocked(scope, e)
+	auth, err := aclInquiryAuthorizationLocked(c, scope, e)
 	if err != nil {
 		return false, err
 	}
-	actorID := uint64(c.expressionPrincipal().ID())
+	actorID := uint64(expressionPrincipal(c).ID())
 	if actor != nil {
 		if actorID, err = accessRoleArgument(auth, *actor); err != nil {
 			return false, err
@@ -102,11 +102,11 @@ func (h *statementHost) RowSecurityActive(c *EvalContext, relation functions.Acc
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth, err := c.aclInquiryAuthorizationLocked(scope, e)
+	auth, err := aclInquiryAuthorizationLocked(c, scope, e)
 	if err != nil {
 		return false, err
 	}
-	principal := c.expressionPrincipal()
+	principal := expressionPrincipal(c)
 	// Schema lookup belongs to this expression's user as well, not a rule or
 	// view's independent relation-authorization identity.
 	auth.State.CurrentUser = principal
@@ -136,7 +136,7 @@ func (h *statementHost) RowSecurityActive(c *EvalContext, relation functions.Acc
 
 // aclInquiryAuthorizationLocked is the statement's write authorization over
 // its private catalog, if any. The caller holds e.mu.
-func (c *EvalContext) aclInquiryAuthorizationLocked(scope *StatementScope, e *Engine) (AuthorizationView, error) {
+func aclInquiryAuthorizationLocked(c *EvalContext, scope *StatementScope, e *Engine) (AuthorizationView, error) {
 	auth, err := scope.writeAuthorizationLocked(e)
 	if err != nil {
 		return AuthorizationView{}, err

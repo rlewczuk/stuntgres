@@ -432,6 +432,8 @@ type querySource struct {
 	// view lifetime/provider validation. This immutable definition supplies its
 	// original manifest, never current rights or relation-owner substitution.
 	routineRecipe *catalog.Relation
+	// routineChecks is routineRecipe's captured expression manifest.
+	routineChecks []catalog.ExpressionDependency
 	sources       []*querySource
 	// Both inheritance and partition trees use named-layout physical prefixes.
 	inheritance          []inheritanceQuerySegment
@@ -654,7 +656,7 @@ func (s *querySource) close() {
 	s.partialMask = nil
 	s.anonymous = nil
 	s.visible = nil
-	s.routineRecipe = nil
+	s.routineRecipe, s.routineChecks = nil, nil
 }
 
 // Indexed stages retain occurrences, not copied input tuples. All scalar work

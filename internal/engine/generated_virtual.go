@@ -63,7 +63,7 @@ func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, defi
 	c.routineConsumer = owner
 }
 
-func (c *EvalContext) admitColumnVirtualGeneration(e plan.ColumnExpr, view catalog.Read) error {
+func admitColumnVirtualGeneration(c *EvalContext, e plan.ColumnExpr, view catalog.Read) error {
 	if e.VirtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}

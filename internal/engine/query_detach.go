@@ -35,7 +35,7 @@ func detachQuerySource(source *querySource) {
 	source.host, source.locks = nil, nil
 	source.pgSequences = nil
 	source.authority = nil
-	source.routineRecipe = nil
+	source.routineRecipe, source.routineChecks = nil, nil
 	source.versions = nil
 	source.joinLeft, source.joinRight, source.joinPairs = nil, nil, nil
 	// Dependent outputs share the left source and consecutive right invocation

@@ -33,7 +33,7 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 		return err
 	}
 	if recipe != nil && (!local.routineGraft || local.routineConsumer != recipe) || recipe == nil && local.routineGraft {
-		if err = local.selectExpressionRecipe(recipe); err != nil {
+		if err = selectExpressionRecipe(&local, recipe); err != nil {
 			return err
 		}
 	}
@@ -41,7 +41,7 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 	if err != nil || outer == nil {
 		return err
 	}
-	auth, dependencies, err := local.routineAdmissionAuthority()
+	auth, dependencies, err := routineAdmissionAuthority(&local)
 	if err != nil || auth.engine == nil {
 		return err
 	}

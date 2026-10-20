@@ -104,7 +104,7 @@ func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descripto
 // CheckDomain prepares the domain's CHECK programme for the context's phase
 // and evaluates it. The context may have no statement scope (DDL admission).
 func (enginePreparation) CheckDomain(ctx context.Context, c *EvalContext, target *sqltype.Descriptor, candidate sqltype.Value) error {
-	view := c.domainCatalog()
+	view := domainCatalog(c)
 	if view.State() == nil {
 		return fmt.Errorf("stuntgres: missing domain CHECK catalog")
 	}
@@ -120,7 +120,7 @@ func (enginePreparation) CheckDomain(ctx context.Context, c *EvalContext, target
 	}()
 	// Fresh input may arrive without expression initialization. Prepare every
 	// recipe before ordered truth; a later constant error precedes earlier FALSE.
-	if err := c.prepareDomainChecks(d); err != nil {
+	if err := prepareDomainChecks(c, d); err != nil {
 		return err
 	}
 	if candidate.IsNull() && target.DomainNotNull() {
@@ -139,12 +139,12 @@ func (enginePreparation) CheckDomain(ctx context.Context, c *EvalContext, target
 
 // Expression initialization prepares recipes even for an empty consumer. It
 // never supplies a candidate or executes CHECK truth; that remains row demand.
-func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor) error {
+func prepareDomainConversion(c *EvalContext, source, target *sqltype.Descriptor) error {
 	if source == target {
 		return nil
 	}
 	if target.IsDomain() && target.HasDomainConstraints() {
-		view := c.domainCatalog()
+		view := domainCatalog(c)
 		if view.State() == nil {
 			return fmt.Errorf("stuntgres: missing domain CHECK catalog")
 		}
@@ -152,7 +152,7 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 		if !ok || d.SQLType != target {
 			return fmt.Errorf("stuntgres: foreign domain CHECK generation")
 		}
-		if err := c.prepareDomainChecks(d); err != nil {
+		if err := prepareDomainChecks(c, d); err != nil {
 			return err
 		}
 	}
@@ -160,27 +160,27 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 	// fresh member input. Only actual physical element conversions initialize it.
 	source, target = source.BaseType(), target.BaseType()
 	if source != target && source.IsArray() && target.IsArray() {
-		return c.prepareDomainConversion(source.Element(), target.Element())
+		return prepareDomainConversion(c, source.Element(), target.Element())
 	}
 	return nil
 }
 
-func (c *EvalContext) prepareDomainChecks(d *catalog.Type) error {
+func prepareDomainChecks(c *EvalContext, d *catalog.Type) error {
 	if base := d.SQLType.DomainBase().Type; base.IsDomain() && base.HasDomainChecks() {
-		parent, ok := c.domainCatalog().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
+		parent, ok := domainCatalog(c).Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
 		if !ok || parent.SQLType != base {
 			return fmt.Errorf("stuntgres: missing parent domain CHECK generation")
 		}
-		if err := c.prepareDomainChecks(parent); err != nil {
+		if err := prepareDomainChecks(c, parent); err != nil {
 			return err
 		}
 	}
-	return c.prepareOwnDomainChecks(d)
+	return prepareOwnDomainChecks(c, d)
 }
 
 // Historical validation initializes only the selected own programme; ordinary
 // conversions retain the ancestor traversal above.
-func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
+func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
 	scope := scopeOf(c.liveHost())
 	if scope != nil {
 		c.preparedDomainChecks = scope.domains.preparedChecks
@@ -190,7 +190,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 		return nil
 	}
 	var auth AuthorizationView
-	if routineAuth := c.routineAuthorityView(); routineAuth != nil {
+	if routineAuth := routineAuthorityView(c); routineAuth != nil {
 		auth = *routineAuth
 	} else if scope != nil {
 		auth = scope.routineAuth
@@ -222,7 +222,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 			if err != nil {
 				return err
 			}
-			if err := validateExpressionJoinExecution(&checkEvaluation, node, checkEvaluation.domainCatalog()); err != nil {
+			if err := validateExpressionJoinExecution(&checkEvaluation, node, domainCatalog(&checkEvaluation)); err != nil {
 				return err
 			}
 			if changed {
@@ -236,7 +236,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 			}
 		}
 	}
-	if program := c.routineAdmissionProgram(); program != nil && scope == nil {
+	if program := routineProgramOf(c); program != nil && scope == nil {
 		program.include(&phase.admission)
 	}
 	programme.phases = append(programme.phases, phase)
@@ -250,7 +250,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 	return nil
 }
 
-func (c *EvalContext) domainCatalog() catalog.Read {
+func domainCatalog(c *EvalContext) catalog.Read {
 	if c.catalog.State() != nil {
 		return c.catalog
 	}

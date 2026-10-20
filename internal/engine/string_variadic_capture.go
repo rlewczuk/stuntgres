@@ -91,7 +91,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 
 // Definition tokens, not unrelated catalog revisions, retire stored origins.
 // The stable case borrows the entire published group without allocating.
-func (g *quoteCaptureCandidate) prune(view catalog.Read) {
+func pruneQuoteCaptures(g *quoteCaptureCandidate, view catalog.Read) {
 	valid := func(origin quoteOrigin) bool {
 		if origin.owner == (ids.ObjectRef{}) {
 			return true

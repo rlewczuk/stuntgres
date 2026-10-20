@@ -102,7 +102,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			probe := evaluation
-			foreignAuth := *foreign.routineAuthorityView()
+			foreignAuth := *routineAuthorityView(&foreign)
 			probe.routineAuthority = &foreignAuth
 			if err := admitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("foreign original descriptor admitted")
@@ -122,7 +122,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			}
 			// A catalog-local replacement with an incompatible declaration is
 			// not rescued by an equal numeric address either.
-			changed := *evaluation.routineAuthorityView()
+			changed := *routineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false
@@ -165,7 +165,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			raw := statement(t, text).(*parser.Select)
 			e.mu.Lock()
 			binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-			binder.query.auth = evaluation.routineAuthorityView()
+			binder.query.auth = routineAuthorityView(&evaluation)
 			query, err := binder.bindSelect(raw, false)
 			e.mu.Unlock()
 			if err != nil {
@@ -363,7 +363,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		raw := statement(t, "SELECT * FROM "+text+" WITH ORDINALITY").(*parser.Select)
 		e.mu.Lock()
 		sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-		sourceBinder.query.auth = evaluation.routineAuthorityView()
+		sourceBinder.query.auth = routineAuthorityView(&evaluation)
 		query, bindErr := sourceBinder.bindSelect(raw, false)
 		e.mu.Unlock()
 		if bindErr != nil {
@@ -402,7 +402,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			raw := statement(t, "SELECT * FROM "+text+suffix).(*parser.Select)
 			e.mu.Lock()
 			sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-			sourceBinder.query.auth = evaluation.routineAuthorityView()
+			sourceBinder.query.auth = routineAuthorityView(&evaluation)
 			query, bindErr := sourceBinder.bindSelect(raw, false)
 			e.mu.Unlock()
 			if bindErr != nil {
@@ -493,7 +493,7 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				_, _, evaluation := strictNullUnitBind(t, e, op, scope, "1")
 				e.mu.Lock()
 				binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-				binder.query.auth = evaluation.routineAuthorityView()
+				binder.query.auth = routineAuthorityView(&evaluation)
 				query, err := binder.bindSelect(raw, false)
 				e.mu.Unlock()
 				if err != nil {

@@ -132,6 +132,9 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	// Only this opaque stored tree borrows its defining recipe. User/grafted
 	// replacements retain their existing per-node ancestry rules.
 	source.routineRecipe = consumer
+	if recipe := viewOf(consumer); recipe != nil {
+		source.routineChecks = recipe.dependencies
+	}
 	return root, source, nil
 }
 

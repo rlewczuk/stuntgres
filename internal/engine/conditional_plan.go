@@ -95,7 +95,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
 		parent := c
 		local := *c
-		if err := local.selectExpressionRecipe(recipe); err != nil {
+		if err := selectExpressionRecipe(&local, recipe); err != nil {
 			return nil, false, err
 		}
 		c = &local
@@ -288,7 +288,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 	case plan.CoercionExpr:
 		e.Child, err = child(e.Child)
 		if err == nil && e.Plan.ChecksDomain() {
-			err = c.prepareDomainConversion(e.Child.ResultUsage().Type, e.Usage.Type)
+			err = prepareDomainConversion(c, e.Child.ResultUsage().Type, e.Usage.Type)
 		}
 		expression = e
 	case plan.BitwiseExpr:

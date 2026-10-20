@@ -133,7 +133,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	}
 	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
 		local := *c
-		if err := local.selectExpressionRecipe(recipe); err != nil {
+		if err := selectExpressionRecipe(&local, recipe); err != nil {
 			return err
 		}
 		c = &local
@@ -147,7 +147,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	if column, ok := expression.(plan.ColumnExpr); ok && column.Virtual != nil {
 		// A virtual column is a recipe boundary, not a lexical child in the
 		// enclosing query's frame or routine dependency manifest.
-		return c.admitColumnVirtualGeneration(column, catalog)
+		return admitColumnVirtualGeneration(c, column, catalog)
 	}
 	if subquery, ok := expression.(plan.SubqueryExpr); ok {
 		project := subquery.QueryPlan.Root.(*plan.ProjectNode)

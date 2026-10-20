@@ -131,7 +131,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		captures := &quoteCaptureCandidate{}
 		if command.binding.parameters.Count == 0 {
 			*captures = quoteCaptureCandidate{entries: candidate.quotes, private: quoteChanged}
-			captures.prune(command.auth.Catalog)
+			pruneQuoteCaptures(captures, command.auth.Catalog)
 		}
 		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Parameters: parameters, host: hostOf(scope), catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, quoteCaptures: captures, planStaticOperators: true, specializeRuleParameters: true}}
 		e.mu.Lock()

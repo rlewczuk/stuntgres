@@ -7,7 +7,7 @@ import (
 
 // Only evaluator-local stack copies select graft ancestry. A user replacement
 // cannot inherit the enclosing stored node's manifest or relation owner.
-func (c *EvalContext) selectExpressionRecipe(recipe *catalog.Relation) error {
+func selectExpressionRecipe(c *EvalContext, recipe *catalog.Relation) error {
 	c.routineGraft = recipe != nil
 	c.routineRecipe = recipe != nil
 	c.routineReferences = nil
@@ -16,7 +16,7 @@ func (c *EvalContext) selectExpressionRecipe(recipe *catalog.Relation) error {
 	if recipe == nil {
 		return nil
 	}
-	auth, _, err := c.routineAdmissionAuthority()
+	auth, _, err := routineAdmissionAuthority(c)
 	if err != nil {
 		return err
 	}

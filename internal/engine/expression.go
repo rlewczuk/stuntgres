@@ -325,7 +325,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
 		parent := c
 		local := *c
-		if err := local.selectExpressionRecipe(recipe); err != nil {
+		if err := selectExpressionRecipe(&local, recipe); err != nil {
 			return nil, false, err
 		}
 		c = &local
@@ -601,7 +601,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 		e.Child = child
 		if e.Plan.ChecksDomain() {
-			if err := c.prepareDomainConversion(e.Child.ResultUsage().Type, e.Usage.Type); err != nil {
+			if err := prepareDomainConversion(c, e.Child.ResultUsage().Type, e.Usage.Type); err != nil {
 				return nil, false, err
 			}
 		}
