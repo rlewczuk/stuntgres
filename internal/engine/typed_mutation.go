@@ -9,14 +9,7 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
-
-type typedColumnAction struct {
-	action             parser.AlterTableAction
-	usage              *sqltype.Usage
-	declaredDimensions int16
-}
 
 type typedRelationMutation struct {
 	old, next  *catalog.Relation

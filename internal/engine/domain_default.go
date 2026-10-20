@@ -74,17 +74,6 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 	return nil
 }
 
-func typeDefault(view catalog.Read, typ *sqltype.Descriptor) *catalog.ColumnDefault {
-	if !typ.IsDomain() {
-		return nil
-	}
-	d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
-	if !ok || d.SQLType != typ {
-		return nil
-	}
-	return d.DomainDefault
-}
-
 // Only meaningful NULL masks or deferred domain conversions survive ordinary
 // column-default elision. Plain builtin DEFAULT NULL retains its old absence.
 func omitColumnDefault(view catalog.Read, node expr.Expr, usage sqltype.Usage) bool {

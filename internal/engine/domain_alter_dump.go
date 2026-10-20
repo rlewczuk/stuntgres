@@ -81,15 +81,6 @@ func restoreDomainAlter(raw *parser.AlterDomain) error {
 	return restoreScalar(raw.Check.Expression, true)
 }
 
-const restoreDomainOwnerBoundary = "restore accepts only immediately paired fresh domain ownership"
-
-type restoredDomainOwner struct {
-	ref            ids.ObjectRef
-	domain         *catalog.Type
-	namespace      *catalog.Namespace
-	owner, creator authorization.PrincipalRef
-}
-
 // Only the constructor's actual fresh ref, immediately after the captured owner
 // and bootstrap directives, can produce this pair. The Restore loop expires it
 // on every subsequent statement; it is not general ALTER OWNER eligibility.

@@ -30,22 +30,6 @@ func validateUsageCollationAt(view catalog.Read, reader definitionReader, u sqlt
 	return nil
 }
 
-// Captured provider manifests may outlive a descriptor revision, but never
-// authorize a missing identity, an attribute address, or an unavailable provider.
-func validateCollationProvider(view catalog.Read, ref ids.ObjectRef) error {
-	if ref.Address.SubID != 0 {
-		return fmt.Errorf("stuntgres: invalid stored collation provider")
-	}
-	d, ok := view.Collation(ref.Address)
-	if !ok {
-		return fmt.Errorf("stuntgres: invalid stored collation provider")
-	}
-	if capability, err := d.Usage(); err != nil || capability.ID != uint32(ref.Address.ObjectID) {
-		return fmt.Errorf("stuntgres: invalid stored collation provider")
-	}
-	return nil
-}
-
 // Catalog-valued REGCOLLATION constants retain identity, not a comparison
 // capability. Other expressions and any actual use of this collation keep the
 // existing provider validation, even if the same OID also appears as an alias.

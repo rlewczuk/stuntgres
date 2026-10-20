@@ -7,8 +7,6 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-const temporaryTypedReplacementError = "stuntgres: catalog replacement with live temporary typed tables of persistent types is unsupported"
-
 // Called under Engine.mu at the existing preallocation and final TEMP-retention
 // admission points. A replacement cannot retarget an attachment by name or OID.
 func (e *Engine) checkTemporaryTypedReplacementLocked() error {

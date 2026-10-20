@@ -811,10 +811,6 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	return nil
 }
 
-func usageDependsOn(u sqltype.Usage, target ids.ObjectAddress) bool {
-	return target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}) || target == (ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)})
-}
-
 func (stage *CatalogStage) removeDomainCheck(d *catalog.Type, oid ids.OID) error {
 	return stageDropProvider(nil, stage, nil, nil, nil).removeDomainCheck(d, oid)
 }

@@ -4,13 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 )
-
-type domainCheckIdentity struct {
-	transaction ids.TxRef
-	command     ids.CommandID
-}
 
 // The existing domain map owns both prepared expressions and every actual phase
 // initialization. These are consumed call graphs with original actors/lifetimes,
