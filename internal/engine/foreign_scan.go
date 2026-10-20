@@ -359,8 +359,8 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 			return false, fmt.Errorf("stuntgres: foreign scan row width does not match its plan")
 		}
 		input, output := state.input, state.output
-		if scope := source.liveScope(); scope != nil {
-			input, output = scope.input, scope.output
+		if host := source.liveHost(); host != nil {
+			input, output = host.Environments()
 		}
 		values, err := f.importValues(ctx, row, execution.slots, input, output, node)
 		if err != nil {

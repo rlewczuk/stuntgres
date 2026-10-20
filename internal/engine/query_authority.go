@@ -63,7 +63,7 @@ func (c *EvalContext) setContext(ctx context.Context) {
 	} else if ctx == nil && c.query != nil && c.query.source != nil && c.query.source.authority != nil && c.query.source.authority.scope != nil {
 		// Initial evaluators may be constructed without a pull context. Capture
 		// the admitted request itself, never the mutable authority that owns it.
-		c.Context = c.query.source.authority.scope.op.Context()
+		c.Context = (*statementHost)(c.query.source.authority.scope).Context()
 	} else {
 		c.Context = ctx
 	}

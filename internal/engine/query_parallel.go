@@ -249,8 +249,8 @@ func finalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 		return nil, 0, err
 	}
 	input, output := sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}
-	if scope := source.liveScope(); scope != nil {
-		input, output = scope.input, scope.output
+	if host := source.liveHost(); host != nil {
+		input, output = host.Environments()
 	}
 	slots, direct := parallelProjectionSlots(project)
 	workerCtx, cancel := context.WithCancel(ctx)

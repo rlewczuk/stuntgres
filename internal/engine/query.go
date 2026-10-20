@@ -1486,8 +1486,8 @@ func finalizeQuery(ctx context.Context, root plan.Node, source *querySource, par
 	}
 	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil, hashFilter: hashQueryFilter(root)}
 	defer state.releaseMemberships()
-	if scope := source.liveScope(); scope != nil {
-		state.input, state.output = scope.input, scope.output
+	if host := source.liveHost(); host != nil {
+		state.input, state.output = host.Environments()
 	}
 	stage, err := openQueryProjectStage(ctx, state, project)
 	if err != nil {

@@ -148,33 +148,9 @@ func (c *EvalContext) WholeRowNullPresence(node expr.Expr) (handled, absent bool
 	absent, err = c.RowAbsent(row)
 	return true, absent, err
 }
-func (c *EvalContext) FunctionJSONOutput() sqltype.OutputEnvironment {
-	output := c.Output
-	scope := c.liveScope()
-	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
-	output.Regrole, output.Regcollation, output.Regnamespace = scope, scope, scope
-	output.Operator, output.ACLItem = scope, scope
-	output.RegTS = scope
-	return output
-}
-func (c *EvalContext) FunctionStringOutput() sqltype.OutputEnvironment {
-	output := c.Output
-	scope := c.liveScope()
-	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
-	output.Regrole, output.Regcollation, output.Regnamespace = scope, scope, scope
-	output.Operator, output.ACLItem = scope, scope
-	output.RegTS = scope
-	return output
-}
-func (c *EvalContext) FunctionFormatOutput() sqltype.OutputEnvironment {
-	output := c.Output
-	scope := c.liveScope()
-	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
-	output.Regrole, output.Regcollation, output.Regnamespace = scope, scope, scope
-	output.Operator, output.ACLItem = scope, scope
-	output.RegTS = scope
-	return output
-}
+func (c *EvalContext) FunctionJSONOutput() sqltype.OutputEnvironment   { return c.presentedOutput() }
+func (c *EvalContext) FunctionStringOutput() sqltype.OutputEnvironment { return c.presentedOutput() }
+func (c *EvalContext) FunctionFormatOutput() sqltype.OutputEnvironment { return c.presentedOutput() }
 func (c *EvalContext) FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error) {
 	procedure, err := c.liveScope().conversionProcedure(source, destination)
 	if err != nil || procedure == nil {

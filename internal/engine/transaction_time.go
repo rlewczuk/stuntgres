@@ -11,15 +11,15 @@ import (
 )
 
 func (c *EvalContext) FunctionStatementTime() (time.Time, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return time.Time{}, fmt.Errorf("stuntgres: missing statement time scope")
 	}
-	stamp := scope.statementStart
+	// A held cursor keeps its declaring statement's clock.
 	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
-		stamp = c.query.source.authority.expression.statementStart
+		return c.query.source.authority.expression.statementStart, nil
 	}
-	return stamp, nil
+	return host.StatementStart(), nil
 }
 func (c *EvalContext) FunctionWallTime() time.Time {
 	return time.Now().UTC().Truncate(time.Microsecond)

@@ -100,12 +100,12 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 	}
 	evaluation := state.evaluation(ctx)
 	output := evaluation.Output
-	scope := evaluation.liveScope()
-	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
-	output.Regrole = scope
-	output.Operator = scope
-	output.Regcollation, output.Regnamespace = scope, scope
-	output.RegTS = scope
+	presentation := evaluation.presentation()
+	output.Regclass, output.Regtype, output.Regproc = presentation, presentation, presentation
+	output.Regrole = presentation
+	output.Operator = presentation
+	output.Regcollation, output.Regnamespace = presentation, presentation
+	output.RegTS = presentation
 	newGroup := func(occurrence int) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return 0, err

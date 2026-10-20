@@ -1,6 +1,11 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"context"
+	"time"
+
+	"stuntgres/internal/sqltype"
+)
 
 // statementHost is the root package's implementation of every consumer host
 // interface: execHost now, the analyze and feature hosts later (§7 decision
@@ -14,6 +19,12 @@ type statementHost StatementScope
 // Runtime records store the host once (never per row); a detached record holds
 // an untyped nil host.
 type execHost interface {
+	// Environment: read where the runtime reads them today, because a held
+	// cursor detaches the host between fetches.
+	Context() context.Context
+	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
+	StatementStart() time.Time
+
 	presentationFormatters
 }
 
@@ -50,6 +61,12 @@ func scopeOf(host execHost) *StatementScope {
 }
 
 func (h *statementHost) scope() *StatementScope { return (*StatementScope)(h) }
+
+func (h *statementHost) Context() context.Context { return h.op.Context() }
+func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment) {
+	return h.input, h.output
+}
+func (h *statementHost) StatementStart() time.Time { return h.statementStart }
 
 func (h *statementHost) FormatRegclass(id uint32) (string, error) {
 	return h.scope().FormatRegclass(id)
