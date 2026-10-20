@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,9 +24,9 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 		a, b         int
 		and, or, not Truth
 	}{
-		{0, 0, True, True, False}, {0, 1, False, True, False}, {0, 2, Unknown, True, False},
-		{1, 0, False, True, True}, {1, 1, False, False, True}, {1, 2, False, Unknown, True},
-		{2, 0, Unknown, True, Unknown}, {2, 1, False, Unknown, Unknown}, {2, 2, Unknown, Unknown, Unknown},
+		{0, 0, plan.True, plan.True, plan.False}, {0, 1, plan.False, plan.True, plan.False}, {0, 2, plan.Unknown, plan.True, plan.False},
+		{1, 0, plan.False, plan.True, plan.True}, {1, 1, plan.False, plan.False, plan.True}, {1, 2, plan.False, plan.Unknown, plan.True},
+		{2, 0, plan.Unknown, plan.True, plan.Unknown}, {2, 1, plan.False, plan.Unknown, plan.Unknown}, {2, 2, plan.Unknown, plan.Unknown, plan.Unknown},
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	rawParam := func(n int) parser.Expr {
@@ -56,13 +57,13 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 	}) {
 		for i, want := range []Truth{tc.and, tc.or, tc.not} {
 			v, err := nodes[i].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{values[tc.a], values[tc.b]}}})
-			if err != nil || v.Type() != typ || v.IsNull() != (want == Unknown) {
+			if err != nil || v.Type() != typ || v.IsNull() != (want == plan.Unknown) {
 				t.Error(v, err, want)
 				continue
 			}
-			if want != Unknown {
+			if want != plan.Unknown {
 				actual, err := v.Boolean()
-				if err != nil || actual != (want == True) {
+				if err != nil || actual != (want == plan.True) {
 					t.Error(actual, err, want)
 				}
 			}

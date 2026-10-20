@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -349,7 +350,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	}
 	switch e := expression.(type) {
 	case subqueryExpression:
-		if !c.planStaticOperators || e.cteDefinition || e.QueryPlan == nil {
+		if !c.planStaticOperators || e.CTEDefinition || e.QueryPlan == nil {
 			return e, false, nil
 		}
 		input := e.QueryPlan.Root
@@ -853,7 +854,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		if decisiveDefaults {
 			_, leftConstant = left.(literalExpression)
 			e.Left = left
-			value, decisive, err := DecisiveLogicalValue(&e)
+			value, decisive, err := plan.DecisiveLogicalValue(&e)
 			if err != nil {
 				return nil, false, err
 			}

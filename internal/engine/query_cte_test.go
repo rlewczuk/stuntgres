@@ -30,12 +30,12 @@ func cteUnitValue(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype.Value 
 	return value
 }
 func cteUnitScan(expressions []expr.Expr, schema querySchema, rows int) (*cteInvocation, *queryState, *derivedNode) {
-	project := &projectNode{querySchema: schema, Child: &valuesNode{Rows: make([][]expr.Expr, rows)}, Expressions: expressions, Frame: 2}
+	project := &projectNode{QuerySchema: schema, Child: &valuesNode{Rows: make([][]expr.Expr, rows)}, Expressions: expressions, Frame: 2}
 	definition := &cteDefinition{Query: &BoundQuery{Root: project}, Owner: 1, References: 2, Hint: parser.CTEMaterialized}
 	state := &queryState{source: &querySource{materialized: true}}
 	owner := &cteInvocation{frame: 1, state: *state}
 	state.ctes = owner
-	return owner, state, &derivedNode{querySchema: schema, Query: definition.Query, CTE: definition}
+	return owner, state, &derivedNode{QuerySchema: schema, Query: definition.Query, CTE: definition}
 }
 func cteUnitNext(t *testing.T, stage *indexedStage) []sqltype.Value {
 	t.Helper()
@@ -221,7 +221,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 	cteUnitNext(t, &first)
 	for _, value := range []int64{11, 22} {
 		correlated := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 7, Slot: 0}
-		localProject := &projectNode{querySchema: outerNode.Schema(), Child: &singletonNode{}, Expressions: []expr.Expr{correlated}, Frame: 3}
+		localProject := &projectNode{QuerySchema: outerNode.Schema(), Child: &singletonNode{}, Expressions: []expr.Expr{correlated}, Frame: 3}
 		localDefinition := &cteDefinition{Query: &BoundQuery{Root: localProject}, Owner: 2, Hint: parser.CTEMaterialized}
 		localState := *state
 		localState.outer = &EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{cteUnitValue(t, typ, value)}}}
@@ -235,7 +235,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 		if draws != 1 {
 			t.Fatal("enclosing cache not inherited", draws)
 		}
-		localNode := &derivedNode{querySchema: outerNode.Schema(), Query: localDefinition.Query, CTE: localDefinition}
+		localNode := &derivedNode{QuerySchema: outerNode.Schema(), Query: localDefinition.Query, CTE: localDefinition}
 		stage, err := openCTEScan(context.Background(), &localState, localNode)
 		if err != nil {
 			t.Fatal(err)
@@ -273,7 +273,7 @@ func TestQueryCTEWholeDefinitionVolatility(t *testing.T) {
 		return sqltype.Value{}, nil
 	}}
 	body := &projectNode{Child: &singletonNode{}, Expressions: []expr.Expr{volatile}, Frame: 2}
-	wrapper := &projectNode{Child: &singletonNode{}, Frame: 1, AnalysisExpressions: []expr.Expr{subqueryExpression{QueryPlan: &BoundQuery{Root: body}, cteDefinition: true}}}
+	wrapper := &projectNode{Child: &singletonNode{}, Frame: 1, AnalysisExpressions: []expr.Expr{subqueryExpression{QueryPlan: &BoundQuery{Root: body}, CTEDefinition: true}}}
 	if !cteVolatile(wrapper) {
 		t.Fatal("static eligibility omitted unused nested definition")
 	}
@@ -323,13 +323,13 @@ func TestQueryCTEStoredIndependentGraphMemo(t *testing.T) {
 	literal := func(value sqltype.Value) expr.Expr {
 		return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	}
-	canonical := &projectNode{Child: &singletonNode{}, Frame: 2, Expressions: []expr.Expr{literal(cteUnitValue(t, typ, 1))}, querySchema: querySchema{{Name: "n", Usage: typ.Usage()}}}
+	canonical := &projectNode{Child: &singletonNode{}, Frame: 2, Expressions: []expr.Expr{literal(cteUnitValue(t, typ, 1))}, QuerySchema: querySchema{{Name: "n", Usage: typ.Usage()}}}
 	left, right := *canonical, *canonical
 	left.Child = &filterNode{Child: canonical.Child, Predicate: literal(truth)}
 	right.Child = &filterNode{Child: canonical.Child, Predicate: literal(falsity)}
 	definition := &cteDefinition{Query: &BoundQuery{Root: canonical}, Owner: 1, References: 2, Hint: parser.CTENotMaterialized}
-	leftScan := &derivedNode{querySchema: canonical.Schema(), Query: &BoundQuery{Root: &left}, CTE: definition}
-	rightScan := &derivedNode{querySchema: canonical.Schema(), Query: &BoundQuery{Root: &right}, CTE: definition}
+	leftScan := &derivedNode{QuerySchema: canonical.Schema(), Query: &BoundQuery{Root: &left}, CTE: definition}
+	rightScan := &derivedNode{QuerySchema: canonical.Schema(), Query: &BoundQuery{Root: &right}, CTE: definition}
 	remapper := &viewQueryRemapper{catalog: e.CatalogRead(), ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }}
 	mappedLeft, err := remapper.query(leftScan)
 	if err != nil {
@@ -364,12 +364,12 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 	literal := func(value bool) expr.Expr {
 		return literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, value)}
 	}
-	input := &valuesNode{querySchema: inputSchema, Rows: [][]expr.Expr{{literal(false)}, {literal(true)}}}
+	input := &valuesNode{QuerySchema: inputSchema, Rows: [][]expr.Expr{{literal(false)}, {literal(true)}}}
 	local := columnExpression{Info: expr.Info{Usage: boolean.Usage()}, Scope: 1, Frame: 2, Slot: 0}
 	draws := 0
-	project := &projectNode{querySchema: querySchema{{Name: "keep", Usage: boolean.Usage()}, {Name: "n", Usage: integer.Usage()}}, Child: input, Expressions: []expr.Expr{local, queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 42) })}, Frame: 2}
+	project := &projectNode{QuerySchema: querySchema{{Name: "keep", Usage: boolean.Usage()}, {Name: "n", Usage: integer.Usage()}}, Child: input, Expressions: []expr.Expr{local, queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 42) })}, Frame: 2}
 	definition := &cteDefinition{Query: &BoundQuery{Root: project}, Owner: 1, References: 2, Hint: parser.CTENotMaterialized}
-	scan := &derivedNode{querySchema: project.Schema(), Query: definition.Query, CTE: definition, ScanFrame: 1, Demand: []bool{false, true}}
+	scan := &derivedNode{QuerySchema: project.Schema(), Query: definition.Query, CTE: definition, ScanFrame: 1, Demand: []bool{false, true}}
 	parent := columnExpression{Info: expr.Info{Usage: boolean.Usage()}, Scope: 1, Frame: 1, Slot: 0}
 	mapped, moved, err := pushCTEOccurrence(e.CatalogRead(), scan, parent, 0)
 	if err != nil || !moved {
@@ -412,7 +412,7 @@ func TestQueryCTEProjectDispatcherOwnsInvocation(t *testing.T) {
 	state.ctes = nil
 	original := node.Query.Root
 	root := &projectNode{
-		querySchema: node.Schema(), Child: node, Frame: 1, CTEOwner: true,
+		QuerySchema: node.Schema(), Child: node, Frame: 1, CTEOwner: true,
 		Expressions: []expr.Expr{columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 0}},
 	}
 	stage, err := openQueryNode(context.Background(), state, root)
@@ -503,7 +503,7 @@ func TestQueryCTEFilterDemandGate(t *testing.T) {
 			owner, state, child := cteUnitScan([]expr.Expr{expression}, querySchema{{Name: "n", Usage: integer.Usage()}}, 1)
 			defer owner.close()
 			state.parameters = tc.parameters
-			node := &filterNode{querySchema: child.Schema(), Child: child, Predicate: tc.predicate}
+			node := &filterNode{QuerySchema: child.Schema(), Child: child, Predicate: tc.predicate}
 			stage, err := openQueryNode(context.Background(), state, node)
 			if tc.wantError {
 				if err == nil || draws != 0 || len(owner.producers) != 0 {
@@ -552,7 +552,7 @@ func TestQueryCTEFilterDoesNotPreEvaluatePredicate(t *testing.T) {
 		}
 		return sqltype.Boolean(boolean, false), nil
 	})
-	stage, err := openQueryNode(context.Background(), state, &filterNode{querySchema: child.Schema(), Child: child, Predicate: predicate})
+	stage, err := openQueryNode(context.Background(), state, &filterNode{QuerySchema: child.Schema(), Child: child, Predicate: predicate})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -619,7 +619,7 @@ func TestQueryCTEMandatoryPhysicalFrontier(t *testing.T) {
 		if !queryHasMandatoryPhysicalFrontier(&joinNode{Left: opaque, Right: aggregate}, inputs) {
 			t.Fatal("opaque CTE hid independently reachable physical owner", hint)
 		}
-		analysisOnly := &projectNode{Child: &singletonNode{}, AnalysisExpressions: []expr.Expr{subqueryExpression{cteDefinition: true, QueryPlan: &BoundQuery{Root: &projectNode{Child: aggregate}}}}}
+		analysisOnly := &projectNode{Child: &singletonNode{}, AnalysisExpressions: []expr.Expr{subqueryExpression{CTEDefinition: true, QueryPlan: &BoundQuery{Root: &projectNode{Child: aggregate}}}}}
 		if queryHasMandatoryPhysicalFrontier(analysisOnly, inputs) {
 			t.Fatal("unused analysis definition became executable demand")
 		}
@@ -631,8 +631,8 @@ func TestQueryCTEDeadZeroWidthOwner(t *testing.T) {
 	_, state, child := cteUnitScan(nil, querySchema{}, 2)
 	state.ctes = nil
 	state.source.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: queryRowMark{Mode: lock.ForUpdate}}}}
-	filter := &filterNode{querySchema: child.Schema(), Child: child, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
-	root := &projectNode{querySchema: child.Schema(), Child: filter, Frame: 1, CTEOwner: true}
+	filter := &filterNode{QuerySchema: child.Schema(), Child: child, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
+	root := &projectNode{QuerySchema: child.Schema(), Child: filter, Frame: 1, CTEOwner: true}
 	stage, err := openQueryNode(context.Background(), state, root)
 	if err != nil {
 		t.Fatal(err)

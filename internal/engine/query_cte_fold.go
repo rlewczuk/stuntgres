@@ -19,7 +19,7 @@ func cteMapExpression(view catalog.Read, expr expr.Expr, leaf func(expr.Expr) (e
 func foldCTERestrictions(view catalog.Read, root LogicalNode) (LogicalNode, error) {
 	var rewrite func(expr.Expr) (expr.Expr, bool, error)
 	rewrite = func(bound expr.Expr) (expr.Expr, bool, error) {
-		if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition {
+		if edge, ok := bound.(subqueryExpression); ok && edge.CTEDefinition {
 			return bound, false, nil
 		}
 		hasQuery := false
@@ -211,11 +211,11 @@ func pushCTEInput(view catalog.Read, node LogicalNode, predicate expr.Expr, fram
 	}
 	switch n := node.(type) {
 	case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode, *filterNode, *functionFromNode:
-		return &filterNode{querySchema: node.Schema(), Child: node, Predicate: predicate}, true, nil
+		return &filterNode{QuerySchema: node.Schema(), Child: node, Predicate: predicate}, true, nil
 	case *windowNode, *setProjectNode:
 		// Filter completed stage rows: windows and set expansion must retain
 		// the definition's original input and cardinality/error demand.
-		return &filterNode{querySchema: node.Schema(), Child: node, Predicate: predicate}, true, nil
+		return &filterNode{QuerySchema: node.Schema(), Child: node, Predicate: predicate}, true, nil
 	case *sortNode:
 		child, moved, err := pushCTEInput(view, n.Child, predicate, frame)
 		if !moved || err != nil {

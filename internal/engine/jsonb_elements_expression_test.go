@@ -60,7 +60,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			}
 		}
 		assertFirst(next, fresh[id], "1")
-		root := &functionFromNode{Calls: []expr.Expr{original}, querySchema: querySchema{{Usage: original.ResultUsage()}}, Frame: 1}
+		root := &functionFromNode{Calls: []expr.Expr{original}, QuerySchema: querySchema{{Usage: original.ResultUsage()}}, Frame: 1}
 		replacementValue, err := b.typ(sqltype.JSONB).Input(context.Background(), `[9]`, -1)
 		if err != nil {
 			t.Fatal(err)

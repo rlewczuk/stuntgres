@@ -179,7 +179,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 				})
 			case "merge_error":
 				usage := project.Expressions[0].ResultUsage()
-				join.querySchema = append(join.querySchema, catalog.Column{Usage: usage})
+				join.QuerySchema = append(join.QuerySchema, catalog.Column{Usage: usage})
 				join.Merges = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {

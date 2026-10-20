@@ -20,7 +20,7 @@ func queryHasVirtualReads(root LogicalNode) bool {
 func boundHasVirtualReads(bound expr.Expr) bool {
 	found := lexicalHasVirtualReads(bound)
 	walkBoundExpression(bound, func(node expr.Expr) {
-		if query, ok := node.(subqueryExpression); !found && ok && !query.cteDefinition {
+		if query, ok := node.(subqueryExpression); !found && ok && !query.CTEDefinition {
 			found = queryHasVirtualReads(query.QueryPlan.Root)
 		}
 	})

@@ -111,14 +111,14 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			return err
 		}
 		project.Expressions[i] = assigned
-		if usage := assigned.ResultUsage(); usage != project.querySchema[i].Usage {
+		if usage := assigned.ResultUsage(); usage != project.QuerySchema[i].Usage {
 			// The output schema may share backing with source nodes. Assignment
 			// owns only the final projection, never source validation or set keys.
 			if !schemaDetached {
-				project.querySchema = append(querySchema(nil), project.querySchema...)
+				project.QuerySchema = append(querySchema(nil), project.QuerySchema...)
 				schemaDetached = true
 			}
-			project.querySchema[i].Usage = usage
+			project.QuerySchema[i].Usage = usage
 		}
 	}
 	// Analysis and parameter inference above remain complete. Only unused pure
@@ -273,7 +273,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			}
 		}
 	}
-	values := &valuesNode{querySchema: schema, Rows: nodes, ViewOrdinal: occurrence}
+	values := &valuesNode{QuerySchema: schema, Rows: nodes, ViewOrdinal: occurrence}
 	if identityDiscard && len(nodes) == 1 {
 		values.IdentityOrderDemand = make([]bool, width)
 	}
@@ -318,13 +318,13 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		bounds.FinishTies(root)
 	}
 	if bounds != nil {
-		bounds.querySchema, bounds.Child = root.Schema(), root
+		bounds.QuerySchema, bounds.Child = root.Schema(), root
 		root = bounds
 	}
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
 	results := append([]catalog.Column(nil), schema...)
-	return &BoundQuery{Root: &projectNode{querySchema: results, Child: root, Expressions: projection, FrozenValues: true, Frame: b.frameID()}}, nil
+	return &BoundQuery{Root: &projectNode{QuerySchema: results, Child: root, Expressions: projection, FrozenValues: true, Frame: b.frameID()}}, nil
 }
 
 // VALUES exposes generated ASCII column names in one synthetic namespace.

@@ -35,7 +35,7 @@ func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target
 	}
 	if unknown, ok := original.(unknownOutput); ok {
 		arm.Expressions[slot] = node
-		arm.querySchema[slot].Usage = node.ResultUsage()
+		arm.QuerySchema[slot].Usage = node.ResultUsage()
 		if b.params.noParameters || b.consumer.materializedDefinition {
 			for i, raw := range arm.Syntax.Targets {
 				if raw == unknown.Raw {
@@ -48,7 +48,7 @@ func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target
 		}
 	} else if original.ResultUsage().Type == nil {
 		arm.Expressions[slot] = node
-		arm.querySchema[slot].Usage = node.ResultUsage()
+		arm.QuerySchema[slot].Usage = node.ResultUsage()
 	}
 	return node, nil
 }
@@ -79,10 +79,10 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		return nil, expr.ErrorAt("42601", "each "+operation+" query must have the same number of columns", pos)
 	}
 	width := len(left.Schema())
-	n := &setNode{querySchema: make(querySchema, width), Left: left, Right: right, Operation: strings.ToLower(operation), All: s.Set.All, LeftExpressions: make([]expr.Expr, width), RightExpressions: make([]expr.Expr, width)}
+	n := &setNode{QuerySchema: make(querySchema, width), Left: left, Right: right, Operation: strings.ToLower(operation), All: s.Set.All, LeftExpressions: make([]expr.Expr, width), RightExpressions: make([]expr.Expr, width)}
 	projection := make([]expr.Expr, width)
 	names := make([]string, width)
-	namespace := queryNamespace{frame: n.querySchema, columns: make([]queryColumn, width)}
+	namespace := queryNamespace{frame: n.QuerySchema, columns: make([]queryColumn, width)}
 	if !(n.Operation == "union" && n.All) {
 		n.Grouping = make([]queryGrouping, width)
 	}
@@ -125,7 +125,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 				n.RightExpressions[i] = expression
 			}
 		}
-		n.querySchema[i] = catalog.Column{Name: left.Schema()[i].Name, Usage: common}
+		n.QuerySchema[i] = catalog.Column{Name: left.Schema()[i].Name, Usage: common}
 		names[i] = n.Schema()[i].Name
 		namespace.columns[i] = queryColumn{descriptor: n.Schema()[i], slot: i, leaf: -1, physical: -1}
 		projection[i] = columnExpression{Info: info, Scope: 1, Frame: b.frameID(), Slot: i}
@@ -160,10 +160,10 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		bounds.FinishTies(root)
 	}
 	if bounds != nil {
-		bounds.querySchema, bounds.Child = root.Schema(), root
+		bounds.QuerySchema, bounds.Child = root.Schema(), root
 		root = bounds
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: n.querySchema, Child: root, Expressions: projection, Frame: b.frameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot}, nil
+	return &BoundQuery{Root: &projectNode{QuerySchema: n.QuerySchema, Child: root, Expressions: projection, Frame: b.frameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []catalog.Column) ([]sortKey, error) {

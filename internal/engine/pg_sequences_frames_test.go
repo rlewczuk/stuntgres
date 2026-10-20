@@ -21,9 +21,9 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 				d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 				provider := &pgSequencesSource{}
 				leaf := &querySource{pgSequences: provider}
-				child := &sourceNode{querySchema: d.Columns, Occurrence: 0}
+				child := &sourceNode{QuerySchema: d.Columns, Occurrence: 0}
 				inner := columnExpression{Scope: 1, Frame: 2, Slot: 1}
-				project := &projectNode{querySchema: d.Columns[:1], Child: child, Expressions: []expr.Expr{inner}, Frame: 2}
+				project := &projectNode{QuerySchema: d.Columns[:1], Child: child, Expressions: []expr.Expr{inner}, Frame: 2}
 				column := columnExpression{Scope: 1, Frame: 1, Slot: 0}
 				switch invalid {
 				case "foreign_frame", "mixed_and":
@@ -44,7 +44,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 					foreign := inner
 					foreign.Frame = 9
 					project.Expressions = append(project.Expressions, foreign)
-					project.querySchema = d.Columns[:2]
+					project.QuerySchema = d.Columns[:2]
 					predicate = logicalExpression{Op: parser.LogicalAnd,
 						Left:  nullTestExpression{Child: column},
 						Right: nullTestExpression{Child: columnExpression{Scope: 1, Frame: 1, Slot: 1}},
@@ -52,7 +52,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 				}
 				switch boundary {
 				case "derived":
-					node := &derivedNode{querySchema: d.Columns[:1], Query: &BoundQuery{Root: project}, ScanFrame: 1}
+					node := &derivedNode{QuerySchema: d.Columns[:1], Query: &BoundQuery{Root: project}, ScanFrame: 1}
 					admitPGSequencesPredicate(node, leaf, predicate, 0, 1)
 				case "stored_project":
 					source := &querySource{nestedRoot: project, nestedInputs: leaf}
@@ -78,8 +78,8 @@ func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 		t.Run(boundary, func(t *testing.T) {
 			provider := &pgSequencesSource{}
 			leaf := &querySource{pgSequences: provider}
-			child := &sourceNode{querySchema: d.Columns, Occurrence: 0}
-			project := &projectNode{querySchema: d.Columns[:2], Child: child, Expressions: []expr.Expr{
+			child := &sourceNode{QuerySchema: d.Columns, Occurrence: 0}
+			project := &projectNode{QuerySchema: d.Columns[:2], Child: child, Expressions: []expr.Expr{
 				columnExpression{Scope: 1, Frame: 2, Slot: 1},
 				columnExpression{Scope: 1, Frame: 2, Slot: 0},
 			}, Frame: 2}
@@ -87,7 +87,7 @@ func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 			switch boundary {
 			case "derived":
 				column.Slot = 3
-				node := &derivedNode{querySchema: d.Columns[:2], Query: &BoundQuery{Root: project}, ScanFrame: 1}
+				node := &derivedNode{QuerySchema: d.Columns[:2], Query: &BoundQuery{Root: project}, ScanFrame: 1}
 				admitPGSequencesPredicate(node, leaf, nullTestExpression{Child: column}, 3, 1)
 			case "stored_project":
 				source := &querySource{nestedRoot: project, nestedInputs: leaf}

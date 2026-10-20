@@ -32,7 +32,7 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 		p = functions.NewIntervalSum(old.Usage())
 	}
 	root := &aggregateNode{
-		querySchema: querySchema{{Name: "sum", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
+		QuerySchema: querySchema{{Name: "sum", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
 		Child:       &valuesNode{},
 		Calls:       []aggregateCall{{Provider: p, Operation: operation}},
 	}

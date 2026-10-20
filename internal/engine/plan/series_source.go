@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"context"
@@ -9,14 +9,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e seriesExpression) SourceAdmission() (bool, bool) { return true, true }
+func (e SeriesExpr) SourceAdmission() (bool, bool) { return true, true }
 
-func (e seriesExpression) SameSourceOccurrence(other expr.Expr) bool {
-	o, ok := other.(seriesExpression)
+func (e SeriesExpr) SameSourceOccurrence(other expr.Expr) bool {
+	o, ok := other.(SeriesExpr)
 	return ok && e.ResultUsage() == o.ResultUsage() && len(e.Args) == len(o.Args)
 }
 
-func (e seriesExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
+func (e SeriesExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}

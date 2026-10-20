@@ -37,7 +37,7 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 		root := &aggregateNode{
-			querySchema: querySchema{{Name: "array_agg", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
+			QuerySchema: querySchema{{Name: "array_agg", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
 			Child:       &valuesNode{},
 			Calls:       []aggregateCall{{Provider: p, IncludeNulls: true}},
 		}
@@ -127,7 +127,7 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 		sourceUsage.Collation = sourceCapability
 		p := functions.NewArrayAggregateProvider(argument, sourceUsage, arrays)
 		root := &aggregateNode{
-			querySchema: querySchema{{Name: "array_agg", Usage: sourceUsage, Nullable: true, NullabilityKnown: true}},
+			QuerySchema: querySchema{{Name: "array_agg", Usage: sourceUsage, Nullable: true, NullabilityKnown: true}},
 			Child:       &valuesNode{},
 			Calls:       []aggregateCall{{Provider: p, IncludeNulls: true}},
 		}

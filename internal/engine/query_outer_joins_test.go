@@ -66,7 +66,7 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 				}
 				return sqltype.Boolean(typ, true), nil
 			})
-			project.Child = &limitNode{querySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, limit)}
+			project.Child = &limitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, limit)}
 			result, count, err := finalizeQuery(context.Background(), project, source, nil)
 			if err != nil || count != int(limit) || calls != int(limit) {
 				t.Fatal(kind, limit, count, calls, err)

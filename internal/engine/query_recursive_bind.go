@@ -26,7 +26,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 		}
 	}
 	leftCopy := *left
-	leftCopy.querySchema = d.Schema
+	leftCopy.QuerySchema = d.Schema
 	leftQuery.Root = &leftCopy
 	d.UserWidth = len(d.Schema)
 	if d.Search != nil {
@@ -138,14 +138,14 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 			column := d.Schema[slot]
 			info := b.info(column.Usage, d.Position, expr.Properties{RowDependent: true})
 			right.Expressions = append(right.Expressions, columnExpression{Info: info, Scope: 1, Frame: right.Frame, Slot: offset + slot})
-			right.querySchema = append(right.querySchema, column)
+			right.QuerySchema = append(right.QuerySchema, column)
 			set.RightExpressions = append(set.RightExpressions, right.Expressions[len(right.Expressions)-1])
 			project.Expressions = append(project.Expressions, columnExpression{Info: info, Scope: 1, Frame: project.Frame, Slot: slot})
 		}
-		set.querySchema = d.Schema
-		project.querySchema = d.Schema
+		set.QuerySchema = d.Schema
+		project.QuerySchema = d.Schema
 	}
-	project.Child = &recursiveUnionNode{setNode: *set, Definition: d, Search: d.Search, Cycle: d.Cycle}
+	project.Child = &recursiveUnionNode{SetNode: *set, Definition: d, Search: d.Search, Cycle: d.Cycle}
 	return query, nil
 }
 

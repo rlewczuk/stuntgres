@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -22,8 +23,8 @@ func insertConflictNot(f insertConflictProofFixture, child expr.Expr) logicalExp
 func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 	f := insertConflictProofTypes(t)
 	subject := insertConflictTruthSubject(f)
-	isTrue := insertConflictTruthTest(f, subject, True, false)
-	isFalse := insertConflictTruthTest(f, subject, False, false)
+	isTrue := insertConflictTruthTest(f, subject, plan.True, false)
+	isFalse := insertConflictTruthTest(f, subject, plan.False, false)
 	nonnull := insertConflictNullTest(f, subject, true)
 	for _, c := range []struct {
 		name string
@@ -35,14 +36,14 @@ func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 		{"nonnull truth", insertConflictNullTest(f, isTrue, true), nonnull, false},
 		{"nonnull false", insertConflictNullTest(f, isFalse, true), nonnull, false},
 		{"NOT null truth", insertConflictNot(f, insertConflictNullTest(f, isTrue, false)), nonnull, false},
-		{"false truth", insertConflictTruthTest(f, isTrue, False, false), nonnull, false},
+		{"false truth", insertConflictTruthTest(f, isTrue, plan.False, false), nonnull, false},
 		// Root's shared oracle rejects these qualification-equivalent forms.
-		{"NOT IS NOT TRUE", insertConflictNot(f, insertConflictTruthTest(f, subject, True, true)), nonnull, false},
-		{"NOT IS NOT FALSE", insertConflictNot(f, insertConflictTruthTest(f, subject, False, true)), nonnull, false},
+		{"NOT IS NOT TRUE", insertConflictNot(f, insertConflictTruthTest(f, subject, plan.True, true)), nonnull, false},
+		{"NOT IS NOT FALSE", insertConflictNot(f, insertConflictTruthTest(f, subject, plan.False, true)), nonnull, false},
 		{"TRUE qualification", isTrue, subject, false},
 		{"FALSE qualification", isFalse, insertConflictNot(f, subject), false},
 		{"nested identity", insertConflictNot(f, isTrue), insertConflictNot(f, isTrue), true},
-		{"different subjects", isTrue, insertConflictTruthTest(f, columnExpression{Info: subject.Info, Scope: 2, Frame: 1}, True, false), false},
+		{"different subjects", isTrue, insertConflictTruthTest(f, columnExpression{Info: subject.Info, Scope: 2, Frame: 1}, plan.True, false), false},
 		{"proof-only negated comparison", insertConflictNot(f, f.comparison(t, "<=", f.column, f.integerLiteral(t, 0))), f.comparison(t, ">", f.column, f.integerLiteral(t, 0)), true},
 	} {
 		got, err := conflictPredicateImpliedBy(&f.ctx, c.a, c.b)
@@ -54,8 +55,8 @@ func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 	f := insertConflictProofTypes(t)
 	subject := insertConflictTruthSubject(f)
-	isTrue := insertConflictTruthTest(f, subject, True, false)
-	isFalse := insertConflictTruthTest(f, subject, False, false)
+	isTrue := insertConflictTruthTest(f, subject, plan.True, false)
+	isFalse := insertConflictTruthTest(f, subject, plan.False, false)
 	falseLiteral := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, false)}
 	ctx := f.ctx
 	ctx.Scope, ctx.Frame = 1, 1
@@ -65,15 +66,15 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 		node expr.Expr
 		want [3]Truth
 	}{
-		{"IS TRUE", isTrue, [3]Truth{True, False, False}},
-		{"IS FALSE", isFalse, [3]Truth{False, True, False}},
-		{"NOT IS TRUE", insertConflictNot(f, isTrue), [3]Truth{False, True, True}},
-		{"NOT IS FALSE", insertConflictNot(f, isFalse), [3]Truth{True, False, True}},
-		{"truth nonnull", insertConflictNullTest(f, isTrue, true), [3]Truth{True, True, True}},
-		{"false nonnull", insertConflictNullTest(f, isFalse, true), [3]Truth{True, True, True}},
-		{"NOT truth null", insertConflictNot(f, insertConflictNullTest(f, isTrue, false)), [3]Truth{True, True, True}},
-		{"false truth", insertConflictTruthTest(f, isTrue, False, false), [3]Truth{False, True, True}},
-		{"truth equality", f.comparison(t, "=", isTrue, falseLiteral), [3]Truth{False, True, True}},
+		{"IS TRUE", isTrue, [3]Truth{plan.True, plan.False, plan.False}},
+		{"IS FALSE", isFalse, [3]Truth{plan.False, plan.True, plan.False}},
+		{"NOT IS TRUE", insertConflictNot(f, isTrue), [3]Truth{plan.False, plan.True, plan.True}},
+		{"NOT IS FALSE", insertConflictNot(f, isFalse), [3]Truth{plan.True, plan.False, plan.True}},
+		{"truth nonnull", insertConflictNullTest(f, isTrue, true), [3]Truth{plan.True, plan.True, plan.True}},
+		{"false nonnull", insertConflictNullTest(f, isFalse, true), [3]Truth{plan.True, plan.True, plan.True}},
+		{"NOT truth null", insertConflictNot(f, insertConflictNullTest(f, isTrue, false)), [3]Truth{plan.True, plan.True, plan.True}},
+		{"false truth", insertConflictTruthTest(f, isTrue, plan.False, false), [3]Truth{plan.False, plan.True, plan.True}},
+		{"truth equality", f.comparison(t, "=", isTrue, falseLiteral), [3]Truth{plan.False, plan.True, plan.True}},
 	} {
 		normalized, err := normalizeConflictPredicate(&ctx, c.node)
 		if err != nil {
@@ -86,7 +87,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 				if err != nil {
 					t.Fatal(c.name, i, err)
 				}
-				truth, err := TruthOf(value)
+				truth, err := plan.TruthOf(value)
 				if err != nil || truth != c.want[i] {
 					t.Fatal(c.name, i, truth, err, c.want[i])
 				}
@@ -96,13 +97,13 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 	// A normalized comparison must not carry an inverted operator name with the
 	// old provider evaluator. These parent values detect that mismatch directly.
 	comparison := f.comparison(t, ">", f.column, f.integerLiteral(t, 0))
-	node := insertConflictTruthTest(f, insertConflictNot(f, comparison), True, false)
+	node := insertConflictTruthTest(f, insertConflictNot(f, comparison), plan.True, false)
 	normalized, err := normalizeConflictPredicate(&ctx, node)
 	if err != nil {
 		t.Fatal(err)
 	}
 	integerInputs := [3]sqltype.Value{f.integerLiteral(t, -1).Value, f.integerLiteral(t, 1).Value, sqltype.Null(f.integer)}
-	want := [3]Truth{True, False, False}
+	want := [3]Truth{plan.True, plan.False, plan.False}
 	for i, input := range integerInputs {
 		ctx.Row = []sqltype.Value{input}
 		for _, expression := range [2]expr.Expr{node, normalized} {
@@ -110,7 +111,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 			if err != nil {
 				t.Fatal(i, err)
 			}
-			truth, err := TruthOf(value)
+			truth, err := plan.TruthOf(value)
 			if err != nil || truth != want[i] {
 				t.Fatal("negated comparison truth parent", i, truth, err, want[i])
 			}

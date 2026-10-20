@@ -90,7 +90,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 			t.Fatal("symbolic rendering", text, err)
 		}
 		other := jsonElementsUnitMarker(t, b, name, `[2]`)
-		root := &functionFromNode{Calls: []expr.Expr{original}, querySchema: querySchema{{Name: "value", Usage: b.typ(id).Usage()}}, Frame: 1}
+		root := &functionFromNode{Calls: []expr.Expr{original}, QuerySchema: querySchema{{Name: "value", Usage: b.typ(id).Usage()}}, Frame: 1}
 		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
@@ -149,7 +149,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)
 		}
-		node := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: marker.ResultUsage()}}, Child: &singletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
+		node := regexpSetUnitLayout(&setProjectNode{QuerySchema: querySchema{{Usage: marker.ResultUsage()}}, Child: &singletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
 		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)

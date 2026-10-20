@@ -61,10 +61,10 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		}
 	})
 	t.Run("protected_modifier_and_select", func(t *testing.T) {
-		provider := &BoundQuery{Root: &projectNode{querySchema: querySchema(src.Columns), Frame: 2, Child: &singletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}}
+		provider := &BoundQuery{Root: &projectNode{QuerySchema: querySchema(src.Columns), Frame: 2, Child: &singletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}}
 		selection := &cteDefinition{Query: provider, Owner: 1}
 		for _, protected := range []*cteDefinition{definition, selection} {
-			scan := &derivedNode{querySchema: querySchema(src.Columns), Query: protected.Query, CTE: protected, ScanFrame: 1}
+			scan := &derivedNode{QuerySchema: querySchema(src.Columns), Query: protected.Query, CTE: protected, ScanFrame: 1}
 			mapped, err := newRuleTreeMapper(auth.Catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*cteDefinition{protected}).query(scan)
 			if err != nil {
 				t.Fatal(err)
@@ -76,11 +76,11 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		}
 	})
 	t.Run("action_owner_and_project_memo", func(t *testing.T) {
-		leaf := &sourceNode{querySchema: querySchema(sink.Columns), Occurrence: 1}
-		provider := &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), Frame: 2, Child: leaf, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 11)}}}
+		leaf := &sourceNode{QuerySchema: querySchema(sink.Columns), Occurrence: 1}
+		provider := &BoundQuery{Root: &projectNode{QuerySchema: querySchema(sink.Columns), Frame: 2, Child: leaf, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 11)}}}
 		local := &cteDefinition{Query: provider, Owner: 1}
-		scan := &derivedNode{querySchema: querySchema(sink.Columns), Query: provider, CTE: local, ScanFrame: 1}
-		action := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*projectNode).Expressions, AnalysisExpressions: []expr.Expr{subqueryExpression{QueryPlan: provider, cteDefinition: true}}}}}
+		scan := &derivedNode{QuerySchema: querySchema(sink.Columns), Query: provider, CTE: local, ScanFrame: 1}
+		action := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{QuerySchema: querySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*projectNode).Expressions, AnalysisExpressions: []expr.Expr{subqueryExpression{QueryPlan: provider, CTEDefinition: true}}}}}
 		parent := original.binding
 		parent.ctes = []*cteDefinition{definition}
 		mapped, err := isolateRuleCTEFrames(auth.Catalog, parent, action, &parser.Insert{})
@@ -120,7 +120,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		oldColumn.Frame = 1
 		provider := &BoundQuery{Root: &projectNode{Expressions: []expr.Expr{newColumn, oldColumn}}}
 		local := &cteDefinition{Query: provider, Position: position}
-		body := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{AnalysisExpressions: []expr.Expr{subqueryExpression{Info: expr.Info{Pos: position}, QueryPlan: provider, cteDefinition: true}}}}}
+		body := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{AnalysisExpressions: []expr.Expr{subqueryExpression{Info: expr.Info{Pos: position}, QueryPlan: provider, CTEDefinition: true}}}}}
 		for _, action := range []parser.Statement{
 			&parser.Insert{With: []parser.CommonTableExpression{raw}},
 			&parser.Insert{Source: &parser.InsertSource{Select: &parser.Select{With: []parser.CommonTableExpression{raw}}}},
@@ -140,10 +140,10 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	})
 	t.Run("semantic_provider_memo_and_finalization", func(t *testing.T) {
 		pseudo := columnExpression{Info: ruleColumnInfo(src.Columns[0]), Scope: rulePseudoScope, Frame: 2}
-		provider := &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), Frame: 2, Child: &singletonNode{}, Expressions: []expr.Expr{pseudo, ruleUnitInt(sink, 10)}}}
+		provider := &BoundQuery{Root: &projectNode{QuerySchema: querySchema(sink.Columns), Frame: 2, Child: &singletonNode{}, Expressions: []expr.Expr{pseudo, ruleUnitInt(sink, 10)}}}
 		local := &cteDefinition{Query: provider, Owner: 1}
-		scan := &derivedNode{querySchema: querySchema(sink.Columns), CTE: local, Query: provider, ScanFrame: 1}
-		root := &projectNode{querySchema: querySchema(sink.Columns), Frame: 1, Child: scan, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)}, AnalysisExpressions: []expr.Expr{subqueryExpression{QueryPlan: provider, cteDefinition: true}}}
+		scan := &derivedNode{QuerySchema: querySchema(sink.Columns), CTE: local, Query: provider, ScanFrame: 1}
+		root := &projectNode{QuerySchema: querySchema(sink.Columns), Frame: 1, Child: scan, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)}, AnalysisExpressions: []expr.Expr{subqueryExpression{QueryPlan: provider, CTEDefinition: true}}}
 		finalized := make(map[LogicalNode]bool)
 		finishCount := 0
 		mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{
@@ -216,11 +216,11 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}
 	modifier.binding.insert.conflict = recipe
 	definition := &cteDefinition{Statement: modifier.syntax, Mutation: &modifier.binding, Schema: querySchema(sink.Columns), Owner: 3}
-	scan := &derivedNode{querySchema: definition.Schema, CTE: definition, ScanFrame: 1}
+	scan := &derivedNode{QuerySchema: definition.Schema, CTE: definition, ScanFrame: 1}
 	action := ruleUnitInsert(e, sink, 1, 10)
 	action.binding.expressions = nil
 	action.binding.query = &BoundQuery{Root: &projectNode{
-		querySchema: querySchema(sink.Columns), Frame: 1, Child: scan,
+		QuerySchema: querySchema(sink.Columns), Frame: 1, Child: scan,
 		Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)},
 	}}
 	action.binding.ctes = []*cteDefinition{definition}

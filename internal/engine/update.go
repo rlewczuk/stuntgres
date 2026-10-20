@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -191,8 +192,8 @@ func updateMatches(eval *EvalContext, predicate expr.Expr) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	truth, err := TruthOf(value)
-	return truth == True, err
+	truth, err := plan.TruthOf(value)
+	return truth == plan.True, err
 }
 
 // SQL waits never retain replacement admission or state/manager mutexes.

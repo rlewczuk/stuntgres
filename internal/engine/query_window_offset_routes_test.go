@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -47,8 +48,8 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	ordinal := literalExpression{Info: expr.Info{Usage: b.typ(sqltype.Int4).Usage()}, Value: offset}
 	tail := stringSplitLiteral(b, "tail")
 	retainedCalls := []windowCall{
-		{Operation: WindowLead, Argument: argument, Ordinal: ordinal, DefaultValue: marker},
-		{Operation: WindowLag, Argument: argument, Ordinal: ordinal, DefaultValue: tail},
+		{Operation: plan.WindowLead, Argument: argument, Ordinal: ordinal, DefaultValue: marker},
+		{Operation: plan.WindowLag, Argument: argument, Ordinal: ordinal, DefaultValue: tail},
 	}
 	retainedSpecs := []boundWindowSpec{{Partition: []expr.Expr{stringSplitLiteral(b, "partition")}, Order: []sortKey{{Expression: stringSplitLiteral(b, "order")}}}}
 	retainedCompanion := []expr.Expr{marker, peer}

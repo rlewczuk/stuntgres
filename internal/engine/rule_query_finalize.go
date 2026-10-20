@@ -46,7 +46,7 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 			retain(scan.CTE.Query.Root)
 		}
 	}, func(expr expr.Expr) {
-		if subquery, ok := expr.(subqueryExpression); ok && subquery.cteDefinition {
+		if subquery, ok := expr.(subqueryExpression); ok && subquery.CTEDefinition {
 			retain(subquery.QueryPlan.Root)
 		}
 	}, true)
@@ -205,7 +205,7 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 					if err != nil {
 						return nil, err
 					}
-					copy.querySchema = querySchema(copy.Child.Schema())
+					copy.QuerySchema = querySchema(copy.Child.Schema())
 					copy.FinishTies(copy.Child)
 					return &copy, nil
 				case *rowLockNode:
@@ -214,7 +214,7 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 					if err != nil {
 						return nil, err
 					}
-					copy.querySchema = querySchema(copy.Child.Schema())
+					copy.QuerySchema = querySchema(copy.Child.Schema())
 					return &copy, nil
 				case *setProjectNode:
 					copy := *n

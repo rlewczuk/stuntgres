@@ -371,7 +371,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := &projectNode{querySchema: querySchema{{Name: "record", Usage: call.Usage}}, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
+	project := &projectNode{QuerySchema: querySchema{{Name: "record", Usage: call.Usage}}, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
 	planned, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: engine.CatalogRead()}}, project)
 	if err != nil {
 		t.Fatal(err)

@@ -374,7 +374,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1}
 		}
 		b.query.hidden = append(b.query.hidden, queryQualifier{name: "unnamed_subquery", columns: columns})
-		return &derivedNode{querySchema: schema, Query: query, ScanFrame: b.frameID()}, queryNamespace{columns: columns, frame: schema}, nil
+		return &derivedNode{QuerySchema: schema, Query: query, ScanFrame: b.frameID()}, queryNamespace{columns: columns, frame: schema}, nil
 	case *parser.ValuesQuery:
 		query, err := b.bindValues(n, false)
 		if err != nil {
@@ -426,7 +426,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		namespace, _ := b.query.auth.definitionDescriptor(relation.Namespace())
 		q := queryQualifier{name: relation.Name(), original: relation.Name(), schema: namespace.Name(), ref: ref, columns: columns}
 		b.query.hidden = append(b.query.hidden, q)
-		return &sourceNode{querySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name()}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil
+		return &sourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name()}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil
 	case *parser.AliasReference:
 		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
 		if err != nil {
@@ -566,7 +566,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 			prefix = 0
 		}
-		join := &joinNode{querySchema: ns.frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.frame), RightWidth: len(rns.frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.frameID(), CorrelationPrefix: prefix, Captures: captures}
+		join := &joinNode{QuerySchema: ns.frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.frame), RightWidth: len(rns.frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.frameID(), CorrelationPrefix: prefix, Captures: captures}
 		old := b.query.namespace
 		b.query.namespace = &ns
 		defer func() { b.query.namespace = old }()
@@ -739,7 +739,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				}
 			}
 		}
-		join.querySchema = ns.frame
+		join.QuerySchema = ns.frame
 		return join, ns, nil
 	}
 	return nil, queryNamespace{}, fmt.Errorf("stuntgres: invalid FROM item")
@@ -1038,5 +1038,5 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	}
 	captures := b.functionCaptures(calls)
 	b.query.hidden = append(b.query.hidden, q)
-	return &functionFromNode{querySchema: schema, Calls: calls, Ordinality: ordinality, Frame: b.frameID(), Correlated: len(captures) != 0, Captures: captures, RegexpNamespace: true, ViewOrdinal: ordinal}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: schema}, nil
+	return &functionFromNode{QuerySchema: schema, Calls: calls, Ordinality: ordinality, Frame: b.frameID(), Correlated: len(captures) != 0, Captures: captures, RegexpNamespace: true, ViewOrdinal: ordinal}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: schema}, nil
 }

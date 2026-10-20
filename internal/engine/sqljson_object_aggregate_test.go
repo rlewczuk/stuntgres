@@ -57,7 +57,7 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage()}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: functions.AggregateJSONObjectStrict, IncludeNulls: true}}}
+		root := &aggregateNode{QuerySchema: querySchema{{Name: "v", Usage: result.Usage()}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: functions.AggregateJSONObjectStrict, IncludeNulls: true}}}
 		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next

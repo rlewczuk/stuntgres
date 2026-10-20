@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -30,7 +31,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 			calls := 0
 			producer := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: plan, Args: []expr.Expr{enumCapturedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
 			project := *query.Root.(*projectNode)
-			project.querySchema = []catalog.Column{{Name: "v", Usage: mood.Usage()}}
+			project.QuerySchema = []catalog.Column{{Name: "v", Usage: mood.Usage()}}
 			project.Expressions = []expr.Expr{producer}
 			bridge := &querySource{ref: input.ref, nestedRoot: &project, nestedInputs: input, materialized: true, flatWidth: 1}
 			if name == "semanticFalse" || name == "identityFalse" {
@@ -56,7 +57,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 				predicate = parameterExpression{Info: expr.Info{Usage: boolean.Usage()}, Number: 1}
 				state.parameters = []sqltype.Value{value}
 			}
-			node := &filterNode{querySchema: project.Schema(), Child: &sourceNode{querySchema: project.Schema(), Ref: input.ref}, Predicate: predicate}
+			node := &filterNode{QuerySchema: project.Schema(), Child: &sourceNode{QuerySchema: project.Schema(), Ref: input.ref}, Predicate: predicate}
 			stage, err := openQueryNode(context.Background(), state, node)
 			if err != nil {
 				t.Fatal(err)
@@ -132,11 +133,11 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 			})
 			expression := viewQualificationExpression{Info: expr.Info{Usage: boolean.Usage()}, Predicates: []expr.Expr{outer, inner}, User: user}
 			got, err := expression.Eval(c)
-			truth, truthErr := TruthOf(value)
+			truth, truthErr := plan.TruthOf(value)
 			if err != nil || truthErr != nil || !sqltype.SameDatum(got, value) {
 				t.Fatal("qualification lost original physical value", parameter, got, value, err)
 			}
-			if truth != True {
+			if truth != plan.True {
 				if len(order) != 0 {
 					t.Fatal("FALSE/NULL demanded qualification", parameter, order)
 				}
@@ -156,8 +157,8 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	})
 	expression := viewQualificationExpression{Info: expr.Info{Usage: boolean.Usage()}, Predicates: []expr.Expr{hidden}, User: user}
 	got, err := expression.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
-	truth, truthErr := TruthOf(got)
-	if err != nil || truthErr != nil || truth != False || len(order) != 1 || order[0] != "hidden" {
+	truth, truthErr := plan.TruthOf(got)
+	if err != nil || truthErr != nil || truth != plan.False || len(order) != 1 || order[0] != "hidden" {
 		t.Fatal("arbitrary user work ran ahead of hidden-row qualification", order, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

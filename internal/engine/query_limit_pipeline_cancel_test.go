@@ -14,8 +14,8 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		calls := 0
-		join := &joinNode{querySchema: project.Child.Schema(), Left: project.Child, Right: &sourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
-		project.Child = &limitNode{querySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
+		join := &joinNode{QuerySchema: project.Child.Schema(), Left: project.Child, Right: &sourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
+		project.Child = &limitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
 		inputs := &querySource{sources: []*querySource{source, {anonymous: [][]sqltype.Value{{}}}}}
 		rows, n, err := finalizeQuery(ctx, project, inputs, nil)
 		if rows != nil || n != 0 || err != context.Canceled || calls != 1 || source.view != nil {
@@ -43,7 +43,7 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 				}
 				return value, nil
 			})
-			project.Child = &limitNode{querySchema: sort.Schema(), Child: sort, Count: queryLimitBound(t, e, 1)}
+			project.Child = &limitNode{QuerySchema: sort.Schema(), Child: sort, Count: queryLimitBound(t, e, 1)}
 			// Cancel sorting NULL/tie keys without pinning an incidental
 			// expression invocation count. No prefix may be published.
 			rows, n, err := finalizeQuery(ctx, project, source, nil)

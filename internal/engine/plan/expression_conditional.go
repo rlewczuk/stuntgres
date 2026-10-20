@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type caseBranch struct {
+type CaseBranch struct {
 	Condition, Result expr.Expr
 	// Simple CASE compares a coerced view of its one saved test value.
 	TestPlan  sqltype.CoercionPlan
@@ -17,14 +17,14 @@ type caseBranch struct {
 	Routine   *catalog.Procedure // Selected equality declaration, never captured permission.
 }
 
-type caseExpression struct {
+type CaseExpr struct {
 	expr.Info
 	Test      expr.Expr
-	Arms      []caseBranch
+	Arms      []CaseBranch
 	Otherwise expr.Expr
 }
 
-func (e caseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e CaseExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -70,7 +70,7 @@ func (e caseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.Otherwise.Eval(ctx)
 }
 
-type conditionalExpression struct {
+type ConditionalExpr struct {
 	expr.Info
 	Kind            parser.ConditionalKind
 	MissingOrdering bool
@@ -78,7 +78,7 @@ type conditionalExpression struct {
 	Comparison      sqltype.Comparison
 }
 
-func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e ConditionalExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -143,7 +143,7 @@ func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 // Missing ordering is an executable initialization failure, not an equality
 // provider or an analysis error: prepared result descriptions remain available.
-func (e conditionalExpression) ExtremaError() error {
+func (e ConditionalExpr) ExtremaError() error {
 	if !e.MissingOrdering {
 		return nil
 	}
@@ -155,8 +155,8 @@ func (e conditionalExpression) ExtremaError() error {
 
 // A physical non-NULL BOOL left operand decides AND/OR without its right
 // operand. Coercion preflight and planning demand share this literal policy.
-func DecisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
-	literal, ok := e.Left.(literalExpression)
+func DecisiveLogicalValue(e *LogicalExpr) (sqltype.Value, bool, error) {
+	literal, ok := e.Left.(LiteralExpr)
 	if !ok || literal.Value.Type() == nil || !literal.Value.Type().Concrete() ||
 		literal.Value.Type().ID() != sqltype.Bool || literal.Value.IsNull() {
 		return sqltype.Value{}, false, nil
@@ -171,7 +171,7 @@ func DecisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
 	return sqltype.Value{}, false, nil
 }
 
-type logicalExpression struct {
+type LogicalExpr struct {
 	expr.Info
 	Op          parser.LogicalOperator
 	Left, Right expr.Expr
@@ -180,7 +180,7 @@ type logicalExpression struct {
 	QueryRight bool
 }
 
-func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e LogicalExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}

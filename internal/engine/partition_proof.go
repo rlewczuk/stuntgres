@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -254,8 +255,8 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		return false, nil
 	}
 	if e, ok := node.(literalExpression); ok && e.Value.Type().ID() == sqltype.Bool {
-		truth, err := TruthOf(e.Value)
-		return truth == False, err
+		truth, err := plan.TruthOf(e.Value)
+		return truth == plan.False, err
 	}
 	if e, ok := node.(nullTestExpression); ok {
 		for _, key := range p.keys {

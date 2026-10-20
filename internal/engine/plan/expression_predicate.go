@@ -1,11 +1,11 @@
-package engine
+package plan
 
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type bitwiseExpression struct {
+type BitwiseExpr struct {
 	expr.Info
 	Left, Right expr.Expr
 	Provider    sqltype.Bitwise
@@ -15,7 +15,7 @@ type bitwiseExpression struct {
 	Namespace   string
 }
 
-func (e bitwiseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e BitwiseExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -42,14 +42,14 @@ func (e bitwiseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.Provider.Binary(ctx.FunctionContext(), a, b)
 }
 
-type likeExpression struct {
+type LikeExpr struct {
 	expr.Info
 	Left, Right         expr.Expr
 	Provider            sqltype.LikePlan
 	Operator, Namespace string
 }
 
-func (e likeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e LikeExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -61,7 +61,7 @@ func (e likeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.Provider.Evaluate(ctx.FunctionContext(), a, b)
 }
 
-type nullTestExpression struct {
+type NullTestExpr struct {
 	expr.Info
 	Child expr.Expr
 	Not   bool
@@ -69,7 +69,7 @@ type nullTestExpression struct {
 	Whole bool
 }
 
-func (e nullTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e NullTestExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	v, err := e.Child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -90,14 +90,14 @@ func (e nullTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return sqltype.Boolean(e.Usage.Type, result), nil
 }
 
-type truthTestExpression struct {
+type TruthTestExpr struct {
 	expr.Info
 	Child expr.Expr
 	Truth Truth
 	Not   bool
 }
 
-func (e truthTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e TruthTestExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	v, err := e.Child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -113,14 +113,14 @@ func (e truthTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return sqltype.Boolean(e.Usage.Type, result), nil
 }
 
-type distinctExpression struct {
+type DistinctExpr struct {
 	expr.Info
 	Left, Right expr.Expr
 	Equality    sqltype.ComparisonPredicate
 	Not         bool
 }
 
-func (e distinctExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e DistinctExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -149,36 +149,36 @@ func (e distinctExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 // Row predicates retain scalar pair providers, never a fabricated record datum.
 // The lexical evaluator is shared with existing row/subquery predicates.
-type rowComparisonExpression struct {
+type RowComparisonExpr struct {
 	expr.Info
-	Comparisons []comparisonExpression
+	Comparisons []ComparisonExpr
 	Ordering    []sqltype.Comparison
 	Operator    string
 	// Analysis-only associations retain original expanded source occurrences.
-	Expansions [2]map[int]compositeExpansionBinding
+	Expansions [2]map[int]CompositeExpansionBinding
 	// Frozen erased constructor casts retain their analyzed member usages.
 	MemberCasts [2]bool
 }
 
-func (e rowComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e RowComparisonExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	return e.compare(ctx, nil)
 }
 
-func (e rowComparisonExpression) Distinct() bool {
+func (e RowComparisonExpr) Distinct() bool {
 	return e.Operator == "IS DISTINCT FROM" || e.Operator == "IS NOT DISTINCT FROM"
 }
 
-func (e subqueryExpression) Compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
-	pairs := rowComparisonExpression{Info: e.Info, Comparisons: e.Comparisons, Ordering: e.Ordering, Operator: e.Operator}
+func (e SubqueryExpr) Compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
+	pairs := RowComparisonExpr{Info: e.Info, Comparisons: e.Comparisons, Ordering: e.Ordering, Operator: e.Operator}
 	return pairs.compare(ctx, left)
 }
 
 // A saved subquery tuple supplies left values. Local rows pass nil so each
 // reached pair evaluates left then right before deciding whether to continue.
-func (e rowComparisonExpression) compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
+func (e RowComparisonExpr) compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
 	unknown := false
 	for i, comparison := range e.Comparisons {
 		var valueLeft sqltype.Value

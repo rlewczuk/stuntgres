@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -10,31 +10,31 @@ import (
 
 // Array target plans retain only analysis state. Every bound and RHS is evaluated
 // against the original execution frame, while writes compose into a private row.
-type arrayAssignmentTarget struct {
-	Node        subscriptExpression
+type ArrayAssignmentTarget struct {
+	Node        SubscriptExpr
 	Container   sqltype.Usage
 	Destination sqltype.Usage
 	Reapply     sqltype.CoercionPlan
 	Name        string
 	Pos         parser.Position
 	Attribute   int32
-	Next        *arrayAssignmentTarget
+	Next        *ArrayAssignmentTarget
 }
 
-func (t *arrayAssignmentTarget) Column(original catalog.Column) catalog.Column {
+func (t *ArrayAssignmentTarget) Column(original catalog.Column) catalog.Column {
 	original.Usage = t.Destination
 	return original
 }
 
-func (t *arrayAssignmentTarget) Apply(ctx expr.Context, current, rhs sqltype.Value) (sqltype.Value, error) {
+func (t *ArrayAssignmentTarget) Apply(ctx expr.Context, current, rhs sqltype.Value) (sqltype.Value, error) {
 	return t.applyPath(ctx, current, nil, rhs)
 }
 
-func (t *arrayAssignmentTarget) ApplyExpression(ctx expr.Context, current sqltype.Value, rhs expr.Expr) (sqltype.Value, error) {
+func (t *ArrayAssignmentTarget) ApplyExpression(ctx expr.Context, current sqltype.Value, rhs expr.Expr) (sqltype.Value, error) {
 	return t.applyPath(ctx, current, rhs, sqltype.Value{})
 }
 
-func (t *arrayAssignmentTarget) applyPath(ctx expr.Context, current sqltype.Value, expression expr.Expr, rhs sqltype.Value) (sqltype.Value, error) {
+func (t *ArrayAssignmentTarget) applyPath(ctx expr.Context, current sqltype.Value, expression expr.Expr, rhs sqltype.Value) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -77,7 +77,7 @@ func (t *arrayAssignmentTarget) applyPath(ctx expr.Context, current sqltype.Valu
 	return t.applyBounds(ctx, current, rhs, bounds)
 }
 
-func (t *arrayAssignmentTarget) applyBounds(ctx expr.Context, current, rhs sqltype.Value, bounds []sqltype.ArraySubscriptValue) (sqltype.Value, error) {
+func (t *ArrayAssignmentTarget) applyBounds(ctx expr.Context, current, rhs sqltype.Value, bounds []sqltype.ArraySubscriptValue) (sqltype.Value, error) {
 	var result sqltype.Value
 	var err error
 	if t.Attribute != 0 {
@@ -113,7 +113,7 @@ func (t *arrayAssignmentTarget) applyBounds(ctx expr.Context, current, rhs sqlty
 
 // Scalar lists scan their typed children directly; array inputs scan the owner's
 // immutable flat payload. Neither route constructs an array per input row.
-type scalarArrayComparisonExpression struct {
+type ScalarArrayComparisonExpr struct {
 	expr.Info
 	Left, Array         expr.Expr
 	Items               []expr.Expr
@@ -122,7 +122,7 @@ type scalarArrayComparisonExpression struct {
 	All                 bool
 }
 
-func (n scalarArrayComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n ScalarArrayComparisonExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -190,7 +190,7 @@ func (n scalarArrayComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, 
 	return sqltype.Boolean(n.Usage.Type, n.All), nil
 }
 
-func (n scalarArrayComparisonExpression) ElementType() *sqltype.Descriptor {
+func (n ScalarArrayComparisonExpr) ElementType() *sqltype.Descriptor {
 	if n.Array != nil {
 		return n.Array.ResultUsage().Type.BaseType().Element()
 	}
@@ -199,13 +199,13 @@ func (n scalarArrayComparisonExpression) ElementType() *sqltype.Descriptor {
 
 // Constructors retain scalar children and their stored dependencies rather than
 // replacing the expression with opaque array input text.
-type arrayExpression struct {
+type ArrayExpr struct {
 	expr.Info
 	Elements         []expr.Expr
 	Multidimensional bool
 }
 
-func (n arrayExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n ArrayExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -223,19 +223,19 @@ func (n arrayExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return sqltype.ConstructArray(ctx.FunctionContext(), n.Usage.Type, values, n.Multidimensional)
 }
 
-type boundArraySubscript struct {
+type BoundArraySubscript struct {
 	Lower, Upper expr.Expr
 	Slice        bool
 }
 
-type subscriptExpression struct {
+type SubscriptExpr struct {
 	expr.Info
 	Base       expr.Expr
-	Subscripts []boundArraySubscript
+	Subscripts []BoundArraySubscript
 	Slice      bool
 }
 
-func (n subscriptExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n SubscriptExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -259,7 +259,7 @@ func (n subscriptExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 // Executor ordering is upper bounds in dimension order, then lower bounds.
 // Analysis and diagnostic positions still follow lexical occurrences.
-func evaluateArrayBounds(ctx expr.Context, subs []boundArraySubscript, slice bool, bounds []sqltype.ArraySubscriptValue) ([]sqltype.ArraySubscriptValue, error) {
+func evaluateArrayBounds(ctx expr.Context, subs []BoundArraySubscript, slice bool, bounds []sqltype.ArraySubscriptValue) ([]sqltype.ArraySubscriptValue, error) {
 	for i, s := range subs {
 		bounds[i] = sqltype.ArraySubscriptValue{}
 		if slice && !s.Slice {

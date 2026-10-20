@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -701,11 +702,11 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		var truth string
 		switch n.Truth {
-		case True:
+		case plan.True:
 			truth = "TRUE"
-		case False:
+		case plan.False:
 			truth = "FALSE"
-		case Unknown:
+		case plan.Unknown:
 			truth = "UNKNOWN"
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default truth value")

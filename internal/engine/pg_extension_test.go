@@ -105,7 +105,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if old.ref != ref || old.anonymous == nil || old.count() != 0 || !maps.Equal(before, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("empty immutable capture", old)
 	}
-	root := &projectNode{querySchema: querySchema(d.Columns), Child: &sourceNode{querySchema: querySchema(d.Columns), Ref: ref}}
+	root := &projectNode{QuerySchema: querySchema(d.Columns), Child: &sourceNode{QuerySchema: querySchema(d.Columns), Ref: ref}}
 	for i, c := range d.Columns {
 		root.Expressions = append(root.Expressions, columnExpression{Info: expr.Info{Usage: c.Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: i})
 	}

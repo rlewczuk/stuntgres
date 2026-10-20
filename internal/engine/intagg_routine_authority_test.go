@@ -221,7 +221,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("graft ancestry lost or mutated source")
 				}
 				if tc.name == "enum_parameter" {
-					if _, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil); err == nil || !strings.Contains(err.Error(), "unpersistable scalar expression engine.parameterExpression") {
+					if _, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil); err == nil || !strings.Contains(err.Error(), "unpersistable scalar expression plan.ParameterExpr") {
 						t.Fatal("parameter persistence boundary changed", err)
 					}
 					rewritten, _, err := mapBoundExpression(evaluation.catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, nil)

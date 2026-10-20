@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -56,8 +57,8 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 			t.Fatal("predicate retained stale collation", input, conflict)
 		}
 		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
-		truth, truthErr := TruthOf(value)
-		if err != nil || truthErr != nil || truth != True {
+		truth, truthErr := plan.TruthOf(value)
+		if err != nil || truthErr != nil || truth != plan.True {
 			t.Fatal(truth, err, truthErr)
 		}
 		if _, err := defaultSQL(context.Background(), view, node); err != nil {

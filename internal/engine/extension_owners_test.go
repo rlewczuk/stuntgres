@@ -220,7 +220,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		}
 	}
 	project := &projectNode{
-		querySchema: querySchema{{Name: "hmac", Usage: call.ResultUsage()}},
+		QuerySchema: querySchema{{Name: "hmac", Usage: call.ResultUsage()}},
 		Child:       &valuesNode{}, Expressions: []expr.Expr{call},
 	}
 	ref := func(ref ids.ObjectRef) ids.ObjectRef {
@@ -248,7 +248,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal(name, err)
 		}
 		original := node.(installedCryptoFunctionExpression)
-		project := &projectNode{querySchema: querySchema{{Name: "value", Usage: original.ResultUsage()}}, Child: &valuesNode{}, Expressions: []expr.Expr{original}}
+		project := &projectNode{QuerySchema: querySchema{{Name: "value", Usage: original.ResultUsage()}}, Child: &valuesNode{}, Expressions: []expr.Expr{original}}
 		query, err := remapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 		if err != nil {
 			t.Fatal(name, err)

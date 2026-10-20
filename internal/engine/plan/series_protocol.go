@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e seriesExpression) Children() []expr.Expr { return e.Args }
+func (e SeriesExpr) Children() []expr.Expr { return e.Args }
 
-func (e seriesExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (e SeriesExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	next, err := e.Substitute(info, children)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func (e seriesExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Ex
 	return next, nil
 }
 
-func (e seriesExpression) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (e SeriesExpr) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if len(children) != len(e.Args) {
 		return nil, fmt.Errorf("stuntgres: invalid generate_series arguments")
 	}
@@ -42,12 +42,12 @@ func (e seriesExpression) Substitute(info expr.Info, children []expr.Expr) (expr
 	return e, nil
 }
 
-func (e seriesExpression) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e seriesExpression) PlanningFold() expr.Fold              { return expr.FoldNever }
-func (e seriesExpression) PreflightFold() expr.Preflight        { return expr.PreflightChildren }
+func (e SeriesExpr) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e SeriesExpr) PlanningFold() expr.Fold              { return expr.FoldNever }
+func (e SeriesExpr) PreflightFold() expr.Preflight        { return expr.PreflightChildren }
 
-func (e seriesExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
-	o, ok := other.(seriesExpression)
+func (e SeriesExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
+	o, ok := other.(SeriesExpr)
 	if !ok || e.Usage != o.Usage || len(e.Args) != len(o.Args) {
 		return false
 	}
@@ -59,7 +59,7 @@ func (e seriesExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.E
 	return true
 }
 
-func (e seriesExpression) Render() (expr.Rendering, error) {
+func (e SeriesExpr) Render() (expr.Rendering, error) {
 	tree, name := "Series generate_series", "generate_series"
 	args := make([]expr.RenderArg, len(e.Args))
 	for i, arg := range e.Args {

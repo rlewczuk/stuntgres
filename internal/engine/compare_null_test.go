@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,8 +30,8 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 			node := nullTestExpression{boolInfo, child, not, false}
 			got, err := node.Eval(evalContext)
 			want := v.IsNull() != not
-			truth, truthErr := TruthOf(got)
-			if err != nil || truthErr != nil || got.Type() != boolType || got.IsNull() || (truth == True) != want {
+			truth, truthErr := plan.TruthOf(got)
+			if err != nil || truthErr != nil || got.Type() != boolType || got.IsNull() || (truth == plan.True) != want {
 				t.Fatal(got, want, err, truthErr)
 			}
 		}
@@ -38,11 +39,11 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	matrix := [][]bool{{true, false, false, true, false, true}, {false, true, true, false, false, true}, {false, true, false, true, true, false}}
 	for i, v := range []sqltype.Value{sqltype.Boolean(boolType, true), sqltype.Boolean(boolType, false), sqltype.Null(boolType)} {
 		child := literalExpression{boolInfo, v}
-		for j, truth := range []Truth{True, True, False, False, Unknown, Unknown} {
+		for j, truth := range []Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown} {
 			node := truthTestExpression{boolInfo, child, truth, j%2 == 1}
 			got, err := node.Eval(evalContext)
-			actual, truthErr := TruthOf(got)
-			if err != nil || truthErr != nil || got.IsNull() || (actual == True) != matrix[i][j] {
+			actual, truthErr := plan.TruthOf(got)
+			if err != nil || truthErr != nil || got.IsNull() || (actual == plan.True) != matrix[i][j] {
 				t.Fatal(i, j, got, err, truthErr)
 			}
 		}
@@ -60,8 +61,8 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 			for _, not := range []bool{false, true} {
 				node := distinctExpression{boolInfo, left, right, equality, not}
 				got, err := node.Eval(evalContext)
-				truth, truthErr := TruthOf(got)
-				if err != nil || truthErr != nil || got.IsNull() || (truth == True) != ((i != j) != not) {
+				truth, truthErr := plan.TruthOf(got)
+				if err != nil || truthErr != nil || got.IsNull() || (truth == plan.True) != ((i != j) != not) {
 					t.Fatal(i, j, not, got, err, truthErr)
 				}
 			}
@@ -73,7 +74,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	column := columnExpression{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: 0}
 	parameter := parameterExpression{b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), 1}
-	nodes := []expr.Expr{nullTestExpression{boolInfo, column, false, false}, truthTestExpression{boolInfo, column, True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
+	nodes := []expr.Expr{nullTestExpression{boolInfo, column, false, false}, truthTestExpression{boolInfo, column, plan.True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
 	invalid := []*EvalContext{nil, {evalStatement: evalStatement{Context: evalContext.Context}, evalFrame: evalFrame{Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}}}}
 	for _, node := range nodes {
 		for _, frame := range invalid {
@@ -258,8 +259,8 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 	boolType := b.typ(sqltype.Bool)
 	for i, value := range []sqltype.Value{sqltype.Boolean(boolType, true), sqltype.Boolean(boolType, false), sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
 		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{value}}})
-		truth, truthErr := TruthOf(got)
-		if err != nil || truthErr != nil || got.IsNull() || (truth == True) != (i == 0 || i == 3) {
+		truth, truthErr := plan.TruthOf(got)
+		if err != nil || truthErr != nil || got.IsNull() || (truth == plan.True) != (i == 0 || i == 3) {
 			t.Fatal("immutable node leaked frame", got, err, truthErr)
 		}
 	}

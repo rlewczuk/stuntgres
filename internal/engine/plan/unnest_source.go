@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"context"
@@ -8,14 +8,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e unnestExpression) SourceAdmission() (bool, bool) { return true, true }
+func (e UnnestExpr) SourceAdmission() (bool, bool) { return true, true }
 
-func (e unnestExpression) SameSourceOccurrence(other expr.Expr) bool {
-	o, ok := other.(unnestExpression)
+func (e UnnestExpr) SameSourceOccurrence(other expr.Expr) bool {
+	o, ok := other.(UnnestExpr)
 	return ok && SameIntaggIdentity(e.Procedure, e.Ref, o.Procedure, o.Ref) && e.ResultUsage() == o.ResultUsage()
 }
 
-func (e unnestExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
+func (e UnnestExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}

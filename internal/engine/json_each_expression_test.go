@@ -90,7 +90,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("symbolic rendering", text, err)
 		}
 		other := jsonEachUnitMarker(t, b, name, `{"x":2}`)
-		root := &functionFromNode{Calls: []expr.Expr{original}, querySchema: querySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, Frame: 1}
+		root := &functionFromNode{Calls: []expr.Expr{original}, QuerySchema: querySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, Frame: 1}
 		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
@@ -107,7 +107,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal(err)
 		}
 		broken := *root
-		broken.querySchema = querySchema{{Usage: b.typ(sqltype.Text).Usage()}, {Usage: b.typ(sqltype.Int4).Usage()}}
+		broken.QuerySchema = querySchema{{Usage: b.typ(sqltype.Text).Usage()}, {Usage: b.typ(sqltype.Int4).Usage()}}
 		if err := validateFunctionFromLayout(&broken); err == nil {
 			t.Fatal("invalid leaf span accepted")
 		}
@@ -152,7 +152,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal("exhausted source", present, err)
 		}
 		// The real target stage stores one record slot instead of FROM fields.
-		node := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: marker.ResultUsage()}}, Child: &singletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
+		node := regexpSetUnitLayout(&setProjectNode{QuerySchema: querySchema{{Usage: marker.ResultUsage()}}, Child: &singletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
 		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)

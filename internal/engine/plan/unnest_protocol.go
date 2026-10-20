@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -6,9 +6,9 @@ import (
 	"stuntgres/internal/engine/expr"
 )
 
-func (e unnestExpression) Children() []expr.Expr { return e.Args }
+func (e UnnestExpr) Children() []expr.Expr { return e.Args }
 
-func (e unnestExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (e UnnestExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	next, err := e.Substitute(info, children)
 	if err != nil {
 		return nil, err
@@ -23,7 +23,7 @@ func (e unnestExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Ex
 	return next, nil
 }
 
-func (e unnestExpression) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (e UnnestExpr) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if len(children) != len(e.Args) {
 		return nil, fmt.Errorf("stuntgres: invalid unnest arguments")
 	}
@@ -36,12 +36,12 @@ func (e unnestExpression) Substitute(info expr.Info, children []expr.Expr) (expr
 	return e, nil
 }
 
-func (e unnestExpression) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e unnestExpression) PlanningFold() expr.Fold              { return expr.FoldNever }
-func (e unnestExpression) PreflightFold() expr.Preflight        { return expr.PreflightChildren }
+func (e UnnestExpr) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e UnnestExpr) PlanningFold() expr.Fold              { return expr.FoldNever }
+func (e UnnestExpr) PreflightFold() expr.Preflight        { return expr.PreflightChildren }
 
-func (e unnestExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
-	o, ok := other.(unnestExpression)
+func (e UnnestExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
+	o, ok := other.(UnnestExpr)
 	if !ok || e.Usage != o.Usage || len(e.Args) != len(o.Args) {
 		return false
 	}
@@ -56,7 +56,7 @@ func (e unnestExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.E
 	return true
 }
 
-func (e unnestExpression) Render() (expr.Rendering, error) {
+func (e UnnestExpr) Render() (expr.Rendering, error) {
 	tree, name := "Unnest", "unnest"
 	if e.Procedure != nil {
 		tree, name = "Intagg "+e.Procedure.Name(), e.Procedure.Name()

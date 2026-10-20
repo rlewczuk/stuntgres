@@ -99,7 +99,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			}
 			if definition.Query != nil {
 				project := *definition.Query.Root.(*projectNode)
-				project.querySchema = aliased
+				project.QuerySchema = aliased
 				definition.Query.Root = &project
 			} else {
 				definition.Schema = aliased
@@ -129,7 +129,7 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 	var root LogicalNode
 	if d.Recursive && d.Query == nil {
 		self := &worktableScanNode{}
-		scan, root = &self.derivedNode, self
+		scan, root = &self.DerivedNode, self
 		if b.cte.recursiveFrames == nil {
 			b.cte.recursiveFrames = make(map[uint32]bool)
 		}
@@ -138,7 +138,7 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 		scan = &derivedNode{}
 		root = scan
 	}
-	*scan = derivedNode{querySchema: schema, Query: d.Query, CTE: d, Table: table, Ordinal: -1 - b.cte.scanOrdinal, ScanFrame: b.frameID(), Demand: make([]bool, len(schema))}
+	*scan = derivedNode{QuerySchema: schema, Query: d.Query, CTE: d, Table: table, Ordinal: -1 - b.cte.scanOrdinal, ScanFrame: b.frameID(), Demand: make([]bool, len(schema))}
 	b.cte.scanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
@@ -165,7 +165,7 @@ func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(ex
 		if bound == nil {
 			return
 		}
-		if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition && !includeDefinitions {
+		if edge, ok := bound.(subqueryExpression); ok && edge.CTEDefinition && !includeDefinitions {
 			return
 		}
 		expression(bound)

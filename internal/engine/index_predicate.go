@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -143,11 +144,11 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	// Match the analyzed catalog shape, not the execution tree after folding.
 	// PostgreSQL removes only a standalone nonnull Boolean TRUE predicate.
 	if literal, ok := definition.(literalExpression); ok && literal.Usage.Type.ID() == sqltype.Bool && !literal.Value.IsNull() {
-		truth, err := TruthOf(literal.Value)
+		truth, err := plan.TruthOf(literal.Value)
 		if err != nil {
 			return nil, err
 		}
-		if truth == True {
+		if truth == plan.True {
 			return nil, nil
 		}
 	}
@@ -183,8 +184,8 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, pa
 	if err != nil {
 		return false, err
 	}
-	truth, err := TruthOf(value)
-	return truth == True, err
+	truth, err := plan.TruthOf(value)
+	return truth == plan.True, err
 }
 
 func newLogicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntry) *storage.IndexRoot {

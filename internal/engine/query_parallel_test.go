@@ -334,7 +334,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 			t.Fatal("inherited rowmark admitted", mode)
 		}
 		locked := *project
-		locked.Child = &rowLockNode{querySchema: project.Child.Schema(), Child: project.Child, Marks: []queryRowMark{{Mode: mode}}, FirstMode: mode}
+		locked.Child = &rowLockNode{QuerySchema: project.Child.Schema(), Child: project.Child, Marks: []queryRowMark{{Mode: mode}}, FirstMode: mode}
 		if _, _, ok := parallelQueryPlan(&locked, source); ok {
 			t.Fatal("nested rowmark admitted", mode)
 		}

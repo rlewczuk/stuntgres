@@ -42,7 +42,7 @@ func TestGeneratedVirtualExecutableNestedDemand(t *testing.T) {
 	if !boundHasVirtualReads(caseExpression{Info: expr.Info{Usage: typ.Usage()}, Otherwise: edge}) {
 		t.Fatal("executable scalar query demand was not found")
 	}
-	edge.cteDefinition = true
+	edge.CTEDefinition = true
 	if boundHasVirtualReads(edge) || queryHasVirtualReads(&projectNode{AnalysisExpressions: []expr.Expr{edge}}) {
 		t.Fatal("unused WITH definition acquired runtime demand")
 	}
@@ -97,7 +97,7 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 		}
 		joined := &querySource{materialized: true, flatWidth: 2, flatCount: 1, anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, occurrence: 4, occurrences: []int{4}, provenance: []int{index}}
 		state := &queryState{source: joined, virtualReads: true}
-		node := &evaluationNode{querySchema: d.Columns, Child: &sourceNode{querySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{caseExpression{Info: expr.Info{Usage: typ.Usage()}, Otherwise: column}}}
+		node := &evaluationNode{QuerySchema: d.Columns, Child: &sourceNode{QuerySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{caseExpression{Info: expr.Info{Usage: typ.Usage()}, Otherwise: column}}}
 		stage, err := openEvaluationNode(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
@@ -128,7 +128,7 @@ func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 		probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
 		column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 1, RowWidth: 2, QueryOccurrence: 1, Virtual: probe}
 		schema := querySchema{d.Columns[1]}
-		project := &projectNode{querySchema: schema, Frame: 1, Child: &sourceNode{querySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{column}}
+		project := &projectNode{QuerySchema: schema, Frame: 1, Child: &sourceNode{QuerySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{column}}
 		view := &querySource{materialized: true, flatWidth: 1, nestedRoot: project, nestedInputs: input}
 		state := &queryState{source: view}
 		stage, err := openSourceStage(context.Background(), state, view, schema)

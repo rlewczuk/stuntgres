@@ -58,7 +58,7 @@ func (c *EvalContext) EvalReturningColumn(e returningColumnExpression) (sqltype.
 	if e.Absent || !e.Merge && e.Old && parent.OldRow == nil {
 		return sqltype.Null(e.Usage.Type), nil
 	}
-	value := expr.Expr(e.columnExpression)
+	value := expr.Expr(e.ColumnExpr)
 	if e.Value != nil {
 		value = e.Value
 	}
@@ -286,13 +286,13 @@ func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newV
 		if newValues {
 			side = mergeNewSide
 		}
-		return returningColumnExpression{columnExpression: column, Old: !newValues, Merge: true, Side: side}
+		return returningColumnExpression{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}
 	if !newValues && b.target.returningAliases.mode != returningDelete {
-		return returningColumnExpression{columnExpression: column, Old: true}
+		return returningColumnExpression{ColumnExpr: column, Old: true}
 	}
 	if newValues && b.target.returningAliases.mode == returningDelete {
-		return returningColumnExpression{columnExpression: column, Absent: true}
+		return returningColumnExpression{ColumnExpr: column, Absent: true}
 	}
 	return column
 }
@@ -435,13 +435,13 @@ func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot
 		if newValues {
 			side = mergeNewSide
 		}
-		return returningColumnExpression{columnExpression: column, Old: !newValues, Merge: true, Side: side}
+		return returningColumnExpression{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}
 	if !newValues && scope.returning.mode != returningDelete {
-		return returningColumnExpression{columnExpression: column, Old: true}
+		return returningColumnExpression{ColumnExpr: column, Old: true}
 	}
 	if newValues && scope.returning.mode == returningDelete {
-		return returningColumnExpression{columnExpression: column, Absent: true}
+		return returningColumnExpression{ColumnExpr: column, Absent: true}
 	}
 	return column
 }

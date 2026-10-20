@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,16 +28,16 @@ func TestArrayCompareReduction(t *testing.T) {
 		null  bool
 		want  []Truth
 	}{
-		{"{}", false, []Truth{False, True, False, True}},
-		{"", true, []Truth{Unknown, Unknown, Unknown, Unknown}},
-		{"{NULL}", false, []Truth{Unknown, Unknown, Unknown, Unknown}},
-		{"{1,NULL}", false, []Truth{True, Unknown, Unknown, False}},
-		{"{NULL,1}", false, []Truth{True, Unknown, Unknown, False}},
-		{"{2,NULL}", false, []Truth{Unknown, False, True, Unknown}},
-		{"{NULL,2}", false, []Truth{Unknown, False, True, Unknown}},
-		{"{1,1}", false, []Truth{True, True, False, False}},
-		{"{1,2}", false, []Truth{True, False, True, False}},
-		{"[-1:0][3:4]={{1,NULL},{2,3}}", false, []Truth{True, False, True, False}},
+		{"{}", false, []Truth{plan.False, plan.True, plan.False, plan.True}},
+		{"", true, []Truth{plan.Unknown, plan.Unknown, plan.Unknown, plan.Unknown}},
+		{"{NULL}", false, []Truth{plan.Unknown, plan.Unknown, plan.Unknown, plan.Unknown}},
+		{"{1,NULL}", false, []Truth{plan.True, plan.Unknown, plan.Unknown, plan.False}},
+		{"{NULL,1}", false, []Truth{plan.True, plan.Unknown, plan.Unknown, plan.False}},
+		{"{2,NULL}", false, []Truth{plan.Unknown, plan.False, plan.True, plan.Unknown}},
+		{"{NULL,2}", false, []Truth{plan.Unknown, plan.False, plan.True, plan.Unknown}},
+		{"{1,1}", false, []Truth{plan.True, plan.True, plan.False, plan.False}},
+		{"{1,2}", false, []Truth{plan.True, plan.False, plan.True, plan.False}},
+		{"[-1:0][3:4]={{1,NULL},{2,3}}", false, []Truth{plan.True, plan.False, plan.True, plan.False}},
 	} {
 		array := sqltype.Null(arrayType)
 		if !tc.null {
@@ -57,7 +58,7 @@ func TestArrayCompareReduction(t *testing.T) {
 			if err != nil {
 				t.Fatal(tc.input, err)
 			}
-			truth, err := TruthOf(value)
+			truth, err := plan.TruthOf(value)
 			if err != nil || truth != tc.want[i] {
 				t.Fatal(tc.input, name, node.All, truth, tc.want[i], err)
 			}
@@ -66,12 +67,12 @@ func TestArrayCompareReduction(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			truth, err = TruthOf(value)
-			want := Unknown
+			truth, err = plan.TruthOf(value)
+			want := plan.Unknown
 			if !tc.null && array.ArrayLen() == 0 {
-				want = False
+				want = plan.False
 				if node.All {
-					want = True
+					want = plan.True
 				}
 			}
 			if err != nil || truth != want {
@@ -93,8 +94,8 @@ func TestArrayCompareReduction(t *testing.T) {
 	last := queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return leftValue, nil })
 	node := scalarArrayComparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: left, Items: []expr.Expr{left, last}, Predicate: predicate, Operator: "="}
 	value, err := node.Eval(c)
-	truth, truthErr := TruthOf(value)
-	if err != nil || truthErr != nil || truth != True || calls != 1 {
+	truth, truthErr := plan.TruthOf(value)
+	if err != nil || truthErr != nil || truth != plan.True || calls != 1 {
 		t.Fatal("batch must evaluate all input children", truth, calls, err, truthErr)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
@@ -142,8 +143,8 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 			t.Fatal(mapped, changed, err)
 		}
 		value, err := mapped.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
-		truth, truthErr := TruthOf(value)
-		if err != nil || truthErr != nil || truth != True {
+		truth, truthErr := plan.TruthOf(value)
+		if err != nil || truthErr != nil || truth != plan.True {
 			t.Fatal("predicate not rebound to actual child generations", truth, err, truthErr)
 		}
 		if !sameGroupExpression(original, original) || sameGroupExpression(original, mapped) {
@@ -161,8 +162,8 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 			t.Fatal(next, changed, err)
 		}
 		value, err = original.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
-		truth, truthErr = TruthOf(value)
-		if err != nil || truthErr != nil || truth != True {
+		truth, truthErr = plan.TruthOf(value)
+		if err != nil || truthErr != nil || truth != plan.True {
 			t.Fatal("copy-on-change modified analyzed tree", truth, err, truthErr)
 		}
 	}

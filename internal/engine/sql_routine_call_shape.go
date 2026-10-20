@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -141,7 +142,7 @@ func (b *expressionBinder) probeLegacySQLCallable(raw parser.FunctionExpr, opera
 			targets[0] = sqltype.Usage{}
 			return true
 		}
-		input, result := UnnestInputTypes(operands[0].Usage)
+		input, result := plan.UnnestInputTypes(operands[0].Usage)
 		if result == nil || input.IsArray() != (declared[0].Type.ID() == 2277) {
 			return false
 		}

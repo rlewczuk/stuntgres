@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -9,27 +9,27 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// LogicalNode is a closed, immutable bound tree. Execution never resolves names.
-type LogicalNode interface {
+// Node is a closed, immutable bound tree. Execution never resolves names.
+type Node interface {
 	logicalNode()
 	Schema() []catalog.Column
 }
 
-type BoundQuery struct {
-	Root           LogicalNode
+type Query struct {
+	Root           Node
 	RegclassOutput bool
 	// Local expression demand only; inherited view demand uses the current catalog.
 	VisibilitySnapshot bool
 }
 
-type querySchema []catalog.Column
+type QuerySchema []catalog.Column
 
-func (querySchema) logicalNode() {}
+func (QuerySchema) logicalNode() {}
 
-func (s querySchema) Schema() []catalog.Column { return s }
+func (s QuerySchema) Schema() []catalog.Column { return s }
 
-type sourceNode struct {
-	querySchema
+type SourceNode struct {
+	QuerySchema
 	Ref           ids.ObjectRef
 	Occurrence    int
 	PresenceSlot  int
@@ -37,23 +37,23 @@ type sourceNode struct {
 	ColumnAliases []string
 }
 
-type singletonNode struct{ querySchema }
+type SingletonNode struct{ QuerySchema }
 
-type valuesNode struct {
-	querySchema
+type ValuesNode struct {
+	QuerySchema
 	ViewOrdinal         int
 	PresenceSlot        int
 	Rows                [][]expr.Expr
 	IdentityOrderDemand []bool // Only singleton USER identity VALUES need pruning.
 }
 
-type filterNode struct {
-	querySchema
-	Child     LogicalNode
+type FilterNode struct {
+	QuerySchema
+	Child     Node
 	Predicate expr.Expr
 }
 
-type sortKey struct {
+type SortKey struct {
 	Expression       expr.Expr
 	Comparison       sqltype.Comparison
 	EqualityRoutine  ids.ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
@@ -66,18 +66,18 @@ type sortKey struct {
 	PeerDemand       bool // WITH TIES needs this cache identity after locked replacement.
 }
 
-type sortNode struct {
-	querySchema
-	Child        LogicalNode
-	Keys         []sortKey
+type SortNode struct {
+	QuerySchema
+	Child        Node
+	Keys         []SortKey
 	CacheWidth   int
 	Outputs      []expr.Expr // Nonvolatile targets required by the sort input.
 	PresenceOnly bool        // Ignored EXISTS order graphs remain available to capture.
 }
 
-type projectNode struct {
-	querySchema
-	Child               LogicalNode
+type ProjectNode struct {
+	QuerySchema
+	Child               Node
 	Expressions         []expr.Expr
 	AnalysisExpressions []expr.Expr // Unused named definitions remain analyzed, not executed.
 	FrozenValues        bool        // Synthetic FROM VALUES slots are already produced.
@@ -92,9 +92,9 @@ type projectNode struct {
 // Never evaluate arbitrary expressions, rows, stages or subqueries as a proof.
 func QueryPredicateProofValue(ctx expr.Context, expr expr.Expr) (sqltype.Value, bool, error) {
 	switch expression := expr.(type) {
-	case literalExpression:
+	case LiteralExpr:
 		return expression.Value, true, nil
-	case parameterExpression:
+	case ParameterExpr:
 		value, err := expression.Eval(ctx)
 		return value, true, err
 	default:

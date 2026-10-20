@@ -67,8 +67,8 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 	removed := pgShDescriptionUnitRole(e, deleted, 20000, "removed", "old")
 	retireFixtureRole(deleted, removed)
 	root := &projectNode{
-		querySchema: querySchema(d.Columns),
-		Child:       &sourceNode{querySchema: querySchema(d.Columns), Ref: ref},
+		QuerySchema: querySchema(d.Columns),
+		Child:       &sourceNode{QuerySchema: querySchema(d.Columns), Ref: ref},
 	}
 	for i, column := range d.Columns {
 		root.Expressions = append(root.Expressions, columnExpression{
@@ -309,7 +309,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName, view.RelationKind = name, catalog.ViewRelation
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
-		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), Ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
+		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{QuerySchema: querySchema(d.Columns), Ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
 		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}

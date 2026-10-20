@@ -41,11 +41,11 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			}
 			// Projection and order recipes of the missing subtree must also be
 			// bypassed, including slots that do not name a physical input column.
-			project := &projectNode{querySchema: inner.Schema(), Child: inner}
+			project := &projectNode{QuerySchema: inner.Schema(), Child: inner}
 			for _, column := range inner.Schema() {
 				project.Expressions = append(project.Expressions, queryProbe(column.Usage, fail))
 			}
-			wrapped := &evaluationNode{querySchema: project.Schema(), Child: project, Expressions: []expr.Expr{queryProbe(boolType.Usage(), fail)}}
+			wrapped := &evaluationNode{QuerySchema: project.Schema(), Child: project, Expressions: []expr.Expr{queryProbe(boolType.Usage(), fail)}}
 			if missingLeft {
 				outer.Left = wrapped
 			} else {
@@ -111,7 +111,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
 			locks := &queryLockContext{leaves: []queryLockLeaf{{changed: true}, {changed: true}}}
 			calls := 0
-			join := &joinNode{querySchema: schema, Left: &sourceNode{querySchema: schema, Occurrence: 0}, Right: &sourceNode{Occurrence: 1}, LeftWidth: width, Kind: parser.JoinLeft, Predicate: queryProbe(boolType.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			join := &joinNode{QuerySchema: schema, Left: &sourceNode{QuerySchema: schema, Occurrence: 0}, Right: &sourceNode{Occurrence: 1}, LeftWidth: width, Kind: parser.JoinLeft, Predicate: queryProbe(boolType.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				return sqltype.Boolean(boolType, false), nil
 			})}

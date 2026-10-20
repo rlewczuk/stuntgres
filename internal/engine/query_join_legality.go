@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -166,7 +167,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 			return err
 		}
 		if logical.QueryRight {
-			_, decisive, err := DecisiveLogicalValue(&logical)
+			_, decisive, err := plan.DecisiveLogicalValue(&logical)
 			if err != nil || decisive {
 				return err
 			}
@@ -436,7 +437,7 @@ type fullJoinFacts struct {
 // match boundary, FALSE and UNKNOWN both reject a pair.
 func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate bool) (fullJoinFacts, error) {
 	if bound == nil {
-		return fullJoinFacts{constant: true, truth: True}, nil
+		return fullJoinFacts{constant: true, truth: plan.True}, nil
 	}
 	p := bound.Properties()
 	// Pruning preserves analyzed dependencies even on a physical literal.
@@ -447,12 +448,12 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate b
 		if err != nil {
 			return fullJoinFacts{}, err
 		}
-		truth, err := TruthOf(value)
-		if negate && truth != Unknown {
-			if truth == True {
-				truth = False
+		truth, err := plan.TruthOf(value)
+		if negate && truth != plan.Unknown {
+			if truth == plan.True {
+				truth = plan.False
 			} else {
-				truth = True
+				truth = plan.True
 			}
 		}
 		return fullJoinFacts{constant: true, truth: truth}, err
@@ -474,41 +475,41 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate b
 			and = !and
 		}
 		if a.constant && b.constant {
-			truth := Unknown
+			truth := plan.Unknown
 			if and {
-				if a.truth == False || b.truth == False {
-					truth = False
-				} else if a.truth == True && b.truth == True {
-					truth = True
+				if a.truth == plan.False || b.truth == plan.False {
+					truth = plan.False
+				} else if a.truth == plan.True && b.truth == plan.True {
+					truth = plan.True
 				}
 			} else {
-				if a.truth == True || b.truth == True {
-					truth = True
-				} else if a.truth == False && b.truth == False {
-					truth = False
+				if a.truth == plan.True || b.truth == plan.True {
+					truth = plan.True
+				} else if a.truth == plan.False && b.truth == plan.False {
+					truth = plan.False
 				}
 			}
 			return fullJoinFacts{constant: true, truth: truth}, nil
 		}
 		if and {
-			if a.constant && a.truth == False || b.constant && b.truth == False {
-				return fullJoinFacts{constant: true, truth: False}, nil
+			if a.constant && a.truth == plan.False || b.constant && b.truth == plan.False {
+				return fullJoinFacts{constant: true, truth: plan.False}, nil
 			}
-			if a.constant && a.truth == True {
+			if a.constant && a.truth == plan.True {
 				return b, nil
 			}
-			if b.constant && b.truth == True {
+			if b.constant && b.truth == plan.True {
 				return a, nil
 			}
 			return fullJoinFacts{keys: append(a.keys, b.keys...)}, nil
 		}
-		if a.constant && a.truth == True || b.constant && b.truth == True {
-			return fullJoinFacts{constant: true, truth: True}, nil
+		if a.constant && a.truth == plan.True || b.constant && b.truth == plan.True {
+			return fullJoinFacts{constant: true, truth: plan.True}, nil
 		}
-		if a.constant && a.truth != True {
+		if a.constant && a.truth != plan.True {
 			return b, nil
 		}
-		if b.constant && b.truth != True {
+		if b.constant && b.truth != plan.True {
 			return a, nil
 		}
 		var common []fullJoinKey
@@ -547,11 +548,11 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate b
 			}
 			match := false
 			if e.Test == nil {
-				truth, err := TruthOf(condition)
+				truth, err := plan.TruthOf(condition)
 				if err != nil {
 					return fullJoinFacts{}, err
 				}
-				match = truth == True
+				match = truth == plan.True
 			} else {
 				if arm.TestPlan.ChecksDomain() {
 					return fullJoinFacts{}, nil

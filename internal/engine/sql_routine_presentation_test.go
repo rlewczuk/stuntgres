@@ -43,7 +43,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			}
 			ownedSyntax := *syntax
 			ownedSyntax.Targets = []parser.Expr{frozen}
-			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: &ownedSyntax}
+			project := &projectNode{QuerySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: &ownedSyntax}
 			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: &ownedSyntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			read := e.CatalogRead()

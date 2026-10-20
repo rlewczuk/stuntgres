@@ -497,12 +497,12 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			rebound = n
 			break
 		}
-		next := child(n.columnExpression)
+		next := child(n.ColumnExpr)
 		column, ok := next.(columnExpression)
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: invalid RETURNING column remap")
 		}
-		n.columnExpression = column
+		n.ColumnExpr = column
 		rebound = n
 	case returningWholeRowExpression:
 		var members []expr.Expr

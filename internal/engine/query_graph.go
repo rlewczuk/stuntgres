@@ -241,7 +241,7 @@ func queryDemandProperties(project *projectNode, presence bool) expr.Properties 
 		}
 		if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
 			queryExpressions(node, func(bound expr.Expr) {
-				if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition {
+				if edge, ok := bound.(subqueryExpression); ok && edge.CTEDefinition {
 					return
 				}
 				if bound == nil {
@@ -334,7 +334,7 @@ func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) ma
 			walkBoundExpression(expression, func(expression expr.Expr) {
 				switch e := expression.(type) {
 				case subqueryExpression:
-					if e.cteDefinition {
+					if e.CTEDefinition {
 						return
 					}
 					var ignoredChild *projectNode

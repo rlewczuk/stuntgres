@@ -90,7 +90,7 @@ func TestInsertReturningModes(t *testing.T) {
 				outer.OldRow = nil
 			}
 			before := calls
-			expr := returningColumnExpression{columnExpression: column, Old: tc.old, Absent: tc.absent, Value: probe}
+			expr := returningColumnExpression{ColumnExpr: column, Old: tc.old, Absent: tc.absent, Value: probe}
 			v, err := expr.Eval(&inner)
 			if err != nil || v.Type() != typ || testExport(v) != tc.want {
 				t.Fatal(v, err)
@@ -105,7 +105,7 @@ func TestInsertReturningModes(t *testing.T) {
 		})
 	}
 	inner.Outer = nil
-	if _, err := (returningColumnExpression{columnExpression: column, Absent: true}).Eval(&inner); err == nil {
+	if _, err := (returningColumnExpression{ColumnExpr: column, Absent: true}).Eval(&inner); err == nil {
 		t.Fatal("absent side silently accepted a missing owning frame")
 	}
 }

@@ -22,9 +22,9 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 					inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 				}
 				bridge := &querySource{ref: input.ref, nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
-				var child LogicalNode = &sourceNode{querySchema: project.Schema(), Ref: input.ref}
+				var child LogicalNode = &sourceNode{QuerySchema: project.Schema(), Ref: input.ref}
 				if mode != "all" {
-					limit := &limitNode{querySchema: project.Schema(), Child: child, Count: queryLimitBound(t, e, 1)}
+					limit := &limitNode{QuerySchema: project.Schema(), Child: child, Count: queryLimitBound(t, e, 1)}
 					if mode == "ties" {
 						comparison, err := sqltype.BindOrdering(project.Schema()[0].Usage)
 						if err != nil {
@@ -35,7 +35,7 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 					}
 					child = limit
 				}
-				outer := &projectNode{querySchema: project.Schema(), Child: child, Expressions: project.Expressions}
+				outer := &projectNode{QuerySchema: project.Schema(), Child: child, Expressions: project.Expressions}
 				rows, n, err := finalizeQuery(context.Background(), outer, bridge, nil)
 				want := cleanup
 				if primary {

@@ -158,7 +158,7 @@ func TestStringSplitExpansion(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					owner := &projectNode{querySchema: schema, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
+					owner := &projectNode{QuerySchema: schema, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
 					private, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: binder.bindingCatalog()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
 						t.Fatal(err)
@@ -327,7 +327,7 @@ func TestStringSplitExpansion(t *testing.T) {
 	first := stringSplitMarker(t, b, 1, input, delimiter, marker)
 	second := stringSplitMarker(t, b, 2, stringSplitLiteral(b, "x"), stringSplitLiteral(b, ","))
 	scalar := mathObservedArgument{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.String(text, "s"), order: &order, index: 3}
-	node := &setProjectNode{Child: &singletonNode{}, Calls: []expr.Expr{first, second}, CallSlots: []int{0, 1}, MarkerWidth: 2, Scalars: []expr.Expr{scalar}, ScalarSlots: []int{0}, Steps: []querySetStep{{Kind: querySetCallStep, Index: 0}, {Kind: querySetCallStep, Index: 1}, {Kind: querySetScalarStep, Index: 0}}, Frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}}
+	node := &setProjectNode{Child: &singletonNode{}, Calls: []expr.Expr{first, second}, CallSlots: []int{0, 1}, MarkerWidth: 2, Scalars: []expr.Expr{scalar}, ScalarSlots: []int{0}, Steps: []querySetStep{{Kind: querySetCallStep, Index: 0}, {Kind: querySetCallStep, Index: 1}, {Kind: querySetScalarStep, Index: 0}}, Frame: 1, QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}}
 	t.Run("sparse_slot_invariants", func(t *testing.T) {
 		for _, tc := range []struct {
 			name, message string
@@ -357,7 +357,7 @@ func TestStringSplitExpansion(t *testing.T) {
 			}
 		}
 		private := *node
-		private.querySchema = append(append(querySchema(nil), node.querySchema...), catalog.Column{Usage: scalar.ResultUsage()})
+		private.QuerySchema = append(append(querySchema(nil), node.QuerySchema...), catalog.Column{Usage: scalar.ResultUsage()})
 		private.Scalars = []expr.Expr{scalar, scalar}
 		private.ScalarSlots = []int{0, 0}
 		if stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, &private); err == nil {
@@ -449,7 +449,7 @@ func TestStringSplitFrames(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			owner := &projectNode{querySchema: schema, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
+			owner := &projectNode{QuerySchema: schema, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
 			executable, err := openQueryNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, owner)
 			if err != nil {
 				t.Fatal(err)
@@ -607,7 +607,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 		frame := uint32(1)
 		makeStage := func(analysis unknownOutput) *setProjectNode {
 			return &setProjectNode{Child: &singletonNode{}, Calls: []expr.Expr{call}, CallSlots: []int{0},
-				MarkerWidth: 1, Frame: frame, querySchema: querySchema{{Usage: call.ResultUsage()}}, Steps: []querySetStep{{Kind: querySetCallStep, Index: 0}},
+				MarkerWidth: 1, Frame: frame, QuerySchema: querySchema{{Usage: call.ResultUsage()}}, Steps: []querySetStep{{Kind: querySetCallStep, Index: 0}},
 				Template: &querySetTemplate{Group: &frame, Expressions: []expr.Expr{analysis, call}, Origins: []expr.Expr{call}, Attempts: true, Steps: []querySetStep{{Kind: querySetCallStep, Index: 0}}}}
 		}
 		for _, kind := range []parser.ValueKind{parser.NullValue, parser.StringValue} {
@@ -660,7 +660,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 		makeStage := func() *setProjectNode {
 			return &setProjectNode{Child: &singletonNode{}, Frame: frame, Calls: []expr.Expr{call}, CallSlots: []int{0},
 				MarkerWidth: 1, Scalars: []expr.Expr{scalar}, Steps: program,
-				querySchema: querySchema{{Usage: call.ResultUsage()}, {Usage: scalar.ResultUsage()}},
+				QuerySchema: querySchema{{Usage: call.ResultUsage()}, {Usage: scalar.ResultUsage()}},
 				Template: &querySetTemplate{Group: &frame, Expressions: []expr.Expr{scalar, call}, Origins: []expr.Expr{call},
 					Scalars: []expr.Expr{scalar}, ScalarRequests: []int{0}, Attempts: true, Steps: program}}
 		}
@@ -711,7 +711,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 			t.Fatal("nonliteral contextual capture accepted", err)
 		}
 		project := &projectNode{
-			querySchema:         querySchema{{Usage: value.ResultUsage()}},
+			QuerySchema:         querySchema{{Usage: value.ResultUsage()}},
 			Child:               &singletonNode{},
 			Expressions:         []expr.Expr{value},
 			AnalysisExpressions: []expr.Expr{unknown},
@@ -735,7 +735,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				private := *project
-				private.querySchema = querySchema{{Usage: tc.usage}}
+				private.QuerySchema = querySchema{{Usage: tc.usage}}
 				if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: &private}}); err == nil || err.Error() != tc.message {
 					t.Fatal("malformed executable schema accepted", err)
 				}
@@ -753,7 +753,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 		}
 	})
 	call := stringSplitMarker(t, b, 1, stringSplitLiteral(b, "a,b"), stringSplitLiteral(b, ","))
-	node := &functionFromNode{Calls: []expr.Expr{call}, querySchema: querySchema{{Usage: call.ResultUsage()}}, Frame: 1}
+	node := &functionFromNode{Calls: []expr.Expr{call}, QuerySchema: querySchema{{Usage: call.ResultUsage()}}, Frame: 1}
 	open := func() (indexedStage, error) {
 		return openFunctionFromNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 	}
@@ -867,7 +867,7 @@ func TestStringSplitPreflight(t *testing.T) {
 				callSlots := append([]int(nil), retained.CallSlots...)
 				steps := append([]querySetStep(nil), retained.Steps...)
 				templateSteps := append([]querySetStep(nil), retained.Template.Steps...)
-				owner := &projectNode{querySchema: schema, Child: child, Expressions: expressions, Frame: 1, HasTargetSet: true}
+				owner := &projectNode{QuerySchema: schema, Child: child, Expressions: expressions, Frame: 1, HasTargetSet: true}
 				for range 3 {
 					private, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
@@ -975,7 +975,7 @@ func TestStringSplitPreflight(t *testing.T) {
 			t.Fatal(err)
 		}
 		retained := lowered.(*setProjectNode)
-		root := &projectNode{querySchema: schema, Child: lowered, Expressions: projection, Frame: 1, HasTargetSet: true}
+		root := &projectNode{QuerySchema: schema, Child: lowered, Expressions: projection, Frame: 1, HasTargetSet: true}
 		for range 3 {
 			ctx, cancel := context.WithCancel(context.Background())
 			evaluation := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}

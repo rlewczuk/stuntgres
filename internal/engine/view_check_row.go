@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -25,11 +26,11 @@ func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.V
 			if err != nil {
 				return err
 			}
-			truth, err := TruthOf(value)
+			truth, err := plan.TruthOf(value)
 			if err != nil {
 				return err
 			}
-			if truth != True {
+			if truth != plan.True {
 				detail, err := e.rowDiagnosticDetail(scope, b, row, true)
 				if err != nil {
 					return err

@@ -88,7 +88,7 @@ func TestQueryTiesLookaheadFailureAtomic(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			limit.Child = &evaluationNode{querySchema: limit.Child.Schema(), Child: limit.Child, Expressions: []expr.Expr{probe}}
+			limit.Child = &evaluationNode{QuerySchema: limit.Child.Schema(), Child: limit.Child, Expressions: []expr.Expr{probe}}
 			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
 			want := sentinel
 			if cancelled {

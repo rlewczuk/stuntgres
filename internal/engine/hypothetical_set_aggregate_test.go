@@ -189,8 +189,8 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 				t.Fatal("result authority", node.ResultUsage())
 			}
 			child := &valuesNode{Rows: [][]expr.Expr{{}}}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: node.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: node.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
+			aggregate := &aggregateNode{QuerySchema: querySchema{{Usage: node.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
+			root := &projectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: node.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 			rows, count, err := finalizeQuery(context.Background(), root, &querySource{}, nil)
 			if err != nil || count != 1 {
 				t.Fatal("49-key private execution", count, err)
@@ -333,12 +333,12 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 			}
 			key := queryProbe(input.Usage(), func(c *EvalContext) (sqltype.Value, error) { keyCalls++; return c.Row[0], nil })
 			call := aggregateCall{Provider: p, Direct: direct, Operation: p.Operation(), StageWidth: 4, IncludeNulls: true, Order: []sortKey{{Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 2}, {Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 3}}}
-			child := &valuesNode{querySchema: querySchema{{Usage: input.Usage()}}}
+			child := &valuesNode{QuerySchema: querySchema{{Usage: input.Usage()}}}
 			for i := range in.len() {
 				child.Rows = append(child.Rows, []expr.Expr{literalExpression{Info: expr.Info{Usage: input.Usage()}, Value: in.tuple(i)[2]}})
 			}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: p.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
+			aggregate := &aggregateNode{QuerySchema: querySchema{{Usage: p.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
+			root := &projectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: p.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 			if phase == "prepublication" {
 				result := root.Expressions[0]
 				root.Expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })

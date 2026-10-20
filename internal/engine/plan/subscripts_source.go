@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -7,14 +7,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e subscriptsExpression) SourceAdmission() (bool, bool) { return true, true }
+func (e SubscriptsExpr) SourceAdmission() (bool, bool) { return true, true }
 
-func (e subscriptsExpression) SameSourceOccurrence(other expr.Expr) bool {
-	o, ok := other.(subscriptsExpression)
+func (e SubscriptsExpr) SameSourceOccurrence(other expr.Expr) bool {
+	o, ok := other.(SubscriptsExpr)
 	return ok && e.ResultUsage() == o.ResultUsage() && len(e.Args) == len(o.Args)
 }
 
-func (e subscriptsExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
+func (e SubscriptsExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}

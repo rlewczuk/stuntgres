@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// searchRecipe is immutable analysis state. Actual ancestry comes exclusively
+// SearchRecipe is immutable analysis state. Actual ancestry comes exclusively
 // from the joined worktable row; evaluation order is deliberately unchanged.
-type searchRecipe struct {
+type SearchRecipe struct {
 	Syntax         *parser.SearchClause
 	ShapeError     error
 	Slot           int
@@ -19,7 +19,7 @@ type searchRecipe struct {
 	Grouping       []sqltype.Grouping // DISTINCT only, in record-field order.
 }
 
-func (s *searchRecipe) Value(ctx context.Context, row []sqltype.Value, parent sqltype.Value) (sqltype.Value, error) {
+func (s *SearchRecipe) Value(ctx context.Context, row []sqltype.Value, parent sqltype.Value) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -74,15 +74,15 @@ func (s *searchRecipe) Value(ctx context.Context, row []sqltype.Value, parent sq
 	return sqltype.OwnedArrayValue(s.Result, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 }
 
-func (s *searchRecipe) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
-	c := cycleRecipe{Record: s.Record, Path: s.Result, Grouping: s.Grouping}
+func (s *SearchRecipe) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
+	c := CycleRecipe{Record: s.Record, Path: s.Result, Grouping: s.Grouping}
 	if s.Syntax.Breadth {
 		return c.equalRecord(ctx, a, b)
 	}
 	return c.EqualPath(ctx, a, b)
 }
-func (s *searchRecipe) Hash(ctx context.Context, value sqltype.Value) (uint64, error) {
-	c := cycleRecipe{Record: s.Record, Path: s.Result, Grouping: s.Grouping}
+func (s *SearchRecipe) Hash(ctx context.Context, value sqltype.Value) (uint64, error) {
+	c := CycleRecipe{Record: s.Record, Path: s.Result, Grouping: s.Grouping}
 	if !s.Syntax.Breadth {
 		return c.HashPath(ctx, value)
 	}

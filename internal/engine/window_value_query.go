@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -51,7 +52,7 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 	}
 	usage := call.Expression.ResultUsage()
 	ordinal := int64(0)
-	if call.Operation == WindowNth {
+	if call.Operation == plan.WindowNth {
 		evaluation.bindQueryRow(child.source, child.index(rows[current]))
 		value, err := call.Ordinal.Eval(evaluation)
 		if err != nil {
@@ -75,7 +76,7 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 		}
 		ordinal--
 	}
-	member, present := windowValueMember(frame.Exclusion, head, tail, current, peerStart, peerEnd, ordinal, call.Operation == WindowLast)
+	member, present := windowValueMember(frame.Exclusion, head, tail, current, peerStart, peerEnd, ordinal, call.Operation == plan.WindowLast)
 	if !present {
 		return sqltype.Null(usage.Type), nil
 	}

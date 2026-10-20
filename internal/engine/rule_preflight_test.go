@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -113,9 +114,9 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		bad := preflightCast(t, "SELECT 1/0 FROM t")
 		good := preflightCast(t, "SELECT 7 FROM t")
 		schema := querySchema{{Name: "n", Usage: bad.ResultUsage()}}
-		child := &projectNode{querySchema: schema, Child: &singletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
-		derived := &derivedNode{querySchema: schema, Query: &BoundQuery{Root: child}, ScanFrame: 1}
-		outer := &projectNode{querySchema: schema, Child: derived, Expressions: []expr.Expr{good}, Frame: 1}
+		child := &projectNode{QuerySchema: schema, Child: &singletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
+		derived := &derivedNode{QuerySchema: schema, Query: &BoundQuery{Root: child}, ScanFrame: 1}
+		outer := &projectNode{QuerySchema: schema, Child: derived, Expressions: []expr.Expr{good}, Frame: 1}
 		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 		prepared, err := preflightQuery(&evaluation, outer)
 		if err != nil {
@@ -283,8 +284,8 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 	t.Run("delete_dead_case_source_frontier", func(t *testing.T) {
 		bad := preflightCast(t, "SELECT 1/0 FROM t")
 		schema := querySchema{{Name: "n", Usage: bad.ResultUsage()}}
-		child := &projectNode{querySchema: schema, Child: &singletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
-		source := &derivedNode{querySchema: schema, Query: &BoundQuery{Root: child}, ScanFrame: 1}
+		child := &projectNode{QuerySchema: schema, Child: &singletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
+		source := &derivedNode{QuerySchema: schema, Query: &BoundQuery{Root: child}, ScanFrame: 1}
 		predicate, _, err := rewriteViewExpression(catalog.Read{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			if parameter, ok := node.(parameterExpression); ok {
 				info := parameter.Info
@@ -316,8 +317,8 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		truth, err := TruthOf(value)
-		if err != nil || truth != True {
+		truth, err := plan.TruthOf(value)
+		if err != nil || truth != plan.True {
 			t.Fatalf("prepared DELETE predicate truth=%v error=%v", truth, err)
 		}
 		rows, count, err := finalizeQuery(context.Background(), prepared.(*derivedNode).Query.Root, &querySource{}, nil)

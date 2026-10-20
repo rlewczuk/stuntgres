@@ -241,7 +241,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		}
 		return old
 	}
-	root := &aggregateNode{querySchema: querySchema{{Name: "a", Usage: call.Provider.ResultUsage()}}, Child: &valuesNode{}, Calls: []aggregateCall{call}}
+	root := &aggregateNode{QuerySchema: querySchema{{Name: "a", Usage: call.Provider.ResultUsage()}}, Child: &valuesNode{}, Calls: []aggregateCall{call}}
 	mapped, err := remapViewQuery(view, root, ref, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)

@@ -254,7 +254,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	if plannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("erased volatile child")
 	}
-	root := &setProjectNode{querySchema: querySchema{{Usage: d.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{original}}
+	root := &setProjectNode{QuerySchema: querySchema{{Usage: d.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{original}}
 	rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		return mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
@@ -279,7 +279,7 @@ func seriesUnitProject(t *testing.T, engine *Engine, bound seriesExpression) *pr
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &projectNode{querySchema: querySchema{{Name: "v", Usage: bound.ResultUsage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
+	return &projectNode{QuerySchema: querySchema{{Name: "v", Usage: bound.ResultUsage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
 }
 func TestSeriesLowering(t *testing.T) {
 	engine := New()
@@ -292,7 +292,7 @@ func TestSeriesLowering(t *testing.T) {
 		q := seriesUnitProject(t, engine, e)
 		functionSetUnitArgument(t, q.Child.(*setProjectNode).Calls, 0, 0,
 			queryProbe(wide.Usage(), func(*EvalContext) (sqltype.Value, error) { opens++; return sqltype.Integer(wide, 1) }))
-		q.Child = &limitNode{querySchema: q.Child.Schema(), Child: q.Child, Count: seriesUnit(t, wide, 3, 3).Args[0]}
+		q.Child = &limitNode{QuerySchema: q.Child.Schema(), Child: q.Child, Count: seriesUnit(t, wide, 3, 3).Args[0]}
 		r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 		if err != nil || count != 3 || opens != 1 {
 			t.Fatal(count, opens, err)
@@ -400,7 +400,7 @@ func TestSeriesFinalization(t *testing.T) {
 			t.Fatal(err)
 		}
 		functionSetUnitArgument(t, root.(*setProjectNode).Calls, 0, 0, probe)
-		q := &projectNode{querySchema: querySchema{{Usage: d.Usage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
+		q := &projectNode{QuerySchema: querySchema{{Usage: d.Usage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
 		r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 		if r != nil || count != 0 || err != sentinel || calls != 2 {
 			t.Fatal(r, count, err, calls)

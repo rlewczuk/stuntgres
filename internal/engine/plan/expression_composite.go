@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -7,37 +7,37 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type wholeRowSource struct {
+type WholeRowSource struct {
 	Namespace, Qualifier int
 	Frame                uint32
 }
 
 // A retained named ROW keeps written children for metadata and dependencies.
 // Only a real shape change installs this immutable stable-attribute projection.
-type rowFieldProjection struct {
+type RowFieldProjection struct {
 	Attribute int32
 	Slot      int // Current live member, or -1 when that original attribute retired.
 }
 
-type rowExpression struct {
+type RowExpr struct {
 	expr.Info
 	Fields          []expr.Expr
-	FieldProjection []rowFieldProjection
+	FieldProjection []RowFieldProjection
 	Raw             *parser.RowExpr
 	Sources         []int
 	WholeNames      []string
 	WholeName       string
-	WholeSource     wholeRowSource
+	WholeSource     WholeRowSource
 	PresenceSlot    int
 	PresenceFrame   uint32
 	MergeSource     bool
 	ReturningWhole  bool   // Direct whole-row member projection uses the RETURNING output frame.
 	ReturningNull   bool   // DELETE's scalar NEW whole row is NULL, independently of projection.
 	RuleSide        uint32 // Resolved OLD/NEW whole-row identity, including zero members.
-	Expansions      map[int]compositeExpansionBinding
+	Expansions      map[int]CompositeExpansionBinding
 }
 
-func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n RowExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := BeginEvaluation(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -75,7 +75,7 @@ func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 }
 
 // Planning-only lookup; field evaluation retains its already resolved child.
-func (n rowExpression) FieldSourceIndex(live int) int {
+func (n RowExpr) FieldSourceIndex(live int) int {
 	if n.FieldProjection == nil {
 		return live
 	}
@@ -87,7 +87,7 @@ func (n rowExpression) FieldSourceIndex(live int) int {
 	return -1
 }
 
-func (n rowExpression) RetagFieldProjection(shape *sqltype.Descriptor) (rowExpression, bool, error) {
+func (n RowExpr) RetagFieldProjection(shape *sqltype.Descriptor) (RowExpr, bool, error) {
 	old := n.Usage.Type.BaseType()
 	if n.Raw == nil || old.ID() == 2249 || !old.IsComposite() || !shape.IsComposite() {
 		return n, false, nil
@@ -101,7 +101,7 @@ func (n rowExpression) RetagFieldProjection(shape *sqltype.Descriptor) (rowExpre
 		if len(n.Fields) != old.CompositeLen() {
 			return n, false, fmt.Errorf("stuntgres: invalid retained row source shape")
 		}
-		projection = make([]rowFieldProjection, len(n.Fields))
+		projection = make([]RowFieldProjection, len(n.Fields))
 		changed = true
 		for i := range projection {
 			projection[i].Attribute = old.CompositeMember(i).Attribute
@@ -116,7 +116,7 @@ func (n rowExpression) RetagFieldProjection(shape *sqltype.Descriptor) (rowExpre
 			live++
 		}
 		if !changed && original.Slot != slot {
-			projection = append([]rowFieldProjection(nil), projection...)
+			projection = append([]RowFieldProjection(nil), projection...)
 			changed = true
 		}
 		if changed {
@@ -130,17 +130,17 @@ func (n rowExpression) RetagFieldProjection(shape *sqltype.Descriptor) (rowExpre
 	return n, changed, nil
 }
 
-type fieldExpression struct {
+type FieldExpr struct {
 	expr.Info
 	Base      expr.Expr
 	Attribute int32
 	Index     int
 }
 
-func (n fieldExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n FieldExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	// Analysis/preflight still visits every constructor child. Runtime demand
 	// may bypass its allocation and unused volatile children.
-	if row, ok := n.Base.(rowExpression); ok {
+	if row, ok := n.Base.(RowExpr); ok {
 		runtime, err := nodeRuntimeOf(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -168,7 +168,7 @@ func (n fieldExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return value.CompositeField(index), nil
 }
 
-type compositeExpansionBinding struct {
+type CompositeExpansionBinding struct {
 	Base       expr.Expr
 	Fields     []expr.Expr
 	Names      []string

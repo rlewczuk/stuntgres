@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -253,11 +254,11 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 			if err != nil {
 				return Result{}, err
 			}
-			truth, err := TruthOf(value)
+			truth, err := plan.TruthOf(value)
 			if err != nil {
 				return Result{}, err
 			}
-			if truth != True {
+			if truth != plan.True {
 				continue
 			}
 		}
@@ -283,11 +284,11 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 			if err != nil {
 				return Result{}, err
 			}
-			truth, err := TruthOf(value)
+			truth, err := plan.TruthOf(value)
 			if err != nil {
 				return Result{}, err
 			}
-			if truth != True {
+			if truth != plan.True {
 				continue
 			}
 		}

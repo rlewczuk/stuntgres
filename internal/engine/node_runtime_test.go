@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -18,7 +19,7 @@ func TestNodeRuntimePrologue(t *testing.T) {
 		"typed":   (*EvalContext)(nil),
 		"foreign": foreignContext{},
 	} {
-		if _, err := BeginEvaluation(ctx); err == nil || err.Error() != "stuntgres: missing expression context" {
+		if _, err := plan.BeginEvaluation(ctx); err == nil || err.Error() != "stuntgres: missing expression context" {
 			t.Fatalf("%s context: got %v", name, err)
 		}
 	}
@@ -26,14 +27,14 @@ func TestNodeRuntimePrologue(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	c := &EvalContext{evalStatement: evalStatement{Context: canceled}}
-	if _, err := BeginEvaluation(c); !errors.Is(err, context.Canceled) {
+	if _, err := plan.BeginEvaluation(c); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled context: got %v", err)
 	}
 
 	// The prologue wires domain checks before nodes read their input.
 	c = &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	c.domainValueActive = true
-	if _, err := BeginEvaluation(c); err != nil {
+	if _, err := plan.BeginEvaluation(c); err != nil {
 		t.Fatal(err)
 	}
 	if c.FunctionInput().DomainChecks != sqltype.DomainCheckEvaluator(c) {

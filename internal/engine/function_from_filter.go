@@ -21,7 +21,7 @@ func functionFromWhere(root LogicalNode, predicate expr.Expr) *joinNode {
 		return nil
 	}
 	copy := *join
-	copy.Left = &filterNode{querySchema: join.Left.Schema(), Child: join.Left, Predicate: predicate}
+	copy.Left = &filterNode{QuerySchema: join.Left.Schema(), Child: join.Left, Predicate: predicate}
 	return &copy
 }
 
@@ -70,11 +70,11 @@ func functionFromConjuncts(root LogicalNode, predicate expr.Expr) LogicalNode {
 		return nil
 	}
 	copy := *join
-	copy.Left = &filterNode{querySchema: join.Left.Schema(), Child: join.Left, Predicate: before}
+	copy.Left = &filterNode{QuerySchema: join.Left.Schema(), Child: join.Left, Predicate: before}
 	if after == nil {
 		return &copy
 	}
-	return &filterNode{querySchema: join.Schema(), Child: &copy, Predicate: after}
+	return &filterNode{QuerySchema: join.Schema(), Child: &copy, Predicate: after}
 }
 
 func partitionFunctionConjuncts(join *joinNode, predicate expr.Expr) (before, after expr.Expr) {

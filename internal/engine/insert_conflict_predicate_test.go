@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -75,11 +76,11 @@ func TestInsertConflictPredicateCompositionAndNull(t *testing.T) {
 		return logicalExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, Op: op, Left: a, Right: b}
 	}
 	nullRequired := nullTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, Child: f.column, Not: true}
-	isNotTrue := truthTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, Child: boolean, Truth: True, Not: true}
+	isNotTrue := truthTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, Child: boolean, Truth: plan.True, Not: true}
 	negated := logical(parser.LogicalNot, boolean, nil)
 	truthLiteral := func(truth Truth) literalExpression {
-		v := sqltype.Boolean(f.boolean, truth == True)
-		if truth == Unknown {
+		v := sqltype.Boolean(f.boolean, truth == plan.True)
+		if truth == plan.Unknown {
 			v = sqltype.Null(f.boolean)
 		}
 		return literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: v}
@@ -94,9 +95,9 @@ func TestInsertConflictPredicateCompositionAndNull(t *testing.T) {
 		{logical(parser.LogicalOr, boolean, stronger), positive, false},
 		{logical(parser.LogicalOr, stronger, positive), positive, true},
 		{logical(parser.LogicalAnd, stronger, boolean), logical(parser.LogicalOr, positive, weaker), true},
-		{f.comparison(t, "=", boolean, truthLiteral(True)), boolean, true},
-		{f.comparison(t, "=", boolean, truthLiteral(False)), negated, true},
-		{isNotTrue, negated, false}, {truthLiteral(Unknown), positive, true}, {truthLiteral(True), positive, false},
+		{f.comparison(t, "=", boolean, truthLiteral(plan.True)), boolean, true},
+		{f.comparison(t, "=", boolean, truthLiteral(plan.False)), negated, true},
+		{isNotTrue, negated, false}, {truthLiteral(plan.Unknown), positive, true}, {truthLiteral(plan.True), positive, false},
 	} {
 		got, err := conflictPredicateImpliedBy(&f.ctx, c.a, c.b)
 		if err != nil || got != c.want {

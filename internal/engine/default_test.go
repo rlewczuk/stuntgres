@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -240,8 +241,8 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			truth, err := TruthOf(value)
-			if err != nil || truth == Unknown || (truth == True) != tc.want {
+			truth, err := plan.TruthOf(value)
+			if err != nil || truth == plan.Unknown || (truth == plan.True) != tc.want {
 				t.Fatal(truth, err, tc.want)
 			}
 			// The same original node still demands both branches under ordinary

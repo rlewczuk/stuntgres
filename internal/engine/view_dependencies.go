@@ -585,7 +585,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 			if n.Definition == nil || !n.Definition.Recursive {
 				return fmt.Errorf("stuntgres: invalid stored recursive definition")
 			}
-			if err := validateStoredSetNode(&n.setNode, n.Cycle, n.Search); err != nil {
+			if err := validateStoredSetNode(&n.SetNode, n.Cycle, n.Search); err != nil {
 				return err
 			}
 			if n.Search != nil || n.Cycle != nil {

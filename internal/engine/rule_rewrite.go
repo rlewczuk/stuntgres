@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -85,7 +86,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 						return p, err
 					}
 				}
-				p.root = &derivedNode{querySchema: querySchema(project.Schema()), Query: &BoundQuery{Root: project}}
+				p.root = &derivedNode{QuerySchema: querySchema(project.Schema()), Query: &BoundQuery{Root: project}}
 				for i := range b.targets {
 					assign(i, columnExpression{Info: ruleColumnInfo(project.Schema()[i]), Scope: 1, Frame: project.Frame, Slot: i})
 				}
@@ -114,12 +115,12 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 			if len(b.expressions) == 0 {
 				p.root = &singletonNode{}
 			} else {
-				p.root = &valuesNode{querySchema: schema, Rows: b.expressions}
+				p.root = &valuesNode{QuerySchema: schema, Rows: b.expressions}
 			}
 		}
 	} else {
 		p.sources = append([]queryLeaf{{ref: b.ref, relation: d, storage: b.storage, uses: b.usedColumns}}, b.querySources...)
-		p.root = &sourceNode{querySchema: querySchema(d.Columns), Ref: b.ref, Occurrence: 0}
+		p.root = &sourceNode{QuerySchema: querySchema(d.Columns), Ref: b.ref, Occurrence: 0}
 		var from LogicalNode
 		var condition expr.Expr
 		if event == "UPDATE" {
@@ -182,7 +183,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 			if err != nil {
 				return p, err
 			}
-			p.root = &filterNode{querySchema: querySchema(p.root.Schema()), Child: p.root, Predicate: condition}
+			p.root = &filterNode{QuerySchema: querySchema(p.root.Schema()), Child: p.root, Predicate: condition}
 		}
 	}
 	return p, nil
@@ -275,7 +276,7 @@ func ruleJoin(left, right LogicalNode) LogicalNode {
 		return left
 	}
 	schema := append(slices.Clone(left.Schema()), right.Schema()...)
-	return &joinNode{querySchema: querySchema(schema), Kind: parser.JoinInner, Left: left, Right: right, LeftWidth: len(left.Schema()), RightWidth: len(right.Schema()), Frame: 1}
+	return &joinNode{QuerySchema: querySchema(schema), Kind: parser.JoinInner, Left: left, Right: right, LeftWidth: len(left.Schema()), RightWidth: len(right.Schema()), Frame: 1}
 }
 
 // The FROM input is grafted below WHERE/aggregate/window evaluation, so original
@@ -316,13 +317,13 @@ func normalizeRuleInsert(b binding) binding {
 		schema[i] = b.relation.Columns[slot]
 	}
 	if len(b.expressions) == 1 {
-		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, Child: &singletonNode{}, Expressions: b.expressions[0], Frame: 1}}
+		b.query = &BoundQuery{Root: &projectNode{QuerySchema: schema, Child: &singletonNode{}, Expressions: b.expressions[0], Frame: 1}}
 	} else {
 		projection := make([]expr.Expr, len(schema))
 		for i, column := range schema {
 			projection[i] = columnExpression{Info: ruleColumnInfo(column), Scope: 1, Frame: 1, Slot: i}
 		}
-		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, Child: &valuesNode{querySchema: schema, Rows: b.expressions}, Expressions: projection, Frame: 1}}
+		b.query = &BoundQuery{Root: &projectNode{QuerySchema: schema, Child: &valuesNode{QuerySchema: schema, Rows: b.expressions}, Expressions: projection, Frame: 1}}
 	}
 	b.commandQuery = true
 	b.expressions = nil
@@ -617,7 +618,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			for i, column := range right.Schema() {
 				projection[i] = columnExpression{Info: ruleColumnInfo(column), Scope: 1, Frame: innerFrame, Slot: i}
 			}
-			right = &projectNode{querySchema: querySchema(right.Schema()), Child: right, Expressions: projection, Frame: innerFrame, RuleInvocation: true}
+			right = &projectNode{QuerySchema: querySchema(right.Schema()), Child: right, Expressions: projection, Frame: innerFrame, RuleInvocation: true}
 		} else {
 			right, err = mapQuery(right, true)
 			if err != nil {
@@ -629,7 +630,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		joined.CorrelatedRight = correlated
 		var replacement LogicalNode = joined
 		if condition != nil && targetWidth == 0 {
-			replacement = &filterNode{querySchema: querySchema(joined.Schema()), Child: joined, Predicate: condition}
+			replacement = &filterNode{QuerySchema: querySchema(joined.Schema()), Child: joined, Predicate: condition}
 		}
 		patched, err := ruleGraftSchemas(root, input, replacement, windowSlots)
 		if err != nil {
@@ -959,7 +960,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		if err != nil {
 			return b, err
 		}
-		predicates = append(predicates, truthTestExpression{Info: expr.Info{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, Child: condition, Truth: True, Not: true})
+		predicates = append(predicates, truthTestExpression{Info: expr.Info{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, Child: condition, Truth: plan.True, Not: true})
 	}
 	if len(predicates) == 0 {
 		return b, nil
@@ -975,8 +976,8 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 			schema[i] = b.relation.Columns[slot]
 			projection[i] = p.new[slot]
 		}
-		root := &filterNode{querySchema: querySchema(p.root.Schema()), Child: p.root, Predicate: viewWritePredicate(predicates, nil)}
-		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, Child: root, Expressions: projection, Frame: frame}}
+		root := &filterNode{QuerySchema: querySchema(p.root.Schema()), Child: p.root, Predicate: viewWritePredicate(predicates, nil)}
+		b.query = &BoundQuery{Root: &projectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: frame}}
 		b.commandQuery = true
 		b.expressions = nil
 	} else if event == "UPDATE" {

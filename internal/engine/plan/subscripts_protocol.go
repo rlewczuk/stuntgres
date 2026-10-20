@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e subscriptsExpression) Children() []expr.Expr { return e.Args }
+func (e SubscriptsExpr) Children() []expr.Expr { return e.Args }
 
-func (e subscriptsExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (e SubscriptsExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	next, err := e.Substitute(info, children)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func (e subscriptsExpression) Rebuild(info expr.Info, children []expr.Expr) (exp
 	return next, nil
 }
 
-func (e subscriptsExpression) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (e SubscriptsExpr) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if len(children) != len(e.Args) {
 		return nil, fmt.Errorf("stuntgres: invalid generate_subscripts arguments")
 	}
@@ -40,12 +40,12 @@ func (e subscriptsExpression) Substitute(info expr.Info, children []expr.Expr) (
 	return e, nil
 }
 
-func (e subscriptsExpression) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e subscriptsExpression) PlanningFold() expr.Fold              { return expr.FoldNever }
-func (e subscriptsExpression) PreflightFold() expr.Preflight        { return expr.PreflightChildren }
+func (e SubscriptsExpr) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e SubscriptsExpr) PlanningFold() expr.Fold              { return expr.FoldNever }
+func (e SubscriptsExpr) PreflightFold() expr.Preflight        { return expr.PreflightChildren }
 
-func (e subscriptsExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
-	o, ok := other.(subscriptsExpression)
+func (e SubscriptsExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
+	o, ok := other.(SubscriptsExpr)
 	if !ok || e.Usage != o.Usage || len(e.Args) != len(o.Args) {
 		return false
 	}
@@ -57,7 +57,7 @@ func (e subscriptsExpression) SameGroup(other expr.Expr, same func(expr.Expr, ex
 	return true
 }
 
-func (e subscriptsExpression) Render() (expr.Rendering, error) {
+func (e SubscriptsExpr) Render() (expr.Rendering, error) {
 	tree, name := "Subscripts generate_subscripts", "generate_subscripts"
 	args := make([]expr.RenderArg, len(e.Args))
 	for i, arg := range e.Args {

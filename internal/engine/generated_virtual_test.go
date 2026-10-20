@@ -33,7 +33,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	if n, e := v.Integer(); err != nil || e != nil || n != 2 {
 		t.Fatal(v, err, e)
 	}
-	v, err = (returningColumnExpression{columnExpression: generated, Old: true}).Eval(&inner)
+	v, err = (returningColumnExpression{ColumnExpr: generated, Old: true}).Eval(&inner)
 	if n, e := v.Integer(); err != nil || e != nil || n != 7 {
 		t.Fatal(v, err, e)
 	}
@@ -44,7 +44,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	invalid := base
 	invalid.Slot = 99
 	generated.Virtual = invalid
-	if v, err = (returningColumnExpression{columnExpression: generated, Absent: true}).Eval(&inner); err != nil || !v.IsNull() || v.Type() != typ {
+	if v, err = (returningColumnExpression{ColumnExpr: generated, Absent: true}).Eval(&inner); err != nil || !v.IsNull() || v.Type() != typ {
 		t.Fatal(v, err)
 	}
 	if _, err = generated.Eval(&inner); err == nil {

@@ -42,7 +42,7 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 	node.LeftExpressions = nil
 	node.RightExpressions = nil
 	// Result metadata is not itself a Const or coercion target.
-	node.querySchema = querySchema{{Usage: domains[0].Usage()}}
+	node.QuerySchema = querySchema{{Usage: domains[0].Usage()}}
 	got, err = pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: node})
 	if err != nil {
 		t.Fatal(err)

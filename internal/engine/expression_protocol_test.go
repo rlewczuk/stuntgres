@@ -74,7 +74,7 @@ func TestWalkBoundExpressionVisitsCompositeChildren(t *testing.T) {
 	}
 	var visited []string
 	walkBoundExpression(outer, func(node expr.Expr) { visited = append(visited, fmt.Sprintf("%T", node)) })
-	want := []string{"functions.Soundex", "engine.installedSoundexFunctionExpression", "engine.literalExpression"}
+	want := []string{"functions.Soundex", "engine.installedSoundexFunctionExpression", "plan.LiteralExpr"}
 	if !reflect.DeepEqual(visited, want) {
 		t.Fatalf("walk visited %v, want %v", visited, want)
 	}

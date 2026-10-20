@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -448,7 +449,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		if call.AnalysisOnly {
 			continue
 		}
-		if call.Operation == WindowNtile {
+		if call.Operation == plan.WindowNtile {
 			ntileCount++
 		}
 		if call.Operation.Ranking() {
@@ -457,7 +458,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		if call.Operation.FrameDependent() {
 			demanded[n.SpecIndices[i]] |= membership | validateBounds
 		}
-		if call.Operation == WindowLead || call.Operation == WindowLag {
+		if call.Operation == plan.WindowLead || call.Operation == plan.WindowLag {
 			demanded[n.SpecIndices[i]] |= validateBounds
 		}
 	}
@@ -547,13 +548,13 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		ordered := &orders[sortIndex]
 		sumCount := 0
 		for callIndex, call := range n.Calls {
-			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && call.Operation == WindowSum {
+			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && call.Operation == plan.WindowSum {
 				sumCount++
 			}
 		}
 		sums := windowSums{states: make([]windowSumState, 0, sumCount)}
 		for callIndex, call := range n.Calls {
-			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && call.Operation == WindowSum {
+			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && call.Operation == plan.WindowSum {
 				sums.states = append(sums.states, windowSumState{callIndex: callIndex})
 			}
 		}
@@ -628,7 +629,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 					if call.AnalysisOnly || n.SpecIndices[callIndex] != specIndex {
 						continue
 					}
-					if call.Operation == WindowSum {
+					if call.Operation == plan.WindowSum {
 						continue
 					}
 					if err := ctx.Err(); err != nil {
@@ -636,28 +637,28 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 					}
 					var value sqltype.Value
 					switch call.Operation {
-					case WindowNumber:
+					case plan.WindowNumber:
 						value, err = sqltype.Integer(call.Expression.ResultUsage().Type, int64(i)+1)
-					case WindowRank:
+					case plan.WindowRank:
 						value, err = sqltype.Integer(call.Expression.ResultUsage().Type, int64(peerStart)+1)
-					case WindowDenseRank:
+					case plan.WindowDenseRank:
 						value, err = sqltype.Integer(call.Expression.ResultUsage().Type, int64(group)+1)
-					case WindowPercentRank:
+					case plan.WindowPercentRank:
 						ratio := float64(0)
 						if len(partition.rows) > 1 {
 							ratio = float64(peerStart) / float64(len(partition.rows)-1)
 						}
 						value, err = sqltype.Float(call.Expression.ResultUsage().Type, ratio)
-					case WindowCumeDist:
+					case plan.WindowCumeDist:
 						value, err = sqltype.Float(call.Expression.ResultUsage().Type, float64(peerEnd)/float64(len(partition.rows)))
-					case WindowNtile:
+					case plan.WindowNtile:
 						value, err = ntiles[ntileIndex].evaluate(ctx, valueEvaluation, &child, call, partition.rows, i)
 						ntileIndex++
-					case WindowLead, WindowLag:
+					case plan.WindowLead, plan.WindowLag:
 						value, err = evaluateWindowOffset(ctx, valueEvaluation, &child, call, partition.rows, i)
-					case WindowCount:
+					case plan.WindowCount:
 						value, err = windowFrameCount(ctx, call.Expression.ResultUsage(), 0, windowMaskCount(spec.Frame.Exclusion, head, tail, i, peerStart, peerEnd))
-					case WindowFirst, WindowLast, WindowNth:
+					case plan.WindowFirst, plan.WindowLast, plan.WindowNth:
 						value, err = evaluateWindowValue(ctx, valueEvaluation, &child, call, partition.rows, spec.Frame, head, tail, i, peerStart, peerEnd)
 					}
 					if err != nil {

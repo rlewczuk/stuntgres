@@ -28,7 +28,7 @@ func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*projectNode, *
 		}
 	}
 	source := &querySource{anonymous: rows}
-	return &projectNode{querySchema: schema, Child: &sourceNode{querySchema: schema}, Expressions: expressions, Frame: 1}, source
+	return &projectNode{QuerySchema: schema, Child: &sourceNode{QuerySchema: schema}, Expressions: expressions, Frame: 1}, source
 }
 
 func TestQueryTableCreateDemand(t *testing.T) {
@@ -36,7 +36,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 	project, source := queryCreateBoundSource(t, e, 1)
 	usage := project.Schema()[0].Usage
 	calls, predicates := 0, 0
-	project.Child = &filterNode{querySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
+	project.Child = &filterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
 		predicates++
 		value, _ := c.Row[0].Integer()
 		return sqltype.Boolean(testUsage(e, sqltype.Bool).Type, value >= 2), nil
@@ -128,7 +128,7 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 			inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 		}
 		bridge := &querySource{nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
-		outer := &projectNode{querySchema: project.Schema(), Child: &sourceNode{querySchema: project.Schema()}, Expressions: project.Expressions, Frame: 1}
+		outer := &projectNode{QuerySchema: project.Schema(), Child: &sourceNode{QuerySchema: project.Schema()}, Expressions: project.Expressions, Frame: 1}
 		result, count, err := finalizeQuery(context.Background(), outer, bridge, nil)
 		want := cleanup
 		if primary {

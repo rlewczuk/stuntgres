@@ -11,7 +11,7 @@ func querySetNode(node LogicalNode) *setNode {
 	case *setNode:
 		return n
 	case *recursiveUnionNode:
-		return &n.setNode
+		return &n.SetNode
 	}
 	return nil
 }

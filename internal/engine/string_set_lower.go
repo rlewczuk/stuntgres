@@ -109,7 +109,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 		})
 	}
 	for level := range maxDepth {
-		node := &setProjectNode{Child: root, querySchema: schema, Frame: b.frameID(), Template: template,
+		node := &setProjectNode{Child: root, QuerySchema: schema, Frame: b.frameID(), Template: template,
 			BaseWidth: base, MarkerWidth: len(template.Origins)}
 		for i, original := range template.Origins {
 			if querySetDepth(original) != level+1 {
@@ -277,7 +277,7 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	}
 	root := base
 	for level := range max(1, maxDepth) {
-		node := &setProjectNode{Child: root, querySchema: n.querySchema, Frame: n.Frame,
+		node := &setProjectNode{Child: root, QuerySchema: n.QuerySchema, Frame: n.Frame,
 			BaseWidth: n.BaseWidth, MarkerWidth: n.MarkerWidth}
 		for i, marker := range live {
 			if marker == nil || querySetDepth(marker) != level+1 {

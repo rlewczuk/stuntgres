@@ -53,7 +53,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	}
 	assert("retained descriptor", retagged)
 	projection := []expr.Expr{coerced}
-	_, err = b.finishOrder(&valuesNode{querySchema: querySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []sortKey{{Expression: coerced, Cache: -1, Slot: -1}}, projection)
+	_, err = b.finishOrder(&valuesNode{QuerySchema: querySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []sortKey{{Expression: coerced, Cache: -1, Slot: -1}}, projection)
 	if err != nil {
 		t.Fatal(err)
 	}

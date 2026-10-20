@@ -60,7 +60,7 @@ func ruleGraftSchemas(root, input, replacement LogicalNode, windowSlots map[int]
 		}
 		copy := *n
 		copy.Child = child
-		copy.querySchema = querySchema(child.Schema())
+		copy.QuerySchema = querySchema(child.Schema())
 		return &copy, nil
 	case *sortNode:
 		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
@@ -72,7 +72,7 @@ func ruleGraftSchemas(root, input, replacement LogicalNode, windowSlots map[int]
 		}
 		copy := *n
 		copy.Child = child
-		copy.querySchema = querySchema(child.Schema())
+		copy.QuerySchema = querySchema(child.Schema())
 		return &copy, nil
 	case *limitNode:
 		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
@@ -84,7 +84,7 @@ func ruleGraftSchemas(root, input, replacement LogicalNode, windowSlots map[int]
 		}
 		copy := *n
 		copy.Child = child
-		copy.querySchema = querySchema(child.Schema())
+		copy.QuerySchema = querySchema(child.Schema())
 		return &copy, nil
 	case *rowLockNode:
 		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
@@ -96,7 +96,7 @@ func ruleGraftSchemas(root, input, replacement LogicalNode, windowSlots map[int]
 		}
 		copy := *n
 		copy.Child = child
-		copy.querySchema = querySchema(child.Schema())
+		copy.QuerySchema = querySchema(child.Schema())
 		return &copy, nil
 	case *evaluationNode:
 		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
@@ -108,7 +108,7 @@ func ruleGraftSchemas(root, input, replacement LogicalNode, windowSlots map[int]
 		}
 		copy := *n
 		copy.Child = child
-		copy.querySchema = querySchema(child.Schema())
+		copy.QuerySchema = querySchema(child.Schema())
 		return &copy, nil
 	case *aggregateNode:
 		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
@@ -133,7 +133,7 @@ func ruleGraftSchemas(root, input, replacement LogicalNode, windowSlots map[int]
 		copy.Child = child
 		oldWidth := len(n.Child.Schema())
 		delta := len(child.Schema()) - oldWidth
-		copy.querySchema = append(slices.Clone(child.Schema()), n.Schema()[oldWidth:]...)
+		copy.QuerySchema = append(slices.Clone(child.Schema()), n.Schema()[oldWidth:]...)
 		for slot := oldWidth; slot < len(n.Schema()); slot++ {
 			windowSlots[slot] = slot + delta
 		}
@@ -149,7 +149,7 @@ func ruleGraftSchemas(root, input, replacement LogicalNode, windowSlots map[int]
 		copy := *n
 		copy.Child = child
 		oldWidth := len(n.Child.Schema())
-		copy.querySchema = append(slices.Clone(child.Schema()), n.Schema()[oldWidth:]...)
+		copy.QuerySchema = append(slices.Clone(child.Schema()), n.Schema()[oldWidth:]...)
 		copy.BaseWidth += len(child.Schema()) - oldWidth
 		return &copy, nil
 	}

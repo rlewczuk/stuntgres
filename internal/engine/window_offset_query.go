@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -51,7 +52,7 @@ func evaluateWindowOffset(ctx context.Context, evaluation *EvalContext, child *i
 			return sqltype.Value{}, err
 		}
 	}
-	member, present := windowOffsetTarget(len(rows), current, int32(offset), call.Operation == WindowLag)
+	member, present := windowOffsetTarget(len(rows), current, int32(offset), call.Operation == plan.WindowLag)
 	expression := call.DefaultValue
 	if present {
 		evaluation.bindQueryRow(child.source, child.index(rows[member]))

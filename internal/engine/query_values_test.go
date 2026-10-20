@@ -93,12 +93,12 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 					return sqltype.Integer(usage.Type, 7)
 				})}
 			}
-			values := &valuesNode{querySchema: querySchema{{Name: "column1", Usage: usage}}, Rows: cells}
+			values := &valuesNode{QuerySchema: querySchema{{Name: "column1", Usage: usage}}, Rows: cells}
 			width := len(project.Child.Schema())
 			schema := append(append(querySchema(nil), project.Child.Schema()...), values.Schema()...)
-			join := &joinNode{querySchema: schema, Left: project.Child, Right: values, LeftWidth: width, RightWidth: 1}
+			join := &joinNode{QuerySchema: schema, Left: project.Child, Right: values, LeftWidth: width, RightWidth: 1}
 			project.Child = join
-			project.querySchema = querySchema{{Name: "n", Usage: usage}}
+			project.QuerySchema = querySchema{{Name: "n", Usage: usage}}
 			project.Expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: width}}
 			if mode == "limit0" {
 				typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
@@ -106,7 +106,7 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				project.Child = &limitNode{querySchema: schema, Child: join, Count: literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: zero}}
+				project.Child = &limitNode{QuerySchema: schema, Child: join, Count: literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: zero}}
 			}
 			rows, count, err := finalizeQuery(ctx, project, source, nil)
 			if mode == "cancel" || mode == "error" {
@@ -139,9 +139,9 @@ func TestQueryFromValuesLockRecheckKeepsSyntheticOccurrence(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	usage := typ.Usage()
 	calls := 0
-	values := &valuesNode{querySchema: querySchema{{Name: "column1", Usage: usage}}, Rows: [][]expr.Expr{{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(typ, 99) })}}}
-	physical := &sourceNode{querySchema: querySchema{{Name: "n", Usage: usage}}, Occurrence: 0}
-	join := &joinNode{querySchema: append(append(querySchema(nil), physical.Schema()...), values.Schema()...), Left: physical, Right: values, LeftWidth: 1, RightWidth: 1}
+	values := &valuesNode{QuerySchema: querySchema{{Name: "column1", Usage: usage}}, Rows: [][]expr.Expr{{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(typ, 99) })}}}
+	physical := &sourceNode{QuerySchema: querySchema{{Name: "n", Usage: usage}}, Occurrence: 0}
+	join := &joinNode{QuerySchema: append(append(querySchema(nil), physical.Schema()...), values.Schema()...), Left: physical, Right: values, LeftWidth: 1, RightWidth: 1}
 	integer := func(n int64) sqltype.Value {
 		value, err := sqltype.Integer(typ, n)
 		if err != nil {

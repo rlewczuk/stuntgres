@@ -25,8 +25,8 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	// A real lazy view producer exposes its actual nested stage. Both levels
 	// are ordinary query machinery, not a stand-in cursor or canned result.
 	base := inner.Child.(*sourceNode)
-	outer := &projectNode{querySchema: inner.querySchema, Frame: inner.Frame + 1}
-	outer.Child = &sourceNode{querySchema: inner.querySchema, Ref: base.Ref, Occurrence: 0, PresenceSlot: base.PresenceSlot}
+	outer := &projectNode{QuerySchema: inner.QuerySchema, Frame: inner.Frame + 1}
+	outer.Child = &sourceNode{QuerySchema: inner.QuerySchema, Ref: base.Ref, Occurrence: 0, PresenceSlot: base.PresenceSlot}
 	column := columnExpression{Info: expr.Info{Usage: inputUsage}, Scope: 1, Frame: outer.Frame, Slot: 0}
 	outer.Expressions = []expr.Expr{column}
 	bound := *query

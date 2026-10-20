@@ -289,7 +289,7 @@ func subscriptsUnitProject(t *testing.T, engine *Engine, bound subscriptsExpress
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &projectNode{querySchema: querySchema{{Name: "s", Usage: bound.ResultUsage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
+	return &projectNode{QuerySchema: querySchema{{Name: "s", Usage: bound.ResultUsage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
 }
 
 func TestSubscriptsLowering(t *testing.T) {
@@ -327,7 +327,7 @@ func TestSubscriptsLowering(t *testing.T) {
 		q := subscriptsUnitProject(t, engine, e)
 		arg := e.Args[0].(literalExpression).Value
 		functionSetUnitArgument(t, q.Child.(*setProjectNode).Calls, 0, 0, queryProbe(arg.Type().Usage(), func(*EvalContext) (sqltype.Value, error) { opens++; return arg, nil }))
-		q.Child = &limitNode{querySchema: q.Child.Schema(), Child: q.Child, Count: seriesUnit(t, d, limit, limit).Args[0]}
+		q.Child = &limitNode{QuerySchema: q.Child.Schema(), Child: q.Child, Count: seriesUnit(t, d, limit, limit).Args[0]}
 		r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 		wantOpens := 1
 		if limit == 0 {
@@ -388,7 +388,7 @@ func TestSubscriptsFinalization(t *testing.T) {
 			}
 			return value, nil
 		}))
-		q := &projectNode{querySchema: querySchema{{Usage: d.Usage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
+		q := &projectNode{QuerySchema: querySchema{{Usage: d.Usage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
 		r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 		if r != nil || count != 0 || err != sentinel || calls != 2 {
 			t.Fatal("partial publication", r, count, err, calls)

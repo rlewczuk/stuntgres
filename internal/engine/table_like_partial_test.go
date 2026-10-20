@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -84,8 +85,8 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			row := []sqltype.Value{sqltype.String(text, "prefix"), id, key, truth, n}
 			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			got, err := preparation.predicateMatches(&evaluation, destination, &catalog.IndexDefinition{Predicate: predicate}, row, nil, nil)
-			want, _ := TruthOf(truth)
-			if err != nil || got != (want == True) {
+			want, _ := plan.TruthOf(truth)
+			if err != nil || got != (want == plan.True) {
 				t.Fatal("execution predicate retains source slot", got, want, err)
 			}
 		}
@@ -150,11 +151,11 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	assertMembership := func(count int) {
 		want := make(map[ids.RowID]ids.VersionID)
 		for _, row := range e.storage.Relations[destination.Address()].Versions {
-			truth, err := TruthOf(row.Values[3])
+			truth, err := plan.TruthOf(row.Values[3])
 			if err != nil {
 				t.Fatal(err)
 			}
-			if truth == True {
+			if truth == plan.True {
 				want[row.Row] = row.Version
 			}
 		}

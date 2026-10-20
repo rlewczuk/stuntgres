@@ -17,7 +17,7 @@ func viewCTEScan(root LogicalNode, match func(*derivedNode) bool) LogicalNode {
 			return n
 		}
 	case *worktableScanNode:
-		if match(&n.derivedNode) {
+		if match(&n.DerivedNode) {
 			return n
 		}
 	case *joinNode:

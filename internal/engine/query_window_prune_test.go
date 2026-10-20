@@ -106,7 +106,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			// leaving original window call metadata untouched.
 			schema := append([]catalog.Column(nil), original.Child.Schema()...)
 			schema = append(schema, schema[0])
-			input := &evaluationNode{querySchema: querySchema(schema), Child: original.Child}
+			input := &evaluationNode{QuerySchema: querySchema(schema), Child: original.Child}
 			slots := make(map[int]int)
 			grafted, err := ruleGraftSchemas(query.Root, original.Child, input, slots)
 			if err != nil {

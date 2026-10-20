@@ -47,7 +47,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if width != 0 && &producer.source.flat[0] != first {
 				t.Fatal("typed output buffer copied")
 			}
-			scan := &derivedNode{querySchema: schema, CTE: definition}
+			scan := &derivedNode{QuerySchema: schema, CTE: definition}
 			state := &queryState{source: owner.state.source, ctes: owner}
 			left, err := openCTEScan(context.Background(), state, scan)
 			if err != nil {

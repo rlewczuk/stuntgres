@@ -138,7 +138,7 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 		bound := projection[i]
 		projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), Slot: base + j}
 	}
-	return &evaluationNode{querySchema: root.Schema(), Child: root, Expressions: late, Base: base}
+	return &evaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: late, Base: base}
 }
 
 func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNode) (indexedStage, error) {

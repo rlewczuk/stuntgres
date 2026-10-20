@@ -17,10 +17,10 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 	arm := query.Root.(*projectNode)
 	copy := *arm
 	copy.Expressions = append([]expr.Expr(nil), arm.Expressions...)
-	copy.querySchema = append(querySchema(nil), arm.querySchema...)
+	copy.QuerySchema = append(querySchema(nil), arm.QuerySchema...)
 	if zeroWidth {
 		copy.Expressions = []expr.Expr{}
-		copy.querySchema = querySchema{}
+		copy.QuerySchema = querySchema{}
 	}
 	schema := append(querySchema(nil), copy.Schema()...)
 	for i := range schema {
@@ -29,7 +29,7 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 		schema[i].Nullable = false
 		schema[i].NullabilityKnown = false
 	}
-	n := &setNode{querySchema: schema, Left: &copy, Right: &copy, Operation: operation, All: all, LeftExpressions: append([]expr.Expr(nil), copy.Expressions...), RightExpressions: append([]expr.Expr(nil), copy.Expressions...)}
+	n := &setNode{QuerySchema: schema, Left: &copy, Right: &copy, Operation: operation, All: all, LeftExpressions: append([]expr.Expr(nil), copy.Expressions...), RightExpressions: append([]expr.Expr(nil), copy.Expressions...)}
 	if operation != "union" || !all {
 		n.Grouping = make([]queryGrouping, len(schema))
 		for i := range schema {
@@ -44,7 +44,7 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 	for i := range schema {
 		projection[i] = columnExpression{Info: expr.InfoOf(copy.Expressions[i]), Scope: 1, Frame: copy.Frame, Slot: i}
 	}
-	return n, &projectNode{querySchema: schema, Child: n, Expressions: projection, Frame: copy.Frame}, source
+	return n, &projectNode{QuerySchema: schema, Child: n, Expressions: projection, Frame: copy.Frame}, source
 }
 
 func TestQuerySetCounts(t *testing.T) {
@@ -215,7 +215,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	if len(frames) != 5 || len(queries) != 5 {
 		t.Fatal("nested arm frame registration", len(frames), len(queries))
 	}
-	for _, schema := range []querySchema{project.querySchema, n.querySchema, n.Left.querySchema, n.Right.querySchema} {
+	for _, schema := range []querySchema{project.QuerySchema, n.QuerySchema, n.Left.QuerySchema, n.Right.QuerySchema} {
 		for _, column := range schema {
 			if column.Usage.Type.ID() != sqltype.Int4 || column.OriginTable != 0 || column.OriginAttribute != 0 || column.NullabilityKnown {
 				t.Fatal(column)
@@ -298,7 +298,7 @@ func TestQuerySetHashCollisionCancellation(t *testing.T) {
 		}
 	}
 	usage := text.Usage()
-	n.querySchema[0].Usage = usage
+	n.QuerySchema[0].Usage = usage
 	var err error
 	n.Grouping[0].Grouping, err = sqltype.BindGrouping(usage)
 	if err != nil {
@@ -346,8 +346,8 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	project := b.query.Root.(*projectNode)
 	arm := *project
 	arm.Expressions = append([]expr.Expr(nil), project.Expressions...)
-	arm.querySchema = append(querySchema(nil), project.querySchema...)
-	n := &setNode{querySchema: arm.querySchema, Left: &arm, Right: &arm, Operation: "union", All: true, LeftExpressions: append([]expr.Expr(nil), arm.Expressions...), RightExpressions: append([]expr.Expr(nil), arm.Expressions...)}
+	arm.QuerySchema = append(querySchema(nil), project.QuerySchema...)
+	n := &setNode{QuerySchema: arm.QuerySchema, Left: &arm, Right: &arm, Operation: "union", All: true, LeftExpressions: append([]expr.Expr(nil), arm.Expressions...), RightExpressions: append([]expr.Expr(nil), arm.Expressions...)}
 	original := n.RightExpressions[0]
 	sentinel := errors.New("late INSERT set arm")
 	calls := 0

@@ -34,7 +34,7 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 	if err != nil {
 		return err
 	}
-	out.query = &BoundQuery{Root: &projectNode{querySchema: schema, Child: root, Expressions: projection, Frame: b.frameID()}}
+	out.query = &BoundQuery{Root: &projectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: b.frameID()}}
 	out.commandQuery = true
 	out.targets, out.arrayTargets = targets, partials
 	out.expressions = nil

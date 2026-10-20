@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -49,12 +50,12 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 	for _, tc := range []struct {
 		text string
 		want Truth
-	}{{"a  ", True}, {"b  ", False}} {
+	}{{"a  ", plan.True}, {"b  ", plan.False}} {
 		value, err := filter.Predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(bpchar, tc.text)}}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := TruthOf(value)
+		got, err := plan.TruthOf(value)
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}

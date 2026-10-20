@@ -65,7 +65,7 @@ func TestInsertSelectIntegratedExpressions(t *testing.T) {
 func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 	expression := preflightCast(t, "SELECT int4('42'::text) FROM t")
 	schema := []catalog.Column{{Name: "column1", Usage: expression.ResultUsage()}}
-	original := &valuesNode{querySchema: schema, Rows: [][]expr.Expr{{expression}, {expression}}}
+	original := &valuesNode{QuerySchema: schema, Rows: [][]expr.Expr{{expression}, {expression}}}
 	for range 2 {
 		root, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
 		if err != nil || root == original {

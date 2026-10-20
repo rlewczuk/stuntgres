@@ -219,7 +219,7 @@ func TestGeneratedVirtualJoinIdentityBeforeMerge(t *testing.T) {
 		}
 		state := &queryState{source: &querySource{sources: []*querySource{left, right}}, virtualReads: true}
 		schema := querySchema{d.Columns[0], d.Columns[0], d.Columns[1], d.Columns[1]}
-		join := &joinNode{querySchema: schema, Kind: parser.JoinLeft, Left: &sourceNode{querySchema: schema[:1], Occurrence: 0}, Right: &sourceNode{querySchema: schema[1:3], Occurrence: 1}, LeftWidth: 1, RightWidth: 2, Merges: []expr.Expr{column}}
+		join := &joinNode{QuerySchema: schema, Kind: parser.JoinLeft, Left: &sourceNode{QuerySchema: schema[:1], Occurrence: 0}, Right: &sourceNode{QuerySchema: schema[1:3], Occurrence: 1}, LeftWidth: 1, RightWidth: 2, Merges: []expr.Expr{column}}
 		stage, err := openJoinNode(context.Background(), state, join)
 		if err != nil {
 			t.Fatal(err)

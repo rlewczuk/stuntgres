@@ -111,8 +111,8 @@ func TestQuerySearchParent(t *testing.T) {
 				t.Fatal("wrong/mutated parent")
 			}
 		}
-		self := &worktableScanNode{derivedNode: derivedNode{CTE: d, Demand: []bool{false, true}}}
-		physical := &singletonNode{querySchema: make(querySchema, 4)}
+		self := &worktableScanNode{DerivedNode: derivedNode{CTE: d, Demand: []bool{false, true}}}
+		physical := &singletonNode{QuerySchema: make(querySchema, 4)}
 		for _, tc := range []struct {
 			node   LogicalNode
 			offset int
@@ -146,7 +146,7 @@ func TestQuerySearchIdentity(t *testing.T) {
 		}
 		grouping := make([]queryGrouping, 1)
 		grouping[0].Grouping, _ = sqltype.BindGrouping(typ.Usage())
-		stage := recursiveUnionStage{node: &recursiveUnionNode{setNode: setNode{querySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, source: &querySource{flat: []sqltype.Value{one, child, one, anchor}}}
+		stage := recursiveUnionStage{node: &recursiveUnionNode{SetNode: setNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, source: &querySource{flat: []sqltype.Value{one, child, one, anchor}}}
 		if index, err := stage.findTuple(ctx, []sqltype.Value{one, anchor}, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored sequence", index, err)
 		}
@@ -158,7 +158,7 @@ func TestQuerySearchIdentity(t *testing.T) {
 		grouping[1].Grouping, _ = sqltype.BindGrouping(cycle.Mark.ResultUsage())
 		d.Cycle = cycle
 		d.Schema = append(d.Schema, catalog.Column{Usage: cycle.Mark.ResultUsage()}, catalog.Column{Usage: cycle.Path.Usage()})
-		stage.node = &recursiveUnionNode{setNode: setNode{querySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s, Cycle: cycle}
+		stage.node = &recursiveUnionNode{SetNode: setNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s, Cycle: cycle}
 		stage.source.flat = append(append([]sqltype.Value(nil), second...), first...)
 		if index, err := stage.findTuple(ctx, first, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored CYCLE", index, err)
@@ -200,10 +200,10 @@ func TestQuerySearchRemap(t *testing.T) {
 			t.Fatal("same-OID shapes merged")
 		}
 		bound := literalExpression{Info: expr.Info{Usage: small.Usage()}, Value: sqltype.Null(small)}
-		left := &projectNode{querySchema: d.Schema[:1]}
-		right := &projectNode{querySchema: d.Schema}
+		left := &projectNode{QuerySchema: d.Schema[:1]}
+		right := &projectNode{QuerySchema: d.Schema}
 		seq := columnExpression{Info: expr.Info{Usage: d.Search.Result.Usage()}}
-		n := setNode{querySchema: d.Schema, Left: left, Right: right, Operation: "union", LeftExpressions: []expr.Expr{bound}, RightExpressions: []expr.Expr{bound, seq}, Grouping: make([]queryGrouping, 1)}
+		n := setNode{QuerySchema: d.Schema, Left: left, Right: right, Operation: "union", LeftExpressions: []expr.Expr{bound}, RightExpressions: []expr.Expr{bound, seq}, Grouping: make([]queryGrouping, 1)}
 		if err := validateStoredSetNode(&n, nil, d.Search); err != nil {
 			t.Fatal(err)
 		}

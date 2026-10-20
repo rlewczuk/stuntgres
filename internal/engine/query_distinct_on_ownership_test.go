@@ -100,7 +100,7 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 		primary := errors.New("ON key or sort primary")
 		closed := 0
 		inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{one}}}, schema: schema, expressions: []expr.Expr{literalExpression{Info: expr.Info{Usage: usage}, Value: one}}, evaluation: EvalContext{}, finish: func() error { closed++; return closeFailure }}
-		bridge := &querySource{materialized: true, flatWidth: 1, nestedRoot: &projectNode{querySchema: schema, Child: &singletonNode{}}, nestedStage: inner}
+		bridge := &querySource{materialized: true, flatWidth: 1, nestedRoot: &projectNode{QuerySchema: schema, Child: &singletonNode{}}, nestedStage: inner}
 		source := &querySource{sources: []*querySource{bridge}}
 		key := queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 			if phase == "key" {
@@ -108,16 +108,16 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		var child LogicalNode = &sourceNode{querySchema: schema, Occurrence: 0}
+		var child LogicalNode = &sourceNode{QuerySchema: schema, Occurrence: 0}
 		if phase == "sort" {
 			comparison, err := sqltype.BindOrdering(usage)
 			if err != nil {
 				t.Fatal(err)
 			}
-			child = &sortNode{querySchema: schema, Child: child, CacheWidth: 1, Keys: []sortKey{{Cache: 0, Slot: -1, Comparison: comparison, Expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
+			child = &sortNode{QuerySchema: schema, Child: child, CacheWidth: 1, Keys: []sortKey{{Cache: 0, Slot: -1, Comparison: comparison, Expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
 		}
-		node := &distinctOnNode{querySchema: schema, Child: child, Expressions: []expr.Expr{key}, Grouping: []queryGrouping{{Grouping: family}}}
-		root := &projectNode{querySchema: schema, Child: node, Expressions: []expr.Expr{columnExpression{Info: expr.Info{Usage: usage}, Scope: 1, Frame: 1, Slot: 0}}}
+		node := &distinctOnNode{QuerySchema: schema, Child: child, Expressions: []expr.Expr{key}, Grouping: []queryGrouping{{Grouping: family}}}
+		root := &projectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{columnExpression{Info: expr.Info{Usage: usage}, Scope: 1, Frame: 1, Slot: 0}}}
 		rows, count, err := finalizeQuery(context.Background(), root, source, nil)
 		want := error(primary)
 		if phase == "close" {

@@ -17,9 +17,9 @@ func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *functionFromNode {
 	t.Helper()
 	n := &functionFromNode{Calls: calls, Frame: 1, Ordinality: true}
 	for _, call := range calls {
-		n.querySchema = append(n.querySchema, catalog.Column{Usage: call.ResultUsage()})
+		n.QuerySchema = append(n.QuerySchema, catalog.Column{Usage: call.ResultUsage()})
 	}
-	n.querySchema = append(n.querySchema, catalog.Column{Name: "ordinality", Usage: seriesUnitType(t, sqltype.Int8).Usage()})
+	n.QuerySchema = append(n.QuerySchema, catalog.Column{Name: "ordinality", Usage: seriesUnitType(t, sqltype.Int8).Usage()})
 	return n
 }
 func srfFromUnitState() *queryState {
@@ -178,7 +178,7 @@ func TestSRFFromInvocation(t *testing.T) {
 	}
 	order = nil
 	zero := seriesUnit(t, big, 0, 0).Args[0]
-	limit := &limitNode{querySchema: probed.querySchema, Child: probed, Count: zero}
+	limit := &limitNode{QuerySchema: probed.QuerySchema, Child: probed, Count: zero}
 	if got := srfFromUnitRows(t, limit); len(got) != 0 || len(order) != 0 {
 		t.Fatal("LIMIT0 opened provider", got, order)
 	}

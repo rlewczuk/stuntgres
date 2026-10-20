@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -135,29 +136,29 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	call := windowCall{Raw: raw.Window, Argument: argument, Ordinal: ordinal, DefaultValue: defaultValue}
 	switch raw.Name {
 	case "row_number":
-		call.Operation = WindowNumber
+		call.Operation = plan.WindowNumber
 	case "rank":
-		call.Operation = WindowRank
+		call.Operation = plan.WindowRank
 	case "dense_rank":
-		call.Operation = WindowDenseRank
+		call.Operation = plan.WindowDenseRank
 	case "percent_rank":
-		call.Operation = WindowPercentRank
+		call.Operation = plan.WindowPercentRank
 	case "cume_dist":
-		call.Operation = WindowCumeDist
+		call.Operation = plan.WindowCumeDist
 	case "ntile":
-		call.Operation = WindowNtile
+		call.Operation = plan.WindowNtile
 	case "lead":
-		call.Operation = WindowLead
+		call.Operation = plan.WindowLead
 	case "lag":
-		call.Operation = WindowLag
+		call.Operation = plan.WindowLag
 	case "first_value":
-		call.Operation = WindowFirst
+		call.Operation = plan.WindowFirst
 	case "last_value":
-		call.Operation = WindowLast
+		call.Operation = plan.WindowLast
 	case "nth_value":
-		call.Operation = WindowNth
+		call.Operation = plan.WindowNth
 	case "sum":
-		call.Operation = WindowSum
+		call.Operation = plan.WindowSum
 		// Ordinary SUM has additional providers; windows remain numeric-only.
 		switch argument.ResultUsage().Type.ID() {
 		case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
@@ -217,7 +218,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	}
 	expr := &windowExpression{Info: info, Slot: -1, Frame: b.frameID(), Call: len(b.grouping.windowCalls)}
 	call.Expression = expr
-	expr.Nullable = call.Operation == WindowSum || call.Operation == WindowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
+	expr.Nullable = call.Operation == plan.WindowSum || call.Operation == plan.WindowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
 	b.grouping.windowCalls = append(b.grouping.windowCalls, call)
 	return expr, nil
 }
@@ -266,7 +267,7 @@ func (b *expressionBinder) sameWindowCall(a, c windowCall) bool {
 	}
 	// Arguments can own child queries hidden by the window leaf. This is
 	// semantic target equality, not permission to merge volatile executions.
-	if (a.Operation == WindowSum || a.Operation.EvaluatesArgument()) && (!sqltype.SameRecordUsage(a.Expression.ResultUsage(), c.Expression.ResultUsage()) || !b.sameQueryTarget(a.Argument, c.Argument) || !b.sameQueryTarget(a.Ordinal, c.Ordinal) || !b.sameQueryTarget(a.DefaultValue, c.DefaultValue)) {
+	if (a.Operation == plan.WindowSum || a.Operation.EvaluatesArgument()) && (!sqltype.SameRecordUsage(a.Expression.ResultUsage(), c.Expression.ResultUsage()) || !b.sameQueryTarget(a.Argument, c.Argument) || !b.sameQueryTarget(a.Ordinal, c.Ordinal) || !b.sameQueryTarget(a.DefaultValue, c.DefaultValue)) {
 		return false
 	}
 	if a.Raw != nil || c.Raw != nil {
@@ -629,7 +630,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 		}
 		shared := -1
 		for j, previous := range calls {
-			if indices[j] == index && (call.Operation == WindowNumber || call.Operation == WindowCount) && previous.Operation == call.Operation {
+			if indices[j] == index && (call.Operation == plan.WindowNumber || call.Operation == plan.WindowCount) && previous.Operation == call.Operation {
 				shared = j
 				break
 			}
@@ -671,7 +672,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 			}
 		}
 	}
-	return &windowNode{querySchema: schema, Child: root, Specs: specs, Calls: calls, SpecIndices: indices, SortIndices: sortIndices}, nil
+	return &windowNode{QuerySchema: schema, Child: root, Specs: specs, Calls: calls, SpecIndices: indices, SortIndices: sortIndices}, nil
 }
 
 func windowOccurrence(bound expr.Expr) *windowExpression {

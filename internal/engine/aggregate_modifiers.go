@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -196,7 +197,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 }
 
 func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
-	if !SameIntaggIdentity(a.Procedure, a.Ref, other.Procedure, other.Ref) {
+	if !plan.SameIntaggIdentity(a.Procedure, a.Ref, other.Procedure, other.Ref) {
 		return false
 	}
 	if p, ok := a.Provider.(functions.JSONObjectAggregate); ok {

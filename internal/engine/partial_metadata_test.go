@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -34,11 +35,11 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s row %d: %v", label, row.Row, err)
 			}
-			truth, err := TruthOf(value)
+			truth, err := plan.TruthOf(value)
 			if err != nil || truth != want[i] {
 				t.Fatalf("%s row %d: truth=%v want=%v error=%v", label, row.Row, truth, want[i], err)
 			}
-			if truth == True {
+			if truth == plan.True {
 				gotMembership[row.Row] = row.Version
 			}
 		}
@@ -46,7 +47,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 			t.Fatalf("%s: predicate members=%v want=%v", label, gotMembership, membership)
 		}
 	}
-	oldTruth := []Truth{True, False, Unknown, True, True}
+	oldTruth := []Truth{plan.True, plan.False, plan.Unknown, plan.True, plan.True}
 	oldMembers := map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5}
 	consume("initial projection", retained, oldTruth, oldMembers)
 	partialWantMembership(t, oldRoot, oldMembers)
@@ -86,7 +87,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	consume("current projection", current, []Truth{False, True, Unknown, False, False}, map[ids.RowID]ids.VersionID{2: 2})
+	consume("current projection", current, []Truth{plan.False, plan.True, plan.Unknown, plan.False, plan.False}, map[ids.RowID]ids.VersionID{2: 2})
 	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{2: 2})
 	consume("retained projection", retained, oldTruth, oldMembers)
 	historical, _, err := projectIndexMetadata(ctx, capture, ref)
@@ -152,8 +153,8 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		if err != nil {
 			t.Fatalf("row %d: %v", row.Row, err)
 		}
-		truth, err := TruthOf(value)
-		if err != nil || truth != False {
+		truth, err := plan.TruthOf(value)
+		if err != nil || truth != plan.False {
 			t.Fatalf("row %d: original FALSE AND active truth=%v error=%v", row.Row, truth, err)
 		}
 		matched, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: predicate}, row.Values, nil, nil)

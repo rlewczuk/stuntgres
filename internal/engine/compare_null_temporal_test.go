@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -53,8 +54,8 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		}
 		for _, pair := range [][2]sqltype.Value{{beforeLeft, afterLeft}, {beforeRight, afterRight}} {
 			equal, err := equality.Evaluate(ctx, pair[0], pair[1], sqltype.InputEnvironment{})
-			truth, truthErr := TruthOf(equal)
-			if err != nil || truthErr != nil || truth != True {
+			truth, truthErr := plan.TruthOf(equal)
+			if err != nil || truthErr != nil || truth != plan.True {
 				t.Fatal("prepared operand reread transaction clock", pair, err, truthErr)
 			}
 		}

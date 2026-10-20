@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -509,11 +510,11 @@ func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *EvalContex
 		if err != nil {
 			return nil, err
 		}
-		truth, err := TruthOf(value)
+		truth, err := plan.TruthOf(value)
 		if err != nil {
 			return nil, err
 		}
-		if truth == False {
+		if truth == plan.False {
 			return c, nil
 		}
 	}

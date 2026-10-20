@@ -214,7 +214,7 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 			projection[j] = cachedOrderExpression{Info: info, Slot: key.Cache}
 		}
 	}
-	return &sortNode{querySchema: root.Schema(), Child: root, Keys: keys, CacheWidth: computed}, nil
+	return &sortNode{QuerySchema: root.Schema(), Child: root, Keys: keys, CacheWidth: computed}, nil
 }
 
 func (c *EvalContext) EvalCachedOrder(e cachedOrderExpression) (sqltype.Value, error) {

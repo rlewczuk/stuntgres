@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -94,8 +95,8 @@ func TestPartialIndexPredicateTruth(t *testing.T) {
 		p := &catalog.IndexPredicate{Definition: node, Execution: node}
 		preparation := indexExecutionPreparation{}
 		got, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: p}, nil, nil, nil)
-		truth, _ := TruthOf(value)
-		if err != nil || got != (truth == True) {
+		truth, _ := plan.TruthOf(value)
+		if err != nil || got != (truth == plan.True) {
 			t.Fatal(value, got, err)
 		}
 	}
@@ -386,8 +387,8 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	calls := 0
 	witness := partialEvaluationWitness{Info: f.predicate.Info, calls: &calls, value: sqltype.Boolean(f.predicate.Usage.Type, true)}
 	source := &querySource{view: view, ref: leaf.ref, committed: f.store.Versions, scope: scope, partialMask: mask}
-	scan := &sourceNode{querySchema: f.parent.Columns, Ref: leaf.ref}
-	filter := &filterNode{querySchema: f.parent.Columns, Child: scan, Predicate: witness}
+	scan := &sourceNode{QuerySchema: f.parent.Columns, Ref: leaf.ref}
+	filter := &filterNode{QuerySchema: f.parent.Columns, Child: scan, Predicate: witness}
 	stage, err := openQueryNode(context.Background(), &queryState{source: source}, filter)
 	if err != nil {
 		t.Fatal(err)

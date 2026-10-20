@@ -210,7 +210,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
-		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.frameID(), Syntax: query}}, dependencies: binder.dependencies, querySources: binder.query.sources, capture: viewCapture{columns: binder.capture.columns, literals: binder.capture.literals, castUsages: binder.capture.castUsages, composites: binder.capture.composites, collations: binder.capture.collations, namespaces: binder.capture.namespaces}, prepared: preparedCaptures{sequenceConstants: binder.prepared.sequenceConstants, regtypeConstants: binder.prepared.regtypeConstants}}
+		b := binding{query: &BoundQuery{Root: &projectNode{QuerySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.frameID(), Syntax: query}}, dependencies: binder.dependencies, querySources: binder.query.sources, capture: viewCapture{columns: binder.capture.columns, literals: binder.capture.literals, castUsages: binder.capture.castUsages, composites: binder.capture.composites, collations: binder.capture.collations, namespaces: binder.capture.namespaces}, prepared: preparedCaptures{sequenceConstants: binder.prepared.sequenceConstants, regtypeConstants: binder.prepared.regtypeConstants}}
 		b.capture.routineRefs = binder.capture.routineRefs
 		b.capture.operatorRefs = binder.capture.operatorRefs
 		for i := range b.querySources {

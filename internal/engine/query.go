@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -26,12 +27,12 @@ type RowResult interface {
 }
 
 func queryPredicateRejectsAll(c *EvalContext, expr expr.Expr) (bool, error) {
-	value, known, err := QueryPredicateProofValue(c, expr)
+	value, known, err := plan.QueryPredicateProofValue(c, expr)
 	if err != nil || !known {
 		return false, err
 	}
-	truth, err := TruthOf(value)
-	return err == nil && truth != True, err
+	truth, err := plan.TruthOf(value)
+	return err == nil && truth != plan.True, err
 }
 
 // preflightQuery retains schemas and source identity from analysis. Only paths
@@ -55,12 +56,12 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	case *setNode:
 		return preflightSet(c, n)
 	case *recursiveUnionNode:
-		bound, err := preflightSet(c, &n.setNode)
+		bound, err := preflightSet(c, &n.SetNode)
 		if err != nil {
 			return nil, err
 		}
 		copy := *n
-		copy.setNode = *bound.(*setNode)
+		copy.SetNode = *bound.(*setNode)
 		if n.Cycle != nil {
 			recipe := *n.Cycle
 			recipe.Mark, _, err = preflightCoercions(c, recipe.Mark)
@@ -1082,11 +1083,11 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 				if err != nil {
 					return false, err
 				}
-				truth, err := TruthOf(value)
+				truth, err := plan.TruthOf(value)
 				if err != nil {
 					return false, err
 				}
-				if truth == True {
+				if truth == plan.True {
 					retainOccurrence(out, &child, i)
 					return true, ctx.Err()
 				}

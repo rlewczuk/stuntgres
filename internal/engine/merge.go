@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -354,28 +355,28 @@ func mergeOnTruth(value sqltype.Value) (Truth, error) {
 		var err error
 		value, err = value.BaseValue()
 		if err != nil {
-			return False, err
+			return plan.False, err
 		}
 	}
 	if value.IsNull() {
-		return Unknown, nil
+		return plan.Unknown, nil
 	}
 	switch value.Type().ID() {
 	case sqltype.Bool:
-		return TruthOf(value)
+		return plan.TruthOf(value)
 	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
 		i, err := value.Integer()
 		if err != nil {
-			return False, err
+			return plan.False, err
 		}
 		if i != 0 {
-			return True, nil
+			return plan.True, nil
 		}
-		return False, nil
+		return plan.False, nil
 	case sqltype.Text:
-		return True, nil
+		return plan.True, nil
 	}
-	return False, fmt.Errorf("stuntgres: invalid MERGE ON carrier")
+	return plan.False, fmt.Errorf("stuntgres: invalid MERGE ON carrier")
 }
 
 func (merge *boundMerge) hasVirtualReads() bool {

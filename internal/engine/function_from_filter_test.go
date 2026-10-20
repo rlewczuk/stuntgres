@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -10,9 +11,9 @@ import (
 
 func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	types := jsonObjectUnitTypes()
-	left := &valuesNode{querySchema: querySchema{{Usage: types[sqltype.Bool].Usage()}}}
-	right := &functionFromNode{querySchema: querySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, Correlated: true, Frame: 7}
-	join := &joinNode{querySchema: append(append(querySchema(nil), left.Schema()...), right.Schema()...), Left: left, Right: right, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 7}
+	left := &valuesNode{QuerySchema: querySchema{{Usage: types[sqltype.Bool].Usage()}}}
+	right := &functionFromNode{QuerySchema: querySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, Correlated: true, Frame: 7}
+	join := &joinNode{QuerySchema: append(append(querySchema(nil), left.Schema()...), right.Schema()...), Left: left, Right: right, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 7}
 	predicate := columnExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
 	moved := functionFromWhere(join, predicate)
 	if moved == nil || moved == join || moved.Right != right || moved.Frame != join.Frame || moved.LeftWidth != 1 || moved.RightWidth != 2 {
@@ -64,9 +65,9 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[sqltype.Bool].Usage()
-	left := &valuesNode{querySchema: querySchema{{Usage: usage}}}
-	right := &functionFromNode{querySchema: querySchema{{Usage: usage}}, Frame: 7}
-	join := &joinNode{querySchema: querySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
+	left := &valuesNode{QuerySchema: querySchema{{Usage: usage}}}
+	right := &functionFromNode{QuerySchema: querySchema{{Usage: usage}}, Frame: 7}
+	join := &joinNode{QuerySchema: querySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
 	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
 	calls := 0
 	volatile := &queryProbeExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) {
@@ -95,11 +96,11 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		truth, err := TruthOf(selected)
+		truth, err := plan.TruthOf(selected)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if truth != True {
+		if truth != plan.True {
 			continue
 		}
 		for range 3 {
@@ -116,9 +117,9 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[sqltype.Bool].Usage()
-	left := &valuesNode{querySchema: querySchema{{Usage: usage}}}
-	right := &functionFromNode{querySchema: querySchema{{Usage: usage}}, Frame: 7}
-	join := &joinNode{querySchema: querySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
+	left := &valuesNode{QuerySchema: querySchema{{Usage: usage}}}
+	right := &functionFromNode{QuerySchema: querySchema{{Usage: usage}}, Frame: 7}
+	join := &joinNode{QuerySchema: querySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
 	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
 	and := func(a, b expr.Expr) logicalExpression {
 		return logicalExpression{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(a.Properties(), b.Properties())}, Op: parser.LogicalAnd, Left: a, Right: b}

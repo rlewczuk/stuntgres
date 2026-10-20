@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -297,11 +298,11 @@ func (c *EvalContext) evaluateOwnDomainChecks(view catalog.Read, target, d *cata
 		if err != nil {
 			return err
 		}
-		truth, err := TruthOf(result)
+		truth, err := plan.TruthOf(result)
 		if err != nil {
 			return err
 		}
-		if truth == False {
+		if truth == plan.False {
 			if violation != nil {
 				return violation
 			}

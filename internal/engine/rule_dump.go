@@ -132,7 +132,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 	}
 	node, _, err := rewriteViewExpression(view, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if c, ok := expr.(returningColumnExpression); ok {
-			return c.columnExpression, true, nil
+			return c.ColumnExpr, true, nil
 		}
 		return expr, false, nil
 	})

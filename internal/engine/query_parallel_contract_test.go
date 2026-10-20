@@ -96,7 +96,7 @@ func parallelAdmissionAndTemporary(t *testing.T) {
 	captured := sessionSQL(t, s, "SELECT id FROM parallel_temp").Rows.(*finalRows)
 	defer captured.Close()
 	project := *query.Root.(*projectNode)
-	project.Child = &sourceNode{querySchema: captured.Schema(), Ref: captured.source.ref, Occurrence: captured.source.occurrence}
+	project.Child = &sourceNode{QuerySchema: captured.Schema(), Ref: captured.source.ref, Occurrence: captured.source.occurrence}
 	if _, _, ok := parallelQueryPlan(&project, captured.source); ok {
 		t.Fatal("temporary physical source admitted")
 	}

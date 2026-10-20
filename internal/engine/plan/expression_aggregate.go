@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -10,16 +10,16 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type aggregateCall struct {
+type AggregateCall struct {
 	Provider     functions.AggregateProvider
 	Routine      ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
 	Argument     expr.Expr
 	Separator    expr.Expr
 	Direct       []expr.Expr
-	Order        []sortKey
+	Order        []SortKey
 	Filter       expr.Expr
-	Distinct     []queryGrouping // Multi-key tuple equality is caller checked; single-key support is not.
-	StageWidth   int             // Value, separator, then unique local targets; keys address cache slots.
+	Distinct     []Grouping // Multi-key tuple equality is caller checked; single-key support is not.
+	StageWidth   int        // Value, separator, then unique local targets; keys address cache slots.
 	Operation    functions.AggregateOperation
 	IncludeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
 	Procedure    *catalog.Procedure
@@ -28,7 +28,7 @@ type aggregateCall struct {
 
 // Every analyzed aggregate expression participates in ownership, dependence,
 // preflight and immutable query rewrites, not just the first value argument.
-func (call aggregateCall) Expressions(visit func(expr.Expr)) {
+func (call AggregateCall) Expressions(visit func(expr.Expr)) {
 	visit(call.Argument)
 	visit(call.Separator)
 	for _, direct := range call.Direct {
@@ -40,25 +40,25 @@ func (call aggregateCall) Expressions(visit func(expr.Expr)) {
 	visit(call.Filter)
 }
 
-type aggregateExpression struct {
+type AggregateExpr struct {
 	expr.Info
 	Slot  int
 	Frame uint32
 }
 
-func (e aggregateExpression) Eval(expr.Context) (sqltype.Value, error) {
+func (e AggregateExpr) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: aggregate occurrence not rewritten")
 }
 
 // Group slots have no table address. Proven output origin is retained separately
 // by bindSelect, never inferred from this private row layout.
-type groupExpression struct {
+type GroupExpr struct {
 	expr.Info
 	Slot  int
 	Frame uint32
 }
 
-func (e groupExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e GroupExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -68,7 +68,7 @@ func (e groupExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 // Arguments remain analyzed dependencies but are never evaluated by GROUPING.
 // The immutable masks address the execution-local occurrence suffix in its owner.
-type groupingExpression struct {
+type GroupingExpr struct {
 	expr.Info
 	Args      []expr.Expr
 	Positions []parser.Position
@@ -77,7 +77,7 @@ type groupingExpression struct {
 	Masks     []int32
 }
 
-func (e groupingExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e GroupingExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err

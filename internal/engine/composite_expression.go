@@ -188,7 +188,7 @@ func (b *expressionBinder) compositeFieldAt(base expr.Expr, index int, pos parse
 				value.Pos = pos
 				return value
 			}
-			column = value.columnExpression
+			column = value.ColumnExpr
 		default:
 			return fieldExpression{b.info(member.Usage, pos, base.Properties()), base, member.Attribute, index}
 		}

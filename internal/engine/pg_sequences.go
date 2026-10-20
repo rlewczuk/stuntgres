@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -152,11 +153,11 @@ func openPGSequencesStage(state *queryState, source *querySource, schema []catal
 				if err != nil {
 					return false, err
 				}
-				truth, err := TruthOf(value)
+				truth, err := plan.TruthOf(value)
 				if err != nil {
 					return false, err
 				}
-				if truth != True {
+				if truth != plan.True {
 					admitted = false
 					break
 				}

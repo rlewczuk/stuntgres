@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -472,7 +473,7 @@ func mergeMatches(evaluation *EvalContext, on expr.Expr) (bool, error) {
 		return false, err
 	}
 	truth, err := mergeOnTruth(value)
-	return truth == True, err
+	return truth == plan.True, err
 }
 
 func (merge *boundMerge) selectArm(evaluation *EvalContext, class parser.MergeMatch) (*boundMergeArm, error) {

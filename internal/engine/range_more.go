@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -35,7 +36,7 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 	if len(operands) == 1 {
 		operand = operands[0]
 	}
-	input, result := UnnestInputTypes(operand.Usage)
+	input, result := plan.UnnestInputTypes(operand.Usage)
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if !visible || name != "unnest" || len(raw.ArgNames) != 0 || len(raw.Args) != 1 || result == nil {
 		names := make([]string, len(raw.Args))

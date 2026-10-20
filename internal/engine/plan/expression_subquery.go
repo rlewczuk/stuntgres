@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -11,25 +11,25 @@ import (
 
 // Subquery expressions borrow captured sources and the existing execution owner.
 // Correlated scans reopen; uncorrelated hashed occurrences retain a built RHS.
-type subqueryExpression struct {
+type SubqueryExpr struct {
 	expr.Info
 	Kind            parser.SubqueryKind
-	QueryPlan       *BoundQuery
-	Comparisons     []comparisonExpression
+	QueryPlan       *Query
+	Comparisons     []ComparisonExpr
 	Ordering        []sqltype.Comparison
 	Membership      []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
 	Operator        string
 	Negate          bool
 	PresenceOnly    bool
-	cteDefinition   bool // Analysis-only graph edge, never expression demand.
-	JSONArray       *sqlJSONArrayQuery
-	LeftExpansions  map[int]compositeExpansionBinding // Analysis-only source associations.
+	CTEDefinition   bool // Analysis-only graph edge, never expression demand.
+	JSONArray       *SQLJSONArrayQuery
+	LeftExpansions  map[int]CompositeExpansionBinding // Analysis-only source associations.
 	LeftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
 	ErasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
 	UpdateWidth     int                               // Nonzero only for the first recipe of an UPDATE tuple source.
 }
 
-func (e subqueryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e SubqueryExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -37,23 +37,23 @@ func (e subqueryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return runtime.EvalSubquery(e)
 }
 
-type sqlRoutineExpression struct {
+type SQLRoutineExpr struct {
 	expr.Info
 	Procedure *catalog.Procedure
 	Ref       ids.ObjectRef
 	Args      []expr.Expr
 }
 
-func (n sqlRoutineExpression) Children() []expr.Expr { return n.Args }
+func (n SQLRoutineExpr) Children() []expr.Expr { return n.Args }
 
-func (n sqlRoutineExpression) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+func (n SQLRoutineExpr) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
 	if kind != expr.CaptureFunction {
 		return expr.CaptureOperands{}, false, nil
 	}
 	return expr.CaptureOperands{Args: n.Args, Count: len(n.Args), SelectedImplicit: true}, true, nil
 }
 
-func (n sqlRoutineExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (n SQLRoutineExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if current, ok := info.RoutineReference.(*catalog.Procedure); ok {
 		n.Procedure = current
 	}
@@ -69,8 +69,8 @@ func (n sqlRoutineExpression) Rebuild(info expr.Info, children []expr.Expr) (exp
 	return n, nil
 }
 
-func (n sqlRoutineExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
-	o, ok := other.(sqlRoutineExpression)
+func (n SQLRoutineExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
+	o, ok := other.(SQLRoutineExpr)
 	if !ok || n.Ref != o.Ref || n.Procedure.SQL != o.Procedure.SQL || len(n.Args) != len(o.Args) {
 		return false
 	}
@@ -82,7 +82,7 @@ func (n sqlRoutineExpression) SameGroup(other expr.Expr, same func(expr.Expr, ex
 	return true
 }
 
-func (n sqlRoutineExpression) ValidateStoredProvider() error {
+func (n SQLRoutineExpr) ValidateStoredProvider() error {
 	if n.Procedure == nil || n.Procedure.SQL == nil || n.Info.RoutineReference != n.Procedure || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Usage.Type.ID() != sqltype.ID(n.Procedure.Result) {
 		return fmt.Errorf("invalid stored SQL routine provider")
 	}
@@ -99,11 +99,11 @@ func (n sqlRoutineExpression) ValidateStoredProvider() error {
 	return nil
 }
 
-func (sqlRoutineExpression) IntrinsicVolatility() expr.Volatility { return expr.Volatile }
+func (SQLRoutineExpr) IntrinsicVolatility() expr.Volatility { return expr.Volatile }
 
-func (sqlRoutineExpression) PlanningFold() expr.Fold { return expr.FoldNever }
+func (SQLRoutineExpr) PlanningFold() expr.Fold { return expr.FoldNever }
 
-func (n sqlRoutineExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n SQLRoutineExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err

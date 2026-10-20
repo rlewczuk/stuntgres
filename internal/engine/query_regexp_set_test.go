@@ -115,7 +115,7 @@ func TestRegexpSetProjection(t *testing.T) {
 	_, text := regexpSetUnitTypes(t)
 	a := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a b"), " ")}
 	b := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x"), ",")}
-	n := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{a, b}, Frame: 1})
+	n := regexpSetUnitLayout(&setProjectNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{a, b}, Frame: 1})
 	state := &queryState{source: &querySource{materialized: true}, frame: 1}
 	stage, err := openSetProjectNode(context.Background(), state, n)
 	if err != nil {
@@ -131,12 +131,12 @@ func TestRegexpSetProjection(t *testing.T) {
 			t.Fatal("missing INT4")
 		}
 		column := columnExpression{Info: expr.Info{Usage: text.Usage()}, Scope: 1, Frame: 1, Slot: 0}
-		left := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a bb")}}}
+		left := &valuesNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a bb")}}}
 		correlated := regexpSetUnitCall(t, text, column, " ")
-		function := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(correlated), Frame: 1, Correlated: true}
-		projectSet := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Child: left, Calls: []expr.Expr{functions.RegexpSet{RegexpCall: correlated}}, Frame: 1})
-		join := &joinNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: function, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 1}
-		standalone := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a bb"), " ")), Frame: 1}
+		function := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(correlated), Frame: 1, Correlated: true}
+		projectSet := regexpSetUnitLayout(&setProjectNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Child: left, Calls: []expr.Expr{functions.RegexpSet{RegexpCall: correlated}}, Frame: 1})
+		join := &joinNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: function, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 1}
+		standalone := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a bb"), " ")), Frame: 1}
 		for _, tc := range []struct {
 			name string
 			root LogicalNode
@@ -152,7 +152,7 @@ func TestRegexpSetProjection(t *testing.T) {
 					t.Fatal(err)
 				}
 				length := functions.String{Info: expr.Info{Usage: integer.Usage()}, Plan: plan, Args: []expr.Expr{setColumn}, Textual: [4]bool{true}}
-				project := &projectNode{querySchema: querySchema{{Usage: integer.Usage()}}, Child: tc.root, Expressions: []expr.Expr{length}, Frame: 1}
+				project := &projectNode{QuerySchema: querySchema{{Usage: integer.Usage()}}, Child: tc.root, Expressions: []expr.Expr{length}, Frame: 1}
 				stage, err := openQueryProjectStage(context.Background(), state, project)
 				if err != nil {
 					t.Fatal(err)
@@ -191,7 +191,7 @@ func TestRegexpSetProjection(t *testing.T) {
 		if !ok {
 			t.Fatal("missing INT8")
 		}
-		from := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a b"), " "), regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x"), ",")), Ordinality: true, Frame: 1}
+		from := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a b"), " "), regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x"), ",")), Ordinality: true, Frame: 1}
 		stage, err := openFunctionFromNode(context.Background(), state, from)
 		if err != nil {
 			t.Fatal(err)
@@ -242,7 +242,7 @@ func TestRegexpSetProjection(t *testing.T) {
 				t.Fatal(err)
 			}
 			call := functions.RegexpCall{Info: expr.Info{Usage: typ.Usage()}, Args: args, Plan: plan, WrittenSlots: [7]uint8{0, 1, 2}}
-			from := &functionFromNode{querySchema: querySchema{{Usage: typ.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1}
+			from := &functionFromNode{QuerySchema: querySchema{{Usage: typ.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1}
 			stage, err := openFunctionFromNode(context.Background(), state, from)
 			if err != nil {
 				t.Fatal(err)
@@ -309,7 +309,7 @@ func TestRegexpSetNested(t *testing.T) {
 	// Scalar siblings are demanded for every expanded occurrence, not once per
 	// input or once when a vector is drained.
 	calls := 0
-	n := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: text.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{inner}, Frame: 1})
+	n := regexpSetUnitLayout(&setProjectNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{inner}, Frame: 1})
 	stage, err = openSetProjectNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
@@ -325,9 +325,9 @@ func TestRegexpSetCorrelation(t *testing.T) {
 	_, text := regexpSetUnitTypes(t)
 	column := columnExpression{Info: expr.Info{Usage: text.Usage()}, Scope: 1, Frame: 1, Slot: 0}
 	call := regexpSetUnitCall(t, text, column, " ")
-	right := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1, Correlated: true}
-	left := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a b")}, {literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}}}}
-	n := &joinNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinLeft, Frame: 1, CorrelatedRight: true}
+	right := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1, Correlated: true}
+	left := &valuesNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a b")}, {literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}}}}
+	n := &joinNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinLeft, Frame: 1, CorrelatedRight: true}
 	state := &queryState{source: &querySource{materialized: true}, frame: 1}
 	stage, err := openJoinNode(context.Background(), state, n)
 	if err != nil {
@@ -340,11 +340,11 @@ func TestRegexpSetCorrelation(t *testing.T) {
 	t.Run("nested-prior-left-prefix", func(t *testing.T) {
 		local := column
 		local.Slot = 1
-		functions := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column, " "), regexpSetUnitCall(t, text, local, ",")), Frame: 1, Correlated: true}
-		localLeft := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "x,y")}}}
-		nested := &joinNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Left: localLeft, Right: functions, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, Frame: 1, CorrelatedRight: true, CorrelationPrefix: 1}
-		parentLeft := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a b")}}}
-		parent := &joinNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Left: parentLeft, Right: nested, LeftWidth: 1, RightWidth: 3, Kind: parser.JoinInner, Frame: 1, CorrelatedRight: true}
+		functions := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column, " "), regexpSetUnitCall(t, text, local, ",")), Frame: 1, Correlated: true}
+		localLeft := &valuesNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "x,y")}}}
+		nested := &joinNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Left: localLeft, Right: functions, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, Frame: 1, CorrelatedRight: true, CorrelationPrefix: 1}
+		parentLeft := &valuesNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a b")}}}
+		parent := &joinNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Left: parentLeft, Right: nested, LeftWidth: 1, RightWidth: 3, Kind: parser.JoinInner, Frame: 1, CorrelatedRight: true}
 		stage, err := openJoinNode(context.Background(), state, parent)
 		if err != nil {
 			t.Fatal(err)
@@ -357,7 +357,7 @@ func TestRegexpSetCorrelation(t *testing.T) {
 func TestRegexpSetOwnership(t *testing.T) {
 	_, text := regexpSetUnitTypes(t)
 	call := regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a b"), " ")
-	n := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1}
+	n := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1}
 	state := &queryState{source: &querySource{materialized: true}, frame: 1}
 	stage, err := openFunctionFromNode(context.Background(), state, n)
 	if err != nil {
@@ -409,7 +409,7 @@ func TestRegexpSetWalks(t *testing.T) {
 	engine, view, text := regexpSetUnitEngineTypes(t)
 	column := columnExpression{Info: expr.Info{Usage: text.Usage()}, Scope: 1, Frame: 1, Slot: 0}
 	set := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, column, " ")}
-	input := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a b")}}}
+	input := &valuesNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a b")}}}
 	root, _, err := regexpSetUnitLower(engine, input, []expr.Expr{set}, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -470,7 +470,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 	}
 	t.Run("owned-arguments-and-distinct-outer-frame", func(t *testing.T) {
 		n := &functionFromNode{
-			querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}},
+			QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}},
 			Calls:       regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " "), regexpSetUnitCall(t, text, column(9, 1), " ")),
 			Frame:       7, Correlated: true, Captures: capture(7, 2),
 		}
@@ -488,9 +488,9 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		}
 	})
 	t.Run("already-local-right-and-free-left", func(t *testing.T) {
-		left := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " ")), Frame: 7, Correlated: true, Captures: capture(7, 2)}
-		right := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 0), "")), Frame: 7, Correlated: true, Captures: capture(7, 0)}
-		n := &joinNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7, CorrelatedRight: true, Captures: capture(7, 2)}
+		left := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " ")), Frame: 7, Correlated: true, Captures: capture(7, 2)}
+		right := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 0), "")), Frame: 7, Correlated: true, Captures: capture(7, 0)}
+		n := &joinNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7, CorrelatedRight: true, Captures: capture(7, 2)}
 		rebased, err := rebaseFunctionCorrelation(view, n, 7, 2)
 		if err != nil {
 			t.Fatal(err)
@@ -506,7 +506,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 	t.Run("private-virtual-owner-window", func(t *testing.T) {
 		virtual := column(1, 3)
 		virtual.Virtual, virtual.RowStart, virtual.RowWidth = column(1, 0), 2, 2
-		n := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, virtual, " ")), Frame: 1, Correlated: true, Captures: capture(1, 3)}
+		n := &functionFromNode{QuerySchema: querySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, virtual, " ")), Frame: 1, Correlated: true, Captures: capture(1, 3)}
 		rebased, err := rebaseFunctionCorrelation(view, n, 1, 2)
 		if err != nil {
 			t.Fatal(err)
@@ -543,7 +543,7 @@ func TestFunctionSourceMixedRows(t *testing.T) {
 			}
 			scalar := functions.Regexp{RegexpCall: regexpCallForNull(plan, integer, null, regexpSetUnitLiteral(text, "["))}
 			node := &functionFromNode{Calls: []expr.Expr{stringCall, regexpCall, scalar}, Frame: 1, Ordinality: true,
-				querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: integer.Usage()}, {Usage: bigint.Usage()}}}
+				QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: integer.Usage()}, {Usage: bigint.Usage()}}}
 			stage, err := openFunctionFromNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 			if err != nil {
 				t.Fatal(err)
@@ -610,7 +610,7 @@ func TestQuerySetMixedAttemptOwnership(t *testing.T) {
 			} else {
 				root.(*setProjectNode).Scalars[0] = probe
 			}
-			project := &projectNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Child: root, Expressions: outputs, Frame: 1}
+			project := &projectNode{QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Child: root, Expressions: outputs, Frame: 1}
 			stage, err := openQueryProjectStage(context.Background(), &queryState{source: &querySource{}, frame: 1}, project)
 			if err != nil {
 				t.Fatal(err)

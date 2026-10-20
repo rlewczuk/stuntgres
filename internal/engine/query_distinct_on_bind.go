@@ -187,7 +187,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 		sorted.Outputs = append(sorted.Outputs, extra...)
 		sorted.CacheWidth = cacheWidth
 	} else if len(extra) != 0 {
-		root = &evaluationNode{querySchema: root.Schema(), Child: root, Expressions: extra, Base: 0}
+		root = &evaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: extra, Base: 0}
 	}
 	// Cheap nonvolatile outputs are required below ON, not complete-row keys.
 	if sorted != nil {
@@ -210,7 +210,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 			early = append(early, e)
 		}
 		if len(early) != 0 {
-			root = &evaluationNode{querySchema: root.Schema(), Child: root, Expressions: early, Base: cacheWidth}
+			root = &evaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: early, Base: cacheWidth}
 			cacheWidth += len(early)
 		}
 	}
@@ -235,7 +235,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 			projection[i] = cached
 		}
 	}
-	return &distinctOnNode{querySchema: root.Schema(), Child: root, Expressions: expressions, Grouping: grouping}, nil
+	return &distinctOnNode{QuerySchema: root.Schema(), Child: root, Expressions: expressions, Grouping: grouping}, nil
 }
 
 func distinctOnCached(expression expr.Expr, slot int) cachedOrderExpression {

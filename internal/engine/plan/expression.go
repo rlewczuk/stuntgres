@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -9,12 +9,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type literalExpression struct {
+type LiteralExpr struct {
 	expr.Info
 	Value sqltype.Value
 }
 
-func (e literalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e LiteralExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -25,7 +25,7 @@ func (e literalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.Value, nil
 }
 
-type columnExpression struct {
+type ColumnExpr struct {
 	expr.Info
 	Origin             ids.ObjectRef
 	Scope, Frame       uint32
@@ -39,7 +39,7 @@ type columnExpression struct {
 	MergeSource     bool // Missing MERGE source tuples short-circuit virtual recipes.
 }
 
-func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e ColumnExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -51,12 +51,12 @@ func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return runtime.EvalColumn(e)
 }
 
-type parameterExpression struct {
+type ParameterExpr struct {
 	expr.Info
 	Number int
 }
 
-func (e parameterExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e ParameterExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -64,7 +64,7 @@ func (e parameterExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return runtime.ParameterValue(e.Number, e.Usage)
 }
 
-type coercionExpression struct {
+type CoercionExpr struct {
 	expr.Info
 	Child expr.Expr
 	Plan  sqltype.CoercionPlan
@@ -75,16 +75,16 @@ type coercionExpression struct {
 }
 
 // COLLATE changes analyzed usage only; values retain the same type and datum.
-type collationExpression struct {
+type CollationExpr struct {
 	expr.Info
 	Child expr.Expr
 }
 
-func (e collationExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e CollationExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.Child.Eval(ctx)
 }
 
-func (e coercionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e CoercionExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	v, err := e.Child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -96,7 +96,7 @@ func (e coercionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return runtime.ApplyCoercion(e.Plan, v, sqltype.ContainsDomainConstraints(e.Usage.Type))
 }
 
-type comparisonExpression struct {
+type ComparisonExpr struct {
 	expr.Info
 	Left, Right expr.Expr
 	Predicate   sqltype.ComparisonPredicate
@@ -104,7 +104,7 @@ type comparisonExpression struct {
 	Namespace   string
 }
 
-func (e comparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e ComparisonExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -148,7 +148,7 @@ func TruthOf(v sqltype.Value) (Truth, error) {
 	return False, nil
 }
 
-type arithmeticExpression struct {
+type ArithmeticExpr struct {
 	expr.Info
 	Left, Right expr.Expr
 	Provider    sqltype.Arithmetic
@@ -156,7 +156,7 @@ type arithmeticExpression struct {
 	Namespace   string
 }
 
-func (e arithmeticExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e ArithmeticExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err

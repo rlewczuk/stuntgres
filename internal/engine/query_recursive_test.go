@@ -26,8 +26,8 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 	for i, n := range seeds {
 		rows[i] = []expr.Expr{literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: cteUnitValue(t, typ, n)}}
 	}
-	left := &projectNode{querySchema: schema, Child: &valuesNode{querySchema: schema, Rows: rows}, Expressions: []expr.Expr{column(2)}, Frame: 2}
-	self := &worktableScanNode{derivedNode: derivedNode{querySchema: schema, CTE: d, ScanFrame: 3}}
+	left := &projectNode{QuerySchema: schema, Child: &valuesNode{QuerySchema: schema, Rows: rows}, Expressions: []expr.Expr{column(2)}, Frame: 2}
+	self := &worktableScanNode{DerivedNode: derivedNode{QuerySchema: schema, CTE: d, ScanFrame: 3}}
 	read := column(3)
 	predicate := queryProbe(boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 		value, err := read.Eval(c)
@@ -48,8 +48,8 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		}
 		return sqltype.Integer(typ, n+1)
 	})
-	right := &projectNode{querySchema: schema, Child: &filterNode{querySchema: schema, Child: self, Predicate: predicate}, Expressions: []expr.Expr{successor}, Frame: 3}
-	n := &recursiveUnionNode{setNode: setNode{querySchema: schema, Left: left, Right: right, Operation: "union", All: all, LeftExpressions: left.Expressions, RightExpressions: right.Expressions}, Definition: d}
+	right := &projectNode{QuerySchema: schema, Child: &filterNode{QuerySchema: schema, Child: self, Predicate: predicate}, Expressions: []expr.Expr{successor}, Frame: 3}
+	n := &recursiveUnionNode{SetNode: setNode{QuerySchema: schema, Left: left, Right: right, Operation: "union", All: all, LeftExpressions: left.Expressions, RightExpressions: right.Expressions}, Definition: d}
 	if !all {
 		grouping, err := sqltype.BindGrouping(typ.Usage())
 		if err != nil {
@@ -57,12 +57,12 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		}
 		n.Grouping = []queryGrouping{{Grouping: grouping}}
 	}
-	project := &projectNode{querySchema: schema, Child: n, Expressions: []expr.Expr{column(4)}, Frame: 4}
+	project := &projectNode{QuerySchema: schema, Child: n, Expressions: []expr.Expr{column(4)}, Frame: 4}
 	d.Query = &BoundQuery{Root: project}
 	state := &queryState{source: &querySource{materialized: true}}
 	owner := &cteInvocation{frame: 1, state: *state}
 	state.ctes = owner
-	return owner, state, &derivedNode{querySchema: schema, Query: d.Query, CTE: d}
+	return owner, state, &derivedNode{QuerySchema: schema, Query: d.Query, CTE: d}
 }
 
 func recursiveUnitGeneration(t *testing.T, s *recursiveUnionStage, indexes []int) []int64 {
@@ -213,24 +213,24 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 		owner, state, node := recursiveUnitFixture(t, false, []int64{1, 1}, 2)
 		n := node.Query.Root.(*projectNode).Child.(*recursiveUnionNode)
 		if zero {
-			n.querySchema = querySchema{}
-			n.Left.querySchema = querySchema{}
-			n.Left.Child.(*valuesNode).querySchema = querySchema{}
+			n.QuerySchema = querySchema{}
+			n.Left.QuerySchema = querySchema{}
+			n.Left.Child.(*valuesNode).QuerySchema = querySchema{}
 			n.Left.Child.(*valuesNode).Rows = [][]expr.Expr{{}, {}}
 			n.Left.Expressions = nil
 			n.LeftExpressions = nil
 			n.Grouping = nil
-			n.Right.querySchema = querySchema{}
+			n.Right.QuerySchema = querySchema{}
 			n.Right.Expressions = nil
 			n.RightExpressions = nil
-			n.Right.Child = &worktableScanNode{derivedNode: derivedNode{CTE: node.CTE, querySchema: querySchema{}}}
-			node.querySchema = querySchema{}
-			node.Query.Root.(*projectNode).querySchema = querySchema{}
+			n.Right.Child = &worktableScanNode{DerivedNode: derivedNode{CTE: node.CTE, QuerySchema: querySchema{}}}
+			node.QuerySchema = querySchema{}
+			node.Query.Root.(*projectNode).QuerySchema = querySchema{}
 			node.Query.Root.(*projectNode).Expressions = nil
 		} else {
 			typ := n.Schema()[0].Usage.Type
 			n.Left.Child.(*valuesNode).Rows = [][]expr.Expr{{literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}, {literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}}
-			n.Right.Child = &worktableScanNode{derivedNode: derivedNode{CTE: node.CTE, querySchema: n.Schema()}}
+			n.Right.Child = &worktableScanNode{DerivedNode: derivedNode{CTE: node.CTE, QuerySchema: n.Schema()}}
 			n.Right.Expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 3, Slot: 0}}
 			n.RightExpressions = n.Right.Expressions
 		}
@@ -373,7 +373,7 @@ func TestQueryRecursiveCTEStoredNamespaceIdentity(t *testing.T) {
 	typ := cteUnitType(t)
 	table := &parser.TableReference{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "r"}}}}
 	definition := &cteDefinition{Recursive: true}
-	self := &worktableScanNode{derivedNode: derivedNode{querySchema: querySchema{{Name: "n", Usage: typ.Usage()}}, Table: table, CTE: definition, Ordinal: -1}}
+	self := &worktableScanNode{DerivedNode: derivedNode{QuerySchema: querySchema{{Name: "n", Usage: typ.Usage()}}, Table: table, CTE: definition, Ordinal: -1}}
 	project := &projectNode{Child: &filterNode{Child: self}}
 	if viewCTETable(project, table) != self || viewCTEOrdinal(project, -1) != self {
 		t.Fatal("stored self scan lost opaque node identity")

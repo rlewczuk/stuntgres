@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -54,18 +55,18 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 			return negateConflictPredicate(n), nil
 		}
 		if truth, ok := conflictLiteralTruth(left); ok {
-			if n.Op == parser.LogicalAnd && truth == True || n.Op == parser.LogicalOr && truth == False {
+			if n.Op == parser.LogicalAnd && truth == plan.True || n.Op == parser.LogicalOr && truth == plan.False {
 				return right, nil
 			}
-			if n.Op == parser.LogicalAnd && truth == False || n.Op == parser.LogicalOr && truth == True {
+			if n.Op == parser.LogicalAnd && truth == plan.False || n.Op == parser.LogicalOr && truth == plan.True {
 				return left, nil
 			}
 		}
 		if truth, ok := conflictLiteralTruth(right); ok {
-			if n.Op == parser.LogicalAnd && truth == True || n.Op == parser.LogicalOr && truth == False {
+			if n.Op == parser.LogicalAnd && truth == plan.True || n.Op == parser.LogicalOr && truth == plan.False {
 				return left, nil
 			}
-			if n.Op == parser.LogicalAnd && truth == False || n.Op == parser.LogicalOr && truth == True {
+			if n.Op == parser.LogicalAnd && truth == plan.False || n.Op == parser.LogicalOr && truth == plan.True {
 				return right, nil
 			}
 		}
@@ -82,18 +83,18 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 		n.Left, n.Right = left, right
 		if n.Operator == "=" && left.ResultUsage().Type.ID() == sqltype.Bool {
 			if truth, ok := conflictLiteralTruth(right); ok {
-				if truth == True {
+				if truth == plan.True {
 					return left, nil
 				}
-				if truth == False {
+				if truth == plan.False {
 					return negateConflictPredicate(logicalExpression{Info: n.Info, Op: parser.LogicalNot, Left: left}), nil
 				}
 			}
 			if truth, ok := conflictLiteralTruth(left); ok {
-				if truth == True {
+				if truth == plan.True {
 					return right, nil
 				}
-				if truth == False {
+				if truth == plan.False {
 					return negateConflictPredicate(logicalExpression{Info: n.Info, Op: parser.LogicalNot, Left: right}), nil
 				}
 			}
@@ -133,9 +134,9 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 func conflictLiteralTruth(node expr.Expr) (Truth, bool) {
 	literal, ok := node.(literalExpression)
 	if !ok || literal.Value.Type() == nil || literal.Value.Type().ID() != sqltype.Bool {
-		return Unknown, false
+		return plan.Unknown, false
 	}
-	truth, err := TruthOf(literal.Value)
+	truth, err := plan.TruthOf(literal.Value)
 	return truth, err == nil
 }
 func negateConflictPredicate(n logicalExpression) expr.Expr {
@@ -161,10 +162,10 @@ func conflictPredicateProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
 	if plannedVolatility(a) != expr.Immutable || plannedVolatility(b) != expr.Immutable {
 		return false, nil
 	}
-	if truth, ok := conflictLiteralTruth(b); ok && truth == True {
+	if truth, ok := conflictLiteralTruth(b); ok && truth == plan.True {
 		return true, nil
 	}
-	if truth, ok := conflictLiteralTruth(a); ok && truth != True {
+	if truth, ok := conflictLiteralTruth(a); ok && truth != plan.True {
 		return true, nil
 	}
 	if sameGroupExpression(a, b) {

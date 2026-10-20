@@ -105,7 +105,7 @@ func TestQueryCycleEquality(t *testing.T) {
 	// Force a hash bucket whose first tuple has the same user fields and mark
 	// but different ancestry. Only full path equality may reject that tuple.
 	a = cycleUnitAugment(t, c, a[3], two, one)
-	stage := recursiveUnionStage{node: &recursiveUnionNode{setNode: setNode{querySchema: make(querySchema, 4), Grouping: grouping}, Definition: &cteDefinition{UserWidth: 2}, Cycle: c}, source: &querySource{flat: append(append([]sqltype.Value(nil), a...), b...)}}
+	stage := recursiveUnionStage{node: &recursiveUnionNode{SetNode: setNode{QuerySchema: make(querySchema, 4), Grouping: grouping}, Definition: &cteDefinition{UserWidth: 2}, Cycle: c}, source: &querySource{flat: append(append([]sqltype.Value(nil), a...), b...)}}
 	if index, err := stage.findTuple(ctx, b, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal("full collision equality", index, err)
 	}
@@ -129,8 +129,8 @@ func TestQueryCycleParent(t *testing.T) {
 		t.Fatal("mutated parent path")
 	}
 	d := &cteDefinition{Cycle: c}
-	self := &worktableScanNode{derivedNode: derivedNode{CTE: d}}
-	physical := &singletonNode{querySchema: make(querySchema, 4)}
+	self := &worktableScanNode{DerivedNode: derivedNode{CTE: d}}
+	physical := &singletonNode{QuerySchema: make(querySchema, 4)}
 	root := &joinNode{Left: physical, Right: self, LeftWidth: 4}
 	if found, offset := recursiveParentSlot(root, d, 0); found != self || offset != 4 {
 		t.Fatal(found, offset)
@@ -209,10 +209,10 @@ func TestQueryCycleOwnership(t *testing.T) {
 		catalogPath.Concrete() || catalogPath.Usage().Valid() || catalogPath.IsUserDefined() {
 		t.Fatal("occurrence shape replaced catalog record authority")
 	}
-	if err := validateStoredSetNode(&original.setNode, original.Cycle, nil); err != nil {
+	if err := validateStoredSetNode(&original.SetNode, original.Cycle, nil); err != nil {
 		t.Fatal("original cycle arm layout", err)
 	}
-	badWidth := original.setNode
+	badWidth := original.SetNode
 	badWidth.LeftExpressions = append(append([]expr.Expr(nil), original.LeftExpressions...), original.RightExpressions[original.Cycle.MarkSlot])
 	if err := validateStoredSetNode(&badWidth, original.Cycle, nil); err == nil {
 		t.Fatal("accepted generated anchor slot as an original user target")
@@ -229,10 +229,10 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	union := remapped.(*projectNode).Child.(*recursiveUnionNode)
-	if err := validateStoredSetNode(&union.setNode, union.Cycle, nil); err != nil {
+	if err := validateStoredSetNode(&union.SetNode, union.Cycle, nil); err != nil {
 		t.Fatal("remapped cycle arm layout", err)
 	}
-	badParent := union.setNode
+	badParent := union.SetNode
 	badParent.RightExpressions = append([]expr.Expr(nil), union.RightExpressions...)
 	badParent.RightExpressions[union.Cycle.MarkSlot+1] = union.RightExpressions[union.Cycle.MarkSlot]
 	if err := validateStoredSetNode(&badParent, union.Cycle, nil); err == nil {

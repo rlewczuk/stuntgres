@@ -46,15 +46,15 @@ func (c *windowCancelContext) Err() error {
 			hash = hash || strings.HasSuffix(name, ".Grouping.Hash")
 			equal = equal || strings.HasSuffix(name, ".Grouping.Equal")
 			prepare = prepare || strings.HasSuffix(name, ".Grouping.PrepareKey")
-			key = key || strings.Contains(name, "columnExpression.Eval")
+			key = key || strings.Contains(name, "ColumnExpr.Eval")
 			advance = advance || strings.HasSuffix(name, ".windowFrameEndpoint")
 			offset = offset || strings.HasSuffix(name, ".evaluateWindowOffsets")
 			inrange = inrange || strings.HasSuffix(name, ".RangeSupport.InRange")
 			groups = groups || strings.HasSuffix(name, ".windowGroupsEndpoint")
 			physical = physical || strings.HasSuffix(name, ".windowRowsEndpoint")
-			offsetEval = offsetEval || strings.Contains(name, "literalExpression.Eval")
+			offsetEval = offsetEval || strings.Contains(name, "LiteralExpr.Eval")
 			finalize = finalize || strings.HasSuffix(name, ".windowFrameCount")
-			output = output || strings.Contains(name, "windowExpression).Eval")
+			output = output || strings.Contains(name, "WindowExpr).Eval")
 			publication = publication || strings.HasSuffix(name, ".finalizeQuery")
 			if !more {
 				break

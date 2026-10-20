@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -52,8 +53,8 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		truth, err := TruthOf(result)
-		if err != nil || truth != True {
+		truth, err := plan.TruthOf(result)
+		if err != nil || truth != plan.True {
 			t.Fatal(truth, err)
 		}
 		if _, err := defaultSQL(ctx, entry.owner.CatalogRead(), node); err != nil {

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -87,8 +88,8 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	truth, err := TruthOf(value)
-	if err != nil || truth != True {
+	truth, err := plan.TruthOf(value)
+	if err != nil || truth != plan.True {
 		t.Fatalf("NULL inverse=%v error=%v want TRUE", truth, err)
 	}
 	t.Run("computed_order_recipe", func(t *testing.T) {
@@ -108,7 +109,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		template := ruleUnitInsert(e, sink, 0, 0)
 		template.binding.expressions = nil
 		template.binding.commandQuery = true
-		template.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), Child: order, Expressions: projection, Frame: 1}}
+		template.binding.query = &BoundQuery{Root: &projectNode{QuerySchema: querySchema(sink.Columns), Child: order, Expressions: projection, Frame: 1}}
 		rewritten, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, template)
 		if err != nil {
 			t.Fatal(err)
@@ -134,7 +135,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		schema := slices.Clone(src.Columns)
 		schema[1].Usage = random.ResultUsage()
-		source := &projectNode{querySchema: querySchema(schema), Child: &singletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), random}, Frame: 2}
+		source := &projectNode{QuerySchema: querySchema(schema), Child: &singletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), random}, Frame: 2}
 		selectBinding := original
 		selectBinding.query, selectBinding.expressions = &BoundQuery{Root: source}, nil
 		selectBinding.insert.subquerySource = true
@@ -152,7 +153,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		pure := *source
 		pure.Expressions = []expr.Expr{source.Expressions[0], ruleUnitInt(src, 99)}
-		pure.querySchema = querySchema(src.Columns)
+		pure.QuerySchema = querySchema(src.Columns)
 		selectBinding.query = &BoundQuery{Root: &pure}
 		producer, err = makeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
@@ -375,7 +376,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		viewOf(f.view).checkOption = viewCheckCascaded
 		project := viewOf(f.view).query.Root.(*projectNode)
 		predicate := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
-		project.Child = &filterNode{querySchema: querySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
+		project.Child = &filterNode{QuerySchema: querySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
 		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {

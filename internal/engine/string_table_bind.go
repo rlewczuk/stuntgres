@@ -151,7 +151,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	qualifier := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !raw.Ordinality}
 	b.query.hidden = append(b.query.hidden, qualifier)
 	captures := b.functionCaptures(calls)
-	node := &functionFromNode{querySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.frameID(), ViewOrdinal: ordinal, Captures: captures}
+	node := &functionFromNode{QuerySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.frameID(), ViewOrdinal: ordinal, Captures: captures}
 	return node, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
 }
 

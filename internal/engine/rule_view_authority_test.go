@@ -36,14 +36,14 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			inner.Security.ACL = grant(actor.Ref)
 			inner.Security.ACL.Entries = append(inner.Security.ACL.Entries, grant(owner.Ref).Entries...)
 			inner.View = &viewDefinition{invoker: shape == "invoker" || shape == "definer_over_invoker", sources: []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1, 2}}}}
-			viewOf(inner).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(base.Columns), Ref: baseRef}}
+			viewOf(inner).query = &BoundQuery{Root: &sourceNode{QuerySchema: querySchema(base.Columns), Ref: baseRef}}
 			root := inner
 			if shape == "definer_over_invoker" || shape == "invoker_over_definer" {
 				outer := *inner
 				outer.ObjectAddress.ObjectID++
 				outer.ObjectName = "outer_view"
 				outer.View = &viewDefinition{invoker: shape == "invoker_over_definer", sources: []viewLeaf{{ref: ruleUnitRef(e, inner), reads: []int32{1}, attributes: []int32{1, 2}}}}
-				viewOf(&outer).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(inner.Columns), Ref: ruleUnitRef(e, inner)}}
+				viewOf(&outer).query = &BoundQuery{Root: &sourceNode{QuerySchema: querySchema(inner.Columns), Ref: ruleUnitRef(e, inner)}}
 				next := catalog.CloneState(e.catalog.state)
 				next.SetDescriptor(outer.Address(), &outer)
 				e.catalog.state = next

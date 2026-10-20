@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -60,7 +61,7 @@ func walkDemandedBoundExpression(node expr.Expr, visit func(expr.Expr)) {
 		}
 	case logicalExpression:
 		walk(e.Left)
-		if _, decisive, err := DecisiveLogicalValue(&e); err != nil || !decisive {
+		if _, decisive, err := plan.DecisiveLogicalValue(&e); err != nil || !decisive {
 			walk(e.Right)
 		}
 	default:

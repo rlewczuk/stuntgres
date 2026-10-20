@@ -81,7 +81,7 @@ func TestViewCheckStack(t *testing.T) {
 	f := viewWriteMechanics(t)
 	guard := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
 	project := viewOf(f.view).query.Root.(*projectNode)
-	project.Child = &filterNode{querySchema: querySchema(f.base.Columns), Child: project.Child, Predicate: guard}
+	project.Child = &filterNode{QuerySchema: querySchema(f.base.Columns), Child: project.Child, Predicate: guard}
 	layers := []*catalog.Relation{f.view}
 	refs := []ids.ObjectRef{f.viewRef}
 	for depth := range 2 {
@@ -91,14 +91,14 @@ func TestViewCheckStack(t *testing.T) {
 		view.ObjectAddress.ObjectID = ids.OID(20002 + depth)
 		view.ObjectName = fmt.Sprintf("layer%d", depth)
 		syntax := &parser.Select{From: &parser.TableReference{}}
-		sourceNode := &sourceNode{querySchema: querySchema(source.Columns), Ref: ref, Occurrence: 0}
+		sourceNode := &sourceNode{QuerySchema: querySchema(source.Columns), Ref: ref, Occurrence: 0}
 		expressions := make([]expr.Expr, len(source.Columns))
 		for i, column := range source.Columns {
 			origin := ref
 			origin.Address.SubID = source.Attributes[i]
 			expressions[i] = columnExpression{Info: expr.Info{Usage: column.Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: i}
 		}
-		view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &filterNode{querySchema: querySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.Attributes}}}
+		view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: &projectNode{QuerySchema: querySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &filterNode{QuerySchema: querySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.Attributes}}}
 		f.e.catalog.state.SetDescriptor(view.Address(), &view)
 		layers = append(layers, &view)
 		refs = append(refs, f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), view.Address()))
@@ -143,7 +143,7 @@ func TestViewCheckMapping(t *testing.T) {
 	f.base.Attributes = []int32{11, 7, 19}
 	f.base.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[0], f.base.Columns[2]}
 	viewOf(f.view).checkOption = viewCheckLocal
-	project.Child = &filterNode{querySchema: querySchema(f.base.Columns), Child: project.Child, Predicate: column}
+	project.Child = &filterNode{QuerySchema: querySchema(f.base.Columns), Child: project.Child, Predicate: column}
 	scope, op := f.scope(t)
 	b := viewCheckUnitBinding(t, f, scope, op)
 	mapped, ok := viewDirectColumn(b.viewWrite.checks[0].predicates[0])

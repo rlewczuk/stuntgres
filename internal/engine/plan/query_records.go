@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"context"
@@ -10,19 +10,19 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// cteMutation is the opaque payload a data-modifying CTE definition carries.
+// CTEMutation is the opaque payload a data-modifying CTE definition carries.
 // Plan code only tests it for presence; the engine recovers the analyzed
 // statement binding through mutationBinding. A definition never stores a
 // typed nil, so a nil payload keeps meaning "a query CTE".
-type cteMutation interface{ CTEMutationPayload() }
+type CTEMutation interface{ CTEMutationPayload() }
 
 // A definition is immutable after statement analysis. Only invocation owners
 // contain producer state; neither catalog objects nor prepared handles do.
-type cteDefinition struct {
-	Query      *BoundQuery
+type CTEDefinition struct {
+	Query      *Query
 	Statement  parser.Statement
-	Mutation   cteMutation
-	Schema     querySchema
+	Mutation   CTEMutation
+	Schema     QuerySchema
 	Owner      uint32
 	References int
 	Hint       parser.CTEMaterialization
@@ -33,15 +33,15 @@ type cteDefinition struct {
 	Columns    []parser.Identifier
 	Position   parser.Position
 	UserWidth  int
-	Search     *searchRecipe
-	Cycle      *cycleRecipe
+	Search     *SearchRecipe
+	Cycle      *CycleRecipe
 }
 
-func (d *cteDefinition) Folded() bool {
+func (d *CTEDefinition) Folded() bool {
 	return !d.Recursive && d.Mutation == nil && !d.Volatile && d.Hint != parser.CTEMaterialized && (d.Hint == parser.CTENotMaterialized || d.References == 1)
 }
 
-func (d *cteDefinition) OutputSchema() querySchema {
+func (d *CTEDefinition) OutputSchema() QuerySchema {
 	if d.Query != nil {
 		return d.Query.Root.Schema()
 	}
@@ -50,7 +50,7 @@ func (d *cteDefinition) OutputSchema() querySchema {
 
 // A recipe is immutable and occurrence-owned. It never contains a frontier or
 // a visited set: those belong to the existing recursive producer invocation.
-type cycleRecipe struct {
+type CycleRecipe struct {
 	Syntax         *parser.CycleClause
 	ShapeError     error // Deferred until body analysis establishes diagnostic precedence.
 	MarkSlot       int
@@ -64,7 +64,7 @@ type cycleRecipe struct {
 	Inequality     sqltype.ComparisonPredicate
 }
 
-func (c *cycleRecipe) equalRecord(ctx context.Context, a, b sqltype.Value) (bool, error) {
+func (c *CycleRecipe) equalRecord(ctx context.Context, a, b sqltype.Value) (bool, error) {
 	if a.Type() != c.Record || b.Type() != c.Record || a.IsNull() || b.IsNull() {
 		return false, fmt.Errorf("stuntgres: foreign cycle record")
 	}
@@ -77,7 +77,7 @@ func (c *cycleRecipe) equalRecord(ctx context.Context, a, b sqltype.Value) (bool
 	return true, ctx.Err()
 }
 
-func (c *cycleRecipe) EqualPath(ctx context.Context, a, b sqltype.Value) (bool, error) {
+func (c *CycleRecipe) EqualPath(ctx context.Context, a, b sqltype.Value) (bool, error) {
 	if a.Type() != c.Path || b.Type() != c.Path || a.IsNull() || b.IsNull() {
 		return false, fmt.Errorf("stuntgres: foreign cycle path")
 	}
@@ -101,7 +101,7 @@ func (c *cycleRecipe) EqualPath(ctx context.Context, a, b sqltype.Value) (bool, 
 	return true, ctx.Err()
 }
 
-func (c *cycleRecipe) HashPath(ctx context.Context, path sqltype.Value) (uint64, error) {
+func (c *CycleRecipe) HashPath(ctx context.Context, path sqltype.Value) (uint64, error) {
 	if path.Type() != c.Path || path.IsNull() {
 		return 0, fmt.Errorf("stuntgres: foreign cycle path")
 	}
@@ -127,7 +127,7 @@ func (c *cycleRecipe) HashPath(ctx context.Context, path sqltype.Value) (uint64,
 	return hash, ctx.Err()
 }
 
-func (c *cycleRecipe) Augment(ctx context.Context, row []sqltype.Value, parent sqltype.Value, mark, fallback sqltype.Value) ([]sqltype.Value, error) {
+func (c *CycleRecipe) Augment(ctx context.Context, row []sqltype.Value, parent sqltype.Value, mark, fallback sqltype.Value) ([]sqltype.Value, error) {
 	fields := make([]sqltype.Value, len(c.Keys))
 	for i, key := range c.Keys {
 		value, err := c.Grouping[i].PrepareKey(ctx, row[key])
@@ -177,7 +177,7 @@ func (c *cycleRecipe) Augment(ctx context.Context, row []sqltype.Value, parent s
 // A caller-checked query consumer owns its selected equality identity beside
 // the existing immutable provider, in the same key allocation. Internal hash
 // consumers and index support keep ordinary sqltype.Grouping.
-type queryGrouping struct {
+type Grouping struct {
 	sqltype.Grouping
 	Routine     ids.ObjectRef
 	PrivateTree bool
@@ -186,7 +186,7 @@ type queryGrouping struct {
 	Convert     bool
 }
 
-func (g queryGrouping) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
+func (g Grouping) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
 	if !g.Convert {
 		return g.Grouping.Equal(ctx, a, b)
 	}
@@ -201,7 +201,7 @@ func (g queryGrouping) Equal(ctx context.Context, a, b sqltype.Value) (bool, err
 	return g.Converted.Equal(ctx, left, right)
 }
 
-func (g queryGrouping) Hash(ctx context.Context, value sqltype.Value) (uint64, error) {
+func (g Grouping) Hash(ctx context.Context, value sqltype.Value) (uint64, error) {
 	if !g.Convert {
 		return g.Grouping.Hash(ctx, value)
 	}
@@ -214,7 +214,7 @@ func (g queryGrouping) Hash(ctx context.Context, value sqltype.Value) (uint64, e
 
 // Strength and wait precedence are independent. A manifest belongs to a bound
 // query occurrence, never to its physical relation or column namespace.
-type queryRowMark struct {
+type RowMark struct {
 	Mode           lock.Mode
 	Wait           parser.RowLockWait
 	DiagnosticMode lock.Mode
@@ -222,7 +222,7 @@ type queryRowMark struct {
 	Order int
 }
 
-type sqlJSONArrayQuery struct {
+type SQLJSONArrayQuery struct {
 	Raw   parser.SQLJSONExpr
 	Input expr.Expr
 	Plan  sqltype.JSONArrayAggregatePlan

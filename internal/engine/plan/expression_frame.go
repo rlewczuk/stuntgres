@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"fmt"
@@ -9,9 +9,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type domainValueExpression struct{ expr.Info }
+type DomainValueExpr struct{ expr.Info }
 
-func (e domainValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e DomainValueExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -19,12 +19,12 @@ func (e domainValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return runtime.EvalDomainValue(e)
 }
 
-type tableOIDExpression struct {
+type TableOIDExpr struct {
 	expr.Info
 	Owner ids.ObjectRef
 }
 
-func (n tableOIDExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n TableOIDExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -35,7 +35,7 @@ func (n tableOIDExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // The retained plan reads a physical leaf window, preserving the named column's
 // ACL identity and the caller's context. Definitions themselves contain plain
 // current-row references; no query-specific window enters the catalog.
-func (e columnExpression) WithGeneration(d *catalog.Relation, physical, start int) columnExpression {
+func (e ColumnExpr) WithGeneration(d *catalog.Relation, physical, start int) ColumnExpr {
 	if d == nil {
 		return e
 	}
@@ -50,12 +50,12 @@ func (e columnExpression) WithGeneration(d *catalog.Relation, physical, start in
 }
 
 // The owner is lexical, not whichever query is currently evaluating a child.
-type mergeActionExpression struct {
+type MergeActionExpr struct {
 	expr.Info
 	Scope, Frame uint32
 }
 
-func (e mergeActionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e MergeActionExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -63,38 +63,38 @@ func (e mergeActionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return runtime.EvalMergeAction(e)
 }
 
-type mergeReturningSide uint8
+type MergeReturningSide uint8
 
 // The provider is the sole executable child. Its lexical children retain the
 // selected call's ordered, already-coerced operands for SQL rendering.
-type selectedOperatorExpression struct {
+type SelectedOperatorExpr struct {
 	expr.Info
 	Operator *catalog.Operator
 	Ref      ids.ObjectRef
 	Provider expr.Expr
 }
 
-func (e selectedOperatorExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e SelectedOperatorExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.Provider.Eval(ctx)
 }
 
-// unknownOutput is an occurrence, not a SQL value. Assignment or ordinary
+// UnknownOutput is an occurrence, not a SQL value. Assignment or ordinary
 // SELECT output finalization must eliminate it before the query can execute.
-type unknownOutput struct {
+type UnknownOutput struct {
 	expr.Info
 	Raw parser.Expr
 }
 
-func (unknownOutput) Eval(expr.Context) (sqltype.Value, error) {
+func (UnknownOutput) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unresolved query output")
 }
 
-type cachedOrderExpression struct {
+type CachedOrderExpr struct {
 	expr.Info
 	Slot int
 }
 
-func (e cachedOrderExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e CachedOrderExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -103,16 +103,16 @@ func (e cachedOrderExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 }
 
 // Side-aware columns preserve dependencies even when their tuple is absent.
-type returningColumnExpression struct {
-	columnExpression
+type ReturningColumnExpr struct {
+	ColumnExpr
 	Old, Absent bool
 	Merge       bool
-	Side        mergeReturningSide
+	Side        MergeReturningSide
 	// A lowered logical view column can be an arbitrary physical expression.
 	Value expr.Expr
 }
 
-func (e returningColumnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e ReturningColumnExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -122,16 +122,16 @@ func (e returningColumnExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 
 // Named transition rows retain their lexical target owner and actual presence.
 // This does not introduce generic ROW or composite field syntax.
-type returningWholeRowExpression struct {
+type ReturningWholeRowExpr struct {
 	expr.Info
 	Members      []expr.Expr
 	Scope, Frame uint32
 	Old          bool
 	Merge        bool
-	Side         mergeReturningSide
+	Side         MergeReturningSide
 }
 
-func (e returningWholeRowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e ReturningWholeRowExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -139,12 +139,12 @@ func (e returningWholeRowExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 	return runtime.EvalReturningWholeRow(e)
 }
 
-type updateOutputExpression struct {
+type UpdateOutputExpr struct {
 	expr.Info
 	Index, Group int
 }
 
-func (e updateOutputExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e UpdateOutputExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -154,13 +154,13 @@ func (e updateOutputExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 // View qualification is a relational guard, not a change to ordinary Boolean
 // expression evaluation. Unsafe user work never sees a row hidden by any layer.
-type viewQualificationExpression struct {
+type ViewQualificationExpr struct {
 	expr.Info
 	Predicates []expr.Expr // outer-to-inner storage; evaluated inner-to-outer
 	User       expr.Expr
 }
 
-func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (e ViewQualificationExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}

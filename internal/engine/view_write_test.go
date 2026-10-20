@@ -39,7 +39,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	}
 	view := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: ns, ObjectName: "logical", ObjectRevision: 1, Owner: owner, RelationKind: catalog.ViewRelation, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Columns: []catalog.Column{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
-	project := &projectNode{querySchema: querySchema(view.Columns), Frame: 1, Syntax: syntax, Child: &sourceNode{querySchema: querySchema(base.Columns), Ref: baseRef, Occurrence: 0}, Expressions: []expr.Expr{column(1), column(0)}}
+	project := &projectNode{QuerySchema: querySchema(view.Columns), Frame: 1, Syntax: syntax, Child: &sourceNode{QuerySchema: querySchema(base.Columns), Ref: baseRef, Occurrence: 0}, Expressions: []expr.Expr{column(1), column(0)}}
 	view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
 	viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	e.catalog.state.SetDescriptor(base.Address(), base)

@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -36,7 +37,7 @@ func TestQueryWindowOffsetTarget(t *testing.T) {
 			t.Fatalf("%+v => %d/%v", tc, got, present)
 		}
 	}
-	for _, op := range []windowOperation{WindowLead, WindowLag} {
+	for _, op := range []windowOperation{plan.WindowLead, plan.WindowLag} {
 		if op.FrameDependent() || !op.EvaluatesArgument() {
 			t.Fatal("offset demand classification", op)
 		}

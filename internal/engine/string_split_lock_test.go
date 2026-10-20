@@ -19,7 +19,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	independent := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "x,y"), order: &evaluations, index: 0}
 	call := stringSplitMarker(t, b, 1, dependent, stringSplitLiteral(b, ","), stringSplitLiteral(b, "replacement"))
 	peer := stringSplitMarker(t, b, 2, independent, stringSplitLiteral(b, ","))
-	node := &functionFromNode{Calls: []expr.Expr{call, peer}, Ordinality: true, Frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	node := &functionFromNode{Calls: []expr.Expr{call, peer}, Ordinality: true, Frame: 1, QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	ordinal, err := sqltype.Integer(bigint, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -45,14 +45,14 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	// Quals are requalified against that tuple.
 	filteredCall := stringSplitMarker(t, b, 3, dependent, stringSplitLiteral(b, ","))
-	filteredNode := &functionFromNode{Calls: []expr.Expr{filteredCall}, Ordinality: true, Frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	filteredNode := &functionFromNode{Calls: []expr.Expr{filteredCall}, Ordinality: true, Frame: 1, QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	field := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	raw := statement(t, "SELECT 'x'='b'").(*parser.Select).Targets[0].(parser.OperatorExpr)
 	predicate, err := b.bindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{node: field}, comparisonOperand{node: stringSplitLiteral(b, "b")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	filter := &filterNode{querySchema: filteredNode.querySchema, Child: filteredNode, Predicate: predicate}
+	filter := &filterNode{QuerySchema: filteredNode.QuerySchema, Child: filteredNode, Predicate: predicate}
 	for _, tc := range []struct {
 		field string
 		match bool

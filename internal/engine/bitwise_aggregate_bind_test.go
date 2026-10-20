@@ -107,7 +107,7 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 		newType, _ := destination.CatalogRead().LookupType(id)
 		for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 			provider := bitwiseAggregateUnitProvider(t, oldType, op)
-			root := &aggregateNode{querySchema: querySchema{{Name: "fold", Usage: provider.ResultUsage(), Nullable: true, NullabilityKnown: true}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: provider, Operation: op}}}
+			root := &aggregateNode{QuerySchema: querySchema{{Name: "fold", Usage: provider.ResultUsage(), Nullable: true, NullabilityKnown: true}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: provider, Operation: op}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				d, _ := destination.CatalogRead().LookupType(old.ID())
 				return d

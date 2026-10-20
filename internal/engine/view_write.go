@@ -450,7 +450,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			case columnExpression:
 				c = x
 			case returningColumnExpression:
-				c = x.columnExpression
+				c = x.ColumnExpr
 				old, absent = x.Old, x.Absent
 			default:
 				return n, false, nil
@@ -470,7 +470,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 					return column, true, nil
 				}, graft)
 				if old || absent {
-					return returningColumnExpression{columnExpression: c, Old: old, Absent: absent, Value: output}, true, err
+					return returningColumnExpression{ColumnExpr: c, Old: old, Absent: absent, Value: output}, true, err
 				}
 				return output, true, err
 			}

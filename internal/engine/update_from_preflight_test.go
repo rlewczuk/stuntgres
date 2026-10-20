@@ -43,7 +43,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 				t.Fatal("preflight failed copy-on-change", private, err)
 			}
 			foldedJoin := private.from.(*joinNode)
-			if foldedJoin.Left != join.Left || foldedJoin.Right != join.Right || !reflect.DeepEqual(foldedJoin.querySchema, join.querySchema) || reflect.DeepEqual(foldedJoin.Predicate, join.Predicate) {
+			if foldedJoin.Left != join.Left || foldedJoin.Right != join.Right || !reflect.DeepEqual(foldedJoin.QuerySchema, join.QuerySchema) || reflect.DeepEqual(foldedJoin.Predicate, join.Predicate) {
 				t.Fatal("source preflight rebuilt unchanged providers", foldedJoin, join)
 			}
 			if _, ok := foldedJoin.Predicate.(comparisonExpression).Right.(literalExpression); !ok {

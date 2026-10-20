@@ -210,7 +210,7 @@ func (c *excludeCancelContext) Err() error {
 		if c.phase == "sum-publication" {
 			hit = c.computed && publication && !window
 		}
-		if c.phase == "columnExpression.Eval" {
+		if c.phase == "ColumnExpr.Eval" {
 			hit = hit && sum
 		}
 		if hit && (window || c.phase == "sum-publication") {
@@ -223,7 +223,7 @@ func (c *excludeCancelContext) Err() error {
 
 func TestQueryWindowExcludeCancellation(t *testing.T) {
 	for _, exclusion := range []string{" EXCLUDE TIES", ""} {
-		for _, phase := range []string{"compareWindowRows", "windowFrameCount", "IntegralSum.Init", "IntegralSum.Advance", "IntegralSum.Finalize", "columnExpression.Eval", "sum-output", "sum-publication"} {
+		for _, phase := range []string{"compareWindowRows", "windowFrameCount", "IntegralSum.Init", "IntegralSum.Advance", "IntegralSum.Finalize", "ColumnExpr.Eval", "sum-output", "sum-publication"} {
 			t.Run(phase+exclusion, func(t *testing.T) {
 				_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,sum(v) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"+exclusion+")")
 				continuation, err := captureQuerySource(context.Background(), source.view, source.ref)

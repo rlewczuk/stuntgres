@@ -50,7 +50,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			if !unique {
 				return
 			}
-			root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: p.ResultUsage()}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: call.Operation, IncludeNulls: call.IncludeNulls}}}
+			root := &aggregateNode{QuerySchema: querySchema{{Name: "v", Usage: p.ResultUsage()}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: call.Operation, IncludeNulls: call.IncludeNulls}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := destination.CatalogRead().LookupType(old.ID())
 				return next

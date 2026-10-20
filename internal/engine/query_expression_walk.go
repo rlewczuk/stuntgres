@@ -55,7 +55,7 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		if e.Value != nil {
 			walk(e.Value)
 		} else {
-			walk(e.columnExpression)
+			walk(e.ColumnExpr)
 		}
 	case returningWholeRowExpression:
 		args(e.Members)

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -69,7 +70,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 			}
 			child = coercionExpression{info, child, plan, sqltype.Implicit, false}
 		}
-		truth := [...]Truth{True, True, False, False, Unknown, Unknown}
+		truth := [...]Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown}
 		return truthTestExpression{b.info(boolUsage, raw.Pos, child.Properties()), child, truth[index], index%2 == 1}, nil
 	case parser.IsDistinct, parser.IsNotDistinct:
 		if left, ok := raw.Left.(parser.RowExpr); ok {

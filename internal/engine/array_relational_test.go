@@ -227,7 +227,7 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 			t.Fatal(err)
 		}
 		e := unnestExpression{Info: expr.Info{Usage: element.Usage(), Property: expr.Properties{StageDependent: true}}, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
-		node := &functionFromNode{querySchema: querySchema{{Name: "id", Usage: integer.Usage()}, {Name: "label", Usage: text.Usage()}}, Calls: []expr.Expr{e}}
+		node := &functionFromNode{QuerySchema: querySchema{{Name: "id", Usage: integer.Usage()}, {Name: "label", Usage: text.Usage()}}, Calls: []expr.Expr{e}}
 		if err := validateFunctionFromLayout(node); err != nil {
 			t.Fatal(err)
 		}
@@ -295,11 +295,11 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 			}
 			invocation.close()
 			node.Ordinality = true
-			node.querySchema = querySchema{{Name: "n", Usage: ordinal.Usage()}}
+			node.QuerySchema = querySchema{{Name: "n", Usage: ordinal.Usage()}}
 			if err := validateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-field ordinality", err)
 			}
-			node.querySchema[0].Usage = integer.Usage()
+			node.QuerySchema[0].Usage = integer.Usage()
 			if err := validateFunctionFromLayout(node); err == nil {
 				t.Fatal("accepted non-INT8 ordinality")
 			}
@@ -308,7 +308,7 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 				t.Fatal("accepted unowned schema column")
 			}
 			node.Calls = []expr.Expr{arrayRelationalUnitUnnest(t, "{1}")}
-			node.querySchema = nil
+			node.QuerySchema = nil
 			if err := validateFunctionFromLayout(node); err == nil {
 				t.Fatal("accepted missing scalar column")
 			}

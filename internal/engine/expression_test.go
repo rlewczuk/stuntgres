@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -71,17 +72,17 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	for _, tc := range []struct {
 		v    sqltype.Value
 		want Truth
-	}{{sqltype.Boolean(typ, true), True}, {sqltype.Boolean(typ, false), False}, {sqltype.Null(typ), Unknown}} {
-		got, err := TruthOf(tc.v)
+	}{{sqltype.Boolean(typ, true), plan.True}, {sqltype.Boolean(typ, false), plan.False}, {sqltype.Null(typ), plan.Unknown}} {
+		got, err := plan.TruthOf(tc.v)
 		if err != nil || got != tc.want {
 			t.Fatal(got, err)
 		}
 	}
-	if _, err := TruthOf(sqltype.Value{}); err == nil {
+	if _, err := plan.TruthOf(sqltype.Value{}); err == nil {
 		t.Fatal("invalid value accepted")
 	}
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	if _, err := TruthOf(sqltype.Null(integer)); err == nil {
+	if _, err := plan.TruthOf(sqltype.Null(integer)); err == nil {
 		t.Fatal("nonboolean accepted")
 	}
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)

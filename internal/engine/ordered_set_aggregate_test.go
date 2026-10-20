@@ -296,13 +296,13 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				}
 				return groupExpression{Info: expr.Info{Usage: provider.FractionType().Usage()}, Slot: 0, Frame: 1}.Eval(c)
 			})
-			child := &valuesNode{querySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: p.InputType().Usage()}}, Rows: [][]expr.Expr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
+			child := &valuesNode{QuerySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: p.InputType().Usage()}}, Rows: [][]expr.Expr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
 			call := aggregateCall{Provider: provider, Argument: arg, Direct: []expr.Expr{direct}, Operation: provider.Operation(), StageWidth: 2, Order: []sortKey{{Expression: arg, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: provider.ResultUsage()}}, Child: child, Keys: []expr.Expr{key}, Grouping: []queryGrouping{{Grouping: grouping}}, Calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: querySchema{{Usage: provider.ResultUsage()}}, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 1, Frame: 1}}, Frame: 1}
+			aggregate := &aggregateNode{QuerySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: provider.ResultUsage()}}, Child: child, Keys: []expr.Expr{key}, Grouping: []queryGrouping{{Grouping: grouping}}, Calls: []aggregateCall{call}}
+			root := &projectNode{QuerySchema: querySchema{{Usage: provider.ResultUsage()}}, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 1, Frame: 1}}, Frame: 1}
 			if phase == "having" {
 				boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
-				root.Child = &filterNode{querySchema: aggregate.querySchema, Child: aggregate, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
+				root.Child = &filterNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 			}
 			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, flat: []sqltype.Value{sqltype.Null(p.InputType())}}
 			source := &querySource{sources: []*querySource{owned}}
@@ -473,7 +473,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				if family.id == sqltype.Interval {
 					values = []string{"30 days", "10 days", "20 days"}
 				}
-				child := &valuesNode{querySchema: querySchema{{Usage: provider.InputType().Usage()}}}
+				child := &valuesNode{QuerySchema: querySchema{{Usage: provider.InputType().Usage()}}}
 				if !tc.empty {
 					for _, text := range values {
 						value, err := provider.InputType().Input(context.Background(), text, -1)
@@ -484,8 +484,8 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 					}
 				}
 				call := aggregateCall{Provider: provider, Argument: argument, Direct: []expr.Expr{direct}, Operation: family.operation, StageWidth: 2, Order: []sortKey{{Expression: argument, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
-				node := &aggregateNode{querySchema: querySchema{{Usage: provider.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
-				root := &projectNode{querySchema: node.querySchema, Child: node, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
+				node := &aggregateNode{QuerySchema: querySchema{{Usage: provider.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
+				root := &projectNode{QuerySchema: node.QuerySchema, Child: node, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: ".Comparison.Compare"}
