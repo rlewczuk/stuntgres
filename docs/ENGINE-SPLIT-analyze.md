@@ -146,6 +146,27 @@ fields `Engine.catalog`, `Operation.session`, `Operation.definition`,
    `describeWithRule`: it copies whole groups instead of fields.
 5. Result: about 22 header fields. Record the final list here.
 
+**Result (done).** The payloads and groups are held by value, not by pointer:
+`binding` is copied by value and the copies are mutated (preflight, rule
+remap and graft, MERGE arms, view-write INSERT), and generic code reads
+`delete.using` and `insert.defaults` on every kind. Value groups keep the copy
+and zero-value semantics of the flat fields. Group fields drop the redundant
+prefix (`deleteUsing` → `delete.using`, `createColumns` → `create.columns`,
+`viewLiterals` → `capture.literals`, `regclassInput` → `resolvers.regclass`,
+`ruleCTEs` → `rule.ctes`); `defaultOrigins` (new since the inventory) joined
+`insertBinding`, and `viewIntaggRefs` is now `capture.routineRefs`. The types
+live in `binding_groups.go`; `newResolverInputs` captures the resolvers.
+
+- Header (20): `relation`, `storage`, `ref`, `viewWrite`, `targets`,
+  `arrayTargets`, `usedColumns`, `query`, `ctes`, `cteSelectBodies`,
+  `querySources`, `visibilitySnapshot`, `subqueryDemand`, `commandQuery`,
+  `currentOf`, `predicate`, `returning`, `dependencies`, `parameters`,
+  `expressions`.
+- Kind payloads: `update *boundUpdate`, `merge *boundMerge`,
+  `insert insertBinding`, `delete deleteBinding`, `create createTableBinding`.
+- Groups: `capture viewCapture`, `prepared preparedCaptures`,
+  `resolvers resolverInputs`, `rule ruleBinding`.
+
 ### 12b — Group `expressionBinder` fields (broad)
 
 1. Group fields into named sub-structs held by value (not embedded, so
@@ -263,7 +284,14 @@ in §8.3 pass.
 
 ## Status
 
-- [ ] 12a — `binding` split per statement kind
+- [x] 12a — `binding` split per statement kind (`50c0912f5`). A
+  type-checked tool rewrote 618 selectors and 10 composite literals (7
+  files, 3 of them tests); per-field use totals are identical before and
+  after (the `describeWithFormals` copies became whole-group literals). No
+  tests moved or deleted. Targeted engine units, the selected reference
+  tests in quick and real 18.6 modes, and quickcheck passed; racecheck and
+  finalcheck skipped at user request. Startup bench unchanged (5,100
+  allocs/op).
 - [ ] 12b — `expressionBinder` fields grouped
 - [ ] 12c — Refined; host seam in place
 - [ ] 12d — `analyze` created and binding moved (sessions: binding types,
@@ -273,6 +301,16 @@ in §8.3 pass.
 Outstanding aliases: none yet.
 
 Notes for later steps:
+
+- 12b: the binder's `view*` maps, `viewNamespaces`, `temporals`,
+  `composites`, `sequenceConstants`, `regclassConcat` and `regtypeConstants`
+  map onto `viewCapture` and `preparedCaptures` with the 12a names
+  (`viewLiterals` → `literals`, ...). Once the binder holds the groups,
+  `describeWithFormals` copies `binder.capture` and `binder.prepared`
+  directly, and the subset copies in `rule_definition.go` and
+  `policy_expression.go` stay subsets (copying full groups could change
+  deparse). Item 19's literal tool plus this step's `bindsplit` (selector and
+  literal regrouping by field object) are the model for the rewrite.
 
 - `access` B5 moves the binding walkers once 12d has moved `binding`.
 - Step 15 (`typedef`): the composite, enum and range binders move here, not

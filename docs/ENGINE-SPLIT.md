@@ -1045,10 +1045,11 @@ the type features (composite, enum and range binding).
 - **12a — split `binding` per statement kind.** A header keeps what every
   kind uses (target relation and ref, targets, dependencies, parameters,
   RETURNING, query, query sources, view write). Payloads take the rest:
-  INSERT, DELETE and CREATE TABLE payloads next to the existing UPDATE and
-  MERGE ones, plus three shared value groups: `viewCapture` (11 maps),
-  `preparedCaptures` (temporal, composite, sequence and regtype constants) and
-  `resolverInputs` (10 statement input resolvers).
+  INSERT, DELETE and CREATE TABLE payloads (held by value) next to the
+  existing UPDATE and MERGE ones, plus three shared value groups:
+  `viewCapture` (11 maps), `preparedCaptures` (temporal, composite, sequence
+  and regtype constants) and `resolverInputs` (10 statement input resolvers).
+  Done; the final layout is in the prompt file.
 - **12b — group `expressionBinder` fields** into target, parameter, consumer,
   clause, grouping and window, query scope and CTE state, reusing the 12a
   capture types.
@@ -1254,7 +1255,7 @@ package-specific scope. This section holds the rules every session follows.
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | 9a done in place; 9b–9c planned |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a done (racecheck/finalcheck skipped by user); 10b–10d planned |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |
-| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | planned (12a–12e) |
+| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a done (racecheck/finalcheck skipped at user request); 12b–12e planned |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | planned (13a–13e) |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place (racecheck skipped at user request); 14b–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | planned (15a–15d) |

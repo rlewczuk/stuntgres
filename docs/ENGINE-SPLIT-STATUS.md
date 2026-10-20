@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `69ed33382ee47447e547dc3492f1eff1fb0c982f`. The later-wave plans
+Last verified against `master` at `5ecfbe328ecb82579a42c26670bfea6910ab13f8`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -19,8 +19,8 @@ as another broad item (§8).
   moved to `functions`.
 - **Step 9 `pgcatalog`** — 9b (item 17).
 - **Step 10 `plan`** — 10b node runtime (item 32).
-- **In-place untangling** — 12a `binding` split (item 20) and 13a scope
-  slots (item 22). Both are broad: one at a time.
+- **In-place untangling** — 12b binder field groups (item 21) and 13a
+  scope slots (item 22). Both are broad: one at a time.
 - **Step 14 `routine`** — 14b (item 25); 14a and the F3 aliases are done.
 
 Steps 1, 2 and 4–8 and `access` are done.
@@ -254,7 +254,7 @@ Steps 1, 2 and 4–8 and `access` are done.
   - [ ] 11d — Aliases removed *(broad)*
 - [ ] **Step 12 — `analyze`** ([prompt](ENGINE-SPLIT-analyze.md); 12a–12b
   need —; 12c needs 10c; 12d needs 11c)
-  - [ ] 12a — `binding` split per statement kind *(broad)*
+  - [x] 12a — `binding` split per statement kind *(broad)* (`50c0912f5`)
   - [ ] 12b — `expressionBinder` fields grouped *(broad)*
   - [ ] 12c — Refined; host seam in place
   - [ ] 12d — `analyze` created and binding moved (several sessions)
@@ -387,8 +387,9 @@ in the prompt file's Status section.
     real 18.6 mode passed except oracle-side `/postgres` drift (DELETE
     RETURNING boundaries, MERGE repeatable read); racecheck/finalcheck
     skipped at user request
-20. [ ] Analyze 12a: `binding` split — [analyze](ENGINE-SPLIT-analyze.md)
-    12a · needs — · **broad**
+20. [x] Analyze 12a: `binding` split — [analyze](ENGINE-SPLIT-analyze.md)
+    12a · needs — · **broad** (`50c0912f5`) · selected dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 21. [ ] Analyze 12b: binder field groups —
     [analyze](ENGINE-SPLIT-analyze.md) 12b · needs 20 · **broad**
 22. [ ] Session 13a: scope slots — [session](ENGINE-SPLIT-session.md) 13a ·
