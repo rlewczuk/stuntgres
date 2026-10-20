@@ -202,15 +202,16 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	if row, err := pgcatalog.ProjectAvailableExtension("unaccent", metadata, nil, d); err == nil || row != nil {
 		t.Fatal("unchecked NAME dependency", row, err)
 	}
-	// The registry holds the implementation itself; its control metadata is
-	// read as a detached copy, so readers cannot mutate registered storage.
+	// The registry holds the installer of the stock implementation; its control
+	// metadata is read as a detached copy, so readers cannot mutate registered
+	// storage.
 	registry := &Engine{}
-	if err := registry.registerExtension("unaccent", stockUnaccent); err != nil {
+	if err := registry.registerExtension("unaccent", unaccentInstaller{stockUnaccent}); err != nil {
 		t.Fatal(err)
 	}
 	read := registry.catalog.Extensions["unaccent"].Control()
 	*read.Comment = "mutated"
-	if stored := registry.catalog.Extensions["unaccent"].Control(); registry.catalog.Extensions["unaccent"] != stockUnaccent || *stored.Comment != "text search dictionary that removes accents" {
+	if stored := registry.catalog.Extensions["unaccent"].Control(); registry.catalog.Extensions["unaccent"] != (unaccentInstaller{stockUnaccent}) || *stored.Comment != "text search dictionary that removes accents" {
 		t.Fatal("registry storage shared", stored)
 	}
 	empty, schema = "", "fixed_control_schema"

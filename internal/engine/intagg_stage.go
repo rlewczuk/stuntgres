@@ -10,7 +10,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+// intaggInstaller stages the intagg provider for the engine. Installed
+// members hold the bare provider, never the installer.
+type intaggInstaller struct{ *intaggProvider }
+
+func (p intaggInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, len(intaggMembers))
 	for i, member := range intaggMembers {
 		oid, err := e.catalog.allocateOIDLocked()
@@ -23,7 +27,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Exte
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Signature: member.signature, RoutineKind: member.kind, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: member.strict, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Signature: member.signature, RoutineKind: member.kind, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: member.strict, Implementation: p.intaggProvider}
 		if i == 0 {
 			state, err := e.catalog.allocateOIDLocked()
 			if err != nil {

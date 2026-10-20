@@ -12,7 +12,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+// intarrayInstaller stages the intarray provider for the engine. Installed
+// members hold the bare provider, never the installer.
+type intarrayInstaller struct{ *intarrayProvider }
+
+func (p intarrayInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	available, err := e.displaceAssociatedArrayLocked(stage, ext.TargetNamespace, "query_int")
 	if err != nil {
 		return err
@@ -58,7 +62,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(typ.ID()), 2275
 		}
-		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p.intarrayProvider}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {

@@ -11,7 +11,9 @@ import (
 )
 
 // extensionInstaller is the engine side of an implementation: staging needs
-// the engine and its catalog stage, which catalog code never names.
+// the engine and its catalog stage, which catalog code never names. Each
+// installer wraps one stock provider; the registry holds the installer and
+// the installed members hold the provider.
 type extensionInstaller interface {
 	catalog.ExtensionImplementation
 	stage(*Engine, *CatalogStage, *catalog.Extension, authorization.PrincipalRef, AuthorizationView) error

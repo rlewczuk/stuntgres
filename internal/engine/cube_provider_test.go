@@ -174,7 +174,7 @@ func TestCubeProviderConflicts(t *testing.T) {
 			if err := stage.Create(conflict); err != nil {
 				return err
 			}
-			return stockCube.stage(e, stage, ext, owner, auth)
+			return cubeInstaller{stockCube}.stage(e, stage, ext, owner, auth)
 		}()
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error

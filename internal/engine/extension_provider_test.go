@@ -54,19 +54,19 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	seen := map[ids.ObjectAddress]bool{}
 	registry := &Engine{}
-	if err := registry.registerExtension("unaccent", stockUnaccent); err != nil {
+	if err := registry.registerExtension("unaccent", unaccentInstaller{stockUnaccent}); err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.registerExtension("unaccent", stockUnaccent); err == nil {
+	if err := registry.registerExtension("unaccent", unaccentInstaller{stockUnaccent}); err == nil {
 		t.Fatal("duplicate registration accepted")
 	}
 	if err := registry.registerExtension("other", nil); err == nil {
 		t.Fatal("nil implementation accepted")
 	}
-	if err := registry.registerExtension("other", &unaccentProvider{}); err == nil {
+	if err := registry.registerExtension("other", unaccentInstaller{&unaccentProvider{}}); err == nil {
 		t.Fatal("implementation without a version accepted")
 	}
-	if err := e.registerExtension("unaccent", stockUnaccent); err == nil {
+	if err := e.registerExtension("unaccent", unaccentInstaller{stockUnaccent}); err == nil {
 		t.Fatal("initialized registry mutated")
 	}
 	for i, signature := range []catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature} {
@@ -81,9 +81,9 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if proc.Volatility != vol || proc.Strict != strict || proc.Result != result {
 			t.Fatal("procedure properties", i)
 		}
-		// The registry and every member hold the one implementation instance;
-		// typed views of another extension's kind stay nil.
-		if proc.Implementation != e.catalog.Extensions["unaccent"] || unaccentProviderOf(proc) != stockUnaccent || pgcryptoProviderOf(proc) != nil || intaggProviderOf(proc) != nil {
+		// Every member holds the registered installer's one implementation
+		// instance; typed views of another extension's kind stay nil.
+		if proc.Implementation != e.catalog.Extensions["unaccent"].(unaccentInstaller).unaccentProvider || unaccentProviderOf(proc) != stockUnaccent || pgcryptoProviderOf(proc) != nil || intaggProviderOf(proc) != nil {
 			t.Fatal("member implementation identity", i)
 		}
 	}
@@ -365,4 +365,50 @@ func TestExtensionOwnerMetadata(t *testing.T) {
 		t.Fatal("ordinary comment interpreted")
 	}
 	extensionOwnershipImportUnits(t)
+}
+
+// The registry holds the engine installers; installed members hold the bare
+// stock provider, so member identity never depends on engine staging code.
+func TestExtensionMembersHoldBareProviders(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	for _, tc := range []struct {
+		name  string
+		stock catalog.ExtensionImplementation
+	}{{"cube", stockCube}, {"unaccent", stockUnaccent}, {"intarray", stockIntarray}, {"fuzzystrmatch", stockFuzzystrmatch}, {"intagg", stockIntagg}, {"pgcrypto", stockPgcrypto}, {"uuid-ossp", stockUUIDOssp}} {
+		if _, ok := e.catalog.Extensions[tc.name].(extensionInstaller); !ok {
+			t.Fatal("registered implementation is not an installer", tc.name)
+		}
+		e.mu.Lock()
+		stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: tc.name}})
+		e.mu.Unlock()
+		if err != nil {
+			t.Fatal(tc.name, err)
+		}
+		extensionUnitPublish(t, e, op, stage)
+		view := e.CatalogRead()
+		ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: tc.name}))
+		members := 0
+		for _, a := range ext.Members {
+			var implementation catalog.ExtensionImplementation
+			switch d := view.Get(a).(type) {
+			case *catalog.Procedure:
+				implementation = d.Implementation
+			case *catalog.TSTemplate:
+				implementation = d.Implementation
+			case *catalog.TSDictionary:
+				implementation = d.Implementation
+			default:
+				continue
+			}
+			members++
+			if _, installer := implementation.(extensionInstaller); installer || implementation != tc.stock {
+				t.Fatal("member does not hold the bare stock provider", tc.name, a)
+			}
+		}
+		if members == 0 {
+			t.Fatal("no implementation-bearing members", tc.name)
+		}
+	}
 }

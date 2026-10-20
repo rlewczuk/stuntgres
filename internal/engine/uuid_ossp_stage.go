@@ -10,7 +10,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+// uuidOsspInstaller stages the uuid-ossp provider for the engine. Installed
+// members hold the bare provider, never the installer.
+type uuidOsspInstaller struct{ *uuidOsspProvider }
+
+func (p uuidOsspInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, 0, len(functions.UUIDOsspMembers))
 	for _, member := range functions.UUIDOsspMembers {
 		oid, err := e.catalog.allocateOIDLocked()
@@ -22,7 +26,7 @@ func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 			return err
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: "", Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: 2950, Volatility: member.Volatility, Strict: true, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: "", Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: 2950, Volatility: member.Volatility, Strict: true, Implementation: p.uuidOsspProvider}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}

@@ -161,7 +161,7 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	copy := *ext
 	e.mu.Lock()
-	err := stockUUIDOssp.stage(e, stage, &copy, ext.Owner, AuthorizationView{})
+	err := uuidOsspInstaller{stockUUIDOssp}.stage(e, stage, &copy, ext.Owner, AuthorizationView{})
 	e.mu.Unlock()
 	// CatalogStage is a sparse private overlay, not a copy of its base.
 	// Atomicity concerns the published root and its existing identities.
