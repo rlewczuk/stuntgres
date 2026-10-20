@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func intaggDefinition(function, transition, final ids.OID) catalog.AggregateDefinition {
+func IntaggDefinition(function, transition, final ids.OID) catalog.AggregateDefinition {
 	return catalog.AggregateDefinition{Function: function, Kind: "n", Functions: [8]ids.OID{transition, final}, FinalModify: "r", MovingFinalModify: "r", TransitionType: 2281}
 }
 
@@ -20,7 +20,7 @@ func validateOwnedAggregate(view catalog.Read, proc *catalog.Procedure) error {
 		return nil
 	}
 	owned := proc.Aggregate
-	if owned == nil || owned.Definition != intaggDefinition(proc.Address().ObjectID, owned.Helpers[0].ID, owned.Helpers[1].ID) {
+	if owned == nil || owned.Definition != IntaggDefinition(proc.Address().ObjectID, owned.Helpers[0].ID, owned.Helpers[1].ID) {
 		return invalid()
 	}
 	for i, helper := range owned.Helpers {

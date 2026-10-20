@@ -5,9 +5,9 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// extensionRemovalRoots preserves root order and authentic manifest identities.
+// RemovalRoots preserves root order and authentic manifest identities.
 // The caller owns roots; published extension manifests are never modified.
-func extensionRemovalRoots(view catalog.Read, roots []ids.ObjectAddress) []ids.ObjectAddress {
+func RemovalRoots(view catalog.Read, roots []ids.ObjectAddress) []ids.ObjectAddress {
 	result := make([]ids.ObjectAddress, 0, len(roots))
 	pending := make(map[ids.ObjectAddress]bool, len(roots))
 	for _, root := range roots {

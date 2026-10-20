@@ -294,7 +294,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		if !ok || len(ext.Members) != 3 {
 			t.Fatal("missing actual intarray installation")
 		}
-		if err := stockIntarray.ValidateExtension(view, ext); err != nil {
+		if err := StockIntarray.ValidateExtension(view, ext); err != nil {
 			t.Fatal(err)
 		}
 		output := uint32(ext.Members[2].ObjectID)

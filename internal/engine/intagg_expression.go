@@ -60,7 +60,7 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 // the engine binder always appended it, and returns its reference.
 func (r installedExtensionRoutine) intaggIdentity() (*catalog.Procedure, ids.ObjectRef, error) {
 	p := r.procedure
-	if intaggProviderOf(p) != stockIntagg {
+	if IntaggProviderOf(p) != StockIntagg {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
 	ref := r.binder.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())

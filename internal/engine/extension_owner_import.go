@@ -9,7 +9,7 @@ import (
 
 // Apply only to Restore's isolated catalog. Named target identities were
 // captured before reading; final replacement fences their remapping again.
-func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, records []extensionOwnerRecord) error {
+func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, records []OwnerRecord) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -58,11 +58,11 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "cube" && !base.SQLType.IsCube() {
 					return fmt.Errorf("stuntgres: missing installed owner type")
 				}
-				signature = string(queryIntSignature(base.SQLType.ID()))
+				signature = string(QueryIntSignature(base.SQLType.ID()))
 			}
 			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
 			d := candidate.Get(a)
-			if d == nil || extensionMembership(d) != ext.Address() {
+			if d == nil || Membership(d) != ext.Address() {
 				return fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
 			switch d := d.(type) {

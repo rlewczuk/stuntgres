@@ -54,19 +54,19 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	seen := map[ids.ObjectAddress]bool{}
 	registry := &Engine{}
-	if err := registry.registerExtension("unaccent", unaccentInstaller{stockUnaccent}); err != nil {
+	if err := registry.registerExtension("unaccent", unaccentInstaller{StockUnaccent}); err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.registerExtension("unaccent", unaccentInstaller{stockUnaccent}); err == nil {
+	if err := registry.registerExtension("unaccent", unaccentInstaller{StockUnaccent}); err == nil {
 		t.Fatal("duplicate registration accepted")
 	}
 	if err := registry.registerExtension("other", nil); err == nil {
 		t.Fatal("nil implementation accepted")
 	}
-	if err := registry.registerExtension("other", unaccentInstaller{&unaccentProvider{}}); err == nil {
+	if err := registry.registerExtension("other", unaccentInstaller{&UnaccentProvider{}}); err == nil {
 		t.Fatal("implementation without a version accepted")
 	}
-	if err := e.registerExtension("unaccent", unaccentInstaller{stockUnaccent}); err == nil {
+	if err := e.registerExtension("unaccent", unaccentInstaller{StockUnaccent}); err == nil {
 		t.Fatal("initialized registry mutated")
 	}
 	for i, signature := range []catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature} {
@@ -83,17 +83,17 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		}
 		// Every member holds the registered installer's one implementation
 		// instance; typed views of another extension's kind stay nil.
-		if proc.Implementation != e.catalog.Extensions["unaccent"].(unaccentInstaller).unaccentProvider || unaccentProviderOf(proc) != stockUnaccent || pgcryptoProviderOf(proc) != nil || intaggProviderOf(proc) != nil {
+		if proc.Implementation != e.catalog.Extensions["unaccent"].(unaccentInstaller).UnaccentProvider || UnaccentProviderOf(proc) != StockUnaccent || PgcryptoProviderOf(proc) != nil || IntaggProviderOf(proc) != nil {
 			t.Fatal("member implementation identity", i)
 		}
 	}
-	if tmpl, _ := view.TSTemplate(ext.Members[4]); tmpl == nil || tmpl.Implementation != stockUnaccent || unaccentTemplateProviderOf(tmpl) != stockUnaccent {
+	if tmpl, _ := view.TSTemplate(ext.Members[4]); tmpl == nil || tmpl.Implementation != StockUnaccent || UnaccentTemplateProviderOf(tmpl) != StockUnaccent {
 		t.Fatal("template implementation identity")
 	}
-	if dict := view.MustTSDictionary(ext.Members[5]); dict.Implementation != stockUnaccent || unaccentDictionaryProviderOf(dict) != stockUnaccent {
+	if dict := view.MustTSDictionary(ext.Members[5]); dict.Implementation != StockUnaccent || UnaccentDictionaryProviderOf(dict) != StockUnaccent {
 		t.Fatal("dictionary implementation identity")
 	}
-	if unaccentProviderOf((&catalog.Procedure{})) != nil || unaccentDictionaryProviderOf((&catalog.TSDictionary{})) != nil {
+	if UnaccentProviderOf((&catalog.Procedure{})) != nil || UnaccentDictionaryProviderOf((&catalog.TSDictionary{})) != nil {
 		t.Fatal("absent implementation has a typed view")
 	}
 	for _, a := range ext.Members {
@@ -105,7 +105,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
-		if d.Namespace() != ext.TargetNamespace || extensionMembership(d) != ext.Address() {
+		if d.Namespace() != ext.TargetNamespace || Membership(d) != ext.Address() {
 			t.Fatal("broken member placement")
 		}
 		if _, ok := d.(*catalog.TSTemplate); ok {
@@ -145,7 +145,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	bad := *ext
 	bad.Members = slices.Clone(ext.Members)
 	bad.Members[1] = bad.Members[0]
-	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, &bad); err == nil {
+	if err := (CatalogProvider{ids.ExtensionClassID}).Validate(view, &bad); err == nil {
 		t.Fatal("duplicate members accepted")
 	}
 }
@@ -342,26 +342,26 @@ func TestExtensionProviderPublication(t *testing.T) {
 
 func TestExtensionOwnerMetadata(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
-	encoded, err := extensionOwnerMetadata(e.CatalogRead(), e.Roles(), ext)
+	encoded, err := OwnerMetadata(e.CatalogRead(), e.Roles(), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, recognized, err := decodeExtensionOwners(strings.TrimPrefix(strings.TrimSpace(encoded), "-- "))
+	record, recognized, err := DecodeOwners(strings.TrimPrefix(strings.TrimSpace(encoded), "-- "))
 	if err != nil || !recognized || len(record.Members) != 5 || record.Owner != "postgres" {
 		t.Fatal("owner record", record, recognized, err)
 	}
 	for _, payload := range []string{`{}`, `{"name":null}`, `{"name":"unaccent","name":"unaccent"}`, `[]`} {
-		_, recognized, err := decodeExtensionOwners(extensionOwnersMarker + " " + base64.StdEncoding.EncodeToString([]byte(payload)))
+		_, recognized, err := DecodeOwners(OwnersMarker + " " + base64.StdEncoding.EncodeToString([]byte(payload)))
 		if !recognized || err == nil {
 			t.Fatal("invalid ownership metadata accepted", payload)
 		}
 	}
-	for _, comment := range []string{"stuntgres-extension-owners-v2 YQ==", extensionOwnersMarker + " !!!!"} {
-		if _, _, err := decodeExtensionOwners(comment); err == nil {
+	for _, comment := range []string{"stuntgres-extension-owners-v2 YQ==", OwnersMarker + " !!!!"} {
+		if _, _, err := DecodeOwners(comment); err == nil {
 			t.Fatal("invalid marker/base64")
 		}
 	}
-	if _, recognized, err := decodeExtensionOwners("ordinary SQL comment"); err != nil || recognized {
+	if _, recognized, err := DecodeOwners("ordinary SQL comment"); err != nil || recognized {
 		t.Fatal("ordinary comment interpreted")
 	}
 	extensionOwnershipImportUnits(t)
@@ -376,7 +376,7 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		stock catalog.ExtensionImplementation
-	}{{"cube", stockCube}, {"unaccent", stockUnaccent}, {"intarray", stockIntarray}, {"fuzzystrmatch", stockFuzzystrmatch}, {"intagg", stockIntagg}, {"pgcrypto", stockPgcrypto}, {"uuid-ossp", stockUUIDOssp}} {
+	}{{"cube", StockCube}, {"unaccent", StockUnaccent}, {"intarray", StockIntarray}, {"fuzzystrmatch", StockFuzzystrmatch}, {"intagg", StockIntagg}, {"pgcrypto", StockPgcrypto}, {"uuid-ossp", StockUUIDOssp}} {
 		if _, ok := e.catalog.Extensions[tc.name].(extensionInstaller); !ok {
 			t.Fatal("registered implementation is not an installer", tc.name)
 		}

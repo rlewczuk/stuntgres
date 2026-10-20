@@ -110,7 +110,7 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 		}
 		version = option.Value.Text
 	}
-	if err := extensionVersionError(version); err != nil {
+	if err := VersionError(version); err != nil {
 		return nil, err
 	}
 	if old.Version == version {

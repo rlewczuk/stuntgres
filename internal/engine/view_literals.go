@@ -849,7 +849,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			return err
 		}
 		(*routineCount)++
-	} else if name := intaggRecipeFunction(raw); name != "" {
+	} else if name := IntaggRecipeFunction(raw); name != "" {
 		if _, err := v.intaggRecipeProcedure(catalog, path, name); err != nil {
 			return err
 		}

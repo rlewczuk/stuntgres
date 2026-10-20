@@ -206,7 +206,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	check := domain.DomainChecks[0]
 	owner := ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 	provider := before.Get(procedure)
-	if provider == nil || extensionMembership(provider) != ext.Address() {
+	if provider == nil || Membership(provider) != ext.Address() {
 		t.Fatal("missing genuine installed CHECK provider")
 	}
 	references := 0

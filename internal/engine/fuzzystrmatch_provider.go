@@ -8,20 +8,20 @@ import (
 )
 
 // Only the catalog-selected overloads are installed, not adjacent fuzzy functions.
-type fuzzystrmatchProvider struct{ control catalog.ExtensionControl }
+type FuzzystrmatchProvider struct{ control catalog.ExtensionControl }
 
-// Control implements extensionImplementation.
-func (p *fuzzystrmatchProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
-func (p *fuzzystrmatchProvider) Versions() catalog.ExtensionVersions {
+// Control implements catalog.ExtensionImplementation.
+func (p *FuzzystrmatchProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *FuzzystrmatchProvider) Versions() catalog.ExtensionVersions {
 	return catalog.ExtensionVersions{Bases: []string{"1.1"}, Edges: []catalog.ExtensionVersionEdge{{From: "1.0", To: "1.1"}, {From: "1.1", To: "1.2"}}}
 }
 
-var stockFuzzystrmatch = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2", Trusted: true, Superuser: true, Relocatable: true, Comment: new("determine similarities and distance between strings")}}
+var StockFuzzystrmatch = &FuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2", Trusted: true, Superuser: true, Relocatable: true, Comment: new("determine similarities and distance between strings")}}
 
-var fuzzystrmatchMembers = [...]struct {
-	name      string
-	signature catalog.ProcedureSignature
-	result    ids.OID
+var FuzzystrmatchMembers = [...]struct {
+	Name      string
+	Signature catalog.ProcedureSignature
+	Result    ids.OID
 }{
 	{"daitch_mokotoff", "25", 1009},
 	{"levenshtein", "25,25", 23},
@@ -36,35 +36,35 @@ var fuzzystrmatchMembers = [...]struct {
 }
 
 func fuzzystrmatchResult(name string, signature catalog.ProcedureSignature) ids.OID {
-	for _, member := range fuzzystrmatchMembers {
-		if member.name == name && member.signature == signature {
-			return member.result
+	for _, member := range FuzzystrmatchMembers {
+		if member.Name == name && member.Signature == signature {
+			return member.Result
 		}
 	}
 	return 0
 }
 
-func (p *fuzzystrmatchProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *FuzzystrmatchProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
-	count := len(fuzzystrmatchMembers)
+	count := len(FuzzystrmatchMembers)
 	if ext.Version == "1.1" {
 		count--
 	}
-	if v.Owner() == nil || p != stockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || (ext.Version != "1.1" && ext.Version != "1.2") || len(ext.Members) != count {
+	if v.Owner() == nil || p != StockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || (ext.Version != "1.1" && ext.Version != "1.2") || len(ext.Members) != count {
 		return invalid()
 	}
-	var seen [len(fuzzystrmatchMembers)]bool
+	var seen [len(FuzzystrmatchMembers)]bool
 	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
 		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Volatility != expr.Immutable || !proc.Strict || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		found := false
-		for j, member := range fuzzystrmatchMembers {
+		for j, member := range FuzzystrmatchMembers {
 			if ext.Version == "1.1" && j == 0 {
 				continue
 			}
-			if proc.Name() == member.name && proc.Signature == member.signature && proc.Result == member.result {
+			if proc.Name() == member.Name && proc.Signature == member.Signature && proc.Result == member.Result {
 				if seen[j] {
 					return invalid()
 				}
@@ -84,7 +84,7 @@ func (p *fuzzystrmatchProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 	return nil
 }
 
-func (p *fuzzystrmatchProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
+func (p *FuzzystrmatchProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing fuzzystrmatch installation")
@@ -92,7 +92,7 @@ func (p *fuzzystrmatchProvider) validateProcedure(v catalog.Read, proc *catalog.
 	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.Address()) != proc || fuzzystrmatchProviderOf(proc) != p {
+	if v.Get(proc.Address()) != proc || FuzzystrmatchProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: foreign fuzzystrmatch procedure")
 	}
 	for _, address := range ext.Members {

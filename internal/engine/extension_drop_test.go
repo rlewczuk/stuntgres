@@ -26,7 +26,7 @@ func TestExtensionDropManifest(t *testing.T) {
 	members := slices.Clone(ext.Members)
 	roots := []ids.ObjectAddress{ext.Address(), ext.Address(), base.Address()}
 	original := slices.Clone(roots)
-	expanded := extensionRemovalRoots(e.CatalogRead(), roots)
+	expanded := RemovalRoots(e.CatalogRead(), roots)
 	if !slices.Equal(roots, original) || !slices.Equal(ext.Members, members) {
 		t.Fatal("published manifest or caller input mutated")
 	}
@@ -89,7 +89,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 			e.mu.Lock()
 			private := e.privateCatalogLocked(txOwnerOf(tx).catalog)
 			e.mu.Unlock()
-			for _, a := range extensionRemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
+			for _, a := range RemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
 				if private.Get(a) != nil || e.CatalogRead().Get(a) != before.Get(a) {
 					t.Fatal("private retirement leaked", a)
 				}
@@ -109,7 +109,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 				restored = e.privateCatalogLocked(txOwnerOf(tx).catalog)
 				e.mu.Unlock()
 			}
-			for _, a := range extensionRemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
+			for _, a := range RemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
 				if restored.Get(a) != before.Get(a) {
 					t.Fatal("rollback reconstructed provider identity", a)
 				}
@@ -217,7 +217,7 @@ func extensionDropUnitProvider(t *testing.T, consumer string) (*Engine, *Operati
 func extensionDropUnitRetirement(t *testing.T, e *Engine, ext *catalog.Extension) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	roots := extensionRemovalRoots(stage.Base, []ids.ObjectAddress{ext.Address()})
+	roots := RemovalRoots(stage.Base, []ids.ObjectAddress{ext.Address()})
 	for _, address := range roots {
 		if err := stage.removeObject(e.catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
 			t.Fatal(err)
@@ -525,7 +525,7 @@ func TestExtensionDropDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	for a, d := range before.Descriptors() {
-		if _, ok := d.(*catalog.Extension); ok || extensionMembership(d) != (ids.ObjectAddress{}) || d.Name() == "ext_drop_generic" {
+		if _, ok := d.(*catalog.Extension); ok || Membership(d) != (ids.ObjectAddress{}) || d.Name() == "ext_drop_generic" {
 			if e.CatalogRead().Get(a) != nil {
 				t.Fatal("generic dependency closure survived cascade", a)
 			}

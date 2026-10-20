@@ -7,19 +7,19 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-type pgcryptoProvider struct{ control catalog.ExtensionControl }
+type PgcryptoProvider struct{ control catalog.ExtensionControl }
 
-// Control implements extensionImplementation.
-func (p *pgcryptoProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
-func (p *pgcryptoProvider) Versions() catalog.ExtensionVersions {
+// Control implements catalog.ExtensionImplementation.
+func (p *PgcryptoProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *PgcryptoProvider) Versions() catalog.ExtensionVersions {
 	return catalog.ExtensionVersions{Bases: []string{"1.4"}}
 }
 
-var stockPgcrypto = &pgcryptoProvider{control: catalog.ExtensionControl{Version: "1.4", Trusted: true, Superuser: true, Relocatable: true, Comment: new("cryptographic functions")}}
+var StockPgcrypto = &PgcryptoProvider{control: catalog.ExtensionControl{Version: "1.4", Trusted: true, Superuser: true, Relocatable: true, Comment: new("cryptographic functions")}}
 
-func (p *pgcryptoProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *PgcryptoProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgcrypto manifest") }
-	if v.Owner() == nil || p != stockPgcrypto || ext.Name() != "pgcrypto" || ext.Version != p.control.Version || len(ext.Members) != len(functions.PgcryptoMembers) {
+	if v.Owner() == nil || p != StockPgcrypto || ext.Name() != "pgcrypto" || ext.Version != p.control.Version || len(ext.Members) != len(functions.PgcryptoMembers) {
 		return invalid()
 	}
 	seen := make(map[functions.PgcryptoMember]bool, len(functions.PgcryptoMembers))
@@ -42,8 +42,8 @@ func (p *pgcryptoProvider) ValidateExtension(v catalog.Read, ext *catalog.Extens
 	return nil
 }
 
-func (p *pgcryptoProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
-	if v.Get(proc.Address()) != proc || pgcryptoProviderOf(proc) != p {
+func (p *PgcryptoProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
+	if v.Get(proc.Address()) != proc || PgcryptoProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: invalid pgcrypto procedure identity")
 	}
 	ext, ok := v.Extension(proc.Extension)

@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func extensionMemberConflict(d catalog.Descriptor, ns ids.ObjectAddress) error {
+func MemberConflict(d catalog.Descriptor, ns ids.ObjectAddress) error {
 	err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR"}
 	switch d := d.(type) {
 	case *catalog.Procedure:
@@ -29,7 +29,7 @@ func extensionMemberConflict(d catalog.Descriptor, ns ids.ObjectAddress) error {
 		err.Table = "pg_ts_template"
 		err.Constraint = "pg_ts_template_tmplname_index"
 		err.Detail = fmt.Sprintf("Key (tmplname, tmplnamespace)=(unaccent, %d) already exists.", ns.ObjectID)
-		err.Context = unaccentTemplateContext
+		err.Context = UnaccentTemplateContext
 	case *catalog.TSDictionary:
 		err.Code = "23505"
 		err.Schema = "pg_catalog"
@@ -44,11 +44,11 @@ func extensionMemberConflict(d catalog.Descriptor, ns ids.ObjectAddress) error {
 	return err
 }
 
-func extensionNameConflict(name string) error {
+func NameConflict(name string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_extension_name_index"`, Detail: fmt.Sprintf("Key (extname)=(%s) already exists.", name), Schema: "pg_catalog", Table: "pg_extension", Constraint: "pg_extension_name_index"}
 }
 
-func extensionVersionError(version string) error {
+func VersionError(version string) error {
 	if detail := catalog.ExtensionNameDetail(version, true); detail != "" {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid extension version name: "%s"`, version), Detail: detail}
 	}

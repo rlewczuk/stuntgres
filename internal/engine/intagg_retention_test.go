@@ -109,7 +109,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			if err := e.ValidateObjectRef(view, ref); err == nil {
 				t.Fatal("ordinary stale ObjectRef was relaxed")
 			}
-			if err := validateIntaggIdentity(view, proc, ref, proc.Name()); err == nil {
+			if err := ValidateIntaggIdentity(view, proc, ref, proc.Name()); err == nil {
 				t.Fatal("fresh intagg identity validator was relaxed")
 			}
 			if storedViewReferenceValid(New().CatalogRead(), consumer, ref) {

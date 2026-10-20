@@ -38,12 +38,12 @@ func (n installedUUIDOsspFunctionExpression) validShape() bool {
 		return false
 	}
 	selector, volatility, selected := functions.UUIDOsspLookup(n.procedure.Name())
-	return selected && n.RoutineReference == n.procedure && uuidOsspProviderOf(n.procedure) == stockUUIDOssp && n.ref.Address == n.procedure.Address() && n.ref.Epoch != 0 && n.Name == selector && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (expr.Properties{Volatility: volatility})
+	return selected && n.RoutineReference == n.procedure && UUIDOsspProviderOf(n.procedure) == StockUUIDOssp && n.ref.Address == n.procedure.Address() && n.ref.Epoch != 0 && n.Name == selector && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (expr.Properties{Volatility: volatility})
 }
 
 func (n installedUUIDOsspFunctionExpression) validate(v catalog.Read) error {
 	if !n.validShape() || v.Get(n.ref.Address) != n.procedure {
 		return fmt.Errorf("stuntgres: invalid stored uuid-ossp identity")
 	}
-	return stockUUIDOssp.validateProcedure(v, n.procedure)
+	return StockUUIDOssp.ValidateProcedure(v, n.procedure)
 }

@@ -162,7 +162,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 			return nil, err
 		}
 	}
-	for _, p := range []catalog.Provider{extensionCatalogProvider{ids.ExtensionClassID}, procedureProvider{}, extensionCatalogProvider{ids.TSTemplateClassID}, extensionCatalogProvider{ids.TSDictionaryClassID}} {
+	for _, p := range []catalog.Provider{CatalogProvider{ids.ExtensionClassID}, procedureProvider{}, CatalogProvider{ids.TSTemplateClassID}, CatalogProvider{ids.TSDictionaryClassID}} {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
 		}
@@ -182,7 +182,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	for _, extension := range []struct {
 		name           string
 		implementation extensionInstaller
-	}{{"cube", cubeInstaller{stockCube}}, {"unaccent", unaccentInstaller{stockUnaccent}}, {"intarray", intarrayInstaller{stockIntarray}}, {"fuzzystrmatch", fuzzystrmatchInstaller{stockFuzzystrmatch}}, {"intagg", intaggInstaller{stockIntagg}}, {"pgcrypto", pgcryptoInstaller{stockPgcrypto}}, {"uuid-ossp", uuidOsspInstaller{stockUUIDOssp}}} {
+	}{{"cube", cubeInstaller{StockCube}}, {"unaccent", unaccentInstaller{StockUnaccent}}, {"intarray", intarrayInstaller{StockIntarray}}, {"fuzzystrmatch", fuzzystrmatchInstaller{StockFuzzystrmatch}}, {"intagg", intaggInstaller{StockIntagg}}, {"pgcrypto", pgcryptoInstaller{StockPgcrypto}}, {"uuid-ossp", uuidOsspInstaller{StockUUIDOssp}}} {
 		if err := e.registerExtension(extension.name, extension.implementation); err != nil {
 			return nil, err
 		}

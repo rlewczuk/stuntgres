@@ -11,7 +11,7 @@ import (
 // column presentation. The captured reference comes from binding, never a later
 // lookup by the written name or the renderer's current search_path.
 func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
-	if err := validateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
+	if err := ValidateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
 		return err
 	}
 	return b.capture.captureRoutineReference(path, ref)
@@ -24,10 +24,10 @@ func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path viewLi
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen intagg reference")
 	}
 	proc, ok := catalog.Procedure(ref.Address)
-	if !ok || proc.Name() != name || intaggProviderOf(proc) != stockIntagg {
+	if !ok || proc.Name() != name || IntaggProviderOf(proc) != StockIntagg {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen intagg procedure")
 	}
-	if err := stockIntagg.validateProcedure(catalog, proc); err != nil {
+	if err := StockIntagg.ValidateProcedure(catalog, proc); err != nil {
 		return nil, err
 	}
 	return proc, nil

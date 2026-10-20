@@ -8,35 +8,35 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// extensionCatalogProvider validates extensions, their text search template
+// CatalogProvider validates extensions, their text search template
 // and dictionary, and installed member procedures. The procedure class is
 // registered as procedureProvider, which delegates members here.
-type extensionCatalogProvider struct{ class ids.OID }
+type CatalogProvider struct{ Class ids.OID }
 
-func (p extensionCatalogProvider) ClassID() ids.OID { return p.class }
+func (p CatalogProvider) ClassID() ids.OID { return p.Class }
 
-func invalidProviderDescriptor() error {
+func InvalidProviderDescriptor() error {
 	return fmt.Errorf("stuntgres: invalid extension provider descriptor")
 }
 
-// validateProviderHeader checks the identity shared by every descriptor that
+// ValidateProviderHeader checks the identity shared by every descriptor that
 // the extension and procedure providers validate.
-func validateProviderHeader(v catalog.Read, d catalog.Descriptor, class ids.OID) error {
+func ValidateProviderHeader(v catalog.Read, d catalog.Descriptor, class ids.OID) error {
 	a := d.Address()
 	if a.ClassID != class || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(d)) != a {
-		return invalidProviderDescriptor()
+		return InvalidProviderDescriptor()
 	}
 	if namespace := d.Namespace(); namespace != (ids.ObjectAddress{}) {
 		if _, ok := v.Namespace(namespace); !ok {
-			return invalidProviderDescriptor()
+			return InvalidProviderDescriptor()
 		}
 	}
 	return nil
 }
 
-func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
-	invalid := invalidProviderDescriptor
-	if err := validateProviderHeader(v, d, p.class); err != nil {
+func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
+	invalid := InvalidProviderDescriptor
+	if err := ValidateProviderHeader(v, d, p.Class); err != nil {
 		return err
 	}
 	a, namespace := d.Address(), d.Namespace()
@@ -57,7 +57,7 @@ func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor)
 			}
 			seen[a] = true
 			member := v.Get(a)
-			if member == nil || member.Namespace() != d.TargetNamespace || extensionMembership(member) != d.Address() {
+			if member == nil || member.Namespace() != d.TargetNamespace || Membership(member) != d.Address() {
 				return invalid()
 			}
 		}
@@ -70,7 +70,7 @@ func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor)
 			return err
 		}
 	case *catalog.TSTemplate:
-		if d.Name() != "unaccent" || unaccentTemplateProviderOf(d) != stockUnaccent {
+		if d.Name() != "unaccent" || UnaccentTemplateProviderOf(d) != StockUnaccent {
 			return invalid()
 		}
 		ext = d.Extension
@@ -81,7 +81,7 @@ func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor)
 			}
 		}
 	case *catalog.TSDictionary:
-		if d.Name() != "unaccent" || unaccentDictionaryProviderOf(d) != stockUnaccent {
+		if d.Name() != "unaccent" || UnaccentDictionaryProviderOf(d) != StockUnaccent {
 			return invalid()
 		}
 		ext = d.Extension
@@ -107,7 +107,7 @@ func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor)
 	}
 	return nil
 }
-func extensionMembership(d catalog.Descriptor) ids.ObjectAddress {
+func Membership(d catalog.Descriptor) ids.ObjectAddress {
 	switch d := d.(type) {
 	case *catalog.Type:
 		return d.Extension
@@ -125,32 +125,32 @@ func extensionMembership(d catalog.Descriptor) ids.ObjectAddress {
 // returns the extension it claims. Builtin, SQL, foreign and conversion
 // routines carry no implementation and are never members.
 func validateInstalledProcedure(v catalog.Read, d *catalog.Procedure) (ids.ObjectAddress, error) {
-	invalid := func() (ids.ObjectAddress, error) { return ids.ObjectAddress{}, invalidProviderDescriptor() }
-	if d.Implementation == nil || d.SQL != nil || d.Aggregate != nil && intaggProviderOf(d) != stockIntagg || d.Foreign != nil || d.Builtin != nil {
+	invalid := func() (ids.ObjectAddress, error) { return ids.ObjectAddress{}, InvalidProviderDescriptor() }
+	if d.Implementation == nil || d.SQL != nil || d.Aggregate != nil && IntaggProviderOf(d) != StockIntagg || d.Foreign != nil || d.Builtin != nil {
 		return invalid()
 	}
-	if intaggProviderOf(d) != nil {
-		return d.Extension, intaggProviderOf(d).validateProcedure(v, d)
+	if IntaggProviderOf(d) != nil {
+		return d.Extension, IntaggProviderOf(d).ValidateProcedure(v, d)
 	}
 	if d.RoutineKind != catalog.FunctionRoutine {
 		return invalid()
 	}
 	switch {
-	case uuidOsspProviderOf(d) != nil:
+	case UUIDOsspProviderOf(d) != nil:
 		if d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) {
 			return invalid()
 		}
-		return d.Extension, uuidOsspProviderOf(d).validateProcedure(v, d)
-	case fuzzystrmatchProviderOf(d) != nil:
-		return d.Extension, fuzzystrmatchProviderOf(d).validateProcedure(v, d)
-	case pgcryptoProviderOf(d) != nil:
-		return d.Extension, pgcryptoProviderOf(d).validateProcedure(v, d)
-	case intarrayProviderOf(d) != nil:
-		return d.Extension, intarrayProviderOf(d).validateProcedure(v, d)
-	case cubeProviderOf(d) != nil:
-		return d.Extension, cubeProviderOf(d).validateProcedure(v, d)
+		return d.Extension, UUIDOsspProviderOf(d).ValidateProcedure(v, d)
+	case FuzzystrmatchProviderOf(d) != nil:
+		return d.Extension, FuzzystrmatchProviderOf(d).ValidateProcedure(v, d)
+	case PgcryptoProviderOf(d) != nil:
+		return d.Extension, PgcryptoProviderOf(d).ValidateProcedure(v, d)
+	case IntarrayProviderOf(d) != nil:
+		return d.Extension, IntarrayProviderOf(d).ValidateProcedure(v, d)
+	case CubeProviderOf(d) != nil:
+		return d.Extension, CubeProviderOf(d).ValidateProcedure(v, d)
 	}
-	if d.Conversion.Name() != "" || unaccentProviderOf(d) != stockUnaccent {
+	if d.Conversion.Name() != "" || UnaccentProviderOf(d) != StockUnaccent {
 		return invalid()
 	}
 	ext := d.Extension

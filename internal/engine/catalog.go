@@ -67,7 +67,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if !ok {
 			return fmt.Errorf("stuntgres: missing materialized extension provider")
 		}
-		if err := (extensionCatalogProvider{class: ids.ExtensionClassID}).Validate(v, extension); err != nil {
+		if err := (CatalogProvider{Class: ids.ExtensionClassID}).Validate(v, extension); err != nil {
 			return err
 		}
 	}

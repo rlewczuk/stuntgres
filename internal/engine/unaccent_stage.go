@@ -11,7 +11,7 @@ import (
 
 // unaccentInstaller stages the unaccent provider for the engine. Installed
 // members hold the bare provider, never the installer.
-type unaccentInstaller struct{ *unaccentProvider }
+type unaccentInstaller struct{ *UnaccentProvider }
 
 func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, 6)
@@ -44,12 +44,12 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 			vol = expr.Volatile
 			strict = false
 		}
-		proc := &catalog.Procedure{ObjectAddress: ext.Members[i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: vol, Strict: strict, Implementation: p.unaccentProvider}
+		proc := &catalog.Procedure{ObjectAddress: ext.Members[i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: vol, Strict: strict, Implementation: p.UnaccentProvider}
 		if i < 2 {
 			proc.Dictionary = ext.Members[5]
 		}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			return extensionMemberConflict(proc, ext.TargetNamespace)
+			return MemberConflict(proc, ext.TargetNamespace)
 		}
 		if err := stage.Create(proc); err != nil {
 			return err
@@ -76,7 +76,7 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	}{{"unaccent_init", catalog.UnaccentInitSignature, "internal"}, {"unaccent_lexize", catalog.UnaccentLexizeSignature, "internal, internal, internal, internal"}} {
 		procedure := procedureInNamespaces(auth.Catalog, namespaceSelection{path: path}, helper.name, helper.signature)
 		if procedure == nil {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: unaccentTemplateContext}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: UnaccentTemplateContext}
 		}
 		helpers[i] = procedure.Address()
 	}
@@ -84,9 +84,9 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	if err != nil {
 		return err
 	}
-	tmpl := &catalog.TSTemplate{ObjectAddress: ext.Members[4], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p.unaccentProvider}
+	tmpl := &catalog.TSTemplate{ObjectAddress: ext.Members[4], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p.UnaccentProvider}
 	if stage.LookupName(catalog.DescriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
-		return extensionMemberConflict(tmpl, ext.TargetNamespace)
+		return MemberConflict(tmpl, ext.TargetNamespace)
 	}
 	if err := stage.Create(tmpl); err != nil {
 		return err
@@ -95,9 +95,9 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	if err != nil {
 		return err
 	}
-	dict := &catalog.TSDictionary{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p.unaccentProvider}
+	dict := &catalog.TSDictionary{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p.UnaccentProvider}
 	if stage.LookupName(catalog.DescriptorNameKey(dict)) != (ids.ObjectAddress{}) {
-		return extensionMemberConflict(dict, ext.TargetNamespace)
+		return MemberConflict(dict, ext.TargetNamespace)
 	}
 	return stage.Create(dict)
 }

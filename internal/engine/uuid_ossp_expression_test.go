@@ -78,8 +78,8 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if m.ref.Epoch != n.ref.Epoch+1 || m.procedure != n.procedure || m.Name != "uuidv4" || plannedVolatility(m) != expr.Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
-	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
-	if uuidOsspProviderOf(proc) != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
+	proc := RemapDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
+	if UUIDOsspProviderOf(proc) != StockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
 		t.Fatal(proc)
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
@@ -111,34 +111,34 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 }
 
 func TestUUIDOsspControls(t *testing.T) {
-	record := extensionOwnerRecord{Name: "uuid-ossp", Schema: "public", Version: "1.1", Owner: "installer", Members: []extensionMemberOwner{{Kind: "procedure", Name: "uuid_generate_v4", Signature: "", Owner: "postgres"}}}
+	record := OwnerRecord{Name: "uuid-ossp", Schema: "public", Version: "1.1", Owner: "installer", Members: []MemberOwner{{Kind: "procedure", Name: "uuid_generate_v4", Signature: "", Owner: "postgres"}}}
 	for _, name := range []string{"uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500"} {
-		record.Members = append(record.Members, extensionMemberOwner{Kind: "procedure", Name: name, Signature: "", Owner: "postgres"})
+		record.Members = append(record.Members, MemberOwner{Kind: "procedure", Name: name, Signature: "", Owner: "postgres"})
 	}
-	encode := func(r extensionOwnerRecord) string {
+	encode := func(r OwnerRecord) string {
 		data, err := json.Marshal(r)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return extensionOwnersMarker + " " + base64.StdEncoding.EncodeToString(data)
+		return OwnersMarker + " " + base64.StdEncoding.EncodeToString(data)
 	}
-	got, recognized, err := decodeExtensionOwners(encode(record))
+	got, recognized, err := DecodeOwners(encode(record))
 	if err != nil || !recognized || !reflect.DeepEqual(got, record) {
 		t.Fatal("zero-signature owner roundtrip", got, recognized, err)
 	}
-	for _, mutate := range []func(*extensionOwnerRecord){
-		func(r *extensionOwnerRecord) { r.Version = "missing" },
-		func(r *extensionOwnerRecord) { r.Members = nil },
-		func(r *extensionOwnerRecord) { r.Members = append(r.Members, r.Members[0]) },
-		func(r *extensionOwnerRecord) { r.Members[0].Name = "uuidv4" },
-		func(r *extensionOwnerRecord) { r.Members[0].Signature = "25" },
-		func(r *extensionOwnerRecord) { r.Members[0].Kind = "dictionary" },
-		func(r *extensionOwnerRecord) { r.Members[0].Owner = "" },
+	for _, mutate := range []func(*OwnerRecord){
+		func(r *OwnerRecord) { r.Version = "missing" },
+		func(r *OwnerRecord) { r.Members = nil },
+		func(r *OwnerRecord) { r.Members = append(r.Members, r.Members[0]) },
+		func(r *OwnerRecord) { r.Members[0].Name = "uuidv4" },
+		func(r *OwnerRecord) { r.Members[0].Signature = "25" },
+		func(r *OwnerRecord) { r.Members[0].Kind = "dictionary" },
+		func(r *OwnerRecord) { r.Members[0].Owner = "" },
 	} {
 		bad := record
 		bad.Members = slices.Clone(record.Members)
 		mutate(&bad)
-		if _, recognized, err := decodeExtensionOwners(encode(bad)); !recognized || err == nil {
+		if _, recognized, err := DecodeOwners(encode(bad)); !recognized || err == nil {
 			t.Fatal("invalid owner metadata accepted", bad, err)
 		}
 	}
@@ -275,7 +275,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	for _, mutate := range []func(*catalog.Procedure){
 		func(d *catalog.Procedure) { d.Implementation = nil },
 		func(d *catalog.Procedure) {
-			d.Implementation = &uuidOsspProvider{control: catalog.ExtensionControl{Version: "1.1"}}
+			d.Implementation = new(*StockUUIDOssp)
 		},
 		func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 	} {
@@ -319,7 +319,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		state.RemoveDescriptor(address)
 	}
 	for address, dest := range mapping {
-		d := remapExtensionDescriptor(evaluation.catalog.Get(address), mapping)
+		d := RemapDescriptor(evaluation.catalog.Get(address), mapping)
 		state.SetDescriptor(dest, d)
 		state.BindName(catalog.DescriptorNameKey(d), dest)
 	}

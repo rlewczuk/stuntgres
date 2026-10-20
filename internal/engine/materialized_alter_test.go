@@ -393,7 +393,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	d = e.catalog.state.MustRelation(d.Address())
-	if remapExtensionDescriptor(d, nil) != d {
+	if RemapDescriptor(d, nil) != d {
 		t.Fatal("unnecessary remap allocation")
 	}
 	target := New()
@@ -420,7 +420,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if target.catalog.state.Get(temporary.Address()) != temporary || target.storage.Relations[retained] != retainedStore || e.catalog.state.Get(d.Address()) != d || e.storage.Relations[d.Address()] != sourceStore || d.AutoExtensions[0] != ext.Address() {
 		t.Fatal("import mutated retained TEMP or source authority")
 	}
-	remapped := remapExtensionDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*catalog.Relation)
+	remapped := RemapDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*catalog.Relation)
 	if remapped == d || remapped.AutoExtensions[0] != importedExt.Address() || d.AutoExtensions[0] != ext.Address() || remapped.View != d.View {
 		t.Fatal("remap lost immutable genuine x authority")
 	}

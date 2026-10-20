@@ -4,7 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-type extensionAuthorityObservation struct {
-	roles               uint64
-	namespace, database catalog.Descriptor
+type AuthorityObservation struct {
+	Roles               uint64
+	Namespace, Database catalog.Descriptor
 }

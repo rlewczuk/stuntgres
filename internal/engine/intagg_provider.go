@@ -8,33 +8,33 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-type intaggProvider struct{ control catalog.ExtensionControl }
+type IntaggProvider struct{ control catalog.ExtensionControl }
 
-// Control implements extensionImplementation.
-func (p *intaggProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
-func (p *intaggProvider) Versions() catalog.ExtensionVersions {
+// Control implements catalog.ExtensionImplementation.
+func (p *IntaggProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *IntaggProvider) Versions() catalog.ExtensionVersions {
 	return catalog.ExtensionVersions{Bases: []string{"1.1"}}
 }
 
-var stockIntagg = &intaggProvider{control: catalog.ExtensionControl{Version: "1.1", Superuser: true, Relocatable: true, Comment: new("integer aggregator and enumerator (obsolete)")}}
+var StockIntagg = &IntaggProvider{control: catalog.ExtensionControl{Version: "1.1", Superuser: true, Relocatable: true, Comment: new("integer aggregator and enumerator (obsolete)")}}
 
-var intaggMembers = [...]struct {
-	name      string
-	signature catalog.ProcedureSignature
-	result    ids.OID
-	strict    bool
-	kind      catalog.RoutineKind
+var IntaggMembers = [...]struct {
+	Name      string
+	Signature catalog.ProcedureSignature
+	Result    ids.OID
+	Strict    bool
+	Kind      catalog.RoutineKind
 }{
 	{"int_array_aggregate", "23", 1007, false, catalog.AggregateRoutine},
 	{"int_array_enum", "1007", 23, true, catalog.FunctionRoutine},
 }
 
-func (p *intaggProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *IntaggProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
-	if p != stockIntagg || v.Owner() == nil || ext.Name() != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(intaggMembers) {
+	if p != StockIntagg || v.Owner() == nil || ext.Name() != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(IntaggMembers) {
 		return invalid()
 	}
-	var seen [len(intaggMembers)]bool
+	var seen [len(IntaggMembers)]bool
 	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
 		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.Volatility != expr.Immutable || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
@@ -44,8 +44,8 @@ func (p *intaggProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 			return err
 		}
 		found := false
-		for j, member := range intaggMembers {
-			if proc.Name() == member.name && proc.Signature == member.signature && proc.Result == member.result && proc.Strict == member.strict && proc.RoutineKind == member.kind {
+		for j, member := range IntaggMembers {
+			if proc.Name() == member.Name && proc.Signature == member.Signature && proc.Result == member.Result && proc.Strict == member.Strict && proc.RoutineKind == member.Kind {
 				if seen[j] {
 					return invalid()
 				}
@@ -63,7 +63,7 @@ func (p *intaggProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 	return nil
 }
 
-func (p *intaggProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
+func (p *IntaggProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing intagg installation")
@@ -71,7 +71,7 @@ func (p *intaggProvider) validateProcedure(v catalog.Read, proc *catalog.Procedu
 	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.Address()) != proc || intaggProviderOf(proc) != p {
+	if v.Get(proc.Address()) != proc || IntaggProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: foreign intagg procedure")
 	}
 	for _, address := range ext.Members {

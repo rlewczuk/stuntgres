@@ -18,22 +18,22 @@ import (
 
 func TestPgcryptoOwnerMetadata(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
-	metadata, err := extensionOwnerMetadata(e.CatalogRead(), e.Roles(), ext)
+	metadata, err := OwnerMetadata(e.CatalogRead(), e.Roles(), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var records []extensionOwnerRecord
+	var records []OwnerRecord
 	_, err = parser.ParseWithOptions("CREATE EXTENSION pgcrypto;\n"+metadata, parser.Options{
 		Context: context.Background(), StandardConformingStrings: true,
 		LineComment: func(comment string, _ parser.Position) error {
-			record, found, err := decodeExtensionOwners(comment)
+			record, found, err := DecodeOwners(comment)
 			if err == nil && found {
 				records = append(records, record)
 			}
 			return err
 		},
 	})
-	expected := extensionOwnerRecord{Name: "pgcrypto", Schema: "public", Version: "1.4", Owner: "postgres", Members: []extensionMemberOwner{
+	expected := OwnerRecord{Name: "pgcrypto", Schema: "public", Version: "1.4", Owner: "postgres", Members: []MemberOwner{
 		{Kind: "procedure", Name: "digest", Signature: "25,25", Owner: "postgres"},
 		{Kind: "procedure", Name: "digest", Signature: "17,25", Owner: "postgres"},
 		{Kind: "procedure", Name: "hmac", Signature: "25,25,25", Owner: "postgres"},
@@ -65,11 +65,11 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 		e   *Engine
 		ext *catalog.Extension
 	}{{unaccent, unaccentExt}, {intarray, intarrayExt}, {crypto, cryptoExt}, {intagg, intaggExt}, {fuzzyBase, fuzzyBaseExt}, {fuzzyUpdated, fuzzyUpdatedExt}} {
-		metadata, err := extensionOwnerMetadata(installed.e.CatalogRead(), installed.e.Roles(), installed.ext)
+		metadata, err := OwnerMetadata(installed.e.CatalogRead(), installed.e.Roles(), installed.ext)
 		if err != nil {
 			t.Fatal(err)
 		}
-		record, found, err := decodeExtensionOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
+		record, found, err := DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
 		if err != nil || !found {
 			t.Fatal("valid manifest rejected", installed.ext.Name(), err)
 		}
@@ -86,7 +86,7 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 					if record.Name != "fuzzystrmatch" || record.Version != "1.1" {
 						return
 					}
-					bad.Members[0] = extensionMemberOwner{Kind: "procedure", Name: "daitch_mokotoff", Signature: "25", Owner: "postgres"}
+					bad.Members[0] = MemberOwner{Kind: "procedure", Name: "daitch_mokotoff", Signature: "25", Owner: "postgres"}
 				case "missing":
 					bad.Members = bad.Members[1:]
 				case "extra":
@@ -98,14 +98,14 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 				case "signature":
 					bad.Members[0].Signature = "17,25,25"
 				case "foreign_procedure":
-					bad.Members[0] = extensionMemberOwner{Kind: "procedure", Name: "unaccent", Signature: "25", Owner: "postgres"}
+					bad.Members[0] = MemberOwner{Kind: "procedure", Name: "unaccent", Signature: "25", Owner: "postgres"}
 					if record.Name == "unaccent" {
-						bad.Members[0] = extensionMemberOwner{Kind: "procedure", Name: "digest", Signature: "25,25", Owner: "postgres"}
+						bad.Members[0] = MemberOwner{Kind: "procedure", Name: "digest", Signature: "25,25", Owner: "postgres"}
 					}
 				case "foreign_dictionary":
-					bad.Members[0] = extensionMemberOwner{Kind: "dictionary", Name: "query_int", Owner: "postgres"}
+					bad.Members[0] = MemberOwner{Kind: "dictionary", Name: "query_int", Owner: "postgres"}
 				case "foreign_type":
-					bad.Members[0] = extensionMemberOwner{Kind: "type", Name: "unaccent", Owner: "postgres"}
+					bad.Members[0] = MemberOwner{Kind: "type", Name: "unaccent", Owner: "postgres"}
 				case "owner":
 					bad.Members[0].Owner = ""
 				}
@@ -113,7 +113,7 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, found, err := decodeExtensionOwners(extensionOwnersMarker + " " + base64.StdEncoding.EncodeToString(data)); !found || err == nil {
+				if _, found, err := DecodeOwners(OwnersMarker + " " + base64.StdEncoding.EncodeToString(data)); !found || err == nil {
 					t.Fatal("invalid manifest accepted", bad)
 				}
 			})
@@ -135,22 +135,22 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		next.RemoveDescriptor(address)
 	}
 	for address, destination := range mapping {
-		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
+		descriptor := RemapDescriptor(before.Get(address), mapping)
 		next.SetDescriptor(destination, descriptor)
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
 	view := e.catalog.read(next)
 	remapped := next.MustExtension(mapping[ext.Address()])
-	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, remapped); err != nil {
+	if err := (CatalogProvider{ids.ExtensionClassID}).Validate(view, remapped); err != nil {
 		t.Fatal("remapped extension", err)
 	}
 	for i, original := range ext.Members {
 		proc := next.MustProcedure(mapping[original])
-		if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
+		if err := (CatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
 			t.Fatal("remapped procedure", err)
 		}
 		old := before.MustProcedure(original)
-		if remapped.Members[i] != proc.Address() || proc.Extension != remapped.Address() || proc.Namespace() != old.Namespace() || proc.Owner != old.Owner || pgcryptoProviderOf(proc) != pgcryptoProviderOf(old) || proc.Signature != old.Signature || proc.Result != old.Result || proc.Strict != old.Strict || proc.Volatility != old.Volatility {
+		if remapped.Members[i] != proc.Address() || proc.Extension != remapped.Address() || proc.Namespace() != old.Namespace() || proc.Owner != old.Owner || PgcryptoProviderOf(proc) != PgcryptoProviderOf(old) || proc.Signature != old.Signature || proc.Result != old.Result || proc.Strict != old.Strict || proc.Volatility != old.Volatility {
 			t.Fatal("remapped member identity", proc)
 		}
 		if old.Address() != original || old.Extension != ext.Address() || ext.Members[i] != original {

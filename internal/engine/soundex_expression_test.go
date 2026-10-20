@@ -81,9 +81,9 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				func(p *catalog.Procedure) { p.Signature = "23" },
 				func(p *catalog.Procedure) { p.ObjectName = "text_soundex" },
 				func(p *catalog.Procedure) {
-					p.Implementation = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2"}}
+					p.Implementation = new(*StockFuzzystrmatch)
 				},
-				func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
+				func(p *catalog.Procedure) { p.Implementation = StockPgcrypto },
 			} {
 				state := catalog.CloneState(e.catalog.state)
 				bad := *n.procedure
@@ -140,7 +140,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.RemoveDescriptor(address)
 			}
 			for address, destination := range mapping {
-				descriptor := remapExtensionDescriptor(before.Get(address), mapping)
+				descriptor := RemapDescriptor(before.Get(address), mapping)
 				next.SetDescriptor(destination, descriptor)
 				next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 			}

@@ -136,19 +136,19 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	if err := extensionUnitExecute(t, stage, op, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}}); err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := extensionOwnerMetadata(e.CatalogRead(), e.Roles(), ext)
+	encoded, err := OwnerMetadata(e.CatalogRead(), e.Roles(), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, _, err := decodeExtensionOwners(encoded[3 : len(encoded)-1])
+	record, _, err := DecodeOwners(encoded[3 : len(encoded)-1])
 	if err != nil {
 		t.Fatal(err)
 	}
 	before := stage.catalog.state
 	for _, kind := range []string{"namespace", "version", "member_owner", "duplicate", "member_identity"} {
 		bad := record
-		bad.Members = append([]extensionMemberOwner(nil), record.Members...)
-		records := []extensionOwnerRecord{bad}
+		bad.Members = append([]MemberOwner(nil), record.Members...)
+		records := []OwnerRecord{bad}
 		switch kind {
 		case "namespace":
 			records[0].Schema = "absent"
@@ -168,7 +168,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 			t.Fatal("failed ownership import changed staged identities", kind)
 		}
 	}
-	if err := stage.importExtensionOwners(context.Background(), op, []extensionOwnerRecord{record}); err != nil {
+	if err := stage.importExtensionOwners(context.Background(), op, []OwnerRecord{record}); err != nil {
 		t.Fatal(err)
 	}
 	// Central DROP dependencies include extension and every owned member, plus
@@ -207,11 +207,11 @@ func extensionOwnershipImportUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownerRecord := record
-	ownerRecord.Members = append([]extensionMemberOwner(nil), record.Members...)
+	ownerRecord.Members = append([]MemberOwner(nil), record.Members...)
 	for i := range ownerRecord.Members {
 		ownerRecord.Members[i].Owner = originalOwner.Name
 	}
-	if err := imported.importExtensionOwners(context.Background(), replay, []extensionOwnerRecord{ownerRecord}); err != nil {
+	if err := imported.importExtensionOwners(context.Background(), replay, []OwnerRecord{ownerRecord}); err != nil {
 		t.Fatal(err)
 	}
 	roleAttributeApply(t, target, admin, &parser.DropRole{Names: []string{originalOwner.Name}})

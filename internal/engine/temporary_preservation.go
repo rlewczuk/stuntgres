@@ -474,7 +474,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				}
 				d = &n
 			}
-			d = remapExtensionDescriptor(d, mapping)
+			d = RemapDescriptor(d, mapping)
 			next.SetDescriptor(target, d)
 			next.BindName(catalog.DescriptorNameKey(d), target)
 		}

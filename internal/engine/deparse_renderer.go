@@ -659,7 +659,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		name := pgIdentifier("unnest")
 		if n.Procedure != nil {
-			if err := validateIntaggIdentity(r.view, n.Procedure, n.Ref, "int_array_enum"); err != nil {
+			if err := ValidateIntaggIdentity(r.view, n.Procedure, n.Ref, "int_array_enum"); err != nil {
 				return "", err
 			}
 			namespace, ok := r.view.Namespace(n.Procedure.Namespace())

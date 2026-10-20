@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func validateIntaggIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
+func ValidateIntaggIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
 	if proc == nil {
 		if ref != (ids.ObjectRef{}) {
 			return fmt.Errorf("stuntgres: missing installed intagg identity")
@@ -16,13 +16,13 @@ func validateIntaggIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.Obj
 		return nil
 	}
 	actual, ok := v.Procedure(ref.Address)
-	if !ok || actual != proc || ref.Domain() != v.Owner().Domain || ref.Epoch != v.Epoch() || proc.Name() != name || intaggProviderOf(proc) != stockIntagg {
+	if !ok || actual != proc || ref.Domain() != v.Owner().Domain || ref.Epoch != v.Epoch() || proc.Name() != name || IntaggProviderOf(proc) != StockIntagg {
 		return fmt.Errorf("stuntgres: invalid stored intagg identity")
 	}
-	return stockIntagg.validateProcedure(v, proc)
+	return StockIntagg.ValidateProcedure(v, proc)
 }
 
-func intaggRecipeFunction(raw parser.Expr) string {
+func IntaggRecipeFunction(raw parser.Expr) string {
 	switch call := raw.(type) {
 	case parser.AggregateExpr:
 		if call.Name == "int_array_aggregate" {

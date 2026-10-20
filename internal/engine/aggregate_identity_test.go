@@ -20,7 +20,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	if len(ext.Members) != 2 || proc.Aggregate == nil || enum.Aggregate != nil {
 		t.Fatal("callable/aggregate owner inventory")
 	}
-	if err := stockIntagg.ValidateExtension(view, ext); err != nil {
+	if err := StockIntagg.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateDefinitionOIDs(view); err != nil {
@@ -123,7 +123,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		bad.Aggregate = &owned
 		state := catalog.CloneState(view.State())
 		state.SetDescriptor(proc.Address(), &bad)
-		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
+		if err := StockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
 		}
 	}
@@ -136,7 +136,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		}
 		state := catalog.CloneState(view.State())
 		state.SetDescriptor(member, &bad)
-		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
+		if err := StockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
 	}
@@ -145,7 +145,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	namespace := *view.MustNamespace(proc.Namespace())
 	namespace.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.ID}
 	collision.SetDescriptor(namespace.Address(), &namespace)
-	if err := stockIntagg.ValidateExtension(e.catalog.read(collision), ext); err == nil {
+	if err := StockIntagg.ValidateExtension(e.catalog.read(collision), ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
 	}
 	if err := validateDefinitionOIDs(e.catalog.read(collision)); err == nil {
@@ -165,7 +165,7 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 	for i, helper := range proc.Aggregate.Helpers {
 		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900002 + i)}
 	}
-	remapped := remapExtensionDescriptor(proc, mapping).(*catalog.Procedure)
+	remapped := RemapDescriptor(proc, mapping).(*catalog.Procedure)
 	if remapped == proc || remapped.Aggregate == proc.Aggregate || remapped.Address().ObjectID != 900000 || remapped.Namespace().ObjectID != 900001 || *proc.Aggregate != original {
 		t.Fatal("copy-on-change metadata remap")
 	}
@@ -177,7 +177,7 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 			t.Fatal("alias retained old namespace/identity")
 		}
 	}
-	if remapExtensionDescriptor(proc, nil) != proc {
+	if RemapDescriptor(proc, nil) != proc {
 		t.Fatal("unchanged remap copied immutable metadata")
 	}
 	typ, _ := view.LookupType(sqltype.Regproc)
@@ -217,14 +217,14 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	stage := e.BeginCatalogStage(before)
 	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "intagg", Version: "1.1", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.domain.Principal(10)}
 	e.catalog.nextOID = ^ids.OID(0) - 1 // aggregate and state can allocate; final helper cannot.
-	if err := (intaggInstaller{stockIntagg}).stage(e, stage, ext, ext.Owner, AuthorizationView{}); err == nil {
+	if err := (intaggInstaller{StockIntagg}).stage(e, stage, ext, ext.Owner, AuthorizationView{}); err == nil {
 		t.Fatal("helper allocation exhaustion accepted")
 	}
 	if e.catalog.state != before.State() {
 		t.Fatal("failed provider published partial installation")
 	}
 	for _, d := range e.catalog.state.Descriptors() {
-		if p, ok := d.(*catalog.Procedure); ok && intaggProviderOf(p) != nil {
+		if p, ok := d.(*catalog.Procedure); ok && IntaggProviderOf(p) != nil {
 			t.Fatal("failed provider leaked a callable/aggregate owner")
 		}
 	}

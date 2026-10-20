@@ -13,23 +13,23 @@ import (
 	"unicode/utf8"
 )
 
-const extensionOwnersMarker = "stuntgres-extension-owners-v1"
+const OwnersMarker = "stuntgres-extension-owners-v1"
 
-type extensionMemberOwner struct {
+type MemberOwner struct {
 	Kind      string `json:"kind"`
 	Name      string `json:"name"`
 	Signature string `json:"signature"`
 	Owner     string `json:"owner"`
 }
-type extensionOwnerRecord struct {
-	Name    string                 `json:"name"`
-	Schema  string                 `json:"schema"`
-	Version string                 `json:"version"`
-	Owner   string                 `json:"owner"`
-	Members []extensionMemberOwner `json:"members"`
+type OwnerRecord struct {
+	Name    string        `json:"name"`
+	Schema  string        `json:"schema"`
+	Version string        `json:"version"`
+	Owner   string        `json:"owner"`
+	Members []MemberOwner `json:"members"`
 }
 
-func extensionOwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Extension) (string, error) {
+func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Extension) (string, error) {
 	owner, err := roles.Descriptor(ext.Owner)
 	if err != nil {
 		return "", err
@@ -38,26 +38,26 @@ func extensionOwnerMetadata(view catalog.Read, roles authorization.Read, ext *ca
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing extension target namespace")
 	}
-	record := extensionOwnerRecord{Name: ext.Name(), Schema: ns.Name(), Version: ext.Version, Owner: owner.Name}
+	record := OwnerRecord{Name: ext.Name(), Schema: ns.Name(), Version: ext.Version, Owner: owner.Name}
 	for _, a := range ext.Members {
 		d := view.Get(a)
-		var member extensionMemberOwner
+		var member MemberOwner
 		var principal authorization.PrincipalRef
 		switch d := d.(type) {
 		case *catalog.Procedure:
-			member = extensionMemberOwner{Kind: "procedure", Name: d.Name(), Signature: string(d.Signature)}
-			if intarrayProviderOf(d) != nil && d.Name() == "bqarr_out" {
+			member = MemberOwner{Kind: "procedure", Name: d.Name(), Signature: string(d.Signature)}
+			if IntarrayProviderOf(d) != nil && d.Name() == "bqarr_out" {
 				member.Signature = "query_int"
 			}
-			if cubeProviderOf(d) != nil && d.Name() == "cube_out" {
+			if CubeProviderOf(d) != nil && d.Name() == "cube_out" {
 				member.Signature = "cube"
 			}
 			principal = d.Owner
 		case *catalog.TSDictionary:
-			member = extensionMemberOwner{Kind: "dictionary", Name: d.Name()}
+			member = MemberOwner{Kind: "dictionary", Name: d.Name()}
 			principal = d.Owner
 		case *catalog.Type:
-			member = extensionMemberOwner{Kind: "type", Name: d.Name()}
+			member = MemberOwner{Kind: "type", Name: d.Name()}
 			principal = d.Owner
 		case *catalog.TSTemplate:
 			continue
@@ -75,7 +75,7 @@ func extensionOwnerMetadata(view catalog.Read, roles authorization.Read, ext *ca
 	if err != nil {
 		return "", err
 	}
-	return "-- " + extensionOwnersMarker + " " + base64.StdEncoding.EncodeToString(data) + "\n", nil
+	return "-- " + OwnersMarker + " " + base64.StdEncoding.EncodeToString(data) + "\n", nil
 }
 
 // Decode JSON keys explicitly: DisallowUnknownFields alone accepts duplicates
@@ -119,17 +119,17 @@ func extensionOwnerFields(data []byte, keys ...string) (map[string]json.RawMessa
 	}
 	return fields, nil
 }
-func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
-	var record extensionOwnerRecord
+func DecodeOwners(comment string) (OwnerRecord, bool, error) {
+	var record OwnerRecord
 	text := strings.TrimSpace(comment)
 	if !strings.HasPrefix(text, "stuntgres-extension-owners-") {
 		return record, false, nil
 	}
-	invalid := func() (extensionOwnerRecord, bool, error) {
+	invalid := func() (OwnerRecord, bool, error) {
 		return record, true, fmt.Errorf("stuntgres: invalid extension owner metadata")
 	}
 	marker, payload, found := strings.Cut(text, " ")
-	if !found || marker != extensionOwnersMarker || payload == "" {
+	if !found || marker != OwnersMarker || payload == "" {
 		return invalid()
 	}
 	data, err := base64.StdEncoding.Strict().DecodeString(payload)
@@ -154,11 +154,11 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 	case record.Name == "cube" && record.Version == "1.5":
 		expectedMembers = 3
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
-		expectedMembers = len(fuzzystrmatchMembers)
+		expectedMembers = len(FuzzystrmatchMembers)
 	case record.Name == "fuzzystrmatch" && record.Version == "1.1":
-		expectedMembers = len(fuzzystrmatchMembers) - 1
+		expectedMembers = len(FuzzystrmatchMembers) - 1
 	case record.Name == "intagg" && record.Version == "1.1":
-		expectedMembers = len(intaggMembers)
+		expectedMembers = len(IntaggMembers)
 	case record.Name == "pgcrypto" && record.Version == "1.4":
 		expectedMembers = len(functions.PgcryptoMembers)
 	case record.Name == "uuid-ossp" && record.Version == "1.1":
@@ -176,7 +176,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 		if err != nil {
 			return invalid()
 		}
-		var member extensionMemberOwner
+		var member MemberOwner
 		for key, target := range map[string]*string{"kind": &member.Kind, "name": &member.Name, "signature": &member.Signature, "owner": &member.Owner} {
 			if err := json.Unmarshal(fields[key], target); err != nil {
 				return invalid()
@@ -198,8 +198,8 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 			case "cube":
 				valid = member.Name == "cube_in" && member.Signature == "2275" || member.Name == "cube_out" && member.Signature == "cube"
 			case "intagg":
-				for _, selected := range intaggMembers {
-					if member.Name == selected.name && member.Signature == string(selected.signature) {
+				for _, selected := range IntaggMembers {
+					if member.Name == selected.Name && member.Signature == string(selected.Signature) {
 						valid = true
 						break
 					}

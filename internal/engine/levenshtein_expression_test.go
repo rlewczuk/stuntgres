@@ -47,7 +47,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	nonmember.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := catalog.CloneState(e.catalog.state)
 	foreignState.SetDescriptor(nonmember.Address(), &nonmember)
-	if err := stockFuzzystrmatch.validateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
+	if err := StockFuzzystrmatch.ValidateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
 	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
@@ -83,9 +83,9 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.Signature = "25,25" },
 		func(p *catalog.Procedure) { p.ObjectName = "levenshtein" },
 		func(p *catalog.Procedure) {
-			p.Implementation = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2"}}
+			p.Implementation = new(*StockFuzzystrmatch)
 		},
-		func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
+		func(p *catalog.Procedure) { p.Implementation = StockPgcrypto },
 	} {
 		state := catalog.CloneState(e.catalog.state)
 		bad := *n.procedure
@@ -117,23 +117,23 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	}
 	// The symbolic codec rejects incomplete old one-member records, as well as
 	// duplicate/foreign members in a complete ten-member manifest.
-	metadata, err := extensionOwnerMetadata(e.CatalogRead(), e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published), ext)
+	metadata, err := OwnerMetadata(e.CatalogRead(), e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	prefix := "-- " + extensionOwnersMarker + " "
+	prefix := "-- " + OwnersMarker + " "
 	payload := strings.TrimSpace(strings.TrimPrefix(metadata, prefix))
 	data, err := base64.StdEncoding.DecodeString(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var record extensionOwnerRecord
+	var record OwnerRecord
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
 	}
 	for _, kind := range []string{"old", "duplicate", "foreign_signature", "foreign_name"} {
 		bad := record
-		bad.Members = append([]extensionMemberOwner(nil), record.Members...)
+		bad.Members = append([]MemberOwner(nil), record.Members...)
 		switch kind {
 		case "old":
 			bad.Members = bad.Members[:1]
@@ -148,7 +148,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := decodeExtensionOwners(" " + extensionOwnersMarker + " " + base64.StdEncoding.EncodeToString(encoded)); err == nil {
+		if _, _, err := DecodeOwners(" " + OwnersMarker + " " + base64.StdEncoding.EncodeToString(encoded)); err == nil {
 			t.Fatal("invalid symbolic inventory admitted", kind)
 		}
 	}
@@ -168,7 +168,7 @@ func TestLevenshteinRemap(t *testing.T) {
 		next.RemoveDescriptor(address)
 	}
 	for address, destination := range mapping {
-		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
+		descriptor := RemapDescriptor(before.Get(address), mapping)
 		next.SetDescriptor(destination, descriptor)
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}

@@ -282,7 +282,7 @@ func (r engineCatalogRuntime) OperatorDependencies(view catalog.Read, d *catalog
 	return routine.OperatorDependencyAddresses(view, d)
 }
 func (r engineCatalogRuntime) TypeProviderProcedure(d *catalog.Procedure) bool {
-	return intarrayProviderOf(d) != nil || cubeProviderOf(d) != nil
+	return IntarrayProviderOf(d) != nil || CubeProviderOf(d) != nil
 }
 func catalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
 	if auth.session != nil {

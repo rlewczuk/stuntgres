@@ -6,47 +6,47 @@ import "stuntgres/internal/engine/catalog"
 // the implementation when it has that concrete type, and nil otherwise, so a
 // nil check still asks "was this installed by that extension".
 
-func unaccentProviderOf(d *catalog.Procedure) *unaccentProvider {
-	p, _ := d.Implementation.(*unaccentProvider)
+func UnaccentProviderOf(d *catalog.Procedure) *UnaccentProvider {
+	p, _ := d.Implementation.(*UnaccentProvider)
 	return p
 }
 
-func intarrayProviderOf(d *catalog.Procedure) *intarrayProvider {
-	p, _ := d.Implementation.(*intarrayProvider)
+func IntarrayProviderOf(d *catalog.Procedure) *IntarrayProvider {
+	p, _ := d.Implementation.(*IntarrayProvider)
 	return p
 }
 
-func cubeProviderOf(d *catalog.Procedure) *cubeProvider {
-	p, _ := d.Implementation.(*cubeProvider)
+func CubeProviderOf(d *catalog.Procedure) *CubeProvider {
+	p, _ := d.Implementation.(*CubeProvider)
 	return p
 }
 
-func fuzzystrmatchProviderOf(d *catalog.Procedure) *fuzzystrmatchProvider {
-	p, _ := d.Implementation.(*fuzzystrmatchProvider)
+func FuzzystrmatchProviderOf(d *catalog.Procedure) *FuzzystrmatchProvider {
+	p, _ := d.Implementation.(*FuzzystrmatchProvider)
 	return p
 }
 
-func pgcryptoProviderOf(d *catalog.Procedure) *pgcryptoProvider {
-	p, _ := d.Implementation.(*pgcryptoProvider)
+func PgcryptoProviderOf(d *catalog.Procedure) *PgcryptoProvider {
+	p, _ := d.Implementation.(*PgcryptoProvider)
 	return p
 }
 
-func intaggProviderOf(d *catalog.Procedure) *intaggProvider {
-	p, _ := d.Implementation.(*intaggProvider)
+func IntaggProviderOf(d *catalog.Procedure) *IntaggProvider {
+	p, _ := d.Implementation.(*IntaggProvider)
 	return p
 }
 
-func uuidOsspProviderOf(d *catalog.Procedure) *uuidOsspProvider {
-	p, _ := d.Implementation.(*uuidOsspProvider)
+func UUIDOsspProviderOf(d *catalog.Procedure) *UUIDOsspProvider {
+	p, _ := d.Implementation.(*UUIDOsspProvider)
 	return p
 }
 
-func unaccentTemplateProviderOf(d *catalog.TSTemplate) *unaccentProvider {
-	p, _ := d.Implementation.(*unaccentProvider)
+func UnaccentTemplateProviderOf(d *catalog.TSTemplate) *UnaccentProvider {
+	p, _ := d.Implementation.(*UnaccentProvider)
 	return p
 }
 
-func unaccentDictionaryProviderOf(d *catalog.TSDictionary) *unaccentProvider {
-	p, _ := d.Implementation.(*unaccentProvider)
+func UnaccentDictionaryProviderOf(d *catalog.TSDictionary) *UnaccentProvider {
+	p, _ := d.Implementation.(*UnaccentProvider)
 	return p
 }

@@ -28,7 +28,7 @@ type catalogChanges struct {
 	uniqueRoots         map[ids.ObjectAddress]*storage.IndexRoot
 	indexCandidates     map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
 	dependencies        []catalogDependencyObservation
-	extensionAuthority  []extensionAuthorityObservation
+	extensionAuthority  []AuthorityObservation
 	cachedBase          *catalog.State
 	cached              catalog.Read
 	enum                *typedef.EnumJournal
@@ -248,14 +248,14 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if len(c.extensionAuthority) != 0 {
 		for key, original := range c.names {
 			if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.catalog.state.NameAddress(key) != original {
-				return extensionNameConflict(key.Name)
+				return NameConflict(key.Name)
 			}
 		}
 	}
 	for _, observation := range c.extensionAuthority {
-		if e.roles.published.Revision != observation.roles || observation.namespace == nil || observation.database == nil ||
-			e.catalog.state.Get(observation.namespace.Address()) != observation.namespace ||
-			e.catalog.state.Get(observation.database.Address()) != observation.database {
+		if e.roles.published.Revision != observation.Roles || observation.Namespace == nil || observation.Database == nil ||
+			e.catalog.state.Get(observation.Namespace.Address()) != observation.Namespace ||
+			e.catalog.state.Get(observation.Database.Address()) != observation.Database {
 			return catalog.Conflict{}
 		}
 	}

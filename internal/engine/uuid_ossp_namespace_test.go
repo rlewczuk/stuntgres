@@ -106,7 +106,7 @@ func TestUUIDOsspNamespaceManifest(t *testing.T) {
 			bad := *p
 			mutate(&bad)
 			view.State().SetDescriptor(address, &bad)
-			err := stockUUIDOssp.ValidateExtension(view, ext)
+			err := StockUUIDOssp.ValidateExtension(view, ext)
 			view.State().SetDescriptor(address, p)
 			if err == nil {
 				t.Fatal("invalid selected member admitted", bad)
@@ -116,7 +116,7 @@ func TestUUIDOsspNamespaceManifest(t *testing.T) {
 	for _, members := range [][]ids.ObjectAddress{ext.Members[:5], append(slices.Clone(ext.Members), ext.Members[0]), append(slices.Clone(ext.Members[:5]), ext.Members[0])} {
 		bad := *ext
 		bad.Members = members
-		if err := stockUUIDOssp.ValidateExtension(view, &bad); err == nil {
+		if err := StockUUIDOssp.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("missing/extra/duplicate manifest accepted")
 		}
 	}
@@ -136,7 +136,7 @@ func TestUUIDOsspNamespaceCollision(t *testing.T) {
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			parent := *ext
 			e.mu.Lock()
-			err := uuidOsspInstaller{stockUUIDOssp}.stage(e, stage, &parent, ext.Owner, AuthorizationView{})
+			err := uuidOsspInstaller{StockUUIDOssp}.stage(e, stage, &parent, ext.Owner, AuthorizationView{})
 			e.mu.Unlock()
 			state, ok := err.(interface{ SQLState() string })
 			if !ok || state.SQLState() != "42723" || e.catalog.state != before || before.DescriptorCount() != descriptors || before.NameCount() != names || before.Get(address) != proc || before.NameAddress(key) != address {

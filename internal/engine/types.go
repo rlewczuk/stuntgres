@@ -36,9 +36,9 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 		var err error
 		switch {
 		case parent.Name() == "intarray" && t.SQLType.IsQueryInt():
-			err = stockIntarray.ValidateExtension(view, parent)
+			err = StockIntarray.ValidateExtension(view, parent)
 		case parent.Name() == "cube" && t.SQLType.IsCube():
-			err = stockCube.ValidateExtension(view, parent)
+			err = StockCube.ValidateExtension(view, parent)
 		default:
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}

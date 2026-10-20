@@ -23,8 +23,8 @@ func TestInstalledCodecArrayUsesRegisteredTypeProvider(t *testing.T) {
 		install  func(*testing.T) (*Engine, *catalog.Extension, *catalog.Type)
 		provider catalog.ExtensionImplementation
 	}{
-		{"intarray", intarrayUnitInstalled, stockIntarray},
-		{"cube", cubeUnitInstalled, stockCube},
+		{"intarray", intarrayUnitInstalled, StockIntarray},
+		{"cube", cubeUnitInstalled, StockCube},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, ext, _ := tc.install(t)

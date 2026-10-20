@@ -32,10 +32,10 @@ func (n installedLevenshteinFunctionExpression) validate(v catalog.Read) error {
 		}
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.LevenshteinSignature(n.Function, len(n.Args))) || proc.Result != 23 {
+	if !ok || proc != n.procedure || FuzzystrmatchProviderOf(proc) != StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.LevenshteinSignature(n.Function, len(n.Args))) || proc.Result != 23 {
 		return fmt.Errorf("stuntgres: invalid stored Levenshtein identity")
 	}
-	if err := stockFuzzystrmatch.validateProcedure(v, proc); err != nil {
+	if err := StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {
 		return err
 	}
 	return n.Validate()

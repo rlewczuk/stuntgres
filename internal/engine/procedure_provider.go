@@ -22,10 +22,10 @@ func (procedureProvider) ClassID() ids.OID { return ids.ProcedureClassID }
 func (procedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Procedure)
 	if ok && d.Implementation != nil {
-		return extensionCatalogProvider{ids.ProcedureClassID}.Validate(v, d)
+		return CatalogProvider{ids.ProcedureClassID}.Validate(v, d)
 	}
-	invalid := invalidProviderDescriptor
-	if err := validateProviderHeader(v, descriptor, ids.ProcedureClassID); err != nil {
+	invalid := InvalidProviderDescriptor
+	if err := ValidateProviderHeader(v, descriptor, ids.ProcedureClassID); err != nil {
 		return err
 	}
 	if !ok {
@@ -68,7 +68,7 @@ func (procedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 }
 
 func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
-	invalid := invalidProviderDescriptor
+	invalid := InvalidProviderDescriptor
 	if !d.SQL.Result.Valid() || d.SQL.Query == nil {
 		return invalid()
 	}

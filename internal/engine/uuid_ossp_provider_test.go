@@ -75,15 +75,15 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) {
-			p.Implementation = &uuidOsspProvider{control: catalog.ExtensionControl{Version: "1.1"}}
+			p.Implementation = new(*StockUUIDOssp)
 		},
 		func(p *catalog.Procedure) { p.RoutineKind = catalog.ProcedureRoutine },
 		func(p *catalog.Procedure) { p.Builtin = routine.BuiltinRoutine(3432) },
-		func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
-		func(p *catalog.Procedure) { p.Implementation = stockFuzzystrmatch },
-		func(p *catalog.Procedure) { p.Implementation = stockUnaccent },
-		func(p *catalog.Procedure) { p.Implementation = stockIntarray },
-		func(p *catalog.Procedure) { p.Implementation = stockIntagg },
+		func(p *catalog.Procedure) { p.Implementation = StockPgcrypto },
+		func(p *catalog.Procedure) { p.Implementation = StockFuzzystrmatch },
+		func(p *catalog.Procedure) { p.Implementation = StockUnaccent },
+		func(p *catalog.Procedure) { p.Implementation = StockIntarray },
+		func(p *catalog.Procedure) { p.Implementation = StockIntagg },
 		func(p *catalog.Procedure) { p.Aggregate = &catalog.OwnedAggregate{} },
 		func(p *catalog.Procedure) { p.Foreign = &catalog.ForeignProcedure{} },
 		func(p *catalog.Procedure) { p.ObjectName = "uuidv4" },
@@ -99,7 +99,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		mutate(&bad)
 		view.State().SetDescriptor(address, &bad)
 		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
-		manifest := stockUUIDOssp.ValidateExtension(view, ext)
+		manifest := StockUUIDOssp.ValidateExtension(view, ext)
 		view.State().SetDescriptor(address, proc)
 		if failure == nil || manifest == nil {
 			t.Fatal("corrupt UUID member accepted", bad)
@@ -113,7 +113,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	} {
 		bad := *ext
 		mutate(&bad)
-		if err := stockUUIDOssp.ValidateExtension(view, &bad); err == nil {
+		if err := StockUUIDOssp.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("invalid parent accepted")
 		}
 	}
@@ -122,9 +122,9 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	cryptoView := cryptoEngine.CatalogRead()
 	original := cryptoView.MustProcedure(cryptoExt.Members[0])
 	bad := *original
-	bad.Implementation = stockUUIDOssp
+	bad.Implementation = StockUUIDOssp
 	cryptoView.State().SetDescriptor(bad.Address(), &bad)
-	failure := stockPgcrypto.ValidateExtension(cryptoView, cryptoExt)
+	failure := StockPgcrypto.ValidateExtension(cryptoView, cryptoExt)
 	cryptoView.State().SetDescriptor(bad.Address(), original)
 	if failure == nil {
 		t.Fatal("mixed existing provider accepted")
@@ -134,9 +134,9 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	for _, address := range intaggExt.Members {
 		original := intaggView.MustProcedure(address)
 		bad := *original
-		bad.Implementation = stockUUIDOssp
+		bad.Implementation = StockUUIDOssp
 		intaggView.State().SetDescriptor(address, &bad)
-		manifestFailure := stockIntagg.ValidateExtension(intaggView, intaggExt)
+		manifestFailure := StockIntagg.ValidateExtension(intaggView, intaggExt)
 		admissionFailure := intaggEngine.catalog.Providers[ids.ProcedureClassID].Validate(intaggView, &bad)
 		intaggView.State().SetDescriptor(address, original)
 		if manifestFailure == nil || admissionFailure == nil {
@@ -145,7 +145,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	builtin := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 	mixed := *builtin
-	mixed.Implementation = stockUUIDOssp
+	mixed.Implementation = StockUUIDOssp
 	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
 		t.Fatal("mixed builtin/uuid-ossp authority accepted")
 	}
@@ -161,7 +161,7 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	copy := *ext
 	e.mu.Lock()
-	err := uuidOsspInstaller{stockUUIDOssp}.stage(e, stage, &copy, ext.Owner, AuthorizationView{})
+	err := uuidOsspInstaller{StockUUIDOssp}.stage(e, stage, &copy, ext.Owner, AuthorizationView{})
 	e.mu.Unlock()
 	// CatalogStage is a sparse private overlay, not a copy of its base.
 	// Atomicity concerns the published root and its existing identities.

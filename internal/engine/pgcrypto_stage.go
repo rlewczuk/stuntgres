@@ -11,7 +11,7 @@ import (
 
 // pgcryptoInstaller stages the pgcrypto provider for the engine. Installed
 // members hold the bare provider, never the installer.
-type pgcryptoInstaller struct{ *pgcryptoProvider }
+type pgcryptoInstaller struct{ *PgcryptoProvider }
 
 func (p pgcryptoInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, len(functions.PgcryptoMembers))
@@ -26,7 +26,7 @@ func (p pgcryptoInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: catalog.ProcedureSignature(member.Signature), RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: member.Result, Volatility: member.Volatility, Strict: member.Strict, Implementation: p.pgcryptoProvider}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: catalog.ProcedureSignature(member.Signature), RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: member.Result, Volatility: member.Volatility, Strict: member.Strict, Implementation: p.PgcryptoProvider}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}

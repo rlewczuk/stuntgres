@@ -734,7 +734,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 						return nil, fmt.Errorf("stuntgres: missing remapped intagg aggregate")
 					}
 					copy.Calls[i].Procedure = proc
-					if failure := validateIntaggIdentity(m.catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
+					if failure := ValidateIntaggIdentity(m.catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
 						return nil, failure
 					}
 				}

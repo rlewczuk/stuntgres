@@ -40,7 +40,7 @@ func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExten
 		selected = append(selected, address)
 		seen[address] = true
 	}
-	roots := extensionRemovalRoots(auth.Catalog, selected)
+	roots := RemovalRoots(auth.Catalog, selected)
 	stage := e.ownershipStage(auth, scope.op)
 	stage.dependencyPath, _ = e.referencePath(auth)
 	e.mu.Unlock()

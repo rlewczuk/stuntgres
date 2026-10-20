@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func remapExtensionDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) catalog.Descriptor {
+func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) catalog.Descriptor {
 	address := func(a ids.ObjectAddress) ids.ObjectAddress {
 		if next, ok := mapping[a]; ok {
 			return next
@@ -71,14 +71,14 @@ func remapExtensionDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddres
 		n.Extension = address(n.Extension)
 		n.Dictionary = address(n.Dictionary)
 		n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
-		if intarrayProviderOf(&n) != nil || cubeProviderOf(&n) != nil {
+		if IntarrayProviderOf(&n) != nil || CubeProviderOf(&n) != nil {
 			if n.Name() == "bqarr_in" || n.Name() == "cube_in" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
 				if oid, err := strconv.ParseUint(string(n.Signature), 10, 32); err == nil {
 					next := address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)})
 					if next.ObjectID != ids.OID(oid) {
-						n.Signature = queryIntSignature(sqltype.ID(next.ObjectID))
+						n.Signature = QueryIntSignature(sqltype.ID(next.ObjectID))
 					}
 				}
 			}

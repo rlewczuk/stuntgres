@@ -11,26 +11,26 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type cubeProvider struct{ control catalog.ExtensionControl }
+type CubeProvider struct{ control catalog.ExtensionControl }
 
-// Control implements extensionImplementation.
-func (p *cubeProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
-func (p *cubeProvider) Versions() catalog.ExtensionVersions {
+// Control implements catalog.ExtensionImplementation.
+func (p *CubeProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *CubeProvider) Versions() catalog.ExtensionVersions {
 	return catalog.ExtensionVersions{Bases: []string{"1.5"}}
 }
 
-var stockCube = &cubeProvider{control: catalog.ExtensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("data type for multidimensional cubes")}}
+var StockCube = &CubeProvider{control: catalog.ExtensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("data type for multidimensional cubes")}}
 
-const cubeTypeContext = "SQL statement \"CREATE TYPE cube (\n\tINTERNALLENGTH = variable,\n\tINPUT = cube_in,\n\tOUTPUT = cube_out,\n\tALIGNMENT = double\n)\"\nextension script file \"cube--1.2.sql\", near line 26"
-const cubeInputContext = "SQL statement \"CREATE FUNCTION cube_in(cstring)\nRETURNS cube\nAS '$libdir/cube'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"cube--1.2.sql\", near line 11"
+const CubeTypeContext = "SQL statement \"CREATE TYPE cube (\n\tINTERNALLENGTH = variable,\n\tINPUT = cube_in,\n\tOUTPUT = cube_out,\n\tALIGNMENT = double\n)\"\nextension script file \"cube--1.2.sql\", near line 26"
+const CubeInputContext = "SQL statement \"CREATE FUNCTION cube_in(cstring)\nRETURNS cube\nAS '$libdir/cube'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"cube--1.2.sql\", near line 11"
 
-func cubeSignature(id sqltype.ID) catalog.ProcedureSignature {
+func CubeSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
 }
 
-func (p *cubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
+func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid cube manifest") }
-	if p != stockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != 3 {
+	if p != StockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != 3 {
 		return invalid()
 	}
 	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {
@@ -49,12 +49,12 @@ func (p *cubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	}
 	for i, address := range ext.Members[1:] {
 		proc, ok := v.Procedure(address)
-		if !ok || proc.Address() != address || cubeProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
+		if !ok || proc.Address() != address || CubeProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
 			return invalid()
 		}
 		name, signature, result := "cube_in", catalog.ProcedureSignature("2275"), ids.OID(base.SQLType.ID())
 		if i == 1 {
-			name, signature, result = "cube_out", cubeSignature(base.SQLType.ID()), 2275
+			name, signature, result = "cube_out", CubeSignature(base.SQLType.ID()), 2275
 		}
 		if proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
 			return invalid()
@@ -69,7 +69,7 @@ func (p *cubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	return nil
 }
 
-func (p *cubeProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
+func (p *CubeProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing cube codec installation")

@@ -14,11 +14,11 @@ func extensionVersionOwnerImports(t *testing.T) {
 	for _, version := range []string{"1.1", "1.2"} {
 		t.Run("VersionImport"+version, func(t *testing.T) {
 			e, _, ext := extensionVersionUnitInstalled(t, version)
-			metadata, err := extensionOwnerMetadata(e.CatalogRead(), e.Roles(), ext)
+			metadata, err := OwnerMetadata(e.CatalogRead(), e.Roles(), ext)
 			if err != nil {
 				t.Fatal(err)
 			}
-			record, found, err := decodeExtensionOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
+			record, found, err := DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
 			want := 9
 			if version == "1.2" {
 				want = 10
@@ -36,7 +36,7 @@ func extensionVersionOwnerImports(t *testing.T) {
 			for _, kind := range []string{"graph_only", "unknown", "member_owner", "extension_owner", "duplicate", "signature", "namespace"} {
 				bad := record
 				bad.Members = slices.Clone(record.Members)
-				records := []extensionOwnerRecord{bad}
+				records := []OwnerRecord{bad}
 				switch kind {
 				case "graph_only":
 					records[0].Version = "1.0"
@@ -60,11 +60,11 @@ func extensionVersionOwnerImports(t *testing.T) {
 					t.Fatal("failed version owner import mutated destination", kind)
 				}
 			}
-			if err := stage.importExtensionOwners(context.Background(), op, []extensionOwnerRecord{record}); err != nil {
+			if err := stage.importExtensionOwners(context.Background(), op, []OwnerRecord{record}); err != nil {
 				t.Fatal(err)
 			}
 			a := stage.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"})
-			if stage.catalog.state.MustExtension(a).Version != version || stockFuzzystrmatch.ValidateExtension(stage.CatalogRead(), stage.catalog.state.MustExtension(a)) != nil {
+			if stage.catalog.state.MustExtension(a).Version != version || StockFuzzystrmatch.ValidateExtension(stage.CatalogRead(), stage.catalog.state.MustExtension(a)) != nil {
 				t.Fatal("import lost genuine version manifest")
 			}
 			for _, field := range []string{"name", "schema", "version", "owner", "members"} {
@@ -81,7 +81,7 @@ func extensionVersionOwnerImports(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, _, err := decodeExtensionOwners(extensionOwnersMarker + " " + base64.StdEncoding.EncodeToString(data)); err == nil {
+				if _, _, err := DecodeOwners(OwnersMarker + " " + base64.StdEncoding.EncodeToString(data)); err == nil {
 					t.Fatal("NULL owner key admitted", field)
 				}
 			}

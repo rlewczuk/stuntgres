@@ -193,7 +193,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.Catalog, a, path) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."})
 			}
 		}
-		roots = extensionRemovalRoots(auth.Catalog, roots)
+		roots = RemovalRoots(auth.Catalog, roots)
 	}
 	stage := e.ownershipStage(auth, scope.op)
 	stage.dependencyPath, _ = e.referencePath(auth)

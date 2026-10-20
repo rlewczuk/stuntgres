@@ -86,7 +86,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 	for key, original := range stage.Touched() {
 		changes.names[key] = original
 	}
-	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.Base.Get(stage.extensionNamespace), database: stage.databasePredecessor})
+	changes.extensionAuthority = append(changes.extensionAuthority, AuthorityObservation{Roles: stage.roleRevision, Namespace: stage.Base.Get(stage.extensionNamespace), Database: stage.databasePredecessor})
 	scope.catalog = changes
 	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: catalog.CurrentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
@@ -131,7 +131,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 			return nil, fmt.Errorf("stuntgres: invalid extension option")
 		}
 	}
-	if err := extensionVersionError(version); err != nil {
+	if err := VersionError(version); err != nil {
 		return nil, err
 	}
 	path := implementation.Versions().InstallPath(version)

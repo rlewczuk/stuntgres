@@ -194,7 +194,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		} else {
 			bad.Epoch++
 		}
-		if err := validateIntaggIdentity(e.CatalogRead(), n.Procedure, bad, "int_array_enum"); err == nil {
+		if err := ValidateIntaggIdentity(e.CatalogRead(), n.Procedure, bad, "int_array_enum"); err == nil {
 			t.Fatal("foreign/stale enum accepted")
 		}
 	}
@@ -228,7 +228,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		if !moved {
 			continue
 		}
-		descriptor := remapExtensionDescriptor(original, mapping)
+		descriptor := RemapDescriptor(original, mapping)
 		next.SetDescriptor(destination, descriptor)
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
@@ -270,7 +270,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		t.Fatal("source authority mutated")
 	}
 	next.RemoveDescriptor(n.Ref.Address)
-	if err := validateIntaggIdentity(view, n.Procedure, n.Ref, "int_array_enum"); err == nil {
+	if err := ValidateIntaggIdentity(view, n.Procedure, n.Ref, "int_array_enum"); err == nil {
 		t.Fatal("missing destination procedure accepted")
 	}
 }

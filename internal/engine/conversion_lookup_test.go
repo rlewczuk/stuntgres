@@ -175,7 +175,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.roles.domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
+	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.roles.domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: StockUnaccent}
 	second := *first
 	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalogAddress
 	stage := e.BeginCatalogStage(view)

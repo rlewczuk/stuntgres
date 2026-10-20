@@ -575,7 +575,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		}
 		for _, address := range children {
 			d := auth.Catalog.Get(address)
-			if extensionMembership(d) != (ids.ObjectAddress{}) {
+			if Membership(d) != (ids.ObjectAddress{}) {
 				continue // the extension owns these members as one namespace dependent
 			}
 			if r, ok := d.(*catalog.Relation); ok {
