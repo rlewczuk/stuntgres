@@ -43,7 +43,7 @@ first dispatcher), `table_view_summary.go` (287, `pg_views`, `pg_tables`,
 | `table_view_summary.go` (part) | catalog publication: `markStageIndexHistoryLocked`, `normalizeReplacementIndexHistory` | `catalog.go` |
 | `pg_sequences_admission.go` | planner predicate admission for `pg_sequences` | `query.go` |
 | `pg_depend_expression.go` | `pgDependRefs` walker over expressions and plan nodes | `pg_depend.go`, `rule_dependencies.go`, `policy_expression.go`, `policy_validation.go` |
-| `pg_depend.go` (part) | `pgDependPinned`, used 9 times outside (`rule_remap.go`, `sequence_control.go`, `temporary_provenance.go`) | several |
+| `pg_depend.go` (part) | `pgDependPinned`, used 9 times outside (`rule_remap.go`, `temporary_preservation.go`, `temporary_provenance.go`) | several |
 
 **Dispatch.** Two chains, both under `Engine.mu`:
 

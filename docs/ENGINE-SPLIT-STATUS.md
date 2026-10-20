@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `3745e901101059944ed14f65bccccdebcf923e2c`. The later-wave plans
+Last verified against `master` at `e8598c73ef032f2f05aa9f6a8a73db65154ea510`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,8 +15,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 17 `sequence`** — 17a (item 30); the Tier C sequence calls have
-  moved to `functions`.
+- **Step 17 `sequence`** — 17b (item 31); 17a is done.
 - **Step 10 `plan`** — 10b node runtime (item 32).
 - **In-place untangling** — 13a scope slots (item 22; broad). 12b is done;
   12c (item 39) still needs 10c (item 33).
@@ -294,7 +293,8 @@ Steps 1, 2 and 4–9 and `access` are done.
   - [ ] 16d — Installation handlers moved
 - [ ] **Step 17 — `sequence`** ([prompt](ENGINE-SPLIT-sequence.md); Part A
   needs Tier C sequence calls; Part B needs 13d)
-  - [ ] 17a — In place
+  - [x] 17a — In place (`6ab03f25b`, `68d49b5a8`, `88c3aac0f`, `d43c3b1fb`,
+    `48fe404db`, then the docs commit) *(racecheck skipped at user request)*
   - [ ] 17b — `sequence` created and clean set moved
   - [ ] 17c — Host refined (docs only)
   - [ ] 17d — Handlers moved
@@ -420,7 +420,9 @@ in the prompt file's Status section.
     27
 29. [ ] Extension 16b — [extension](ENGINE-SPLIT-extension.md) 16b · needs
     28
-30. [ ] Sequence 17a — [sequence](ENGINE-SPLIT-sequence.md) 17a · needs 10
+30. [x] Sequence 17a — [sequence](ENGINE-SPLIT-sequence.md) 17a · needs 10 ·
+    selected dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 31. [ ] Sequence 17b — [sequence](ENGINE-SPLIT-sequence.md) 17b · needs 30
 
 ### Group E — core moves

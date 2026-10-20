@@ -22,7 +22,7 @@ DDL, identity and serial columns) become a feature package. The generator
 stays in `storage`; the sequence functions go to `functions`. Files whose
 names mislead are renamed first, so the feature's boundary is visible.
 
-## Inventory (measured at `75fe0d710`)
+## Inventory (measured at `75fe0d710`; 17a corrections below)
 
 Files matching `sequence*`, `serial*`, `identity*` (16 files, about 4.1k
 lines; `serializable*` is not sequence code). Clean declarations:
@@ -151,9 +151,67 @@ The checks in §8.3 pass.
 
 ## Status
 
-- [ ] 17a — In place (after Tier C sequence calls)
+- [x] 17a — In place (`6ab03f25b`, `68d49b5a8`, `88c3aac0f`, `d43c3b1fb`,
+  `48fe404db`, then the docs commit) *(racecheck/finalcheck skipped at user
+  request)*
 - [ ] 17b — `sequence` created and clean set moved
 - [ ] 17c — Host refined (docs only; after 13d)
 - [ ] 17d — Handlers moved
 
 Outstanding aliases: none yet.
+
+### 17a record
+
+Re-measured at `d27607c9c` (integrated on `e8598c73e`) with the reach tool (clean declarations in the
+sequence, serial, identity, owned and renamed TEMP files: 49 before, 83
+after).
+
+- **Renamed** (file moves only): `sequence_temp.go` → `temporary_session.go`;
+  `sequence_control.go` → `temporary_preservation.go`, with the sequence part
+  split back into `sequence_control.go`; `owned.go` → `owned_roles.go`;
+  `owned_cleanup.go` (and its test) → `owned_roles_cleanup.go`;
+  `identity_owner.go` → `owner_handles.go`. `sequence_temp_*_test.go` keep their
+  names: they test TEMP sequences.
+- **Inventory corrections.** `persistentReplacementCatalog`,
+  `arrayDomainDependency` and `retainedArrayDependencies` are TEMP-preservation
+  helpers; they now live in `temporary_preservation.go` and leave the 17b
+  clean set. `sequence_control.go` keeps `copySequenceState`,
+  `clearPersistentSequenceMemoryLocked`, `dumpSequence`,
+  `sequenceDumpStatements` and `restoreSequenceState`. `sequenceMemory` moved
+  from `sequence_options.go` to `sequence_memory.go`.
+- **Session memory.** `Session.sequences`, `lastSequence` and `sequencePath`
+  are one value group, `Session.sequences sessionSequences`
+  (`sequence_memory.go`). Every read and write goes through its helpers
+  (`memory`, `demandLocked`, `last`, `recordLastLocked`, `forgetLocked`,
+  `discardLocked`, `retainLocked`, `cachedPath`, `storePathLocked`) and the
+  `sequenceMemory` methods (`observeLocked`, `current`, `nextLocked`,
+  `setLocked`, `discardTailLocked`, `discardStaleTailLocked`,
+  `markSourceEventLocked`, `sourceStamp`, `forgetValuesLocked`). Engine.mu
+  guards both; the path cache is also serialized by physical-session
+  admission. Both types are clean.
+- **Prepared-literal records.** `sequenceAnalysis` and `sequencePathKey` had
+  become dirty through a `*catalogChanges` field. They now hold the private
+  journal as `journalIdentity` (an opaque `any`, built by `journalOf`, nil for
+  no journal), compared only by identity. `sequenceAnalysis`,
+  `sequencePathKey` and `sequencePathCache` are clean.
+- **Stage slot.** `CatalogStage.generators`, `identityOriginals` and
+  `identityDependencies` are now `CatalogStage.sequence *sequenceStage`
+  (`sequence_stage.go`), allocated by `sequenceState()`; its read methods
+  accept nil. No CatalogStage copy or reset code exists, so none changed.
+  13b skips this slot.
+- **Tests.** Engine tests were adapted mechanically to the helpers and the
+  slot; none moved or were deleted.
+
+### Notes for later steps
+
+- 17b: engine tests still read `sequenceMemory` fields (`remaining`, `value`,
+  `valid`, `analysisStamp`) and set `sessionSequences.memories`/`lastAddress`
+  directly. Moving the types needs exported accessors or moving those
+  assertions.
+- 17b: `sequenceStage` is clean but refers to `catalogDependencyObservation`;
+  move it with the stage slot types only if that record moves too, otherwise
+  leave the slot in the engine until 17d.
+- `catalogChanges.generators` is core journal state (13b keeps it), not a
+  sequence slot.
+- `journalOf` stays in the engine; 17b can move `journalIdentity` with the
+  records.

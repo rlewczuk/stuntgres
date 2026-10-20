@@ -1167,10 +1167,9 @@ file: [ENGINE-SPLIT-extension.md](ENGINE-SPLIT-extension.md).
 
 **Part A (17a, 17b).** Sequence option binding and limits
 (`sequence_options.go`, all clean), the physical-session memory records,
-sequence dump formatting, identity and serial naming helpers. 17a also renames
-files whose names mislead: `sequence_temp.go` and most of
-`sequence_control.go` are TEMP-session and Restore code, `owned*.go` is
-REASSIGN/DROP OWNED and `identity_owner.go` is owner-handle code.
+sequence dump formatting, identity and serial naming helpers. 17a renamed
+the files whose names misled (now `temporary_session.go`,
+`temporary_preservation.go`, `owned_roles*.go` and `owner_handles.go`).
 
 **Part B (17c, 17d)** after step 13: CREATE/ALTER/DROP SEQUENCE, identity
 columns, serial columns and sequence comments.
@@ -1270,7 +1269,7 @@ package-specific scope. This section holds the rules every session follows.
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | planned (15a–15d) |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | planned (16a–16d) |
-| 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | planned (17a–17d) |
+| 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place (racecheck skipped at user request); 17b–17d planned |
 
 Tracks may run in parallel only on separate branches. Do not run two broad
 mechanical rewrites at the same time (F1, F2, 5b, 5d, any alias removal, and
