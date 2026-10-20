@@ -338,7 +338,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 	}
 	owner, index := b.argumentQueryOwner(func(visit func(expr.Expr)) {
 		for _, arg := range args {
-			walkQueryArgumentExpression(arg, visit)
+			analyze.WalkQueryArgumentExpression(arg, visit)
 		}
 	})
 	clause := b.clause.aggregateClause
@@ -347,7 +347,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 	}
 	var nested expr.Expr
 	for _, arg := range args {
-		walkQueryArgumentExpression(arg, func(node expr.Expr) {
+		analyze.WalkQueryArgumentExpression(arg, func(node expr.Expr) {
 			switch n := node.(type) {
 			case plan.AggregateExpr:
 				if n.Frame == owner && nested == nil {

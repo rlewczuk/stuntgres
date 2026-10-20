@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -345,7 +346,7 @@ func TestArrayRelationalTypedDefinitionClasses(t *testing.T) {
 		{record, "a column definition list is redundant for a function with OUT parameters"},
 	} {
 		call := plan.LiteralExpr{Info: expr.Info{Usage: tc.typ.Usage()}, Value: sqltype.Null(tc.typ)}
-		if got := functionColumnDefinitionMessage(call); got != tc.message {
+		if got := analyze.FunctionColumnDefinitionMessage(call); got != tc.message {
 			t.Fatalf("type %d: got %q, want %q", tc.typ.ID(), got, tc.message)
 		}
 	}
@@ -512,7 +513,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 	if u.Usage.Type != u.Args[0].ResultUsage().Type.Element() || u.Usage.Type == e.Usage.Type || u.Properties() != e.Properties() {
 		t.Fatal("unnest generation remap")
 	}
-	if sameQuerySetOccurrence(e, u) || !sameQuerySetOccurrence(e, e) {
+	if analyze.SameQuerySetOccurrence(e, u) || !analyze.SameQuerySetOccurrence(e, e) {
 		t.Fatal("SRF occurrence identity")
 	}
 }

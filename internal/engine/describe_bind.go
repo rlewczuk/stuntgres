@@ -185,7 +185,7 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 		}
 	}
 	for _, definition := range b.CTEs {
-		mutation, ok := mutationBinding(definition)
+		mutation, ok := analyze.MutationBinding(definition)
 		if !ok {
 			continue
 		}

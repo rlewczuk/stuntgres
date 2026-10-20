@@ -900,7 +900,7 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 	typ = analyze.RecordTypeMapper(typ)
 	changed := false
 	expression := func(node expr.Expr) {
-		walkQueryArgumentExpression(node, func(child expr.Expr) {
+		analyze.WalkQueryArgumentExpression(node, func(child expr.Expr) {
 			old := child.ResultUsage().Type
 			changed = changed || old != typ(old)
 		})

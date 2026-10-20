@@ -21,7 +21,7 @@ func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, disti
 	if err := b.bindSearchShape(d); err != nil {
 		t.Fatal(err)
 	}
-	if err := searchNameError(d); err != nil {
+	if err := analyze.SearchNameError(d); err != nil {
 		t.Fatal(err)
 	}
 	if distinct {
@@ -121,7 +121,7 @@ func TestQuerySearchParent(t *testing.T) {
 			node   plan.Node
 			offset int
 		}{{&plan.JoinNode{Left: physical, Right: self, LeftWidth: 4}, 4}, {&plan.JoinNode{Left: self, Right: physical, LeftWidth: 2}, 0}} {
-			if scan, offset := recursiveParentSlot(tc.node, d, 0); scan != self || offset != tc.offset {
+			if scan, offset := analyze.RecursiveParentSlot(tc.node, d, 0); scan != self || offset != tc.offset {
 				t.Fatal(scan, offset)
 			}
 		}

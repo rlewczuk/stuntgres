@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -330,7 +331,7 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 			return false
 		}
 		for _, definition := range b.CTEs {
-			if mutation, ok := mutationBinding(definition); ok && !temporaryDataTarget(auth, mutation, definition.Statement) {
+			if mutation, ok := analyze.MutationBinding(definition); ok && !temporaryDataTarget(auth, mutation, definition.Statement) {
 				return false
 			}
 		}

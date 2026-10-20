@@ -5,6 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -27,7 +28,7 @@ func TestQueryAliasesNameDistance(t *testing.T) {
 				key = append(key, int(r))
 			}
 			width := len(key) + 1
-			got := boundedNameDistance(tc.candidate, key, make([]int, width), make([]int, width), tc.limit)
+			got := analyze.BoundedNameDistance(tc.candidate, key, make([]int, width), make([]int, width), tc.limit)
 			if got != tc.want {
 				t.Fatal(got, tc.want)
 			}
@@ -61,7 +62,7 @@ func TestQueryAliasesHintOccurrences(t *testing.T) {
 			}
 			// Synthetic whole-join entries must not add a third tie or win.
 			join := queryQualifier{Name: "j", Columns: []queryColumn{{Descriptor: catalog.Column{Name: "id"}}}, ExcludeColumnDiagnostics: true}
-			if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry, join}, tc.qualifier, "id", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != tc.want {
+			if detail, hint, err := analyze.QueryColumnDiagnostic([]queryQualifier{entry, join}, tc.qualifier, "id", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != tc.want {
 				t.Fatal(detail, hint, err, tc.want)
 			}
 		})
@@ -93,7 +94,7 @@ func TestQueryAliasesUnicodeHintCutoff(t *testing.T) {
 	entry := queryQualifier{Name: "x", Ref: ref, Columns: []queryColumn{{Descriptor: catalog.Column{Name: "aa"}}}}
 	// Two character substitutions are allowed because PostgreSQL's cutoff
 	// uses the four UTF8 bytes of the request, not its two characters.
-	if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "x", "éé", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != `Perhaps you meant to reference the column "x.aa".` {
+	if detail, hint, err := analyze.QueryColumnDiagnostic([]queryQualifier{entry}, "x", "éé", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != `Perhaps you meant to reference the column "x.aa".` {
 		t.Fatal(detail, hint, err)
 	}
 }
@@ -122,7 +123,7 @@ func TestQueryAliasesExactDiagnosticPrecedence(t *testing.T) {
 		{"synthetic_join_excluded", "", []queryQualifier{join}, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			detail, hint, err := queryColumnDiagnostic(tc.entries, tc.qualifier, "id", parser.Position{Offset: -1}, false)
+			detail, hint, err := analyze.QueryColumnDiagnostic(tc.entries, tc.qualifier, "id", parser.Position{Offset: -1}, false)
 			if err != nil || detail != tc.detail || hint != tc.hint {
 				t.Fatal(detail, hint, err, tc.detail, tc.hint)
 			}
@@ -152,7 +153,7 @@ func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Character, not byte Offset, supplies the positioned diagnostic.
-			detail, hint, err := queryColumnDiagnostic(tc.entries, tc.qualifier, "id", parser.Position{Offset: 15, Character: 14}, false)
+			detail, hint, err := analyze.QueryColumnDiagnostic(tc.entries, tc.qualifier, "id", parser.Position{Offset: 15, Character: 14}, false)
 			var got *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42702", Message: `column reference "id" is ambiguous`, Position: "14"}
 			if detail != "" || hint != "" || !errors.As(err, &got) || *got != want {
@@ -163,7 +164,7 @@ func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 	// Join RTEs are excluded even if their exposed aliases repeat the name.
 	join := duplicate
 	join.ExcludeColumnDiagnostics = true
-	detail, hint, err := queryColumnDiagnostic([]queryQualifier{join}, "", "id", parser.Position{Character: 8}, false)
+	detail, hint, err := analyze.QueryColumnDiagnostic([]queryQualifier{join}, "", "id", parser.Position{Character: 8}, false)
 	if err != nil || detail != "" || hint != "" {
 		t.Fatal(detail, hint, err)
 	}
@@ -171,12 +172,12 @@ func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 
 func TestQueryValuesMissingColumnDiagnostics(t *testing.T) {
 	entry := queryQualifier{Name: "v", Columns: []queryColumn{{Descriptor: catalog.Column{Name: "n"}}}}
-	detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "v", "nn", parser.Position{Character: 8}, false)
+	detail, hint, err := analyze.QueryColumnDiagnostic([]queryQualifier{entry}, "v", "nn", parser.Position{Character: 8}, false)
 	if err != nil || detail != "" || hint != `Perhaps you meant to reference the column "v.n".` {
 		t.Fatal(detail, hint, err)
 	}
 	for _, nonLateral := range []bool{false, true} {
-		detail, hint, err = queryColumnDiagnostic([]queryQualifier{entry}, "", "n", parser.Position{Character: 8}, nonLateral)
+		detail, hint, err = analyze.QueryColumnDiagnostic([]queryQualifier{entry}, "", "n", parser.Position{Character: 8}, nonLateral)
 		wantHint := ""
 		if nonLateral {
 			wantHint = "To reference that column, you must mark this subquery with LATERAL."
@@ -187,7 +188,7 @@ func TestQueryValuesMissingColumnDiagnostics(t *testing.T) {
 	}
 	entry.ExcludeColumnDiagnostics = true
 	for _, name := range []string{"n", "nn"} {
-		detail, hint, err = queryColumnDiagnostic([]queryQualifier{entry}, "", name, parser.Position{Character: 8}, true)
+		detail, hint, err = analyze.QueryColumnDiagnostic([]queryQualifier{entry}, "", name, parser.Position{Character: 8}, true)
 		if err != nil || detail != "" || hint != "" {
 			t.Fatal("excluded join diagnostic", detail, hint, err)
 		}

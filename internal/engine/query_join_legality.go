@@ -194,7 +194,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	}
 	// Target subplans are planned even when their enclosing input is empty.
 	// Eligible EXISTS retains their graph, but does not plan ignored output.
-	if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
+	if node != ignoredProject && !analyze.QueryIgnoresOwnExpressions(node) {
 		var failure error
 		validate := func(expression expr.Expr) {
 			if failure == nil {
@@ -254,7 +254,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				return err
 			}
 			for _, key := range spec.Order {
-				if privateTreeGrouping(key.Expression.ResultUsage().Type) {
+				if analyze.PrivateTreeGrouping(key.Expression.ResultUsage().Type) {
 					continue
 				}
 				if err := admitRoutineReference(c, key.EqualityRoutine, "function"); err != nil {

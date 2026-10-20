@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -30,7 +31,7 @@ func TestViewDistinctOnFrameOwnedSourceRendering(t *testing.T) {
 			rendered := statement(t, text).(*parser.Select)
 			on := rendered.Distinct.On[0].(parser.SubqueryExpr).Query
 			order := rendered.Order.Keys[0].Expr.(parser.SubqueryExpr).Query
-			if !sameQuerySourceAliases(on.From, order.From) {
+			if !analyze.SameQuerySourceAliases(on.From, order.From) {
 				t.Fatal("equivalent frozen query namespaces changed during SQL emission", key, added, text)
 			}
 			assertViewDistinctOnNestedAliases(t, on, order)
@@ -60,7 +61,7 @@ func assertViewDistinctOnNestedAliases(t *testing.T, a, b *parser.Select) {
 			walk(n.Right, o.Right)
 		case *parser.DerivedQuery:
 			o := b.(*parser.DerivedQuery)
-			if !sameQuerySourceAliases(n.Query.From, o.Query.From) {
+			if !analyze.SameQuerySourceAliases(n.Query.From, o.Query.From) {
 				t.Fatal("unstable nested query namespace", n, o)
 			}
 			walk(n.Query.From, o.Query.From)

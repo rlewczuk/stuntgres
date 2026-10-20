@@ -220,12 +220,6 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 	return keys, nil
 }
 
-func setOrderCollationError() error {
-	d := sqlError("42P22", "could not determine which collation to use for string comparison").(*sqlstate.Error)
-	d.Hint = "Use the COLLATE clause to set the collation explicitly."
-	return d
-}
-
 // Only inline FROM edges propagate outer marks into set analysis. Stored views
 // are bound separately and deliberately have no such admission edge.
 func (b *expressionBinder) inheritedDerivedSetMode(query *parser.Select) string {

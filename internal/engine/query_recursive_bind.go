@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -90,7 +91,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinit
 		}
 	}
 	if d.Search != nil {
-		if err := searchNameError(d); err != nil {
+		if err := analyze.SearchNameError(d); err != nil {
 			return nil, err
 		}
 	}
@@ -130,7 +131,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinit
 	}
 	if d.Search != nil || d.Cycle != nil {
 		right := set.Right
-		scan, offset := recursiveParentSlot(right.Child, d, 0)
+		scan, offset := analyze.RecursiveParentSlot(right.Child, d, 0)
 		if scan == nil {
 			return nil, fmt.Errorf("stuntgres: missing recursive parent projection")
 		}

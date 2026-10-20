@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ func captureRetainedDefinitionInput(view catalog.Read, definition *viewDefinitio
 		}
 		seen[definition] = true
 		var failure error
-		walkQueryArgumentNode(definition.query.Root, func(node expr.Expr) {
+		analyze.WalkQueryArgumentNode(definition.query.Root, func(node expr.Expr) {
 			if failure == nil {
 				failure = captureRetainedExpressionInput(node, element, diagnostic)
 			}

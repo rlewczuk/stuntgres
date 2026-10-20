@@ -92,7 +92,7 @@ func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser
 			if len(project.Schema()) != len(a.Targets) {
 				return nil, updateRowWidthError(source.Pos)
 			}
-			properties := queryDemandProperties(project, false)
+			properties := analyze.QueryDemandProperties(project, false)
 			properties.StageDependent = true
 			for j, target := range a.Targets {
 				origin := project.Expressions[j].SourcePosition()

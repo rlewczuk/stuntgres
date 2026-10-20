@@ -60,19 +60,6 @@ func (b *expressionBinder) bindSearchShape(d *plan.CTEDefinition) error {
 	return nil
 }
 
-func searchNameError(d *plan.CTEDefinition) error {
-	s := d.Search
-	if s.ShapeError != nil {
-		return s.ShapeError
-	}
-	for _, column := range d.Schema[:d.UserWidth] {
-		if column.Name == s.Syntax.Sequence.Text {
-			return expr.ErrorAt("42601", fmt.Sprintf(`search sequence column name "%s" already used in WITH query column list`, column.Name), s.Syntax.Pos)
-		}
-	}
-	return nil
-}
-
 func (b *expressionBinder) bindSearchIdentity(d *plan.CTEDefinition) error {
 	s := d.Search
 	s.Grouping = make([]sqltype.Grouping, s.Record.CompositeLen())

@@ -60,8 +60,8 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		}
 		bound = plan.CoercionExpr{Info: b.info(usage, bound.SourcePosition(), analyze.CoercionProperties(bound, coercionPlan)), Child: bound, Plan: coercionPlan, Mode: sqltype.Assignment}
 	}
-	if expressionUsesFrame(bound, b.frameID()) {
-		pos := firstQueryBoundFrameVariable(bound, b.frameID())
+	if analyze.ExpressionUsesFrame(bound, b.frameID()) {
+		pos := analyze.FirstQueryBoundFrameVariable(bound, b.frameID())
 		return nil, expr.ErrorAt("42P10", "argument of "+clause+" must not contain variables", pos)
 	}
 	if (b.params.noParameters || b.consumer.materializedDefinition) && captureLiterals {
@@ -70,52 +70,4 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		}
 	}
 	return bound, nil
-}
-
-func firstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position {
-	var position parser.Position
-	found := false
-	var query func(plan.Node)
-	var expression func(expr.Expr)
-	expression = func(bound expr.Expr) {
-		plan.WalkExpression(bound, func(expr expr.Expr) {
-			matched := false
-			switch e := expr.(type) {
-			case plan.ColumnExpr:
-				matched = e.Frame == frame
-			case plan.ReturningWholeRowExpr:
-				matched = e.Frame == frame
-			case plan.MergeActionExpr:
-				matched = e.Frame == frame
-			case plan.GroupExpr:
-				matched = e.Frame == frame
-			case plan.AggregateExpr:
-				matched = e.Frame == frame
-			case plan.GroupingExpr:
-				matched = e.Frame == frame
-			case *plan.WindowExpr:
-				matched = e.Frame == frame
-			case plan.SubqueryExpr:
-				query(e.QueryPlan.Root)
-			}
-			if matched {
-				p := expr.SourcePosition()
-				if !found || p.Character < position.Character {
-					position = p
-					found = true
-				}
-			}
-		})
-	}
-	query = func(node plan.Node) {
-		if node == nil {
-			return
-		}
-		plan.QueryExpressions(node, expression)
-		left, right := plan.QueryInputs(node)
-		query(left)
-		query(right)
-	}
-	expression(bound)
-	return position
 }

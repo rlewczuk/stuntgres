@@ -575,7 +575,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					return fmt.Errorf("stuntgres: invalid view VALUES width")
 				}
 				for i, expr := range row {
-					if expr == nil || expr.ResultUsage().Type != n.Schema()[i].Usage.Type || expressionUsesFrame(expr, frame) {
+					if expr == nil || expr.ResultUsage().Type != n.Schema()[i].Usage.Type || analyze.ExpressionUsesFrame(expr, frame) {
 						return fmt.Errorf("stuntgres: invalid view VALUES cell")
 					}
 				}
@@ -595,7 +595,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				if n.Definition.UserWidth != len(n.LeftExpressions) {
 					return fmt.Errorf("stuntgres: invalid stored original width")
 				}
-				scan, offset := recursiveParentSlot(n.Right.Child, n.Definition, 0)
+				scan, offset := analyze.RecursiveParentSlot(n.Right.Child, n.Definition, 0)
 				if scan == nil {
 					return fmt.Errorf("stuntgres: missing stored recursive parent")
 				}
@@ -608,7 +608,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 			}
 		case *plan.LimitNode:
 			for _, expr := range []expr.Expr{n.Offset, n.Count} {
-				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expressionUsesFrame(expr, frame)) {
+				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || analyze.ExpressionUsesFrame(expr, frame)) {
 					return fmt.Errorf("stuntgres: invalid stored view bound")
 				}
 			}

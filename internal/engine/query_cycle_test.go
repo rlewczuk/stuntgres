@@ -136,11 +136,11 @@ func TestQueryCycleParent(t *testing.T) {
 	self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{CTE: d}}
 	physical := &plan.SingletonNode{QuerySchema: make(plan.QuerySchema, 4)}
 	root := &plan.JoinNode{Left: physical, Right: self, LeftWidth: 4}
-	if found, offset := recursiveParentSlot(root, d, 0); found != self || offset != 4 {
+	if found, offset := analyze.RecursiveParentSlot(root, d, 0); found != self || offset != 4 {
 		t.Fatal(found, offset)
 	}
 	root = &plan.JoinNode{Left: self, Right: physical, LeftWidth: 3}
-	if found, offset := recursiveParentSlot(root, d, 0); found != self || offset != 0 {
+	if found, offset := analyze.RecursiveParentSlot(root, d, 0); found != self || offset != 0 {
 		t.Fatal(found, offset)
 	}
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
@@ -242,7 +242,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 	if err := validateStoredSetNode(&badParent, union.Cycle, nil); err == nil {
 		t.Fatal("accepted parent mark in the hidden path slot")
 	}
-	scan, offset := recursiveParentSlot(union.Right.Child, union.Definition, 0)
+	scan, offset := analyze.RecursiveParentSlot(union.Right.Child, union.Definition, 0)
 	if scan == nil || offset != 1 || scan.CTE != union.Definition || union.Definition.Query.Root != remapped {
 		t.Fatal("remapped self identity/parent", scan, offset)
 	}

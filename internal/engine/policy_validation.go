@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -23,7 +24,7 @@ func validatePolicyExpression(view catalog.Read, owner *catalog.Relation, expres
 	if invalid {
 		return fmt.Errorf("stuntgres: invalid policy-level expression")
 	}
-	walkQueryArgumentExpression(expression.expression, func(node expr.Expr) {
+	analyze.WalkQueryArgumentExpression(expression.expression, func(node expr.Expr) {
 		if _, parameter := node.(plan.ParameterExpr); parameter {
 			invalid = true
 		}

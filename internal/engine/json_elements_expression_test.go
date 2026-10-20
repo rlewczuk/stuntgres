@@ -108,10 +108,10 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if err := exec.ValidateFunctionFromLayout(root); err != nil {
 			t.Fatal(err)
 		}
-		if exec.FunctionFromCallWidth(original) != 1 || sourceOutName(original) != "value" {
+		if exec.FunctionFromCallWidth(original) != 1 || expr.SourceOutName(original) != "value" {
 			t.Fatal("scalar OUT layout", original)
 		}
-		if sourceOutName(original.Args[0]) != "" {
+		if expr.SourceOutName(original.Args[0]) != "" {
 			t.Fatal("OUT naming escaped selected function")
 		}
 	}

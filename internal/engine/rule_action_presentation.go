@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -71,7 +72,7 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 	var collect func(binding) error
 	collect = func(body binding) error {
 		for _, definition := range body.CTEs {
-			mutation, ok := mutationBinding(definition)
+			mutation, ok := analyze.MutationBinding(definition)
 			if !ok || presentations[definition.Statement] != nil {
 				continue
 			}

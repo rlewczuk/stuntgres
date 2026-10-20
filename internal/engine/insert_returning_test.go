@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -134,11 +135,11 @@ func TestInsertReturningWholeRow(t *testing.T) {
 				if err != nil || v.Type() != typ || v.IsNull() != (i == 0) {
 					t.Fatal(i, v, err)
 				}
-				if !expressionUsesFrame(expr, 1) {
+				if !analyze.ExpressionUsesFrame(expr, 1) {
 					t.Fatal("lost zero-member correlation", i)
 				}
 				mapped, err := remapBoundExpression(expr, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, nil)
-				if err != nil || mapped.ResultUsage().Type != typ || !expressionUsesFrame(mapped, 1) {
+				if err != nil || mapped.ResultUsage().Type != typ || !analyze.ExpressionUsesFrame(mapped, 1) {
 					t.Fatal("retained row remapping", mapped, err)
 				}
 			}

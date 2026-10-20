@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -27,7 +28,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 				seen = make(map[*plan.CTEDefinition]bool)
 			}
 			seen[definition] = true
-			mutation, _ := mutationBinding(definition)
+			mutation, _ := analyze.MutationBinding(definition)
 			if err := rewrite.caller.checkBinding(*mutation, definition.Statement); err != nil {
 				e.mu.Unlock()
 				return nil, err

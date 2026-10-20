@@ -199,12 +199,12 @@ func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
 		case plan.AggregateExpr:
 			if n.Frame == frame {
 				if call, ok := b.aggregateCallAt(n); ok {
-					call.Expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
+					call.Expressions(func(expr expr.Expr) { analyze.WalkQueryArgumentExpression(expr, visit) })
 				}
 			}
 		}
 	}
-	walkQueryArgumentExpression(node, visit)
+	analyze.WalkQueryArgumentExpression(node, visit)
 	return found
 }
 

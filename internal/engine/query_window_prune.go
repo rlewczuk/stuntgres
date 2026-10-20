@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
@@ -71,7 +72,7 @@ func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 		expression(expr)
 	}
 	for node := project.Child; node != window; {
-		if !queryIgnoresOwnExpressions(node) {
+		if !analyze.QueryIgnoresOwnExpressions(node) {
 			plan.QueryExpressions(node, expression)
 		}
 		node, _ = plan.QueryInputs(node)

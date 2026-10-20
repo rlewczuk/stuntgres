@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 )
@@ -12,7 +13,7 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 		return b, nil
 	}
 	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *plan.CTEDefinition) (binding, error) {
-		mutation, _ := mutationBinding(definition)
+		mutation, _ := analyze.MutationBinding(definition)
 		body := *mutation
 		// Stored modifier recipes need a private execution workspace even when
 		// catalog identity and every expression are unchanged. This mapper also

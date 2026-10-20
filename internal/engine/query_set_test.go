@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -227,7 +228,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	if n.Left.Expressions[0].ResultUsage().Type == nil {
 		t.Fatal("unknown output escaped parent resolution")
 	}
-	if canSimplifyExists(b.Query) {
+	if analyze.CanSimplifyExists(b.Query) {
 		t.Fatal("set presence discarded key demand")
 	}
 	if _, discard := pruneIdentityQueryProducer(n, project.Expressions[0]); discard {

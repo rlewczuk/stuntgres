@@ -339,7 +339,7 @@ func valuesOrderColumnError(schema []catalog.Column, name string, pos parser.Pos
 	var candidates [2]string
 	ties := 0
 	for _, column := range schema {
-		distance := boundedNameDistance(column.Name, key, left, right, best)
+		distance := analyze.BoundedNameDistance(column.Name, key, left, right, best)
 		if distance > best {
 			continue
 		}

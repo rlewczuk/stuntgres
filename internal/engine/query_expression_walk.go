@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -13,7 +14,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 		// Ordered-set direct args do not select the aggregate's owner.
 		ownerCall := call
 		ownerCall.Direct = nil
-		ownerCall.Expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
+		ownerCall.Expressions(func(expr expr.Expr) { analyze.WalkQueryArgumentExpression(expr, visit) })
 	}
 	owner, index := b.argumentQueryOwner(walkArguments)
 	clause := b.clause.aggregateClause
@@ -50,7 +51,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 		}
 		ownerLevel := level(owner)
 		var directError error
-		walkQueryArgumentExpression(direct, func(node expr.Expr) {
+		analyze.WalkQueryArgumentExpression(direct, func(node expr.Expr) {
 			if directError != nil {
 				return
 			}
@@ -183,27 +184,4 @@ func (b *expressionBinder) aggregateCallAt(e plan.AggregateExpr) (plan.Aggregate
 		}
 	}
 	return plan.AggregateCall{}, false
-}
-
-// Aggregate ownership crosses sublinks, but only columns/aggregates in a
-// visible ancestor frame participate. Child-local frames are ignored by the
-// owner selection above; nesting is checked against that selected owner.
-func walkQueryArgumentExpression(bound expr.Expr, visit func(expr.Expr)) {
-	plan.WalkExpression(bound, func(node expr.Expr) {
-		visit(node)
-		if child, ok := node.(plan.SubqueryExpr); ok {
-			walkQueryArgumentNode(child.QueryPlan.Root, visit)
-		}
-	})
-}
-
-func walkQueryArgumentNode(node plan.Node, visit func(expr.Expr)) {
-	plan.QueryExpressions(node, func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
-	left, right := plan.QueryInputs(node)
-	if left != nil {
-		walkQueryArgumentNode(left, visit)
-	}
-	if right != nil {
-		walkQueryArgumentNode(right, visit)
-	}
 }

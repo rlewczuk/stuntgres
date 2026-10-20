@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -28,13 +29,13 @@ func preflightQuerySet(c *exec.Context, n *plan.SetProjectNode) (plan.Node, erro
 	for _, root := range roots {
 		plan.WalkExpression(root, func(marker expr.Expr) {
 			for i, original := range template.Origins {
-				if sameQuerySetOccurrence(marker, original) {
+				if analyze.SameQuerySetOccurrence(marker, original) {
 					live[i] = marker
 				}
 			}
 		})
 	}
-	maxDepth, scalarUpper := querySetProjectionDepth(roots)
+	maxDepth, scalarUpper := analyze.QuerySetProjectionDepth(roots)
 	if !template.Attempts {
 		maxDepth = 0
 		for _, marker := range live {
@@ -63,7 +64,7 @@ func preflightQuerySet(c *exec.Context, n *plan.SetProjectNode) (plan.Node, erro
 		next, _, err := mapBoundExpressionReader(c.Catalog, nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
 			func(root plan.Node) (plan.Node, error) { return root, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
 				for i, original := range template.Origins {
-					if sameQuerySetOccurrence(e, original) && exec.QuerySetDepth(e) < beforeDepth {
+					if analyze.SameQuerySetOccurrence(e, original) && exec.QuerySetDepth(e) < beforeDepth {
 						return column(original, i), true, nil
 					}
 				}
@@ -125,7 +126,7 @@ func preflightQuerySet(c *exec.Context, n *plan.SetProjectNode) (plan.Node, erro
 				}
 			}
 		}
-		node.Steps = querySetStageSteps(template.Steps, node.CallSlots, node.ScalarSlots, len(node.Scalars))
+		node.Steps = analyze.QuerySetStageSteps(template.Steps, node.CallSlots, node.ScalarSlots, len(node.Scalars))
 		root = node
 	}
 	return root, nil

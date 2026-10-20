@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -113,7 +114,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	nested.Args[1] = plan.ColumnExpr{Info: expr.Info{Usage: text.Usage(), Pos: parser.Position{Character: 17}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
 	nested.Pos = parser.Position{Character: 8}
 	nested.Property.RowDependent = true
-	if position := firstQueryBoundFrameVariable(nested, 1); position.Character != 17 {
+	if position := analyze.FirstQueryBoundFrameVariable(nested, 1); position.Character != 17 {
 		t.Fatal("nested string query-bound variable", position)
 	}
 }

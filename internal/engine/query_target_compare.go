@@ -2,9 +2,9 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/parser"
 )
 
 // This comparison is binding-local: both operands have been fully analyzed in
@@ -121,7 +121,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d plan.Node) b
 			if n.Syntax != o.Syntax {
 				return false
 			}
-		} else if !sameQuerySourceAliases(n.Syntax.From, o.Syntax.From) {
+		} else if !analyze.SameQuerySourceAliases(n.Syntax.From, o.Syntax.From) {
 			return false
 		}
 		left, right := c.leftFrame, c.rightFrame
@@ -278,56 +278,4 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d plan.Node) b
 		return false
 	}
 	return true
-}
-
-// SQL99 compares analyzed RTE alias namespaces as well as resolved expressions.
-// Keep only that identity from the retained syntax: Var qualification, source
-// positions and raw predicates are not semantic comparison authorities.
-func sameQuerySourceAliases(a, b parser.FromItem) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	switch n := a.(type) {
-	case *parser.FunctionTable:
-		o, ok := b.(*parser.FunctionTable)
-		return ok && n.RowsFrom == o.RowsFrom
-	case *parser.AliasReference:
-		o, ok := b.(*parser.AliasReference)
-		if !ok || n.Name.Text != o.Name.Text || len(n.Columns) != len(o.Columns) {
-			return false
-		}
-		for i, name := range n.Columns {
-			if name.Text != o.Columns[i].Text {
-				return false
-			}
-		}
-		return sameQuerySourceAliases(n.Input, o.Input)
-	case *parser.JoinReference:
-		o, ok := b.(*parser.JoinReference)
-		if !ok {
-			return false
-		}
-		if n.UsingAlias == nil || o.UsingAlias == nil {
-			if n.UsingAlias != o.UsingAlias {
-				return false
-			}
-		} else if n.UsingAlias.Text != o.UsingAlias.Text {
-			return false
-		}
-		return sameQuerySourceAliases(n.Left, o.Left) && sameQuerySourceAliases(n.Right, o.Right)
-	case *parser.TableReference:
-		_, ok := b.(*parser.TableReference)
-		return ok
-	case *parser.DerivedQuery:
-		_, ok := b.(*parser.DerivedQuery)
-		return ok
-	case *parser.ValuesQuery:
-		_, ok := b.(*parser.ValuesQuery)
-		return ok
-	case *parser.FunctionFrom:
-		o, ok := b.(*parser.FunctionFrom)
-		return ok && n.Ordinality == o.Ordinality && n.Lateral == o.Lateral && len(n.Calls) == len(o.Calls)
-	default:
-		return false
-	}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
@@ -13,11 +14,11 @@ import (
 
 func TestQueryTiesPresenceOnly(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id+0 FETCH FIRST ROW WITH TIES")
-	if !canSimplifyExists(query) {
+	if !analyze.CanSimplifyExists(query) {
 		t.Fatal("literal positive bound not eligible")
 	}
 	original := query.Root.(*plan.ProjectNode).Child.(*plan.LimitNode)
-	limit := presenceQueryInput(original).(*plan.LimitNode)
+	limit := analyze.PresenceQueryInput(original).(*plan.LimitNode)
 	ordered := limit.Child.(*plan.SortNode)
 	if !limit.PresenceOnly || !ordered.PresenceOnly || limit.Count != original.Count || !limit.WithTies || len(limit.PeerKeys) != len(original.PeerKeys) {
 		t.Fatal("presence transformation lost analyzed graph")
@@ -165,7 +166,7 @@ func TestQueryTiesPresenceBoundEligibility(t *testing.T) {
 	for _, count := range []string{"0", "$1"} {
 		t.Run(count, func(t *testing.T) {
 			_, query, _ := queryCoreFixture(t, "SELECT id FROM t ORDER BY id+0 FETCH FIRST "+count+" ROWS WITH TIES")
-			if canSimplifyExists(query) {
+			if analyze.CanSimplifyExists(query) {
 				t.Fatal("ordinary bound incorrectly discarded")
 			}
 			limit := query.Root.(*plan.ProjectNode).Child.(*plan.LimitNode)

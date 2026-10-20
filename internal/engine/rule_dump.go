@@ -312,7 +312,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				return renderer.selectQuerySQL(ctx, view, query, project)
 			}
 			for _, definition := range b.CTEs {
-				mutation, ok := mutationBinding(definition)
+				mutation, ok := analyze.MutationBinding(definition)
 				if definition.Statement != statement || !ok {
 					continue
 				}

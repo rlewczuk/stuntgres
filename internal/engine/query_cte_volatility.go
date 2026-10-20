@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -44,7 +45,7 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 		if volatile, ok := memo[relation.Address()]; ok {
 			return volatile
 		}
-		volatile := cteVolatile(viewOf(relation).query.Root)
+		volatile := analyze.CTEVolatile(viewOf(relation).query.Root)
 		for _, source := range viewOf(relation).sources {
 			if volatile {
 				break

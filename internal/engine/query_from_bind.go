@@ -275,7 +275,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			}
 		}
 	}
-	detail, hint, err := queryColumnDiagnostic(hidden, qualifier, name, raw.Pos, b.query.nonLateral)
+	detail, hint, err := analyze.QueryColumnDiagnostic(hidden, qualifier, name, raw.Pos, b.query.nonLateral)
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +330,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 	case *parser.FunctionTable:
 		normalized := parser.NormalizedFunctionCalls(n)
 		for _, raw := range normalized {
-			if len(definitions) != 0 || selectedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
+			if len(definitions) != 0 || analyze.SelectedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
 				return b.bindMixedFunctionTable(normalized, n.Ordinality, ordinal, definitions, !n.RowsFrom && len(normalized) > 1)
 			}
 		}
@@ -451,7 +451,8 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 			function, composite := root.(*plan.FunctionFromNode)
 			composite = composite && len(function.Calls) == 1 && function.Calls[0].ResultUsage().Type.BaseType().IsComposite()
-			hasScalarOut := function != nil && len(function.Calls) == 1 && sourceOutName(function.Calls[0]) != ""
+			// A selected scalar OUT name controls the column label, not the range alias.
+			hasScalarOut := function != nil && len(function.Calls) == 1 && expr.SourceOutName(function.Calls[0]) != ""
 			if calls == 1 && !composite && !hasScalarOut {
 				ns.Columns[0].Descriptor.Name = n.Name.Text
 			}
@@ -846,7 +847,7 @@ func rebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, 
 			// Virtual owner recipes have their own frame. The lexical walker
 			// stops at their column, so only actual argument captures enter.
 			used := false
-			walkQueryArgumentExpression(bound, func(node expr.Expr) {
+			analyze.WalkQueryArgumentExpression(bound, func(node expr.Expr) {
 				if column, ok := node.(plan.ColumnExpr); ok && column.Frame == frame {
 					used = true
 				}
@@ -904,20 +905,6 @@ func rebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, 
 		return &copy, nil
 	}
 	return nil, fmt.Errorf("stuntgres: invalid function correlation owner")
-}
-
-// Function resolution must succeed before rejecting a typed definition list.
-// Anonymous RECORD shapes belong to resolved OUT parameters; named composite
-// results (including domains) retain their distinct diagnostic.
-func functionColumnDefinitionMessage(call expr.Expr) string {
-	typ := call.ResultUsage().Type.BaseType()
-	if typ.IsComposite() {
-		if typ.ID() == 2249 {
-			return "a column definition list is redundant for a function with OUT parameters"
-		}
-		return "a column definition list is redundant for a function returning a named composite type"
-	}
-	return `a column definition list is only allowed for functions returning "record"`
 }
 
 func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (plan.Node, queryNamespace, error) {
@@ -984,7 +971,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 				schema = append(schema, catalog.Column{Name: member.Name, Usage: member.Usage})
 			}
 		} else {
-			if out := sourceOutName(node); out != "" {
+			if out := expr.SourceOutName(node); out != "" {
 				name = out
 			}
 			schema = append(schema, catalog.Column{Name: name, Usage: node.ResultUsage()})

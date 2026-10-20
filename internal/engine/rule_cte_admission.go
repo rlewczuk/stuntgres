@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -123,7 +124,7 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		if definition.Query != nil {
 			inspectQuery(definition.Query.Root)
 		}
-		if mutation, ok := mutationBinding(definition); ok {
+		if mutation, ok := analyze.MutationBinding(definition); ok {
 			inspectBinding(mutation)
 		}
 	}

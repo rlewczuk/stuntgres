@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -94,7 +95,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			if err != nil {
 				return nil, err
 			}
-			if owned, did := queryScalarOwner(child, folded); did {
+			if owned, did := analyze.QueryScalarOwner(child, folded); did {
 				folded, changed = owned, true
 			}
 			if changed {
@@ -272,7 +273,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		var keys []plan.SortKey
 		for i, key := range n.Keys {
 			if key.Expression.CollationIndeterminate() {
-				return nil, setOrderCollationError()
+				return nil, analyze.SetOrderCollationError()
 			}
 			folded, changed, err := preflightCoercions(c, key.Expression)
 			if err != nil {
@@ -358,7 +359,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			if expressions != nil {
 				expression = expressions[i]
 			}
-			if owned, changed := queryScalarOwner(child, expression); changed {
+			if owned, changed := analyze.QueryScalarOwner(child, expression); changed {
 				if expressions == nil {
 					expressions = append([]expr.Expr(nil), n.Expressions...)
 				}
@@ -484,7 +485,7 @@ func preflightDistinct(c *exec.Context, n *plan.DistinctNode) (plan.Node, error)
 		if err != nil {
 			return nil, err
 		}
-		if owned, did := queryScalarOwner(child, folded); did {
+		if owned, did := analyze.QueryScalarOwner(child, folded); did {
 			folded, changed = owned, true
 		}
 		if changed {

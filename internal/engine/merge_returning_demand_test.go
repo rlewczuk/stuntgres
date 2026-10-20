@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -144,7 +145,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 			if err != nil || v.IsNull() != (i == 1) || v.Type().CompositeLen() != 0 {
 				t.Fatal("zero-member presence", i, v, err)
 			}
-			if !expressionUsesFrame(expr, 1) {
+			if !analyze.ExpressionUsesFrame(expr, 1) {
 				t.Fatal("zero-member owner correlation", i)
 			}
 		}

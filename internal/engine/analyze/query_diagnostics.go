@@ -1,18 +1,19 @@
-package engine
+package analyze
 
 import (
 	"fmt"
-	"unicode/utf8"
-
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"unicode/utf8"
 )
 
 // boundedNameDistance compares characters, not UTF8 bytes. The caller decodes
 // the requested name once and reuses two rows across every candidate. Rows
 // must have room for the requested character count plus one.
 // Only the limit-wide diagonal band can contribute an accepted distance.
-func boundedNameDistance(name string, key, left, right []int, limit int) int {
+func BoundedNameDistance(name string, key, left, right []int, limit int) int {
 	width := utf8.RuneCountInString(name)
 	if width > len(key)+limit || len(key) > width+limit {
 		return limit + 1
@@ -52,7 +53,7 @@ func boundedNameDistance(name string, key, left, right []int, limit int) int {
 // Within-entry exact ambiguity is checked regardless of qualifier penalty;
 // otherwise inaccessible exact entries precede fuzzy spelling suggestions.
 // Whole-join and USING alias entries are explicitly excluded, independently of identity.
-func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos parser.Position, nonLateral bool) (detail, hint string, err error) {
+func QueryColumnDiagnostic(entries []QueryQualifier, qualifier, name string, pos parser.Position, nonLateral bool) (detail, hint string, err error) {
 	longest := 0
 	var exactRelation string
 	exactLateralForbidden := false
@@ -125,7 +126,7 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 		}
 		penalty := 0
 		if qualifier != "" {
-			penalty = boundedNameDistance(q.Name, qualifierKey, left, right, min(3, best))
+			penalty = BoundedNameDistance(q.Name, qualifierKey, left, right, min(3, best))
 		}
 		if penalty > min(3, best) {
 			continue
@@ -135,7 +136,7 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 			// edit distance itself operates on characters.
 			limit := min(3, best) - penalty
 			limit = min(limit, len(name)/2)
-			distance := boundedNameDistance(c.Descriptor.Name, key, left, right, limit)
+			distance := BoundedNameDistance(c.Descriptor.Name, key, left, right, limit)
 			if distance > limit {
 				continue
 			}
@@ -157,4 +158,41 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 	default:
 		return "", "", nil
 	}
+}
+
+// SetOrderCollationError is the error for ordering a set operation by a
+// string column without a common collation.
+func SetOrderCollationError() error {
+	d := sqlError("42P22", "could not determine which collation to use for string comparison").(*sqlstate.Error)
+	d.Hint = "Use the COLLATE clause to set the collation explicitly."
+	return d
+}
+
+// SearchNameError returns the SEARCH clause's shape error, or the error for
+// a sequence column name already in the WITH query's column list.
+func SearchNameError(d *plan.CTEDefinition) error {
+	s := d.Search
+	if s.ShapeError != nil {
+		return s.ShapeError
+	}
+	for _, column := range d.Schema[:d.UserWidth] {
+		if column.Name == s.Syntax.Sequence.Text {
+			return expr.ErrorAt("42601", fmt.Sprintf(`search sequence column name "%s" already used in WITH query column list`, column.Name), s.Syntax.Pos)
+		}
+	}
+	return nil
+}
+
+// Function resolution must succeed before rejecting a typed definition list.
+// Anonymous RECORD shapes belong to resolved OUT parameters; named composite
+// results (including domains) retain their distinct diagnostic.
+func FunctionColumnDefinitionMessage(call expr.Expr) string {
+	typ := call.ResultUsage().Type.BaseType()
+	if typ.IsComposite() {
+		if typ.ID() == 2249 {
+			return "a column definition list is redundant for a function with OUT parameters"
+		}
+		return "a column definition list is redundant for a function returning a named composite type"
+	}
+	return `a column definition list is only allowed for functions returning "record"`
 }

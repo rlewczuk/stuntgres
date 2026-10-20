@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
@@ -25,7 +26,7 @@ func (b *expressionBinder) lowerStringWindowSpecs(root plan.Node, specs []plan.W
 		}
 	}
 	originalWidth := len(requests)
-	requests, templates := querySetPeerClosure(requests, companions)
+	requests, templates := analyze.QuerySetPeerClosure(requests, companions)
 	root, err := b.lowerQuerySets(root, requests, companions, false, templates)
 	requests = requests[:originalWidth]
 	if err != nil {

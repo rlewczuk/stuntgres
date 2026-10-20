@@ -538,7 +538,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	earlySets := append(stringSortExpressions(order), stringSortExpressions(on)...)
 	earlyWidth := len(earlySets)
-	earlySets, earlyTemplates := querySetPeerClosure(earlySets, [][]expr.Expr{projection})
+	earlySets, earlyTemplates := analyze.QuerySetPeerClosure(earlySets, [][]expr.Expr{projection})
 	root, err = b.lowerQuerySets(root, earlySets, [][]expr.Expr{projection}, false, earlyTemplates)
 	if err != nil {
 		return nil, err

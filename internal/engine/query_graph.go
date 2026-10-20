@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -94,80 +95,6 @@ func queryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 	return queryRoutineCarriersChanged(view, left) || queryRoutineCarriersChanged(view, right)
 }
 
-func queryIgnoresOwnExpressions(node plan.Node) bool {
-	switch n := node.(type) {
-	case *plan.SortNode:
-		return n.PresenceOnly
-	case *plan.AggregateNode:
-		return n.PresenceOnly
-	case *plan.DistinctNode:
-		return n.PresenceOnly
-	case *plan.DistinctOnNode:
-		return n.PresenceOnly
-	}
-	return false
-}
-
-func queryDemandProperties(project *plan.ProjectNode, presence bool) expr.Properties {
-	var properties expr.Properties
-	var walk func(plan.Node, *plan.ProjectNode)
-	walk = func(node plan.Node, ignoredProject *plan.ProjectNode) {
-		if node == nil {
-			return
-		}
-		if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
-			plan.QueryExpressions(node, func(bound expr.Expr) {
-				if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEEdge {
-					return
-				}
-				if bound == nil {
-					return
-				}
-				p := bound.Properties()
-				p.RowDependent = false
-				properties = expr.MergeProperties(properties, p)
-				plan.WalkExpression(bound, func(expr expr.Expr) {
-					var frame uint32
-					switch n := expr.(type) {
-					case plan.ColumnExpr:
-						frame = n.Frame
-					case plan.ReturningWholeRowExpr:
-						frame = n.Frame
-					case plan.MergeActionExpr:
-						frame = n.Frame
-					case plan.GroupExpr:
-						frame = n.Frame
-					case plan.AggregateExpr:
-						frame = n.Frame
-					case plan.GroupingExpr:
-						frame = n.Frame
-					case *plan.WindowExpr:
-						frame = n.Frame
-					case plan.SubqueryExpr:
-						var ignoredChild *plan.ProjectNode
-						if n.PresenceOnly {
-							ignoredChild = n.QueryPlan.Root.(*plan.ProjectNode)
-						}
-						walk(n.QueryPlan.Root, ignoredChild)
-					}
-					if frame != 0 && frame < project.Frame {
-						properties.RowDependent = true
-					}
-				})
-			})
-		}
-		left, right := plan.QueryInputs(node)
-		walk(left, ignoredProject)
-		walk(right, ignoredProject)
-	}
-	var ignoredProject *plan.ProjectNode
-	if presence {
-		ignoredProject = project
-	}
-	walk(project, ignoredProject)
-	return properties
-}
-
 // Runtime reads belong to an occurrence's physical input span in its lexical
 // frame, not to a relation OID. Analysis-only CTE edges remain frozen metadata.
 func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode) map[int][]int32 {
@@ -203,7 +130,7 @@ func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode)
 			rightOffset += join.LeftWidth
 		}
 		walk(right, frame, rightOffset, ignored, collect)
-		if node == ignored || queryIgnoresOwnExpressions(node) {
+		if node == ignored || analyze.QueryIgnoresOwnExpressions(node) {
 			return
 		}
 		visit := func(expression expr.Expr) {

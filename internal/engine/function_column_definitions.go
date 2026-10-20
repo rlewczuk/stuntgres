@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, 
 		return call, nil
 	}
 	if !anonymous {
-		return nil, expr.ErrorAt("42601", functionColumnDefinitionMessage(call), definitions[0].Name.Pos)
+		return nil, expr.ErrorAt("42601", analyze.FunctionColumnDefinitionMessage(call), definitions[0].Name.Pos)
 	}
 	if isJSONB {
 		usage, err := b.bindJSONBRecordDefinition(definitions)

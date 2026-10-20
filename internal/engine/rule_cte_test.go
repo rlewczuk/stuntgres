@@ -317,6 +317,6 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 
 // cteMutationOf recovers a definition's binding for test assertions.
 func cteMutationOf(definition *plan.CTEDefinition) *binding {
-	mutation, _ := mutationBinding(definition)
+	mutation, _ := analyze.MutationBinding(definition)
 	return mutation
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -82,7 +83,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	defer scope.activateMutation(main)
 	count, primaryTag := 0, ""
 	for _, definition := range b.CTEs {
-		mutation, ok := mutationBinding(definition)
+		mutation, ok := analyze.MutationBinding(definition)
 		if !ok {
 			continue
 		}
@@ -98,7 +99,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	// Complete every mandatory command's real static preflight/ACL/RLS before
 	// effects. No auxiliary parameter frame, rebind, or publication is involved.
 	for _, definition := range b.CTEs {
-		mutation, ok := mutationBinding(definition)
+		mutation, ok := analyze.MutationBinding(definition)
 		if !ok {
 			continue
 		}
@@ -296,7 +297,7 @@ func completeCTEMutation(o *exec.CTEInvocation, definition *plan.CTEDefinition, 
 		return fmt.Errorf("stuntgres: CTE modifier completed more than once")
 	}
 	producer := &exec.CTEProducer{Done: true, Closed: true, Affected: result.Count}
-	if mutation, _ := mutationBinding(definition); mutation.Returning != nil {
+	if mutation, _ := analyze.MutationBinding(definition); mutation.Returning != nil {
 		rows, ok := result.Rows.(*exec.FinalRows)
 		if !ok {
 			if result.Rows != nil {

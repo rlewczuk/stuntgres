@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -73,7 +74,7 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 	otherUsage := seriesUnit(t, seriesUnitType(t, sqltype.Int8), 1, 3)
 	otherFamily := plan.SubscriptsExpr{Info: first.Info, Args: first.Args}
 	for _, other := range []expr.Expr{otherArity, otherUsage, otherFamily} {
-		if sameQuerySetOccurrence(first, other) || sameQuerySetOccurrence(other, first) {
+		if analyze.SameQuerySetOccurrence(first, other) || analyze.SameQuerySetOccurrence(other, first) {
 			t.Fatal("distinct occurrence collapsed", other)
 		}
 	}
@@ -82,20 +83,20 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sameQuerySetOccurrence(members, members) {
+	if analyze.SameQuerySetOccurrence(members, members) {
 		t.Fatal("legacy identityMembers nonreflexive occurrence changed")
 	}
 	// RegexpSet deliberately compares only family after the set/position guard.
 	left := functions.RegexpSet{RegexpCall: functions.RegexpCall{Info: first.Info}}
 	right := functions.RegexpSet{RegexpCall: functions.RegexpCall{Info: first.Info, Args: []expr.Expr{first.Args[0]}}}
-	if !sameQuerySetOccurrence(left, right) {
+	if !analyze.SameQuerySetOccurrence(left, right) {
 		t.Fatal("legacy RegexpSet occurrence narrowed")
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	record := jsonRecordUnitCall(t, b, "json_to_recordset", true)
 	defined := record
 	defined.Defined = !record.Defined
-	if sameQuerySetOccurrence(record, defined) {
+	if analyze.SameQuerySetOccurrence(record, defined) {
 		t.Fatal("record definition shape collapsed")
 	}
 	shape, err := sqltype.RecordShape([]sqltype.CompositeMember{{Attribute: 1, Name: "different", Usage: d.Usage()}})
@@ -104,29 +105,29 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 	}
 	differentUsage := record
 	differentUsage.Usage = shape.Usage()
-	if sameQuerySetOccurrence(record, differentUsage) || sameQuerySetOccurrence(differentUsage, record) {
+	if analyze.SameQuerySetOccurrence(record, differentUsage) || analyze.SameQuerySetOccurrence(differentUsage, record) {
 		t.Fatal("record usages collapsed")
 	}
 	engine, _ := intaggUnitInstalled(t)
 	installed := intaggUnitEnum(t, engine, "{1,2}")
 	changed := installed
 	changed.Ref.Epoch++
-	if sameQuerySetOccurrence(installed, changed) {
+	if analyze.SameQuerySetOccurrence(installed, changed) {
 		t.Fatal("installed owner epoch collapsed")
 	}
 	copyProcedure := *installed.Procedure
 	changed = installed
 	changed.Procedure = &copyProcedure
-	if !sameQuerySetOccurrence(installed, changed) {
+	if !analyze.SameQuerySetOccurrence(installed, changed) {
 		t.Fatal("equivalent installed descriptor identity changed")
 	}
 	copyProcedure.ObjectRevision++
-	if sameQuerySetOccurrence(installed, changed) {
+	if analyze.SameQuerySetOccurrence(installed, changed) {
 		t.Fatal("installed procedure revision collapsed")
 	}
 	changed = installed
 	changed.Procedure = nil
-	if sameQuerySetOccurrence(installed, changed) {
+	if analyze.SameQuerySetOccurrence(installed, changed) {
 		t.Fatal("installed and builtin unnest collapsed")
 	}
 }

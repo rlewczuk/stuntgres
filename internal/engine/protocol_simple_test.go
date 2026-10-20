@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -169,7 +170,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				e, query, source := queryCoreFixture(t, tc.sql)
 				defer source.Close()
-				plan, err := presenceQueryPlan(query)
+				plan, err := analyze.PresenceQueryPlan(query)
 				if err != nil {
 					t.Fatal(err)
 				}

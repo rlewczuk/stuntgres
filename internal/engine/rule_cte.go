@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -44,7 +45,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 	}
 	needed := b.Rule.Template || matched(bindingRuleRelation(*b), statement)
 	for _, definition := range b.CTEs {
-		if mutation, ok := mutationBinding(definition); ok && matched(bindingRuleRelation(*mutation), definition.Statement) {
+		if mutation, ok := analyze.MutationBinding(definition); ok && matched(bindingRuleRelation(*mutation), definition.Statement) {
 			needed = true
 			break
 		}
@@ -53,7 +54,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 		return nil
 	}
 	for _, definition := range b.CTEs {
-		mutation, ok := mutationBinding(definition)
+		mutation, ok := analyze.MutationBinding(definition)
 		if !ok || ruleCTEsOf(b.Rule.CTEs)[definition] != nil {
 			continue
 		}
@@ -105,7 +106,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		if rewrite == nil {
 			continue
 		}
-		mutation, _ := mutationBinding(definition)
+		mutation, _ := analyze.MutationBinding(definition)
 		if err := rewrite.caller.checkBinding(*mutation, definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
@@ -133,7 +134,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			e.mu.Unlock()
 			return nil, err
 		}
-		mutation, _ := mutationBinding(rewrite.definition)
+		mutation, _ := analyze.MutationBinding(rewrite.definition)
 		if err := checkRowSecurityBinding(scope, caller, *mutation); err != nil {
 			e.mu.Unlock()
 			return nil, err
@@ -142,7 +143,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 	for _, rewrite := range ruleCTEsOf(b.Rule.CTEs) {
 		caller := fresh
 		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
-		mutation, _ := mutationBinding(rewrite.definition)
+		mutation, _ := analyze.MutationBinding(rewrite.definition)
 		if err := caller.checkBinding(*mutation, rewrite.definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err

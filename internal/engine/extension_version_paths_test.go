@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -55,7 +56,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage, ok := root.(*plan.SetProjectNode)
-	if !ok || len(stage.Calls) != 1 || !sameQuerySetOccurrence(call, stage.Calls[0]) {
+	if !ok || len(stage.Calls) != 1 || !analyze.SameQuerySetOccurrence(call, stage.Calls[0]) {
 		t.Fatal("record set lowering lost occurrence")
 	}
 	if err := exec.ValidateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -29,7 +30,7 @@ func TestPGSequencesCTEStoredGraph(t *testing.T) {
 	for _, name := range []string{"plain", "v", "nested", "shared"} {
 		t.Run(name, func(t *testing.T) {
 			root := &plan.SourceNode{Ref: catalogRef(t, e, catalog, name)}
-			if cteVolatile(root) {
+			if analyze.CTEVolatile(root) {
 				t.Fatal("stored source identity alone was classified as volatile")
 			}
 			volatile, err := cteStoredViewVolatile(catalog, root)

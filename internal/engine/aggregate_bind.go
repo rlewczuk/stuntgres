@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -371,7 +372,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		old := b.grouping.groupSubquery
 		b.grouping.groupSubquery = true
 		root, failure := plan.RewriteQueryExpressions(e.QueryPlan.Root, func(child expr.Expr) (expr.Expr, bool, error) {
-			if !expressionUsesFrame(child, b.frameID()) {
+			if !analyze.ExpressionUsesFrame(child, b.frameID()) {
 				return child, false, nil
 			}
 			next, err := b.rewriteGroup(child, keys)

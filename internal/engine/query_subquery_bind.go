@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -83,15 +84,15 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 			return nil, expr.ErrorAt("0A000", "cannot compare rows of zero length", raw.Pos)
 		}
 	}
-	presenceOnly := raw.Kind == parser.SubqueryExists && canSimplifyExists(query)
+	presenceOnly := raw.Kind == parser.SubqueryExists && analyze.CanSimplifyExists(query)
 	if presenceOnly {
-		query, err = presenceQueryPlan(query)
+		query, err = analyze.PresenceQueryPlan(query)
 		if err != nil {
 			return nil, err
 		}
 		project = query.Root.(*plan.ProjectNode)
 	}
-	properties := queryDemandProperties(project, presenceOnly)
+	properties := analyze.QueryDemandProperties(project, presenceOnly)
 	properties.StageDependent = true
 	e := plan.SubqueryExpr{Info: b.info(usage, raw.Pos, properties), Kind: raw.Kind, QueryPlan: query, Negate: raw.Negate, PresenceOnly: presenceOnly}
 	e.LeftExpansions = leftExpansions
@@ -151,199 +152,4 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 		e.Membership = families
 	}
 	return e, nil
-}
-
-// Full analysis precedes this demand decision. A represented OFFSET, actual local
-// aggregate, HAVING or rowmark retains ordinary tuple projection.
-// Only a proven positive/NULL literal LIMIT is removable; parameters are not
-// evaluated during binding. Retain all other plans conservatively.
-func canSimplifyExists(query *plan.Query) bool {
-	project := query.Root.(*plan.ProjectNode)
-	s := project.Syntax
-	if s != nil && (s.Having != nil || s.Locking != nil || s.Bounds != nil && s.Bounds.Offset != nil) {
-		return false
-	}
-	for node := project.Child; node != nil; {
-		switch n := node.(type) {
-		case *plan.SetProjectNode:
-			return false // Target sets, including terminal attempts, own cardinality.
-		case *plan.SetNode, *plan.RecursiveUnionNode:
-			return false // Set keys determine presence, not just projected payload.
-		case *plan.SourceNode, *plan.SingletonNode, *plan.ValuesNode, *plan.DerivedNode, *plan.WorktableScanNode, *plan.JoinNode, *plan.FunctionFromNode:
-			return true // FROM inputs retain their own demand and clause fences.
-		case *plan.WindowNode:
-			return false // Keep real window-key demand and eager failure frontiers.
-		case *plan.AggregateNode:
-			if !n.DiscardableGrouping() {
-				return false
-			}
-		case *plan.RowLockNode:
-			return false
-		case *plan.LimitNode:
-			if n.Offset != nil {
-				return false
-			}
-			if n.Count != nil {
-				expr := n.Count
-				for {
-					c, ok := expr.(plan.CoercionExpr)
-					if !ok {
-						break
-					}
-					expr = c.Child
-				}
-				literal, ok := expr.(plan.LiteralExpr)
-				if !ok {
-					return false
-				}
-				if !literal.Value.IsNull() {
-					count, err := literal.Value.Integer()
-					if err != nil || count <= 0 {
-						return false
-					}
-				}
-			}
-		}
-		left, right := plan.QueryInputs(node)
-		if right != nil {
-			break
-		} // FROM inputs are not the root's clause fences.
-		node = left
-	}
-	return true
-}
-
-// Presence demands keep the fully analyzed graphs while dropping root target,
-// plain grouping, DISTINCT and ORDER demand for eligible EXISTS only.
-func presenceQueryPlan(query *plan.Query) (*plan.Query, error) {
-	project := query.Root.(*plan.ProjectNode)
-	expressions := project.Expressions
-	for i, bound := range project.Expressions {
-		cached, ok := bound.(plan.CachedOrderExpr)
-		if !ok {
-			continue
-		}
-		original := scheduledQueryTarget(project.Child, cached.Slot)
-		if original == nil {
-			return nil, fmt.Errorf("stuntgres: missing analyzed presence target")
-		}
-		if &expressions[0] == &project.Expressions[0] {
-			expressions = append([]expr.Expr(nil), expressions...)
-		}
-		expressions[i] = original
-	}
-	child := presenceQueryInput(project.Child)
-	if child == project.Child && (len(expressions) == 0 || &expressions[0] == &project.Expressions[0]) {
-		return query, nil
-	}
-	copy := *project
-	copy.Child, copy.Expressions = child, expressions
-	plan := *query
-	plan.Root = &copy
-	return &plan, nil
-}
-
-func scheduledQueryTarget(node plan.Node, slot int) expr.Expr {
-	for node != nil {
-		switch n := node.(type) {
-		case *plan.EvaluationNode:
-			if slot >= n.Base && slot-n.Base < len(n.Expressions) {
-				return n.Expressions[slot-n.Base]
-			}
-		case *plan.SortNode:
-			base := n.CacheWidth - len(n.Outputs)
-			if slot >= base && slot-base < len(n.Outputs) {
-				return n.Outputs[slot-base]
-			}
-			for _, key := range n.Keys {
-				if key.Cache == slot {
-					return key.Expression
-				}
-			}
-		}
-		switch n := node.(type) {
-		case *plan.EvaluationNode:
-			node = n.Child
-		case *plan.SortNode:
-			node = n.Child
-		case *plan.FilterNode:
-			node = n.Child
-		case *plan.AggregateNode:
-			node = n.Child
-		case *plan.WindowNode:
-			node = n.Child
-		case *plan.SetProjectNode:
-			node = n.Child
-		case *plan.DistinctNode:
-			node = n.Child
-		case *plan.DistinctOnNode:
-			node = n.Child
-		case *plan.RowLockNode:
-			node = n.Child
-		case *plan.LimitNode:
-			node = n.Child
-		default:
-			return nil
-		}
-	}
-	return nil
-}
-
-func presenceQueryInput(node plan.Node) plan.Node {
-	switch n := node.(type) {
-	case *plan.EvaluationNode:
-		return presenceQueryInput(n.Child)
-	case *plan.SortNode:
-		copy := *n
-		copy.Child = presenceQueryInput(n.Child)
-		copy.PresenceOnly = true
-		return &copy
-	case *plan.DistinctNode:
-		copy := *n
-		copy.Child = presenceQueryInput(n.Child)
-		copy.PresenceOnly = true
-		return &copy
-	case *plan.DistinctOnNode:
-		copy := *n
-		copy.Child = presenceQueryInput(n.Child)
-		copy.PresenceOnly = true
-		return &copy
-	case *plan.FilterNode:
-		child := presenceQueryInput(n.Child)
-		if child == n.Child {
-			return node
-		}
-		copy := *n
-		copy.Child = child
-		return &copy
-	case *plan.AggregateNode:
-		if n.DiscardableGrouping() {
-			copy := *n
-			copy.Child = presenceQueryInput(n.Child)
-			copy.PresenceOnly = true
-			return &copy
-		}
-		child := presenceQueryInput(n.Child)
-		if child == n.Child {
-			return node
-		}
-		copy := *n
-		copy.Child = child
-		return &copy
-	case *plan.RowLockNode:
-		child := presenceQueryInput(n.Child)
-		if child == n.Child {
-			return node
-		}
-		copy := *n
-		copy.Child = child
-		return &copy
-	case *plan.LimitNode:
-		copy := *n
-		copy.Child = presenceQueryInput(n.Child)
-		copy.PresenceOnly = true
-		return &copy
-	default:
-		return node
-	}
 }

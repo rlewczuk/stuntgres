@@ -277,18 +277,18 @@ func TestQueryCTEWholeDefinitionVolatility(t *testing.T) {
 	}}
 	body := &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{volatile}, Frame: 2}
 	wrapper := &plan.ProjectNode{Child: &plan.SingletonNode{}, Frame: 1, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: &plan.Query{Root: body}, CTEEdge: true}}}
-	if !cteVolatile(wrapper) {
+	if !analyze.CTEVolatile(wrapper) {
 		t.Fatal("static eligibility omitted unused nested definition")
 	}
-	if queryDemandProperties(wrapper, false).Volatility == expr.Volatile {
+	if analyze.QueryDemandProperties(wrapper, false).Volatility == expr.Volatile {
 		t.Fatal("unused definition became executable demand")
 	}
 	wrapper.Expressions = []expr.Expr{plan.SubqueryExpr{QueryPlan: &plan.Query{Root: body}}}
-	if !cteVolatile(wrapper) {
+	if !analyze.CTEVolatile(wrapper) {
 		t.Fatal("nested projected volatility omitted")
 	}
 	wrapper.Expressions = []expr.Expr{volatile}
-	if !cteVolatile(wrapper) {
+	if !analyze.CTEVolatile(wrapper) {
 		t.Fatal("unused projected volatility omitted")
 	}
 	for _, hint := range []parser.CTEMaterialization{parser.CTEDefault, parser.CTEMaterialized, parser.CTENotMaterialized} {
@@ -308,11 +308,11 @@ func TestQueryCTEWholeDefinitionVolatility(t *testing.T) {
 
 func TestQueryCTEOnlyActiveMarksFenceFolding(t *testing.T) {
 	root := &plan.ProjectNode{Child: &plan.RowLockNode{Child: &plan.SingletonNode{}, Marks: []plan.RowMark{{}}}}
-	if cteVolatile(root) {
+	if analyze.CTEVolatile(root) {
 		t.Fatal("ignored virtual row mark fenced folding")
 	}
 	root.Child.(*plan.RowLockNode).Marks[0].Mode = analyze.RowLockMode("FOR UPDATE")
-	if !cteVolatile(root) {
+	if !analyze.CTEVolatile(root) {
 		t.Fatal("active physical row mark omitted")
 	}
 }

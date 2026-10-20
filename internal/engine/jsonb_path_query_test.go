@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -189,7 +190,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	// Source argument replacement reconstructs typed usages and retains syntax,
 	// so the same typed provider is used by target and source opening.
 	rebuilt, err := expr.Substitute(expr.Expr(call).(expr.Composite), expr.InfoOf(call), expr.Expr(call).(expr.Composite).Children())
-	if err != nil || !sameQuerySetOccurrence(call, rebuilt) {
+	if err != nil || !analyze.SameQuerySetOccurrence(call, rebuilt) {
 		t.Fatal("source reconstruction", rebuilt, err)
 	}
 	if _, ok := rebuilt.(functions.JSONBPathQuery); !ok {

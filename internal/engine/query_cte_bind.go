@@ -5,7 +5,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
@@ -64,7 +63,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 				return nil, err
 			}
 			definition.Query = query
-			definition.Volatile = cteVolatile(query.Root) || viewVolatile
+			definition.Volatile = analyze.CTEVolatile(query.Root) || viewVolatile
 		} else {
 			mutation, err := b.bindCTEMutation(raw.Query)
 			if err != nil {
@@ -92,7 +91,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 				definition.Query.Root = &project
 			} else {
 				definition.Schema = aliased
-				mutation, _ := mutationBinding(definition)
+				mutation, _ := analyze.MutationBinding(definition)
 				mutation.Returning.Schema = aliased
 			}
 		}
@@ -109,7 +108,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 
 func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cteBinding) (plan.Node, queryNamespace, error) {
 	d := binding.definition
-	if mutation, ok := mutationBinding(d); ok && mutation.Returning == nil {
+	if mutation, ok := analyze.MutationBinding(d); ok && mutation.Returning == nil {
 		return nil, queryNamespace{}, expr.ErrorAt("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
 	}
 	d.References++
@@ -137,25 +136,6 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 	qualifier := queryQualifier{Name: name, Original: name, Columns: columns}
 	b.query.hidden = append(b.query.hidden, qualifier)
 	return root, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: schema}, nil
-}
-
-func cteVolatile(root plan.Node) bool {
-	volatile := false
-	plan.VisitCTEQuery(root, func(n plan.Node) {
-		if source, ok := n.(*plan.SourceNode); ok && source.Ref.Address.ClassID == ids.RelationClassID && source.Ref.Address.ObjectID == 12048 {
-			volatile = true
-		}
-		for _, mark := range analyze.RootRowMarks(n) {
-			if mark.Mode != 0 {
-				volatile = true
-			}
-		}
-	}, func(bound expr.Expr) {
-		if bound.Properties().Volatility == expr.Volatile {
-			volatile = true
-		}
-	}, true)
-	return volatile
 }
 
 func activateCTESources(root plan.Node, leaves []exec.Leaf) {

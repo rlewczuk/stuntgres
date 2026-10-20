@@ -275,7 +275,7 @@ func viewHasFunctionSource(item parser.FromItem) bool {
 	switch n := item.(type) {
 	case *parser.FunctionTable:
 		for _, call := range n.Calls {
-			if selectedFunctionSourceName(call.Name.Parts[len(call.Name.Parts)-1].Text) {
+			if analyze.SelectedFunctionSourceName(call.Name.Parts[len(call.Name.Parts)-1].Text) {
 				return true
 			}
 		}

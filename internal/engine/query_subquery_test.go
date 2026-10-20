@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -34,7 +35,7 @@ func subqueryTestExpression(t *testing.T, e *Engine, q *plan.Query, kind parser.
 	if kind == parser.SubqueryScalar {
 		usage = q.Root.Schema()[0].Usage
 	}
-	return plan.SubqueryExpr{Info: expr.Info{Usage: usage}, Kind: kind, QueryPlan: q, PresenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
+	return plan.SubqueryExpr{Info: expr.Info{Usage: usage}, Kind: kind, QueryPlan: q, PresenceOnly: kind == parser.SubqueryExists && analyze.CanSimplifyExists(q)}
 }
 
 // Replace an actual scheduler-owned target rather than mocking a query result.
@@ -102,13 +103,13 @@ func TestQuerySubqueryDemand(t *testing.T) {
 			if !ordered {
 				subqueryTestTarget(t, project, probe)
 			}
-			if canSimplifyExists(q) != tc.ignored {
+			if analyze.CanSimplifyExists(q) != tc.ignored {
 				t.Fatal("wrong demand eligibility")
 			}
 			plan := q
 			if tc.ignored {
 				var err error
-				plan, err = presenceQueryPlan(q)
+				plan, err = analyze.PresenceQueryPlan(q)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -134,7 +135,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 	}
 	t.Run("rowmark eligibility", func(t *testing.T) {
 		_, q, _ := queryJoinsFixture(t, "SELECT abs(k) FROM a FOR UPDATE")
-		if canSimplifyExists(q) {
+		if analyze.CanSimplifyExists(q) {
 			t.Fatal("rowmark target demand stripped")
 		}
 	})
@@ -154,7 +155,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 		if !found {
 			t.Fatal("missing derived frame")
 		}
-		presence, err := presenceQueryPlan(q)
+		presence, err := analyze.PresenceQueryPlan(q)
 		if err != nil {
 			t.Fatal(err)
 		}

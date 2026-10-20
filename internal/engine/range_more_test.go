@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -99,7 +100,7 @@ func TestRangeMoreExpressionHooks(t *testing.T) {
 	if n.ResultUsage().Type == e.ResultUsage().Type || n.Args[0].ResultUsage().Type == e.Args[0].ResultUsage().Type || n.Properties() != e.Properties() || n.SourcePosition() != e.SourcePosition() {
 		t.Fatal("retag lost authority or properties")
 	}
-	if sameQuerySetOccurrence(e, n) || !sameQuerySetOccurrence(e, e) {
+	if analyze.SameQuerySetOccurrence(e, n) || !analyze.SameQuerySetOccurrence(e, e) {
 		t.Fatal("occurrence identity")
 	}
 	rewritten, changed, err := expr.MapSubstituted(e, func(expr.Expr) (expr.Expr, bool, error) { return n.Args[0], true, nil })

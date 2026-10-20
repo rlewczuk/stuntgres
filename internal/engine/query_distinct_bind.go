@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -13,16 +14,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func privateTreeGrouping(d *sqltype.Descriptor) bool {
-	d = d.BaseType()
-	for d.IsArray() {
-		d = d.Element().BaseType()
-	}
-	return d.ID() == sqltype.PgNodeTree
-}
-
 func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (ids.ObjectRef, bool, error) {
-	if privateTreeGrouping(usage.Type) {
+	if analyze.PrivateTreeGrouping(usage.Type) {
 		return ids.ObjectRef{}, true, nil
 	}
 	base := usage.Type.BaseType()
@@ -63,7 +56,7 @@ func (b *expressionBinder) bindDistinctGrouping(expression expr.Expr) (plan.Grou
 	}
 	group := plan.Grouping{Grouping: family}
 	usage := expression.ResultUsage()
-	if !privateTreeGrouping(usage.Type) {
+	if !analyze.PrivateTreeGrouping(usage.Type) {
 		signature, err := sqltype.ResolveEquality(usage.Type.BaseType(), usage.Type.BaseType())
 		if err != nil {
 			return plan.Grouping{}, err

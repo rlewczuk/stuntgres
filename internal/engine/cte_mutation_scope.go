@@ -147,7 +147,7 @@ func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *binding, e
 	main := scope.activeMutation
 	defer scope.activateMutation(main)
 	for _, definition := range b.CTEs {
-		mutation, ok := mutationBinding(definition)
+		mutation, ok := analyze.MutationBinding(definition)
 		if !ok || mutation.ViewWrite == nil {
 			continue
 		}

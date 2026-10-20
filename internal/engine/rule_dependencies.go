@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -149,7 +150,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 			add([]ids.ObjectAddress{dependency.Ref.Address})
 		}
 		for _, definition := range b.CTEs {
-			mutation, ok := mutationBinding(definition)
+			mutation, ok := analyze.MutationBinding(definition)
 			if !ok || seen[definition] {
 				continue
 			}

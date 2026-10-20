@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -822,7 +823,7 @@ func TestStringSplitPreflight(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				node := &plan.SetProjectNode{ScalarUpper: tc.upper, ScalarBindings: []plan.SetSlot{{Original: lowered, Column: reserved, Scheduled: tc.scheduled}}}
-				expression, changed := queryScalarOwner(node, reserved)
+				expression, changed := analyze.QueryScalarOwner(node, reserved)
 				if !changed {
 					t.Fatal("owner mapping did not resolve reserved reference")
 				}
@@ -971,7 +972,7 @@ func TestStringSplitPreflight(t *testing.T) {
 		if peer {
 			requests = []expr.Expr{projection[1]}
 		}
-		requests, templates := querySetPeerClosure(requests, [][]expr.Expr{projection})
+		requests, templates := analyze.QuerySetPeerClosure(requests, [][]expr.Expr{projection})
 		lowered, err := b.lowerQuerySets(&plan.SingletonNode{}, requests, [][]expr.Expr{projection}, false, templates)
 		if err != nil {
 			t.Fatal(err)

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -30,7 +31,7 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b bi
 		}
 	}
 	for _, definition := range b.CTEs {
-		if mutation, ok := mutationBinding(definition); ok {
+		if mutation, ok := analyze.MutationBinding(definition); ok {
 			caller := auth
 			if rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
 				caller = rewrite.caller

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -234,7 +235,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 		t.Fatal("visitor identity", walked)
 	}
 	other := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 3, Length: 3}}, 1, false)
-	if SameGroupExpression(original, other) || sameQuerySetOccurrence(original, seriesUnit(t, original.ResultUsage().Type, 1, 3)) {
+	if SameGroupExpression(original, other) || analyze.SameQuerySetOccurrence(original, seriesUnit(t, original.ResultUsage().Type, 1, 3)) {
 		t.Fatal("marker/argument kinds conflated")
 	}
 	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)

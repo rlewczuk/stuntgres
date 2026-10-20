@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -190,7 +191,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 			t.Fatal(err)
 		}
 		live := lowered.(*plan.SetProjectNode)
-		if len(live.Calls) != 1 || live.CallSlots[0] != 1 || !sameQuerySetOccurrence(live.Calls[0], peer) {
+		if len(live.Calls) != 1 || live.CallSlots[0] != 1 || !analyze.SameQuerySetOccurrence(live.Calls[0], peer) {
 			t.Fatal("strict erasure lost live peer or retained erased marker", live.Calls, live.CallSlots)
 		}
 	})

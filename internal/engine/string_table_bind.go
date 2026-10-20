@@ -14,18 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Selected rendering and binding share a lane; typed admission remains owned
-// by the node's SourceAdmission after ordinary function resolution.
-func selectedFunctionSourceName(name string) bool {
-	return name == "jsonb_path_query" || parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
-		parser.CatalogRelationFunctionName(name) ||
-		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) || parser.TransactionIdentityFunctionName(name) ||
-		name == "age" || name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
-}
-
-// A selected scalar OUT name controls the column label, not the range alias.
-func sourceOutName(e expr.Expr) string { return expr.SourceOutName(e) }
-
 // FROM placement follows successful call completion, not lexical offsets.
 // enterQuery isolates this observation from expression-owned child queries.
 type fromSetObservation struct {
@@ -125,7 +113,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 			return nil, queryNamespace{}, err
 		}
 		if len(call.ColumnDefinitions) != 0 {
-			return nil, queryNamespace{}, expr.ErrorAt("42601", functionColumnDefinitionMessage(bound), call.ColumnDefinitions[0].Name.Pos)
+			return nil, queryNamespace{}, expr.ErrorAt("42601", analyze.FunctionColumnDefinitionMessage(bound), call.ColumnDefinitions[0].Name.Pos)
 		}
 		stringCall, stringOwner := bound.(functions.String)
 		if !stringOwner || stringCall.Plan.Name() != "string_to_table" {
@@ -172,7 +160,7 @@ func (b *expressionBinder) mapQuerySetStage(bound expr.Expr, leaf func(expr.Expr
 
 func functionFrameReference(bound expr.Expr, frame uint32) bool {
 	found := false
-	walkQueryArgumentExpression(bound, func(node expr.Expr) {
+	analyze.WalkQueryArgumentExpression(bound, func(node expr.Expr) {
 		if column, ok := node.(plan.ColumnExpr); ok && column.Frame == frame {
 			found = true
 		}
@@ -206,7 +194,7 @@ func (b *expressionBinder) functionCaptures(calls []expr.Expr) []plan.FunctionCo
 	var captures []plan.FunctionCorrelation
 	for _, call := range calls {
 		for _, arg := range call.(expr.Composite).Children() {
-			walkQueryArgumentExpression(arg, func(expr expr.Expr) {
+			analyze.WalkQueryArgumentExpression(arg, func(expr expr.Expr) {
 				column, ok := expr.(plan.ColumnExpr)
 				if !ok || column.Frame != b.frameID() {
 					return

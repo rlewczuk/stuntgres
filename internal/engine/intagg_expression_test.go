@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -122,7 +123,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	}
 	builtin := n
 	builtin.Procedure, builtin.Ref = nil, ids.ObjectRef{}
-	if SameGroupExpression(n, builtin) || sameQuerySetOccurrence(n, builtin) {
+	if SameGroupExpression(n, builtin) || analyze.SameQuerySetOccurrence(n, builtin) {
 		t.Fatal("enum/builtin identity collapsed")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), n)

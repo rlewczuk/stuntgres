@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -260,7 +261,7 @@ func admitQueryGroupings(c *exec.Context, groups []plan.Grouping, keys []expr.Ex
 		return fmt.Errorf("stuntgres: missing query grouping identity")
 	}
 	for i, group := range groups {
-		private := privateTreeGrouping(keys[i].ResultUsage().Type)
+		private := analyze.PrivateTreeGrouping(keys[i].ResultUsage().Type)
 		if private != group.PrivateTree {
 			return fmt.Errorf("stuntgres: changed query grouping capability")
 		}
