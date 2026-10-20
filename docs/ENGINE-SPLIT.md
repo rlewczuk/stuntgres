@@ -1167,11 +1167,14 @@ file: [ENGINE-SPLIT-extension.md](ENGINE-SPLIT-extension.md).
 
 ### Step 17 — `engine/sequence`: sequence objects
 
-**Part A (17a, 17b).** Sequence option binding and limits
-(`sequence_options.go`, all clean), the physical-session memory records,
-sequence dump formatting, identity and serial naming helpers. 17a renamed
-the files whose names misled (now `temporary_session.go`,
+**Part A (17a, 17b).** Sequence option binding and limits, the
+physical-session memory, the prepared-literal records, sequence dump
+formatting and the sequence and identity diagnostics, now in
+[`internal/engine/sequence`](../internal/engine/sequence/README.md) (17b). 17a
+renamed the files whose names misled (now `temporary_session.go`,
 `temporary_preservation.go`, `owned_roles*.go` and `owner_handles.go`).
+Generic relation diagnostics (`tableKind`), the relation-name chooser and
+regclass input stayed in the engine: they are not sequence code.
 
 **Part B (17c, 17d)** after step 13: CREATE/ALTER/DROP SEQUENCE, identity
 columns, serial columns and sequence comments.
@@ -1274,7 +1277,7 @@ package-specific scope. This section holds the rules every session follows.
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | planned (16a–16d) |
-| 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place (racecheck skipped at user request); 17b–17d planned |
+| 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c–17d planned |
 
 Tracks may run in parallel only on separate branches. Do not run two broad
 mechanical rewrites at the same time (F1, F2, 5b, 5d, any alias removal, and

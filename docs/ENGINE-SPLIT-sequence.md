@@ -154,11 +154,12 @@ The checks in §8.3 pass.
 - [x] 17a — In place (`6ab03f25b`, `68d49b5a8`, `88c3aac0f`, `d43c3b1fb`,
   `48fe404db`, then the docs commit) *(racecheck/finalcheck skipped at user
   request)*
-- [ ] 17b — `sequence` created and clean set moved
+- [x] 17b — `sequence` created and clean set moved (`b9aacc67c`, `6a7aaae6a`,
+  then the docs commit) *(racecheck/finalcheck skipped at user request)*
 - [ ] 17c — Host refined (docs only; after 13d)
 - [ ] 17d — Handlers moved
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (17b qualified every reference; no type aliases).
 
 ### 17a record
 
@@ -202,16 +203,77 @@ after).
 - **Tests.** Engine tests were adapted mechanically to the helpers and the
   slot; none moved or were deleted.
 
+### 17b record
+
+Re-measured at `75fd0ec29` with the 14b frontier tool; rebased onto
+`5ed1cfe22` (typedef 15b, plan 10b) before integration. Before the move the
+set referenced only `sqlError` and `commentLiteral` in the engine.
+
+- **`b9aacc67c` (prepare in place).** The clean declarations of the mixed
+  files were split into whole files (`sequence_dump.go`,
+  `sequence_diagnostics.go`, `sequence_analysis.go`). Seam test first:
+  `TestSequenceSessionMemoryInspection` (observed failing), then read-only
+  inspection accessors on the session memory (`Len`, `All`, `CachedPathKey`,
+  `CachedTail`, `Generation`). Engine tests now use them and the memory
+  helpers instead of private fields.
+- **`6a7aaae6a` (move).** Five files moved into `internal/engine/sequence`
+  (`options.go`, `memory.go`, `prepared.go`, `dump.go`, `diagnostics.go`,
+  ~730 lines); the 6b `movex` tool qualified the engine references in 38
+  files. Names lose their `sequence` prefix (`bindSequenceOptions` →
+  `BindOptions`, `sessionSequences` → `SessionMemory`, `sequenceMemory` →
+  `Memory`, `sequenceAnalysis` → `Analysis`, `sequenceConstant` → `Constant`,
+  `dumpSequence` → `Dump`, `restoreSequenceState` → `RestoresState`,
+  `sequenceKind` → `CheckKind`, `identitySequenceDropError` →
+  `IdentityDropError`, ...). Record fields are exported; memory state stays
+  private behind its methods. `sqlError` and `commentLiteral` got private
+  copies in `errors.go`. Four engine locals named `sequence` that shadowed the
+  package were renamed (`control.go` ×3, `identity_alter.go`). `sequence`
+  imports `authorization` (`PathKey.Role`) and `expr` (`ErrorAt`) beyond the
+  planned list; both are lower layers.
+- **Inventory corrections (not moved).** `tableKind` and
+  `relationDiagnosticKind` are generic relation diagnostics (17 and 11
+  non-sequence callers); `generatedRelationName` is the relation-name chooser
+  that index naming shares, so `ownedSequenceName` stays with it;
+  `regclassNumeric`, `regclassQualifiedName` and `sequenceInputError` are
+  regclass input, which stays with the regclass presentation owner like
+  `sequence_output.go`; `closedRegclassDefault`/`closedSequenceDefault` name
+  plan IR nodes (after step 10); `sequenceStage` needs
+  `catalogDependencyObservation` and `identityDropCapture` is a drop-flow
+  record (both 17d).
+- **Tests.** Moved: `TestSequenceSessionMemoryInspection` (new) to
+  `sequence/memory_test.go`. Adapted mechanically to the accessors:
+  `discard_test.go`, `sequence_delete_atomic_fixture_test.go` (the memory-map
+  identity check became count plus per-entry identity, since the container
+  is private), `sequence_temp_creation_test.go`,
+  `sequence_temp_move_test.go`, `sequence_prepared_test.go`,
+  `ownership_database_path_test.go`, `ownership_sequence_fence_test.go`,
+  `ownership_manual_utility_fence_test.go`, `alter_tablespace_prefix_test.go`
+  and `truncate_restart_{locks,overlay,publication}_test.go` (helpers
+  `currvalIs`, `currvalValid`, `currvalValue`, `cachedSequencePathIs` in
+  `sequence_test.go`). None deleted.
+- **Verification.** Build, vet (only the existing `composites`/`copylocks`
+  findings), the targeted engine selection in the package README, layering
+  (`go list`), `make deps` and `make quickcheck` passed. The 17a reference
+  selection passed in quick mode. With `REFERENCE=1` every stuntgres subtest
+  passed; the `/postgres` subtests of `TestReferenceAlterNullability(Names|ActionLists)`
+  and `TestReferenceTemporaryTableDiagnostics` and the PG-only
+  `TestReferenceSerialDefaultProvider(PublicationHold|DropFirst)` failed
+  identically on a clean `75fd0ec29` snapshot (oracle drift, unrelated).
+  Startup bench, interleaved 5 runs each on a loaded host (load ~18): median
+  972 µs/op before, 898 µs/op after; 5,024–5,026 allocs/op and about 1.64 MB/op
+  on both. Racecheck and finalcheck skipped at user request.
+
 ### Notes for later steps
 
-- 17b: engine tests still read `sequenceMemory` fields (`remaining`, `value`,
-  `valid`, `analysisStamp`) and set `sessionSequences.memories`/`lastAddress`
-  directly. Moving the types needs exported accessors or moving those
-  assertions.
-- 17b: `sequenceStage` is clean but refers to `catalogDependencyObservation`;
-  move it with the stage slot types only if that record moves too, otherwise
-  leave the slot in the engine until 17d.
+- 17d: `sequenceStage` (`sequence_stage.go`) is clean but refers to
+  `catalogDependencyObservation`; move it with the stage handlers, together
+  with `identityDropCapture`.
+- 17c/17d: the prepared-literal cache logic (`sequence_prepared.go`) can move
+  once `AuthorizationView` and the journal have lower-layer forms; the
+  records are already in `sequence`.
+- Later: `tableKind` still lives in `sequence.go` and
+  `relationDiagnosticKind` in `sequence_dependencies.go`; they belong to the
+  postponed `table` package (or a relation-diagnostics file).
 - `catalogChanges.generators` is core journal state (13b keeps it), not a
   sequence slot.
-- `journalOf` stays in the engine; 17b can move `journalIdentity` with the
-  records.
+- `journalOf` stays in the engine; `sequence.JournalIdentity` moved in 17b.

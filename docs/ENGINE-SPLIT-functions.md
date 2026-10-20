@@ -2079,8 +2079,9 @@ literal capture). Eight catalog-identity consumers keep explicit
 SQL with catalog/epoch/dependency checks), `default_replay.go`, `serial.go`,
 `expression_references.go`, `view_remap.go` (Ref remap), `expression_volatility.go`
 (COPY nextval) and the identity constructor in `insert_binding.go`. Regclass
-input, `sequenceConstant` and the prepared-literal caches stay in
-`sequence_expression.go`/`sequence_prepared.go` for step 17.
+input and the prepared-literal cache logic stay in
+`sequence_expression.go`/`sequence_prepared.go`; the literal records
+(`sequence.Constant`, `sequence.Analysis`) moved in step 17b.
 
 Behavior notes. Preflight now passes the caller's `decisiveDefaults` to
 sequence-call children (the old case hard-coded false); DEFAULT admits only

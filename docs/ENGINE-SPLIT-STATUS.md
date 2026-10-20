@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `5ec7672f07174d29744a497e85ad54a87c1d9e51`. The later-wave plans
+Last verified against `master` at `5ed1cfe22d90e592e8a00fcad3e3270530b6e947`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,7 +15,6 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 17 `sequence`** — 17b (item 31); 17a is done.
 - **Step 10 `plan`** — 10c `plan` created and moved (item 33; broad); 10b
   is done.
 - **In-place untangling** — 13a scope slots (item 22; broad). 12b is done;
@@ -23,7 +22,8 @@ as another broad item (§8).
 - **Step 16 `extension`** — 16a (item 28); step 15 Part A (15a, 15b) is
   done.
 
-Steps 1, 2 and 4–9 and `access` are done.
+Steps 1, 2 and 4–9 and `access` are done. Step 17 Part A (17a, 17b) is
+done; 17c (item 52) waits for 13d (item 44).
 
 ## Task tree
 
@@ -304,7 +304,9 @@ Steps 1, 2 and 4–9 and `access` are done.
   needs Tier C sequence calls; Part B needs 13d)
   - [x] 17a — In place (`6ab03f25b`, `68d49b5a8`, `88c3aac0f`, `d43c3b1fb`,
     `48fe404db`, then the docs commit) *(racecheck skipped at user request)*
-  - [ ] 17b — `sequence` created and clean set moved
+  - [x] 17b — `sequence` created and clean set moved (`b9aacc67c`,
+    `6a7aaae6a`, then the docs commit) *(racecheck/finalcheck skipped at user
+    request)*
   - [ ] 17c — Host refined (docs only)
   - [ ] 17d — Handlers moved
 - [ ] **Postponed packages** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#postponed-packages);
@@ -435,7 +437,9 @@ in the prompt file's Status section.
 30. [x] Sequence 17a — [sequence](ENGINE-SPLIT-sequence.md) 17a · needs 10 ·
     selected dual-mode proof and quickcheck passed; racecheck/finalcheck
     skipped at user request
-31. [ ] Sequence 17b — [sequence](ENGINE-SPLIT-sequence.md) 17b · needs 30
+31. [x] Sequence 17b — [sequence](ENGINE-SPLIT-sequence.md) 17b · needs 30 ·
+    selected dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 
 ### Group E — core moves
 

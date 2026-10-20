@@ -57,7 +57,7 @@ and never the engine.
   and allocated in order; failed work may leave gaps.
 - **Sequence generators.** Generator state is nontransactional and distinct
   from the transactional sequence options in the catalog and from the
-  engine's per-session currval/lastval memories. Never add live catalog
+  per-session currval/lastval memories of [`sequence`](../sequence/README.md). Never add live catalog
   undo or per-CACHE arrays for it.
 
 ## What stays in the engine
@@ -66,8 +66,8 @@ Write staging (`WriteStage`), the overlays
 that consult the transaction catalog journal (`privateStorageLocked`,
 `sequenceGeneratorLocked`, `domainStageIndexRootLocked`), DML candidate
 building, index builds and maintenance orchestration, Restore, Dump and
-replacement, sequence DDL and transactional sequence metadata, and session
-sequence memories. `indexOutputMatches` stays in the engine because it
+replacement, and sequence DDL and transactional sequence metadata. Session
+sequence memories belong to [`sequence`](../sequence/README.md). `indexOutputMatches` stays in the engine because it
 compares index key semantics. The transaction-private deletion overlay and
 `LiveVersion` belong to [`visibility`](../visibility/README.md).
 
