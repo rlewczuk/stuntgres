@@ -109,14 +109,16 @@ standard library, and never the engine or its sibling `functions`. The lower
 - **Builtin routine identities** (`builtin_routine_identities.go`,
   `regproc_lookup.go`). The released REL_18_0 `pg_proc` identities as
   lookup-only `RoutineIdentity` facts: `BuiltinRoutineIdentities` returns a
-  copy, `BuiltinRoutineIdentityByOID` looks one up. They are not
-  descriptors and never grant execution; the engine's regproc lookup builds
-  its name and signature indexes from them.
+  copy, `BuiltinRoutineIdentityByOID`, `BuiltinRoutineIdentitiesNamed` (a
+  copy) and `BuiltinRoutineIdentityBySignature` look them up. They are not
+  descriptors and never grant execution; the engine's regproc lookup and the
+  binder's unavailable-function diagnostic read them.
 - **Diagnostic names** (`diagnostic_names.go`). `QuoteIdentifier` always
   quotes; `DependencyIdentifier` quotes like PostgreSQL 18
   `quote_identifier` (every keyword except unreserved ones, independent of
   the parser's smaller grammar); `TypeDiagnosticNameAt` names a type bare
-  when the search path finds it first and schema-qualified otherwise. The
+  when the search path finds it first and schema-qualified otherwise;
+  `ObjectNameText` (`object_names.go`) joins a parsed name's parts. The
   engine and `access` share them.
 - **Definition reader** (`definition_reader.go`). `DefinitionReader` is the
   sparse read that definition cooking uses to see a statement's unpublished,
@@ -124,6 +126,10 @@ standard library, and never the engine or its sibling `functions`. The lower
   procedure names). It is not a catalog generation, an execution route or a
   permission cache, and a reader is never persisted. The engine implements it
   over a catalog stage, inheritance preparation and prepared drops.
+  `DescriptorAt` reads through a reader or the catalog.
+- **reg\* alias references** (`alias_references.go`): `AliasAddress` and the
+  walkers `WalkAliasReferences(At)` and `WalkAliasDependencies(At)` visit the
+  existing objects a reg* value names, for dependency recording and replay.
 
 ## Invariants
 

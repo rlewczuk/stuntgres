@@ -21,7 +21,9 @@ engine. Step 14 of the split moves it here; see
 - **Routine inventory** (`inventory.go`, `procedures.go`):
   `BuiltinRoutineDeclarations` (REL_18 `pg_proc` identities, not OID-sorted),
   `BuiltinRoutine` (by OID), `LookupBuiltinRoutineDeclaration` (by provider,
-  name and input types) and the seed constructor `BuiltinProcedures`.
+  name and input types) and the seed constructor `BuiltinProcedures`;
+  `IdentityDefaults` (`identity_defaults.go`) counts a builtin identity's
+  defaulted arguments, including lookup-only ones.
 - **Routine bodies** (`body.go`): the builtin SQL-body edges, resolved once
   per process and attached to fresh descriptors by `BuiltinProcedures`; `WalkRoutineBody`, `BodyCastMatches`,
   `PolymorphicBodyArgument` and `EmbeddedCastOID` for body admission and

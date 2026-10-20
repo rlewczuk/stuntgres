@@ -32,7 +32,9 @@ of the split moves it here; see
   whitelist `RestoresState`.
 - **Diagnostics** (`diagnostics.go`): `CheckKind`, `LinkedError`,
   `IdentityInsertError`, `IdentityDropError`, `IdentityDefinition` and
-  `SerialTypeName`.
+  `SerialTypeName`; `ValidateDefaultTemporaryProvider`
+  (`default_provider.go`) rejects a DEFAULT whose TEMP sequence another
+  session provides.
 
 ## Rules
 

@@ -52,6 +52,10 @@ It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
   `FunctionFromConjuncts`, `FunctionFromRestriction`,
   `PartitionFunctionConjuncts` and `JoinExpressionSides`
   (`function_from_filter.go`).
+- **Copy-on-change mappers** (`expression_map.go`): `MapRow`,
+  `MapRowAnalysis` (with composite expansions), `MapRowComparisonExpansions`
+  and `MapScalarArrayChildren`, shared by binding, preflight, retag and view
+  remapping; `NullLiteral` (`literal_null.go`).
 
 ## Node runtime
 

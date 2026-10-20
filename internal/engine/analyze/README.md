@@ -4,8 +4,10 @@ Statement binding. Today it holds the bound form of a statement (`Binding`),
 its per-kind payloads and the capture groups that views, rules, policies and
 prepared statements read, plus the vocabulary the binder and its host speak:
 the binding authority, the held description's inputs, name-lookup kinds and
-selections, and the retargeting of captured identifier inputs. The expression
-binder itself, its field groups and the `analyzeHost` seam still live in the
+selections, and the retargeting of captured identifier inputs. It also
+holds the clean analysis helpers that the binder and engine code share
+(coercion and collation derivation, input error positions, the held
+signature check). The expression binder itself, its field groups and the `analyzeHost` seam still live in the
 engine; they move here in step 12d.6. Since 12d.2 the binder names no engine
 type for its authority, prepared inputs or captured inputs. The package sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
@@ -70,6 +72,20 @@ engine or `session`. See
   generated-column and inheritance conflicts, `TableKindError`,
   `GuardedCatalogRelation`, MERGE reachability). `statement_errors.go` holds
   the package's own `sqlError` and `insertError`.
+- **Held signature** (`signature.go`): `Signature` and `CheckSignature`, the
+  0A000 cached-plan check of a held description's parameters, results and
+  catalog lifetime; `Expected.CheckLifetime` applies it to a replaced
+  catalog owner or epoch during re-analysis. `StatementCatalogType`,
+  `SameStatementUsage`, `SameStatementResultUsage` and `RefreshableTemporal`
+  (which captured temporals a refresh re-inputs) belong to it.
+- **Shared analysis helpers** (`coercion.go`, `errors.go`, `record_types.go`,
+  `overlaps.go`, `operator_signature.go`): coercion properties and Info,
+  collation derivation (`CollatedInfo`), the domain-cast annotation pair
+  (`DomainCoercionInput`, `RestoreDomainCastCollations`), storage
+  destinations, `ComparisonOperator`, literal and reg* input error positions
+  (`InputErrorAt`, `RegtypeInputError`), `RecordTypeMapper`, the OVERLAPS
+  inline cost model and `OperatorSignature`. Engine DDL, retag, remap and
+  preflight code call them too; they read only their arguments.
 
 ## Invariants
 
@@ -99,8 +115,11 @@ engine or `session`. See
 The expression binder (`expressionBinder`, its groups in `binder_groups.go`,
 `newExpressionBinder`, `analyzeHost`/`bindingHost`), `describe` and the
 statement-kind binders; the authority adapters (`analysis_authority.go`:
-`bindingAuthorityView`, `authorityOf`, `authorizationOf`), `expectedOf` and
-`checkExpectedLifetime` (`expected_inputs.go`) and the captured input
+`bindingAuthorityView`, `authorityOf`, `authorizationOf`), `expectedOf`
+(`expected_inputs.go`), `signatureOf`/`checkStatementSignature` (the
+`StatementDescription` wrappers of `CheckSignature`), the retag walker the
+host lends the binder (`MapBoundExpression`), preflight
+(`expression_preflight.go`) and the captured input
 resolvers with their retarget methods (`captured_input_target.go`); rule rewriting (`rule_*.go`) and its CTE commands;
 view-write lowering (`viewWrite`); the ON CONFLICT execution state
 (`insertConflictState`: selected arbiters, unique-key checkpoints, the
@@ -114,14 +133,15 @@ aliases in `analyze_aliases.go`.
 
 ## Testing
 
-`TestInsertConflictCloneOwnsTheClauseHeader` covers `InsertConflict.Clone`.
+`TestInsertConflictCloneOwnsTheClauseHeader` covers `InsertConflict.Clone`
+and `TestExpectedCheckLifetimeFencesCatalogTypes` the held lifetime check.
 The binding types are otherwise built by the engine's binder, so their tests
 stay in the engine. The seams have engine unit tests: slots, binding
 authorities, held inputs, captured input retargeting and the host's rule
-check:
+check and expression mapping:
 
 ```sh
-make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks)$'
+make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks)$'
 ```
 
 ON CONFLICT execution state over the clause: `TestRuleConflictInstantiation`,

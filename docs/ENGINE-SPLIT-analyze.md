@@ -477,6 +477,22 @@ the `query_*_bind.go` files, `query_cte_*.go`, `query_rewrite.go`,
 `cte_mutation_bind.go`, `insert_binding.go`, the `returning.go` binders, the
 statement-kind binders ported in 12c and `describe`.
 
+Area (3b), added by 12d.3: the expression-side binder files that no area
+listed, prepared the same way before 12d.6: `array_assignment.go`,
+`array_expression.go`, `array_operator.go`, `bitwise.go`, `conditional.go`,
+`logical.go`, `expression_predicate.go`, `expression_regexp*.go`,
+`string_expression.go`, `string_insert.go`, `string_window_lower.go`,
+`subscripts_expression.go`, `series_expression.go`, `sequence_expression.go`,
+`size_expression.go`, `sqljson_*.go`, `regoperator_prepared.go`,
+`regproc_prepared.go`, `regts_prepared.go`, `enum_diagnostics.go`,
+`domain_input.go`, `network_format.go`, `jsonb_record_columns.go`,
+`intagg_*.go`, `row_comparison_interpretation.go`, `collation_names.go`,
+`sql_routine_*.go`, `catalog_relations.go`, `extension_paths.go`,
+`installed_routine.go`, `version_information.go`, `routine_presentation.go`
+and the binder halves of `definition_reader.go`, `schema_path.go`,
+`default.go`, `view_literals.go` and `rule_*.go` (re-measure: some may be
+mixed DDL files).
+
 #### 12d.6 — Move the binder (broad)
 
 Re-measure the frontier, move every binder file with the group types and
@@ -642,6 +658,94 @@ tests (Go 1.26 `new(expr)`), so the renames used the go/types tools.
   against 847–1,251 µs/op, 5,014 allocs/op and about 1.64 MB/op on both.
   `make deps`: module paths only. `AGENTS.md`: 100 lines before and after.
   racecheck/finalcheck skipped at user request.
+
+#### 12d.3 result
+
+Built at `372246284` in parallel with 12d.4 and 12d.5, rebased onto
+12d.5 (`3225376b4`). Scope: the 18 files
+listed for area 3; the unlisted expression files became area 3b (above).
+Tools and scripts: `.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-EXPRESSION-CORE/`
+(`c1.sh`–`c5.sh`; new `mvpkg.sh`, which gathers declarations with
+`movedecl`, renames and qualifies them with `movex` and moves the file into
+a lower package; new `impfix`, goimports with the module as local prefix;
+the 11c `frontier`). Every area file is now wholly binder: its remaining
+free functions and types are binder-only.
+
+- **Split** (`429bf3989`): preflight with `foldedExpressionInfo` and
+  `arithmeticSetConstantNull` → `expression_preflight.go`; the statement
+  host's function hooks → `statement_host_function.go`;
+  `Engine.captureElementInput` → `element_input_capture.go`;
+  `newExpressionBinder` → `analysis_host.go`; the regtype analysis cell →
+  `regtype_analysis.go`; `validateCompositeSource` →
+  `view_composite_validation.go`; the comparison renderers →
+  `deparse_renderer.go`.
+- **Mappers to `plan`** (`a750bbf16`): `MapRow`, `MapRowAnalysis`,
+  `MapRowComparisonExpansions`, `MapScalarArrayChildren`.
+- **Shared helpers to `analyze`** (`4f491dace`): `CoercionProperties`,
+  `DomainCoercionInput`, `RestoreDomainCastCollations`,
+  `StorageDestination`, `StorageCoercionInfo`, `CoercionInfo`,
+  `CollatedInfo`, `ComparisonOperator`, `InputErrorAt`,
+  `RegtypeInputError`, `RecordTypeMapper` and the OVERLAPS inline cost model
+  (`OverlapsInlineSafe`, and `OverlapsNodeCost`/`OverlapsTreeCost`, which
+  `TestDatetimeOverlapsNullIfCostBoundary` pins). Deviation:
+  `validateCompositeOccurrence` turned out engine-only (only view
+  validation calls it) and joined `view_composite_validation.go`, so
+  `record_shape.go` keeps `validExpressionUsage`.
+- **Held signature** (`ff9c86427`): `analyze.Signature`, `CheckSignature`,
+  `StatementCatalogType`, `SameStatementUsage`, `SameStatementResultUsage`,
+  `RefreshableTemporal` and `Expected.CheckLifetime`, which replaces the
+  root `checkExpectedLifetime` (this corrects the 12d.2 note that it stays
+  in the root). It added a private `sqlError` to `analyze`; after the
+  rebase onto 12d.5, which added its own in `statement_errors.go`, that one
+  is kept.
+- **Remaining edges** (`2ba59b6ba`): `catalog.ObjectNameText`; the builtin
+  routine name and signature indexes join catalog's OID index
+  (`BuiltinRoutineIdentitiesNamed` returns a copy, as
+  `BuiltinRoutineIdentities` does; it runs only on the regproc bare-name and
+  unavailable-function paths) and `routine.IdentityDefaults`; the reg*
+  alias walkers, `AliasAddress` and `DescriptorAt` → `catalog`;
+  `sequence.ValidateDefaultTemporaryProvider`; `plan.NullLiteral`;
+  `analyze.OperatorSignature` (keyed literals). The whole-row demand walk
+  maps through the new host method `MapBoundExpression` (the engine's retag
+  walker with identity type and query mappers; 45 host methods with
+  12d.5's `RelationHasRules`).
+  `isSystemColumn` was left to 12d.5, which moves it as
+  `catalog.IsSystemColumn`.
+- **Left for later.** `sqlError` (12d.6 switches the binder to the analyze
+  copy); edges into other areas' binder files (`query_*`, `window_bind.go`,
+  `returning.go`, `string_table_bind.go`, `query_expression_walk.go`) and
+  into area 3b files (`bitwise.go`, `conditional.go`, `array_operator.go`,
+  `enum_diagnostics.go`, `sql_routine_syntax.go`,
+  `expression_regexp_set.go`); exporting the binder's own members and its
+  vocabulary types (`expressionPolicy`, `projectionContext`,
+  `expressionContext`, `comparisonOperand`), deferred to 12d.6 at user
+  request so the parallel area sessions do not conflict.
+- **Tests.** New: `TestExpectedCheckLifetimeFencesCatalogTypes`
+  (`analyze/signature_test.go`, the package's first test) and
+  `TestAnalysisHostMapsBoundExpressions` (`analysis_host_map_test.go`); both
+  failed before the seam existed. Adapted mechanically, no assertion
+  changed: `datetime_overlaps_test.go`, `array_comparison_reduction_test.go`
+  and the tests that call the renamed signature and temporal helpers
+  (`date_range_capture_test.go` and `timestamp_range_capture_test.go` by
+  `sed` only, as they are not gofmt-clean on master). No test moved or
+  deleted.
+- **Verification.** `make build`, `go vet` (identical to the base) and the
+  targeted engine selection after every commit; `make quickcheck` passed (48
+  GB memory cap). `REFERENCE=1` for the step 12 selection plus reg* types,
+  composites, enums, arrays (ANY/ALL), LIKE/SIMILAR, row comparison, defaults,
+  generated columns, domains, OVERLAPS, collations, casts, SQL functions,
+  sequences, serial and temporary objects: only known `/postgres` drift failed
+  (`TestReferenceDeleteReturningBoundaries`, the four MERGE repeatable-read
+  tests, `TestReferenceCompositeExpr(Correlated)Returning`,
+  `TestReferenceTemporaryTableDiagnostics` and the PostgreSQL-only
+  `TestReferenceSerialDefaultProvider(PublicationHold|DropFirst)`), as on
+  master; every stuntgres leaf passed. `make bench`, branch and master
+  interleaved: 844–1,155 µs/op against 849–1,668 µs/op, 5,014 allocs/op and
+  about 1.64 MB/op on both (warm-up runs 5,021–5,026; timing is noisy on the
+  shared host). `make deps`: module paths only. No engine subpackage imports
+  `analyze`; `analyze` now also imports `typedef` (Part A, decision 4).
+  `AGENTS.md`: 100 lines before and after. racecheck/finalcheck skipped at
+  user request.
 
 #### 12d.5 result
 
@@ -811,7 +915,8 @@ in §8.3 pass.
   both); a throwaway probe of four statements showed identical allocations
   per execution before and after.
 - [ ] 12d — `analyze` created and binding moved (sessions: 12d.1 binding
-  types, 12d.2 seam cuts, 12d.3–12d.5 area preparation, 12d.6 binder move)
+  types, 12d.2 seam cuts, 12d.3–12d.5 and 12d.3b area preparation, 12d.6
+  binder move)
   - [x] 12d refine (docs only; `b8850fca9`)
   - [x] 12d.1 — binding types (`5173b29cd`, `70d43f3e9`, `f630be9b9`,
     `5ed818cdf`, then the docs commit; see the 12d.1 result). Selected
@@ -821,7 +926,11 @@ in §8.3 pass.
     `48ea9b211`, `9115279bd`, `b7e9c8bd7`, then the docs commit; see the
     12d.2 result). Selected dual-mode proof and quickcheck passed;
     racecheck and finalcheck skipped at user request.
-  - [ ] 12d.3 — expression core preparation
+  - [x] 12d.3 — expression core preparation (`429bf3989`, `a750bbf16`,
+    `4f491dace`, `ff9c86427`, `2ba59b6ba`, then the docs commit; see the
+    12d.3 result). Selected dual-mode proof and quickcheck passed;
+    racecheck and finalcheck skipped at user request.
+  - [ ] 12d.3b — area 3b (unlisted expression files) preparation
   - [ ] 12d.4 — query, FROM and CTE preparation
   - [x] 12d.5 — aggregates, windows and DML targets preparation
     (`949747b68`, `804df42f5`, `1a329c118`, `a73ebbc83`, `363efc88e`, then
@@ -847,9 +956,11 @@ Notes for later steps:
   `queryLockAdmission` and `ruleNamespace` (binder fields and the
   `Describe` parameters), and pure root helpers
   (`definition*At`, `statementCatalogType`, `refreshableTemporalCapture`,
-  `checkExpectedLifetime`/`checkSignature`, `regtypeInputError`).
-- 12d.6: `bindingAuthorityView`, `authorityOf`, `authorizationOf`,
-  `expectedOf` and `checkExpectedLifetime` stay in the root. Only the host
+  `checkExpectedLifetime`/`checkSignature`, `regtypeInputError`). 12d.3
+  moved all of these except `definitionTypeAt` and `definitionArrayAt`.
+- 12d.6: `bindingAuthorityView`, `authorityOf`, `authorizationOf` and
+  `expectedOf` stay in the root (`checkExpectedLifetime` became
+  `analyze.Expected.CheckLifetime` in 12d.3). Only the host
   (`bindingHost.view`) interprets a binding authority; `describe`,
   `describeWithRule`, `describeScoped` and `newExpressionBinder` are the root
   wrappers that convert `AuthorizationView` and `*StatementDescription`.
@@ -861,7 +972,8 @@ Notes for later steps:
   `mutationTargets` and `admittedMutationTarget` read by `bindCTEMutation`)
   and `ruleNamespace` (`Describe` parameters), `mutationBinding`,
   `foldCTERestrictions`/`activateCTESources`, `validateViewReadGraph`,
-  `queryDemandProperties`, `objectNameText`, and the `consumerContext`
+  `queryDemandProperties` (`objectNameText` became `catalog.ObjectNameText`
+  in 12d.3), and the `consumerContext`
   partition methods in `partition_bind.go` (a binder group's methods, so the
   file moves with the binder). `sqlError` and `insertError` resolve to the
   `analyze` copies once the binder moves.
@@ -890,6 +1002,16 @@ Notes for later steps:
   (12a) rewrite selectors and literals by field object and are the model for
   export renames.
 
+- 12d.6, from 12d.3: export the binder's members that engine code reads
+  (`bind`, `capture`, `finish`, `info`, `query`, `params`, `consumer`,
+  `target`, `input`, `dependencies`, ...) and its vocabulary types
+  (`expressionPolicy`, `projectionContext`, `expressionContext`,
+  `comparisonOperand`) in the scripted move, not in an area session.
+- 12d.4: `string_table_bind.go` and `string_set_lower.go` call
+  `mapBoundExpressionReader` like the whole-row demand did; reuse the host's
+  `MapBoundExpression`.
+- `catalog.ObjectNameText` now exists: `routine`'s private copy and
+  `functions.qualifiedName` (both noted in their prompts) can use it.
 - `access` B5 moves the binding walkers once 12d has moved `binding`.
 - Step 15 (`typedef`): the composite, enum and range binders move here, not
   with `typedef`.
