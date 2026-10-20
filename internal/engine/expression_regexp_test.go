@@ -40,7 +40,7 @@ func TestRegexpScalarBinding(t *testing.T) {
 		if !ok || node.ResultUsage().Type.ID() != tc.typ || node.Plan.ReturnsSet() {
 			t.Fatal(tc.name, bound)
 		}
-		value, err := bound.Eval(&EvalContext{Context: context.Background()})
+		value, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || value.Type() != node.ResultUsage().Type {
 			t.Fatal(tc.name, value, err)
 		}
@@ -80,7 +80,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 	if err != nil {
 		t.Fatal("Prepare compiled pattern", err)
 	}
-	_, _, err = preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, bound, true)
+	_, _, err = preflightCoercionsWithPolicy(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, bound, true)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2201B" || diagnostic.Position != "" {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 	node := bound.(functions.Regexp)
 	node.Args[1] = columnExpression{Info: expr.Info{Usage: node.Args[1].ResultUsage(), Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}}, slot: 0}
 	node.Property.RowDependent = true
-	_, _, err = preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, node, true)
+	_, _, err = preflightCoercionsWithPolicy(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node, true)
 	if err != nil {
 		t.Fatal("row-dependent pattern preflight", err)
 	}

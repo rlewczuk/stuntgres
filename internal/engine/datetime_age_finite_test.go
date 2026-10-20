@@ -62,7 +62,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 				t.Fatal("retained child authority")
 			}
 		}
-		value, err := rebound.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}})
+		value, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}}})
 		if err != nil || value.Type() != replacements[tc.result] || value.IsNull() {
 			t.Fatal("retagged evaluation", tc, value, err)
 		}
@@ -140,7 +140,7 @@ func TestDatetimeAgeUnaryRetagsHiddenDateAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := next.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}})
+	value, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}}})
 	if err != nil {
 		t.Fatal(err)
 	}

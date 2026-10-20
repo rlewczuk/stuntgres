@@ -150,7 +150,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			t.Fatal("accepted immutable inquiry")
 		}
 		if query == "SELECT pg_get_acl(NULL,NULL,NULL)" {
-			value, err := n.Eval(&EvalContext{Context: context.Background()})
+			value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if err != nil || !value.IsNull() || value.Type().ID() != sqltype.ACLItemArray {
 				t.Fatal("strict typed NULL without authority", value, err)
 			}

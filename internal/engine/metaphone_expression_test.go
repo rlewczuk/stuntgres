@@ -31,7 +31,7 @@ func metaphoneUnitExpression(t *testing.T, e *Engine) installedMetaphoneFunction
 func TestMetaphoneExpressionIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	n := metaphoneUnitExpression(t, e)
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for _, tc := range []struct {
 		name, want string
 		member     int
@@ -209,7 +209,7 @@ func TestMetaphoneRemap(t *testing.T) {
 		if err := n.validate(view); err != nil {
 			t.Fatal(err)
 		}
-		value, err := n.Eval(&EvalContext{Context: context.Background()})
+		value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		number, readErr := value.Text()
 		if err != nil || readErr != nil || number != "KM" || value.Type() != n.ResultUsage().Type {
 			t.Fatal(value, err, readErr)

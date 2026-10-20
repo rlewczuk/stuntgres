@@ -55,7 +55,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[inputID] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation remap", next)
 		}
-		cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, next)
+		cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,11 +77,11 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if err != nil || !sameGroupExpression(original, clone) {
 			t.Fatal("stored reconstruction", clone, err)
 		}
-		folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, original)
+		folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
 		if err != nil || !sourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
-		folded, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
+		folded, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
 		if err != nil || !sourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
@@ -124,7 +124,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []expr.Expr{series, marker}
-		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: calls})
+		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &functionFromNode{calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}

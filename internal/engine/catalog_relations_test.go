@@ -44,7 +44,7 @@ func TestCatalogRelationsBinding(t *testing.T) {
 			t.Fatal("catalog inquiry lost STABLE symbolic semantics")
 		}
 	}
-	value, err := scalar.Eval(&EvalContext{Context: context.Background()})
+	value, err := scalar.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || !value.IsNull() || value.Type().ID() != sqltype.Name {
 		t.Fatal("strict typed null", value, err)
 	}
@@ -126,12 +126,12 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	if retagged.Validate() != nil {
 		t.Fatal("invalid retagged metadata")
 	}
-	originalSource, err := openFunctionSource(&EvalContext{Context: context.Background()}, set)
+	originalSource, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, set)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer originalSource.Close()
-	retaggedSource, err := openFunctionSource(&EvalContext{Context: context.Background()}, retagged)
+	retaggedSource, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, retagged)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
-		value, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
+		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -233,7 +233,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	current.commentRoles = foreign.roles.published.Root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
 	node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
-	if _, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: current}); err == nil {
+	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: current}}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}
 	current.commentRoles = saved

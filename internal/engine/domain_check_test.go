@@ -98,7 +98,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	sentinel := sqltype.Boolean(boolean, true)
-	eval := EvalContext{Context: context.Background(), catalog: view, domainValue: sentinel, domainValueActive: true}
+	eval := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}, evalFrame: evalFrame{domainValue: sentinel, domainValueActive: true}}
 	eval.Input.DomainChecks = &eval
 	for _, tc := range []struct {
 		domain            string

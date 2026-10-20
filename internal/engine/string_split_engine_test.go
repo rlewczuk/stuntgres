@@ -159,7 +159,7 @@ func TestStringSplitExpansion(t *testing.T) {
 						t.Fatal(err)
 					}
 					owner := &projectNode{querySchema: schema, child: root, expressions: requests, frame: 1, hasTargetSet: true}
-					private, err := preflightQuery(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: binder.bindingCatalog()}, owner)
+					private, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: binder.bindingCatalog()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -422,7 +422,7 @@ func TestStringSplitExpansion(t *testing.T) {
 	if first.Plan.Name() != "string_to_table" || !first.Properties().StageDependent || conditionalConstantInputs(first) {
 		t.Fatal("lost set marker", first.Properties())
 	}
-	if _, err := first.Eval(&EvalContext{Context: context.Background()}); err == nil {
+	if _, err := first.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("unlowered set expression evaluated")
 	}
 }
@@ -516,7 +516,7 @@ func TestStringSplitFrames(t *testing.T) {
 	}
 	defer stage.Close()
 	var rows [][]string
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 7}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 7}}
 	for {
 		i, present, err := stage.nextOccurrence(context.Background())
 		if err != nil {
@@ -560,7 +560,7 @@ func TestStringSplitBinding(t *testing.T) {
 			}
 			continue
 		}
-		if _, err := n.Eval(&EvalContext{Context: context.Background()}); err != nil {
+		if _, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err != nil {
 			t.Fatal(q, err)
 		}
 	}
@@ -587,7 +587,7 @@ func TestStringSplitBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	folded, _, err := simplifyConditional(&EvalContext{Context: context.Background()}, bound, false)
+	folded, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, bound, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -824,7 +824,7 @@ func TestStringSplitPreflight(t *testing.T) {
 				if !changed {
 					t.Fatal("owner mapping did not resolve reserved reference")
 				}
-				value, err := expression.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(text, "call-output"), sqltype.String(text, "scheduled-value")}})
+				value, err := expression.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(text, "call-output"), sqltype.String(text, "scheduled-value")}}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -869,7 +869,7 @@ func TestStringSplitPreflight(t *testing.T) {
 				templateSteps := append([]querySetStep(nil), retained.template.steps...)
 				owner := &projectNode{querySchema: schema, child: child, expressions: expressions, frame: 1, hasTargetSet: true}
 				for range 3 {
-					private, err := preflightQuery(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, owner)
+					private, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -884,7 +884,7 @@ func TestStringSplitPreflight(t *testing.T) {
 					}
 					var trace []int
 					if tc.name == "decreased_depth" {
-						evaluation := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+						evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 						value, err := stage.scalars[0].Eval(evaluation)
 						if err != nil {
 							t.Fatal(err)
@@ -978,7 +978,7 @@ func TestStringSplitPreflight(t *testing.T) {
 		root := &projectNode{querySchema: schema, child: lowered, expressions: projection, frame: 1, hasTargetSet: true}
 		for range 3 {
 			ctx, cancel := context.WithCancel(context.Background())
-			evaluation := &EvalContext{Context: ctx, Scope: 1, Frame: 1}
+			evaluation := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			private, err := preflightQuery(evaluation, root)
 			if err != nil {
 				t.Fatal(err)
@@ -1041,7 +1041,7 @@ func TestStringSplitPreflightSiblingError(t *testing.T) {
 		t.Fatal("immutable sibling error moved into lowering", err)
 	}
 	retained := root.(*setProjectNode)
-	_, err = preflightQuery(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, retained)
+	_, err = preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, retained)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22023" {
 		t.Fatal("strict NULL suppressed immutable sibling error", err)

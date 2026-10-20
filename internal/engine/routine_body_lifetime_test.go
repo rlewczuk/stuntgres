@@ -38,7 +38,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := binder.dependencies
-	evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: original}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: original}}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("genuine original body authority", err)
 	}
@@ -164,8 +164,16 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			call.Owner != target.roles.domain.Principal(call.Owner.ID()) || call.Revision() == 0 {
 			t.Fatal("stored call lost destination declaration provenance", i, err)
 		}
-		evaluation := EvalContext{Context: ctx, routineAuthority: &targetAuth, routineRecipe: true,
-			routineConsumer: item.consumer, routineReferences: item.refs, routineChecks: item.checks}
+		evaluation := EvalContext{
+			evalStatement: evalStatement{Context: ctx},
+			evalAdmission: evalAdmission{
+				routineAuthority:  &targetAuth,
+				routineRecipe:     true,
+				routineConsumer:   item.consumer,
+				routineReferences: item.refs,
+				routineChecks:     item.checks,
+			},
+		}
 		if err := admitRoutineCall(&evaluation, item.node, true, false); err != nil {
 			t.Fatal("remapped original recipe admission", i, err)
 		}
@@ -250,8 +258,16 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		if item.consumer != original[i].consumer || !reflect.DeepEqual(item.node, original[i].node) {
 			t.Fatal("replacement mutated original stored recipe", i)
 		}
-		evaluation := EvalContext{Context: ctx, routineAuthority: &sourceAuth, routineRecipe: true,
-			routineConsumer: item.consumer, routineReferences: item.refs, routineChecks: item.checks}
+		evaluation := EvalContext{
+			evalStatement: evalStatement{Context: ctx},
+			evalAdmission: evalAdmission{
+				routineAuthority:  &sourceAuth,
+				routineRecipe:     true,
+				routineConsumer:   item.consumer,
+				routineReferences: item.refs,
+				routineChecks:     item.checks,
+			},
+		}
 		if err := admitRoutineCall(&evaluation, item.node, true, false); err != nil {
 			t.Fatal("source original recipe lost admission", i, err)
 		}
@@ -317,7 +333,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			if err != nil || outer == nil || outer.Address().ObjectID != test.id {
 				t.Fatal("selected released root", outer, err)
 			}
-			evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original body admission", err)
 			}

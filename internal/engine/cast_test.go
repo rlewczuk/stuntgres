@@ -32,7 +32,7 @@ func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 		t.Fatal(info, first, later, err)
 	}
 	value, _ := sqltype.Integer(b.typ(sqltype.Int4), 2)
-	got, err := later.Eval(&EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}})
+	got, err := later.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}})
 	text, accessErr := got.Text()
 	if err != nil || accessErr != nil || text != "2" {
 		t.Fatal(got, err, accessErr)
@@ -64,7 +64,7 @@ func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatal(tc.q, err)
 			}
-			_, err = expr.Eval(&EvalContext{Context: context.Background()})
+			_, err = expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		}
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Position != tc.position {

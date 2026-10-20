@@ -30,7 +30,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	}
 	session := &Session{}
 	session.arrayRandom.SeedWords(1, 2)
-	c := &EvalContext{Context: context.Background(), statementScope: &StatementScope{op: &Operation{session: session}}}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: &StatementScope{op: &Operation{session: session}}}}
 	return node.(functions.ArrayRandom), c
 }
 func arrayRelationalUnitText(t *testing.T, v sqltype.Value) string {
@@ -146,7 +146,7 @@ func arrayRelationalUnitUnnest(t *testing.T, input string) unnestExpression {
 	return node.(unnestExpression)
 }
 func TestArrayRelationalUnnestCursor(t *testing.T) {
-	c := &EvalContext{Context: context.Background()}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	e := arrayRelationalUnitUnnest(t, "[-2:-1][5:6]={{1,NULL},{3,4}}")
 	var evaluations int
 	input, _ := e.args[0].Eval(c)
@@ -231,7 +231,7 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 		if err := validateFunctionFromLayout(node); err != nil {
 			t.Fatal(err)
 		}
-		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, node)
+		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -283,7 +283,7 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 			if err := validateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-column layout", err)
 			}
-			invocation, err := openFunctionInvocation(&EvalContext{Context: ctx}, node)
+			invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node)
 			if err != nil {
 				t.Fatal(err)
 			}

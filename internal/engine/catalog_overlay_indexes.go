@@ -106,7 +106,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				return err
 			}
 		}
-		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: view}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), statementScope: scope, Input: scope.input, Output: scope.output, catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		evaluation.routineAuthority = &auth
 		if index.SQLIndex.HasRuntimeDomainConversion() {
 			var err error

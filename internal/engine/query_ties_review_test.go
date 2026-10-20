@@ -63,7 +63,7 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 					limit := &limitNode{withTies: true}
 					limit.finishTies(ordered)
 				}
-				evaluation := EvalContext{Context: context.Background(), orderValues: []sqltype.Value{one}}
+				evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{orderValues: []sqltype.Value{one}}}
 				if err := refreshLockedOrder(ordered, []sqltype.Value{two}, &evaluation); err != nil {
 					t.Fatal(err)
 				}
@@ -131,7 +131,7 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			ordered := &sortNode{keys: []sortKey{{cache: slot, expression: expr}}, cacheWidth: 1}
 			limit := &limitNode{withTies: true}
 			limit.finishTies(ordered)
-			evaluation := EvalContext{Context: ctx, orderValues: []sqltype.Value{one}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{orderValues: []sqltype.Value{one}}}
 			err := refreshLockedOrder(ordered, []sqltype.Value{one}, &evaluation)
 			if evaluation.orderValues[0] != one {
 				t.Fatal("failed key refresh published value")

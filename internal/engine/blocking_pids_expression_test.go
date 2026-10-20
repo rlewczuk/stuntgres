@@ -51,7 +51,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			t.Fatal("different inquiries collapsed")
 		}
 		for _, rewrite := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
-			next, _, err := rewrite(&EvalContext{Context: ctx}, n, false)
+			next, _, err := rewrite(&EvalContext{evalStatement: evalStatement{Context: ctx}}, n, false)
 			if err != nil || next.Properties().Volatility != expr.Volatile {
 				t.Fatal("live recipe precomputed", next, err)
 			}

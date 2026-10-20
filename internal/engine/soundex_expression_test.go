@@ -28,7 +28,7 @@ func soundexUnitExpression(t *testing.T, e *Engine, name string) installedSounde
 
 func TestSoundexExpressionIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
@@ -161,7 +161,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				if err := n.validate(view); err != nil {
 					t.Fatal(err)
 				}
-				value, err := n.Eval(&EvalContext{Context: context.Background()})
+				value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 				if err != nil || value.Type() != n.ResultUsage().Type {
 					t.Fatal(value, err)
 				}

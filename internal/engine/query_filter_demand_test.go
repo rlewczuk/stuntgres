@@ -80,7 +80,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 }
 
 func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
-	c := &EvalContext{Context: context.Background()}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for _, expression := range []expr.Expr{columnExpression{}, &windowExpression{}, subqueryExpression{}} {
 		if rejects, err := queryPredicateRejectsAll(c, expression); rejects || err != nil {
 			t.Fatal("row/stage/subquery expression used as empty-input proof", expression, rejects, err)
@@ -111,7 +111,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	for _, value := range []sqltype.Value{sqltype.Boolean(boolean, false), sqltype.Null(boolean), sqltype.Boolean(boolean, true)} {
 		for _, parameter := range []bool{false, true} {
-			c := &EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}}
+			c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 			var user expr.Expr = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: value}
 			if parameter {
 				user = parameterExpression{Info: expr.Info{Usage: boolean.Usage()}, number: 1}
@@ -153,7 +153,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 		return sqltype.Boolean(boolean, true), nil
 	})
 	expression := viewQualificationExpression{Info: expr.Info{Usage: boolean.Usage()}, predicates: []expr.Expr{hidden}, user: user}
-	got, err := expression.Eval(&EvalContext{Context: context.Background()})
+	got, err := expression.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	truth, truthErr := TruthOf(got)
 	if err != nil || truthErr != nil || truth != False || len(order) != 1 || order[0] != "hidden" {
 		t.Fatal("arbitrary user work ran ahead of hidden-row qualification", order, err)
@@ -161,7 +161,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	expression.user = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}
-	if _, err := expression.Eval(&EvalContext{Context: ctx}); !errors.Is(err, context.Canceled) || len(order) != 1 {
+	if _, err := expression.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) || len(order) != 1 {
 		t.Fatal("empty user input erased cancellation", order, err)
 	}
 }

@@ -73,7 +73,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		frame := state.evaluation(context.Background())
 		frame.bindQueryRow(source, 0)
 		frame.queryCurrentRows = latest
-		outer := EvalContext{Context: context.Background(), Scope: 2, Frame: 2, Outer: &frame, queryCurrentRows: [][]sqltype.Value{}}
+		outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 2, Frame: 2, Outer: &frame, queryCurrentRows: [][]sqltype.Value{}}}
 		value, err := frozen.Eval(&outer)
 		n, numberErr := value.Integer()
 		if err != nil || numberErr != nil || n != want {

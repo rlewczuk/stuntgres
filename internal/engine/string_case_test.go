@@ -52,7 +52,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 		if node.Plan.TextUsage().Type != text || node.Args[0].ResultUsage().Type != text {
 			t.Fatal("retag mutated source")
 		}
-		got, err := retained.Eval(&EvalContext{Context: context.Background()})
+		got, err := retained.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if conflict {
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" || diagnostic.Message != "could not determine which collation to use for upper() function" {

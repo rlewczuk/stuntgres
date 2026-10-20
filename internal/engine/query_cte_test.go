@@ -224,7 +224,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 		localProject := &projectNode{querySchema: outerNode.Schema(), child: &singletonNode{}, expressions: []expr.Expr{correlated}, frame: 3}
 		localDefinition := &cteDefinition{query: &BoundQuery{Root: localProject}, owner: 2, hint: parser.CTEMaterialized}
 		localState := *state
-		localState.outer = &EvalContext{Scope: 1, Frame: 7, Row: []sqltype.Value{cteUnitValue(t, typ, value)}}
+		localState.outer = &EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{cteUnitValue(t, typ, value)}}}
 		local := &cteInvocation{frame: 2, parent: outer, state: localState}
 		localState.ctes = local
 		inherited, err := openCTEScan(context.Background(), &localState, outerNode)

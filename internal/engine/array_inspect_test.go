@@ -43,7 +43,7 @@ func TestArrayInspectResolver(t *testing.T) {
 				if err := call.Validate(); err != nil {
 					t.Fatal(err)
 				}
-				v, err := call.Eval(&EvalContext{Context: ctx, Row: []sqltype.Value{sqltype.CatalogResultNull(u)}})
+				v, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Row: []sqltype.Value{sqltype.CatalogResultNull(u)}}})
 				if err != nil || !v.IsNull() || v.Type() != b.typ(kind.Result()) {
 					t.Fatal(v, err)
 				}
@@ -96,7 +96,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 		t.Fatal("lost generation ownership")
 	}
 	for _, call := range []expr.Expr{old, next} {
-		v, err := call.Eval(&EvalContext{Context: ctx})
+		v, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		n, nerr := v.Integer()
 		if err != nil || nerr != nil || n != 3 || v.Type() != call.ResultUsage().Type {
 			t.Fatal(v, err, nerr)

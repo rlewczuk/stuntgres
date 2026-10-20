@@ -20,7 +20,7 @@ func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	return insertConflictProofFixture{integer: integer, boolean: boolean, column: columnExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}, ctx: EvalContext{Context: context.Background()}}
+	return insertConflictProofFixture{integer: integer, boolean: boolean, column: columnExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}, ctx: EvalContext{evalStatement: evalStatement{Context: context.Background()}}}
 }
 func (f insertConflictProofFixture) comparison(t *testing.T, op string, left, right expr.Expr) comparisonExpression {
 	t.Helper()

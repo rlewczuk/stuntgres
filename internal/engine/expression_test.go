@@ -86,18 +86,18 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	frame := []sqltype.Value{sqltype.Null(text), sqltype.Null(integer)}
-	value, err := filter.predicate.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(integer), sqltype.Null(integer), sqltype.Null(typ)}, Parameters: frame})
+	value, err := filter.predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: frame}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(integer), sqltype.Null(integer), sqltype.Null(typ)}}})
 	if err != nil || value.Type() != typ || !value.IsNull() {
 		t.Fatal(value, err)
 	}
-	if _, err := column.Eval(&EvalContext{Context: context.Background(), Scope: 2, Frame: 1, Row: frame}); err == nil {
+	if _, err := column.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 2, Frame: 1, Row: frame}}); err == nil {
 		t.Fatal("wrong scope accepted")
 	}
 	var wg sync.WaitGroup
 	for n := range 16 {
 		wg.Go(func() {
 			v := sqltype.String(text, strconv.Itoa(n))
-			got, err := project.expressions[0].Eval(&EvalContext{Context: context.Background(), Parameters: []sqltype.Value{v}})
+			got, err := project.expressions[0].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{v}}})
 			actual, _ := got.Text()
 			if err != nil || actual != strconv.Itoa(n) {
 				t.Error(actual, err)
@@ -110,7 +110,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := project.expressions[0].Eval(&EvalContext{Context: ctx, Parameters: frame}); !errors.Is(err, context.Canceled) {
+	if _, err := project.expressions[0].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: frame}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -226,7 +226,7 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 }
 
 func TestExpressionInvalidValuesRemainInvariantErrors(t *testing.T) {
-	ctx := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{{}}, Parameters: []sqltype.Value{{}}}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{{}}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}
 	for _, expression := range []expr.Expr{
 		literalExpression{},
 		columnExpression{scope: 1, frame: 1, slot: 0},

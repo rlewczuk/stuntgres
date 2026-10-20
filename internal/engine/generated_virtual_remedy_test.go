@@ -34,8 +34,8 @@ func TestGeneratedVirtualOccurrenceAliasesAndOuterFrame(t *testing.T) {
 	// Local aliases 0/1 map to global physical ordinals 3/7 under locks.
 	physical := &querySource{occurrence: 3}
 	state := &queryState{source: &querySource{sources: []*querySource{{input: physical}, {occurrence: 7}}}, virtualReads: true}
-	outer := EvalContext{Context: context.Background(), Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ)}, query: state, queryOccurrences: []int{3, 7}, queryProvenance: []int{absentQueryIndex, 0}}
-	inner := EvalContext{Context: context.Background(), Scope: 1, Frame: 8, Outer: &outer, queryOccurrences: []int{3, 7}, queryProvenance: []int{0, absentQueryIndex}}
+	outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ)}, query: state, queryOccurrences: []int{3, 7}, queryProvenance: []int{absentQueryIndex, 0}}}
+	inner := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer, queryOccurrences: []int{3, 7}, queryProvenance: []int{0, absentQueryIndex}}}
 	value, err := column.Eval(&inner)
 	if err != nil || !value.IsNull() || value.Type() != typ || calls != 0 {
 		t.Fatal("absent outer alias demanded recipe", value, err, calls)
@@ -80,7 +80,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	if column.virtual != nil || column.queryOccurrence != 0 || column.rowWidth != 0 {
 		t.Fatal("ordinary destination retained source payload", column)
 	}
-	value, err := column.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{one, negative}})
+	value, err := column.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{one, negative}}})
 	if n, access := value.Integer(); err != nil || access != nil || n != -9 {
 		t.Fatal("ordinary CHECK did not read supplied value", value, err)
 	}
@@ -107,7 +107,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 		t.Fatal("destination CHECK layout", column)
 	}
 	row := []sqltype.Value{seven, seven, one, sqltype.Null(typ)}
-	value, err = column.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: row})
+	value, err = column.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}})
 	if n, access := value.Integer(); err != nil || access != nil || n != 1 {
 		t.Fatal("destination recipe/window not evaluated", value, err)
 	}
@@ -164,7 +164,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	if wrapped.left.(columnExpression).queryOccurrence != 2 || nullTest.child.(columnExpression).queryOccurrence != 3 || nextChoice.arms[0].condition.(nullTestExpression).child.(columnExpression).queryOccurrence != 3 || next.expressions[5].(columnExpression).queryOccurrence != 1 {
 		t.Fatal("compound or outside lexical occurrence remap")
 	}
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ)}, query: &queryState{source: &querySource{sources: []*querySource{{occurrence: 9}, {occurrence: 4}, {occurrence: 7}}}}, queryOccurrences: []int{4, 7}, queryProvenance: []int{absentQueryIndex, 0}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ)}, query: &queryState{source: &querySource{sources: []*querySource{{occurrence: 9}, {occurrence: 4}, {occurrence: 7}}}}, queryOccurrences: []int{4, 7}, queryProvenance: []int{absentQueryIndex, 0}}}
 	value, err := wrapped.Eval(&evaluation)
 	if err != nil || !value.IsNull() {
 		t.Fatal("absent compound graft recomputed recipe", value, err)

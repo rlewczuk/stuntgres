@@ -53,14 +53,14 @@ func TestMathTraversal(t *testing.T) {
 		literalExpression{expr.Info{Usage: int4.Usage()}, zero},
 	}}
 	expr := functions.Math{Info: expr.Info{Usage: numeric.Usage()}, Plan: plan, Args: []expr.Expr{literalExpression{expr.Info{Usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
-	_, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, expr, false)
+	_, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, expr, false)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {
 		t.Fatal("immutable sibling before strict NULL", err)
 	}
 	// Query/DML preflight must reach the same policy without a CASE wrapper,
 	// including the selected-call singleton source used by public diagnostics.
-	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, expr)
+	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, expr)
 	diagnostic = nil
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {
 		t.Fatal("math execution preflight bypassed immutable simplification", err)

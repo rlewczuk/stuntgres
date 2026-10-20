@@ -340,7 +340,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					}
 				}
 			}
-			indexRoots, indexErr = e.prepareIndexPublication(&EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: input, Output: output}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates)
+			indexRoots, indexErr = e.prepareIndexPublication(&EvalContext{evalStatement: evalStatement{Context: op.Context(), statementScope: scope, Input: input, Output: output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates)
 			if indexErr != nil {
 				return indexErr
 			}

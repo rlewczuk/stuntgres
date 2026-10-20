@@ -34,7 +34,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		if _, err := original.Reconstruct(original.Info, []expr.Expr{arg, arg}); err == nil {
 			t.Fatal("two children accepted")
 		}
-		if _, err := original.Eval(&EvalContext{Context: context.Background()}); err == nil {
+		if _, err := original.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
 			t.Fatal("unlifted evaluation accepted")
 		}
 		fresh := jsonObjectUnitTypes()
@@ -45,7 +45,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		next := mapped.(functions.JSONBElements)
 		assertFirst := func(call expr.Expr, result *sqltype.Descriptor, want string) {
 			t.Helper()
-			cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, call)
+			cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, call)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -81,7 +81,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		// Use the reminted argument captured before replacing its expression.
 		input := mapped.(functions.JSONBElements).Args[0]
 		next.Args = []expr.Expr{queryProbe(fresh[sqltype.JSONB].Usage(), func(c *EvalContext) (sqltype.Value, error) { draws++; return input.Eval(c) })}
-		cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, next)
+		cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -107,7 +107,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		}
 		failure := errors.New("selected child failure")
 		next.Args = []expr.Expr{queryProbe(fresh[sqltype.JSONB].Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
-		if c, err := openFunctionSource(&EvalContext{Context: context.Background()}, next); !errors.Is(err, failure) || c.Type != nil {
+		if c, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next); !errors.Is(err, failure) || c.Type != nil {
 			t.Fatal("published failed invocation", c, err)
 		}
 	}

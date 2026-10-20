@@ -460,7 +460,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 	}
 	run := func(t *testing.T, node LogicalNode, frame uint32, values []sqltype.Value, outer *EvalContext) [][]string {
 		t.Helper()
-		evaluation := &EvalContext{Context: context.Background(), Scope: 1, Frame: frame, Row: values, Outer: outer}
+		evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: frame, Row: values, Outer: outer}}
 		state := &queryState{source: &querySource{materialized: true}, frame: frame, invocation: evaluation, outer: outer}
 		stage, err := openQueryNode(context.Background(), state, node)
 		if err != nil {
@@ -478,7 +478,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		outer := &EvalContext{Context: context.Background(), Scope: 1, Frame: 9, Row: row("outer-unused", "x y")}
+		outer := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 9, Row: row("outer-unused", "x y")}}
 		want := [][]string{{"a", "x"}, {"b", "y"}}
 		if got := run(t, rebased, 7, row("a b"), outer); !reflect.DeepEqual(got, want) {
 			t.Fatal("rebased lexical invocation", got)

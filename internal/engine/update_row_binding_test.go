@@ -103,7 +103,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 	if err != nil || mapped.(subqueryExpression).updateWidth != 2 || original.queryPlan != u.assignments[0].(subqueryExpression).queryPlan {
 		t.Fatal("lost marker or mutated template", err)
 	}
-	ctx := EvalContext{Context: context.Background()}
+	ctx := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	prepared, err := preflightUpdateWithPlanning(&ctx, u, false)
 	if err != nil || prepared != u {
 		t.Fatal("unchanged preflight replaced immutable source", prepared, err)

@@ -59,7 +59,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.id: true}) {
 				t.Fatal("exact selected dependencies", found)
 			}
-			evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}

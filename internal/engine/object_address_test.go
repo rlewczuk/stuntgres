@@ -174,7 +174,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 		if bad.Validate() == nil {
 			t.Fatal("immutable inquiry accepted")
 		}
-		value, err := n.Eval(&EvalContext{Context: context.Background()})
+		value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || !value.IsNull() || value.Type() != n.ResultUsage().Type {
 			t.Fatal("strict typed NULL", value, err)
 		}

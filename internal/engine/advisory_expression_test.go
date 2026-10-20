@@ -124,14 +124,14 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			var folded expr.Expr
 			var changed bool
 			if preflight {
-				folded, changed, err = preflightCoercions(&EvalContext{Context: ctx}, bound)
+				folded, changed, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, bound)
 			} else {
-				folded, changed, err = simplifyConditional(&EvalContext{Context: ctx}, bound, false)
+				folded, changed, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, bound, false)
 			}
 			if err != nil || !changed || !generationImmutable(folded) {
 				t.Fatal("literal NULL fold", folded, changed, err)
 			}
-			v, err := folded.Eval(&EvalContext{Context: ctx})
+			v, err := folded.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 			if err != nil || !v.IsNull() || v.Type().ID() != sqltype.Void {
 				t.Fatal("typed NULL VOID", v, err)
 			}
@@ -156,9 +156,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		bound = deferred
 		for _, preflight := range []bool{false, true} {
 			if preflight {
-				_, _, err = preflightCoercions(&EvalContext{Context: ctx}, bound)
+				_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, bound)
 			} else {
-				_, _, err = simplifyConditional(&EvalContext{Context: ctx}, bound, false)
+				_, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, bound, false)
 			}
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22P02", Message: "invalid input syntax for type integer: \"bad\""})
 		}
@@ -271,7 +271,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		v, err := bound.Eval(&EvalContext{Context: op.Context(), statementScope: scope})
+		v, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: op.Context(), statementScope: scope}})
 		finish := scope.Finish(err)
 		op.Done()
 		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 42}).Exclusive != 1 {
@@ -296,11 +296,11 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 		return node
 	}
 	trueNode, falseNode := bind("true"), bind("false")
-	trueValue, err := trueNode.Eval(&EvalContext{Context: ctx})
+	trueValue, err := trueNode.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	falseValue, err := falseNode.Eval(&EvalContext{Context: ctx})
+	falseValue, err := falseNode.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	}
 	d := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "a_row", Expression: column}, {Name: "b_null", Expression: stored}}}}
 	oldRow := []sqltype.Value{falseValue}
-	eval := &EvalContext{Context: ctx, Scope: 9, Frame: 7, Row: oldRow}
+	eval := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 9, Frame: 7, Row: oldRow}}
 	for i := 0; i < 2; i++ {
 		failed, err := validateCheckRow(d, []sqltype.Value{trueValue}, eval)
 		if err != nil || failed != nil {
@@ -344,7 +344,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if failed, err := validateCheckRow(&other, []sqltype.Value{trueValue}, eval); err != nil || failed != nil || &eval.preparedChecks[&other][0] == first {
 		t.Fatal("distinct descriptor reused executable cache", failed, err)
 	}
-	fresh := &EvalContext{Context: ctx}
+	fresh := &EvalContext{evalStatement: evalStatement{Context: ctx}}
 	if failed, err := validateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.preparedChecks[d][0] == first {
 		t.Fatal("new command inherited executable CHECK cache", failed, err)
 	}
@@ -374,7 +374,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 		}
 	}
 	d := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "a_effect", Expression: nodes[0]}, {Name: "z_error", Expression: nodes[1]}}}}
-	eval := &EvalContext{Context: ctx, Scope: 9, Frame: 7}
+	eval := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 9, Frame: 7}}
 	failed, err := validateCheckRow(d, nil, eval)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 	if failed != nil || eval.preparedChecks != nil || eval.Scope != 9 || eval.Frame != 7 {

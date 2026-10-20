@@ -14,7 +14,7 @@ import (
 func TestSourceProtocolSubstitution(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	original := jsonRecordUnitCall(t, b, "json_to_record", true)
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	value, err := original.Args[0].Eval(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 
 func TestSourceProtocolBorrowedLifetime(t *testing.T) {
 	call := arrayRelationalUnitUnnest(t, "{1,NULL,3}")
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	first, err := openFunctionSource(ctx, call)
 	if err != nil {
 		t.Fatal(err)
@@ -186,7 +186,7 @@ func TestSourceProtocolBorrowedLifetime(t *testing.T) {
 }
 
 func TestSourceProtocolCursorOwnership(t *testing.T) {
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	d := seriesUnitType(t, sqltype.Numeric)
 	call := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	first, err := openFunctionSource(ctx, call)
@@ -251,7 +251,7 @@ func TestSourceProtocolPresence(t *testing.T) {
 		}
 		call := unnestExpression{Info: expr.Info{Usage: empty.Usage()}, args: []expr.Expr{literalExpression{Info: expr.Info{Usage: array.Usage()}, value: value}}}
 		for _, reverse := range []bool{false, true} {
-			borrowed, err := openFunctionSource(&EvalContext{Context: ctx}, call)
+			borrowed, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, call)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -284,11 +284,11 @@ func TestSourceProtocolCancellation(t *testing.T) {
 		t.Fatal("precanceled open evaluated an argument")
 		return sqltype.Value{}, nil
 	})
-	if cursor, err := openFunctionSource(&EvalContext{Context: canceled}, call); !errors.Is(err, context.Canceled) || cursor.Type != nil {
+	if cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: canceled}}, call); !errors.Is(err, context.Canceled) || cursor.Type != nil {
 		t.Fatal("precanceled source published state", cursor, err)
 	}
 	healthy := seriesUnit(t, d, 1, 1)
-	cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, healthy)
+	cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, healthy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +299,7 @@ func TestSourceProtocolCancellation(t *testing.T) {
 	if _, present, err := cursor.Next(canceled); present || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost at exhausted boundary", present, err)
 	}
-	reopened, err := openFunctionSource(&EvalContext{Context: context.Background()}, healthy)
+	reopened, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, healthy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestSourceProtocolCancellation(t *testing.T) {
 }
 
 func TestSourceProtocolCleanup(t *testing.T) {
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	d := seriesUnitType(t, sqltype.Numeric)
 	first := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	failure := errors.New("later source argument")
@@ -341,7 +341,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	record := jsonRecordUnitCall(t, b, "json_to_record", true)
-	input, err := record.Args[0].Eval(&EvalContext{Context: ctx})
+	input, err := record.Args[0].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +372,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := &projectNode{querySchema: querySchema{{Name: "record", Usage: call.Usage}}, child: root, expressions: requests, frame: 1, hasTargetSet: true}
-	planned, err := preflightQuery(&EvalContext{Context: ctx, catalog: engine.CatalogRead()}, project)
+	planned, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: engine.CatalogRead()}}, project)
 	if err != nil {
 		t.Fatal(err)
 	}

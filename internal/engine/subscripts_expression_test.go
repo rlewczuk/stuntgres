@@ -55,7 +55,7 @@ func subscriptsUnit(t *testing.T, view catalog.Read, dimensions []sqltype.ArrayD
 
 func subscriptsUnitRead(t *testing.T, e subscriptsExpression) []int64 {
 	t.Helper()
-	cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, e)
+	cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestSubscriptsBinding(t *testing.T) {
 	if b.parameters[1].Type == nil || !b.parameters[1].Type.IsArray() || b.parameters[2].Type.ID() != sqltype.Bool {
 		t.Fatal("parameter identity", b.parameters)
 	}
-	if _, err := e.Eval(&EvalContext{Context: context.Background()}); err == nil {
+	if _, err := e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("unlifted set scalar evaluation")
 	}
 	_, err = b.bindFunction(nullCountRaw("generate_subscripts", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, integer))
@@ -153,7 +153,7 @@ func TestSubscriptsCursor(t *testing.T) {
 		t.Fatal("evaluation continued after child error")
 		return sqltype.Value{}, nil
 	})
-	if _, err := openFunctionSource(&EvalContext{Context: context.Background()}, e); err != sentinel {
+	if _, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }
@@ -175,7 +175,7 @@ func TestSubscriptsBounds(t *testing.T) {
 		}
 	}
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: -2, Length: 3}}, 1)
-	c := &EvalContext{Context: context.Background()}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	first, err := openFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
@@ -241,10 +241,10 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
 		func() (expr.Expr, bool, error) {
-			return preflightCoercions(&EvalContext{Context: context.Background(), catalog: view}, original)
+			return preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}, original)
 		},
 		func() (expr.Expr, bool, error) {
-			return simplifyConditional(&EvalContext{Context: context.Background(), catalog: view}, original, false)
+			return simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}, original, false)
 		},
 	} {
 		n, _, err := fold()
@@ -344,7 +344,7 @@ func TestSubscriptsCancellation(t *testing.T) {
 	view := New().CatalogRead()
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 3, Length: 3}}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
-	cursor, err := openFunctionSource(&EvalContext{Context: ctx}, e)
+	cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +362,7 @@ func TestSubscriptsCancellation(t *testing.T) {
 	}
 	calls := 0
 	e.args[0] = queryProbe(e.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, nil })
-	if _, err := openFunctionSource(&EvalContext{Context: ctx}, e); err != context.Canceled || calls != 0 {
+	if _, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, e); err != context.Canceled || calls != 0 {
 		t.Fatal("pre-admission cancellation", calls, err)
 	}
 }

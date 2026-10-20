@@ -144,7 +144,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}
 	// Cancel inside the actual index candidate builder, before any install owner.
-	entries, err := buildIndexEntries(&EvalContext{Context: counting, Scope: 1, Frame: 1}, stage.materializedReplacement.descriptor, index.SQLIndex, stage.materializedReplacement.storage, nil)
+	entries, err := buildIndexEntries(&EvalContext{evalStatement: evalStatement{Context: counting}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, stage.materializedReplacement.descriptor, index.SQLIndex, stage.materializedReplacement.storage, nil)
 	if entries != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("index preparation ignored cancellation", err)
 	}

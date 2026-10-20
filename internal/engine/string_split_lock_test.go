@@ -36,7 +36,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	// As in PostgreSQL 18.6, a recheck keeps the function-scan tuple the row was
 	// produced with and evaluates no call again.
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, statementScope: scope}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	scratch := make([]sqltype.Value, width)
 	offset := 0
 	got, present, err := recheckLockedQuery(node, inputs, nil, &evaluation, scratch, &offset, frozen)

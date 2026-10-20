@@ -102,6 +102,11 @@ Value copies: 50 `EvalContext{...}` literals in 44 files and about 27
 dereference copies (`x := *c`); `indexedStage` and an `execute_bound.go`
 struct embed it by value; `queryState.evaluation` returns it by value.
 
+Re-measured for 10a at `4d3568a9d`: 46 fields (the three new
+`updateOutput*` fields belong to the frame), 76 methods, and 744 non-empty
+composite literals: about 50 in 44 production files and about 694 in 255
+internal test files. Nine empty `EvalContext{}` literals need no change.
+
 ## Sub-steps
 
 ### 10a — Split `EvalContext` in place (broad)
@@ -233,12 +238,74 @@ names `*EvalContext`. `EvalContext` is three documented groups. The checks in
 
 ## Status
 
-- [ ] 10a — `EvalContext` split in place
+- [x] 10a — `EvalContext` split in place (the commit that records this
+  status) *(racecheck/finalcheck skipped at user request)*
 - [ ] 10b — Opaque CTE mutation and node runtime, in place
 - [ ] 10c — `plan` created, IR and node types moved
 - [ ] 10d — Aliases removed
 
 Outstanding aliases: none yet.
+
+### 10a result
+
+`EvalContext` (`expression.go`) now embeds `evalFrame`, `evalStatement` and
+`evalAdmission`, in that order, and has no other fields. Each group's doc
+comment says who writes and reads it. Promoted selectors are unchanged.
+Copying `EvalContext` still copies all three groups.
+
+- `evalFrame`: `Scope`, `Frame`, `Row`, `OldRow`, `mergeReturning`,
+  `mergeSourcePresent`, `mergeAction`, `orderValues`, `updateOutputScratch`,
+  `updateOutputs`, `updateOutputsReady`, `Outer`, `query`,
+  `queryOccurrences`, `queryProvenance`, `queryRowSource`,
+  `queryCurrentRows`, `physicalTable`, `presenceSlots`, `presence`,
+  `domainValue`, `domainFrameUsage`, `domainValueActive`.
+- `evalStatement`: `Context`, `Parameters`, `statementScope`, `Input`,
+  `Output`, `catalog`, `preparedChecks`, `preparedDomainChecks`,
+  `preparedGenerations`, `pgRegex`, `quoteCaptures`, `quoteOrigin`,
+  `planStaticOperators`, `specializeRuleParameters`.
+- `evalAdmission`: `routineAuthority`, `routineRecipe`, `routineGraft`,
+  `routineChecks`, `routineReferences`, `routineConsumer`, `routineProgram`,
+  `routineBodyContext`, `domainPhase`.
+
+A type-checked tool (go/types, by key name) rewrote all 744 literals with no
+manual cases. No regrouping reordered calls, and no literal held comments or
+unkeyed elements. The per-field and per-file census of selectors and keys is
+identical before and after. `make bench`: 5,100 steady allocs/op before and
+after; ns/op 846–866 µs before and 840–1,070 µs after. The two slow samples
+came from a shared, contended host, so this is not a regression claim.
+
+Selected native unit tests and five reference selections passed in quick
+mode: subqueries, CTEs, recursive queries, windows, grouping sets,
+aggregates, RETURNING, MERGE, domains, generated columns, joins, views,
+deparse and Dump round trips. They also passed against real PostgreSQL 18.6,
+except for `/postgres` oracle subtests that disagree with recorded
+expectations independently of the engine: `DeleteReturningBoundaries` and
+four MERGE repeatable-read tests.
+
+**Group reads** (direct field uses in each body, at `4d3568a9d`; helpers
+such as `evaluationContext` and `liveScope` are listed separately):
+
+| Reads | Node `Eval` methods |
+|---|---|
+| statement only | `arithmetic`, `array`, `bitwise`, `case`, `coercion`, `comparison`, `conditional`, `distinct`, `like`, `scalarArrayComparison`, `subscript`, `viewQualification` (all `Context`/`Input`/`Output`); `parameter` (`Parameters`) |
+| frame only | `cachedOrder` (`orderValues`), `domainValue` (`domainValue*`), `group`/`grouping` (`Frame`, `Outer`, `Row`, `Scope`), `mergeAction` (`mergeAction`, `mergeReturning`), `returningWholeRow` (`OldRow`), `tableOID` (`Frame`, `Scope`, `physicalTable`), `window` (`Row`), `updateOutput` (`updateOutputs`, `updateOutputsReady`; new since the inventory) |
+| frame + statement | `column` (`Frame`, `Row`, `Scope`, `mergeSourcePresent`, `physicalTable`, `queryCurrentRows`, `Context`), `returningColumn` (`OldRow`, `Row`, `Context`), `subquery` (`Row`, `query`, `Context`, `Input`, `Output`, `Parameters`), `sqlRoutine` (`query`, `statementScope`; new since the inventory) |
+
+`coercionExpression.Eval` reads only `Context`, `Input` and `Output`
+directly; its live-scope read goes through the `liveScope` method (frame
+`query` plus statement `statementScope`).
+
+Of the `EvalContext` methods: 18 read only the statement group (the
+`Function*` capabilities, `Advisory`, `RoleMembership`, `DeparseInquiry`,
+`LookupObjectAddress` and others) and 8 only the frame (`bindQueryRow`,
+`bindQueryIdentity`, `queryOperandSource`, `queryOperandAbsent`,
+`setQueryPresence`, `expressionPrincipal`, `IdentityValue`,
+`FunctionStatementTime`). Four read frame and statement (`CheckDomain`,
+`evaluateSelectedDomainCheck`, `liveScope`, `setContext`). Two read only
+admission (`routineAdmissionAuthority`, `selectExpressionRecipe`). Only
+`evaluateOwnDomainChecks` reads all three, and only `prepareOwnDomainChecks`
+reads statement plus admission. Step 11 can treat admission as a separate
+preparation-time value.
 
 Notes for later steps:
 

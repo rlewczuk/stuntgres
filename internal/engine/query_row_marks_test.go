@@ -55,7 +55,7 @@ func TestQueryLockNullableNormalizedDiagnostics(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			e, query, _ := queryJoinsFixture(t, tc.q)
-			evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			root, err := preflightQuery(&evaluation, query.Root)
 			if err != nil {
 				t.Fatal(err)

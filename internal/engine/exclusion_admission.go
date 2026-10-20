@@ -139,7 +139,7 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWrit
 }
 func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []storage.RowVersion, precheck bool, purpose indexProbePurpose) (storage.RowVersion, error) {
 	e := s.op.session.Engine()
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: e.catalog.read(binding.catalog)}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, statementScope: s, catalog: e.catalog.read(binding.catalog)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
 	}
@@ -340,7 +340,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 		if !found {
 			return uniqueConflict{}, false, nil
 		}
-		evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: scan.view}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, statementScope: s, catalog: scan.view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		if binding.typeName != nil {
 			evaluation.Input.TypeDiagnosticName = binding.typeName
 		}

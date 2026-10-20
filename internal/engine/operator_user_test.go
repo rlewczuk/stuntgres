@@ -167,7 +167,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 		if err != nil || selected != routine {
 			t.Fatal("selected routine authority", selected, err)
 		}
-		result, err := node.Eval(&EvalContext{Context: ctx})
+		result, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -187,7 +187,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := node.Eval(&EvalContext{Context: ctx})
+	result, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +384,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		}
 		_, auth := conversionUnitAuth(t, e)
 		auth.Recapture(view)
-		recipe := EvalContext{routineRecipe: true, routineReferences: manifest}
+		recipe := EvalContext{evalAdmission: evalAdmission{routineRecipe: true, routineReferences: manifest}}
 		if err := checkRecipeRoutineDescriptor(&recipe, auth, nil, routine); err != nil {
 			t.Fatal("stored provider admission", err)
 		}

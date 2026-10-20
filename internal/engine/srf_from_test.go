@@ -212,7 +212,7 @@ func TestSRFFromOwnership(t *testing.T) {
 	bad := seriesUnit(t, d, 1, 2)
 	bad.args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	// First member opens successfully; failed partial open must close the group.
-	invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []expr.Expr{n.calls[0], bad}})
+	invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &functionFromNode{calls: []expr.Expr{n.calls[0], bad}})
 	if !errors.Is(err, failure) || len(invocation.cursors) != 0 {
 		t.Fatal(invocation, err)
 	}

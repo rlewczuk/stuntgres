@@ -43,7 +43,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if node.ResultUsage() != b.typ(tc.result).Usage() || node.Properties() != (expr.Properties{}) {
 				t.Fatal(node.ResultUsage(), node.Properties())
 			}
-			value, err := node.Eval(&EvalContext{Context: ctx})
+			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -66,7 +66,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if err != nil || !changed || rebound.ResultUsage().Type == node.ResultUsage().Type {
 				t.Fatal(changed, err)
 			}
-			after, err := rebound.Eval(&EvalContext{Context: ctx})
+			after, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -109,7 +109,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 		return sqltype.Value{}, failure
 	})
 	node := bitwiseExpression{Info: expr.Info{Usage: inet.Usage()}, left: null, right: right, network: p, operator: sqltype.BitwiseAnd}
-	if _, err := node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(calls, []string{"left", "right"}) {
+	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, failure) || !reflect.DeepEqual(calls, []string{"left", "right"}) {
 		t.Fatal(calls, err)
 	}
 }
@@ -195,7 +195,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	family.right = literalExpression{Info: expr.Info{Usage: inet.Usage()}, value: v6}
 	family.Property = parameter.Property
 	for _, frame := range [][]sqltype.Value{{v4}, {v6}, {sqltype.Null(inet)}, {v4}} {
-		c := &EvalContext{Context: ctx, Parameters: frame}
+		c := &EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: frame}}
 		folded, changed, err := preflightCoercions(c, family)
 		if frame[0] == v4 {
 			var d *sqlstate.Error
@@ -215,7 +215,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	for _, barrier := range []expr.Properties{{RowDependent: true}, {StageDependent: true}, {DomainDependent: true}, {RuntimeDomainConversion: true}, {Volatility: expr.Stable}, {Volatility: expr.Volatile}} {
 		lazy := family
 		lazy.Property = expr.MergeProperties(lazy.Property, barrier)
-		if _, changed, err := preflightCoercions(&EvalContext{Context: ctx, Parameters: []sqltype.Value{v4}}, lazy); err != nil || changed {
+		if _, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{v4}}}, lazy); err != nil || changed {
 			t.Fatal("network preflight crossed barrier", barrier, changed, err)
 		}
 	}
@@ -248,7 +248,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := arithmeticExpression{Info: expr.Info{Usage: tc.result.Usage(), Property: expr.Properties{ParameterDependent: true}}, left: tc.left, right: tc.right, provider: provider, operator: tc.op}
-		_, _, err = preflightCoercions(&EvalContext{Context: ctx, Parameters: tc.frame}, n)
+		_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: tc.frame}}, n)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Context != tc.context || d.Position != "" {
 			t.Fatal(err)
@@ -299,7 +299,7 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	c := &EvalContext{Context: ctx}
+	c := &EvalContext{evalStatement: evalStatement{Context: ctx}}
 	if networkOperatorExecutionConstant(nil, c) {
 		t.Fatal("absent root is not an available expression")
 	}

@@ -13,7 +13,7 @@ import (
 
 func TestRuleStaticOperatorPreflight(t *testing.T) {
 	constant := preflightCast(t, "SELECT 1/(2-2) FROM t")
-	ordinary := EvalContext{Context: context.Background()}
+	ordinary := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	if _, changed, err := preflightCoercions(&ordinary, constant); err != nil || changed {
 		t.Fatalf("ordinary arithmetic demand changed: changed=%v error=%v", changed, err)
 	}
@@ -54,7 +54,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			modeOnly := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}, planStaticOperators: true}
+			modeOnly := EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, planStaticOperators: true}}
 			mapped, _, err := preflightCoercions(&modeOnly, original)
 			if err != nil || !mapped.Properties().ParameterDependent {
 				t.Fatalf("mode-only parameter barrier lost: %v", err)
@@ -93,7 +93,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		} {
 			recipe := original
 			recipe.Property = expr.MergeProperties(recipe.Property, barrier)
-			evaluation := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}, planStaticOperators: true, specializeRuleParameters: true}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, planStaticOperators: true, specializeRuleParameters: true}}
 			mapped, changed, err := preflightCoercions(&evaluation, recipe)
 			if err != nil || !changed {
 				t.Fatalf("specialization crossed runtime barrier %+v: %v", barrier, err)
@@ -116,7 +116,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		child := &projectNode{querySchema: schema, child: &singletonNode{}, expressions: []expr.Expr{bad}, frame: 2}
 		derived := &derivedNode{querySchema: schema, query: &BoundQuery{Root: child}, scanFrame: 1}
 		outer := &projectNode{querySchema: schema, child: derived, expressions: []expr.Expr{good}, frame: 1}
-		evaluation := EvalContext{Context: context.Background(), planStaticOperators: true}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 		prepared, err := preflightQuery(&evaluation, outer)
 		if err != nil {
 			t.Fatalf("unused pure child was prepared: %v", err)
@@ -229,7 +229,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if !joined.correlatedRight || !joined.right.(*projectNode).ruleInvocation {
 				t.Fatal("unit did not reach the real correlated rule invocation")
 			}
-			planning := EvalContext{Context: context.Background(), catalog: auth.Catalog, planStaticOperators: true}
+			planning := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: auth.Catalog, planStaticOperators: true}}
 			prepared, err := preflightQuery(&planning, composed.query.Root)
 			if err != nil {
 				t.Fatalf("row-dependent payload was evaluated during planning: %v", err)
@@ -301,7 +301,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluation := EvalContext{Context: context.Background(), planStaticOperators: true}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 		// Match DELETE's established order: source preparation first, then
 		// predicate preparation. Liveness must not evaluate the predicate early.
 		prepared, err := preflightQuery(&evaluation, private.deleteUsing)

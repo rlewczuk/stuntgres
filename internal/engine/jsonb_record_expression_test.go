@@ -44,7 +44,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if sourceReturnsSet(call) || !sourceAdmitted(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != expr.Stable {
 		t.Fatal("invalid scalar properties", call)
 	}
-	eval := &EvalContext{Context: context.Background()}
+	eval := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	v, err := call.Eval(eval)
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestJSONBRecordDomainErrors(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	view := e.CatalogRead()
-	eval := &EvalContext{Context: context.Background(), catalog: view}
+	eval := &EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
 	parent := domainUnitType(t, view, "jbr_parent").SQLType
 	child := domainUnitType(t, view, "jbr_child").SQLType
 	castDefinition := domainUnitType(t, view, "jbr_cast")
@@ -223,7 +223,7 @@ func TestJSONBRecordExpansion(t *testing.T) {
 	if err != nil || !jsonbRecordUnresolved(base) {
 		t.Fatal(base, err)
 	}
-	value, err := base.Eval(&EvalContext{Context: context.Background()})
+	value, err := base.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || value.IsNull() || value.CompositeLen() != 0 {
 		t.Fatal("registered empty record lost presence", value, err)
 	}
@@ -354,7 +354,7 @@ func TestJSONBRecordReplay(t *testing.T) {
 				if err != nil {
 					t.Fatal(round, err)
 				}
-				value, err := node.Eval(&EvalContext{Context: ctx, catalog: engine.CatalogRead()})
+				value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: engine.CatalogRead()}})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -428,7 +428,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			if err != nil || next.jsonbRecordBase {
 				t.Fatal("retained base rebound by stale name or leaked scope", err)
 			}
-			value, err := node.Eval(&EvalContext{Context: ctx, catalog: view})
+			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: view}})
 			if err != nil || value.Type() != original {
 				t.Fatal(value, err)
 			}
@@ -494,7 +494,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 		} else if call.Args[0].ResultUsage().Type.CompositeMember(0).Name != "f1" {
 			t.Fatal("caller labels replaced runtime field names")
 		}
-		value, err := call.Eval(&EvalContext{Context: ctx, catalog: auth.Catalog})
+		value, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: auth.Catalog}})
 		if err != nil || value.Type() != call.ResultUsage().Type {
 			t.Fatal(value, err)
 		}
@@ -510,7 +510,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 	if err != nil || !jsonbRecordUnresolved(base) {
 		t.Fatal("lost transitive static layout state", base, err)
 	}
-	if _, err := base.Eval(&EvalContext{Context: ctx, catalog: auth.Catalog}); err == nil {
+	if _, err := base.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: auth.Catalog}}); err == nil {
 		t.Fatal("inner unresolved expression was erased")
 	}
 }

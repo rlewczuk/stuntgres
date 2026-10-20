@@ -97,7 +97,7 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		got, err := rebound.Eval(&EvalContext{Context: context.Background()})
+		got, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || got != sqltype.Boolean(replacement[sqltype.Bool], true) {
 			t.Fatal(got, err)
 		}

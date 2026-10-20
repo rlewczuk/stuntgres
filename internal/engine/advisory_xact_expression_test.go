@@ -89,14 +89,14 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 		for _, preflight := range []bool{false, true} {
 			var folded expr.Expr
 			if preflight {
-				folded, _, err = preflightCoercions(&EvalContext{Context: ctx}, bound)
+				folded, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, bound)
 			} else {
-				folded, _, err = simplifyConditional(&EvalContext{Context: ctx}, bound, false)
+				folded, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, bound, false)
 			}
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, err := folded.Eval(&EvalContext{Context: ctx})
+			value, err := folded.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 			wantType := sqltype.Void
 			if strings.Contains(q, "pg_try_advisory_xact_lock") {
 				wantType = sqltype.Bool

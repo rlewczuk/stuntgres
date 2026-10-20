@@ -200,7 +200,7 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 			case "projection":
 				stage.schema = []catalog.Column{{}}
 				stage.expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
-				stage.evaluation = EvalContext{Context: context.Background()}
+				stage.evaluation = EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 			case "close":
 				if err := stage.Close(); err != secondary {
 					t.Fatal(err)
@@ -416,7 +416,7 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 					bound.ordering = append(bound.ordering, comparison)
 				}
 			}
-			c := EvalContext{Context: context.Background(), Scope: 1, Frame: 9, Row: tc.right}
+			c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 9, Row: tc.right}}
 			answer, err := bound.compare(&c, tc.left)
 			truth, _ := answer.Boolean()
 			if err != nil || answer.IsNull() != tc.unknown || (!tc.unknown && truth != tc.want) {

@@ -140,7 +140,7 @@ func TestQueryOuterJoinsFullLegality(t *testing.T) {
 	} {
 		t.Run(tc.condition, func(t *testing.T) {
 			e, query, _ := queryJoinsFixture(t, "SELECT a.k FROM a FULL JOIN b ON "+tc.condition)
-			evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			root, err := preflightQuery(&evaluation, query.Root)
 			if err != nil {
 				t.Fatal(err)
@@ -164,7 +164,7 @@ func TestQueryOuterJoinsNestedMergedKeyDependencies(t *testing.T) {
 		"SELECT a.k FROM a FULL JOIN b ON CASE WHEN a.q=9 THEN a.k ELSE a.k+1 END=b.k",
 	} {
 		e, query, _ := queryJoinsFixture(t, queryText)
-		c := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+		c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		root, err := preflightQuery(&c, query.Root)
 		if err != nil {
 			t.Fatal(queryText, err)
@@ -179,7 +179,7 @@ func TestQueryOuterJoinsExecutionRowmarkModes(t *testing.T) {
 	for _, kind := range []string{"LEFT", "RIGHT", "FULL"} {
 		for _, clause := range []string{"FOR KEY SHARE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR UPDATE"} {
 			e, query, _ := queryJoinsFixture(t, "SELECT a.k FROM a "+kind+" JOIN b ON a.k=b.k LIMIT 0 "+clause)
-			c := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+			c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			root, err := preflightQuery(&c, query.Root)
 			if err != nil {
 				t.Fatal(err)

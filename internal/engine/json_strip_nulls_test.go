@@ -86,7 +86,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || plannedVolatility(n) != expr.Immutable {
 		t.Fatal("retag lost presentation/volatility")
 	}
-	got, err := n.Eval(&EvalContext{Context: ctx})
+	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, err := node.Eval(&EvalContext{Context: ctx})
+			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}

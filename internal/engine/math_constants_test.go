@@ -43,7 +43,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	assert := func(x expr.Expr, owner *sqltype.Descriptor) {
 		t.Helper()
-		value, err := x.Eval(&EvalContext{Context: ctx})
+		value, err := x.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil || value.IsNull() || value.Type() != owner {
 			t.Fatal(value, err)
 		}
@@ -94,7 +94,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	value, err := next.Eval(&EvalContext{Context: canceled})
+	value, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: canceled}})
 	if !errors.Is(err, context.Canceled) || value.Type() != nil {
 		t.Fatal("pi cancellation publication", value, err)
 	}

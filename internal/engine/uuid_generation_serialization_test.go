@@ -44,7 +44,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 				if !ok || provider.ResultUsage().Type != b.typ(sqltype.UUID) || len(provider.Args) != 1 || provider.Args[0].ResultUsage().Type != b.typ(sqltype.Interval) {
 					t.Fatalf("round%d lost selected UUID interval signature: %T", round, node)
 				}
-				value, err := node.Eval(&EvalContext{Context: ctx})
+				value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 				if err != nil || !value.IsNull() || value.Type() != b.typ(sqltype.UUID) {
 					t.Fatal("serialized strict NULL demand", value, err)
 				}

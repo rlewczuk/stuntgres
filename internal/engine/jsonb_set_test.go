@@ -96,7 +96,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || n.WrittenCount != e.WrittenCount {
 		t.Fatal("presentation lost")
 	}
-	got, err := n.Eval(&EvalContext{Context: ctx})
+	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	replayed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+replaySQL)
-	replayValue, err := replayed.Eval(&EvalContext{Context: ctx})
+	replayValue, err := replayed.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal("named/default view replay", err)
 	}
@@ -165,7 +165,7 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 				if err != nil {
 					t.Fatal(round, err)
 				}
-				value, err := node.Eval(&EvalContext{Context: ctx})
+				value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -228,7 +228,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 
 func TestJSONBSetConstantPreflight(t *testing.T) {
 	ctx := context.Background()
-	eval := &EvalContext{Context: ctx}
+	eval := &EvalContext{evalStatement: evalStatement{Context: ctx}}
 	for _, q := range []string{`SELECT jsonb_set('{"a":1}','{a}','2')`, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'delete_key')`} {
 		b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		node := jsonbSetUnitBind(t, b, q)

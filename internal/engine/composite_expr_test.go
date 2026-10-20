@@ -30,7 +30,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 		t.Fatal(err)
 	}
 	row := rowExpression{Info: expr.Info{Usage: shape.Usage()}, fields: []expr.Expr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
-	c := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	value, err := row.Eval(c)
 	if err != nil || value.IsNull() || !value.CompositeField(1).IsNull() {
 		t.Fatal("present partially NULL constructor", err)
@@ -67,7 +67,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if value, err := selected.Eval(c); err != nil || !value.IsNull() {
 		t.Fatal("direct field ignored occurrence absence", err)
 	}
-	outer := &EvalContext{Context: context.Background(), Scope: 1, Frame: 2, Outer: c}
+	outer := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 2, Outer: c}}
 	if value, err := row.Eval(outer); err != nil || !value.IsNull() {
 		t.Fatal("whole row lost outer frame presence", err)
 	}
@@ -96,7 +96,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	}
 	t.Run("discarded immutable preflight", func(t *testing.T) {
 		node := preflightCast(t, "SELECT (ROW(7,1/0)).f1")
-		if _, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, node); err == nil {
+		if _, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node); err == nil {
 			t.Fatal("discarded immutable sibling omitted from execution preflight")
 		} else {
 			state(t, err, "22012")
@@ -151,7 +151,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 		t.Fatal("wrong nested leaf")
 	}
 	original := sqltype.Null(outer)
-	c := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{compositeExprUnitInteger(t, integer, 9)}}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{compositeExprUnitInteger(t, integer, 9)}}}
 	rhs := columnExpression{Info: expr.Info{Usage: integer.Usage()}, scope: 1, frame: 1, slot: 0}
 	first, err := target.applyExpression(c, original, rhs)
 	if err != nil {
@@ -229,7 +229,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := validateGenerationPlan(view, nil, remapped); err != nil {
 		t.Fatal("remapped closure", err)
 	}
-	value, err := remapped.Eval(&EvalContext{Context: context.Background()})
+	value, err := remapped.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}

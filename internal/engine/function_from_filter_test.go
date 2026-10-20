@@ -90,7 +90,7 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	// the TRUE row reaches three members, evaluating the volatile residual
 	// three times rather than once per source or once per unfiltered member.
 	for _, value := range []sqltype.Value{sqltype.Boolean(usage.Type, true), sqltype.Boolean(usage.Type, false), sqltype.Null(usage.Type)} {
-		evaluation := &EvalContext{Context: context.Background(), Scope: 1, Frame: 7, Row: []sqltype.Value{value}}
+		evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{value}}}
 		selected, err := predecessor.predicate.Eval(evaluation)
 		if err != nil {
 			t.Fatal(err)

@@ -146,7 +146,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if !exists || provider != usage.Type || usage != imported.Columns[1].Usage {
 		t.Fatal("imported default uses a noninstalled type provider")
 	}
-	value, err := node.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
+	value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

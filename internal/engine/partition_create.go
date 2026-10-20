@@ -163,7 +163,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return nil
 	}
 	ctx := scope.op.Context()
-	evaluation := EvalContext{Context: ctx, statementScope: scope, Input: scope.input, Output: scope.output}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: scope, Input: scope.input, Output: scope.output}}
 	if !p.bound.DefaultBound {
 		if err := p.evaluateBounds(scope, &evaluation); err != nil {
 			return err

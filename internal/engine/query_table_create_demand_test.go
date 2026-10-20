@@ -123,7 +123,7 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 		cleanup := errors.New("required source close")
 		failure := errors.New("primary expression failure")
 		closes := 0
-		inner := indexedStage{source: input, schema: project.Schema(), expressions: project.expressions, evaluation: EvalContext{Scope: 1, Frame: 1}, finish: func() error { closes++; return cleanup }}
+		inner := indexedStage{source: input, schema: project.Schema(), expressions: project.expressions, evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, finish: func() error { closes++; return cleanup }}
 		if primary {
 			inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 		}

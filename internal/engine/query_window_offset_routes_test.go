@@ -89,7 +89,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer stage.Close()
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 7}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 7}}
 	var rows [][]any
 	for {
 		occurrence, present, err := stage.nextOccurrence(context.Background())

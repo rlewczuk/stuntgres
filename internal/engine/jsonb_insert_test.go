@@ -42,7 +42,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		{`SELECT jsonb_set_lax('[0]','{0}','9')`, "[9]", true},
 	} {
 		n := jsonbSetUnitBind(t, b, tc.query).(functions.JSONBSet)
-		flag, err := n.Args[3].Eval(&EvalContext{Context: ctx})
+		flag, err := n.Args[3].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -50,7 +50,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		if err != nil || truth != tc.defaultFlag {
 			t.Fatal("wrong mutation default", tc.query, flag, err)
 		}
-		got, err := n.Eval(&EvalContext{Context: ctx})
+		got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,11 +85,11 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 			if err != nil || !sameGroupExpression(r, mapped) {
 				t.Fatal(mapped, err)
 			}
-			old, err := n.Eval(&EvalContext{Context: ctx})
+			old, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := mapped.Eval(&EvalContext{Context: ctx})
+			got, err := mapped.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}

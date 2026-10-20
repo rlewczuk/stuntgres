@@ -82,7 +82,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if procedures != 1 {
 				t.Fatal("exact original routine manifest", binder.dependencies)
 			}
-			evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority", err)
 			}

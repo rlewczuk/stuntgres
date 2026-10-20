@@ -17,7 +17,7 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 				cleanup := errors.New("required inner close")
 				failure := errors.New("primary projection failure")
 				closes := 0
-				inner := indexedStage{source: input, schema: project.Schema(), expressions: project.expressions, evaluation: EvalContext{Scope: 1, Frame: 1}, finish: func() error { closes++; return cleanup }}
+				inner := indexedStage{source: input, schema: project.Schema(), expressions: project.expressions, evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, finish: func() error { closes++; return cleanup }}
 				if primary {
 					inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 				}
@@ -57,7 +57,7 @@ func TestQueryLimitEOFCloses(t *testing.T) {
 	child := indexedStage{source: input, schema: project.child.Schema(), selection: []int{0}, finish: func() error { closes++; return failure }}
 	stage := producingStage(&child, project.Schema())
 	stage.expressions = project.expressions
-	stage.evaluation = EvalContext{Scope: 1, Frame: 1}
+	stage.evaluation = EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	stage.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		i, present, err := child.nextOccurrence(ctx)
 		if err != nil || !present {

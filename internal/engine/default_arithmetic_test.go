@@ -75,7 +75,7 @@ func TestDefaultArithmeticPlanningScopedPolicy(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	node := view.MustRelation(ref.Address).ColumnMeta.Defaults[1].Expression
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	ordinary, changed, err := preflightCoercions(ctx, node)
 	if err != nil || changed {
 		t.Fatal("ordinary arithmetic must remain row-owned", changed, err)

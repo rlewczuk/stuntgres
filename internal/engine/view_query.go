@@ -22,7 +22,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	e.mu.Unlock()
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope, catalog: catalog, Input: scope.input, Output: scope.output}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: scope, catalog: catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	evaluation.quoteCaptures = scope.quoteCaptures
 	evaluation.quoteOrigin = quoteOrigin{owner: ref, definition: definition.rule, revision: definition.quoteRevision}
 	consumer, ok := catalog.Relation(ref.Address)

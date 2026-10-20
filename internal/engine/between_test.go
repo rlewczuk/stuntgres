@@ -138,7 +138,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 					t.Fatal(err)
 				}
 				node := rebound.query.Root.(*projectNode).expressions[0]
-				value, evalErr := node.Eval(&EvalContext{Context: context.Background()})
+				value, evalErr := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 				truth, truthErr := value.Boolean()
 				want := form == "BETWEEN" || form == "BETWEEN SYMMETRIC"
 				if evalErr != nil || truthErr != nil || truth != want || !reflect.DeepEqual(desc.temporals, before) || len(rebound.temporals) != 0 {

@@ -31,7 +31,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		eval := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}}
+		eval := EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 		private, err := preflightUpdate(&eval, original)
 		if input == "bad" {
 			state(t, err, "22P02")
@@ -69,7 +69,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 		}
 	}
 	unchanged := &boundUpdate{assignments: []expr.Expr{output.expressions[1]}, from: join.left}
-	eval := EvalContext{Context: context.Background()}
+	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	same, err := preflightUpdate(&eval, unchanged)
 	if err != nil || same != unchanged {
 		t.Fatal("unchanged tree replaced", same, err)

@@ -105,7 +105,7 @@ func (s *queryState) evaluation(ctx context.Context) EvalContext {
 	if frame == 0 {
 		frame = 1
 	}
-	evaluation := EvalContext{Scope: 1, Frame: frame, Parameters: s.parameters, Input: s.input, Output: s.output, Outer: s.outer, query: s}
+	evaluation := EvalContext{evalFrame: evalFrame{Scope: 1, Frame: frame, Outer: s.outer, query: s}, evalStatement: evalStatement{Parameters: s.parameters, Input: s.input, Output: s.output}}
 	if s.outer != nil {
 		evaluation.catalog = s.outer.catalog
 	}

@@ -631,7 +631,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 			return err
 		}
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: input, Output: s.output, catalog: view}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), statementScope: s, Input: input, Output: s.output, catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {

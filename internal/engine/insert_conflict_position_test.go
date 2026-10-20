@@ -58,7 +58,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			}
 			f.e.storage.SetFrontierLocked(3, 3)
 			f.e.visibility.SetCommitSeqLocked(1)
-			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
+			root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -87,7 +87,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
 					t.Fatal(err)
 				}
-				next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, root.Entries, &p, false, true, false, "public", scope.output, nil)
+				next, err := mergeIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, root.Entries, &p, false, true, false, "public", scope.output, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -127,7 +127,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			publish([]storage.RowVersion{{Row: 1, Version: 7, Base: 1, Values: values}}, 0)
 			delete(want, 2)
 			publish(nil, 2)
-			rebuilt, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
+			rebuilt, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -160,13 +160,13 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			nextCatalog.SetDescriptor(index.Address(), &index)
 			stores := maps.Clone(f.e.storage.Relations)
 			stores[parent.Address()] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
+			prepared, err := f.e.prepareIndexCatalog(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.e.catalog.state, &nextCatalog, stores, f.e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}
 			insertConflictWantHints(t, prepared[index.Address()], &shaped, want)
 			changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
-			if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
+			if err := prepareAlterIndexRoots(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
 			insertConflictWantHints(t, changes.uniqueRoots[index.Address()], &shaped, want)
@@ -226,14 +226,14 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	validated, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil, nil, true)
+	validated, err := validateAlterIndexBuilds(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil, nil, true)
 	if err != nil || validated[f.index.Name()] == nil {
 		t.Fatal("no-overlay type validation", validated, err)
 	}
 	index := *f.index
 	index.ObjectRevision++
 	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
-	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
+	if err := prepareAlterIndexRoots(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}
 	root := changes.uniqueRoots[index.Address()]

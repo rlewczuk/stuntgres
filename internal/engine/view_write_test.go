@@ -177,7 +177,7 @@ func TestViewWriteDefaults(t *testing.T) {
 		SQLIndex:      &catalog.IndexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
 	conflict := &boundInsertConflict{}
-	evaluation := EvalContext{Context: context.Background()}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	if err := conflict.selectArbiters(&evaluation, b.physicalBinding().relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestViewWriteDemand(t *testing.T) {
 	})
 	guard := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
 	expression := viewWritePredicate([]expr.Expr{guard}, unsafe)
-	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	matched, err := updateMatches(&eval, expression)
 	if err != nil || matched || calls != 0 {
 		t.Fatal("hidden row demanded user work", matched, err, calls)
@@ -318,7 +318,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 		n, _ := c.Row[1].Integer()
 		return sqltype.Boolean(f.boolean, n > 5), nil
 	})
-	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: current.Values}
+	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: current.Values}}
 	matched, err := updateMatches(&eval, viewWritePredicate([]expr.Expr{predicate}, nil))
 	if err != nil || matched {
 		t.Fatal("latest predecessor bypassed view qualification", matched, err)

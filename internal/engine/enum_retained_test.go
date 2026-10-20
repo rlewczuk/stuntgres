@@ -90,7 +90,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			if b.input.TypeDiagnosticName(mood.ID()) != "mood" || !b.input.EnumMemberSafe(mood.ID(), members[0].ID) || b.input.EnumMemberSafe(mood.ID(), members[1].ID) {
 				t.Fatal("incoherent catalog/provenance capture")
 			}
-			eval := &EvalContext{Context: context.Background(), Input: b.input}
+			eval := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: b.input}}
 			value, err := nested.Eval(eval)
 			if err != nil || !sqltype.SameDatum(value, safe) || calls != 0 {
 				t.Fatal("unused producer demanded", calls, err)

@@ -204,7 +204,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 		}
 	}
 	output := sqltype.OutputEnvironment{DateStyle: sqltype.DateStyle{Style: sqltype.DateGerman, Order: sqltype.DateDMY}}
-	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, f.catalog, f.catalog, stores, f.roots, parents, nil, []rowPublication{publication}, materialize, output, &f.auth, nil, nil)
+	roots, err := f.e.prepareIndexPublication(&EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.catalog, f.catalog, stores, f.roots, parents, nil, []rowPublication{publication}, materialize, output, &f.auth, nil, nil)
 	if !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(writes, beforeWrites) || deletion != nil && !reflect.DeepEqual(deletion.Rows, beforeDeletes) {
 		t.Fatal("publication inputs mutated")
 	}

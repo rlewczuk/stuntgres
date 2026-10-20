@@ -61,7 +61,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 		literalExpression{Info: expr.Info{Usage: numeric.Usage()}, value: sqltype.Null(numeric)},
 		literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, mask)},
 	}}
-	simplified, _, err := simplifyConditional(&EvalContext{Context: ctx}, n, false)
+	simplified, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, n, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	value, err := rebound.Eval(&EvalContext{Context: ctx})
+	value, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil || value.Type() != replacements[sqltype.Text] || n.ResultUsage().Type != text {
 		t.Fatal("retained descriptor ownership", value, err)
 	}

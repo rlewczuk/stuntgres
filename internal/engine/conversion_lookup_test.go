@@ -68,7 +68,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "é")},
 		literalExpression{Info: expr.Info{Usage: name.Usage()}, value: sqltype.String(name, "LATIN1")},
 	}}
-	result, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: fresh})
+	result, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: fresh}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,11 +77,11 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal("actual selected handler output", raw, err)
 	}
 	missing := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}
-	if _, err = node.Eval(&EvalContext{Context: context.Background(), statementScope: missing}); err == nil {
+	if _, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: missing}}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
 	node.Args[0] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "")}
-	if _, err = node.Eval(&EvalContext{Context: context.Background()}); err != nil {
+	if _, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err != nil {
 		t.Fatal("empty input demanded default snapshot", err)
 	}
 }

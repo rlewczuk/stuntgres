@@ -53,7 +53,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 		if origin.definition.OID != 0 || origin.consumer != nil || origin.quote.owner.Address != tc.d.Address() || origin.quote.attribute != 0 || origin.quote.definition != 0 {
 			t.Fatal("domain recipe lost type origin or invented column identity")
 		}
-		c := EvalContext{Context: context.Background(), catalog: view}
+		c := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
 		value, err := evalDefaultExpression(&c, node, origin)
 		if err != nil {
 			t.Fatal(tc.d.Name(), err)
@@ -71,7 +71,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 		}
 	}
 	// NULL cooking never executes the immediate constrained base. Demand does.
-	c := EvalContext{Context: context.Background(), catalog: view}
+	c := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
 	_, err := mask.DomainDefault.Expression.Eval(&c)
 	domainUnitDiagnostic(t, err, "23502", "domain public.base_default does not allow null values")
 	if !structuralNull(mask.DomainDefault.Expression) {

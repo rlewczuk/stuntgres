@@ -369,7 +369,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	e.mu.Unlock()
 	changes := newCatalogChanges()
-	evaluation := EvalContext{Context: context.Background(), catalog: e.catalog.read(next)}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.catalog.read(next)}}
 	for address, shape := range stage.rowShapes {
 		parent, ok := next.Relation(address)
 		if !ok {

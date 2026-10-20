@@ -19,7 +19,7 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 			replaced[row.Row] = true
 		}
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), statementScope: s, Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	scan := func(rows []storage.RowVersion, committed bool) error {
 		for _, row := range rows {
 			if err := s.op.Context().Err(); err != nil {

@@ -61,7 +61,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	if err := evaluateGenerations(canceled, d, row, &eval); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	wrong := EvalContext{Context: context.Background(), Scope: 2, Frame: 1, Row: row}
+	wrong := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 2, Frame: 1, Row: row}}
 	if _, err := node.Eval(&wrong); err == nil {
 		t.Fatal("wrong frame accepted")
 	}
@@ -114,7 +114,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := remapped.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
+	value, err := remapped.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	candidate.SetDescriptor(d.Address(), d)
 	relations := map[ids.ObjectAddress]*storage.Relation{d.Address(): rows}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
-	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{Context: context.Background()}, nil); err != nil {
+	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{evalStatement: evalStatement{Context: context.Background()}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {
@@ -237,12 +237,12 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := recomputeRemappedGenerations(canceled, candidate, relations, mapping, EvalContext{Context: canceled}, nil); !errors.Is(err, context.Canceled) {
+	if err := recomputeRemappedGenerations(canceled, candidate, relations, mapping, EvalContext{evalStatement: evalStatement{Context: canceled}}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
 	d.Constraints.Check = []catalog.CheckConstraint{{Name: "blocked", Expression: literalExpression{expr.Info{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
-	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{Context: context.Background()}, nil); err == nil {
+	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{evalStatement: evalStatement{Context: context.Background()}}, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {

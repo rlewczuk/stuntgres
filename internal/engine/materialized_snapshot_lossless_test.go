@@ -52,7 +52,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	inner := coercionExpression{expr.Info{Usage: u}, literal, plan, sqltype.Explicit, false}
 	// The explicit node already has the destination usage. A final assignment
 	// wrapper is neither required nor sufficient to validate its child.
-	if _, err := inner.Eval(&EvalContext{Context: context.Background(), Input: input}); err == nil {
+	if _, err := inner.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: input}}); err == nil {
 		t.Fatal("matching explicit usage lost datum")
 	}
 	wide, err := sqltype.PlanCoercion(u, u.Type.Usage(), sqltype.Explicit)
@@ -60,11 +60,11 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 		t.Fatal(err)
 	}
 	outer := coercionExpression{expr.Info{Usage: u.Type.Usage()}, inner, wide, sqltype.Explicit, false}
-	if _, err := outer.Eval(&EvalContext{Context: context.Background(), Input: input}); err == nil {
+	if _, err := outer.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: input}}); err == nil {
 		t.Fatal("outer widening hid inner loss")
 	}
 	// Ordinary SQL retains its intentional rounding semantics.
-	if _, err := outer.Eval(&EvalContext{Context: context.Background()}); err != nil {
+	if _, err := outer.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err != nil {
 		t.Fatal("ordinary coercion changed", err)
 	}
 	// The routine container codec emits a closed concatenation tree. Admission

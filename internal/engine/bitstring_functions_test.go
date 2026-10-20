@@ -52,7 +52,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if err := binary.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			got, err := node.Eval(&EvalContext{Context: context.Background()})
+			got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -82,7 +82,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if next.Plan == binary.Plan {
 				t.Fatal("provider retained old owner")
 			}
-			after, err := next.Eval(&EvalContext{Context: context.Background()})
+			after, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			want, retagErr := got.Retag(replacements[tc.result])
 			if err != nil || retagErr != nil || after != want {
 				t.Fatal(tc.name, after, want, err)
@@ -161,7 +161,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 		if source.ResultUsage() != sourceUsage || node.ResultUsage().Typmod != -1 {
 			t.Fatal(name, "source or result width changed")
 		}
-		if _, err := node.Eval(&EvalContext{Context: context.Background()}); err != nil {
+		if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err != nil {
 			t.Fatal(name, err)
 		}
 	}

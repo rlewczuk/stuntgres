@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `a85e7d7479e33e00df71c9cd566edd5c6ff97902`. The later-wave plans
+Last verified against `master` at `4d3568a9d377b92016053fa8f6571a69caddd8b3`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,17 +15,14 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 3 remainder** — Tier C item 9 (advisory locks with blocking inquiry).
-  It touches shared switches; rebase early.
-- **Optional cleanups** — storage 6d (item 12).
-- **Step 8 `settings`** — 8a (item 13) implementation/proof complete;
-  review/integration pending. 8b (item 14) follows integration.
-- **Step 9 `pgcatalog`** — 9a (item 16).
-- **In-place untangling** — 10a `EvalContext` split (item 19), 12a
-  `binding` split (item 20) and 13a scope slots (item 22). All three are
-  broad: one at a time.
+- **Step 3 remainder** — Tier C item 10 (sequence calls). It touches shared
+  switches; rebase early.
+- **Step 8 `settings`** — 8b (item 14).
+- **Step 10 `plan`** — 10b node runtime (item 32).
+- **In-place untangling** — 12a `binding` split (item 20) and 13a scope
+  slots (item 22). Both are broad: one at a time.
+- **Step 14 `routine`** — 14a (item 24); `PG18-ROUTINE-CORE` has merged.
 
-Item 24 (routine 14a) waits for the `PG18-ROUTINE-CORE` feature work to merge.
 Steps 1, 2 and 4–7 and `access` are done.
 
 ## Task tree
@@ -241,7 +238,8 @@ Steps 1, 2 and 4–7 and `access` are done.
   - [ ] 9b — `pgcatalog` created and producers moved
   - [ ] 9c — Aliases removed
 - [ ] **Step 10 — `plan`** ([prompt](ENGINE-SPLIT-plan.md); needs 2, 3 F1, 5)
-  - [ ] 10a — `EvalContext` split in place *(broad)*
+  - [x] 10a — `EvalContext` split in place *(broad)* (the commit that
+    records this status) *(racecheck/finalcheck skipped at user request)*
   - [ ] 10b — Opaque CTE mutation and node runtime, in place
   - [ ] 10c — `plan` created, IR and node types moved *(broad)*
   - [ ] 10d — Aliases removed *(broad)*
@@ -375,8 +373,11 @@ in the prompt file's Status section.
 
 ### Group C — untangle the shared structs in place
 
-19. [ ] Plan 10a: `EvalContext` split — [plan](ENGINE-SPLIT-plan.md) 10a ·
-    needs — · **broad**
+19. [x] Plan 10a: `EvalContext` split — [plan](ENGINE-SPLIT-plan.md) 10a ·
+    needs — · **broad** · selected native proof, bench and quickcheck passed;
+    real 18.6 mode passed except oracle-side `/postgres` drift (DELETE
+    RETURNING boundaries, MERGE repeatable read); racecheck/finalcheck
+    skipped at user request
 20. [ ] Analyze 12a: `binding` split — [analyze](ENGINE-SPLIT-analyze.md)
     12a · needs — · **broad**
 21. [ ] Analyze 12b: binder field groups —

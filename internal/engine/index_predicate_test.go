@@ -52,7 +52,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	e.mu.Lock()
 	e.storage.InstallRelationLocked(parent.Address(), store)
 	e.mu.Unlock()
-	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.SQLIndex, store, nil)
+	root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func partialWantMembership(t *testing.T, root *storage.IndexRoot, want map[ids.R
 
 func TestPartialIndexPredicateTruth(t *testing.T) {
 	f := newPartialIndexFixture(t)
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	var preparation, absent indexExecutionPreparation
 	for i, row := range f.store.Versions {
 		got, err := preparation.predicateMatches(&evaluation, f.parent, f.index.SQLIndex, row.Values, nil, nil)
@@ -113,7 +113,7 @@ func TestPartialIndexRootMembership(t *testing.T) {
 	}
 	ordinary := *f.index.SQLIndex
 	ordinary.Predicate = nil
-	all, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &ordinary, f.store, nil)
+	all, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &ordinary, f.store, nil)
 	if err != nil || len(all.Entries) != 5 || all.Membership != nil {
 		t.Fatal("ordinary path", all, err)
 	}
@@ -124,7 +124,7 @@ func TestPartialIndexRootMembership(t *testing.T) {
 		node := literalExpression{Info: expr.Info{Usage: f.predicate.Usage}, value: tc.value}
 		def := *f.index.SQLIndex
 		def.Predicate = &catalog.IndexPredicate{Definition: node, Execution: node}
-		root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, f.store, nil)
+		root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &def, f.store, nil)
 		if err != nil || len(root.Entries) != tc.count || len(root.Membership) != tc.count {
 			t.Fatal("constant root", tc, root, err)
 		}
@@ -149,21 +149,21 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 		write(4, 9, 4, sqltype.Null(boolean)),
 		write(5, 10, 5, sqltype.Boolean(boolean, true)),
 	}}
-	next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, old.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	next, err := mergeIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, old.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{2: 7, 3: 8, 5: 10})
 	partialWantMembership(t, old, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 	p = &rowPublication{deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Version: 7}, 1: {Version: 6}}}}
-	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	next, err = mergeIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{3: 8, 5: 10})
 	// Excluded successors and own-deleted additions must never resurrect identities.
 	p = &rowPublication{writes: []storage.RowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Version: 12, Own: true}}}}
-	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	next, err = mergeIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,11 +204,11 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 		t.Fatal("excluded keys evaluated", calls, err)
 	}
 	excluded := &storage.Relation{Versions: scope.stage.rows[f.parent.Address()]}
-	built, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, excluded, nil)
+	built, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &def, excluded, nil)
 	if err != nil || calls != 0 || len(built.Entries) != 0 {
 		t.Fatal("build evaluated excluded keys", calls, err)
 	}
-	merged, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &idx, built.Entries, &rowPublication{writes: excluded.Versions}, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	merged, err := mergeIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &idx, built.Entries, &rowPublication{writes: excluded.Versions}, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil || calls != 0 || merged != nil {
 		t.Fatal("excluded writes changed root or evaluated keys", merged, calls, err)
 	}
@@ -225,11 +225,11 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 		t.Fatal("simple-key predicate not preflighted", calls, err)
 	}
 	calls = 0
-	if _, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, f.store, nil); !errors.Is(err, failure) || calls != 1 {
+	if _, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &def, f.store, nil); !errors.Is(err, failure) || calls != 1 {
 		t.Fatal("build predicate error", calls, err)
 	}
 	calls = 0
-	if _, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &idx, f.e.storage.IndexRoots[f.index.Address()].Entries, &rowPublication{writes: scope.stage.rows[f.parent.Address()]}, false, true, false, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, failure) || calls != 1 {
+	if _, err := mergeIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &idx, f.e.storage.IndexRoots[f.index.Address()].Entries, &rowPublication{writes: scope.stage.rows[f.parent.Address()]}, false, true, false, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, failure) || calls != 1 {
 		t.Fatal("merge predicate error", calls, err)
 	}
 }
@@ -238,7 +238,7 @@ func TestPartialIndexPredicateCancellation(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	for _, p := range []*catalog.IndexPredicate{nil, f.index.SQLIndex.Predicate} {
 		preparation := indexExecutionPreparation{}
 		if _, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: p}, nil, nil, nil); !errors.Is(err, context.Canceled) {
@@ -246,10 +246,10 @@ func TestPartialIndexPredicateCancellation(t *testing.T) {
 		}
 	}
 	root := f.e.storage.IndexRoots[f.index.Address()]
-	if _, err := buildIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, f.parent, f.index.SQLIndex, f.store, nil); !errors.Is(err, context.Canceled) {
+	if _, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, f.index.SQLIndex, f.store, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := mergeIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, f.parent, f.index, root.Entries, &rowPublication{}, false, true, false, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, context.Canceled) {
+	if _, err := mergeIndexRoot(&EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, root.Entries, &rowPublication{}, false, true, false, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})

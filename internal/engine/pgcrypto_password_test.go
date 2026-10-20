@@ -80,7 +80,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if plannedVolatility(retagged) != v.volatility || generationImmutable(retagged) != (v.volatility == expr.Immutable) {
 			t.Fatal("retag changed intrinsic volatility")
 		}
-		value, err := n.Eval(&EvalContext{Context: context.Background()})
+		value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || value.IsNull() || value.Type().ID() != sqltype.Text {
 			t.Fatal(value, err)
 		}

@@ -88,8 +88,8 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 		return sqltype.Value{}, nil
 	})}
 	occurrence, _ := sqltype.Integer(usage.Type, 1)
-	outer := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(usage.Type), occurrence}}
-	value, err := grouping.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 2, Outer: outer})
+	outer := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(usage.Type), occurrence}}}
+	value, err := grouping.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 2, Outer: outer}})
 	mask, _ := value.Integer()
 	if err != nil || mask != 3 || value.Type().ID() != sqltype.Int4 {
 		t.Fatal(mask, err)

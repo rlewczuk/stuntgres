@@ -39,7 +39,7 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	value, _ := sqltype.Integer(integer, 1)
 	other, _ := sqltype.Integer(integer, 2)
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	calls := [5]int{}
 	spy := func(i int, v sqltype.Value) expr.Expr {
 		return conditionalSpy{expr.Info{Usage: v.Type().Usage(), Property: expr.Properties{RowDependent: true}}, v, &calls[i], nil}
@@ -84,7 +84,7 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := searched.Eval(&EvalContext{Context: canceled}); !errors.Is(err, context.Canceled) {
+	if _, err := searched.Eval(&EvalContext{evalStatement: evalStatement{Context: canceled}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -178,7 +178,7 @@ func TestConditionalCoercionOperandPosition(t *testing.T) {
 }
 func TestConditionalPlanningDemand(t *testing.T) {
 	e := New()
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for _, tc := range []struct {
 		expr string
 		code string
@@ -286,7 +286,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 	}
 	for _, kind := range []parser.ConditionalKind{parser.Greatest, parser.Least} {
 		node := conditionalExpression{Info: info, kind: kind, args: []expr.Expr{literalExpression{info, negative}, literalExpression{info, positive}}, comparison: comparison}
-		got, err := node.Eval(&EvalContext{Context: context.Background()})
+		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -316,7 +316,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 		if node.ResultUsage().Type != name {
 			t.Fatal(tc, node.ResultUsage())
 		}
-		got, err := node.Eval(&EvalContext{Context: context.Background(), Parameters: []sqltype.Value{sqltype.String(name, "same")}})
+		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{sqltype.String(name, "same")}}})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -369,7 +369,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 			{first, sqltype.Null(wrapped), last},
 			{sqltype.Null(wrapped), sqltype.Null(wrapped), sqltype.Null(wrapped)},
 		} {
-			got, err := node.Eval(&EvalContext{Context: context.Background(), Parameters: parameters})
+			got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: parameters}})
 			if err != nil {
 				t.Fatal(tc.expr, err)
 			}
@@ -403,7 +403,7 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	got, err := retagged.Eval(&EvalContext{Context: context.Background()})
+	got, err := retagged.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,7 +411,7 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	if err != nil || number != 2147483649 || got.Type() != eType(t, target, sqltype.Int8) {
 		t.Fatal(number, got.Type(), err)
 	}
-	old, err := node.Eval(&EvalContext{Context: context.Background()})
+	old, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || old.Type() != eType(t, source, sqltype.Int8) {
 		t.Fatal("retag mutated old default", old, err)
 	}
@@ -463,7 +463,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 	}
 	assertValue := func(node expr.Expr, domain *sqltype.Descriptor, label string, null bool) {
 		t.Helper()
-		got, err := node.Eval(&EvalContext{Context: ctx})
+		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil || got.Type() != domain || got.IsNull() != null || node.ResultUsage().Type != domain {
 			t.Fatal("stored extrema identity/NULL", got, node.ResultUsage(), err)
 		}
@@ -518,11 +518,11 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 				if original.args[i].ResultUsage().Type != oldDomain || reminted.args[i].ResultUsage().Type != newDomain {
 					t.Fatal("reownership mutated original operands")
 				}
-				oldValue, err := original.args[i].Eval(&EvalContext{Context: ctx})
+				oldValue, err := original.args[i].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 				if err != nil || oldValue.Type() != oldDomain {
 					t.Fatal("original operand datum ownership", oldValue, err)
 				}
-				newValue, err := reminted.args[i].Eval(&EvalContext{Context: ctx})
+				newValue, err := reminted.args[i].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 				if err != nil || newValue.Type() != newDomain || newValue.IsNull() != oldValue.IsNull() {
 					t.Fatal("reminted operand datum ownership", newValue, err)
 				}
@@ -688,7 +688,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			ref := roleTableRef(t, e, "d")
 			d := view.MustRelation(ref.Address)
 			original := d.ColumnMeta.Defaults[d.Attributes[0]]
-			c := &EvalContext{Context: context.Background()}
+			c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 			planned, changed, err := preflightCoercionsWithPolicy(c, original.Expression, true)
 			if err != nil || !changed {
 				t.Fatal(planned, changed, err)
@@ -738,7 +738,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 		run(t, e, "CREATE TABLE d(a BOOL DEFAULT ("+expr+"))")
 		ref := roleTableRef(t, e, "d")
 		d := e.CatalogRead().MustRelation(ref.Address)
-		_, _, err := preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, d.ColumnMeta.Defaults[d.Attributes[0]].Expression, true)
+		_, _, err := preflightCoercionsWithPolicy(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, d.ColumnMeta.Defaults[d.Attributes[0]].Expression, true)
 		state(t, err, "22P02")
 		run(t, e, "INSERT INTO d VALUES(FALSE)")
 	}

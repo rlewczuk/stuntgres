@@ -27,7 +27,7 @@ func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) seri
 
 func numericSeriesUnitRead(t *testing.T, e seriesExpression) []sqltype.Value {
 	t.Helper()
-	cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, e)
+	cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestNumericSeriesInvocation(t *testing.T) {
 	}
 	sentinel := errors.New("sibling evaluation")
 	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
-	if _, err := openFunctionSource(&EvalContext{Context: context.Background()}, e); err != sentinel {
+	if _, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }
@@ -158,10 +158,10 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
 		func() (expr.Expr, bool, error) {
-			return preflightCoercions(&EvalContext{Context: context.Background()}, original)
+			return preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
 		},
 		func() (expr.Expr, bool, error) {
-			return simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
+			return simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
 		},
 	} {
 		n, _, err := fold()

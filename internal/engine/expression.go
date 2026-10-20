@@ -17,41 +17,69 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// EvalContext is the per-evaluation state that engine expression nodes recover
+// from expr.Context. It is three embedded groups, so every field is still a
+// promoted selector (c.Row, c.Context, c.routineChecks). Copying an
+// EvalContext (x := *c, queryState.evaluation, indexedStage) copies all three
+// groups by value, exactly as before the split.
 type EvalContext struct {
-	Context                            context.Context
+	evalFrame
+	evalStatement
+	evalAdmission
+}
+
+// evalFrame is the current row frame: scope/frame numbers, the current and old
+// rows, the outer frame chain, query occurrence/provenance and presence slots,
+// MERGE/RETURNING row state, the active domain value and the UPDATE output
+// tuple. Query openers, row producers and DML executors write it per row or
+// per nested frame; frame nodes (column, group, grouping, tableoid, RETURNING,
+// MERGE action, cached ORDER BY, window, domain value, UPDATE output) and
+// subqueries read it.
+type evalFrame struct {
 	Scope, Frame                       uint32
 	Row                                []sqltype.Value
 	OldRow                             []sqltype.Value
 	mergeReturning, mergeSourcePresent bool
 	mergeAction                        parser.MergeAction
-	Parameters                         []sqltype.Value
 	orderValues                        []sqltype.Value
 	// Reused by the current UPDATE execution; nested owners save/restore it.
 	updateOutputScratch []sqltype.Value
 	updateOutputs       []sqltype.Value
 	updateOutputsReady  bool
-	statementScope      *StatementScope
-	Input               sqltype.InputEnvironment
-	Output              sqltype.OutputEnvironment
 	Outer               *EvalContext
 	query               *queryState
-	catalog             catalog.Read // Current imported request/view authority for local lowering.
 	queryOccurrences    []int
 	queryProvenance     []int
 	queryRowSource      *querySource
 	// Borrowed full logical tuples only while rechecking locked occurrences.
-	queryCurrentRows [][]sqltype.Value
-	physicalTable    ids.ObjectRef // Existing generated recipe's containing physical row.
-	presenceSlots    []int
-	presence         []bool
+	queryCurrentRows  [][]sqltype.Value
+	physicalTable     ids.ObjectRef // Existing generated recipe's containing physical row.
+	presenceSlots     []int
+	presence          []bool
+	domainValue       sqltype.Value
+	domainFrameUsage  sqltype.Usage
+	domainValueActive bool
+}
+
+// evalStatement is the statement runtime: cancellation context, bound
+// parameters, input/output environments, statement scope and catalog
+// authority, plus per-command prepared CHECK/domain/generation programs and
+// preparation flags. Statement executors and preparation set it when they
+// build an evaluation; nested frames inherit it by copy. Every node reads
+// Context, Input and Output; functions read it through the expr.Context
+// capability methods.
+type evalStatement struct {
+	Context        context.Context
+	Parameters     []sqltype.Value
+	statementScope *StatementScope
+	Input          sqltype.InputEnvironment
+	Output         sqltype.OutputEnvironment
+	catalog        catalog.Read // Current imported request/view authority for local lowering.
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks       map[*catalog.Relation][]expr.Expr
 	preparedDomainChecks map[*catalog.Type]domainCheckProgram
 	preparedGenerations  map[*catalog.Relation][]expr.Expr // First actual tuple prepares executable recipes, not permission results.
-	domainValue          sqltype.Value
-	domainFrameUsage     sqltype.Usage
-	domainValueActive    bool
 	pgRegex              sqltype.PGRegexExecution
 	quoteCaptures        *quoteCaptureCandidate
 	quoteOrigin          quoteOrigin
@@ -61,8 +89,14 @@ type EvalContext struct {
 	// Separate rule-program permission: actual supplied Param leaves may become
 	// typed constants during preparation. Ordinary imported-param barriers stay.
 	specializeRuleParameters bool
-	// Recipe-owned manifests are borrowed only by a local admission copy.
-	// They never replace the live scope's authority or another recipe's owner.
+}
+
+// evalAdmission is routine admission state for local serial DDL/recipe
+// preparation (CHECK, generated, index, domain and routine bodies). Admission
+// copies set it on a local EvalContext; the statement's live context leaves it
+// zero. Recipe-owned manifests are borrowed only by a local admission copy and
+// never replace the live scope's authority or another recipe's owner.
+type evalAdmission struct {
 	routineAuthority   *AuthorizationView // Borrowed local serial DDL admission only; never retained.
 	routineRecipe      bool               // Distinguishes an empty owning manifest from the statement manifest.
 	routineGraft       bool               // Local ancestry phase only; nil user nodes resume the statement manifest.

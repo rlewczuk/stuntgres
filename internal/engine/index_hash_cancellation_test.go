@@ -190,7 +190,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := mergeHashIndexRoot(&EvalContext{Context: counting, Scope: 1, Frame: 1}, parent, index, e.storage.IndexRoots[index.Address()], &p, false, true)
+	candidate, err := mergeHashIndexRoot(&EvalContext{evalStatement: evalStatement{Context: counting}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, index, e.storage.IndexRoots[index.Address()], &p, false, true)
 	if err != nil || candidate == nil || candidate.Hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.Hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}

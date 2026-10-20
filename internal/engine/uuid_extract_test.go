@@ -82,7 +82,7 @@ func TestUUIDExtractRemap(t *testing.T) {
 		if node.Arg.ResultUsage().Type != b.typ(sqltype.UUID) || node.ResultUsage().Type != b.typ(kind.Result()) {
 			t.Fatal("mutated original")
 		}
-		v, err := next.Eval(&EvalContext{Context: ctx})
+		v, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil || v.Type() != fresh.typ(kind.Result()) {
 			t.Fatal(v, err)
 		}
@@ -98,11 +98,11 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 		if !generationImmutable(node) || plannedVolatility(node) != expr.Immutable || !conditionalConstantInputs(node) {
 			t.Fatal("immutable lifecycle")
 		}
-		folded, changed, err := preflightCoercions(&EvalContext{Context: ctx}, node)
+		folded, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node)
 		if err != nil || !changed {
 			t.Fatal(folded, changed, err)
 		}
-		v, err := folded.Eval(&EvalContext{Context: ctx})
+		v, err := folded.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil || v.Type() != b.typ(kind.Result()) {
 			t.Fatal("folded authority", v, err)
 		}

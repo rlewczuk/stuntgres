@@ -43,7 +43,7 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output, statementScope: scope}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if err := b.conflict.selectArbiters(&evaluation, b.relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		return v
 	}
 	old := []sqltype.Value{integer(10), integer(1)}
-	eval := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Row: []sqltype.Value{old[0], old[1], integer(10), integer(2)}}
+	eval := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{old[0], old[1], integer(10), integer(2)}}}
 	values, err := evaluateUpdateAssignments(&eval, c.update, c.updateTargets, old)
 	if err != nil || testExport(values[1]) != int64(3) || testExport(old[1]) != int64(1) {
 		t.Fatal("target/excluded slots and immutable RHS", values, old, err)
@@ -115,7 +115,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			t.Fatal("SET precedes WHERE, with shared parameter captures", tc, err)
 		}
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Parameters: []sqltype.Value{integer(1)}, Input: scope.input, Output: scope.output, statementScope: scope}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Parameters: []sqltype.Value{integer(1)}, Input: scope.input, Output: scope.output, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	for _, tc := range []struct {
 		name, query string
 		error       bool

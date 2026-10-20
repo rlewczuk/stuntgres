@@ -69,7 +69,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			invoker := EvalContext{Context: context.Background(), statementScope: scope, catalog: view, Input: scope.input, Output: scope.output}
+			invoker := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope, catalog: view, Input: scope.input, Output: scope.output}}
 			local := invoker
 			local.routineAuthority = &ownerAuth
 			check := func(evaluation *EvalContext) error {
@@ -179,7 +179,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if !ok {
 				t.Fatalf("actual inquiry provider %T", node)
 			}
-			invoker := EvalContext{Context: context.Background(), statementScope: scope, catalog: view, Input: scope.input, Output: scope.output, routineRecipe: true, routineChecks: binder.dependencies}
+			invoker := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope, catalog: view, Input: scope.input, Output: scope.output}, evalAdmission: evalAdmission{routineRecipe: true, routineChecks: binder.dependencies}}
 			local := invoker
 			local.routineAuthority = &ownerAuth
 			enter := func(evaluation *EvalContext) error {

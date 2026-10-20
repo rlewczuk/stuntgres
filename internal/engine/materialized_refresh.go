@@ -189,7 +189,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 				}
 			}
 			previous.Versions, previous.Ends = versions, nil
-			evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: stage.Base}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), statementScope: scope, Input: scope.input, Output: scope.output, catalog: stage.Base}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			oldEntries, err = buildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
 			if err != nil {
 				return Result{}, err

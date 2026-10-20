@@ -16,12 +16,12 @@ func TestGeneratedVirtualMissingIdentity(t *testing.T) {
 	calls := 0
 	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0, rowWidth: 1, queryOccurrence: 1, virtual: generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}}
 	for _, state := range []*queryState{nil, {}, {source: &querySource{occurrence: 4}}, {source: &querySource{sources: []*querySource{nil}}}} {
-		c := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, query: state}
+		c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, query: state}}
 		if _, err := column.Eval(&c); err == nil || calls != 0 {
 			t.Fatal("missing authority succeeded or demanded recipe", err, calls)
 		}
 	}
-	c := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, query: &queryState{source: &querySource{occurrence: 4}}, queryOccurrences: []int{4}, queryProvenance: []int{0}}
+	c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, query: &queryState{source: &querySource{occurrence: 4}}, queryOccurrences: []int{4}, queryProvenance: []int{0}}}
 	column.queryOccurrence = 2
 	if _, err := column.Eval(&c); err == nil || calls != 0 {
 		t.Fatal("invalid local occurrence did not fail", err, calls)
@@ -169,7 +169,7 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 		source: source, schema: []catalog.Column{d.Columns[1]},
 		expressions: []expr.Expr{column}, retain: true,
 		permutation: []int{2, 0, 1},
-		evaluation:  EvalContext{Scope: 1, Frame: 1, query: state},
+		evaluation:  EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1, query: state}},
 	}
 	dst := make([]sqltype.Value, 1)
 	for _, seek := range []struct {

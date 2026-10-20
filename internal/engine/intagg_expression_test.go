@@ -126,7 +126,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal("enum dependency", refs, err)
 	}
-	c := &EvalContext{Context: context.Background(), catalog: e.CatalogRead()}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}}
 	input, err := n.args[0].Eval(c)
 	if err != nil {
 		t.Fatal(err)

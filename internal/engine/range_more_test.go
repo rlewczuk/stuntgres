@@ -32,7 +32,7 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 	if !sourceReturnsSet(e) || !sourceAdmitted(e) || len(expr.Expr(e).(expr.Composite).Children()) != 1 {
 		t.Fatal("missing SRF classification")
 	}
-	c := &EvalContext{Context: context.Background()}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	if _, err := e.Eval(c); err == nil {
 		t.Fatal("unlifted scalar execution")
 	}
@@ -132,7 +132,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {
 			t.Fatal(node, err)
 		}
-		got, err := node.Eval(&EvalContext{Context: context.Background()})
+		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}

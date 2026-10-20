@@ -305,7 +305,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	if changed.order[0].slot != original.order[0].slot || changed.order[0].cache != original.order[0].cache || changed.stageWidth != original.stageWidth {
 		t.Fatal("target reuse lost across rewrite")
 	}
-	folded, err := preflightQuery(&EvalContext{Context: context.Background()}, node)
+	folded, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
 	if err != nil || folded != node {
 		t.Fatal("unchanged preflight mutated immutable plan", folded, err)
 	}

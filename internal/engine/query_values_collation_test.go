@@ -37,7 +37,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert("coercion", coerced)
-	folded, _, err := simplifyConditional(&EvalContext{Context: context.Background()}, coerced, false)
+	folded, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, coerced, false)
 	if err != nil {
 		t.Fatal(err)
 	}

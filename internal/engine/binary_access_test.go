@@ -113,8 +113,8 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			t.Fatal(name, changed, err)
 		}
 		next := rebound.(functions.Binary)
-		got, err := next.Eval(&EvalContext{Context: context.Background()})
-		before, oldErr := original.Eval(&EvalContext{Context: context.Background()})
+		got, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		before, oldErr := original.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		want, retagErr := before.Retag(replacement[result])
 		if err != nil || oldErr != nil || retagErr != nil || got != want {
 			t.Fatal(name, got, want, err)

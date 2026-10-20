@@ -21,7 +21,7 @@ func TestArrayCompareReduction(t *testing.T) {
 		t.Fatal(err)
 	}
 	left := literalExpression{Info: b.info(integer.Usage(), parser.Position{}, expr.Properties{}), value: leftValue}
-	c := &EvalContext{Context: context.Background()}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for _, tc := range []struct {
 		input string
 		null  bool
@@ -99,7 +99,7 @@ func TestArrayCompareReduction(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := node.Eval(&EvalContext{Context: canceled}); !errors.Is(err, context.Canceled) {
+	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: canceled}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -141,7 +141,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		if err != nil || !changed || mapped.ResultUsage().Type == original.ResultUsage().Type {
 			t.Fatal(mapped, changed, err)
 		}
-		value, err := mapped.Eval(&EvalContext{Context: context.Background()})
+		value, err := mapped.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		truth, truthErr := TruthOf(value)
 		if err != nil || truthErr != nil || truth != True {
 			t.Fatal("predicate not rebound to actual child generations", truth, err, truthErr)
@@ -160,7 +160,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		if err != nil || !changed || reflect.DeepEqual(next.left, node.left) {
 			t.Fatal(next, changed, err)
 		}
-		value, err = original.Eval(&EvalContext{Context: context.Background()})
+		value, err = original.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		truth, truthErr = TruthOf(value)
 		if err != nil || truthErr != nil || truth != True {
 			t.Fatal("copy-on-change modified analyzed tree", truth, err, truthErr)

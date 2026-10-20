@@ -109,7 +109,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: b.input, catalog: auth.Catalog, routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: b.input, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}}
 	node, _, err = simplifyConditional(&evaluation, node, true)
 	if err != nil {
 		return catalog.ColumnGeneration{}, err

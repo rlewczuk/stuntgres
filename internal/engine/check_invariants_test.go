@@ -74,7 +74,7 @@ func TestCheckCompletedRowValidator(t *testing.T) {
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
 	table := d.(*catalog.Relation)
 	old := []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}
-	eval := EvalContext{Context: context.Background(), Row: old, Scope: 7, Frame: 9}
+	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Row: old, Scope: 7, Frame: 9}}
 	for _, n := range []int64{1, 2} {
 		v, err := sqltype.Integer(table.Columns[0].Usage.Type, n)
 		if err != nil {

@@ -95,7 +95,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 			t.Fatal("formal owner mutation", i)
 		}
 	}
-	got, err := retained.Eval(&EvalContext{Context: context.Background()})
+	got, err := retained.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	s, _ := got.Text()
 	if err != nil || s != "aXc" || got.Type() != fresh[sqltype.Text] {
 		t.Fatal(got, err)
@@ -125,7 +125,7 @@ func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	if n.ResultUsage() != boolean.Usage() || n.CollationIndeterminate() || !n.Plan.CollationIndeterminate() {
 		t.Fatal("input conflict leaked to BOOL", n)
 	}
-	_, err = n.Eval(&EvalContext{Context: context.Background()})
+	_, err = n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 		t.Fatal("empty prefix bypassed demand", err)

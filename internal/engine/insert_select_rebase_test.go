@@ -67,7 +67,7 @@ func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 	schema := []catalog.Column{{Name: "column1", Usage: expression.ResultUsage()}}
 	original := &valuesNode{querySchema: schema, rows: [][]expr.Expr{{expression}, {expression}}}
 	for range 2 {
-		root, err := preflightQuery(&EvalContext{Context: context.Background()}, original)
+		root, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
 		if err != nil || root == original {
 			t.Fatal(root, err)
 		}
@@ -77,7 +77,7 @@ func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 			if !ok || &row[0] == &original.rows[i][0] {
 				t.Fatal("preflight did not produce a private folded occurrence", i)
 			}
-			value, err := literal.Eval(&EvalContext{Context: context.Background()})
+			value, err := literal.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if err != nil || value.Type().ID() != sqltype.Int4 {
 				t.Fatal(value, err)
 			}
@@ -90,6 +90,6 @@ func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 		}
 	}
 	bad := &valuesNode{rows: [][]expr.Expr{{preflightCast(t, "SELECT int4('bad'::text) FROM t")}}}
-	_, err := preflightQuery(&EvalContext{Context: context.Background()}, bad)
+	_, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, bad)
 	state(t, err, "22P02")
 }

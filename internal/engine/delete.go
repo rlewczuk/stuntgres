@@ -208,7 +208,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 	}
 	ctx := s.op.Context()
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if inputs != nil {
 		if err := selectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err

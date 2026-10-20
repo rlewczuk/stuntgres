@@ -72,7 +72,7 @@ func materializedSameRow(a, b []sqltype.Value) bool {
 
 func materializedNewEntries(ctx context.Context, ordering indexOrdering, rows [][]sqltype.Value) ([]storage.IndexEntry, error) {
 	entries := make([]storage.IndexEntry, len(rows))
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	for i, values := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err

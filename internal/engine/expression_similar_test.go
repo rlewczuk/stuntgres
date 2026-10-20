@@ -38,15 +38,15 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	}
 	null := literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text)}
 	node := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: null, Right: normalizer, Provider: mp, Operator: "~"}
-	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, node)
+	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
 	state(t, err, "22025")
 	normalizer.Pattern = null
 	node.Right = normalizer
-	folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, node)
+	folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := folded.Eval(&EvalContext{Context: context.Background()})
+	value, err := folded.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || !value.IsNull() {
 		t.Fatal(value, err)
 	}

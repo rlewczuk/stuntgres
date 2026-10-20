@@ -335,7 +335,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			definition.Ready = true
 			next.SQLIndex = &definition
 			next.ObjectRevision++
-			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &definition, &snapshot, nil)
+			root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, &definition, &snapshot, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

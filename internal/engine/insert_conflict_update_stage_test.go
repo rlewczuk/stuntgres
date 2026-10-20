@@ -38,7 +38,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			sessionSQL(t, s, "UPDATE t SET v=11 WHERE k<=64")
 			prior := s.transactions.writes[ref.Address]
 			op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
-			evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output, statementScope: scope}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			integer := func(n int64) sqltype.Value {
 				value, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 				if err != nil {

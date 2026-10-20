@@ -115,7 +115,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 			if restored.Get(bound.procedure.Address()) != bound.procedure || restored.Get(bound.dictionary.Address()) != bound.dictionary || restored.Get(bound.template.Address()) != bound.template {
 				t.Fatal("bound callable no longer authentic")
 			}
-			value, err := node.Eval(&EvalContext{Context: context.Background()})
+			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			text, _ := value.Text()
 			if err != nil || text != "Hotel" {
 				t.Fatal("retained callable", text, err)

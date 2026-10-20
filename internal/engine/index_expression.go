@@ -37,7 +37,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err := rejectVirtualIndexUses(parent, binder.querySources[0].uses); err != nil {
 		return nil, "", err
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.Catalog}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	evaluation.routineAuthority, evaluation.routineChecks = &auth, binder.dependencies
 	evaluation.routineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)

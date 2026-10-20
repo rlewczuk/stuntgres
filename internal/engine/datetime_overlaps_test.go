@@ -77,7 +77,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 					t.Fatal("retained child authority")
 				}
 			}
-			if _, err := next.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone}}); err != nil {
+			if _, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone}}}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -136,7 +136,7 @@ func TestDatetimeOverlapsInlineSafetyAndContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeOverlaps)
-	c := &EvalContext{Context: context.Background()}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	_, err = e.Eval(c)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Context != `SQL function "overlaps" statement 1` {
@@ -188,7 +188,7 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &EvalContext{Context: ctx}
+	c := &EvalContext{evalStatement: evalStatement{Context: ctx}}
 	folded, changed, err := simplifyOverlapsRoute(c, node.(functions.DatetimeOverlaps))
 	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || folded.Folded[1].Type() != nil {
 		t.Fatal(folded, changed, err)
@@ -219,7 +219,7 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 	}
 	// Current imported values are constant candidates, not retained literal cache entries.
 	p := parameterExpression{Info: expr.Info{Usage: b.typ(sqltype.Timestamp).Usage(), Property: expr.Properties{ParameterDependent: true}}, number: 1}
-	if !overlapsExecutionConstant(p, c) || overlapsExecutionConstant(p, &EvalContext{Context: ctx}) {
+	if !overlapsExecutionConstant(p, c) || overlapsExecutionConstant(p, &EvalContext{evalStatement: evalStatement{Context: ctx}}) {
 		t.Fatal("parameter availability classification")
 	}
 }
@@ -238,7 +238,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 		origin := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000, SubID: int32(i + 1)}}
 		stored.Args[i+2] = columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), scope: 1, frame: 1, slot: i, origin: origin}
 	}
-	folded, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, stored)
+	folded, changed, err := simplifyOverlapsRoute(&EvalContext{evalStatement: evalStatement{Context: ctx}}, stored)
 	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || folded.Folded[1].Type() != nil {
 		t.Fatal(folded, changed, err)
 	}
@@ -283,7 +283,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		c := &EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: []sqltype.Value{end, start}}
+		c := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{end, start}}}
 		got, err := next.Eval(c)
 		truth, failure := got.Boolean()
 		if err != nil || failure != nil || truth != tc.want || got.Type() != replacements[sqltype.Bool] {
@@ -312,11 +312,11 @@ func TestDatetimeOverlapsTypedNullFoldedEndpoint(t *testing.T) {
 	e.Args[1] = literalExpression{Info: expr.InfoOf(e.Args[1]), value: sqltype.Null(b.typ(sqltype.Interval))}
 	e.Args[2] = columnExpression{Info: expr.InfoOf(e.Args[2])}
 	e.Args[3] = columnExpression{Info: expr.InfoOf(e.Args[3])}
-	folded, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, e)
+	folded, changed, err := simplifyOverlapsRoute(&EvalContext{evalStatement: evalStatement{Context: ctx}}, e)
 	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || !folded.Folded[0].IsNull() {
 		t.Fatal("typed NULL is a valid cached endpoint", folded, changed, err)
 	}
-	again, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, folded)
+	again, changed, err := simplifyOverlapsRoute(&EvalContext{evalStatement: evalStatement{Context: ctx}}, folded)
 	if err != nil || changed || again.Folded != folded.Folded {
 		t.Fatal("typed NULL cache was recomputed", changed, err)
 	}
@@ -375,7 +375,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: []sqltype.Value{high, low}}
+	c := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{high, low}}}
 	for count := 1; count <= 11; count++ {
 		start = conditionalExpression{Info: info, kind: parser.NullIf, args: []expr.Expr{start, sentinel}, comparison: comparison}
 		e.Args[0] = start

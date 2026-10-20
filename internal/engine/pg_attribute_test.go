@@ -288,7 +288,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 		t.Fatal("catalog result carrier", dst, present, err)
 	}
 	column := columnExpression{Info: expr.Info{Usage: u}, slot: 0, scope: 1, frame: 1}
-	got, err := column.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{value}})
+	got, err := column.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{value}}})
 	if err != nil || !got.ValidResult(u) {
 		t.Fatal("projection carrier", got, err)
 	}

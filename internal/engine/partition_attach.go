@@ -57,7 +57,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	e.mu.Unlock()
 	defer func() { e.DiscardCatalogStage(pending.stage) }()
 	if !bound.DefaultBound {
-		evaluation := EvalContext{Context: op.Context(), statementScope: scope, Input: scope.input, Output: scope.output}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), statementScope: scope, Input: scope.input, Output: scope.output}}
 		if err = pending.evaluateBounds(scope, &evaluation); err != nil {
 			return Result{}, err
 		}

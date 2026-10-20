@@ -68,7 +68,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	frame := make([]sqltype.Value, count)
 	scope, _ := input.LockedDomainInput.(*StatementScope)
-	evaluation := EvalContext{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, statementScope: scope, catalog: view, routineAuthority: &auth, routineChecks: binding.dependencies, routineRecipe: true}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, statementScope: scope, catalog: view}, evalAdmission: evalAdmission{routineAuthority: &auth, routineChecks: binding.dependencies, routineRecipe: true}}
 	if scope != nil {
 		scope.domainInputCatalog = view
 	}

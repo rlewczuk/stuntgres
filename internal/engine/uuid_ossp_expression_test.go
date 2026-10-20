@@ -104,7 +104,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := n.Eval(&EvalContext{Context: ctx}); !errors.Is(err, context.Canceled) {
+	if _, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled leaf demanded session/entropy", err)
 	}
 }
@@ -428,7 +428,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !sameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)
 		}
-		evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
 		err = admitRoutineCall(&evaluation, node, true, false)
 		if tc.execute {
 			if err != nil {

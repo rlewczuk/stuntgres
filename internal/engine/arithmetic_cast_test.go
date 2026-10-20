@@ -31,7 +31,7 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluation := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 		folded, changed, err := preflightCoercions(&evaluation, original)
 		if err != nil || !changed {
 			t.Fatal("descendant preflight", tc.query, folded, changed, err)

@@ -297,7 +297,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	if !projected.Properties().StageDependent {
 		t.Fatal("group dependence lost")
 	}
-	folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, projected)
+	folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, projected)
 	if err != nil || !folded.Properties().StageDependent {
 		t.Fatal("group result evaluated during preflight", err)
 	}

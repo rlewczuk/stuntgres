@@ -79,7 +79,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if err != nil || !strings.Contains(newSQL, "expr_retag_destination") || strings.Contains(newSQL, "expr_retag_source") {
 		t.Fatal("stored renderer lost actual destination authority", newSQL, err)
 	}
-	ctx := &EvalContext{Context: context.Background()}
+	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	value, err := mapped.Eval(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -208,11 +208,18 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if demanded == projection || demanded.child != projection.child || len(demanded.Schema()) != len(projection.Schema()) {
 		t.Fatal("stored demand changed clause stages or output layout")
 	}
-	rowContext := &EvalContext{Context: context.Background(), Scope: 1, Frame: projection.frame, Row: []sqltype.Value{
-		sqltype.Null(table.Columns[0].Usage.Type),
-		sqltype.String(table.Columns[1].Usage.Type, "A"),
-		sqltype.String(table.Columns[2].Usage.Type, "A"),
-	}}
+	rowContext := &EvalContext{
+		evalStatement: evalStatement{Context: context.Background()},
+		evalFrame: evalFrame{
+			Scope: 1,
+			Frame: projection.frame,
+			Row: []sqltype.Value{
+				sqltype.Null(table.Columns[0].Usage.Type),
+				sqltype.String(table.Columns[1].Usage.Type, "A"),
+				sqltype.String(table.Columns[2].Usage.Type, "A"),
+			},
+		},
+	}
 	value, err = demanded.expressions[0].Eval(rowContext)
 	if err != nil || !value.IsNull() {
 		t.Fatal("unreferenced stored payload still demanded provider", value, err)
@@ -282,7 +289,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 			if err != nil || mappedSQL == sourceSQL || !strings.Contains(mappedSQL, targetName) {
 				t.Fatal("domain renderer lost mapped graph", mappedSQL, err)
 			}
-			value, err := mapped.Eval(&EvalContext{Context: context.Background()})
+			value, err := mapped.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			truth, failure := value.Boolean()
 			if err != nil || failure != nil || !truth {
 				t.Fatal("mapped domain consumer", value, err, failure)

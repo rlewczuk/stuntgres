@@ -201,7 +201,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 				t.Fatal("discard lost assigned schema", project.Schema())
 			}
 			value := sqltype.String(bound.parameters.Types[0].Type, "bad")
-			_, err = preflightQuery(&EvalContext{Context: op.ctx, Parameters: []sqltype.Value{value}}, bound.query.Root)
+			_, err = preflightQuery(&EvalContext{evalStatement: evalStatement{Context: op.ctx, Parameters: []sqltype.Value{value}}}, bound.query.Root)
 			if tc.fails {
 				state(t, err, "22P02")
 			} else if err != nil {

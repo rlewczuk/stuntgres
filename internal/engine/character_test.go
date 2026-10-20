@@ -50,7 +50,7 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 		text string
 		want Truth
 	}{{"a  ", True}, {"b  ", False}} {
-		value, err := filter.predicate.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(bpchar, tc.text)}})
+		value, err := filter.predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(bpchar, tc.text)}}})
 		if err != nil {
 			t.Fatal(err)
 		}

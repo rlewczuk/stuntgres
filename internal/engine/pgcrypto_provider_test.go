@@ -156,7 +156,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if n.ref.Address != ext.Members[2] || plannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
 		t.Fatal(n)
 	}
-	value, err := n.Eval(&EvalContext{Context: context.Background()})
+	value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	bytes, _ := value.Binary()
 	if err != nil || hex.EncodeToString([]byte(bytes)) != "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843" {
 		t.Fatal(bytes, err)

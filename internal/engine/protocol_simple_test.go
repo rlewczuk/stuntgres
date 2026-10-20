@@ -90,7 +90,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 	t.Run("closed_error", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT 1/(2-2) FROM t")
 		defer source.close()
-		evaluation := EvalContext{Context: context.Background(), planStaticOperators: true}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 		_, err := preflightQuery(&evaluation, query.Root)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
@@ -108,7 +108,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		}).(queryProbeExpression)
 		probe.Property.Volatility = expr.Volatile
 		original.expressions[0] = probe
-		evaluation := EvalContext{Context: context.Background(), planStaticOperators: true}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 		prepared, err := preflightQuery(&evaluation, original)
 		if err != nil {
 			source.close()
@@ -146,7 +146,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluation := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}, planStaticOperators: true}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, planStaticOperators: true}}
 		mapped, _, err := preflightCoercions(&evaluation, original)
 		if err != nil || !mapped.Properties().ParameterDependent {
 			t.Fatal("planning crossed imported parameter barrier", err)
@@ -172,7 +172,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 					t.Fatal(err)
 				}
 				exists := subqueryTestExpression(t, e, plan, parser.SubqueryExists)
-				planning := EvalContext{Context: context.Background(), planStaticOperators: true}
+				planning := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 				prepared, _, err := preflightCoercions(&planning, exists)
 				if tc.code != "" {
 					var diagnostic *sqlstate.Error

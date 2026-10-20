@@ -81,7 +81,7 @@ func TestQueryWindowGroupsRemap(t *testing.T) {
 	if oldSource == newSource || newSource.ref.Address.ObjectID != oldSource.ref.Address.ObjectID+100 || oldSource.ref != source.ref {
 		t.Fatal("source identity remap", oldSource.ref, newSource.ref)
 	}
-	evaluation := EvalContext{Context: context.Background()}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for _, pair := range [][2]boundWindowBound{{before.start, next.specs[0].frame.start}, {before.end, next.specs[0].frame.end}} {
 		old, bound := pair[0], pair[1]
 		if bound.kind != old.kind || bound.offset == old.offset || bound.offset.ResultUsage().Type != types[sqltype.Int8] || old.offset.ResultUsage().Type == types[sqltype.Int8] || bound.support != (sqltype.RangeSupport{}) || old.support != (sqltype.RangeSupport{}) {
@@ -137,7 +137,7 @@ func TestQueryWindowGroupsIdentity(t *testing.T) {
 	if next == original || !reflect.DeepEqual(next.sortIndices, original.sortIndices) {
 		t.Fatal("clone sort ownership", next)
 	}
-	evaluation := EvalContext{Context: context.Background()}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for i, spec := range original.specs {
 		if next.specs[i].definition != spec.definition || next.specs[i].frame.unit != spec.frame.unit {
 			t.Fatal("lost frame identity")
@@ -348,7 +348,7 @@ func TestQueryWindowGroupsDomainRemap(t *testing.T) {
 	if mappedDomain != types[offsetDomain.ID()] || mappedDomain == offsetDomain || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) {
 		t.Fatal("offset domain remap retained/mutated descriptors", mappedDomain, offsetDomain)
 	}
-	evaluation := EvalContext{Context: context.Background()}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	value, err := next.specs[0].frame.start.offset.Eval(&evaluation)
 	n, integerErr := value.Integer()
 	if err != nil || integerErr != nil || n != 1 || value.Type() != types[sqltype.Int8] {

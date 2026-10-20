@@ -28,11 +28,11 @@ func TestIntervalImmutableConstantCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		a, err := first.Eval(&EvalContext{Context: ctx})
+		a, err := first.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, err := rebound.Eval(&EvalContext{Context: ctx})
+		v, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

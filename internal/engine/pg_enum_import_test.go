@@ -117,7 +117,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 		t.Fatal("datum identity not reminted", newID)
 	}
 	definition := newRelation.ColumnMeta.Defaults[newRelation.Attributes[0]]
-	literal, err := definition.Expression.Eval(&EvalContext{Context: ctx})
+	literal, err := definition.Expression.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}

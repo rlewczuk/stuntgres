@@ -82,7 +82,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		t.Fatal(err)
 	}
 	predicate := residual.query.Root.(*projectNode).child.(*filterNode).predicate
-	value, err := predicate.Eval(&EvalContext{Context: context.Background()})
+	value, err := predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}

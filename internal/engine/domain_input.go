@@ -146,7 +146,7 @@ func (b *expressionBinder) decodeLiteralInput(text string, typ *sqltype.Descript
 	} else if owner.routineAuth.engine == nil {
 		owner.routineAuth = auth
 	}
-	eval := EvalContext{Context: b.ctx, statementScope: owner, catalog: b.bindingCatalog(), Input: input, Output: owner.output, routineAuthority: &auth}
+	eval := EvalContext{evalStatement: evalStatement{Context: b.ctx, statementScope: owner, catalog: b.bindingCatalog(), Input: input, Output: owner.output}, evalAdmission: evalAdmission{routineAuthority: &auth}}
 	input.DomainChecks = &eval
 	return owner.DecodeLockedDomainInput(b.ctx, typ, text, typmod, input)
 }

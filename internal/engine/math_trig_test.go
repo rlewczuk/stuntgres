@@ -63,7 +63,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 	if err != nil {
 		t.Fatal("binding executed a provider", err)
 	}
-	c := &EvalContext{Context: context.Background()}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	_, err = node.Eval(c)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "input is out of range"}

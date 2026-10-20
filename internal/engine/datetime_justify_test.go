@@ -44,7 +44,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		if rebound.ResultUsage().Type != replacements[sqltype.Interval] || rebound.Arg.ResultUsage().Type != replacements[sqltype.Interval] {
 			t.Fatal("foreign retained authority")
 		}
-		value, err := rebound.Eval(&EvalContext{Context: context.Background()})
+		value, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		wantMonths, wantDays := int32(1), int32(0)
 		if name == "justify_hours" {
 			wantMonths, wantDays = 0, 30
@@ -55,7 +55,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if _, err := rebound.Eval(&EvalContext{Context: ctx}); !errors.Is(err, context.Canceled) {
+		if _, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
 			t.Fatal(name, err)
 		}
 	}
@@ -77,11 +77,11 @@ func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 		}
 		e := null.(functions.DatetimeJustify)
 		e.Arg = literalExpression{expr.InfoOf(e), sqltype.Null(e.ResultUsage().Type)}
-		v, err := e.Eval(&EvalContext{Context: context.Background()})
+		v, err := e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || !v.IsNull() || v.Type() != e.ResultUsage().Type {
 			t.Fatal(v, err)
 		}
-		simplified, changed, err := simplifyConditional(&EvalContext{Context: context.Background()}, e, false)
+		simplified, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e, false)
 		if err != nil || !changed {
 			t.Fatal(simplified, changed, err)
 		}

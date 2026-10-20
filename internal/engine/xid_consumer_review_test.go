@@ -34,7 +34,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			calls := 0
 			node.Info.Property.RowDependent = true
 			node.args = []expr.Expr{conditionalSpy{Info: expr.Info{Usage: node.Usage, Property: expr.Properties{RowDependent: true}}, value: sqltype.Null(node.Usage.Type), calls: &calls, failure: errors.New("argument demanded")}, node.args[1]}
-			evaluation := &EvalContext{Context: ctx}
+			evaluation := &EvalContext{evalStatement: evalStatement{Context: ctx}}
 			assert := func(err error) {
 				t.Helper()
 				var diagnostic *sqlstate.Error

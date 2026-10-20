@@ -344,7 +344,7 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 		t.Fatal("SUM argument children not captured", binder.viewLiterals, binder.viewColumns)
 	}
 	for _, literal := range binder.viewLiterals {
-		value, err := literal.Eval(&EvalContext{Context: context.Background()})
+		value, err := literal.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		n, integerErr := value.Integer()
 		if err != nil || integerErr != nil || n != 1 {
 			t.Fatal(value, err, integerErr)

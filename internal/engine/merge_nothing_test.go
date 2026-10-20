@@ -17,7 +17,7 @@ func TestMergeNothingSelection(t *testing.T) {
 			defer op.Done()
 			defer target.close()
 			defer source.close()
-			c := EvalContext{Context: op.Context(), Scope: 1, Frame: 1}
+			c := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			arm, err := b.merge.selectArm(&c, parser.MergeMatched)
 			want := parser.MergeDeleteAction
 			if pred == "TRUE" {
@@ -55,7 +55,7 @@ func TestMergeNothingPreflight(t *testing.T) {
 			if !b.merge.hasNothing || len(b.merge.arms[0].input.expressions) != 0 || len(b.merge.arms[0].input.defaults) != 0 {
 				t.Fatal("no-op mutation schedule", b.merge)
 			}
-			c := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output, catalog: scope.commentCatalog}
+			c := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, catalog: scope.commentCatalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			if err := preflightMerge(&c, b.merge, scope.commentCatalog); err != nil {
 				t.Fatal("no-op preflight indexed mutation input", err)
 			}

@@ -54,7 +54,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		if input.ID != uint32(destination.OID) || !input.Valid() || conflict {
 			t.Fatal("predicate retained stale collation", input, conflict)
 		}
-		value, err := node.Eval(&EvalContext{Context: context.Background()})
+		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		truth, truthErr := TruthOf(value)
 		if err != nil || truthErr != nil || truth != True {
 			t.Fatal(truth, err, truthErr)

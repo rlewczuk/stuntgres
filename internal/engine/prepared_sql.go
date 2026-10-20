@@ -178,7 +178,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		// parameter-only binding. Borrow the original actual manifest without
 		// replacing the statement's main-query authority or dependencies.
 		var actualProgram routineAdmissionProgram
-		evaluation := EvalContext{Context: ctx, statementScope: s, catalog: auth.Catalog, Input: input, Output: s.output, routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies, routineProgram: &actualProgram}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: s, catalog: auth.Catalog, Input: input, Output: s.output}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies, routineProgram: &actualProgram}}
 		for _, node := range nodes {
 			if sqltype.ContainsDomainConstraints(node.ResultUsage().Type) {
 				evaluation.Input.DomainChecks = &evaluation

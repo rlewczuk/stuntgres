@@ -27,7 +27,7 @@ func insertConflictUniqueFixture(t testing.TB) partialIndexFixture {
 	f.index.SQLIndex = &definition
 	f.store.Versions = f.store.Versions[:1]
 	f.store.Versions[0].Born = 1
-	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
+	root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 	}
 	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
-	ctx := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output}
+	ctx := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 				t.Fatal(err)
 			}
 			bound := &binding.keys[0]
-			evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			proposal := insertConflictUnitRow(t, f, 20)
 			key, err := bound.load(proposal, &evaluation)
 			if err != nil {
@@ -189,7 +189,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	def.Predicate = nil
 	second.SQLIndex = &def
 	f.e.catalog.state.SetDescriptor(second.Address(), &second)
-	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, f.store, nil)
+	root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &def, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 }
 func TestInsertConflictInferenceInstalledStates(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
-	ctx := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+	ctx := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	explicit := &boundInsertConflict{keys: []conflictKey{{attribute: 10}, {attribute: 10}}, predicate: f.predicate}
 	targetless := &boundInsertConflict{}
 	f.index.SQLIndex.Include = []int32{20}
@@ -250,7 +250,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		index.Attributes = []int32{1, 2}
 		index.ColumnMeta.HighWater = 2
 		f.e.catalog.state.SetDescriptor(index.Address(), &index)
-		root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
+		root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -259,7 +259,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		f.e.mu.Unlock()
 	}
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}, {expression: expression}, {expression: expression}}, predicate: f.predicate}
-	ctx := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+	ctx := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(action.selected) != 2 {
 		t.Fatal("complete mixed expression set", action.selected, err)
 	}

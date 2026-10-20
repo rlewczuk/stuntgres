@@ -118,7 +118,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 		t.Fatal("stored runtime input omitted statement snapshot demand", snapshot, err)
 	}
 	scope := &StatementScope{input: sqltype.InputEnvironment{Regrole: fresh}}
-	resolved, err := runtime.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
+	resolved, err := runtime.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}})
 	if err != nil {
 		t.Fatal("stored runtime input propagation", err)
 	}

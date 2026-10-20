@@ -28,7 +28,7 @@ func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
 		t.Fatal("graph/slot ownership", next, original)
 	}
 	ctx := context.Background()
-	evaluation := EvalContext{Context: ctx}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}}
 	for _, pair := range [][2]boundWindowBound{{before.start, next.specs[0].frame.start}, {before.end, next.specs[0].frame.end}} {
 		old, bound := pair[0], pair[1]
 		if bound.kind != old.kind || bound.offset == old.offset || bound.support == old.support || bound.offset.ResultUsage().Type != types[sqltype.Int4] || old.offset.ResultUsage().Type == types[sqltype.Int4] {
@@ -80,7 +80,7 @@ func TestQueryWindowRangeNamedFrameCloneIdentity(t *testing.T) {
 	if next == original || !reflect.DeepEqual(next.sortIndices, original.sortIndices) {
 		t.Fatal("clone/sort ownership", next)
 	}
-	evaluation := EvalContext{Context: context.Background()}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for i, spec := range original.specs {
 		if next.specs[i].definition != spec.definition {
 			t.Fatal("rewrite lost named identity")

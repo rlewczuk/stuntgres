@@ -57,7 +57,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 				t.Fatal(tc.expr, parameters)
 			}
 		} else {
-			value, err := node.Eval(&EvalContext{Context: context.Background()})
+			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if err != nil || value.Type() != node.ResultUsage().Type || value.IsNull() != tc.isNull {
 				t.Fatal(tc.expr, value, err)
 			}
@@ -93,7 +93,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 	if !ok || len(aggregate.calls) != 1 || query.Root.Schema()[0].Usage.Type.ID() != sqltype.Bool || aggregate.calls[0].argument.ResultUsage().Type.ID() != sqltype.Bool {
 		t.Fatal("aggregate did not downcast signature", project.child, query.Root.Schema())
 	}
-	argument, err := aggregate.calls[0].argument.Eval(&EvalContext{Context: context.Background()})
+	argument, err := aggregate.calls[0].argument.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,14 +171,14 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	if !ok || coercion.child.ResultUsage().Type.ID() != sqltype.VarChar || node.ResultUsage() != target {
 		t.Fatal("literal did not preserve base-to-domain coercion", node)
 	}
-	_, err = node.Eval(&EvalContext{Context: context.Background()})
+	_, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	domainUnitDiagnostic(t, err, "22001", "value too long for type character varying(3)")
 	raw = statement(t, "SELECT 'abcd'::public.short FROM public.one").(*parser.Select).Targets[0]
 	node, err = b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := node.Eval(&EvalContext{Context: context.Background()})
+	value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || value.Type() != target.Type {
 		t.Fatal(value, err)
 	}
@@ -315,7 +315,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 			if !ok || node.ResultUsage() != target || coercion.child.ResultUsage() != target.BaseUsage() {
 				t.Fatal("lost effective input usage or logical cast identity", expression, node)
 			}
-			value, err := node.Eval(&EvalContext{Context: context.Background()})
+			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if err != nil || value.Type() != target.Type {
 				t.Fatal(expression, value, err)
 			}

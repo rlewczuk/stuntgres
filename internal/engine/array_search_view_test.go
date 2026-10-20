@@ -119,7 +119,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	const sourceTextSQL = "array_positions(array_replace(('{a,b,NULL}'::text[] COLLATE as_unit_source), 'a'::text, 'b'::text), 'b'::text)"
 	const targetTextSQL = "array_positions(array_replace(('{a,b,NULL}'::text[] COLLATE as_unit_target), 'a'::text, 'b'::text), 'b'::text)"
 	assertValue := func(node expr.Expr, typ *sqltype.Descriptor, want string) sqltype.Value {
-		value, err := node.Eval(&EvalContext{Context: ctx})
+		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

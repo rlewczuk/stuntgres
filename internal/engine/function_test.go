@@ -42,7 +42,7 @@ func TestNullCountResolver(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, err := bound.Eval(&EvalContext{Context: context.Background()})
+		v, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		n, _ := v.Integer()
 		want := int64(100)
 		if name == "num_nonnulls" {
@@ -108,7 +108,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 		if info, err := known.finish(); err != nil || info.Count != 1 || info.Types[0] != known.typ(id).Usage() {
 			t.Fatal(info, err)
 		}
-		v, err := call.Eval(&EvalContext{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(known.typ(id))}})
+		v, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(known.typ(id))}}})
 		n, _ := v.Integer()
 		if err != nil || n != 0 {
 			t.Fatal(v, err)

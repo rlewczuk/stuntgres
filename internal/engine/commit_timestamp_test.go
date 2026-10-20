@@ -317,7 +317,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			t.Fatal("child traversal", count)
 		}
 		if name != "pg_last_committed_xact" {
-			v, err := n.Eval(&EvalContext{Context: ctx})
+			v, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 			if err != nil || !v.IsNull() || v.Type() != n.ResultUsage().Type {
 				t.Fatal("strict whole NULL", err)
 			}

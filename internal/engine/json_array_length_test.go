@@ -35,7 +35,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 				t.Fatal(err)
 			}
 			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v}}}
-			got, err := expr.Eval(&EvalContext{Context: context.Background()})
+			got, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -47,7 +47,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if !ok || next.Plan.Name() != name || next.Plan.ResultUsage().Type != replacement[sqltype.Int4] || next.Args[0].ResultUsage().Type != replacement[id] {
 				t.Fatal(rebound)
 			}
-			result, err := next.Eval(&EvalContext{Context: context.Background()})
+			result, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			retagged, retagErr := got.Retag(replacement[sqltype.Int4])
 			if err != nil || retagErr != nil || result != retagged {
 				t.Fatal(result, retagged, err, retagErr)

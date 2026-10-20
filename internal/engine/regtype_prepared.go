@@ -200,7 +200,7 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, plan sqltype.Coe
 	if p.Volatility != expr.Immutable || p.RowDependent || p.ParameterDependent || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion || sqltype.ContainsDomainConstraints(info.Usage.Type) || id != sqltype.Oid && id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 && !sqltype.IsRoutineAlias(id) {
 		return nil, false, nil
 	}
-	value, err := child.Eval(&EvalContext{Context: b.ctx, Input: b.input})
+	value, err := child.Eval(&EvalContext{evalStatement: evalStatement{Context: b.ctx, Input: b.input}})
 	if err != nil {
 		return nil, true, err
 	}

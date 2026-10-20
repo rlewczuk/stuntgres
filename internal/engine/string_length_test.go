@@ -31,7 +31,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		if n.ResultUsage() != integer.Usage() || n.CollationIndeterminate() || n.ExplicitCollation().Character != 0 || !n.Plan.CollationIndeterminate() {
 			t.Fatal("input conflict leaked onto INT4 result", n)
 		}
-		_, err = n.Eval(&EvalContext{Context: context.Background()})
+		_, err = n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 			t.Fatal("empty needle bypassed input demand", err)
@@ -42,7 +42,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		if err != nil || resolved.(functions.String).Plan.CollationIndeterminate() || resolved.ResultUsage() != integer.Usage() {
 			t.Fatal(resolved, err)
 		}
-		value, err := resolved.Eval(&EvalContext{Context: context.Background()})
+		value, err := resolved.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		index, _ := value.Integer()
 		if err != nil || index != 1 {
 			t.Fatal(value, err)
@@ -95,7 +95,7 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	if retained.Plan.ArgumentUsage(0).Type != replacements[sqltype.BPChar] || retained.Plan.TextUsage().Type != replacements[sqltype.Text] || retained.ResultUsage().Type != replacements[sqltype.Int4] || count.(functions.String).Plan.ArgumentUsage(0).Type != bpchar {
 		t.Fatal("retag mutated source or lost formal ownership", retained)
 	}
-	got, err := retained.Eval(&EvalContext{Context: context.Background()})
+	got, err := retained.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	n, _ := got.Integer()
 	if err != nil || n != 8 || got.Type() != replacements[sqltype.Int4] {
 		t.Fatal(got, err)
