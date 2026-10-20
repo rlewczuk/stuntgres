@@ -63,15 +63,15 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 			}
 			auth := catalogAuthorization(e, e.CatalogRead())
 			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-			b.queryAuth = &auth
+			b.query.auth = &auth
 			query, err := b.bindSelect(statement(t, tc.query).(*parser.Select), false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(query.Root.Schema()) != 1 || !query.Root.Schema()[0].Usage.Type.IsArray() || len(b.querySources) != 1 {
-				t.Fatal("aggregate result/source shape", query.Root.Schema(), b.querySources)
+			if len(query.Root.Schema()) != 1 || !query.Root.Schema()[0].Usage.Type.IsArray() || len(b.query.sources) != 1 {
+				t.Fatal("aggregate result/source shape", query.Root.Schema(), b.query.sources)
 			}
-			reads := b.querySources[0].uses
+			reads := b.query.sources[0].uses
 			if len(reads) != len(tc.reads) {
 				t.Fatalf("source reads %v; want exactly %v", reads, tc.reads)
 			}
@@ -84,7 +84,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 				t.Helper()
 				current := catalogAuthorization(e, e.CatalogRead())
 				current.State.CurrentUser = reader
-				err := current.checkQuerySources(b.querySources)
+				err := current.checkQuerySources(b.query.sources)
 				if !denied {
 					if err != nil {
 						t.Fatal(err)

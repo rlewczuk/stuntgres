@@ -101,8 +101,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		if option.Alias.Text == visible {
 			return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 		}
-		if b.queryNamespace != nil {
-			for _, qualifier := range b.queryNamespace.qualifiers {
+		if b.query.namespace != nil {
+			for _, qualifier := range b.query.namespace.qualifiers {
 				if qualifier.name == option.Alias.Text {
 					return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 				}
@@ -126,8 +126,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		}
 	}
 	// Actual target/FROM relation qualifiers mask only implicit pseudo names.
-	if b.queryNamespace != nil {
-		for _, qualifier := range b.queryNamespace.qualifiers {
+	if b.query.namespace != nil {
+		for _, qualifier := range b.query.namespace.qualifiers {
 			if !seenOld && qualifier.name == aliases.old {
 				aliases.old = ""
 			}
@@ -144,8 +144,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		descriptor := catalog.Column{Name: name, Usage: expression.ResultUsage()}
 		switch column := expression.(type) {
 		case columnExpression:
-			if b.queryNamespace != nil {
-				descriptor = b.queryNamespace.frame[column.slot]
+			if b.query.namespace != nil {
+				descriptor = b.query.namespace.frame[column.slot]
 			} else {
 				descriptor = b.target.relation.Columns[column.slot]
 			}
@@ -175,13 +175,13 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			return nil, err
 		}
 		if star, ok := expression.(parser.StarExpr); ok {
-			if b.queryNamespace != nil {
+			if b.query.namespace != nil {
 				if newValues, pseudo := b.returningPseudo(star.Qualifier); pseudo {
 					for slot, column := range b.target.relation.Columns {
 						appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 					}
 				} else {
-					columns := b.queryNamespace.columns
+					columns := b.query.namespace.columns
 					if len(star.Qualifier.Parts) != 0 {
 						qualifier, err := b.queryQualifier(star.Qualifier, star.Pos)
 						if err != nil {
@@ -329,8 +329,8 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 	}
 	if len(parts) == 1 {
 		_, column := b.target.relation.Index[parts[0].Text]
-		if b.queryNamespace != nil {
-			for _, candidate := range b.queryNamespace.columns {
+		if b.query.namespace != nil {
+			for _, candidate := range b.query.namespace.columns {
 				column = column || candidate.descriptor.Name == parts[0].Text
 			}
 		}
@@ -348,7 +348,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 			return b.wholeRow(raw.Name, raw.Pos, true)
 		}
 	}
-	if b.queryNamespace != nil {
+	if b.query.namespace != nil {
 		if _, pseudo := b.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
 			return b.queryColumn(raw)
 		}
@@ -406,15 +406,15 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 		return nil, false
 	}
 	label := name.Parts[0].Text
-	if b.queryNamespace != nil {
-		for _, q := range b.queryNamespace.qualifiers {
+	if b.query.namespace != nil {
+		for _, q := range b.query.namespace.qualifiers {
 			if q.name == label {
 				return nil, false
 			}
 		}
 	}
-	for i := len(b.queryScopes) - 1; i >= 0; i-- {
-		scope := &b.queryScopes[i]
+	for i := len(b.query.scopes) - 1; i >= 0; i-- {
+		scope := &b.query.scopes[i]
 		if !scope.allowed {
 			continue
 		}

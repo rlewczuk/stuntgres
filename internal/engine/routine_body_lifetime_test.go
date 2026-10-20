@@ -31,8 +31,8 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	binder := newExpressionBinder(context.Background(), e, input, reader, nil)
-	binder.queryAuth = &auth
-	binder.queryNamespace = &queryNamespace{}
+	binder.query.auth = &auth
+	binder.query.namespace = &queryNamespace{}
 	node, err := binder.bind(parser.FunctionExpr{Name: preparedBoundaryName("bit_length"), Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "abc"}}}}, expressionPolicy{context: projectionContext})
 	e.mu.Unlock()
 	if err != nil {
@@ -323,7 +323,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
-			binder.queryAuth, binder.target.ref = &auth, ref
+			binder.query.auth, binder.target.ref = &auth, ref
 			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()

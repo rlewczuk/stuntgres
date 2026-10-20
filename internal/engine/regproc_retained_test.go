@@ -161,10 +161,10 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		}
 		expected := StatementDescription{regtypes: &regtypeAnalysis{constants: cells}}
 		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &expected)
-		b.queryAuth = &auth
+		b.query.auth = &auth
 		pos := parser.Position{Offset: 7, Character: 8}
 		fresh := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-		fresh.queryAuth = &auth
+		fresh.query.auth = &auth
 		freshValue, err := fresh.routineConstant(`("abs(integer)","public.#=#(routine_types.secret,integer)",integer)`, c.value.Type().Usage(), pos)
 		if err != nil || !sqltype.SameDatum(freshValue, c.value) || len(fresh.prepared.regtypeConstants) != 1 {
 			t.Fatal("fresh mixed capture at shared occurrence", freshValue, err, fresh.prepared.regtypeConstants)

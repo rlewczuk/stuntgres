@@ -75,10 +75,10 @@ func (b *expressionBinder) jsonbRecordStarColumns(columns []queryColumn, frame u
 	if qualified != nil {
 		return b.jsonbRecordQualifierStar(columns, frame, star, *qualified)
 	}
-	if b.queryNamespace == nil {
+	if b.query.namespace == nil {
 		return columns, nil
 	}
-	for _, qualifier := range b.queryNamespace.qualifiers {
+	for _, qualifier := range b.query.namespace.qualifiers {
 		var err error
 		columns, err = b.jsonbRecordQualifierStar(columns, frame, star, qualifier)
 		if err != nil {

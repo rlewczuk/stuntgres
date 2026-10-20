@@ -170,8 +170,8 @@ func (b *expressionBinder) definitionReader() definitionReader {
 	if b.op != nil && b.op.definition != nil {
 		return b.op.definition
 	}
-	if b.queryAuth != nil {
-		return b.queryAuth.definition
+	if b.query.auth != nil {
+		return b.query.auth.definition
 	}
 	return nil
 }

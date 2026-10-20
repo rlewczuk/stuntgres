@@ -31,10 +31,10 @@ type queryBindingScope struct {
 }
 
 func (b *expressionBinder) frameID() uint32 {
-	if b.queryFrame == 0 {
+	if b.query.frame == 0 {
 		return 1
 	}
-	return b.queryFrame
+	return b.query.frame
 }
 
 func (b *expressionBinder) enterQuery(disallowParent bool) func() {
@@ -46,56 +46,56 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	b.clause.queryHasTargetSet = false
 	b.clause.stringSetGuard, b.clause.stringFromForbidden = "", false
 	b.clause.regexpClause = ""
-	oldNamespace := b.queryNamespace
-	parent := queryBindingScope{namespace: b.queryNamespace, hidden: b.queryHidden, frame: b.frameID(), allowed: !disallowParent, clause: b.clause.aggregateClause, aggregates: b.grouping.aggregates, returning: b.target.returningAliases, nonLateral: b.queryNonLateral}
+	oldNamespace := b.query.namespace
+	parent := queryBindingScope{namespace: b.query.namespace, hidden: b.query.hidden, frame: b.frameID(), allowed: !disallowParent, clause: b.clause.aggregateClause, aggregates: b.grouping.aggregates, returning: b.target.returningAliases, nonLateral: b.query.nonLateral}
 	parent.stringFromForbidden = oldForbidden
 	parent.relation = b.target.relation
 	parent.groupingActive, parent.groupSets = b.grouping.active, b.grouping.groupSets
-	parent.rowDiagnosticMode = b.queryRowDiagnosticMode
+	parent.rowDiagnosticMode = b.query.rowDiagnosticMode
 	parent.windowRaw, parent.windowDefinitions, parent.windowCalls = b.grouping.windowRaw, b.grouping.windowDefinitions, b.grouping.windowCalls
 	parent.argumentOwner = b.grouping.argumentOwner
 	// Only the initial mutation owner can supply this fallback. Before a
 	// nested SELECT's FROM is bound, its nil namespace must not impersonate
 	// the retained mutation relation in an intermediate query frame.
-	if parent.namespace == nil && b.queryFrame == 0 && b.target.relation != nil && (b.params.updateParameters || b.target.deleteTarget) {
+	if parent.namespace == nil && b.query.frame == 0 && b.target.relation != nil && (b.params.updateParameters || b.target.deleteTarget) {
 		ns := b.mutationTargetNamespace()
 		parent.namespace = &ns
 	}
-	oldFrame := b.queryFrame
-	if b.nextQueryFrame == 0 {
-		b.nextQueryFrame = 1
+	oldFrame := b.query.frame
+	if b.query.nextQueryFrame == 0 {
+		b.query.nextQueryFrame = 1
 	}
 	if oldFrame != 0 || b.target.relation != nil {
-		b.nextQueryFrame++
-		b.queryFrame = b.nextQueryFrame
+		b.query.nextQueryFrame++
+		b.query.frame = b.query.nextQueryFrame
 	} else {
-		b.queryFrame = 1
+		b.query.frame = 1
 	}
-	index := len(b.queryScopes)
-	b.queryScopes = append(b.queryScopes, parent)
-	b.queryNamespace, b.queryHidden = nil, nil
+	index := len(b.query.scopes)
+	b.query.scopes = append(b.query.scopes, parent)
+	b.query.namespace, b.query.hidden = nil, nil
 	b.grouping.aggregates, b.clause.aggregateClause = nil, ""
 	b.grouping.active, b.grouping.groupSets = false, nil
 	b.grouping.windowRaw, b.grouping.windowDefinitions, b.grouping.windowCalls = nil, nil, nil
 	b.grouping.argumentOwner = argumentWindowOwner{}
 	b.target.returningAliases = nil
-	b.queryNonLateral = disallowParent
-	b.queryRowDiagnosticMode = 0
+	b.query.nonLateral = disallowParent
+	b.query.rowDiagnosticMode = 0
 	return func() {
 		b.clause.stringSetGuard, b.clause.stringFromForbidden = oldSetGuard, oldForbidden
 		b.clause.regexpClause = oldRegexpClause
 		b.clause.queryHasTargetSet = oldTargetSet
 		b.clause.fromSetObservation = oldFromSet
-		parent := b.queryScopes[index]
-		b.queryScopes = b.queryScopes[:index]
-		b.queryNamespace, b.queryHidden = oldNamespace, parent.hidden
+		parent := b.query.scopes[index]
+		b.query.scopes = b.query.scopes[:index]
+		b.query.namespace, b.query.hidden = oldNamespace, parent.hidden
 		b.grouping.aggregates, b.clause.aggregateClause = parent.aggregates, parent.clause
 		b.grouping.active, b.grouping.groupSets = parent.groupingActive, parent.groupSets
 		b.grouping.windowRaw, b.grouping.windowDefinitions, b.grouping.windowCalls = parent.windowRaw, parent.windowDefinitions, parent.windowCalls
 		b.grouping.argumentOwner = parent.argumentOwner
-		b.target.returningAliases, b.queryNonLateral = parent.returning, parent.nonLateral
-		b.queryRowDiagnosticMode = parent.rowDiagnosticMode
-		b.queryFrame = oldFrame
+		b.target.returningAliases, b.query.nonLateral = parent.returning, parent.nonLateral
+		b.query.rowDiagnosticMode = parent.rowDiagnosticMode
+		b.query.frame = oldFrame
 	}
 }
 
@@ -123,8 +123,8 @@ func (s *queryState) evaluation(ctx context.Context) EvalContext {
 
 func (b *expressionBinder) outerQualifiers() []queryQualifier {
 	var out []queryQualifier
-	for i := len(b.queryScopes) - 1; i >= 0; i-- {
-		s := &b.queryScopes[i]
+	for i := len(b.query.scopes) - 1; i >= 0; i-- {
+		s := &b.query.scopes[i]
 		if len(s.hidden) != 0 {
 			out = append(out, s.hidden...)
 		} else if s.namespace != nil {
@@ -145,8 +145,8 @@ func (b *expressionBinder) queryTargetRelation() *catalog.Relation {
 	if b.target.relation != nil {
 		return b.target.relation
 	}
-	for i := len(b.queryScopes) - 1; i >= 0; i-- {
-		if d := b.queryScopes[i].relation; d != nil {
+	for i := len(b.query.scopes) - 1; i >= 0; i-- {
+		if d := b.query.scopes[i].relation; d != nil {
 			return d
 		}
 	}

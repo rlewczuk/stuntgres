@@ -108,12 +108,12 @@ func stringLateralError(q queryQualifier, pos parser.Position, target bool) erro
 	return err
 }
 func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNode, queryNamespace, error) {
-	old, clause := b.queryNamespace, b.clause.aggregateClause
-	if b.queryNamespace == nil {
-		b.queryNamespace = &queryNamespace{}
+	old, clause := b.query.namespace, b.clause.aggregateClause
+	if b.query.namespace == nil {
+		b.query.namespace = &queryNamespace{}
 	}
 	b.clause.aggregateClause = "FROM"
-	defer func() { b.queryNamespace, b.clause.aggregateClause = old, clause }()
+	defer func() { b.query.namespace, b.clause.aggregateClause = old, clause }()
 	calls := make([]expr.Expr, len(raw.Calls))
 	schema := make(querySchema, len(calls))
 	ordinal := b.stored.functionCount
@@ -149,7 +149,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	// One scalar call remains scalar even in ROWS FROM; ordinality and
 	// multiple calls declare tuples independently of their exposed labels.
 	qualifier := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !raw.Ordinality}
-	b.queryHidden = append(b.queryHidden, qualifier)
+	b.query.hidden = append(b.query.hidden, qualifier)
 	captures := b.functionCaptures(calls)
 	node := &functionFromNode{querySchema: schema, calls: calls, ordinality: raw.Ordinality, correlated: len(captures) != 0, frame: b.frameID(), viewOrdinal: ordinal, captures: captures}
 	return node, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
@@ -193,7 +193,7 @@ func (b *expressionBinder) stringFromContext() bool {
 	if b.clause.aggregateClause == "FROM" {
 		return true
 	}
-	for _, scope := range b.queryScopes {
+	for _, scope := range b.query.scopes {
 		if scope.clause == "FROM" {
 			return true
 		}
@@ -211,7 +211,7 @@ func (b *expressionBinder) functionCaptures(calls []expr.Expr) []functionCorrela
 					return
 				}
 				name := ""
-				for _, qualifier := range b.queryNamespace.qualifiers {
+				for _, qualifier := range b.query.namespace.qualifiers {
 					for _, candidate := range qualifier.columns {
 						if candidate.slot == column.slot {
 							name = qualifier.name

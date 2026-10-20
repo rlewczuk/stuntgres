@@ -36,8 +36,8 @@ func TestQueryFromValuesCommonSchema(t *testing.T) {
 				t.Fatal(column)
 			}
 			output := query.Root.(*projectNode).expressions[0].(columnExpression)
-			if output.origin != (ids.ObjectRef{}) || len(b.querySources) != 0 || len(b.target.uses) != 0 {
-				t.Fatal("synthetic source acquired physical identity", output, b.querySources)
+			if output.origin != (ids.ObjectRef{}) || len(b.query.sources) != 0 || len(b.target.uses) != 0 {
+				t.Fatal("synthetic source acquired physical identity", output, b.query.sources)
 			}
 			for _, dependency := range b.dependencies {
 				if dependency.Ref.Address.ClassID == ids.RelationClassID {
@@ -63,7 +63,7 @@ func TestQueryFromValuesCellPrecedenceAndStarts(t *testing.T) {
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatal(tc.query, err, diagnostic, want)
 		}
-		if b.queryNamespace != nil || b.queryNonLateral {
+		if b.query.namespace != nil || b.query.nonLateral {
 			t.Fatal("VALUES leaked cell namespace")
 		}
 	}

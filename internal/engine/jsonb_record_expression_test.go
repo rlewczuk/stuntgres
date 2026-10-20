@@ -24,8 +24,8 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.queryAuth = &auth
-	b.queryFrame = 1
+	b.query.auth = &auth
+	b.query.frame = 1
 	definition := []parser.FunctionColumnDefinition{
 		{Name: parser.Identifier{Text: "a"}, Type: parser.TypeName{Name: "integer"}},
 		{Name: parser.Identifier{Text: "b"}, Type: parser.TypeName{Name: "text"}},
@@ -187,8 +187,8 @@ func TestJSONBRecordExpansion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.queryAuth = &auth
-	b.queryFrame = 1
+	b.query.auth = &auth
+	b.query.frame = 1
 	b.clause.aggregateClause = "SELECT"
 	for _, name := range []string{"jsonb_to_record", "jsonb_to_recordset"} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}}}
@@ -262,7 +262,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	oldSource := []queryColumn{column("x", 5, first.Usage), column("y", 6, second.Usage)}
 	oldColumns := []queryColumn{left, oldSource[0], oldSource[1], column("n", 7, first.Usage)}
 	star := parser.StarExpr{Pos: parser.Position{Offset: 7}}
-	b := expressionBinder{engine: e, queryAuth: &AuthorizationView{View: access.View{Catalog: view}}}
+	b := expressionBinder{engine: e, query: queryScopeState{auth: &AuthorizationView{View: access.View{Catalog: view}}}}
 	out, err := b.jsonbRecordCallStar(oldColumns, oldSource, star, callFor(original))
 	if err != nil || len(out) != 4 {
 		t.Fatal("initial star", out, err)
@@ -467,8 +467,8 @@ func TestJSONBRecordLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.queryAuth = &auth
-	b.queryFrame = 1
+	b.query.auth = &auth
+	b.query.frame = 1
 	b.clause.aggregateClause = "SELECT"
 	for _, tc := range []struct {
 		query     string

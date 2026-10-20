@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -1059,42 +1058,28 @@ type expressionPolicy struct {
 	operand bool
 }
 
+// expressionBinder binds the expressions of one statement. engine, ctx, op,
+// expected and input are the host and statement inputs (12c replaces engine
+// and op with a host seam); dependencies is the statement's dependency
+// manifest. Everything else lives in the value groups of binder_groups.go.
 type expressionBinder struct {
-	target                     targetContext
-	params                     parameterState
-	consumer                   consumerContext
-	capture                    viewCapture
-	stored                     storedSyntaxState
-	prepared                   preparedCaptures
-	clause                     clauseState
-	grouping                   groupingState
-	engine                     *Engine
-	ctx                        context.Context
-	dependencies               []catalog.ExpressionDependency
-	input                      sqltype.InputEnvironment
-	op                         *Operation
-	expected                   *StatementDescription
-	queryAuth                  *AuthorizationView
-	querySources               []queryLeaf
-	queryLockAdmission         *queryLockAdmission
-	queryNamespace             *queryNamespace
-	queryHidden                []queryQualifier
-	queryNonLateral            bool
-	queryFrame, nextQueryFrame uint32
-	queryScopes                []queryBindingScope
-	cteBindings                []cteBinding
-	recursiveDefinition        *cteDefinition
-	recursiveFrames            map[uint32]bool
-	cteScanOrdinal             int
-	cteAnalysisDepth           int
-	cteExecutables             []*BoundQuery
-	statementCTEs              []*cteDefinition
-	cteSelectBodies            bool
-	resolvedQueryFrame         uint32
-	presenceFrames             map[uint32]int
-	suppressWholePresence      bool
-	queryRowDiagnosticMode     lock.Mode // Clause diagnostics only; tuple authority is queryRowMark.
-	subqueryDemand             bool
+	engine       *Engine
+	ctx          context.Context
+	op           *Operation
+	expected     *StatementDescription
+	input        sqltype.InputEnvironment
+	dependencies []catalog.ExpressionDependency
+
+	target   targetContext
+	params   parameterState
+	consumer consumerContext
+	capture  viewCapture
+	stored   storedSyntaxState
+	prepared preparedCaptures
+	clause   clauseState
+	grouping groupingState
+	query    queryScopeState
+	cte      cteState
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -1127,8 +1112,8 @@ func (b *expressionBinder) seedParameters(types []sqltype.Usage) {
 // Binding must retain the caller's catalog/path authority, including a private
 // CREATE candidate. Execution still opens providers through live authorization.
 func (b *expressionBinder) bindingAuthorization() (AuthorizationView, error) {
-	if b.queryAuth != nil {
-		auth := *b.queryAuth
+	if b.query.auth != nil {
+		auth := *b.query.auth
 		if b.op != nil && b.op.definition != nil {
 			auth.definition = b.op.definition
 		}
@@ -1149,8 +1134,8 @@ func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.Definition
 	b.dependencies = append(b.dependencies, catalog.ExpressionDependency{ref, revision})
 }
 func (b *expressionBinder) bindingCatalog() catalog.Read {
-	if b.queryAuth != nil {
-		return b.queryAuth.Catalog
+	if b.query.auth != nil {
+		return b.query.auth.Catalog
 	}
 	return b.engine.catalog.read(b.engine.catalog.state)
 }
@@ -1231,10 +1216,10 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.target.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		owner := b.target.generatedOwner
-		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.queryNamespace.qualifiers[0].schema
+		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.query.namespace.qualifiers[0].schema
 		if qualified {
 			if name == "tableoid" {
-				ref := b.querySources[0].ref
+				ref := b.query.sources[0].ref
 				return tableOIDExpression{b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), ref}, nil
 			}
 			if isSystemColumn(name) {
@@ -1276,7 +1261,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.target.returningAliases != nil {
 		return b.returningColumn(raw)
 	}
-	if b.queryNamespace != nil {
+	if b.query.namespace != nil {
 		return b.queryColumn(raw)
 	}
 	if len(raw.Name.Parts) == 2 && !b.target.deleteTarget {
@@ -1484,7 +1469,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.AggregateExpr:
-			if r.Window == nil && b.recursiveFrames[b.frameID()] {
+			if r.Window == nil && b.cte.recursiveFrames[b.frameID()] {
 				return nil, expr.ErrorAt("42P19", "aggregate functions are not allowed in a recursive query's recursive term", r.Pos)
 			}
 			if b.params.executeParameters {
@@ -2005,7 +1990,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if raw.Syntax == parser.FunctionCast && legacyFunctionCastPredicate(raw.Child) {
 		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
-	if !b.consumer.defaultConsumer && b.queryNamespace == nil && b.target.returningAliases == nil && b.target.ruleNamespace == nil {
+	if !b.consumer.defaultConsumer && b.query.namespace == nil && b.target.returningAliases == nil && b.target.ruleNamespace == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
 		}

@@ -26,10 +26,10 @@ func TestSQLRoutineKnownArgumentWindowOwner(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			node := &windowExpression{Info: expr.Info{Pos: position}, frame: tc.frame, slot: -1, call: -1}
 			b := &expressionBinder{
-				ctx:        context.Background(),
-				queryFrame: 1,
-				clause:     clauseState{selectedOperatorArgs: []expr.Expr{node}},
-				grouping:   groupingState{argumentOwner: tc.owner},
+				ctx:      context.Background(),
+				query:    queryScopeState{frame: 1},
+				clause:   clauseState{selectedOperatorArgs: []expr.Expr{node}},
+				grouping: groupingState{argumentOwner: tc.owner},
 			}
 			bound, err := b.bind(parser.ParameterExpr{Number: -1}, expressionPolicy{context: projectionContext})
 			if err != nil || bound != node {

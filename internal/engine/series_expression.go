@@ -218,7 +218,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	if b.params.executeParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
-	if b.consumer.policyConsumer && b.queryFrame == 0 {
+	if b.consumer.policyConsumer && b.query.frame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
 	if b.clause.aggregateClause == "INSERT VALUES" {

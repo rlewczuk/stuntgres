@@ -143,7 +143,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	owner, index := b.argumentQueryOwner(walkArguments)
 	clause := b.clause.aggregateClause
 	if index >= 0 {
-		clause = b.queryScopes[index].clause
+		clause = b.query.scopes[index].clause
 	}
 	var nested expr.Expr
 	walkArguments(func(node expr.Expr) {
@@ -164,9 +164,9 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	for _, direct := range call.direct {
 		level := func(frame uint32) int {
 			if frame == b.frameID() {
-				return len(b.queryScopes)
+				return len(b.query.scopes)
 			}
-			for i, scope := range b.queryScopes {
+			for i, scope := range b.query.scopes {
 				if scope.frame == frame && scope.allowed {
 					return i
 				}
@@ -225,7 +225,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 		if e.slot == len(b.grouping.aggregates)-1 {
 			b.grouping.aggregates = b.grouping.aggregates[:e.slot]
 		}
-		s := &b.queryScopes[index]
+		s := &b.query.scopes[index]
 		e.slot = len(s.aggregates)
 		immutable := true
 		call.expressions(func(bound expr.Expr) {
@@ -275,8 +275,8 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 			local = true
 			return
 		}
-		for i := len(b.queryScopes) - 1; i >= 0; i-- {
-			scope := &b.queryScopes[i]
+		for i := len(b.query.scopes) - 1; i >= 0; i-- {
+			scope := &b.query.scopes[i]
 			if scope.allowed && scope.frame == frame {
 				if i > index {
 					index = i
@@ -289,7 +289,7 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 		index = -1
 	}
 	if index >= 0 {
-		owner = b.queryScopes[index].frame
+		owner = b.query.scopes[index].frame
 	}
 	return owner, index
 }
@@ -301,8 +301,8 @@ func (b *expressionBinder) aggregateCallAt(e aggregateExpression) (aggregateCall
 		}
 		return aggregateCall{}, false
 	}
-	for i := len(b.queryScopes) - 1; i >= 0; i-- {
-		scope := &b.queryScopes[i]
+	for i := len(b.query.scopes) - 1; i >= 0; i-- {
+		scope := &b.query.scopes[i]
 		if scope.frame == e.frame && e.slot >= 0 && e.slot < len(scope.aggregates) {
 			return scope.aggregates[e.slot], true
 		}

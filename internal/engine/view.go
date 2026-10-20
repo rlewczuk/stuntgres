@@ -88,7 +88,7 @@ func (b *expressionBinder) freezeViewColumns(columns []queryColumn) []viewNamesp
 	for i, c := range columns {
 		out[i] = viewNamespaceColumn{name: c.descriptor.Name, slot: c.slot, leaf: c.leaf}
 		if c.leaf >= 0 {
-			out[i].attribute = b.querySources[c.leaf].relation.Attributes[c.physical]
+			out[i].attribute = b.query.sources[c.leaf].relation.Attributes[c.physical]
 		}
 	}
 	return out

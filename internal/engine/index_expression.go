@@ -17,9 +17,9 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 	}
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.Name(), original: parent.Name(), schema: auth.Catalog.Get(parent.Namespace()).Name(), ref: ref, columns: columns}}, frame: parent.Columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
-	binder.consumer.indexConsumer, binder.params.noParameters, binder.queryAuth = true, true, &auth
-	binder.queryNamespace = &namespace
-	binder.querySources = []queryLeaf{{ref: ref, relation: parent}}
+	binder.consumer.indexConsumer, binder.params.noParameters, binder.query.auth = true, true, &auth
+	binder.query.namespace = &namespace
+	binder.query.sources = []queryLeaf{{ref: ref, relation: parent}}
 	return binder
 }
 
@@ -34,7 +34,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err != nil {
 		return nil, "", err
 	}
-	if err := rejectVirtualIndexUses(parent, binder.querySources[0].uses); err != nil {
+	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].uses); err != nil {
 		return nil, "", err
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}

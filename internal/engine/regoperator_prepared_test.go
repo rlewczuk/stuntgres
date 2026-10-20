@@ -118,7 +118,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		{offset: 8, operator: sqltype.Regoper, id: 597},
 	}}}
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &shared)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	for i, id := range ids {
 		pos := parser.Position{Offset: 7, Character: 8}
 		if i == 3 {

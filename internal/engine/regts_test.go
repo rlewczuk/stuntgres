@@ -252,7 +252,7 @@ func TestRegTSPreparedCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	dictionary, _ := auth.Catalog.LookupType(sqltype.Regdictionary)
 	config, _ := auth.Catalog.LookupType(sqltype.Regconfig)
 	for _, tc := range []struct {
@@ -270,7 +270,7 @@ func TestRegTSPreparedCapture(t *testing.T) {
 	cell := &regtypeAnalysis{constants: append([]regtypeConstant(nil), b.prepared.regtypeConstants...)}
 	expected := StatementDescription{regtypes: cell}
 	held := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &expected)
-	held.queryAuth = &auth
+	held.query.auth = &auth
 	v, err := held.regTSConstant("reg_ts_missing", dictionary.Usage(), parser.Position{Offset: 7, Character: 8})
 	if err != nil || !sqltype.SameDatum(v, cell.constants[0].value) {
 		t.Fatal("held literal recaptured", err)

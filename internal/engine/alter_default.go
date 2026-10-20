@@ -148,7 +148,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
 	var definition catalog.ColumnDefault
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-	binder.queryAuth = &auth
+	binder.query.auth = &auth
 	binder.consumer.defaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
 	var err error
 	definition.Expression, err = binder.bindDefault(expression, old.Columns[slot])

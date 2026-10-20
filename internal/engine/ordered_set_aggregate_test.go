@@ -590,7 +590,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			b.queryAuth = &auth
+			b.query.auth = &auth
 			// Resolve expectations and bind against this one coherent generation,
 			// not custom descriptor pointers retained from an external catalog read.
 			catalogView := b.bindingCatalog()
@@ -762,7 +762,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	if err == nil {
 		_, err = b.bindSelect(raw, false)
 	}

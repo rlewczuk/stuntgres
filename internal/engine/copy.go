@@ -380,7 +380,7 @@ func copyRelationKind(relation *catalog.Relation, from bool) error {
 
 func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth AuthorizationView) error {
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
-	binder.queryAuth = &auth
+	binder.query.auth = &auth
 	binder.target.insertTarget = b.relation
 	e.bindInsertDefaults(b, auth, parser.OverrideSystem)
 	if err := binder.captureRetainedWriteInput(b.insert.defaults, b.relation.ColumnMeta.Generations, b.relation.Constraints.Check); err != nil {

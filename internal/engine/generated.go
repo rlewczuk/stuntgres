@@ -88,10 +88,10 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 	b := newExpressionBinder(op.Context(), e, input, op, nil)
 	b.target.generatedOwner = d
 	b.params.noParameters = true
-	b.queryAuth = &auth
-	b.queryNamespace = ns
+	b.query.auth = &auth
+	b.query.namespace = ns
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	b.querySources = []queryLeaf{{ref: ref, relation: d}}
+	b.query.sources = []queryLeaf{{ref: ref, relation: d}}
 	column := d.Columns[slot]
 	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
 	if kind == catalog.GenerationVirtual {

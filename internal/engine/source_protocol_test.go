@@ -366,7 +366,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	}
 	call := substituted.(functions.JSONRecord)
 	requests := []expr.Expr{call}
-	b.queryFrame = 1
+	b.query.frame = 1
 	root, err := b.lowerQuerySets(&singletonNode{}, requests, nil, true)
 	if err != nil {
 		t.Fatal(err)

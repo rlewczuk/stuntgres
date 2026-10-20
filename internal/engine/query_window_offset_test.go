@@ -108,7 +108,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		{"SELECT lead(1,0,missing) OVER()", "42703"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause, b.queryFrame = "SELECT", 1
+		b.clause.aggregateClause, b.query.frame = "SELECT", 1
 		if _, err := b.bind(statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext}); err != nil {
 			t.Fatal(err)
 		}

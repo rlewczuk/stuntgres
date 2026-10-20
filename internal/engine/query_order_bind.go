@@ -115,7 +115,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr
 		if output >= 0 {
 			projection[output] = expression
 		}
-		if demand := b.queryNamespace.identityValuesOrderDemand; len(demand) != 0 {
+		if demand := b.query.namespace.identityValuesOrderDemand; len(demand) != 0 {
 			if column, ok := expression.(columnExpression); ok {
 				demand[column.slot] = true
 			}

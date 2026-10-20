@@ -38,6 +38,6 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 	out.commandQuery = true
 	out.targets, out.arrayTargets = targets, partials
 	out.expressions = nil
-	out.querySources = b.querySources
+	out.querySources = b.query.sources
 	return nil
 }

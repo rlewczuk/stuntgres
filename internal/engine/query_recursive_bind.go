@@ -39,9 +39,9 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 			return nil, err
 		}
 	}
-	old := len(b.cteBindings)
-	b.cteBindings = append(b.cteBindings, cteBinding{name: d.name, definition: d, contained: true})
-	defer func() { b.cteBindings = b.cteBindings[:old] }()
+	old := len(b.cte.bindings)
+	b.cte.bindings = append(b.cte.bindings, cteBinding{name: d.name, definition: d, contained: true})
+	defer func() { b.cte.bindings = b.cte.bindings[:old] }()
 	rightQuery, err := b.bindSelect(s.Set.Right, true)
 	if err != nil {
 		return nil, err

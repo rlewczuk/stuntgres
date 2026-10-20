@@ -120,7 +120,7 @@ func TestQueryWindowValueBindingUnwind(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			b.clause.aggregateClause, b.queryFrame = "SELECT", 1
+			b.clause.aggregateClause, b.query.frame = "SELECT", 1
 			seed := statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0]
 			if _, err := b.bind(seed, expressionPolicy{context: projectionContext}); err != nil {
 				t.Fatal(err)

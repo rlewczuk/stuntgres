@@ -56,7 +56,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			if column, ok := item.Expr.(parser.ColumnExpr); ok && len(column.Name.Parts) == 1 {
 				name := column.Name.Parts[0].Text
 				input := false
-				for _, candidate := range b.queryNamespace.columns {
+				for _, candidate := range b.query.namespace.columns {
 					input = input || candidate.descriptor.Name == name
 				}
 				if !input {
@@ -377,7 +377,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 	})
 	clause := b.clause.aggregateClause
 	if index >= 0 {
-		clause = b.queryScopes[index].clause
+		clause = b.query.scopes[index].clause
 	}
 	var nested expr.Expr
 	for _, arg := range args {
@@ -410,7 +410,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in "+clause, raw.Pos)
 	}
 	if index >= 0 {
-		b.queryScopes[index].groupingActive = true
+		b.query.scopes[index].groupingActive = true
 	} else {
 		b.grouping.active = true
 	}

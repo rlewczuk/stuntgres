@@ -45,19 +45,19 @@ func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node exp
 // inaccessible diagnostic candidate: it is never added to the source
 // namespace or read manifest. The returned function restores the binder.
 func (b *expressionBinder) valuesAggregateNamespace() func() {
-	if b.clause.aggregateClause != "INSERT VALUES" || b.queryNamespace != nil {
+	if b.clause.aggregateClause != "INSERT VALUES" || b.query.namespace != nil {
 		return func() {}
 	}
-	b.queryNamespace = &queryNamespace{}
-	hidden := b.queryHidden
+	b.query.namespace = &queryNamespace{}
+	hidden := b.query.hidden
 	if target := b.target.insertTarget; target != nil {
 		columns := make([]queryColumn, len(target.Columns))
 		for i, descriptor := range target.Columns {
 			columns[i].descriptor = descriptor
 		}
-		b.queryHidden = append(b.queryHidden, queryQualifier{name: target.Name(), columns: columns, lateralForbidden: true})
+		b.query.hidden = append(b.query.hidden, queryQualifier{name: target.Name(), columns: columns, lateralForbidden: true})
 	}
-	return func() { b.queryNamespace, b.queryHidden = nil, hidden }
+	return func() { b.query.namespace, b.query.hidden = nil, hidden }
 }
 
 // rejectOrdinaryWithin analyzes WITHIN GROUP on an aggregate that is not an

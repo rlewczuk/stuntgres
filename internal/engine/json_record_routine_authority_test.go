@@ -131,7 +131,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0].(parser.FunctionExpr)
 				_, sourceBinder, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 				sourceBinder.clause.aggregateClause = "FROM"
-				sourceBinder.queryNamespace = &queryNamespace{}
+				sourceBinder.query.namespace = &queryNamespace{}
 				e.mu.Lock()
 				source, sourceErr := sourceBinder.bindFunctionSource(raw)
 				e.mu.Unlock()
@@ -315,7 +315,7 @@ func TestJSONRecordRoutineFailedConstructor(t *testing.T) {
 	usage := b.typ(sqltype.Int4).Usage()
 	usage.Typmod = 0
 	column := catalog.Column{Name: "base", Usage: usage}
-	b.queryNamespace = &queryNamespace{columns: []queryColumn{{descriptor: column, slot: 0, leaf: -1, physical: -1}}, frame: []catalog.Column{column}}
+	b.query.namespace = &queryNamespace{columns: []queryColumn{{descriptor: column, slot: 0, leaf: -1, physical: -1}}, frame: []catalog.Column{column}}
 	raw := statement(t, "SELECT json_populate_record(base,'{}'::json)").(*parser.Select).Targets[0].(parser.FunctionExpr)
 	_, err := b.bindFunctionSource(raw)
 	if err == nil || err.Error() != "invalid JSON record plan" {

@@ -104,12 +104,12 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 		}
 		auth.State.CurrentUser = reader.Ref
 		binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		raw := statement(t, q).(*parser.Select)
 		if _, err = binder.bindSelect(raw, false); err != nil {
 			t.Fatal("executor ACL leaked into binding", q, err)
 		}
-		return auth.checkQuerySources(binder.querySources)
+		return auth.checkQuerySources(binder.query.sources)
 	}
 	for _, q := range []string{"SELECT b.v FROM t a JOIN u b USING(id) FOR UPDATE OF a NOWAIT", "SELECT id FROM owned", "SELECT id FROM invoker"} {
 		if err := check(q); err != nil {

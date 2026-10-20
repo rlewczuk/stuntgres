@@ -76,9 +76,9 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	auth := AuthorizationView{View: access.View{Catalog: view}}
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.target.generatedOwner = d
-	b.queryAuth = &auth
-	b.queryNamespace = &ns
-	b.querySources = []queryLeaf{{ref: ref, relation: d}}
+	b.query.auth = &auth
+	b.query.namespace = &ns
+	b.query.sources = []queryLeaf{{ref: ref, relation: d}}
 	raw := func(name string) parser.ColumnExpr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}

@@ -46,7 +46,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &description)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	value, failure := b.inputConstant("q", typ.Usage(), parser.Position{Offset: capture.offset, Character: 8})
 	e.mu.Unlock()
 	if err != nil || failure != nil {
@@ -63,7 +63,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	stale.catalogEpoch++
 	e.mu.Lock()
 	b = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &stale)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	_, failure = b.inputConstant("q", typ.Usage(), parser.Position{Offset: capture.offset, Character: 8})
 	e.mu.Unlock()
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "0A000" || d.Message != "cached plan must not change result type" {
@@ -99,7 +99,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	auth.Catalog = e.stageRead(stage)
 	auth.Recapture(auth.Catalog)
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &description)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	node, failure := b.bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext, expected: typ.Usage()})
 	e.mu.Unlock()
 	if err != nil || failure != nil {
@@ -112,7 +112,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	stale.catalogEpoch++
 	e.mu.Lock()
 	b = newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &stale)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	_, failure = b.bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext, expected: typ.Usage()})
 	e.mu.Unlock()
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "0A000" || d.Message != "cached plan must not change parameter type" {

@@ -223,7 +223,7 @@ func captureRetainedExpressionInput(node expr.Expr, element func() error, diagno
 // Stored sources are opaque to the outer expression binder, but their
 // planning-time conversions consume the same published input environment.
 func (b *expressionBinder) captureRetainedViewInput(definition *viewDefinition) error {
-	return captureRetainedDefinitionInput(b.queryAuth.Catalog, definition, b.captureElementInput, b.captureTypeDiagnosticInput)
+	return captureRetainedDefinitionInput(b.query.auth.Catalog, definition, b.captureElementInput, b.captureTypeDiagnosticInput)
 }
 
 // Each frozen consumer supplies its own coherent catalog and input owners.

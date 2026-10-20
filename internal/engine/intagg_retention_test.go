@@ -147,7 +147,7 @@ func intaggUnitValuesScope(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.clause.aggregateClause = "INSERT VALUES"
-			b.queryHidden = []queryQualifier{{name: "outside"}}
+			b.query.hidden = []queryQualifier{{name: "outside"}}
 			raw := parser.AggregateExpr{Name: "int_array_aggregate", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}}}
 			want := "42803"
 			missing := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "missing"}}}}
@@ -164,7 +164,7 @@ func intaggUnitValuesScope(t *testing.T) {
 			if !ok || state.SQLState() != want {
 				t.Fatal("VALUES precedence", kind, err, want)
 			}
-			if b.queryNamespace != nil || len(b.queryHidden) != 1 || b.queryHidden[0].name != "outside" || len(b.target.uses) != 0 || len(b.grouping.aggregates) != 0 || b.clause.aggregateClause != "INSERT VALUES" {
+			if b.query.namespace != nil || len(b.query.hidden) != 1 || b.query.hidden[0].name != "outside" || len(b.target.uses) != 0 || len(b.grouping.aggregates) != 0 || b.clause.aggregateClause != "INSERT VALUES" {
 				t.Fatal("VALUES diagnostic scope leaked into next expression")
 			}
 		})

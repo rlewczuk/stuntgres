@@ -44,7 +44,7 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 	}
 	var right expr.Expr
 	properties := left.Properties()
-	queryFrame := b.nextQueryFrame
+	queryFrame := b.query.nextQueryFrame
 	if raw.Right != nil {
 		right, err = b.bindBoolean(raw.Right, context, construct)
 		if err != nil {
@@ -71,7 +71,7 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 			}
 		}
 	}
-	return logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), op: raw.Op, left: left, right: right, queryRight: b.nextQueryFrame != queryFrame}, nil
+	return logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), op: raw.Op, left: left, right: right, queryRight: b.query.nextQueryFrame != queryFrame}, nil
 }
 
 type logicalExpression struct {

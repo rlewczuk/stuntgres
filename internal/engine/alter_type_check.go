@@ -88,10 +88,10 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 			return nil, nil, ids.ErrCatalogReplaced
 		}
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-		binder.consumer.checkConsumer, binder.params.noParameters, binder.queryAuth = true, true, &auth
+		binder.consumer.checkConsumer, binder.params.noParameters, binder.query.auth = true, true, &auth
 		binder.stored.checkLiterals = pending.literals
-		binder.queryNamespace = &namespace
-		binder.querySources = []queryLeaf{{ref: ref, relation: &replacement}}
+		binder.query.namespace = &namespace
+		binder.query.sources = []queryLeaf{{ref: ref, relation: &replacement}}
 		node, err := binder.bindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, projectionContext, "CHECK")
 		e.mu.Unlock()
 		if err != nil {

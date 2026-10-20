@@ -169,7 +169,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			child := view.MustRelation(childRef[0])
 			ownerAuth := foreignActionOwner(auth, child.Owner)
 			binder := newExpressionBinder(context.Background(), e, scope.input, caller, nil)
-			binder.queryAuth, binder.queryNamespace = &auth, &queryNamespace{}
+			binder.query.auth, binder.query.namespace = &auth, &queryNamespace{}
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()
 			if err != nil {

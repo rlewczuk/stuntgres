@@ -59,7 +59,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		raw := statement(t, tc.q).(*parser.Select)
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(b.op)
-		b.queryAuth = &auth
+		b.query.auth = &auth
 		if err == nil {
 			_, err = b.bindSelect(raw, false)
 		}
@@ -81,7 +81,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		raw := statement(t, tc.q).(*parser.Select)
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(b.op)
-		b.queryAuth = &auth
+		b.query.auth = &auth
 		if err == nil {
 			_, err = b.bindSelect(raw, false)
 		}

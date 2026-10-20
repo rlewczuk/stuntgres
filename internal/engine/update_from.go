@@ -17,7 +17,7 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 	if b.target.alias != "" {
 		name = b.target.alias
 	}
-	qualifier := queryQualifier{name: name, original: b.target.name, alias: b.target.alias, ref: b.target.ref, columns: columns, schema: b.queryAuth.Catalog.Get(b.target.relation.Namespace()).Name(), lateralForbidden: true}
+	qualifier := queryQualifier{name: name, original: b.target.name, alias: b.target.alias, ref: b.target.ref, columns: columns, schema: b.query.auth.Catalog.Get(b.target.relation.Namespace()).Name(), lateralForbidden: true}
 	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: b.target.relation.Columns}
 }
 

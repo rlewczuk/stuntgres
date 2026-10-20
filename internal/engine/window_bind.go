@@ -113,7 +113,7 @@ func (owner argumentWindowOwner) nestingError() error {
 }
 
 func (b *expressionBinder) windowAllowed(pos parser.Position) error {
-	if b.consumer.policyConsumer && b.queryFrame == 0 {
+	if b.consumer.policyConsumer && b.query.frame == 0 {
 		return expr.ErrorAt("42P20", "window functions are not allowed in policy expressions", pos)
 	}
 	if b.consumer.partitionConsumer != "" {

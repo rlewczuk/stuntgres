@@ -489,7 +489,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	if err != nil {
 		return nil, err
 	}
-	frame := b.resolvedQueryFrame
+	frame := b.query.resolvedQueryFrame
 	if asValue && q.scalarAlias {
 		return b.queryColumnInFrame(q.columns[0], pos, frame), nil
 	}
@@ -520,7 +520,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 		return nil, err
 	}
 	slot := 0
-	if asValue && !b.suppressWholePresence {
+	if asValue && !b.query.suppressWholePresence {
 		slot, err = b.wholeRowPresence(q, frame)
 		if err != nil {
 			return nil, err
@@ -755,12 +755,12 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 	}
 	defer func() { b.clause.functionProjection = previousProjection }()
 	suppressed := eligible && directWholeCandidate(raw.Args[0])
-	previous := b.suppressWholePresence
+	previous := b.query.suppressWholePresence
 	if suppressed {
-		b.suppressWholePresence = true
+		b.query.suppressWholePresence = true
 	}
 	node, err := b.bindFunctionProvider(raw)
-	b.suppressWholePresence = previous
+	b.query.suppressWholePresence = previous
 	if err == nil {
 		if suppressed && !previous {
 			return b.demandWholePresence(node)
@@ -823,12 +823,12 @@ func directWholeCandidate(raw parser.Expr) bool {
 	return false
 }
 func (b *expressionBinder) bindCompositeBase(raw parser.Expr) (expr.Expr, error) {
-	previous := b.suppressWholePresence
+	previous := b.query.suppressWholePresence
 	if directWholeCandidate(raw) {
-		b.suppressWholePresence = true
+		b.query.suppressWholePresence = true
 	}
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
-	b.suppressWholePresence = previous
+	b.query.suppressWholePresence = previous
 	return node, err
 }
 func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error) {
@@ -839,10 +839,10 @@ func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error
 		}
 		var namespace *queryNamespace
 		if row.presenceFrame == b.frameID() {
-			namespace = b.queryNamespace
+			namespace = b.query.namespace
 		}
 		if namespace == nil {
-			for _, scope := range b.queryScopes {
+			for _, scope := range b.query.scopes {
 				if scope.frame == row.presenceFrame && scope.namespace != nil {
 					namespace = scope.namespace
 					break

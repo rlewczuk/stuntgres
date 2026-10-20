@@ -90,8 +90,8 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	binder.target.name, binder.target.alias = out.relation.Name(), s.Alias.Text
 	binder.target.insertTarget = out.relation
 	target := binder.mutationTargetNamespace()
-	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
-	sourceHiddenStart := len(binder.queryHidden)
+	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
+	sourceHiddenStart := len(binder.query.hidden)
 	root, source, err := binder.bindFrom(s.Source)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	if err != nil {
 		return err
 	}
-	binder.queryNamespace = &combined
+	binder.query.namespace = &combined
 	binder.clause.aggregateClause = "JOIN conditions"
 	on, err := binder.bind(s.On, expressionPolicy{context: projectionContext})
 	if err != nil {
@@ -147,23 +147,23 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		outputParameters = binder.params.updateInputParameters
 		defer func() { binder.params.updateInputParameters = nil }()
 	}
-	hidden := binder.queryHidden
+	hidden := binder.query.hidden
 	var sourceHidden []queryQualifier
 	for i, raw := range s.Arms {
 		binder.params.updateInputParameters = outputParameters
-		binder.queryHidden = hidden
-		binder.queryNamespace = &source
+		binder.query.hidden = hidden
+		binder.query.namespace = &source
 		switch raw.Match {
 		case parser.MergeMatched:
-			binder.queryNamespace = &combined
+			binder.query.namespace = &combined
 		case parser.MergeNotMatchedBySource:
-			binder.queryNamespace = &target
+			binder.query.namespace = &target
 			merge.hasBySource = true
 		case parser.MergeNotMatched:
 			merge.hasByTarget = true
 		}
 		if raw.Match == parser.MergeNotMatchedBySource {
-			binder.queryNamespace = &target
+			binder.query.namespace = &target
 			if sourceHidden == nil {
 				sourceHidden = append([]queryQualifier(nil), hidden...)
 				// bindFrom already records each source entry, including aliases.
@@ -173,7 +173,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 					sourceHidden[i].lateralForbidden = true
 				}
 			}
-			binder.queryHidden = sourceHidden
+			binder.query.hidden = sourceHidden
 		}
 		arm := &merge.arms[i]
 		arm.match, arm.action = raw.Match, raw.Action
@@ -233,7 +233,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			}
 		}
 	}
-	binder.queryHidden = hidden
+	binder.query.hidden = hidden
 	out.merge = merge
 	return nil
 }

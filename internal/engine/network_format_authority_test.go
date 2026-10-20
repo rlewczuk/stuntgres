@@ -36,7 +36,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, admin, nil)
-			binder.queryAuth, binder.target.ref = &auth, ref
+			binder.query.auth, binder.target.ref = &auth, ref
 			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()

@@ -80,7 +80,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	if err != nil || overridden.CollationConflict || overridden.CollationLeft.ID != 0 || overridden.CollationRight.ID != 0 || overridden.CollationConflictPos != (parser.Position{}) || overridden.Usage.Collation.ID != 950 {
 		t.Fatal(overridden, err)
 	}
-	b.queryNamespace = &queryNamespace{}
+	b.query.namespace = &queryNamespace{}
 	if _, err := b.bindOrder(order, []expr.Expr{literalExpression{Info: overridden, value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
 		t.Fatal("explicit override did not restore ordinary ordering", err)
 	}

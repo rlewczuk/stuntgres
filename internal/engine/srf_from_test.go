@@ -70,8 +70,8 @@ func TestSRFFromBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.queryAuth = &auth
-	b.queryFrame = 1
+	b.query.auth = &auth
+	b.query.frame = 1
 	raw := nullCountRaw("generate_series", lit(2), lit(4))
 	node, ns, err := b.bindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}, Ordinality: true})
 	if err != nil {
@@ -239,7 +239,7 @@ func TestSRFFromOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	b.clause.aggregateClause = "FROM"
 	parentCall := nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
 	parentCall.Pos = parser.Position{Character: 19, Offset: 18}

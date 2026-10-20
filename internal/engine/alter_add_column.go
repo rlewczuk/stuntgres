@@ -118,7 +118,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	if declaration.defaultExpr != nil {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		binder.consumer.defaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
 		node, err := binder.bindDefault(declaration.defaultExpr, definition)
 		if err != nil {

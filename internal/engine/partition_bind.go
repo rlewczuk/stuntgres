@@ -63,9 +63,9 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			}
 			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.Catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}}, frame: d.Columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
-			binder.consumer.partitionConsumer, binder.params.noParameters, binder.queryAuth = "partition key expression", true, &auth
-			binder.queryNamespace = &namespace
-			binder.querySources = []queryLeaf{{ref: ref, relation: d}}
+			binder.consumer.partitionConsumer, binder.params.noParameters, binder.query.auth = "partition key expression", true, &auth
+			binder.query.namespace = &namespace
+			binder.query.sources = []queryLeaf{{ref: ref, relation: d}}
 			node, err := binder.bind(r.Expression, expressionPolicy{context: projectionContext})
 			if err != nil {
 				return nil, err
@@ -81,7 +81,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			if !planned.Properties().RowDependent {
 				return nil, sqlError("42P17", "cannot use constant expression as partition key")
 			}
-			for _, slot := range binder.querySources[0].uses {
+			for _, slot := range binder.query.sources[0].uses {
 				if _, generated := d.ColumnMeta.Generations[d.Attributes[slot]]; generated {
 					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
@@ -178,7 +178,7 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 		return nil, fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-	binder.queryAuth = &p.auth
+	binder.query.auth = &p.auth
 	binder.params.noParameters = true
 	binder.consumer.partitionConsumer = "partition bound"
 	node, err := binder.bind(datum.Expression, expressionPolicy{context: projectionContext, expected: key.Usage.Type.Usage()})

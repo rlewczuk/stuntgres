@@ -14,7 +14,7 @@ import (
 func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONEach {
 	t.Helper()
 	b.clause.aggregateClause = "SELECT"
-	b.queryNamespace = &queryNamespace{}
+	b.query.namespace = &queryNamespace{}
 	node, err := b.bindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
 	if err != nil {
 		t.Fatal(err)

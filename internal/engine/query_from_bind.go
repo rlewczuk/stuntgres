@@ -78,7 +78,7 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) exp
 		origin = b.useColumnOf(b.queryTargetRelation(), c.physical)
 		relation = b.queryTargetRelation()
 	} else if c.leaf >= 0 {
-		leaf := &b.querySources[c.leaf]
+		leaf := &b.query.sources[c.leaf]
 		relation = leaf.relation
 		origin = leaf.ref
 		origin.Address.SubID = leaf.relation.Attributes[c.physical]
@@ -108,8 +108,8 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) exp
 func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Position) (*queryQualifier, error) {
 	label := name.Parts[len(name.Parts)-1].Text
 	var match *queryQualifier
-	for i := range b.queryNamespace.qualifiers {
-		q := &b.queryNamespace.qualifiers[i]
+	for i := range b.query.namespace.qualifiers {
+		q := &b.query.namespace.qualifiers[i]
 		if q.name != label || len(name.Parts) == 2 && (q.alias != "" || q.schema != name.Parts[0].Text) {
 			continue
 		}
@@ -122,11 +122,11 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		if b.clause.aggregateClause == "FROM" && b.clause.stringFromForbidden {
 			return nil, stringLateralError(*match, pos, false)
 		}
-		b.resolvedQueryFrame = b.frameID()
+		b.query.resolvedQueryFrame = b.frameID()
 		return match, nil
 	}
-	for i := len(b.queryScopes) - 1; i >= 0; i-- {
-		scope := &b.queryScopes[i]
+	for i := len(b.query.scopes) - 1; i >= 0; i-- {
+		scope := &b.query.scopes[i]
 		if !scope.allowed || scope.namespace == nil {
 			continue
 		}
@@ -144,11 +144,11 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 			if scope.stringFromForbidden {
 				return nil, stringLateralError(*match, pos, false)
 			}
-			b.resolvedQueryFrame = scope.frame
+			b.query.resolvedQueryFrame = scope.frame
 			return match, nil
 		}
 	}
-	hidden := append(append([]queryQualifier(nil), b.queryHidden...), b.outerQualifiers()...)
+	hidden := append(append([]queryQualifier(nil), b.query.hidden...), b.outerQualifiers()...)
 	for _, q := range hidden {
 		if q.original != label && q.name != label {
 			continue
@@ -192,7 +192,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 		}
 	}
 	name := parts[len(parts)-1].Text
-	columns := b.queryNamespace.columns
+	columns := b.query.namespace.columns
 	frame := b.frameID()
 	if len(parts) > 1 {
 		q, err := b.queryQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
@@ -200,7 +200,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			return nil, err
 		}
 		columns = q.columns
-		frame = b.resolvedQueryFrame
+		frame = b.query.resolvedQueryFrame
 	}
 	var match *queryColumn
 	for i := range columns {
@@ -212,28 +212,28 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 		}
 		match = &columns[i]
 		if b.clause.aggregateClause == "FROM" && b.clause.stringFromForbidden {
-			return nil, stringForbiddenColumn(*b.queryNamespace, match.slot, raw.Pos)
+			return nil, stringForbiddenColumn(*b.query.namespace, match.slot, raw.Pos)
 		}
 	}
 	if match != nil {
-		if demand := b.queryNamespace.identityValuesOrderDemand; len(demand) != 0 {
+		if demand := b.query.namespace.identityValuesOrderDemand; len(demand) != 0 {
 			demand[match.slot] = true
 		}
 		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
 	}
 	if b.target.mergeWhen && b.frameID() == 1 && name != "tableoid" && isSystemColumn(name) {
-		for _, q := range b.queryNamespace.qualifiers {
+		for _, q := range b.query.namespace.qualifiers {
 			if len(parts) > 1 && (q.name != parts[len(parts)-2].Text || len(parts) == 3 && q.schema != parts[0].Text) {
 				continue
 			}
-			if relation, ok := b.queryAuth.definitionRelation(q.ref.Address); ok && relation.RelationKind == catalog.TableRelation {
+			if relation, ok := b.query.auth.definitionRelation(q.ref.Address); ok && relation.RelationKind == catalog.TableRelation {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
 			}
 		}
 	}
 	if len(parts) == 1 {
-		for i := len(b.queryScopes) - 1; i >= 0; i-- {
-			scope := &b.queryScopes[i]
+		for i := len(b.query.scopes) - 1; i >= 0; i-- {
+			scope := &b.query.scopes[i]
 			if !scope.allowed || scope.namespace == nil {
 				continue
 			}
@@ -259,13 +259,13 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 		if scope, newValues := b.outerReturningScope(raw.Name); scope != nil {
 			return b.outerReturningWholeRow(scope, raw.Pos, newValues)
 		}
-		for _, q := range b.queryNamespace.qualifiers {
+		for _, q := range b.query.namespace.qualifiers {
 			if q.name == name {
 				return b.wholeRow(raw.Name, raw.Pos, true)
 			}
 		}
-		for i := len(b.queryScopes) - 1; i >= 0; i-- {
-			scope := b.queryScopes[i]
+		for i := len(b.query.scopes) - 1; i >= 0; i-- {
+			scope := b.query.scopes[i]
 			if !scope.allowed || scope.namespace == nil {
 				continue
 			}
@@ -279,14 +279,14 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			}
 		}
 	}
-	if b.queryNamespace.values && len(parts) == 1 {
-		return nil, valuesOrderColumnError(b.queryNamespace.frame, name, raw.Pos)
+	if b.query.namespace.values && len(parts) == 1 {
+		return nil, valuesOrderColumnError(b.query.namespace.frame, name, raw.Pos)
 	}
 	qualifier := ""
 	if len(parts) > 1 {
 		qualifier = parts[len(parts)-2].Text
 	}
-	hidden := append(append([]queryQualifier(nil), b.queryHidden...), b.outerQualifiers()...)
+	hidden := append(append([]queryQualifier(nil), b.query.hidden...), b.outerQualifiers()...)
 	if b.stringFromContext() {
 		for _, q := range hidden {
 			if !q.lateralForbidden {
@@ -299,7 +299,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			}
 		}
 	}
-	detail, hint, err := queryColumnDiagnostic(hidden, qualifier, name, raw.Pos, b.queryNonLateral)
+	detail, hint, err := queryColumnDiagnostic(hidden, qualifier, name, raw.Pos, b.query.nonLateral)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +371,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		for i, column := range schema {
 			columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1}
 		}
-		b.queryHidden = append(b.queryHidden, queryQualifier{name: "unnamed_subquery", columns: columns})
+		b.query.hidden = append(b.query.hidden, queryQualifier{name: "unnamed_subquery", columns: columns})
 		return &derivedNode{querySchema: schema, query: query, scanFrame: b.frameID()}, queryNamespace{columns: columns, frame: schema}, nil
 	case *parser.ValuesQuery:
 		query, err := b.bindValues(n, false)
@@ -383,22 +383,22 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		for i, column := range schema {
 			columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1}
 		}
-		b.queryHidden = append(b.queryHidden, queryQualifier{name: "unnamed_subquery", columns: columns})
+		b.query.hidden = append(b.query.hidden, queryQualifier{name: "unnamed_subquery", columns: columns})
 		return query.Root, queryNamespace{columns: columns, frame: schema}, nil
 	case *parser.TableReference:
 		if len(n.Name.Parts) == 1 {
-			for i := len(b.cteBindings) - 1; i >= 0; i-- {
-				binding := b.cteBindings[i]
+			for i := len(b.cte.bindings) - 1; i >= 0; i-- {
+				binding := b.cte.bindings[i]
 				if binding.name == n.Name.Parts[0].Text {
 					return b.bindCTEScan(n, binding)
 				}
 			}
 		}
-		ref, err := b.engine.admittedReference(*b.queryAuth, n.Name, b.queryLockAdmission.tableQueries[n].ref)
+		ref, err := b.engine.admittedReference(*b.query.auth, n.Name, b.query.lockAdmission.tableQueries[n].ref)
 		if err != nil {
-			return nil, queryNamespace{}, futureCTEError(err, b.queryLockAdmission.futureCTE[n])
+			return nil, queryNamespace{}, futureCTEError(err, b.query.lockAdmission.futureCTE[n])
 		}
-		relation, _ := b.queryAuth.definitionRelation(ref.Address)
+		relation, _ := b.query.auth.definitionRelation(ref.Address)
 		if relation.RelationKind == catalog.CompositeRelation {
 			return nil, queryNamespace{}, compositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
@@ -415,15 +415,15 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				return nil, queryNamespace{}, err
 			}
 		}
-		leaf := len(b.querySources)
-		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n].query, deleteReference: b.target.deleteUsingSources && len(b.queryScopes) == 0})
+		leaf := len(b.query.sources)
+		b.query.sources = append(b.query.sources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.engine.authorizationStorageLocked(*b.query.auth, ref.Address), mark: b.query.lockAdmission.tableMark(n), table: n, query: b.query.lockAdmission.tableQueries[n].query, deleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
 		columns := make([]queryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}
 		}
-		namespace, _ := b.queryAuth.definitionDescriptor(relation.Namespace())
+		namespace, _ := b.query.auth.definitionDescriptor(relation.Namespace())
 		q := queryQualifier{name: relation.Name(), original: relation.Name(), schema: namespace.Name(), ref: ref, columns: columns}
-		b.queryHidden = append(b.queryHidden, q)
+		b.query.hidden = append(b.query.hidden, q)
 		return &sourceNode{querySchema: relation.Columns, ref: ref, occurrence: leaf, rangeName: relation.Name()}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil
 	case *parser.AliasReference:
 		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
@@ -483,33 +483,33 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		q := queryQualifier{name: n.Name.Text, alias: n.Name.Text, columns: ns.columns}
 		if _, table := n.Input.(*parser.TableReference); table {
 			q.ref, q.schema, q.original = ns.qualifiers[0].ref, ns.qualifiers[0].schema, ns.qualifiers[0].original
-			b.queryHidden[len(b.queryHidden)-1] = q
+			b.query.hidden[len(b.query.hidden)-1] = q
 		} else if _, values := n.Input.(*parser.ValuesQuery); values {
-			b.queryHidden[len(b.queryHidden)-1] = q
+			b.query.hidden[len(b.query.hidden)-1] = q
 		} else if _, derived := n.Input.(*parser.DerivedQuery); derived {
-			b.queryHidden[len(b.queryHidden)-1] = q
+			b.query.hidden[len(b.query.hidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionTable); function {
 			q.scalarAlias = ns.qualifiers[0].scalarAlias
-			b.queryHidden[len(b.queryHidden)-1] = q
+			b.query.hidden[len(b.query.hidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionFrom); function {
 			q.scalarAlias = ns.qualifiers[0].scalarAlias
-			b.queryHidden[len(b.queryHidden)-1] = q
+			b.query.hidden[len(b.query.hidden)-1] = q
 		} else {
 			q.excludeColumnDiagnostics = true
-			b.queryHidden = append(b.queryHidden, q)
+			b.query.hidden = append(b.query.hidden, q)
 		}
 		ns.qualifiers = []queryQualifier{q}
 		return root, ns, nil
 	case *parser.JoinReference:
 		joinOrdinal := b.stored.joinCount
-		inherited := b.queryNamespace
+		inherited := b.query.namespace
 		b.stored.joinCount++
 		left, lns, err := b.bindFrom(n.Left)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
 		oldStringForbidden := b.clause.stringFromForbidden
-		oldNamespace := b.queryNamespace
+		oldNamespace := b.query.namespace
 		rightNamespace := lns
 		prefix := 0
 		if inherited != nil {
@@ -520,9 +520,9 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 		}
 		b.clause.stringFromForbidden = oldStringForbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
-		b.queryNamespace = &rightNamespace
+		b.query.namespace = &rightNamespace
 		right, rns, err := b.bindFrom(n.Right)
-		b.queryNamespace = oldNamespace
+		b.query.namespace = oldNamespace
 		b.clause.stringFromForbidden = oldStringForbidden
 		if err != nil {
 			return nil, queryNamespace{}, err
@@ -565,9 +565,9 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			prefix = 0
 		}
 		join := &joinNode{querySchema: ns.frame, kind: n.Kind, left: left, right: right, leftWidth: len(lns.frame), rightWidth: len(rns.frame), viewOrdinal: joinOrdinal, correlatedRight: dependent, frame: b.frameID(), correlationPrefix: prefix, captures: captures}
-		old := b.queryNamespace
-		b.queryNamespace = &ns
-		defer func() { b.queryNamespace = old }()
+		old := b.query.namespace
+		b.query.namespace = &ns
+		defer func() { b.query.namespace = old }()
 		if n.On != nil {
 			b.clause.aggregateClause = "JOIN conditions"
 			join.predicate, err = b.bindBoolean(n.On, filterContext, "JOIN/ON")
@@ -762,15 +762,15 @@ func usingQueryColumn(columns []queryColumn, name, side string) (queryColumn, er
 }
 
 func (b *expressionBinder) queryAliasVisible(name string, ref ids.ObjectRef) bool {
-	if b.queryNamespace != nil {
-		for _, q := range b.queryNamespace.qualifiers {
+	if b.query.namespace != nil {
+		for _, q := range b.query.namespace.qualifiers {
 			if q.name == name && q.ref == ref {
 				return true
 			}
 		}
 	}
-	for i := len(b.queryScopes) - 1; i >= 0; i-- {
-		scope := &b.queryScopes[i]
+	for i := len(b.query.scopes) - 1; i >= 0; i-- {
+		scope := &b.query.scopes[i]
 		if !scope.allowed || scope.namespace == nil {
 			continue
 		}
@@ -784,11 +784,11 @@ func (b *expressionBinder) queryAliasVisible(name string, ref ids.ObjectRef) boo
 }
 
 func (b *expressionBinder) queryQualifierNeedsLateral(q queryQualifier) bool {
-	if b.queryNonLateral {
+	if b.query.nonLateral {
 		return true
 	}
-	for i := len(b.queryScopes) - 1; i >= 0; i-- {
-		scope := &b.queryScopes[i]
+	for i := len(b.query.scopes) - 1; i >= 0; i-- {
+		scope := &b.query.scopes[i]
 		if scope.allowed && !scope.nonLateral {
 			continue
 		}
@@ -958,9 +958,9 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	// FROM arguments are query expressions even before a local FROM
 	// namespace exists. An empty local frame still permits lexical outer
 	// references through queryScopes, including nested correlated SRFs.
-	if b.queryNamespace == nil {
-		b.queryNamespace = &queryNamespace{}
-		defer func() { b.queryNamespace = nil }()
+	if b.query.namespace == nil {
+		b.query.namespace = &queryNamespace{}
+		defer func() { b.query.namespace = nil }()
 	}
 	for i, raw := range rawCalls {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
@@ -1035,6 +1035,6 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		}
 	}
 	captures := b.functionCaptures(calls)
-	b.queryHidden = append(b.queryHidden, q)
+	b.query.hidden = append(b.query.hidden, q)
 	return &functionFromNode{querySchema: schema, calls: calls, ordinality: ordinality, frame: b.frameID(), correlated: len(captures) != 0, captures: captures, regexpNamespace: true, viewOrdinal: ordinal}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: schema}, nil
 }

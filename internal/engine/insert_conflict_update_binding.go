@@ -18,18 +18,18 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	defer func() { binder.params.updateParameters = false; binder.params.updateInputParameters = nil }()
 	// Conflict UPDATE owns a fresh lexical namespace: the rule's formal
 	// OLD/NEW entries remain diagnostic candidates, not executable columns.
-	ruleNamespace, previousNamespace, previousHidden := binder.target.ruleNamespace, binder.queryNamespace, binder.queryHidden
+	ruleNamespace, previousNamespace, previousHidden := binder.target.ruleNamespace, binder.query.namespace, binder.query.hidden
 	if ruleNamespace != nil {
 		binder.target.ruleNamespace = nil
-		binder.queryHidden = append(append([]queryQualifier(nil), previousHidden...),
+		binder.query.hidden = append(append([]queryQualifier(nil), previousHidden...),
 			queryQualifier{name: "old", original: "old", lateralForbidden: true},
 			queryQualifier{name: "new", original: "new", lateralForbidden: true})
 	}
 	defer func() {
-		binder.target.ruleNamespace, binder.queryNamespace, binder.queryHidden = ruleNamespace, previousNamespace, previousHidden
+		binder.target.ruleNamespace, binder.query.namespace, binder.query.hidden = ruleNamespace, previousNamespace, previousHidden
 	}()
 	target := binder.mutationTargetNamespace()
-	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
+	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
 	excluded := rebaseQueryNamespace(target, len(b.relation.Columns))
 	excluded.qualifiers[0] = queryQualifier{name: "excluded", columns: excluded.columns, lateralForbidden: true}
 	namespace := queryNamespace{
@@ -37,7 +37,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 		qualifiers: append(target.qualifiers, excluded.qualifiers...),
 		frame:      append(append([]catalog.Column(nil), target.frame...), target.frame...),
 	}
-	binder.queryNamespace = &namespace
+	binder.query.namespace = &namespace
 	binder.clause.aggregateClause = "UPDATE"
 	action := &boundUpdate{assignments: make([]expr.Expr, len(s.Conflict.Assignments))}
 	actionBinding := *b
@@ -55,7 +55,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	c.update = action
 	c.updateTargets = actionBinding.targets
 	c.actionReads = append([]int(nil), binder.target.uses...)
-	c.sources = binder.querySources
+	c.sources = binder.query.sources
 	return nil
 }
 

@@ -42,11 +42,11 @@ unwrap:
 		return 0, fmt.Errorf("stuntgres: missing whole-row source occurrence")
 	}
 	if *slot == 0 {
-		if b.presenceFrames == nil {
-			b.presenceFrames = make(map[uint32]int)
+		if b.query.presenceFrames == nil {
+			b.query.presenceFrames = make(map[uint32]int)
 		}
-		b.presenceFrames[frame]++
-		*slot = b.presenceFrames[frame]
+		b.query.presenceFrames[frame]++
+		*slot = b.query.presenceFrames[frame]
 	}
 	return *slot, nil
 }

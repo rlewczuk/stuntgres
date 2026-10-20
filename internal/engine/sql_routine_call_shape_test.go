@@ -15,7 +15,7 @@ func TestSQLRoutineProviderCallShapes(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, tc := range []struct {
 		name      string
@@ -152,7 +152,7 @@ func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	raw := statement(t, "SELECT 1+2").(*parser.Select).Targets[0]
 	node := &literalExpression{Info: expr.Info{Usage: b.Type(sqltype.Int4).Usage()}}
 	b.clause.selectedOperatorArgs = []expr.Expr{node}
@@ -187,7 +187,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	raw := parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lag"}}},
 		Args: make([]parser.Expr, 3),

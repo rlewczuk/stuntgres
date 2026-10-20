@@ -43,7 +43,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	if b.target.generatedOwner != nil {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in column generation expression", raw.Pos)
 	}
-	b.subqueryDemand = true
+	b.query.subqueryDemand = true
 	var left []comparisonOperand
 	var leftExpansions map[int]compositeExpansionBinding
 	var leftConstructor expr.Expr

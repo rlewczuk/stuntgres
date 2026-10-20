@@ -401,8 +401,8 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		if e.frame != b.frameID() {
 			return e, nil
 		}
-		name := b.queryNamespace.frame[e.slot].Name
-		for _, q := range b.queryNamespace.qualifiers {
+		name := b.query.namespace.frame[e.slot].Name
+		for _, q := range b.query.namespace.qualifiers {
 			found := false
 			for _, c := range q.columns {
 				if c.slot == e.slot {

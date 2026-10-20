@@ -512,7 +512,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.clause.aggregateClause = "SELECT"
-			b.queryFrame = 1
+			b.query.frame = 1
 			e.mu.Lock()
 			defer e.mu.Unlock()
 			for _, sql := range []string{"SELECT count(*)", "SELECT row_number() OVER ()"} {
@@ -530,7 +530,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			aggregateValues := append([]aggregateCall(nil), aggregates...)
 			windowValues := append([]windowCall(nil), windows...)
 			seedOccurrence := *windows[0].expression
-			frame, clause := b.queryFrame, b.clause.aggregateClause
+			frame, clause := b.query.frame, b.clause.aggregateClause
 			raw := statement(t, tc.sql).(*parser.Select).Targets[0]
 			_, err := b.bind(raw, expressionPolicy{context: projectionContext})
 			var diagnostic *sqlstate.Error
@@ -543,15 +543,15 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			}
 			if !reflect.DeepEqual(aggregateValues, b.grouping.aggregates) || !reflect.DeepEqual(windowValues, b.grouping.windowCalls) ||
 				!reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].expression) || b.grouping.argumentOwner != (argumentWindowOwner{}) ||
-				len(b.queryScopes) != 0 || b.queryFrame != frame || b.clause.aggregateClause != clause {
-				t.Fatal("failed analysis mutated seed entries, occurrence identities or scoped state", b.grouping.argumentOwner, b.grouping.aggregates, b.grouping.windowCalls, b.queryScopes)
+				len(b.query.scopes) != 0 || b.query.frame != frame || b.clause.aggregateClause != clause {
+				t.Fatal("failed analysis mutated seed entries, occurrence identities or scoped state", b.grouping.argumentOwner, b.grouping.aggregates, b.grouping.windowCalls, b.query.scopes)
 			}
 			if _, err := b.bind(statement(t, "SELECT count(1)").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext}); err != nil {
 				t.Fatal(err)
 			}
 			if len(b.grouping.aggregates) != len(aggregates)+1 || &b.grouping.aggregates[0] == &aggregates[0] ||
 				!reflect.DeepEqual(aggregateValues, b.grouping.aggregates[:len(aggregates)]) || b.grouping.argumentOwner != (argumentWindowOwner{}) ||
-				b.queryFrame != frame || b.clause.aggregateClause != clause {
+				b.query.frame != frame || b.clause.aggregateClause != clause {
 				t.Fatal("successful distinct ordinary registration was not retained across bounded reallocation")
 			}
 			retainedAggregates := b.grouping.aggregates
@@ -559,7 +559,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 				t.Fatal(err)
 			}
 			if len(b.grouping.windowCalls) != len(windows)+1 || b.grouping.argumentOwner != (argumentWindowOwner{}) ||
-				!reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].expression) || b.queryFrame != frame || b.clause.aggregateClause != clause {
+				!reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].expression) || b.query.frame != frame || b.clause.aggregateClause != clause {
 				t.Fatal("successful sibling retained failed owner or mutated seed", b.grouping.argumentOwner, b.grouping.windowCalls)
 			}
 			retainedWindows := b.grouping.windowCalls
@@ -580,7 +580,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 				&b.grouping.aggregates[0] != &retainedAggregates[0] || !reflect.DeepEqual(retainedAggregateValues, b.grouping.aggregates) ||
 				len(b.grouping.windowCalls) != len(retainedWindows) || cap(b.grouping.windowCalls) != cap(retainedWindows) ||
 				&b.grouping.windowCalls[0] != &retainedWindows[0] || !reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].expression) ||
-				b.queryFrame != frame || b.clause.aggregateClause != clause || len(b.queryScopes) != 0 {
+				b.query.frame != frame || b.clause.aggregateClause != clause || len(b.query.scopes) != 0 {
 				t.Fatal("lexical child failed to restore parent ownership")
 			}
 		})

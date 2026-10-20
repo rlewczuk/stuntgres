@@ -36,21 +36,21 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	return b.bindSelectScoped(s, contextual, false)
 }
 func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disallowParent bool) (query *BoundQuery, failure error) {
-	entry, scanStart := b.cteAnalysisDepth == 0, b.cteScanOrdinal
+	entry, scanStart := b.cte.analysisDepth == 0, b.cte.scanOrdinal
 	defer func() {
-		if entry && failure == nil && query != nil && b.cteScanOrdinal != scanStart {
-			b.cteExecutables = append(b.cteExecutables, query)
+		if entry && failure == nil && query != nil && b.cte.scanOrdinal != scanStart {
+			b.cte.executables = append(b.cte.executables, query)
 		}
 	}()
 	if s.Into != nil {
 		return nil, insertError("42601", "SELECT ... INTO is not allowed here", s.Into.Parts[0].Pos)
 	}
-	if b.queryLockAdmission == nil || b.queryLockAdmission.queries == nil {
+	if b.query.lockAdmission == nil || b.query.lockAdmission.queries == nil {
 		admission, _, _, err := newQueryLockAdmission(s)
 		if err != nil {
 			return nil, err
 		}
-		b.queryLockAdmission = &admission
+		b.query.lockAdmission = &admission
 	}
 	restore := b.enterQuery(disallowParent)
 	defer restore()
@@ -59,8 +59,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			b.normalizeStoredQuerySyntax(s)
 		}
 	}()
-	oldCTEs := len(b.cteBindings)
-	defer func() { b.cteBindings = b.cteBindings[:oldCTEs] }()
+	oldCTEs := len(b.cte.bindings)
+	defer func() { b.cte.bindings = b.cte.bindings[:oldCTEs] }()
 	definitions, err := b.bindCTEDefinitions(s.With, s.WithRecursive)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		project := query.Root.(*projectNode)
 		project.cteOwner = !parser.HasModifyingCTE(s)
 		if parser.HasModifyingCTE(s) {
-			b.statementCTEs = definitions
+			b.cte.statementCTEs = definitions
 		}
 		for _, definition := range definitions {
 			if definition.query != nil {
@@ -91,14 +91,14 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		return b.bindSet(s)
 	}
 	if len(s.Locking) != 0 {
-		b.queryRowDiagnosticMode = queryRowMode(s.Locking[0].Mode)
+		b.query.rowDiagnosticMode = queryRowMode(s.Locking[0].Mode)
 	}
 	if disallowParent {
-		selected, _ := queryLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, b.queryLockAdmission.virtualCTE)
+		selected, _ := queryLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, b.query.lockAdmission.virtualCTE)
 		index := 0
 		_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error {
 			if index < len(selected) && selected[index].mode != 0 {
-				b.queryRowDiagnosticMode = strongerQueryRowMode(b.queryRowDiagnosticMode, queryRowDiagnostic(b.queryLockAdmission.tableMark(table)))
+				b.query.rowDiagnosticMode = strongerQueryRowMode(b.query.rowDiagnosticMode, queryRowDiagnostic(b.query.lockAdmission.tableMark(table)))
 			}
 			index++
 			return nil
@@ -122,7 +122,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if err != nil {
 		return nil, err
 	}
-	b.queryNamespace = &namespace
+	b.query.namespace = &namespace
 	b.clause.aggregateClause, b.grouping.aggregates = "SELECT", nil
 	b.grouping.windowRaw = s.Windows
 	var projection []expr.Expr
@@ -170,7 +170,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					if err != nil {
 						return nil, err
 					}
-					columns, frame = q.columns, b.resolvedQueryFrame
+					columns, frame = q.columns, b.query.resolvedQueryFrame
 					recordQualifier = q
 				}
 			} else if s.From == nil {
@@ -252,8 +252,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 		if !contextual && !b.params.noParameters && !b.consumer.materializedDefinition && len(s.Locking) == 0 {
-			if source, ok := root.(*sourceNode); ok && len(b.querySources) == 1 && b.querySources[0].mark.mode == 0 {
-				b.querySources[0].partialCandidate = b.partialIndexCandidate(source.ref, filter)
+			if source, ok := root.(*sourceNode); ok && len(b.query.sources) == 1 && b.query.sources[0].mark.mode == 0 {
+				b.query.sources[0].partialCandidate = b.partialIndexCandidate(source.ref, filter)
 			}
 		}
 		root = &filterNode{querySchema: root.Schema(), child: root, predicate: filter}
@@ -439,7 +439,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		stringAnalysis = append(stringAnalysis, projection...)
 		stringAnalysis = append(stringAnalysis, keys...)
 	}
-	if b.queryRowDiagnosticMode != 0 {
+	if b.query.rowDiagnosticMode != 0 {
 		suffix := ""
 		for _, expression := range projection {
 			if querySetDepth(expression) != 0 {
@@ -462,7 +462,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			suffix = "set-returning functions in the target list"
 		}
 		if suffix != "" {
-			mode := queryRowClause(b.queryRowDiagnosticMode)
+			mode := queryRowClause(b.query.rowDiagnosticMode)
 			if len(s.Locking) != 0 {
 				mode = s.Locking[0].Mode
 			}
@@ -571,13 +571,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		root = b.scheduleQueryProjection(root, projection, bounds != nil)
 	}
 	if len(s.Locking) != 0 {
-		admission := b.queryLockAdmission.queries[s]
+		admission := b.query.lockAdmission.queries[s]
 		var local []queryRowMark
 		var err error
 		if admission != nil {
 			local, err = admission.marks, admission.err
 		} else {
-			local, err = queryLockTargets(s.From, s.Locking, b.queryLockAdmission.virtualCTE)
+			local, err = queryLockTargets(s.From, s.Locking, b.query.lockAdmission.virtualCTE)
 		}
 		if err != nil {
 			return nil, err
@@ -588,8 +588,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		} else {
 			_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
 		}
-		marks := make([]queryRowMark, len(b.querySources))
-		for i, source := range b.querySources {
+		marks := make([]queryRowMark, len(b.query.sources))
+		for i, source := range b.query.sources {
 			if index, ok := indices[source.table]; ok && index < len(local) {
 				marks[i] = local[index]
 			}

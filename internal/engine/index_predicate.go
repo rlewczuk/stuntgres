@@ -123,7 +123,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectVirtualIndexUses(parent, binder.querySources[0].uses); err != nil {
+	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].uses); err != nil {
 		return nil, err
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}

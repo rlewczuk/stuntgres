@@ -404,12 +404,12 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 			}
 			auth := catalogAuthorization(e, e.CatalogRead())
 			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-			b.queryAuth = &auth
+			b.query.auth = &auth
 			_, err := b.bindSelect(statement(t, tc.query).(*parser.Select), false)
-			if err != nil || len(b.querySources) != 1 {
-				t.Fatal(err, b.querySources)
+			if err != nil || len(b.query.sources) != 1 {
+				t.Fatal(err, b.query.sources)
 			}
-			reads := b.querySources[0].uses
+			reads := b.query.sources[0].uses
 			if len(reads) != len(tc.reads) {
 				t.Fatal("source manifest width", reads, tc.reads)
 			}
@@ -426,7 +426,7 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 				t.Helper()
 				current := catalogAuthorization(e, e.CatalogRead())
 				current.State.CurrentUser = reader
-				err := current.checkQuerySources(b.querySources)
+				err := current.checkQuerySources(b.query.sources)
 				if !denied {
 					if err != nil {
 						t.Fatal(err)

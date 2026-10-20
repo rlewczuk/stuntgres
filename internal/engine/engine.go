@@ -475,17 +475,17 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	if len(initial) != 0 && initial[0] != nil {
 		binder.seedParameters(initial[0])
 	}
-	binder.queryLockAdmission = admission
-	binder.queryAuth = &auth
+	binder.query.lockAdmission = admission
+	binder.query.auth = &auth
 	if err := e.captureEnumOperationInput(auth, &binder.input); err != nil {
 		return b, err
 	}
-	if binder.queryLockAdmission == nil {
+	if binder.query.lockAdmission == nil {
 		manifest, _, _, err := newQueryLockAdmission(stmt)
 		if err != nil {
 			return b, err
 		}
-		binder.queryLockAdmission = &manifest
+		binder.query.lockAdmission = &manifest
 	}
 	cteRestriction := ""
 	switch original := stmt.(type) {
@@ -518,7 +518,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	if _, selecting := stmt.(*parser.Select); !selecting {
 		if definitions := parser.StatementWith(stmt); len(definitions) != 0 {
 			var err error
-			binder.statementCTEs, err = binder.bindCTEDefinitions(definitions, parser.StatementWithRecursive(stmt))
+			binder.cte.statementCTEs, err = binder.bindCTEDefinitions(definitions, parser.StatementWithRecursive(stmt))
 			if err != nil {
 				return b, err
 			}
@@ -690,7 +690,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		}
 	case *parser.DeclareCursor:
 		var err error
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		b.query, err = binder.bindSelect(s.Query, false)
 		if err != nil {
 			return b, err
@@ -710,12 +710,12 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		b.commandQuery = true
 	case *parser.Select:
 		var err error
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		b.query, err = binder.bindSelect(s, false)
 		if err != nil {
 			return b, err
 		}
-		b.querySources = binder.querySources
+		b.querySources = binder.query.sources
 		if view != nil {
 			if err := bindViewOutput(b.query, view); err != nil {
 				return b, err
@@ -724,9 +724,9 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}
-	b.ctes = binder.statementCTEs
-	b.cteSelectBodies = binder.cteSelectBodies
-	b.querySources = binder.querySources
+	b.ctes = binder.cte.statementCTEs
+	b.cteSelectBodies = binder.cte.selectBodies
+	b.querySources = binder.query.sources
 	var err error
 	b.parameters, err = binder.finish()
 	if err != nil {
@@ -735,8 +735,8 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	if cteRestriction != "" {
 		return b, sqlError("0A000", cteRestriction)
 	}
-	if binder.cteScanOrdinal != 0 {
-		queries := binder.cteExecutables
+	if binder.cte.scanOrdinal != 0 {
+		queries := binder.cte.executables
 		if len(queries) == 0 && b.query != nil {
 			queries = []*BoundQuery{b.query}
 		}
@@ -752,7 +752,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		if b.parameters.Count != 0 {
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
-		for _, source := range binder.querySources {
+		for _, source := range binder.query.sources {
 			if ns := auth.Catalog.MustNamespace(source.relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
@@ -778,7 +778,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	}
 	b.usedColumns, b.dependencies = binder.target.uses, binder.dependencies
 	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
-	b.subqueryDemand = binder.subqueryDemand
+	b.subqueryDemand = binder.query.subqueryDemand
 	b.capture = binder.capture
 	slices.SortFunc(binder.prepared.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.prepared = binder.prepared

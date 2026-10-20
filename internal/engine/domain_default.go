@@ -25,8 +25,8 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 		}
 	} else {
 		b := newExpressionBinder(ctx, e, input, op, nil)
-		b.queryAuth = &auth
-		b.queryNamespace = &queryNamespace{}
+		b.query.auth = &auth
+		b.query.namespace = &queryNamespace{}
 		b.params.noParameters = true
 		node, err := b.bindDefault(raw, catalog.Column{Name: d.Name(), Usage: base})
 		if err != nil {

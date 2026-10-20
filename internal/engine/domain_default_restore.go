@@ -431,8 +431,8 @@ func restoreDomainReplayNode(c *EvalContext, e *Engine, op *Operation, auth Auth
 	}
 	e.mu.Lock()
 	binder := newExpressionBinder(c.Context, e, c.Input, op, nil)
-	binder.queryAuth = &auth
-	binder.queryNamespace = &queryNamespace{}
+	binder.query.auth = &auth
+	binder.query.namespace = &queryNamespace{}
 	binder.params.noParameters = true
 	node, err := binder.bindDefault(raw, catalog.Column{Name: "native captured cell", Usage: u})
 	if err == nil {

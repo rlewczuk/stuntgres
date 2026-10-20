@@ -129,8 +129,8 @@ func (b *expressionBinder) decodeLiteralInput(text string, typ *sqltype.Descript
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing locked domain literal input boundary")
 	}
 	var auth AuthorizationView
-	if b.queryAuth != nil {
-		auth = *b.queryAuth
+	if b.query.auth != nil {
+		auth = *b.query.auth
 	} else {
 		var err error
 		auth, err = b.engine.authorizationLocked(b.op)

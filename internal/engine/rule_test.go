@@ -186,9 +186,9 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("pseudo_metadata_namespace", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		binder.target.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
-		binder.queryFrame, binder.nextQueryFrame = 1, 1
+		binder.query.frame, binder.query.nextQueryFrame = 1, 1
 		statements, err := parser.Parse("SELECT NEW.id,NEW.v")
 		if err != nil {
 			t.Fatal(err)

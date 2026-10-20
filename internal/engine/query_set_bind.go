@@ -26,9 +26,9 @@ func setOperand(arm *projectNode, slot int) comparisonOperand {
 func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target sqltype.Usage, operation string) (expr.Expr, error) {
 	original := arm.expressions[slot]
 	operand := setOperand(arm, slot)
-	oldFrame := b.queryFrame
-	b.queryFrame = arm.frame
-	defer func() { b.queryFrame = oldFrame }()
+	oldFrame := b.query.frame
+	b.query.frame = arm.frame
+	defer func() { b.query.frame = oldFrame }()
 	node, err := b.coerceConditional(operand, target, operation)
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target
 }
 
 func (b *expressionBinder) bindSet(s *parser.Select) (*BoundQuery, error) {
-	if d := b.recursiveDefinition; d != nil && d.syntax == s {
+	if d := b.cte.recursiveDefinition; d != nil && d.syntax == s {
 		return b.bindRecursiveSet(s, d)
 	}
 	leftQuery, err := b.bindSelect(s.Set.Left, true)
@@ -142,7 +142,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 			}
 		}
 	}
-	b.queryNamespace = &namespace
+	b.query.namespace = &namespace
 	order, err := b.bindSetOrder(s.Order, projection, names, right.Schema())
 	if err != nil {
 		return nil, err
@@ -227,7 +227,7 @@ func setOrderCollationError() error {
 // Only inline FROM edges propagate outer marks into set analysis. Stored views
 // are bound separately and deliberately have no such admission edge.
 func (b *expressionBinder) inheritedDerivedSetMode(query *parser.Select) string {
-	for _, admission := range b.queryLockAdmission.ordered {
+	for _, admission := range b.query.lockAdmission.ordered {
 		parent := admission.selectQuery
 		var alias string
 		found := false

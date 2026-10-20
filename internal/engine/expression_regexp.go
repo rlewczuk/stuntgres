@@ -32,7 +32,7 @@ func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
 			context = "check constraints"
 		case b.DefaultConsumer():
 			context = "DEFAULT expressions"
-		case b.consumer.policyConsumer && b.queryFrame == 0:
+		case b.consumer.policyConsumer && b.query.frame == 0:
 			return sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 		default:
 			switch b.clause.aggregateClause {

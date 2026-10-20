@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -122,4 +123,37 @@ type groupingState struct {
 	windowDefinitions map[string]boundWindowSpec
 	windowCalls       []windowCall
 	argumentOwner     argumentWindowOwner
+}
+
+// queryScopeState is the query level being bound: its authorization view,
+// sources and lock admission, the visible namespace and hidden qualifiers,
+// frame numbering, and the scope stack of enclosing levels. Subquery and
+// FROM binders save it and restore it around nested levels.
+type queryScopeState struct {
+	auth                  *AuthorizationView
+	sources               []queryLeaf
+	lockAdmission         *queryLockAdmission
+	namespace             *queryNamespace
+	hidden                []queryQualifier
+	nonLateral            bool
+	frame, nextQueryFrame uint32
+	resolvedQueryFrame    uint32
+	scopes                []queryBindingScope
+	presenceFrames        map[uint32]int
+	suppressWholePresence bool
+	rowDiagnosticMode     lock.Mode // Clause diagnostics only; tuple authority is queryRowMark.
+	subqueryDemand        bool
+}
+
+// cteState holds the WITH definitions visible to the statement, the
+// recursive definition being bound, and the CTE executables built so far.
+type cteState struct {
+	bindings            []cteBinding
+	recursiveDefinition *cteDefinition
+	recursiveFrames     map[uint32]bool
+	scanOrdinal         int
+	analysisDepth       int
+	executables         []*BoundQuery
+	statementCTEs       []*cteDefinition
+	selectBodies        bool
 }

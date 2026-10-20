@@ -164,7 +164,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			raw := statement(t, text).(*parser.Select)
 			e.mu.Lock()
 			binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-			binder.queryAuth = evaluation.routineAuthority
+			binder.query.auth = evaluation.routineAuthority
 			query, err := binder.bindSelect(raw, false)
 			e.mu.Unlock()
 			if err != nil {
@@ -362,7 +362,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		raw := statement(t, "SELECT * FROM "+text+" WITH ORDINALITY").(*parser.Select)
 		e.mu.Lock()
 		sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-		sourceBinder.queryAuth = evaluation.routineAuthority
+		sourceBinder.query.auth = evaluation.routineAuthority
 		query, bindErr := sourceBinder.bindSelect(raw, false)
 		e.mu.Unlock()
 		if bindErr != nil {
@@ -401,7 +401,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			raw := statement(t, "SELECT * FROM "+text+suffix).(*parser.Select)
 			e.mu.Lock()
 			sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-			sourceBinder.queryAuth = evaluation.routineAuthority
+			sourceBinder.query.auth = evaluation.routineAuthority
 			query, bindErr := sourceBinder.bindSelect(raw, false)
 			e.mu.Unlock()
 			if bindErr != nil {
@@ -492,7 +492,7 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				_, _, evaluation := strictNullUnitBind(t, e, op, scope, "1")
 				e.mu.Lock()
 				binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-				binder.queryAuth = evaluation.routineAuthority
+				binder.query.auth = evaluation.routineAuthority
 				query, err := binder.bindSelect(raw, false)
 				e.mu.Unlock()
 				if err != nil {

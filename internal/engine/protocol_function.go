@@ -100,7 +100,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, err
 	}
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, &StatementDescription{Parameters: formal})
-	binder.queryAuth = &auth
+	binder.query.auth = &auth
 	args := make([]parser.Expr, len(usages))
 	for i := range args {
 		args[i] = parser.ParameterExpr{Number: i + 1}

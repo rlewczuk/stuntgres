@@ -102,7 +102,7 @@ func (e *Engine) prepareUpdateAssignments(b *binding, binder *expressionBinder, 
 			if source.Kind != parser.SubqueryScalar {
 				return nil, expr.ErrorAt("0A000", "source for a multiple-column UPDATE item must be a sub-SELECT or ROW() expression", source.Pos)
 			}
-			binder.subqueryDemand = true
+			binder.query.subqueryDemand = true
 			query, err := binder.bindSelect(source.Query, false)
 			if err != nil {
 				return nil, err

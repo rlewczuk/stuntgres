@@ -34,7 +34,7 @@ func TestQueryWindowOffsetNestedComparison(t *testing.T) {
 
 func TestQueryWindowOffsetLowering(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.queryFrame = 7
+	b.query.frame = 7
 	marker := stringSplitMarker(t, b, 11, stringSplitLiteral(b, "a,b"), stringSplitLiteral(b, ","))
 	peer := stringSplitMarker(t, b, 21, stringSplitLiteral(b, "x,y,z"), stringSplitLiteral(b, ","))
 	markerArgs := append([]expr.Expr(nil), expr.Expr(marker).(expr.Composite).Children()...)

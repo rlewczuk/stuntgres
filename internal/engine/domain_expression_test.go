@@ -278,7 +278,7 @@ func domainUnitBindSelect(t *testing.T, e *Engine, op *Operation, q string) *Bou
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	var query *BoundQuery
 	if err == nil {
 		query, err = b.bindSelect(raw, false)

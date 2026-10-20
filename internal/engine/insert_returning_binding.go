@@ -8,15 +8,15 @@ func (e *Engine) bindInsertReturning(b *binding, binder *expressionBinder, auth 
 	}
 	binder.target.relation, binder.target.ref = b.relation, b.ref
 	binder.target.name, binder.target.alias = b.relation.Name(), s.Alias.Text
-	binder.queryAuth = &auth
+	binder.query.auth = &auth
 	target := binder.mutationTargetNamespace()
-	binder.queryNamespace = &target
-	binder.queryHidden = nil
+	binder.query.namespace = &target
+	binder.query.hidden = nil
 	if s.Alias.Text != "" {
-		binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
+		binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
 	}
 	if s.Conflict != nil && s.Conflict.Update {
-		binder.queryHidden = append(binder.queryHidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
+		binder.query.hidden = append(binder.query.hidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
 	}
 	previousUses := binder.target.uses
 	previousReadRequired := binder.target.returningReadRequired

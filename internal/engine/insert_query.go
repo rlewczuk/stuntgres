@@ -38,7 +38,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	var err error
 	if sel := s.Source.Select; sel != nil {
 		out.insert.subquerySource = true
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		// INSERT's target is an error namespace entry, not a correlation
 		// source. Keep it hidden when entering the shared SELECT binder.
 		columns := make([]queryColumn, len(out.relation.Columns))
@@ -46,9 +46,9 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
 		}
 		target := queryQualifier{name: out.relation.Name(), original: out.relation.Name(), ref: out.ref, columns: columns, schema: auth.Catalog.Get(out.relation.Namespace()).Name(), lateralForbidden: true}
-		binder.queryHidden = append(binder.queryHidden, target)
+		binder.query.hidden = append(binder.query.hidden, target)
 		query, err = binder.bindSelect(sel, true)
-		out.querySources = binder.querySources
+		out.querySources = binder.query.sources
 	} else {
 		out.insert.subquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
 		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.ColumnMeta.Identities) != 0)
@@ -171,19 +171,19 @@ func commonValuesUsage(nodes [][]expr.Expr, raw [][]parser.Expr, column int, tex
 	}, text, "VALUES", (*sqltype.Descriptor).DiagnosticName)
 }
 func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscard bool) (*BoundQuery, error) {
-	oldFrame := b.queryFrame
+	oldFrame := b.query.frame
 	if oldFrame == 0 {
-		b.queryFrame = 1
-		if b.nextQueryFrame == 0 {
-			b.nextQueryFrame = 1
+		b.query.frame = 1
+		if b.query.nextQueryFrame == 0 {
+			b.query.nextQueryFrame = 1
 		}
 	}
-	defer func() { b.queryFrame = oldFrame }()
-	oldNamespace, oldRelation, oldClause, oldNonLateral := b.queryNamespace, b.target.relation, b.clause.aggregateClause, b.queryNonLateral
-	b.queryNamespace, b.target.relation = &queryNamespace{}, nil
-	b.clause.aggregateClause, b.queryNonLateral = "VALUES", true
+	defer func() { b.query.frame = oldFrame }()
+	oldNamespace, oldRelation, oldClause, oldNonLateral := b.query.namespace, b.target.relation, b.clause.aggregateClause, b.query.nonLateral
+	b.query.namespace, b.target.relation = &queryNamespace{}, nil
+	b.clause.aggregateClause, b.query.nonLateral = "VALUES", true
 	defer func() {
-		b.queryNamespace, b.target.relation, b.clause.aggregateClause, b.queryNonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
+		b.query.namespace, b.target.relation, b.clause.aggregateClause, b.query.nonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
 	}()
 	occurrence := b.stored.valuesCount
 	b.stored.valuesCount++
@@ -283,7 +283,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		names[i] = column.Name
 		namespace.columns = append(namespace.columns, queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1})
 	}
-	b.queryNamespace = &namespace
+	b.query.namespace = &namespace
 	order, err := b.bindOrder(source.Order, projection, names, "ORDER BY")
 	if err != nil {
 		return nil, err

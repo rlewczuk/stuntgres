@@ -33,7 +33,7 @@ func TestDomainCheckNominalLiteralAdmissionInternal(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-			binder.queryAuth = &auth
+			binder.query.auth = &auth
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()
 			if tc.bindCode != "" {

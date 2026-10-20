@@ -96,7 +96,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 
 func TestRegexpScalarGroupingAlias(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.queryNamespace = &queryNamespace{}
+	b.query.namespace = &queryNamespace{}
 	literal := func(s string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 	}
@@ -129,7 +129,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 	raw := statement(t, `SELECT v.id,(SELECT (SELECT count(*) FROM regexp_split_to_table(v.s,' ') r(s))) AS n FROM (VALUES(1,'a b'),(2,'c')) v(id,s)`).(*parser.Select)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(b.op)
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	var query *BoundQuery
 	if err == nil {
 		query, err = b.bindSelect(raw, false)
@@ -212,7 +212,7 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 			raw := statement(t, sql).(*parser.Select)
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(b.op)
-			b.queryAuth = &auth
+			b.query.auth = &auth
 			var query *BoundQuery
 			if err == nil {
 				query, err = b.bindSelect(raw, false)

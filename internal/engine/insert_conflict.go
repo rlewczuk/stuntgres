@@ -124,7 +124,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	binder.expected = shared.expected
 	binder.params.noParameters = false
 	if raw.Update {
-		binder.queryHidden = append(binder.queryHidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
+		binder.query.hidden = append(binder.query.hidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
 	}
 	c.keys = make([]conflictKey, len(raw.Keys))
 	for i, key := range raw.Keys {
@@ -184,7 +184,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		}
 		c.predicate = predicate
 	}
-	c.reads = binder.querySources[0].uses
+	c.reads = binder.query.sources[0].uses
 	shared.params.anyParameters = append(shared.params.anyParameters, binder.params.anyParameters...)
 	for _, dep := range binder.dependencies {
 		shared.dependency(dep.Ref, dep.Revision)

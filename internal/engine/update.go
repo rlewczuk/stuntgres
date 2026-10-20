@@ -135,7 +135,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 	u := &boundUpdate{}
 	var err error
 	target := binder.mutationTargetNamespace()
-	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
+	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
 	if s.From != nil {
 		var sources queryNamespace
 		u.from, sources, err = binder.bindFrom(s.From)
@@ -148,7 +148,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			return err
 		}
 	}
-	binder.queryNamespace = &target
+	binder.query.namespace = &target
 	binder.clause.aggregateClause = "UPDATE"
 	if s.Where != nil {
 		u.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})

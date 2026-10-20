@@ -33,7 +33,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		binder.target.insertTarget = b.relation
 		if binder.target.ruleNamespace != nil {
 			// Reserve a mutation lexical frame without exposing INSERT's target.
-			binder.queryFrame = 1
+			binder.query.frame = 1
 			// SELECT frame allocation stays monotonic across stored modifiers.
 		}
 		if op != nil && op.restoreInsertAuthority && len(b.relation.ColumnMeta.Identities) != 0 && s.Override != parser.OverrideSystem {
@@ -91,10 +91,10 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			b.currentOf = s.CurrentOf.Text
 		}
 		binder.target.deleteTarget, binder.target.name, binder.target.alias = true, b.relation.Name(), s.Alias.Text
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		if s.Using != nil {
 			target := binder.mutationTargetNamespace()
-			binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
+			binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
 			var sources queryNamespace
 			binder.target.deleteUsingSources = true
 			b.delete.using, sources, err = binder.bindFrom(s.Using)
@@ -107,7 +107,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			if err != nil {
 				return b, err
 			}
-			binder.queryNamespace = &target
+			binder.query.namespace = &target
 			binder.clause.aggregateClause = "DELETE"
 		}
 		if s.Where != nil {
@@ -147,14 +147,14 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		if err = e.bindUpdate(&b, binder, s); err != nil {
 			return b, err
 		}
-		b.querySources = binder.querySources
+		b.querySources = binder.query.sources
 	}
 	b.usedColumns = binder.target.uses
-	b.subqueryDemand = binder.subqueryDemand
+	b.subqueryDemand = binder.query.subqueryDemand
 	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
 	if b.relation != nil {
 		switch statement.(type) {
@@ -164,13 +164,13 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			}
 		}
 	}
-	b.querySources = binder.querySources
+	b.querySources = binder.query.sources
 	if binder.target.ruleNamespace == nil {
 		if err := e.bindViewWrite(&b, auth, statement); err != nil {
 			return b, err
 		}
 	}
-	binder.querySources = b.querySources
+	binder.query.sources = b.querySources
 	if b.viewWrite != nil {
 		if err := binder.captureRetainedWriteInput(b.insert.defaults, b.viewWrite.base.ColumnMeta.Generations, b.viewWrite.base.Constraints.Check); err != nil {
 			return b, err
@@ -178,9 +178,9 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	}
 	// Stored-view grafts add real source/visibility demands outside the scalar
 	// binder. Retain them in both this command and the statement accumulators.
-	binder.subqueryDemand = binder.subqueryDemand || b.subqueryDemand
+	binder.query.subqueryDemand = binder.query.subqueryDemand || b.subqueryDemand
 	binder.consumer.visibilitySnapshot = binder.consumer.visibilitySnapshot || b.visibilitySnapshot
-	b.subqueryDemand = binder.subqueryDemand
+	b.subqueryDemand = binder.query.subqueryDemand
 	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
 	return b, nil
 }
@@ -194,7 +194,7 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 	mergeWhen, mergeInput := b.target.mergeWhen, b.target.mergeInput
 	targetName, targetAlias, uses := b.target.name, b.target.alias, b.target.uses
 	returningRead := b.target.returningReadRequired
-	subqueries, visibility := b.subqueryDemand, b.consumer.visibilitySnapshot
+	subqueries, visibility := b.query.subqueryDemand, b.consumer.visibilitySnapshot
 	singleInsert := b.clause.stringSingleInsert
 	restoreQuery := b.enterQuery(true)
 	defer func() {
@@ -205,26 +205,26 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 		b.target.mergeWhen, b.target.mergeInput = mergeWhen, mergeInput
 		b.target.name, b.target.alias, b.target.uses = targetName, targetAlias, uses
 		b.target.returningReadRequired = returningRead
-		b.subqueryDemand, b.consumer.visibilitySnapshot = subqueries, visibility
+		b.query.subqueryDemand, b.consumer.visibilitySnapshot = subqueries, visibility
 		b.clause.stringSingleInsert = singleInsert
 	}()
 	b.target.relation, b.target.ref, b.target.insertTarget = nil, ids.ObjectRef{}, nil
 	b.params.updateParameters, b.params.updateInputParameters = false, nil
 	b.target.deleteTarget, b.target.deleteUsingSources, b.target.mergeWhen, b.target.mergeInput = false, false, false, false
 	b.target.name, b.target.alias, b.target.uses = "", "", nil
-	b.target.returningReadRequired, b.subqueryDemand, b.consumer.visibilitySnapshot = false, false, false
+	b.target.returningReadRequired, b.query.subqueryDemand, b.consumer.visibilitySnapshot = false, false, false
 	b.clause.stringSingleInsert = false
-	b.queryFrame = 0 // Installed mutation/RETURNING row frames are frame 1.
-	oldCTEs := len(b.cteBindings)
-	defer func() { b.cteBindings = b.cteBindings[:oldCTEs] }()
+	b.query.frame = 0 // Installed mutation/RETURNING row frames are frame 1.
+	oldCTEs := len(b.cte.bindings)
+	defer func() { b.cte.bindings = b.cte.bindings[:oldCTEs] }()
 	if definitions := parser.StatementWith(statement); len(definitions) != 0 {
 		if _, err := b.bindCTEDefinitions(definitions, parser.StatementWithRecursive(statement)); err != nil {
 			return binding{}, err
 		}
 	}
 	var required ids.ObjectRef
-	if b.queryLockAdmission != nil {
-		for _, target := range b.queryLockAdmission.mutationTargets {
+	if b.query.lockAdmission != nil {
+		for _, target := range b.query.lockAdmission.mutationTargets {
 			if target.statement == statement {
 				required = target.ref
 				break
@@ -244,10 +244,10 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 			name = s.Name
 		}
 		var err error
-		required, err = b.engine.resolveReference(*b.queryAuth, name)
+		required, err = b.engine.resolveReference(*b.query.auth, name)
 		if err != nil {
 			return binding{}, err
 		}
 	}
-	return b.engine.bindMutationCommand(b, *b.queryAuth, required, statement)
+	return b.engine.bindMutationCommand(b, *b.query.auth, required, statement)
 }

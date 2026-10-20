@@ -40,8 +40,8 @@ func (b *expressionBinder) bindMergeAction(raw parser.MergeActionExpr) (expr.Exp
 	if b.target.returningAliases != nil && b.target.returningAliases.mode == returningMerge {
 		frame = b.frameID()
 	} else {
-		for i := len(b.queryScopes) - 1; i >= 0; i-- {
-			s := &b.queryScopes[i]
+		for i := len(b.query.scopes) - 1; i >= 0; i-- {
+			s := &b.query.scopes[i]
 			if s.returning != nil && s.returning.mode == returningMerge {
 				frame = s.frame
 				break
@@ -57,8 +57,8 @@ func (b *expressionBinder) mergeReturningFrame(frame uint32) bool {
 	if frame == b.frameID() && b.target.returningAliases != nil && b.target.returningAliases.mode == returningMerge {
 		return true
 	}
-	for i := len(b.queryScopes) - 1; i >= 0; i-- {
-		s := &b.queryScopes[i]
+	for i := len(b.query.scopes) - 1; i >= 0; i-- {
+		s := &b.query.scopes[i]
 		if s.frame == frame && s.returning != nil && s.returning.mode == returningMerge {
 			return true
 		}

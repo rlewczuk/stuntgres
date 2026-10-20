@@ -186,13 +186,13 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 				hidden := []queryQualifier{{name: "earlier_hidden", columns: []queryColumn{{descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
 				beforeHidden := append([]queryQualifier(nil), hidden...)
 				beforeHidden[0].columns = append([]queryColumn(nil), hidden[0].columns...)
-				b.queryHidden = hidden
+				b.query.hidden = hidden
 				var namespace *queryNamespace
 				var beforeColumns []queryColumn
 				if existingNamespace {
 					namespace = &queryNamespace{columns: []queryColumn{{descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}}
 					beforeColumns = append([]queryColumn(nil), namespace.columns...)
-					b.queryNamespace = namespace
+					b.query.namespace = namespace
 				}
 				raw := parser.AggregateExpr{Name: "sum", Pos: parser.Position{Character: 10}, Args: []parser.Expr{one}}
 				switch outcome {
@@ -203,8 +203,8 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 				}
 				definition, _ := functions.LookupAggregate("sum")
 				node, _, err := b.bindRegisteredAggregate(raw, name, definition)
-				if b.queryNamespace != namespace || len(b.queryHidden) != len(hidden) || &b.queryHidden[0] != &hidden[0] || !reflect.DeepEqual(b.queryHidden, beforeHidden) {
-					t.Fatal("SUM leaked or replaced namespace/hidden candidates", b.queryNamespace, b.queryHidden)
+				if b.query.namespace != namespace || len(b.query.hidden) != len(hidden) || &b.query.hidden[0] != &hidden[0] || !reflect.DeepEqual(b.query.hidden, beforeHidden) {
+					t.Fatal("SUM leaked or replaced namespace/hidden candidates", b.query.namespace, b.query.hidden)
 				}
 				if namespace != nil && !reflect.DeepEqual(namespace.columns, beforeColumns) {
 					t.Fatal("SUM mutated the incumbent source namespace", namespace.columns)
@@ -260,7 +260,7 @@ func TestSumAnalysisAssignmentBoundary(t *testing.T) {
 	if !reflect.DeepEqual(diagnostic, wantAssignment) {
 		t.Fatalf("bound-source assignment = %#v, want %#v", diagnostic, wantAssignment)
 	}
-	if b.queryNamespace != nil || len(b.queryHidden) != 0 || b.clause.aggregateClause != "INSERT VALUES" {
+	if b.query.namespace != nil || len(b.query.hidden) != 0 || b.clause.aggregateClause != "INSERT VALUES" {
 		t.Fatal("failed wrapped analysis changed subsequent assignment scope")
 	}
 }

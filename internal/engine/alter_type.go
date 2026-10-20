@@ -85,9 +85,9 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 		namespace = alterTypeNamespace(auth, original, ref)
 	}
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-	binder.target.relation, binder.target.ref, binder.params.noParameters, binder.queryAuth = original, ref, true, &auth
-	binder.queryNamespace = namespace
-	binder.querySources = []queryLeaf{{ref: ref, relation: original}}
+	binder.target.relation, binder.target.ref, binder.params.noParameters, binder.query.auth = original, ref, true, &auth
+	binder.query.namespace = namespace
+	binder.query.sources = []queryLeaf{{ref: ref, relation: original}}
 	node, err := binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
 	if err == nil && (binder.prepared.regclassConcat || binder.consumer.catalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)

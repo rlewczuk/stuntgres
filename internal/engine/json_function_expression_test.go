@@ -88,7 +88,7 @@ func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 	b.clause.aggregateClause = "SELECT"
-	b.queryNamespace = &queryNamespace{}
+	b.query.namespace = &queryNamespace{}
 	for _, family := range []string{"json", "jsonb"} {
 		raw := nullCountRaw(family+"_object_keys", parser.ParameterExpr{Number: 1})
 		node, err := b.bindFunction(raw)
@@ -102,7 +102,7 @@ func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 		// Each family owns its own parameter signature, never infers from a Go value.
 		b = newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 		b.clause.aggregateClause = "SELECT"
-		b.queryNamespace = &queryNamespace{}
+		b.query.namespace = &queryNamespace{}
 	}
 	b.clause.aggregateClause = "WHERE"
 	_, err := b.bindFunction(nullCountRaw("json_object_keys", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}))

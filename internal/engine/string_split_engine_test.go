@@ -492,7 +492,7 @@ func TestStringSplitFrames(t *testing.T) {
 		}
 	})
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.queryFrame = 7
+	b.query.frame = 7
 	inner := stringSplitMarker(t, b, 11, stringSplitLiteral(b, "a:b,c:d"), stringSplitLiteral(b, ","))
 	outer := stringSplitMarker(t, b, 12, inner, stringSplitLiteral(b, ":"))
 	peer := stringSplitMarker(t, b, 13, stringSplitLiteral(b, "x,y,z"), stringSplitLiteral(b, ","))

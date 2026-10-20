@@ -117,7 +117,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	// the staged catalog that owns these defaults, generations and CHECKs.
 	input.TypeDiagnosticName = nil
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
-	binder.queryAuth = &auth
+	binder.query.auth = &auth
 	binder.consumer.defaultTemporary = auth.Catalog.MustNamespace(d.Namespace()).Temporary
 	for slot, declaration := range b.create.declarations {
 		if declaration.defaultExpr != nil {

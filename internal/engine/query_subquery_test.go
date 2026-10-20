@@ -254,14 +254,14 @@ func TestQuerySubqueryFrames(t *testing.T) {
 	if present, err := rows.Next(context.Background(), scratch); present || err != nil {
 		t.Fatal("grandparent query did not end", present, err)
 	}
-	binder := expressionBinder{queryNamespace: &queryNamespace{}, queryFrame: 7, clause: clauseState{aggregateClause: "RETURNING"}}
-	original := binder.queryNamespace
+	binder := expressionBinder{query: queryScopeState{namespace: &queryNamespace{}, frame: 7}, clause: clauseState{aggregateClause: "RETURNING"}}
+	original := binder.query.namespace
 	restore := binder.enterQuery(false)
-	if binder.queryNamespace != nil || binder.frameID() == 7 || len(binder.queryScopes) != 1 {
+	if binder.query.namespace != nil || binder.frameID() == 7 || len(binder.query.scopes) != 1 {
 		t.Fatal("scope entry")
 	}
 	restore()
-	if binder.queryNamespace != original || binder.frameID() != 7 || binder.clause.aggregateClause != "RETURNING" || len(binder.queryScopes) != 0 {
+	if binder.query.namespace != original || binder.frameID() != 7 || binder.clause.aggregateClause != "RETURNING" || len(binder.query.scopes) != 0 {
 		t.Fatal("scope restoration")
 	}
 }
@@ -365,7 +365,7 @@ func TestQuerySubqueryAggregateOwnership(t *testing.T) {
 		sql := "SELECT count((SELECT count(a.k))) FROM a"
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(binder.op)
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		if err == nil {
 			_, err = binder.bindSelect(statement(t, sql).(*parser.Select), false)
 		}
@@ -465,14 +465,14 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			if authErr != nil {
 				t.Fatal(authErr)
 			}
-			b.queryAuth = &auth
+			b.query.auth = &auth
 			b.params.updateParameters = true
 			b.clause.aggregateClause = "RETURNING"
 			_, err := b.bindSelect(statement(t, sql).(*parser.Select), false)
 			if (sql == "SELECT missing") != (err != nil) {
 				t.Fatal(err)
 			}
-			if b.queryNamespace != nil || b.queryFrame != 0 || b.clause.aggregateClause != "RETURNING" || len(b.queryScopes) != 0 {
+			if b.query.namespace != nil || b.query.frame != 0 || b.clause.aggregateClause != "RETURNING" || len(b.query.scopes) != 0 {
 				t.Fatal("synthesized ancestor leaked after binding", err)
 			}
 			if b.target.relation.Name() != "target" {

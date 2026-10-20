@@ -64,10 +64,10 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 		return nil, err
 	}
 	definitions := make([]*cteDefinition, len(rawDefinitions))
-	startBindings := len(b.cteBindings)
+	startBindings := len(b.cte.bindings)
 	for _, index := range analysis.Order {
 		raw := rawDefinitions[index]
-		start := len(b.querySources)
+		start := len(b.query.sources)
 		definition := &cteDefinition{owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos, name: raw.Name.Text, columns: raw.Columns, recursive: analysis.Recursive[index]}
 		if raw.Search != nil {
 			definition.search = &searchRecipe{syntax: raw.Search}
@@ -82,26 +82,26 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			}
 		}
 		if selection, ok := raw.Query.(*parser.Select); ok {
-			b.cteSelectBodies = true
+			b.cte.selectBodies = true
 			if selection.Values != nil {
 				return nil, expr.ErrorAt("0A000", "WITH bodies must be SELECT queries", raw.Name.Pos)
 			}
-			b.cteAnalysisDepth++
-			oldRecursive := b.recursiveDefinition
+			b.cte.analysisDepth++
+			oldRecursive := b.cte.recursiveDefinition
 			if definition.recursive {
 				definition.syntax = selection
-				b.recursiveDefinition = definition
+				b.cte.recursiveDefinition = definition
 			}
 			query, err := b.bindSelect(selection, false)
-			b.cteAnalysisDepth--
-			b.recursiveDefinition = oldRecursive
+			b.cte.analysisDepth--
+			b.cte.recursiveDefinition = oldRecursive
 			if err != nil {
 				return nil, err
 			}
-			for i := start; i < len(b.querySources); i++ {
-				b.querySources[i].analysisOnly = true
+			for i := start; i < len(b.query.sources); i++ {
+				b.query.sources[i].analysisOnly = true
 			}
-			viewVolatile, err := cteStoredViewVolatile(b.queryAuth.Catalog, query.Root)
+			viewVolatile, err := cteStoredViewVolatile(b.query.auth.Catalog, query.Root)
 			if err != nil {
 				return nil, err
 			}
@@ -138,12 +138,12 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			}
 		}
 		definitions[index] = definition
-		b.cteBindings = append(b.cteBindings, cteBinding{name: raw.Name.Text, definition: definition, contained: true})
+		b.cte.bindings = append(b.cte.bindings, cteBinding{name: raw.Name.Text, definition: definition, contained: true})
 	}
 	// The owning WITH's main query is outside its definition bodies. Keep
 	// outer bindings' lexical state intact for nested WITHs and subqueries.
-	for i := startBindings; i < len(b.cteBindings); i++ {
-		b.cteBindings[i].contained = false
+	for i := startBindings; i < len(b.cte.bindings); i++ {
+		b.cte.bindings[i].contained = false
 	}
 	return definitions, nil
 }
@@ -160,23 +160,23 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 	if d.recursive && d.query == nil {
 		self := &worktableScanNode{}
 		scan, root = &self.derivedNode, self
-		if b.recursiveFrames == nil {
-			b.recursiveFrames = make(map[uint32]bool)
+		if b.cte.recursiveFrames == nil {
+			b.cte.recursiveFrames = make(map[uint32]bool)
 		}
-		b.recursiveFrames[b.frameID()] = true
+		b.cte.recursiveFrames[b.frameID()] = true
 	} else {
 		scan = &derivedNode{}
 		root = scan
 	}
-	*scan = derivedNode{querySchema: schema, query: d.query, cte: d, table: table, ordinal: -1 - b.cteScanOrdinal, scanFrame: b.frameID(), demand: make([]bool, len(schema))}
-	b.cteScanOrdinal++
+	*scan = derivedNode{querySchema: schema, query: d.query, cte: d, table: table, ordinal: -1 - b.cte.scanOrdinal, scanFrame: b.frameID(), demand: make([]bool, len(schema))}
+	b.cte.scanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: i, cteScan: scan, hideStar: (d.search != nil || d.cycle != nil) && binding.contained && i >= d.userWidth}
 	}
 	name := table.Name.Parts[0].Text
 	qualifier := queryQualifier{name: name, original: name, columns: columns}
-	b.queryHidden = append(b.queryHidden, qualifier)
+	b.query.hidden = append(b.query.hidden, qualifier)
 	return root, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
 }
 

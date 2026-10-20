@@ -77,7 +77,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		}
 		// Retained defaults can themselves cast to a checked domain even when
 		// the action destination is an ordinary base type.
-		binder := expressionBinder{engine: e, ctx: s.op.Context(), input: plan.input, op: s.op, queryAuth: &auth}
+		binder := expressionBinder{engine: e, ctx: s.op.Context(), input: plan.input, op: s.op, query: queryScopeState{auth: &auth}}
 		e.mu.Lock()
 		err := binder.captureRetainedWriteInput(plan.defaults, nil, nil)
 		e.mu.Unlock()

@@ -196,10 +196,10 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
 		binder.target.ruleNamespace = ns
 		binder.params.noParameters = true
-		binder.queryAuth = &auth
+		binder.query.auth = &auth
 		binder.clause.aggregateClause = "WHERE"
-		binder.queryFrame = 1
-		binder.nextQueryFrame = 1
+		binder.query.frame = 1
+		binder.query.nextQueryFrame = 1
 		var err error
 		r.condition, err = binder.bind(s.Condition, expressionPolicy{context: filterContext})
 		if err != nil {
@@ -210,7 +210,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
-		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, child: &singletonNode{}, expressions: []expr.Expr{r.condition}, frame: binder.frameID(), syntax: query}}, dependencies: binder.dependencies, querySources: binder.querySources, capture: viewCapture{columns: binder.capture.columns, literals: binder.capture.literals, castUsages: binder.capture.castUsages, composites: binder.capture.composites, collations: binder.capture.collations, namespaces: binder.capture.namespaces}, prepared: preparedCaptures{sequenceConstants: binder.prepared.sequenceConstants, regtypeConstants: binder.prepared.regtypeConstants}}
+		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, child: &singletonNode{}, expressions: []expr.Expr{r.condition}, frame: binder.frameID(), syntax: query}}, dependencies: binder.dependencies, querySources: binder.query.sources, capture: viewCapture{columns: binder.capture.columns, literals: binder.capture.literals, castUsages: binder.capture.castUsages, composites: binder.capture.composites, collations: binder.capture.collations, namespaces: binder.capture.namespaces}, prepared: preparedCaptures{sequenceConstants: binder.prepared.sequenceConstants, regtypeConstants: binder.prepared.regtypeConstants}}
 		b.capture.routineRefs = binder.capture.routineRefs
 		b.capture.operatorRefs = binder.capture.operatorRefs
 		for i := range b.querySources {

@@ -234,7 +234,7 @@ func TestQueryWindowNtileBindingUnwind(t *testing.T) {
 		{"SELECT ntile(missing) OVER()", "42703"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.clause.aggregateClause, b.queryFrame = "SELECT", 1
+		b.clause.aggregateClause, b.query.frame = "SELECT", 1
 		for _, q := range []string{"SELECT sum(1)", "SELECT row_number() OVER()"} {
 			if _, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext}); err != nil {
 				t.Fatal(err)

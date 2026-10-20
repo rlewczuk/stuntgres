@@ -27,8 +27,8 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	// Query scopes carry this clause to the aggregate's semantic owner.
 	b.clause.aggregateClause = "policy expressions"
 	b.target.relation = d
-	b.queryAuth, b.queryNamespace = &auth, &ns
-	b.querySources = []queryLeaf{{ref: ref, relation: d}}
+	b.query.auth, b.query.namespace = &auth, &ns
+	b.query.sources = []queryLeaf{{ref: ref, relation: d}}
 	node, err := b.bindBoolean(raw, projectionContext, "POLICY")
 	if err != nil {
 		return nil, alterCookingError(err)
@@ -42,7 +42,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	capture := binding{
 		query:        &BoundQuery{Root: root},
 		dependencies: b.dependencies,
-		querySources: b.querySources,
+		querySources: b.query.sources,
 		capture:      b.capture,
 		prepared: preparedCaptures{
 			sequenceConstants: b.prepared.sequenceConstants,

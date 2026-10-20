@@ -275,7 +275,7 @@ func recursiveUnitBind(t *testing.T, text string) (*Engine, *BoundQuery, error) 
 	if err != nil {
 		return e, nil, err
 	}
-	b.queryAuth = &auth
+	b.query.auth = &auth
 	query, err := b.bindSelect(statements[0].(*parser.Select), false)
 	return e, query, err
 }

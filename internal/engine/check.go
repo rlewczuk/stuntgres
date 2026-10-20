@@ -76,9 +76,9 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		ordinal := start + offset
 		binder := newExpressionBinder(op.Context(), e, input, op, nil)
 		binder.consumer.checkConsumer, binder.params.noParameters = true, true
-		binder.queryAuth = &auth
-		binder.queryNamespace = &ns
-		binder.querySources = []queryLeaf{{ref: ref, relation: d}}
+		binder.query.auth = &auth
+		binder.query.namespace = &ns
+		binder.query.sources = []queryLeaf{{ref: ref, relation: d}}
 		if altering {
 			e.mu.Lock()
 			if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
@@ -99,7 +99,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		name := c.Name.Text
 		if name == "" {
 			column := ""
-			uses := binder.querySources[0].uses
+			uses := binder.query.sources[0].uses
 			if len(uses) == 1 {
 				column = d.Columns[uses[0]].Name
 			}
