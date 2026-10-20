@@ -1,7 +1,7 @@
 package routine
 
 // Option parsing and validation shared by CREATE OPERATOR and ALTER OPERATOR.
-// These helpers read no engine state; staging lives in operator_ddl.go.
+// Staging lives in operator_ddl.go.
 
 import (
 	"fmt"
@@ -10,7 +10,9 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -222,6 +224,64 @@ func CheckOperatorLinkReplacement(d, peer *catalog.Operator, negator bool) error
 			attribute = "negator"
 		}
 		return OperatorOptionError(attribute)
+	}
+	return nil
+}
+
+// operatorOptionsSyntax checks CREATE/ALTER OPERATOR options before any lookup.
+// An unknown CREATE option is a warning, as in PostgreSQL.
+func operatorOptionsSyntax(h DDLHost, options []parser.OperatorOption, alter bool) error {
+	for _, raw := range options {
+		o := raw
+		if alter {
+			o = OperatorAlterOption(o)
+			if o.HasValue {
+				if _, err := OperatorOptionName(o); err != nil {
+					return err
+				}
+			}
+		}
+		switch o.Name {
+		case "leftarg", "rightarg":
+			if alter {
+				return sqlError("42601", fmt.Sprintf(`operator attribute "%s" cannot be changed`, o.Name))
+			}
+			typ, err := OperatorOptionType(o)
+			if err != nil {
+				return err
+			}
+			if typ.Setof {
+				return sqlError("42P13", "SETOF type not allowed for operator argument")
+			}
+		case "function", "procedure":
+			if alter {
+				return sqlError("42601", fmt.Sprintf(`operator attribute "%s" cannot be changed`, o.Name))
+			}
+			if _, err := OperatorOptionName(o); err != nil {
+				return err
+			}
+		case "restrict", "join", "commutator", "negator":
+			if alter && !o.HasValue && (o.Name == "restrict" || o.Name == "join") {
+				continue
+			}
+			if _, err := OperatorOptionName(o); err != nil {
+				return err
+			}
+		case "hashes", "merges":
+			if _, err := OperatorBoolean(o); err != nil {
+				return err
+			}
+		case "sort1", "sort2", "ltcmp", "gtcmp":
+			if alter {
+				return sqlError("42601", fmt.Sprintf(`operator attribute "%s" not recognized`, o.Name))
+			}
+		default:
+			message := fmt.Sprintf(`operator attribute "%s" not recognized`, o.Name)
+			if alter {
+				return sqlError("42601", message)
+			}
+			h.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "42601", Message: message})
+		}
 	}
 	return nil
 }

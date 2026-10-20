@@ -1,4 +1,4 @@
-package engine
+package routine
 
 import (
 	"strconv"
@@ -8,19 +8,18 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func checkOperatorArgumentUsage(h routine.DDLHost, auth routine.Authority, id ids.OID) error {
+func checkOperatorArgumentUsage(h DDLHost, auth Authority, id ids.OID) error {
 	if id == 0 {
 		return nil
 	}
 	return h.AccessView(auth).CanUse(auth, ddlRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
 }
 
-func operatorArgument(h routine.DDLHost, auth routine.Authority, raw parser.TypeName) (ids.OID, error) {
+func operatorArgument(h DDLHost, auth Authority, raw parser.TypeName) (ids.OID, error) {
 	if raw.Name == "" || strings.EqualFold(raw.Name, "none") && raw.Schema == nil && !raw.Quoted {
 		return 0, nil
 	}
@@ -34,7 +33,7 @@ func operatorArgument(h routine.DDLHost, auth routine.Authority, raw parser.Type
 	return id, checkOperatorArgumentUsage(h, auth, id)
 }
 
-func findUtilityOperator(h routine.DDLHost, auth routine.Authority, s parser.OperatorSignature) (*catalog.Operator, error) {
+func findUtilityOperator(h DDLHost, auth Authority, s parser.OperatorSignature) (*catalog.Operator, error) {
 	left, err := operatorArgument(h, auth, s.Left)
 	if err != nil {
 		return nil, err
@@ -56,10 +55,10 @@ func findUtilityOperator(h routine.DDLHost, auth routine.Authority, s parser.Ope
 			return d, nil
 		}
 	}
-	return nil, sqlError("42883", "operator does not exist: "+routine.OperatorInputName(view, left, right, s.Name))
+	return nil, sqlError("42883", "operator does not exist: "+OperatorInputName(view, left, right, s.Name))
 }
 
-func operatorRoutine(h routine.DDLHost, auth routine.Authority, name parser.ObjectName, inputs []ids.OID) (*catalog.Procedure, error) {
+func operatorRoutine(h DDLHost, auth Authority, name parser.ObjectName, inputs []ids.OID) (*catalog.Procedure, error) {
 	view := h.AccessView(auth).Catalog
 	ids := make([]string, len(inputs))
 	types := make([]string, len(inputs))
@@ -85,7 +84,7 @@ func operatorRoutine(h routine.DDLHost, auth routine.Authority, name parser.Obje
 	return d, nil
 }
 
-func operatorEstimator(h routine.DDLHost, auth routine.Authority, name parser.ObjectName, join bool) (ids.OID, error) {
+func operatorEstimator(h DDLHost, auth Authority, name parser.ObjectName, join bool) (ids.OID, error) {
 	if len(name.Parts) == 0 {
 		return 0, nil
 	}
@@ -103,7 +102,7 @@ func operatorEstimator(h routine.DDLHost, auth routine.Authority, name parser.Ob
 		if err != nil {
 			return 0, err
 		}
-		identity, count, err = routine.OperatorEstimatorVariant(name, identity, count, alternate, other)
+		identity, count, err = OperatorEstimatorVariant(name, identity, count, alternate, other)
 		if err != nil {
 			return 0, err
 		}
@@ -117,7 +116,7 @@ func operatorEstimator(h routine.DDLHost, auth routine.Authority, name parser.Ob
 		return 0, err
 	}
 	view := h.AccessView(auth)
-	result := routine.ReleasedOperatorEstimatorResult(identity.ID)
+	result := ReleasedOperatorEstimatorResult(identity.ID)
 	if d, ok := view.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID}); ok {
 		if d.RoutineKind != catalog.FunctionRoutine {
 			return 0, sqlError("42809", catalog.ObjectNameText(name)+" is not a function")
@@ -135,7 +134,7 @@ func operatorEstimator(h routine.DDLHost, auth routine.Authority, name parser.Ob
 			superuser = actor.Superuser
 		}
 	}
-	if err := routine.ValidateOperatorEstimatorMetadata(name, join, result, builtin, superuser); err != nil {
+	if err := ValidateOperatorEstimatorMetadata(name, join, result, builtin, superuser); err != nil {
 		return 0, err
 	}
 	return identity.ID, nil

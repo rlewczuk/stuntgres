@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 
 	"stuntgres/internal/engine/catalog"
@@ -509,7 +510,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		}
 	}
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
-	if err := rebindSQLRoutineDefinitions(e.catalog.read(next), next, mapping); err != nil {
+	if err := routine.RebindSQLDefinitions(e.catalog.read(next), next, mapping); err != nil {
 		return err
 	}
 	if err := e.remapCatalogExpressions(next, mapping); err != nil {

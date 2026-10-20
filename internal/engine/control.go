@@ -1011,7 +1011,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return ctx.Err()
 	}
 	if len(sqlRoutines) != 0 {
-		if err := emit(sqlRoutineRestoreDirective + "\n"); err != nil {
+		if err := emit(routine.RestoreDirective + "\n"); err != nil {
 			return err
 		}
 	}
@@ -1762,7 +1762,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	historicalRefs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	historicalAuthority := &restoredHistoryAuthority{facts: make(map[ids.OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
 	for statementIndex, stmt := range statements {
-		if sqlRoutineReplayDirective(string(data), stmt) {
+		if routine.ReplayDirective(string(data), stmt) {
 			operationReplay(op).sqlBodies = true
 			continue
 		}

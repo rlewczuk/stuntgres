@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -415,19 +416,19 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 			return nil, err
 		}
 	case *parser.CreateFunction:
-		if err = stageCreateFunction(host, auth, s, input); err != nil {
+		if err = routine.StageCreateFunction(host, auth, s, input); err != nil {
 			return nil, err
 		}
 	case *parser.CreateOperator:
-		if err = stageCreateOperator(host, auth, s); err != nil {
+		if err = routine.StageCreateOperator(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterOperator:
-		if err = stageAlterOperator(host, auth, s); err != nil {
+		if err = routine.StageAlterOperator(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropOperator:
-		if err = stageDropOperator(host, auth, s); err != nil {
+		if err = routine.StageDropOperator(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateDomain:

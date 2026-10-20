@@ -1,4 +1,4 @@
-package engine
+package routine
 
 import (
 	"errors"
@@ -11,13 +11,14 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func stageCreateFunction(h routine.DDLHost, auth routine.Authority, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
+// StageCreateFunction stages CREATE FUNCTION ... LANGUAGE SQL and binds its
+// body against the stage, except during Restore SQL body replay.
+func StageCreateFunction(h DDLHost, auth Authority, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
 	if s.Language.Text != "sql" {
 		return expr.ErrorAt("0A000", "only LANGUAGE SQL functions are supported", s.Language.Pos)
 	}

@@ -1,4 +1,4 @@
-package engine
+package routine
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -14,27 +13,27 @@ import (
 
 // collectOperatorOptions resolves surviving estimators and collects link names.
 // It changes only the caller's private descriptor, never the catalog stage.
-func collectOperatorOptions(h routine.DDLHost, auth routine.Authority, d *catalog.Operator, options []parser.OperatorOption, alter bool) (parser.ObjectName, parser.ObjectName, error) {
+func collectOperatorOptions(h DDLHost, auth Authority, d *catalog.Operator, options []parser.OperatorOption, alter bool) (parser.ObjectName, parser.ObjectName, error) {
 	var comm, neg parser.ObjectName
 	var restriction, join *parser.OperatorOption
 	for i := range options {
 		value := options[i]
 		if alter {
-			value = routine.OperatorAlterOption(value)
+			value = OperatorAlterOption(value)
 		}
 		o := &value
 		var err error
 		switch o.Name {
 		case "commutator":
-			comm, err = routine.OperatorOptionName(*o)
+			comm, err = OperatorOptionName(*o)
 		case "negator":
-			neg, err = routine.OperatorOptionName(*o)
+			neg, err = OperatorOptionName(*o)
 		case "restrict":
 			restriction = &options[i]
 		case "join":
 			join = &options[i]
 		case "hashes", "merges":
-			enabled, err := routine.OperatorBoolean(*o)
+			enabled, err := OperatorBoolean(*o)
 			if err != nil {
 				return comm, neg, err
 			}
@@ -56,12 +55,12 @@ func collectOperatorOptions(h routine.DDLHost, auth routine.Authority, d *catalo
 		}
 		value := *o
 		if alter {
-			value = routine.OperatorAlterOption(value)
+			value = OperatorAlterOption(value)
 		}
 		var name parser.ObjectName
 		if !alter || value.HasValue {
 			var err error
-			name, err = routine.OperatorOptionName(value)
+			name, err = OperatorOptionName(value)
 			if err != nil {
 				return comm, neg, err
 			}
@@ -79,7 +78,9 @@ func collectOperatorOptions(h routine.DDLHost, auth routine.Authority, d *catalo
 	return comm, neg, nil
 }
 
-func stageCreateOperator(h routine.DDLHost, auth routine.Authority, s *parser.CreateOperator) error {
+// StageCreateOperator stages CREATE OPERATOR, with forward shells for its
+// commutator and negator.
+func StageCreateOperator(h DDLHost, auth Authority, s *parser.CreateOperator) error {
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -96,13 +97,13 @@ func stageCreateOperator(h routine.DDLHost, auth routine.Authority, s *parser.Cr
 	for _, o := range s.Options {
 		switch o.Name {
 		case "leftarg":
-			left, err = routine.OperatorOptionType(o)
+			left, err = OperatorOptionType(o)
 			hasLeft = true
 		case "rightarg":
-			right, err = routine.OperatorOptionType(o)
+			right, err = OperatorOptionType(o)
 			hasRight = true
 		case "function", "procedure":
-			function, err = routine.OperatorOptionName(o)
+			function, err = OperatorOptionName(o)
 		}
 		if err != nil {
 			return err
@@ -156,10 +157,10 @@ func stageCreateOperator(h routine.DDLHost, auth routine.Authority, s *parser.Cr
 	if err != nil {
 		return err
 	}
-	if !routine.ValidOperatorName(symbol) {
+	if !ValidOperatorName(symbol) {
 		return sqlError("42602", fmt.Sprintf(`"%s" is not a valid operator name`, symbol))
 	}
-	if err = routine.ValidateOperatorOptions(&next, comm, neg); err != nil {
+	if err = ValidateOperatorOptions(&next, comm, neg); err != nil {
 		return err
 	}
 	old, _ := view.Catalog.Operator(view.Catalog.NameAddress(catalog.DescriptorNameKey(&next)))
@@ -212,7 +213,9 @@ func stageCreateOperator(h routine.DDLHost, auth routine.Authority, s *parser.Cr
 	return stageOperatorDescriptor(h, &next)
 }
 
-func stageAlterOperator(h routine.DDLHost, auth routine.Authority, s *parser.AlterOperator) error {
+// StageAlterOperator stages ALTER OPERATOR OWNER TO, SET SCHEMA and SET
+// (options). Links to missing or shell operators are errors.
+func StageAlterOperator(h DDLHost, auth Authority, s *parser.AlterOperator) error {
 	d, err := findUtilityOperator(h, auth, s.Signature)
 	if err != nil {
 		return err
@@ -243,7 +246,7 @@ func stageAlterOperator(h routine.DDLHost, auth routine.Authority, s *parser.Alt
 	if err = ddlCheck(h, auth, access.Requirement{Object: ddlRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
 		return err
 	}
-	if routine.OperatorSeeded(d) {
+	if OperatorSeeded(d) {
 		return sqlError("0A000", "altering built-in operators is unsupported")
 	}
 	switch s.Action {
@@ -282,19 +285,19 @@ func stageAlterOperator(h routine.DDLHost, auth routine.Authority, s *parser.Alt
 		if negator != nil && negator.Address() == next.Address() {
 			return sqlError("42P13", "operator cannot be its own negator")
 		}
-		if err = routine.CheckOperatorLinkReplacement(d, commutator, false); err != nil {
+		if err = CheckOperatorLinkReplacement(d, commutator, false); err != nil {
 			return err
 		}
-		if err = routine.CheckOperatorLinkReplacement(d, negator, true); err != nil {
+		if err = CheckOperatorLinkReplacement(d, negator, true); err != nil {
 			return err
 		}
 		if d.Merge && !next.Merge {
-			return routine.OperatorOptionError("merges")
+			return OperatorOptionError("merges")
 		}
 		if d.Hash && !next.Hash {
-			return routine.OperatorOptionError("hashes")
+			return OperatorOptionError("hashes")
 		}
-		if err = routine.ValidateOperatorOptions(&next, comm, neg); err != nil {
+		if err = ValidateOperatorOptions(&next, comm, neg); err != nil {
 			return err
 		}
 		if err = stageResolvedOperatorLink(h, &next, commutator, false); err != nil {
@@ -311,7 +314,9 @@ func stageAlterOperator(h routine.DDLHost, auth routine.Authority, s *parser.Alt
 	return h.Stage().Replace(&next)
 }
 
-func stageDropOperator(h routine.DDLHost, auth routine.Authority, s *parser.DropOperator) error {
+// StageDropOperator records the DROP OPERATOR targets and the dependency path
+// for the engine's drop orchestration.
+func StageDropOperator(h DDLHost, auth Authority, s *parser.DropOperator) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Signatures))
 	for _, sig := range s.Signatures {
 		d, err := findUtilityOperator(h, auth, sig)
@@ -335,7 +340,7 @@ func stageDropOperator(h routine.DDLHost, auth routine.Authority, s *parser.Drop
 				return err
 			}
 		}
-		if routine.OperatorSeeded(d) {
+		if OperatorSeeded(d) {
 			return sqlError("2BP01", "cannot drop "+h.DependencyObject(auth, d.Address())+" because it is required by the database system")
 		}
 		if !seen[d.Address()] {

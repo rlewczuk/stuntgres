@@ -1,4 +1,4 @@
-package engine
+package routine
 
 import (
 	"fmt"
@@ -6,12 +6,11 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func stageOperatorDescriptor(h routine.DDLHost, d *catalog.Operator) error {
+func stageOperatorDescriptor(h DDLHost, d *catalog.Operator) error {
 	stage := h.Stage()
 	if _, exists := h.StageBase().Find(d.Address()); exists {
 		return stage.Replace(d)
@@ -28,12 +27,12 @@ func stageOperatorDescriptor(h routine.DDLHost, d *catalog.Operator) error {
 
 // resolveOperatorLink captures an exact peer once, including shell/owner checks.
 // Only CREATE may create a shell here; ALTER resolution never changes the stage.
-func resolveOperatorLink(h routine.DDLHost, auth routine.Authority, d *catalog.Operator, name parser.ObjectName, negator, allowShell bool) (*catalog.Operator, error) {
+func resolveOperatorLink(h DDLHost, auth Authority, d *catalog.Operator, name parser.ObjectName, negator, allowShell bool) (*catalog.Operator, error) {
 	if len(name.Parts) == 0 {
 		return nil, nil
 	}
 	symbol := name.Parts[len(name.Parts)-1].Text
-	if !routine.ValidOperatorName(symbol) {
+	if !ValidOperatorName(symbol) {
 		return nil, sqlError("42602", fmt.Sprintf(`"%s" is not a valid operator name`, symbol))
 	}
 	left, right := d.Right, d.Left
@@ -62,11 +61,11 @@ func resolveOperatorLink(h routine.DDLHost, auth routine.Authority, d *catalog.O
 		}
 	}
 	if peer != nil && !allowShell && peer.Function == 0 {
-		return nil, sqlError("42883", "operator is only a shell: "+routine.OperatorInputName(h.AccessView(auth).Catalog, left, right, name))
+		return nil, sqlError("42883", "operator is only a shell: "+OperatorInputName(h.AccessView(auth).Catalog, left, right, name))
 	}
 	if peer == nil {
 		if !allowShell {
-			return nil, sqlError("42883", "operator does not exist: "+routine.OperatorInputName(h.AccessView(auth).Catalog, left, right, name))
+			return nil, sqlError("42883", "operator does not exist: "+OperatorInputName(h.AccessView(auth).Catalog, left, right, name))
 		}
 		// An implicit namespace recaptures this helper's authority only.
 		var ns ids.ObjectRef
@@ -105,7 +104,7 @@ func resolveOperatorLink(h routine.DDLHost, auth routine.Authority, d *catalog.O
 
 // Stage by captured identity, reading the latest private peer so two link kinds
 // targeting the same operator retain each other's reciprocal updates.
-func stageResolvedOperatorLink(h routine.DDLHost, d, peer *catalog.Operator, negator bool) error {
+func stageResolvedOperatorLink(h DDLHost, d, peer *catalog.Operator, negator bool) error {
 	if peer == nil {
 		return nil
 	}

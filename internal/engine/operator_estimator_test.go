@@ -9,18 +9,21 @@ import (
 
 func TestUserOperatorCatalogEstimatorReleasedIdentity(t *testing.T) {
 	e := New()
-	_, auth := conversionUnitAuth(t, e)
+	op, auth := conversionUnitAuth(t, e)
+	create := operatorUnitDefinition("#=#", "int4eq")
+	create.Options = append(create.Options, operatorParsedOptions(t, "restrict=pg_catalog.eqsel,join=pg_catalog.eqjoinsel")...)
+	stage := operatorUnitStage(t, e, op, auth, create)
+	defer e.DiscardCatalogStage(stage)
+	d := operatorUnitLookup(t, e.stageRead(stage), "#=#")
 	for _, tc := range []struct {
-		name string
-		join bool
-		want ids.OID
-	}{{"eqsel", false, 101}, {"eqjoinsel", true, 105}} {
-		id, err := operatorEstimator(schemaHost{e: e}, auth, operatorUnitName("pg_catalog", tc.name), tc.join)
-		if err != nil || id != tc.want || routine.ReleasedOperatorEstimatorResult(id) != 701 {
-			t.Fatal(id, err)
+		name     string
+		id, want ids.OID
+	}{{"eqsel", d.Restriction, 101}, {"eqjoinsel", d.Join, 105}} {
+		if tc.id != tc.want || routine.ReleasedOperatorEstimatorResult(tc.id) != 701 {
+			t.Fatal(tc.name, tc.id)
 		}
-		if _, callable := auth.Catalog.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); callable {
-			t.Fatal("estimator identity fabricated a callable declaration", id)
+		if _, callable := auth.Catalog.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.id}); callable {
+			t.Fatal("estimator identity fabricated a callable declaration", tc.id)
 		}
 	}
 }

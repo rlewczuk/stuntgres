@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -165,7 +166,7 @@ func TestSQLRoutineRestoreStaging(t *testing.T) {
 	if err := e.Dump(context.Background(), &original); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader(sqlRoutineRestoreDirective+" CREATE FUNCTION invalid_sql() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_table$$;")); err == nil {
+	if err := e.Restore(context.Background(), strings.NewReader(routine.RestoreDirective+" CREATE FUNCTION invalid_sql() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_table$$;")); err == nil {
 		t.Fatal("invalid deferred body published")
 	}
 	var after bytes.Buffer
