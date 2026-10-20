@@ -6,23 +6,9 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
-
-// VALUES ordinals follow structural source preorder, independent of physical
-// table occurrences and source offsets. Row/key indices are local to a source.
-func (b *expressionBinder) captureValuesViewLiteral(raw parser.Expr, bound expr.Expr, clause viewLiteralClause, source, row, column int) error {
-	path := viewLiteralPath{Query: b.frameID(), Clause: clause, Source: source, Row: row, Target: column}
-	if clause == analyze.ViewValuesOrderLiteral {
-		if integer, ok := raw.(parser.LiteralExpr); ok && integer.Value.Kind == parser.IntegerValue {
-			return nil
-		}
-	}
-	ordinal := 0
-	return b.captureViewLiteralTree(raw, bound, path, &ordinal)
-}
 
 func viewValuesAt(node plan.Node, ordinal int) *plan.ValuesNode {
 	var visit func(plan.Node) *plan.ValuesNode

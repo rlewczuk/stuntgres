@@ -1,37 +1,11 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
-
-// Binding runs under engine.mu. Candidate identity and definition are immutable;
-// source capture revalidates them rather than reopening names or substituting
-// prepared values. All candidates have RelationClassID and SubID zero.
-func (q *queryScopeState) partialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *catalog.Relation {
-	if q.auth == nil {
-		return nil
-	}
-	var chosen *catalog.Relation
-	for _, descriptor := range q.auth.ReadCatalog().Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
-			continue
-		}
-		if !partialPredicateImpliedBy(query, index.SQLIndex.Predicate.Definition) {
-			continue
-		}
-		if chosen == nil || index.Address().ObjectID < chosen.Address().ObjectID {
-			chosen = index
-		}
-	}
-	return chosen
-}
 
 // Caller holds engine.mu, the same installation/capture mutex. Every fence is
 // required: a storage pointer alone can retain newer vectors and end roots.

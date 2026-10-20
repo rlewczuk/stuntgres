@@ -205,29 +205,3 @@ func newLogicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntr
 	}
 	return root
 }
-
-// Strong exact implication on unresolved typed trees, not runtime values. Only
-// AND is decomposed; an independent fixed conjunct can survive parameters in
-// other query atoms. Existing structural identity owns provider/origin semantics.
-func partialPredicateImpliedBy(query, predicate expr.Expr) bool {
-	if predicate == nil {
-		return true
-	}
-	if query == nil {
-		return false
-	}
-	if p, ok := predicate.(plan.LogicalExpr); ok && p.Op == parser.LogicalAnd {
-		return partialPredicateImpliedBy(query, p.Left) && partialPredicateImpliedBy(query, p.Right)
-	}
-	if predicate.Properties().ParameterDependent || exec.PlannedVolatility(predicate) != expr.Immutable {
-		return false
-	}
-	return partialPredicateAtom(query, predicate)
-}
-
-func partialPredicateAtom(query, predicate expr.Expr) bool {
-	if q, ok := query.(plan.LogicalExpr); ok && q.Op == parser.LogicalAnd {
-		return partialPredicateAtom(q.Left, predicate) || partialPredicateAtom(q.Right, predicate)
-	}
-	return !query.Properties().ParameterDependent && exec.PlannedVolatility(query) == expr.Immutable && SameGroupExpression(query, predicate)
-}

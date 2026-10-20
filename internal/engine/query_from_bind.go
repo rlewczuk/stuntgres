@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -1042,4 +1041,15 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	captures := b.functionCaptures(calls)
 	b.query.hidden = append(b.query.hidden, q)
 	return &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: ordinality, Frame: b.frameID(), Correlated: len(captures) != 0, Captures: captures, RegexpNamespace: true, ViewOrdinal: ordinal}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: schema}, nil
+}
+
+func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespaceColumn {
+	out := make([]viewNamespaceColumn, len(columns))
+	for i, c := range columns {
+		out[i] = viewNamespaceColumn{Name: c.descriptor.Name, Slot: c.slot, Leaf: c.leaf}
+		if c.leaf >= 0 {
+			out[i].Attribute = q.sources[c.leaf].Relation.Attributes[c.physical]
+		}
+	}
+	return out
 }

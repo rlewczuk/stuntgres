@@ -60,17 +60,6 @@ type viewLeaf struct {
 	mark         plan.RowMark
 }
 
-func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespaceColumn {
-	out := make([]viewNamespaceColumn, len(columns))
-	for i, c := range columns {
-		out[i] = viewNamespaceColumn{Name: c.descriptor.Name, Slot: c.slot, Leaf: c.leaf}
-		if c.leaf >= 0 {
-			out[i].Attribute = q.sources[c.leaf].Relation.Attributes[c.physical]
-		}
-	}
-	return out
-}
-
 // Output names are downstream definition checks, not SELECT/alias analysis.
 // Existing replacements check their descriptor before options; fresh CREATE
 // checks options first. The caller has already resolved the real destination.
