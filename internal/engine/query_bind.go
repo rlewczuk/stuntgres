@@ -253,7 +253,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		if !contextual && !b.params.noParameters && !b.consumer.materializedDefinition && len(s.Locking) == 0 {
 			if source, ok := root.(*sourceNode); ok && len(b.query.sources) == 1 && b.query.sources[0].mark.mode == 0 {
-				b.query.sources[0].partialCandidate = b.partialIndexCandidate(source.ref, filter)
+				b.query.sources[0].partialCandidate = b.query.partialIndexCandidate(source.ref, filter)
 			}
 		}
 		root = &filterNode{querySchema: root.Schema(), child: root, predicate: filter}

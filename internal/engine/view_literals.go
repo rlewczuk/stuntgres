@@ -119,7 +119,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		if operands.DotBuiltin != "" {
 			base, _ := operands.At(hook, 0)
-			b.captureViewComposite(path, compositeDotBuiltin, base, nil)
+			b.capture.captureViewComposite(path, compositeDotBuiltin, base, nil)
 			captured := b.capture.composites[path]
 			captured.function = functions.NullCountFunctionKind(operands.DotBuiltin)
 			b.capture.composites[path] = captured
@@ -241,7 +241,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return nil
 		}
 		if row, ok := bound.(rowExpression); ok && row.wholeNames != nil {
-			b.captureViewComposite(path, compositeWholeRow, row, nil)
+			b.capture.captureViewComposite(path, compositeWholeRow, row, nil)
 			return nil
 		}
 	case parser.GroupingExpr:
@@ -381,7 +381,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 	case parser.FieldExpr:
 		if n, ok := bound.(fieldExpression); ok {
-			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
+			b.capture.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
 			return child(r.Base, n.base)
 		}
 		return protocol(expr.CaptureField, []parser.Expr{r.Base})
@@ -592,7 +592,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return children(r.Args, []expr.Expr{n.Arg})
 		}
 		if n, ok := bound.(fieldExpression); ok && len(r.Args) == 1 {
-			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
+			b.capture.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
 			return child(r.Args[0], n.base)
 		}
 		if n, ok := bound.(literalExpression); ok && n.value.IsNull() {

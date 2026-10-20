@@ -83,12 +83,12 @@ type viewNamespace struct {
 	keys       []string
 }
 
-func (b *expressionBinder) freezeViewColumns(columns []queryColumn) []viewNamespaceColumn {
+func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespaceColumn {
 	out := make([]viewNamespaceColumn, len(columns))
 	for i, c := range columns {
 		out[i] = viewNamespaceColumn{name: c.descriptor.Name, slot: c.slot, leaf: c.leaf}
 		if c.leaf >= 0 {
-			out[i].attribute = b.query.sources[c.leaf].relation.Attributes[c.physical]
+			out[i].attribute = q.sources[c.leaf].relation.Attributes[c.physical]
 		}
 	}
 	return out

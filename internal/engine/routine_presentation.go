@@ -10,14 +10,14 @@ import (
 
 // Both installed and SQL routines use the existing occurrence identity map.
 // Syntax markers demand a capture, but never grant catalog authority themselves.
-func (b *expressionBinder) captureRoutineReference(path viewLiteralPath, ref ids.ObjectRef) error {
-	if b.capture.routineRefs == nil {
-		b.capture.routineRefs = make(map[viewLiteralPath]ids.ObjectRef)
+func (c *viewCapture) captureRoutineReference(path viewLiteralPath, ref ids.ObjectRef) error {
+	if c.routineRefs == nil {
+		c.routineRefs = make(map[viewLiteralPath]ids.ObjectRef)
 	}
-	if old, exists := b.capture.routineRefs[path]; exists && old != ref {
+	if old, exists := c.routineRefs[path]; exists && old != ref {
 		return fmt.Errorf("stuntgres: conflicting frozen routine occurrence")
 	}
-	b.capture.routineRefs[path] = ref
+	c.routineRefs[path] = ref
 	return nil
 }
 
@@ -32,7 +32,7 @@ func (b *expressionBinder) captureSQLRoutineReference(path viewLiteralPath, n sq
 	if _, err := routine.ValidateStoredRoutineDescriptor(read, n.procedure); err != nil {
 		return err
 	}
-	return b.captureRoutineReference(path, n.ref)
+	return b.capture.captureRoutineReference(path, n.ref)
 }
 
 func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path viewLiteralPath, raw parser.FunctionExpr) (*catalog.Procedure, error) {

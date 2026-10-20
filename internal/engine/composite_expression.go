@@ -352,7 +352,7 @@ func (b *expressionBinder) compositeFieldAt(base expr.Expr, index int, pos parse
 }
 func (b *expressionBinder) retainedCompositeField(base expr.Expr, key preparedCompositeKey, captured compositeOccurrence, pos parser.Position) expr.Expr {
 	index, exists := base.ResultUsage().Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
-	b.captureComposite(key, captured.base, captured.attributes)
+	b.prepared.captureComposite(key, captured.base, captured.attributes)
 	if !exists {
 		oldIndex, _ := captured.base.Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
 		usage := captured.base.Type.BaseType().CompositeMember(oldIndex).Usage
@@ -383,7 +383,7 @@ func (b *expressionBinder) bindField(raw parser.FieldExpr) (expr.Expr, error) {
 		return b.bindDotBuiltin(raw, key)
 	}
 	if field, ok := node.(fieldExpression); err == nil && ok {
-		b.captureComposite(key, base.ResultUsage(), []int32{field.attribute})
+		b.prepared.captureComposite(key, base.ResultUsage(), []int32{field.attribute})
 	}
 	return node, err
 }
@@ -425,9 +425,9 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (compositeExpan
 		}
 	}
 	if found {
-		b.captureComposite(key, captured.base, attributes)
+		b.prepared.captureComposite(key, captured.base, attributes)
 	} else {
-		b.captureComposite(key, base.ResultUsage(), attributes)
+		b.prepared.captureComposite(key, base.ResultUsage(), attributes)
 	}
 	result := compositeExpansionBinding{base: base, fields: make([]expr.Expr, len(attributes)), names: make([]string, len(attributes)), attributes: attributes}
 	for i, attribute := range attributes {
@@ -462,7 +462,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.target.relation, b.frameID(), b.target.returningAliases, pos); found {
 			return expr, err
 		}
-		_, pseudo := b.returningPseudo(name)
+		_, pseudo := b.target.returningPseudo(name)
 		visible := b.target.name
 		if b.target.alias != "" {
 			visible = b.target.alias
@@ -706,8 +706,8 @@ func projectionArgumentKind(raw parser.Expr) uint8 {
 func (s *functionProjectionScope) matches(raw parser.Expr) bool {
 	return s.argumentKind != 0 && raw.SourcePosition() == s.argumentPos && projectionArgumentKind(raw) == s.argumentKind
 }
-func (b *expressionBinder) noteFunctionSignature(name parser.ObjectName, pos parser.Position, err error) {
-	scope := &b.clause.functionProjection
+func (c *clauseState) noteFunctionSignature(name parser.ObjectName, pos parser.Position, err error) {
+	scope := &c.functionProjection
 	if scope.argumentKind == 0 || scope.pos != pos || len(name.Parts) != len(scope.name.Parts) {
 		return
 	}
@@ -786,7 +786,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 	}
 	if found {
 		member := shape.CompositeMember(index)
-		b.captureComposite(key, base.ResultUsage(), []int32{member.Attribute})
+		b.prepared.captureComposite(key, base.ResultUsage(), []int32{member.Attribute})
 		return b.compositeFieldAt(base, index, raw.Pos), nil
 	}
 	return nil, err

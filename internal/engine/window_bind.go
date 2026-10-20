@@ -117,7 +117,7 @@ func (b *expressionBinder) windowAllowed(pos parser.Position) error {
 		return expr.ErrorAt("42P20", "window functions are not allowed in policy expressions", pos)
 	}
 	if b.consumer.partitionConsumer != "" {
-		return b.partitionExpressionError("42P20", "window functions are not allowed in "+b.partitionContextPlural(), pos)
+		return b.consumer.partitionExpressionError("42P20", "window functions are not allowed in "+b.consumer.partitionContextPlural(), pos)
 	}
 	clause := b.clause.aggregateClause
 	if b.consumer.checkConsumer {

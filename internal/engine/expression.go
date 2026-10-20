@@ -1385,9 +1385,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, expr.ErrorAt("0A000", "cannot use column reference in partition bound expression", r.Pos)
 			}
 		case parser.IndexSubqueryExpr:
-			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.consumer.partitionConsumer, r.Pos)
+			return nil, b.consumer.partitionExpressionError("0A000", "cannot use subquery in "+b.consumer.partitionConsumer, r.Pos)
 		case parser.SubqueryExpr:
-			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.consumer.partitionConsumer, r.Pos)
+			return nil, b.consumer.partitionExpressionError("0A000", "cannot use subquery in "+b.consumer.partitionConsumer, r.Pos)
 		case parser.AggregateExpr:
 			if r.Window == nil && r.Name != "row_number" && r.Name != "ntile" && !functions.WindowValueName(r.Name) && !functions.WindowOffsetName(r.Name) {
 				for _, arg := range r.Args {
@@ -1395,7 +1395,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 						return nil, err
 					}
 				}
-				return nil, b.partitionExpressionError("42803", "aggregate functions are not allowed in "+b.partitionContextPlural(), r.Pos)
+				return nil, b.consumer.partitionExpressionError("42803", "aggregate functions are not allowed in "+b.consumer.partitionContextPlural(), r.Pos)
 			}
 		}
 	}
@@ -2042,7 +2042,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, err
 	}
 	if b.clause.jsonbRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
-		b.captureComposite(preparedCompositeKey{offset: raw.TypeName.Pos.Offset, kind: compositeRecordArgument}, target, nil)
+		b.prepared.captureComposite(preparedCompositeKey{offset: raw.TypeName.Pos.Offset, kind: compositeRecordArgument}, target, nil)
 	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.

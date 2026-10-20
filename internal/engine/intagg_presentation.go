@@ -15,7 +15,7 @@ func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *ca
 	if err := validateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
 		return err
 	}
-	return b.captureRoutineReference(path, ref)
+	return b.capture.captureRoutineReference(path, ref)
 }
 
 func intaggRecipeFunction(raw parser.Expr) string {

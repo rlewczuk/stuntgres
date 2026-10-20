@@ -271,7 +271,7 @@ func (b *expressionBinder) functionSignatureErrorForTypes(name parser.ObjectName
 func (b *expressionBinder) functionResolutionErrorForTypes(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
 	err := functions.ResolutionError(name, pos, names, ambiguous)
 	if !ambiguous {
-		b.noteFunctionSignature(name, pos, err)
+		b.clause.noteFunctionSignature(name, pos, err)
 	}
 	return err
 }

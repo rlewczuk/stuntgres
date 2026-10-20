@@ -11,12 +11,12 @@ import (
 // Binding runs under engine.mu. Candidate identity and definition are immutable;
 // source capture revalidates them rather than reopening names or substituting
 // prepared values. All candidates have RelationClassID and SubID zero.
-func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *catalog.Relation {
-	if b.query.auth == nil {
+func (q *queryScopeState) partialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *catalog.Relation {
+	if q.auth == nil {
 		return nil
 	}
 	var chosen *catalog.Relation
-	for _, descriptor := range b.query.auth.Catalog.Descriptors() {
+	for _, descriptor := range q.auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
 			continue

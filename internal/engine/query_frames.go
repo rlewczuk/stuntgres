@@ -121,10 +121,10 @@ func (s *queryState) evaluation(ctx context.Context) EvalContext {
 	return evaluation
 }
 
-func (b *expressionBinder) outerQualifiers() []queryQualifier {
+func (q *queryScopeState) outerQualifiers() []queryQualifier {
 	var out []queryQualifier
-	for i := len(b.query.scopes) - 1; i >= 0; i-- {
-		s := &b.query.scopes[i]
+	for i := len(q.scopes) - 1; i >= 0; i-- {
+		s := &q.scopes[i]
 		if len(s.hidden) != 0 {
 			out = append(out, s.hidden...)
 		} else if s.namespace != nil {

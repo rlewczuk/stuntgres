@@ -380,7 +380,7 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	}
 	auth := AuthorizationView{View: access.View{Catalog: f.e.CatalogRead()}}
 	binder := expressionBinder{query: queryScopeState{auth: &auth}}
-	if binder.partialIndexCandidate(leaf.ref, f.predicate) != f.index {
+	if binder.query.partialIndexCandidate(leaf.ref, f.predicate) != f.index {
 		t.Fatal("bound caller did not select candidate")
 	}
 	calls := 0
@@ -486,7 +486,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 	b := expressionBinder{query: queryScopeState{auth: &auth}}
 	param := parameterExpression{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{ParameterDependent: true}}, number: 1}
 	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
-	if b.partialIndexCandidate(ref, param) != nil {
+	if b.query.partialIndexCandidate(ref, param) != nil {
 		t.Fatal("unresolved parameter selected root")
 	}
 }

@@ -10,14 +10,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) partitionContextPlural() string {
-	if b.consumer.partitionConsumer == "partition key expression" {
+func (c *consumerContext) partitionContextPlural() string {
+	if c.partitionConsumer == "partition key expression" {
 		return "partition key expressions"
 	}
-	return b.consumer.partitionConsumer
+	return c.partitionConsumer
 }
-func (b *expressionBinder) partitionExpressionError(code, message string, pos parser.Position) error {
-	if b.consumer.partitionConsumer == "partition key expression" {
+func (c *consumerContext) partitionExpressionError(code, message string, pos parser.Position) error {
+	if c.partitionConsumer == "partition key expression" {
 		return sqlError(code, message)
 	}
 	return expr.ErrorAt(code, message, pos)

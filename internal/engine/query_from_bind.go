@@ -148,7 +148,7 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 			return match, nil
 		}
 	}
-	hidden := append(append([]queryQualifier(nil), b.query.hidden...), b.outerQualifiers()...)
+	hidden := append(append([]queryQualifier(nil), b.query.hidden...), b.query.outerQualifiers()...)
 	for _, q := range hidden {
 		if q.original != label && q.name != label {
 			continue
@@ -286,7 +286,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 	if len(parts) > 1 {
 		qualifier = parts[len(parts)-2].Text
 	}
-	hidden := append(append([]queryQualifier(nil), b.query.hidden...), b.outerQualifiers()...)
+	hidden := append(append([]queryQualifier(nil), b.query.hidden...), b.query.outerQualifiers()...)
 	if b.stringFromContext() {
 		for _, q := range hidden {
 			if !q.lateralForbidden {
@@ -338,9 +338,9 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			if failure == nil {
 				b.capture.namespaces[ordinal].frame = b.frameID()
 				b.capture.namespaces[ordinal].node, b.capture.namespaces[ordinal].ordinal = frozenNamespaceNode(root)
-				b.capture.namespaces[ordinal].columns = b.freezeViewColumns(namespace.columns)
+				b.capture.namespaces[ordinal].columns = b.query.freezeViewColumns(namespace.columns)
 				for _, q := range namespace.qualifiers {
-					b.capture.namespaces[ordinal].qualifiers = append(b.capture.namespaces[ordinal].qualifiers, viewNamespaceQualifier{q.name, b.freezeViewColumns(q.columns)})
+					b.capture.namespaces[ordinal].qualifiers = append(b.capture.namespaces[ordinal].qualifiers, viewNamespaceQualifier{q.name, b.query.freezeViewColumns(q.columns)})
 				}
 			}
 		}()

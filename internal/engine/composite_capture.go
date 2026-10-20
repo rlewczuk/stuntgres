@@ -55,11 +55,11 @@ func (b *expressionBinder) retainedComposite(key preparedCompositeKey, base sqlt
 	}
 	return captured, true, nil
 }
-func (b *expressionBinder) captureComposite(key preparedCompositeKey, base sqltype.Usage, attributes []int32) {
-	if b.prepared.composites == nil {
-		b.prepared.composites = make(map[preparedCompositeKey]compositeOccurrence)
+func (p *preparedCaptures) captureComposite(key preparedCompositeKey, base sqltype.Usage, attributes []int32) {
+	if p.composites == nil {
+		p.composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.prepared.composites[key] = compositeOccurrence{kind: key.kind, base: base, attributes: attributes}
+	p.composites[key] = compositeOccurrence{kind: key.kind, base: base, attributes: attributes}
 }
 func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 	offset := raw.Field.Pos.Offset
@@ -93,20 +93,20 @@ func (captured compositeOccurrence) validate(catalog catalog.Read) error {
 	}
 	return nil
 }
-func (b *expressionBinder) captureViewComposite(path viewLiteralPath, kind compositeOccurrenceKind, base expr.Expr, attributes []int32) {
-	if b.capture.composites == nil {
-		b.capture.composites = make(map[viewLiteralPath]compositeOccurrence)
+func (c *viewCapture) captureViewComposite(path viewLiteralPath, kind compositeOccurrenceKind, base expr.Expr, attributes []int32) {
+	if c.composites == nil {
+		c.composites = make(map[viewLiteralPath]compositeOccurrence)
 	}
 	source := wholeRowSource{}
 	if row, ok := base.(rowExpression); ok {
 		source = row.wholeSource
 	}
-	b.capture.composites[path] = compositeOccurrence{kind: kind, base: base.ResultUsage(), attributes: attributes, source: source}
+	c.composites[path] = compositeOccurrence{kind: kind, base: base.ResultUsage(), attributes: attributes, source: source}
 }
 func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion compositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
 	path.node = *ordinal
 	(*ordinal)++
-	b.captureViewComposite(path, compositeExpansion, expansion.base, expansion.attributes)
+	b.capture.captureViewComposite(path, compositeExpansion, expansion.base, expansion.attributes)
 	switch expression := raw.(type) {
 	case parser.FieldExpr:
 		return b.captureViewLiteralTree(expression.Base, expansion.base, path, ordinal)

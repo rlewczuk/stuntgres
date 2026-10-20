@@ -176,7 +176,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		}
 		if star, ok := expression.(parser.StarExpr); ok {
 			if b.query.namespace != nil {
-				if newValues, pseudo := b.returningPseudo(star.Qualifier); pseudo {
+				if newValues, pseudo := b.target.returningPseudo(star.Qualifier); pseudo {
 					for slot, column := range b.target.relation.Columns {
 						appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 					}
@@ -308,15 +308,15 @@ func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newV
 	return column
 }
 
-func (b *expressionBinder) returningPseudo(name parser.ObjectName) (newValues, pseudo bool) {
+func (t *targetContext) returningPseudo(name parser.ObjectName) (newValues, pseudo bool) {
 	if len(name.Parts) != 1 {
 		return false, false
 	}
 	label := name.Parts[0].Text
-	if b.target.returningAliases.old != "" && label == b.target.returningAliases.old {
+	if t.returningAliases.old != "" && label == t.returningAliases.old {
 		return false, true
 	}
-	if b.target.returningAliases.new != "" && label == b.target.returningAliases.new {
+	if t.returningAliases.new != "" && label == t.returningAliases.new {
 		return true, true
 	}
 	return false, false
@@ -339,7 +339,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 				return expr, err
 			}
 		}
-		_, pseudo := b.returningPseudo(raw.Name)
+		_, pseudo := b.target.returningPseudo(raw.Name)
 		visible := b.target.name
 		if b.target.alias != "" {
 			visible = b.target.alias
@@ -349,7 +349,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 		}
 	}
 	if b.query.namespace != nil {
-		if _, pseudo := b.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
+		if _, pseudo := b.target.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
 			return b.queryColumn(raw)
 		}
 	}
