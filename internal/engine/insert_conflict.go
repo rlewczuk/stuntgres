@@ -1,17 +1,11 @@
 package engine
 
 import (
-	"fmt"
-	"slices"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -56,143 +50,6 @@ func (c *boundInsertConflict) instantiate() *boundInsertConflict {
 		actionReads: c.actionReads, sources: c.sources,
 		returning: c.returning, width: c.width,
 	}
-}
-
-// Analysis resolves names/types/read manifests; selecting installed providers
-// belongs to Execute, including commands with an empty source.
-func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Authority, raw *parser.InsertConflict) error {
-	if raw == nil {
-		return nil
-	}
-	if raw.Update && len(raw.Keys) == 0 && raw.Constraint.Text == "" {
-		d := expr.ErrorAt("42601", "ON CONFLICT DO UPDATE requires inference specification or constraint name", raw.OnPos).(*sqlstate.Error)
-		d.Hint = "For example, ON CONFLICT (column_name)."
-		return d
-	}
-	c := &boundInsertConflict{targets: b.Targets}
-	b.Insert.Conflict = insertConflictSlotOf(c)
-	if raw.Constraint.Text != "" {
-		for _, u := range b.Relation.Constraints.Unique {
-			if u.Name == raw.Constraint.Text {
-				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: u.OID}
-				c.namedIndex = u.Index
-				for _, a := range u.Attributes {
-					c.reads = append(c.reads, slices.Index(b.Relation.Attributes, a))
-				}
-				return nil
-			}
-		}
-		for _, definition := range b.Relation.Constraints.Exclusion {
-			if definition.Name != raw.Constraint.Text {
-				continue
-			}
-			c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
-			c.namedIndex = definition.Index
-			index, ok := auth.ReadCatalog().Relation(definition.Index)
-			if !ok {
-				return fmt.Errorf("stuntgres: missing named exclusion index")
-			}
-			for _, key := range index.SQLIndex.Keys {
-				if key.Derived == nil {
-					c.reads = append(c.reads, slices.Index(b.Relation.Attributes, key.Attribute))
-					continue
-				}
-				for _, dependency := range key.Derived.Dependencies {
-					if dependency.Address.ClassID == b.Ref.Address.ClassID && dependency.Address.ObjectID == b.Ref.Address.ObjectID && dependency.Address.SubID != 0 {
-						slot := slices.Index(b.Relation.Attributes, dependency.Address.SubID)
-						if !slices.Contains(c.reads, slot) {
-							c.reads = append(c.reads, slot)
-						}
-					}
-				}
-			}
-			return nil
-		}
-		for _, check := range b.Relation.Constraints.Check {
-			if check.Name == raw.Constraint.Text {
-				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
-				return nil
-			}
-		}
-		for _, nn := range b.Relation.Constraints.NotNull {
-			if nn.Name == raw.Constraint.Text {
-				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
-				return nil
-			}
-		}
-		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.Relation.Name()))
-	}
-	binder := shared.host.IndexExpressionBinder(shared.input, auth, b.Relation)
-	binder.params.parameters = shared.params.parameters
-	binder.expected = shared.expected
-	binder.params.noParameters = false
-	if raw.Update {
-		binder.query.hidden = append(binder.query.hidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
-	}
-	c.keys = make([]conflictKey, len(raw.Keys))
-	for i, key := range raw.Keys {
-		if key.DirectionExplicit {
-			return expr.ErrorAt("42P10", "ASC/DESC is not allowed in ON CONFLICT clause", raw.Pos)
-		}
-		if key.Nulls != parser.NullsDefault {
-			return expr.ErrorAt("42P10", "NULLS FIRST/LAST is not allowed in ON CONFLICT clause", raw.Pos)
-		}
-		node := key.Expression
-		if node == nil {
-			node = parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: key.Column.Text, Pos: raw.Pos}}}, Pos: raw.Pos}
-		}
-		expression, err := binder.bind(node, expressionPolicy{context: projectionContext})
-		if err != nil {
-			return err
-		}
-		// Top-level COLLATE is a decoration, not index expression identity.
-		for {
-			collated, ok := expression.(plan.CollationExpr)
-			if !ok {
-				break
-			}
-			c.keys[i].collation = collated.ResultUsage().Collation.ID
-			expression = collated.Child
-		}
-		if col, ok := expression.(plan.ColumnExpr); ok {
-			c.keys[i].attribute = col.Origin.Address.SubID
-		} else {
-			c.keys[i].expression = expression
-		}
-		if key.Collation != nil {
-			id, err := shared.host.LookupCollation(*key.Collation)
-			if err != nil {
-				return expr.WithPosition(err, raw.Pos)
-			}
-			if expression.ResultUsage().Type.Usage().Collation.ID == 0 {
-				return sqlError("42804", "collations are not supported by type "+expression.ResultUsage().Type.DiagnosticName())
-			}
-			c.keys[i].collation = id
-		}
-		if key.Opclass != nil {
-			class, err := shared.host.LookupIndexClass(auth, *key.Opclass, catalog.BtreeMethod)
-			if err != nil {
-				return err
-			}
-			c.keys[i].class = class
-		}
-		// Released inference parses class options but does not instantiate a CREATE
-		// provider or apply its option validation; identity is family plus input.
-	}
-	if raw.Predicate != nil {
-		binder.consumer.indexPredicateConsumer = true
-		predicate, err := binder.bindBoolean(raw.Predicate, filterContext, "WHERE")
-		if err != nil {
-			return err
-		}
-		c.predicate = predicate
-	}
-	c.reads = binder.query.sources[0].Uses
-	shared.params.anyParameters = append(shared.params.anyParameters, binder.params.anyParameters...)
-	for _, dep := range binder.dependencies {
-		shared.dependency(dep.Ref, dep.Revision)
-	}
-	return nil
 }
 
 func (c *boundInsertConflict) selectArbiters(ctx *exec.Context, parent *catalog.Relation, view catalog.Read) error {

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
@@ -57,17 +56,5 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	c.updateTargets = actionBinding.Targets
 	c.actionReads = append([]int(nil), binder.target.uses...)
 	c.sources = binder.query.sources
-	return nil
-}
-
-func (c *boundInsertConflict) preflightUpdate(evaluation *exec.Context) error {
-	if c.update == nil {
-		return nil
-	}
-	action, err := preflightUpdateWithPlanning(evaluation, c.update, true)
-	if err != nil {
-		return err
-	}
-	c.update = action
 	return nil
 }

@@ -254,3 +254,15 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
 	return row, parent, namespace.Name(), live, nil
 }
+
+func (c *boundInsertConflict) preflightUpdate(evaluation *exec.Context) error {
+	if c.update == nil {
+		return nil
+	}
+	action, err := preflightUpdateWithPlanning(evaluation, c.update, true)
+	if err != nil {
+		return err
+	}
+	c.update = action
+	return nil
+}
