@@ -7,11 +7,11 @@ import (
 )
 
 func catalogStageChanges(s *CatalogStage) ChangeSet {
-	changes := ChangeSet{Definitions: make([]ids.ObjectAddress, 0, len(s.Descriptors)+len(s.Removals))}
-	for a := range s.Descriptors {
+	changes := ChangeSet{Definitions: make([]ids.ObjectAddress, 0, s.DescriptorCount()+s.RemovalCount())}
+	for a := range s.Descriptors() {
 		changes.Definitions = append(changes.Definitions, a)
 	}
-	for a := range s.Removals {
+	for a := range s.Removals() {
 		changes.Definitions = append(changes.Definitions, a)
 	}
 	sort.Slice(changes.Definitions, func(i, j int) bool {

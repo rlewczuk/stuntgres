@@ -26,7 +26,7 @@ func enumReownVersions(next *catalog.State, versions []storage.RowVersion) ([]st
 func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *catalogChanges, stage *CatalogStage) error {
 	next := e.stageRead(stage).State()
 	for a, rebound := range stage.rowShapes {
-		consumer, ok := stage.Descriptors[a].(*catalog.Relation)
+		consumer, ok := stage.Get(a).(*catalog.Relation)
 		if !ok {
 			continue
 		}

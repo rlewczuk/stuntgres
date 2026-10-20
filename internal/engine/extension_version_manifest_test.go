@@ -82,7 +82,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	candidate := stage.Descriptors[old.Address()].(*catalog.Extension)
+	candidate := stage.Get(old.Address()).(*catalog.Extension)
 	if candidate == old || candidate.Version != "1.2" || len(candidate.Members) != 10 || candidate.Owner != old.Owner || candidate.TargetNamespace != old.TargetNamespace || candidate.Revision() == old.Revision() {
 		t.Fatal("genuine detached update manifest", candidate)
 	}

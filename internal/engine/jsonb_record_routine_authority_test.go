@@ -479,7 +479,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			if err := stageOwnership(badStage, current, owner); err != nil {
 				t.Fatal(err)
 			}
-			bad := badStage.Descriptors[current.Address()].(*catalog.Procedure)
+			bad := badStage.Get(current.Address()).(*catalog.Procedure)
 			if _, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, bad); err == nil {
 				t.Fatal("zero/foreign staged owner provenance accepted")
 			}

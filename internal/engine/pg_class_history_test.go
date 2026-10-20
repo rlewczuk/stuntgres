@@ -50,7 +50,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := stage.Descriptors[parent.Address()].(*catalog.Relation)
+			got := stage.Get(parent.Address()).(*catalog.Relation)
 			want := edge != "ordinary_index"
 			if got.History.HasSubclasses != want || got.Name() != next.Name() || got.Revision() != next.Revision() || parent.History.HasSubclasses || next.History.HasSubclasses {
 				t.Fatal("candidate/source immutability", got, parent, &next)
@@ -88,7 +88,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := stage.Descriptors[parent.Address()].(*catalog.Relation)
+	got := stage.Get(parent.Address()).(*catalog.Relation)
 	if !got.History.HasSubclasses || got.Revision() != 7 || got.RowType != 200112 || parent.History.HasSubclasses {
 		t.Fatal("same-stage identity/history", got)
 	}

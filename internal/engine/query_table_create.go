@@ -149,11 +149,11 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if err = stage.Create(d); err != nil {
 		return nil, nil, false, err
 	}
-	if len(stage.OldNames) != 0 {
+	if stage.OldNameCount() != 0 {
 		if err = e.reownStagedTypeGenerationsLocked(stage); err != nil {
 			return nil, nil, false, err
 		}
-		d = stage.Descriptors[d.Address()].(*catalog.Relation)
+		d = stage.Get(d.Address()).(*catalog.Relation)
 	}
 	return stage, d, false, nil
 }
@@ -166,7 +166,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.Descriptors[d.Address()] != d || stage.Base.Get(d.Address()) != nil || stage.initialTables != nil {
+	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.Get(d.Address()) != d || stage.Base.Get(d.Address()) != nil || stage.initialTables != nil {
 		return errors.New("stuntgres: invalid initial table stage")
 	}
 	if stage.Base.Epoch() != e.catalog.state.Epoch() {
@@ -200,7 +200,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 
 func (s *CatalogStage) validateInitialTables() error {
 	for address, storage := range s.initialTables {
-		d, ok := s.Descriptors[address].(*catalog.Relation)
+		d, ok := s.Get(address).(*catalog.Relation)
 		if !ok || !d.RelationKind.Stored() || d.RelationKind == catalog.MaterializedViewRelation && !d.Populated || s.Base.Get(address) != nil || storage == nil || len(storage.Versions) == 0 || storage.Ends != nil || storage.Generation != 0 {
 			return errors.New("stuntgres: invalid initial table storage")
 		}

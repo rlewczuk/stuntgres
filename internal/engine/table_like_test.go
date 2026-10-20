@@ -29,7 +29,8 @@ func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*Cata
 	err = e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	var destination *catalog.Relation
 	if err == nil {
-		destination = stage.Descriptors[stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text}]].(*catalog.Relation)
+		address, _ := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text})
+		destination = stage.Get(address).(*catalog.Relation)
 	}
 	return stage, destination, err
 }
@@ -121,7 +122,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(destination, source)
 	}
 	identity := destination.ColumnMeta.Identities[4]
-	sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
+	sequence := stage.Get(identity.Sequence).(*catalog.Relation)
 	if identity.Sequence == source.ColumnMeta.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].Called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
@@ -135,7 +136,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 			t.Fatal("CHECK retained source row", dep)
 		}
 	}
-	if stage.Descriptors[source.Address()] != nil || before.Get(source.Address()) != source {
+	if stage.Get(source.Address()) != nil || before.Get(source.Address()) != source {
 		t.Fatal("source descriptor modified")
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -236,7 +237,7 @@ func TestTableLikeInlineSourceProvenance(t *testing.T) {
 		t.Fatal("private source/provider provenance absent")
 	}
 	for _, source := range stage.likeSources {
-		if stage.Base.Get(source.Address()) != nil || stage.Descriptors[source.Address()] != source {
+		if stage.Base.Get(source.Address()) != nil || stage.Get(source.Address()) != source {
 			t.Fatal("private input mistaken for incumbent", source)
 		}
 	}

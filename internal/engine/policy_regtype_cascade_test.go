@@ -42,11 +42,11 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
-					next, ok := stage.Descriptors[old.Address()].(*catalog.Relation)
+					next, ok := stage.Get(old.Address()).(*catalog.Relation)
 					if !ok || len(next.Security.Policies) != 1 || !reflect.DeepEqual(next.Security.Policies[0], retained) || next.Revision() <= old.Revision() {
 						t.Fatal("wrong surviving policy collection", next)
 					}
-					if _, removed := stage.Removals[old.Address()]; removed {
+					if _, removed := stage.Removal(old.Address()); removed {
 						t.Fatal("policy owner became a retirement target")
 					}
 					if want := []string{"drop cascades to policy p on table t"}; !reflect.DeepEqual(stage.viewCascadeNames, want) {

@@ -106,6 +106,23 @@ func (s *catalogStore) revisionLocked() (ids.DefinitionRevision, error) {
 	return r, nil
 }
 
+// advanceRevisionFrontier calculates a speculative allocator frontier without
+// reserving it. Publication commits the scalar under Engine.mu only at install.
+// terminal describes the descriptor clocks, not saturation of the result.
+func (s *catalogStore) advanceRevisionFrontier(candidate ids.DefinitionRevision, d catalog.Descriptor) (next ids.DefinitionRevision, terminal bool) {
+	frontier := d.Revision()
+	if relation, ok := d.(*catalog.Relation); ok && relation.SequencePlanStamp > frontier {
+		frontier = relation.SequencePlanStamp
+	}
+	if frontier == ids.DefinitionRevision(^uint64(0)) {
+		return frontier, true
+	}
+	if candidate > frontier {
+		return candidate, false
+	}
+	return frontier + 1, false
+}
+
 // allocateEnumMemberLocked reserves the next enum member identity. Aborted
 // reservations are never recycled.
 func (s *catalogStore) allocateEnumMemberLocked() (int64, error) {

@@ -52,7 +52,7 @@ func inheritanceStageAlterGuard(stage *CatalogStage, relation *catalog.Relation)
 				return
 			}
 		}
-		for address, descriptor := range stage.Descriptors {
+		for address, descriptor := range stage.Descriptors() {
 			if _, exists := stage.Base.Find(address); !exists {
 				if !yield(address, descriptor) {
 					return
@@ -60,7 +60,7 @@ func inheritanceStageAlterGuard(stage *CatalogStage, relation *catalog.Relation)
 			}
 		}
 	}
-	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) catalog.Descriptor { return stage.Descriptors[address] }, func(address ids.ObjectAddress) bool { _, removed := stage.Removals[address]; return removed }, relation)
+	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) catalog.Descriptor { return stage.Get(address) }, func(address ids.ObjectAddress) bool { _, removed := stage.Removal(address); return removed }, relation)
 }
 
 func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], replacement func(ids.ObjectAddress) catalog.Descriptor, removed func(ids.ObjectAddress) bool, relation *catalog.Relation) error {

@@ -157,9 +157,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					if err := access.ValidateACL(target.roles.read(target.catalog.owner(), target.catalog.read(next), target.roles.published), descriptor); err != nil {
 						return err
 					}
-					if revision := descriptor.Revision(); revision >= nextRevision {
-						nextRevision = revision + 1
-					}
+					nextRevision, _ = target.catalog.advanceRevisionFrontier(nextRevision, descriptor)
 				}
 				prepared, err := target.prepareForeignIndexStorage(ctx, next, preparedStorage, indexes)
 				if err != nil {

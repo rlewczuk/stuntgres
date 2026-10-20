@@ -69,10 +69,10 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if _, removed := stage.Removals[address]; removed {
+		if _, removed := stage.Removal(address); removed {
 			continue
 		}
-		if replacement := stage.Descriptors[address]; replacement != nil {
+		if replacement := stage.Get(address); replacement != nil {
 			descriptor = replacement
 		}
 		owner, acl, columns := access.DescriptorACL(descriptor)
@@ -167,7 +167,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			return err
 		}
 		record := original
-		if staged, exists := stage.DefaultACLs[key]; exists {
+		if staged, exists := stage.DefaultACLChange(key); exists {
 			if staged == nil {
 				continue // Namespace AUTO removal must not resurrect this key.
 			}
@@ -188,14 +188,8 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		}
 		// Creator ownership removes the entire actual record, including a
 		// stored empty global policy. Recipient cleanup uses the key baseline.
-		if stage.DefaultReads == nil {
-			stage.DefaultReads = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-		}
-		if stage.DefaultACLs == nil {
-			stage.DefaultACLs = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-		}
-		stage.DefaultReads[key] = original
-		stage.DefaultACLs[key] = next
+		stage.ObserveDefault(key)
+		stage.SetDefaultACL(key, next)
 	}
 	return nil
 }
@@ -217,7 +211,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 			return true
 		}
 	}
-	for address, descriptor := range stage.Descriptors {
+	for address, descriptor := range stage.Descriptors() {
 		next, ok := descriptor.(*catalog.Relation)
 		original, existed := stage.Base.Relation(address)
 		if ok && existed && len(next.Security.Policies) < len(original.Security.Policies) {
@@ -235,7 +229,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	}
 	// Cleanup skips already removed relations; their selected policies are
 	// nevertheless separate collected addresses in PostgreSQL.
-	for address := range stage.Removals {
+	for address := range stage.Removals() {
 		relation, ok := stage.Base.Relation(address)
 		if !ok {
 			continue

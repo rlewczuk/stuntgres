@@ -24,7 +24,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	// reownership. Every changed same-ID consumer must invalidate held analysis.
 	if stage.domainAlter != nil {
 		for address, descriptor := range next.Descriptors() {
-			previous := stage.Descriptors[address]
+			previous := stage.Get(address)
 			if previous == nil {
 				previous = stage.Base.Get(address)
 			}
@@ -49,7 +49,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	}
 	var stores map[ids.ObjectAddress]*storage.Relation
 	for address, descriptor := range next.Descriptors() {
-		previous := stage.Descriptors[address]
+		previous := stage.Get(address)
 		if previous == nil {
 			previous = stage.Base.Get(address)
 		}
@@ -93,7 +93,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			}
 		}
 		if stage.Base.Get(address) == nil {
-			stage.Descriptors[address] = descriptor
+			stage.UpdateDescriptor(descriptor)
 		} else if err := stage.replaceDescriptor(descriptor, false); err != nil {
 			return err
 		}

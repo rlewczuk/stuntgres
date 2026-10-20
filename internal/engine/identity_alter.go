@@ -93,10 +93,10 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if err := e.refreshIdentitySequenceLocked(scope, stage, table, attribute, address); err != nil {
 		return err
 	}
-	if _, removed := stage.Removals[address]; removed {
+	if _, removed := stage.Removal(address); removed {
 		return ids.ErrCatalogReplaced
 	}
-	descriptor := stage.Descriptors[address]
+	descriptor := stage.Get(address)
 	if descriptor == nil {
 		descriptor = stage.Base.Get(address)
 	}
@@ -124,7 +124,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	changed.ObjectRevision = revision
 	changed.SequencePlanStamp = revision
 	if stage.Base.Get(changed.Address()) == nil {
-		stage.Descriptors[changed.Address()] = &changed
+		stage.UpdateDescriptor(&changed)
 	} else if err := stage.Replace(&changed); err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 		return ids.ErrCatalogReplaced
 	}
 	descriptor := fresh.Catalog.Get(address)
-	if staged, exists := stage.Descriptors[address]; exists {
+	if staged, exists := stage.Find(address); exists {
 		descriptor = staged
 	}
 	if _, err := identitySequenceDefinition(descriptor, table, attribute); err != nil {

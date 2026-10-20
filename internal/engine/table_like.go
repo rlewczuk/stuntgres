@@ -131,7 +131,7 @@ func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
 				return ids.ErrCatalogReplaced
 			}
 		} else {
-			staged, ok := s.Descriptors[address].(*catalog.Relation)
+			staged, ok := s.Get(address).(*catalog.Relation)
 			captured, sourceOK := source.(*catalog.Relation)
 			// Private index-history normalization may replace the pointer while
 			// retaining the staged incarnation and definition revision.

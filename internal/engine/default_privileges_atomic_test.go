@@ -165,7 +165,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			if err != (catalog.Conflict{}) || f.e.catalog.state.Get(table.Address()) != nil {
 				t.Fatal("stale creation default published", err)
 			}
-			for key, record := range stage.DefaultReads {
+			for key, record := range stage.DefaultReads() {
 				if key.Class != authorization.DefaultTables || key.Creator != f.owner || record != stage.Base.State().DefaultACL(key) {
 					t.Fatal("incorrect creation observations")
 				}

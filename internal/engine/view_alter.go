@@ -326,8 +326,8 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		return Result{}, err
 	}
 	// Cascaded view identities receive the same AX admission as explicit targets.
-	cascade := make([]ids.ObjectRef, 0, len(stage.Removals))
-	for address, removal := range stage.Removals {
+	cascade := make([]ids.ObjectRef, 0, stage.RemovalCount())
+	for address, removal := range stage.Removals() {
 		if address.ClassID != ids.RelationClassID {
 			continue
 		}

@@ -45,7 +45,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		old, existed := stage.Base.Relation(parent.Address())
 		shape, replaced := c.storage[parent.Address()]
 		storageChanged := replaced && shape.replacement != e.privateStorageLocked(scope.owner.catalog, parent.Address())
-		if !storageChanged && stage.Descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
+		if !storageChanged && stage.Get(a) == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
 			continue
 		}
 		if !index.SQLIndex.Ready {

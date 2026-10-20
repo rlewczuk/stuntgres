@@ -114,12 +114,12 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			authority.databasePredecessor = s.databasePredecessor
 		}
 	}
-	for a := range s.Descriptors {
+	for a := range s.Descriptors() {
 		if err := observe(a, s.Base.Get(a)); err != nil {
 			return err
 		}
 	}
-	for a := range s.Removals {
+	for a := range s.Removals() {
 		if err := observe(a, s.Base.Get(a)); err != nil {
 			return err
 		}
@@ -142,7 +142,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		return nil
 	}
-	for _, d := range s.Descriptors {
+	for _, d := range s.Descriptors() {
 		if err := observeNamespace(d.Namespace()); err != nil {
 			return err
 		}
@@ -202,7 +202,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		c.indexRebuilds[a] = d
 	}
-	for k, a := range s.Touched {
+	for k, a := range s.Touched() {
 		if current.NameAddress(k) != a {
 			return catalog.Conflict{}
 		}
@@ -228,7 +228,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		c.indexFences = append(c.indexFences, f)
 	}
-	for a := range s.Removals {
+	for a := range s.Removals() {
 		if a.ClassID == ids.NamespaceClassID {
 			f := catalogNamespaceFence{namespace: a, members: map[ids.ObjectAddress]catalog.Descriptor{}}
 			for address, d := range e.catalog.state.Descriptors() {
@@ -256,7 +256,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		captureStorage(d.Address())
 	}
 	for a, candidate := range s.indexCandidates {
-		index, ok := s.Descriptors[a].(*catalog.Relation)
+		index, ok := s.Get(a).(*catalog.Relation)
 		if !ok {
 			index, ok = current.Relation(a)
 		}
@@ -285,7 +285,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		c.rolesBase = e.roles.published
 	}
 	c.domainChanged = c.domainChanged || len(s.domainTargets) != 0
-	for _, d := range s.Descriptors {
+	for _, d := range s.Descriptors() {
 		if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsUserDefined() {
 			c.domainChanged = true
 			break

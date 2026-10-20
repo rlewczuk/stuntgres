@@ -291,7 +291,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			survivor, ok := stage.Descriptors[owner.Address()].(*catalog.Relation)
+			survivor, ok := stage.Get(owner.Address()).(*catalog.Relation)
 			if !ok || len(survivor.Security.Policies) != 0 || len(attached.Security.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}

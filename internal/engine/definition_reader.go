@@ -66,10 +66,10 @@ func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, b
 type stageDefinitionReader struct{ stage *CatalogStage }
 
 func (r stageDefinitionReader) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
-	if _, removed := r.stage.Removals[address]; removed {
+	if _, removed := r.stage.Removal(address); removed {
 		return nil, false
 	}
-	if descriptor, exists := r.stage.Descriptors[address]; exists {
+	if descriptor, exists := r.stage.Find(address); exists {
 		return descriptor, true
 	}
 	return r.stage.Base.Descriptor(address)
@@ -86,11 +86,11 @@ func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, catalo
 				}
 			}
 		}
-		for address, descriptor := range r.stage.Descriptors {
+		for address, descriptor := range r.stage.Descriptors() {
 			if _, original := r.stage.Base.Find(address); original {
 				continue
 			}
-			if _, removed := r.stage.Removals[address]; removed {
+			if _, removed := r.stage.Removal(address); removed {
 				continue
 			}
 			if !yield(address, descriptor) {
@@ -103,7 +103,7 @@ func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, catalo
 func (r stageDefinitionReader) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return func(yield func(*catalog.Procedure) bool) {
 		for _, address := range r.stage.Base.State().ProceduresNamed(namespace, name) {
-			if _, overridden := r.stage.Descriptors[address]; overridden {
+			if _, overridden := r.stage.Find(address); overridden {
 				continue
 			}
 			descriptor, present := r.descriptor(address)
@@ -113,8 +113,8 @@ func (r stageDefinitionReader) proceduresNamed(namespace ids.ObjectAddress, name
 				}
 			}
 		}
-		for address, descriptor := range r.stage.Descriptors {
-			if _, removed := r.stage.Removals[address]; removed {
+		for address, descriptor := range r.stage.Descriptors() {
+			if _, removed := r.stage.Removal(address); removed {
 				continue
 			}
 			if d, ok := descriptor.(*catalog.Procedure); ok && d.Namespace() == namespace && d.Name() == name {
@@ -132,22 +132,22 @@ func (r stageDefinitionReader) hasSQLProcedureName(name string) bool {
 		count = index.SQLNames[name]
 	}
 	if count == 0 {
-		for address, descriptor := range r.stage.Descriptors {
+		for address, descriptor := range r.stage.Descriptors() {
 			if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil && d.Name() == name {
-				if _, removed := r.stage.Removals[address]; !removed {
+				if _, removed := r.stage.Removal(address); !removed {
 					return true
 				}
 			}
 		}
 		return false
 	}
-	for address := range r.stage.Removals {
+	for address := range r.stage.Removals() {
 		if d, ok := r.stage.Base.Procedure(address); ok && d.SQL != nil && d.Name() == name {
 			count--
 		}
 	}
-	for address, descriptor := range r.stage.Descriptors {
-		if _, removed := r.stage.Removals[address]; removed {
+	for address, descriptor := range r.stage.Descriptors() {
+		if _, removed := r.stage.Removal(address); removed {
 			continue
 		}
 		if old, ok := r.stage.Base.Procedure(address); ok && old.SQL != nil && old.Name() == name {

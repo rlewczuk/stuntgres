@@ -73,8 +73,8 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, changes, project, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			intermediate := stage.Descriptors[index.Address()].(*catalog.Relation)
-			intermediateParent := stage.Descriptors[survivor.Address()].(*catalog.Relation)
+			intermediate := stage.Get(index.Address()).(*catalog.Relation)
+			intermediateParent := stage.Get(survivor.Address()).(*catalog.Relation)
 			check := func(candidate, parent *catalog.Relation, wantSlot int, wantLayout []int32) {
 				t.Helper()
 				derived := candidate.SQLIndex.Keys[0].Derived
@@ -122,8 +122,8 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			final := stage.Descriptors[index.Address()].(*catalog.Relation)
-			finalParent := stage.Descriptors[survivor.Address()].(*catalog.Relation)
+			final := stage.Get(index.Address()).(*catalog.Relation)
+			finalParent := stage.Get(survivor.Address()).(*catalog.Relation)
 			check(final, finalParent, 1, []int32{1, 4})
 			if final == intermediate || final.SQLIndex.Keys[0].Derived == intermediate.SQLIndex.Keys[0].Derived {
 				t.Fatal("second candidate mutated first")
@@ -179,7 +179,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if stage.Descriptors[index.Address()] != final {
+			if stage.Get(index.Address()) != final {
 				t.Fatal("coherent validation evolved again")
 			}
 			if changes.originals[index.Address()] != index || changes.storage[survivor.Address()].original != before || !sameVersionRoot(changes.storage[survivor.Address()].root, oldRows) || changes.storage[survivor.Address()].ends != before.Ends || changes.storage[survivor.Address()].generation != before.Generation {

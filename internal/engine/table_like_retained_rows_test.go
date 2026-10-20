@@ -120,7 +120,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("CHECK manifest lacks current local authority", copiedCheck.Dependencies)
 			}
 			var clonedIndexes []*catalog.Relation
-			for _, descriptor := range stage.Descriptors {
+			for _, descriptor := range stage.Descriptors() {
 				index, ok := descriptor.(*catalog.Relation)
 				if !ok || index.SQLIndex == nil {
 					continue
@@ -152,7 +152,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			if collision == nil {
 				t.Fatal("duplicate copied column accepted")
 			}
-			for address := range candidate.Descriptors {
+			for address := range candidate.Descriptors() {
 				if e.CatalogRead().Get(address) != nil || e.storage.Relations[address] != nil || e.storage.IndexRoots[address] != nil || e.storage.Sequences[address] != nil {
 					t.Fatal("failed copied candidate published a fragment", address)
 				}
@@ -244,7 +244,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		t.Fatal("CHECK external manifest reminted")
 	}
 	assertNode(destination.Constraints.Check[0].Expression)
-	for _, descriptor := range stage.Descriptors {
+	for _, descriptor := range stage.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue

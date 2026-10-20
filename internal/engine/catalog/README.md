@@ -71,10 +71,23 @@ standard library, and never the engine or its sibling `functions`. The lower
 - **Candidate** (`candidate.go`). The pure copy-on-write overlay of a catalog
   change over an immutable base `Read`: created and replaced descriptors and
   their names, touched name slots, removals, vacated names and default ACL
-  changes. `Create`, `Replace`, `RecordRemoval` and `LookupName` stage
-  changes; `State` merges them into a new unpublished state. It never writes
-  the base. Its fields are exported because the engine's `CatalogStage`
-  embeds it and still writes them directly.
+  changes. All seven backing maps are private; `CatalogStage` embeds the same
+  overlay without gaining writable map access. `Create` and `Replace` retain
+  name/conflict and sticky relation-history checks. `UpdateDescriptor` completes
+  caller-owned private copies without replaying those operations;
+  `RenameStagedDescriptor` preserves actual former/new keys for reminted objects.
+  `RecordRemoval` retains the original base reference and retires rebound private
+  descriptors/bindings; `ForgetDescriptor` deletes only a private descriptor.
+  `LookupName` resolves the candidate, while `Get`/`Find`, `NameBinding`,
+  observations, counts and iterators expose **overlay entries only**. Reads do
+  not merge, clone, scan the base or return writable maps. Iterators share
+  immutable payloads and require a candidate read phase, not concurrent mutation.
+  `State` explicitly merges into a new unpublished state without changing Base.
+  `ObserveDefault` records original Base input once, including observed absence;
+  `SetDefaultACL` stages output separately, with present nil meaning removal.
+  Delta-only TEMP cleanup does not create a read observation. `ApplyDefaultACLs`
+  projects onto the current publication source; `DefaultRecordsUnchanged` checks
+  original inputs without exporting their map.
 - **Name keys and operator index.** `DescriptorNameKey`, `OperatorNameIndex`,
   `OperatorIndexEdit` and `RebuildOperatorNames`; default ACL helpers
   (`OverlayDefaultACLs`, `PruneNamespaceDefaults`, `RemapDefaultSchemas`,
@@ -117,6 +130,11 @@ standard library, and never the engine or its sibling `functions`. The lower
   namespace/ACL authority. The engine's sole catalog allocator assigns identities
   only to final new policies; updates/remaps/recipient cleanup preserve them,
   baseline deletion removes them, and reads never allocate identities.
+- Revision frontier calculation remains store-owned in the engine, separate
+  from catalog payloads and live sequence scalar state. It is pure and
+  saturating; only successful installation commits its speculative scalar under
+  `Engine.mu`. Descriptor-local ALTER moves use the same calculation without
+  reserving the global allocator.
 
 
 ## What stays in the engine
@@ -154,3 +172,6 @@ external900-second deadline; public dual-mode proof is documented in
 - Diagnostic names: `make check RUN='^Test(DependencyIdentifierQuotesLikeQuoteIdentifier|TypeDiagnosticNameAtQualifiesHiddenTypes)$'`.
 - Engine-side catalog seams (registry, payload accessors, operator index,
   publication): `make check RUN='^Test(CatalogAllocatorAndProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayloadAccessors|UserOperatorIndex)'`.
+- Candidate ownership: `make check RUN='^TestCandidate(PrivateUpdates|RenameRemovalReuse|DefaultObservations|RetainedState)$'`.
+- Revision frontiers: `make check RUN='^Test(CatalogStoreRevisionFrontier|AlterDropColumnRevisionFrontier(Failures|Terminal)?|AlterSchema(WholeCandidate|OverflowAndSkip))$'`.
+- Retained policy/index authority: `make check RUN='^Test(DefaultPrivileges(CloneStage|RetainedMessage|SchemaLifecycle|CreationFence)|SQLRoutineStagedLookup|CatalogCopiesStayIndependent|UserOperatorIndex(CopyOnWrite|PublicationAndOverlay)|BuiltinProcedureNamesCopyOnEdit)$'`.

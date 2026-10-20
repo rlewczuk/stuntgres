@@ -47,7 +47,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.Descriptors[child.Address()] = child
+	stage.UpdateDescriptor(child)
 	stage.captureLikeSource(parent)
 	completed := make(chan error, 1)
 	go func() { completed <- scope.acquireDefinitionProviders(stage) }()

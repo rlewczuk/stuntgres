@@ -162,14 +162,14 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 				return fail(typeCollision(r))
 			}
 		}
-		frontier := descriptorRevisionFrontier(r)
-		if frontier == ids.DefinitionRevision(^uint64(0)) {
+		frontier, terminal := e.catalog.advanceRevisionFrontier(0, r)
+		if terminal {
 			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 		}
 		next[i] = *r
-		next[i].ObjectNamespace, next[i].ObjectRevision = destination.Address, frontier+1
+		next[i].ObjectNamespace, next[i].ObjectRevision = destination.Address, frontier
 		if r.RelationKind == catalog.SequenceRelation {
-			next[i].SequencePlanStamp = frontier + 1
+			next[i].SequencePlanStamp = frontier
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)

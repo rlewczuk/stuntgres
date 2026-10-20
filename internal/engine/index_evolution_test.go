@@ -24,11 +24,15 @@ func TestBtreeIndexUnchangedParentEvolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	var evolutionErr error
-	allocations := testing.AllocsPerRun(10, func() { e.mu.Lock(); evolutionErr = e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil); e.mu.Unlock() })
+	allocations := testing.AllocsPerRun(10, func() {
+		e.mu.Lock()
+		evolutionErr = e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
+		e.mu.Unlock()
+	})
 	if evolutionErr != nil || allocations != 0 {
 		t.Fatal("untouched parent performs evolution work", evolutionErr, allocations)
 	}
-	if stage.Descriptors[index.Address()] != nil {
+	if stage.Get(index.Address()) != nil {
 		t.Fatal("unrelated metadata staged an index change")
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)

@@ -559,7 +559,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	for address := range checkStage.Descriptors {
+	for address := range checkStage.Descriptors() {
 		expected := auth.Catalog.Get(address)
 		if original, private := changes.originals[address]; private {
 			expected = original
@@ -568,7 +568,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, catalog.Conflict{}
 		}
 	}
-	for address := range checkStage.Removals {
+	for address := range checkStage.Removals() {
 		expected := auth.Catalog.Get(address)
 		if original, private := changes.originals[address]; private {
 			expected = original
@@ -577,10 +577,10 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, catalog.Conflict{}
 		}
 	}
-	for address, descriptor := range checkStage.Descriptors {
+	for address, descriptor := range checkStage.Descriptors() {
 		e.catalogChangeLocked(changes, address, descriptor)
 	}
-	for address := range checkStage.Removals {
+	for address := range checkStage.Removals() {
 		e.catalogChangeLocked(changes, address, nil)
 	}
 	cascade := checkStage.viewCascadeNames
@@ -598,7 +598,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		e.catalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.generators, ref.Address)
 	}
-	for address, descriptor := range checkStage.Descriptors {
+	for address, descriptor := range checkStage.Descriptors() {
 		next, ok := descriptor.(*catalog.Relation)
 		old, oldOK := auth.Catalog.Relation(address)
 		if !ok || !oldOK {
@@ -612,7 +612,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			}
 		}
 	}
-	for address := range checkStage.Removals {
+	for address := range checkStage.Removals() {
 		targets = append(targets, address)
 	}
 	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.Catalog.State(), targets: targets})

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `f91336682346e5f24e665a7d6f5aebe88d308c6f`. The later-wave plans
+Last verified against `master` at `a85e7d7479e33e00df71c9cd566edd5c6ff97902`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -17,7 +17,7 @@ as another broad item (§8).
 
 - **Step 3 remainder** — F3 aliases item 6 (broad), and Tier C item 9
   (advisory locks with blocking inquiry). They touch shared switches; rebase early.
-- **Optional cleanups** — catalog 5h (item 11), storage 6d (item 12).
+- **Optional cleanups** — storage 6d (item 12).
 - **Step 8 `settings`** — 8a (item 13) implementation/proof complete;
   review/integration pending. 8b (item 14) follows integration.
 - **Step 9 `pgcatalog`** — 9a (item 16).
@@ -180,8 +180,9 @@ Steps 1, 2 and 4–7 and `access` are done.
     (`43c6b86ec`, `47a4495b2`, `089bf7856`, `3ef61771b`, `90f6a9b52`, then
     the docs commit) *(racecheck skipped at user request; targeted RACE=1
     runs passed)*
-  - [ ] 5h — Optional: one revision-frontier helper; `Candidate` overlay
-    behind methods
+  - [x] 5h — One revision-frontier helper; private `Candidate` methods
+    (the commit that records this status) *(quickcheck passed; further
+    racecheck and finalcheck skipped at user request)*
 - [x] **Step 6 — `storage`** ([prompt](ENGINE-SPLIT-storage.md); needs 5e)
   - [x] 6a — `storageStore` state ownership (`79c8a6f3a`, `d6bbc8a3e`,
     then the docs commit) *(racecheck skipped at user request; targeted
@@ -347,8 +348,9 @@ in the prompt file's Status section.
    remain root-owned gates, not completion claims.
 10. [ ] Tier C: sequence calls — [functions](ENGINE-SPLIT-functions.md)
     Tier C · needs 7, 8, 9
-11. [ ] Catalog 5h (optional) — [catalog](ENGINE-SPLIT-catalog.md) 5h ·
-    needs —
+11. [x] Catalog 5h — [catalog](ENGINE-SPLIT-catalog.md) 5h · needs —
+    (the commit that records this status) *(quickcheck passed; further
+    racecheck and finalcheck skipped at user request)*
 12. [x] Storage 6d — [storage](ENGINE-SPLIT-storage.md) 6d · needs — ·
     selected dual-mode/race proof and quickcheck passed; full racecheck/finalcheck
     explicitly waived by user

@@ -235,7 +235,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		}
 		if _, incumbent := stage.Base.Find(address); !incumbent {
 			// Newly created providers belong to the private atomic candidate.
-			provider, staged := stage.Descriptors[address].(*catalog.Relation)
+			provider, staged := stage.Get(address).(*catalog.Relation)
 			if !staged || provider.Address() != address || ref.Domain() != stage.owner.catalog.Domain || ref.Epoch != stage.Base.Epoch() {
 				return fmt.Errorf("stuntgres: invalid staged definition provider")
 			}
@@ -274,7 +274,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			return err
 		}
 	}
-	for _, descriptor := range stage.Descriptors {
+	for _, descriptor := range stage.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
@@ -344,7 +344,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	e := s.op.session.Engine()
 	for _, ref := range refs {
 		mode := lock.AccessShare
-		for _, descriptor := range stage.Descriptors {
+		for _, descriptor := range stage.Descriptors() {
 			if d, ok := descriptor.(*catalog.Relation); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, ref.Address) {
 				mode = lock.ShareUpdateExclusive
 				break

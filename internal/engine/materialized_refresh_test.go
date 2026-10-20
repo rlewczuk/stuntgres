@@ -166,8 +166,8 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 					op.session.authorization.revision++
 				}
 			case "foreign_descriptor":
-				copy := *stage.Descriptors[d.Address()].(*catalog.Relation)
-				stage.Descriptors[d.Address()] = &copy
+				copy := *stage.Get(d.Address()).(*catalog.Relation)
+				stage.UpdateDescriptor(&copy)
 			}
 			beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage.Relations[d.Address()], e.visibility.CommitSeq()
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})

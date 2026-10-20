@@ -75,7 +75,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			failed := e.BeginCatalogStage(e.catalog.read(exhaustedBase))
 			attempt := *backing
 			attempt.ObjectName = "again"
-			if err := stageBackingIndexRename(failed, &attempt); err == nil || len(failed.Descriptors) != 0 || backing.Name() != "new" {
+			if err := stageBackingIndexRename(failed, &attempt); err == nil || failed.DescriptorCount() != 0 || backing.Name() != "new" {
 				t.Fatal("parent revision exhaustion changed group")
 			}
 			e.DiscardCatalogStage(failed)

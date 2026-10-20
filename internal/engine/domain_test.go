@@ -215,7 +215,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 		err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		e.mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
-		if e.CatalogRead().State() != before || len(stage.Descriptors) != 0 {
+		if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
 			t.Fatal("denied base published")
 		}
 	})

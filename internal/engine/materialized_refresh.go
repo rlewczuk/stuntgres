@@ -338,7 +338,7 @@ func (s *CatalogStage) validateMaterializedReplacement() error {
 	if r.original == nil || r.descriptor == nil {
 		return fmt.Errorf("stuntgres: invalid materialized replacement")
 	}
-	d, ok := s.Descriptors[r.original.Address()].(*catalog.Relation)
+	d, ok := s.Get(r.original.Address()).(*catalog.Relation)
 	if !ok || r.original.RelationKind != catalog.MaterializedViewRelation || s.Base.Get(r.original.Address()) != r.original || r.storage == nil || r.predecessor == nil || r.storage == r.predecessor || r.storage.Ends != nil || r.storage.Generation != r.generation+1 || r.generation == ^uint64(0) {
 		return fmt.Errorf("stuntgres: invalid materialized replacement")
 	}
@@ -369,7 +369,7 @@ func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, s
 	if r == nil {
 		return nil
 	}
-	if s.Descriptors[r.original.Address()] != r.descriptor {
+	if s.Get(r.original.Address()) != r.descriptor {
 		return catalog.Conflict{}
 	}
 	if snapshot.Epoch() != s.Base.Epoch() || snapshot.Get(r.original.Address()) != r.original || stored != r.predecessor || r.predecessor.Generation != r.generation || len(r.predecessor.Versions) != r.length || r.predecessor.Ends != r.ends {

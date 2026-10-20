@@ -185,7 +185,7 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 	if err != nil {
 		t.Fatal("terminal CHECK preparation must preserve saturated revision with fresh identity:", err)
 	}
-	replacement, ok := stage.Descriptors[survivor.Address()].(*catalog.Relation)
+	replacement, ok := stage.Get(survivor.Address()).(*catalog.Relation)
 	if !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.Constraints.Check) != 0 || len(maximum.Constraints.Check) != 1 {
 		t.Fatal("terminal saturation changed original or omitted replacement")
 	}
@@ -279,11 +279,11 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 					_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.Address()}, parser.DropCascade)
 				}
 				if !terminal {
-					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || len(stage.Descriptors) != 0 || e.catalog.state.Get(consumer.Address()) != &maximum {
+					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || stage.DescriptorCount() != 0 || e.catalog.state.Get(consumer.Address()) != &maximum {
 						t.Fatal("ordinary maximum cascade accepted or mutated", err)
 					}
 				} else {
-					replacement, ok := stage.Descriptors[consumer.Address()].(*catalog.Relation)
+					replacement, ok := stage.Get(consumer.Address()).(*catalog.Relation)
 					if err != nil || !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() {
 						t.Fatal("terminal maximum cascade omitted fresh metadata", err)
 					}
@@ -301,7 +301,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			} else {
 				_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.Address()}, parser.DropCascade)
 			}
-			replacement, ok := stage.Descriptors[consumer.Address()].(*catalog.Relation)
+			replacement, ok := stage.Get(consumer.Address()).(*catalog.Relation)
 			if err != nil || !ok || replacement.Revision() != consumer.Revision()+1 {
 				t.Fatal("below-maximum cascade did not increment", err)
 			}

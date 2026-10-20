@@ -91,7 +91,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	row := shape.replacement.Versions[0]
 	oldID, _ := value.EnumMemberID()
 	newID, _ := row.Values[0].EnumMemberID()
-	if oldID != newID || row.Row != 7 || row.Version != 11 || row.Born != 3 || row.KeyChangedAt != 2 || !reflect.DeepEqual(oldRelation.Attributes, stage.Descriptors[ref.Address].(*catalog.Relation).Attributes) {
+	if oldID != newID || row.Row != 7 || row.Version != 11 || row.Born != 3 || row.KeyChangedAt != 2 || !reflect.DeepEqual(oldRelation.Attributes, stage.Get(ref.Address).(*catalog.Relation).Attributes) {
 		t.Fatal("row/column/member identity rewritten")
 	}
 	if stage.rowShapes[other.Address].replacement != nil || e.storage.Relations[other.Address] != otherStore {

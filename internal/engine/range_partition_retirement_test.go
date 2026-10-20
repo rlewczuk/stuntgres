@@ -100,7 +100,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 		for a, d := range base.Descriptors() {
 			if d.Name() == name {
 				found = true
-				if _, removed := stage.Removals[a]; !removed {
+				if _, removed := stage.Removal(a); !removed {
 					t.Fatalf("closure retained %s", name)
 				}
 			}
@@ -112,7 +112,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	if e.CatalogRead().State() != base.State() {
 		t.Fatal("preparation partially published catalog")
 	}
-	for a := range stage.Removals {
+	for a := range stage.Removals() {
 		if e.CatalogRead().Get(a) != base.Get(a) {
 			t.Fatal("staging changed live closure descriptor", a)
 		}
@@ -241,7 +241,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	for a := range stage.Removals {
+	for a := range stage.Removals() {
 		if e.catalog.state.Get(a) != nil || e.storage.Relations[a] != nil || e.storage.IndexRoots[a] != nil || e.storage.Sequences[a] != nil {
 			t.Fatal("physical retirement retained closure state", a)
 		}

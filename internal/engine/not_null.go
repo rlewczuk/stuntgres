@@ -453,7 +453,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err != nil {
 		return Result{}, err
 	}
-	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || len(stage.Descriptors) == 0 && len(stage.Removals) == 0 && len(stage.generators) == 0) {
+	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.generators) == 0) {
 		if err := validateAlterTablespaceMove(destination); err != nil {
 			return Result{}, err
 		}
@@ -474,7 +474,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	if stage != nil {
-		for address, descriptor := range stage.Descriptors {
+		for address, descriptor := range stage.Descriptors() {
 			sequence, ok := descriptor.(*catalog.Relation)
 			if !ok || sequence.RelationKind != catalog.SequenceRelation {
 				continue
@@ -490,7 +490,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			e.catalogChangeLocked(changes, address, descriptor)
 			changes.generators[address] = stage.generators[address]
 		}
-		for address, removal := range stage.Removals {
+		for address, removal := range stage.Removals() {
 			sequence, ok := removal.Descriptor.(*catalog.Relation)
 			if !ok || sequence.RelationKind != catalog.SequenceRelation {
 				continue
@@ -794,7 +794,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		target.SubID = attribute
 		dependencyTargets = append(dependencyTargets, target)
 	}
-	for a := range stage.Removals {
+	for a := range stage.Removals() {
 		if _, identity := stage.identityOriginals[a]; identity {
 			continue
 		}
@@ -812,7 +812,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// Validation closes the type graph before transferring it to private catalog
 	// changes. Include dependent holder stores as well as the directly altered row.
 	for address, rebound := range stage.rowShapes {
-		consumer := stage.Descriptors[address].(*catalog.Relation)
+		consumer := stage.Get(address).(*catalog.Relation)
 		changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.Versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: consumer}
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
@@ -822,14 +822,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	if hasAttachments || len(addedIndexes) != 0 {
-		for name := range stage.Touched {
+		for name := range stage.Touched() {
 			if e.catalog.state.NameAddress(name) != grantCatalog.NameAddress(name) {
 				e.mu.Unlock()
 				return Result{}, catalog.Conflict{}
 			}
 		}
 	}
-	for a, d := range stage.Descriptors {
+	for a, d := range stage.Descriptors() {
 		original := grantCatalog.Get(a)
 		if captured, identity := stage.identityOriginals[a]; identity {
 			original = captured
@@ -840,7 +840,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		e.catalogChangeLocked(changes, a, d)
 	}
-	for a := range stage.Removals {
+	for a := range stage.Removals() {
 		original := grantCatalog.Get(a)
 		if captured, identity := stage.identityOriginals[a]; identity {
 			original = captured
@@ -853,7 +853,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		delete(changes.generators, a)
 	}
 	for a, generator := range stage.generators {
-		if _, removed := stage.Removals[a]; !removed {
+		if _, removed := stage.Removal(a); !removed {
 			changes.generators[a] = generator
 		}
 	}

@@ -377,9 +377,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 			if err = access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), descriptor); err != nil {
 				break
 			}
-			if revision := descriptor.Revision(); revision >= nextRevision {
-				nextRevision = revision + 1
-			}
+			nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, descriptor)
 		}
 		if err == nil {
 			var prepared remintedIndexStorage

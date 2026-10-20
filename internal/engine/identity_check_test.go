@@ -231,7 +231,7 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	options.Owned.SubID = 99
 	bad.Sequence = &options
 	stage := e.BeginCatalogStage(read)
-	stage.Descriptors[sequence] = &bad
+	stage.UpdateDescriptor(&bad)
 	if _, err := dumpPredecessor(e.stageRead(stage), sequence, consumer); err == nil {
 		t.Fatal("invalid reciprocal identity silently lost predecessor")
 	}
@@ -261,9 +261,15 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	candidate := *original
 	candidate.ObjectName = "candidate_only"
 	candidate.SequencePlanStamp++
-	stage.Descriptors[address] = &candidate
-	stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.Namespace(), Name: candidate.Name()}] = address
-	stage.Names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.Namespace()
+	if err := stage.Replace(&candidate); err != nil {
+		t.Fatal(err)
+	}
+	namespace := *read.MustNamespace(candidate.Namespace())
+	namespace.ObjectName = "candidate_schema"
+	namespace.ObjectRevision++
+	if err := stage.Replace(&namespace); err != nil {
+		t.Fatal(err)
+	}
 	ast := statement(t, `SELECT pg_catalog.nextval('candidate_only')`).(*parser.Select)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -273,6 +279,16 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Search paths resolve lexical schema names against the candidate too.
+	// The real public namespace now has only its private candidate_schema name.
+	path, err := e.settings.Definitions()["search_path"].parse("candidate_schema")
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.settings.mu.Lock()
+	auth.settings.typed["search_path"] = path
+	auth.settings.values["search_path"] = "candidate_schema"
+	auth.settings.mu.Unlock()
 	auth.Catalog = e.stageRead(stage)
 	auth.Recapture(auth.Catalog)
 	binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)

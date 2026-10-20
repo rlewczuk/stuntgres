@@ -40,7 +40,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	local := e.catalog.Domain.Ref(stage.Base.Epoch(), destination.Address())
 	local.Address.SubID = 4
 	var copied []*catalog.Relation
-	for _, descriptor := range stage.Descriptors {
+	for _, descriptor := range stage.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
@@ -189,7 +189,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 	}
 	defer e.DiscardCatalogStage(stage)
 	var copied *catalog.Relation
-	for _, descriptor := range stage.Descriptors {
+	for _, descriptor := range stage.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 			copied = index
 		}
@@ -229,7 +229,7 @@ func TestTableLikePartialConstants(t *testing.T) {
 			}
 			defer e.DiscardCatalogStage(stage)
 			var copied *catalog.Relation
-			for _, descriptor := range stage.Descriptors {
+			for _, descriptor := range stage.Descriptors() {
 				if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 					copied = index
 				}

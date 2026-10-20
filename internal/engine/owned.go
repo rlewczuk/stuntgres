@@ -257,7 +257,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			err = e.reownCatalogExpressions(candidate, nil, false)
 			if err == nil {
 				for a, d := range candidate.Descriptors() {
-					if old := stage.Descriptors[a]; old != nil {
+					if old := stage.Get(a); old != nil {
 						if old == d {
 							continue
 						}

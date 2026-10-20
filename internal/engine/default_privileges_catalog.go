@@ -9,12 +9,7 @@ import (
 func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ids.ObjectAddress{{}, schema} {
 		key := catalog.DefaultACLKey{Creator: owner, Schema: namespace, Class: class}
-		if s.DefaultReads == nil {
-			s.DefaultReads = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-		}
-		if _, exists := s.DefaultReads[key]; !exists {
-			s.DefaultReads[key] = s.Base.State().DefaultACL(key)
-		}
+		s.ObserveDefault(key)
 		if schema == (ids.ObjectAddress{}) {
 			break
 		}
@@ -51,7 +46,7 @@ func cloneDefaultChanges(source *catalogChanges, next *catalogChanges) {
 	}
 }
 func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *catalogChanges) {
-	for key, record := range s.DefaultReads {
+	for key, record := range s.DefaultReads() {
 		if _, private := c.defaultACLs[key]; private {
 			continue
 		}
@@ -62,38 +57,32 @@ func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *catalogChanges) {
 			c.defaultReads[key] = record
 		}
 	}
-	for key, record := range s.DefaultACLs {
+	for key, record := range s.DefaultACLs() {
 		e.defaultACLChangeLocked(c, key, record)
 	}
 }
 
 func (s *CatalogStage) defaultPreflight(current *catalog.State) error {
-	if !catalog.DefaultRecordsUnchanged(current, s.DefaultReads) {
+	if !s.DefaultRecordsUnchanged(current) {
 		return catalog.Conflict{}
 	}
 	for key := range current.DefaultACLs() {
-		if _, removed := s.Removals[key.Schema]; !removed {
+		if _, removed := s.Removal(key.Schema); !removed {
 			continue
 		}
-		if _, observed := s.DefaultReads[key]; !observed {
+		if _, observed := s.DefaultObservation(key); !observed {
 			return catalog.Conflict{}
 		}
 	}
 	return nil
 }
 func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
-	for key, record := range s.Base.State().DefaultACLs() {
+	for key := range s.Base.State().DefaultACLs() {
 		if key.Schema != schema {
 			continue
 		}
-		if s.DefaultACLs == nil {
-			s.DefaultACLs = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-		}
-		if s.DefaultReads == nil {
-			s.DefaultReads = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-		}
-		s.DefaultReads[key] = record
-		s.DefaultACLs[key] = nil
+		s.ObserveDefault(key)
+		s.SetDefaultACL(key, nil)
 	}
 }
 func (e *Engine) creationACLChangesLocked(c *catalogChanges, view catalog.Read, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {

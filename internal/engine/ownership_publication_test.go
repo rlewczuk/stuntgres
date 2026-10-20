@@ -27,7 +27,7 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *catalog.Names
 	if err := stageOwnedCleanup(context.Background(), stage, e.roles.read(e.catalog.owner(), stage.Base, e.roles.published), e.roles.published, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
-	if stage.roleCandidate == nil || stage.Descriptors[ns.Address()] == nil {
+	if stage.roleCandidate == nil || stage.Get(ns.Address()) == nil {
 		t.Fatal("fixture lacks both private candidates")
 	}
 	return e, stage, ns

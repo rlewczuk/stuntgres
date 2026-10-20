@@ -32,13 +32,13 @@ func visitSubclassParents(child *catalog.Relation, visit func(ids.ObjectAddress)
 }
 
 func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
-	for _, descriptor := range stage.Descriptors {
+	for _, descriptor := range stage.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
 		if err := visitSubclassParents(child, func(address ids.ObjectAddress) error {
-			descriptor, staged := stage.Descriptors[address]
+			descriptor, staged := stage.Find(address)
 			if !staged {
 				descriptor = stage.Base.Get(address)
 			}
@@ -52,7 +52,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 			next := *parent
 			next.History.HasSubclasses = true
 			if staged {
-				stage.Descriptors[address] = &next
+				stage.UpdateDescriptor(&next)
 				return nil
 			}
 			revision, err := e.catalog.revisionLocked()

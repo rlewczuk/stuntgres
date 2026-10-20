@@ -150,7 +150,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 
 func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error {
 	namespace := stage.Base.Get(table.Namespace())
-	if staged, ok := stage.Descriptors[table.Namespace()]; ok {
+	if staged, ok := stage.Find(table.Namespace()); ok {
 		namespace = staged
 	}
 	if namespace.(*catalog.Namespace).Temporary != (ids.SessionToken{}) {

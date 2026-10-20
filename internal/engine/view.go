@@ -473,7 +473,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	} else {
 		err = stage.Replace(d)
 	}
-	if err == nil && old == nil && len(stage.OldNames) != 0 {
+	if err == nil && old == nil && stage.OldNameCount() != 0 {
 		err = e.reownStagedTypeGenerationsLocked(stage)
 	}
 	e.mu.Unlock()

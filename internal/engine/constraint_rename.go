@@ -126,17 +126,17 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	// Check all originals before transferring any member. Earlier overlay originals
 	// remain intact across repeated renames and savepoint rollback.
-	for a := range stage.Descriptors {
+	for a := range stage.Descriptors() {
 		if e.catalog.state.Get(a) != grantCatalog.Get(a) {
 			return Result{}, catalog.Conflict{}
 		}
 	}
-	for k := range stage.Touched {
+	for k := range stage.Touched() {
 		if e.catalog.state.NameAddress(k) != grantCatalog.NameAddress(k) {
 			return Result{}, catalog.Conflict{}
 		}
 	}
-	for a, d := range stage.Descriptors {
+	for a, d := range stage.Descriptors() {
 		e.catalogChangeLocked(changes, a, d)
 	}
 	scope.catalog = changes

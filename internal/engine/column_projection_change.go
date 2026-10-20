@@ -152,7 +152,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 		err = e.evolveStageIndexesLocked(stage, old.Address(), nil)
 	}
 	if err == nil {
-		for address, descriptor := range stage.Descriptors {
+		for address, descriptor := range stage.Descriptors() {
 			index, ok := descriptor.(*catalog.Relation)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == old.Address() {
 				e.catalogChangeLocked(changes, address, index)
@@ -182,7 +182,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, changes *catalogChanges) error {
 	for address, rowShape := range stage.rowShapes {
 		old, oldOK := stage.Base.Relation(address)
-		next, nextOK := stage.Descriptors[address].(*catalog.Relation)
+		next, nextOK := stage.Get(address).(*catalog.Relation)
 		if !oldOK || !nextOK || slices.Equal(old.Attributes, next.Attributes) {
 			continue
 		}

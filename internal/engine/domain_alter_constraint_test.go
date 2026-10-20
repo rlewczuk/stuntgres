@@ -240,7 +240,7 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 	recipeStage := domainUnitStage(t, e, op, "CREATE DOMAIN public.recipe AS integer CONSTRAINT late CHECK(VALUE::public.provider>0)")
 	defer e.DiscardCatalogStage(recipeStage)
 	var check catalog.DomainCheckConstraint
-	for _, descriptor := range recipeStage.Descriptors {
+	for _, descriptor := range recipeStage.Descriptors() {
 		if domain, ok := descriptor.(*catalog.Type); ok && domain.SQLType.IsDomain() {
 			check = domain.DomainChecks[0]
 		}

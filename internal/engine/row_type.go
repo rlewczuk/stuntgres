@@ -42,7 +42,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	if address == (ids.ObjectAddress{}) {
 		return true, nil
 	}
-	descriptor := stage.Descriptors[address]
+	descriptor := stage.Get(address)
 	if descriptor == nil {
 		descriptor = stage.Base.Get(address)
 	}
@@ -51,7 +51,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 		return false, nil
 	}
 	elementAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.SQLType.Element().ID())}
-	elementDescriptor := stage.Descriptors[elementAddress]
+	elementDescriptor := stage.Get(elementAddress)
 	if elementDescriptor == nil {
 		elementDescriptor = stage.Base.Get(elementAddress)
 	}
@@ -77,12 +77,9 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 		next.SQLType = sqltype.LookupArray(array.SQLType.ID(), arrayName, array.SQLType.Element())
 	}
 	if stage.Base.Get(address) == nil {
-		delete(stage.Names, key)
-		stage.Descriptors[address] = &next
 		nextKey := catalog.DescriptorNameKey(&next)
 		nextKey.Namespace = namespace
-		stage.Names[nextKey] = address
-		stage.Touched[nextKey] = stage.Base.NameAddress(nextKey)
+		stage.RenameStagedDescriptor(key, &next, nextKey)
 		return true, e.reownStagedTypeGenerationsLocked(stage)
 	}
 	if err := stage.Replace(&next); err != nil {
@@ -113,7 +110,7 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *catalog.Relat
 	if err != nil {
 		return err
 	}
-	ns := stage.Descriptors[relation.Namespace()]
+	ns := stage.Get(relation.Namespace())
 	if ns == nil {
 		ns = stage.Base.Get(relation.Namespace())
 	}

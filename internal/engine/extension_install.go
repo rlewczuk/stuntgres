@@ -66,7 +66,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 	}
 	e.mu.Lock()
 	changes := cloneCatalogChanges(scope.owner.catalog)
-	for a, d := range stage.Descriptors {
+	for a, d := range stage.Descriptors() {
 		// Validation ran without the mutex. Capture the stage's exact
 		// predecessor, never whatever a peer published during validation.
 		if _, captured := changes.originals[a]; !captured {
@@ -83,7 +83,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 		}
 		e.catalogChangeLocked(changes, a, d)
 	}
-	for key, original := range stage.Touched {
+	for key, original := range stage.Touched() {
 		changes.names[key] = original
 	}
 	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.Base.Get(stage.extensionNamespace), database: stage.databasePredecessor})

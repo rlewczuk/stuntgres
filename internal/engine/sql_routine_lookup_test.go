@@ -70,26 +70,24 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	}
 	metadata := *first
 	metadata.ObjectRevision++
-	stage.Descriptors[first.Address()] = &metadata
+	stage.UpdateDescriptor(&metadata)
 	check(namespace, "routine_unit_index", &metadata, second)
 	moved := metadata
 	moved.ObjectName = "routine_unit_moved"
 	moved.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	stage.Descriptors[first.Address()] = &moved
+	stage.UpdateDescriptor(&moved)
 	check(namespace, "routine_unit_index", second)
 	check(moved.Namespace(), moved.Name(), &moved)
 	if !reader.hasSQLProcedureName(moved.Name()) {
 		t.Fatal("staged rename lost SQL name")
 	}
-	stage.Descriptors[added.Address()] = added
+	stage.UpdateDescriptor(added)
 	check(namespace, "routine_unit_added", added)
 	if !reader.hasSQLProcedureName(added.Name()) {
 		t.Fatal("staged addition lost SQL name")
 	}
-	stage.Removals = map[ids.ObjectAddress]catalog.Removal{
-		first.Address():  {Ref: e.catalog.Domain.Ref(base.Epoch(), first.Address()), Descriptor: first},
-		second.Address(): {Ref: e.catalog.Domain.Ref(base.Epoch(), second.Address()), Descriptor: second},
-	}
+	stage.RecordRemoval(e.catalog.Domain.Ref(base.Epoch(), first.Address()), first)
+	stage.RecordRemoval(e.catalog.Domain.Ref(base.Epoch(), second.Address()), second)
 	check(namespace, "routine_unit_index")
 	check(moved.Namespace(), moved.Name())
 	if reader.hasSQLProcedureName("routine_unit_index") || reader.hasSQLProcedureName(moved.Name()) {

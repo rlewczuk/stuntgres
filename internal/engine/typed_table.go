@@ -251,7 +251,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 			sources[source] = true
 		}
 	} else {
-		for _, descriptor := range stage.Descriptors {
+		for _, descriptor := range stage.Descriptors() {
 			if table, ok := descriptor.(*catalog.Relation); ok && table.OfType != (ids.ObjectAddress{}) {
 				if sources == nil {
 					sources = make(map[ids.ObjectAddress]bool)

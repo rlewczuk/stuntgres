@@ -77,11 +77,11 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						t.Fatal("wrong projection count", projected)
 					}
 					for _, old := range owners {
-						next, ok := stage.Descriptors[old.Address()].(*catalog.Relation)
+						next, ok := stage.Get(old.Address()).(*catalog.Relation)
 						if !ok || len(next.Security.Policies) != 1 || next.Security.Policies[0].Name != "retained" {
 							t.Fatal("wrong surviving policy owner", old.Name(), next)
 						}
-						if _, removed := stage.Removals[old.Address()]; removed {
+						if _, removed := stage.Removal(old.Address()); removed {
 							t.Fatal("lock target became a physical deletion", old.Name())
 						}
 						if len(old.Security.Policies) != 3 || e.CatalogRead().State() != base.State() {

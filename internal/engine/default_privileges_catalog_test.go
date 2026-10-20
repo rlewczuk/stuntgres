@@ -27,8 +27,8 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 		t.Fatal("clone overlay mutated source")
 	}
 	stage := f.e.BeginCatalogStage(base)
-	stage.DefaultACLs = map[catalog.DefaultACLKey]*catalog.DefaultACLRecord{key: nil}
-	stage.DefaultReads = map[catalog.DefaultACLKey]*catalog.DefaultACLRecord{key: record}
+	stage.ObserveDefault(key)
+	stage.SetDefaultACL(key, nil)
 	staged := f.e.stageRead(stage)
 	if staged.State().DefaultACL(key) != nil || base.State().DefaultACL(key) != record {
 		t.Fatal("default-only stage lost tombstone")
@@ -209,7 +209,9 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	if err := drop.removeObject(ref, true); err != nil {
 		t.Fatal(err)
 	}
-	if drop.DefaultACLs[scoped] != nil || drop.DefaultReads[scoped] != record {
+	delta, changed := drop.DefaultACLChange(scoped)
+	observed, readInput := drop.DefaultObservation(scoped)
+	if !changed || delta != nil || !readInput || observed != record {
 		t.Fatal("schema cleanup not staged")
 	}
 	if err := defaultUnitPublish(t, f.e, drop); err != nil {

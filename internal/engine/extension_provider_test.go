@@ -201,12 +201,13 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			source := extensionUnitStage(t, e, op)
-			ext := source.Descriptors[source.Names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*catalog.Extension)
+			extensionAddress, _ := source.NameBinding(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
+			ext := source.Get(extensionAddress).(*catalog.Extension)
 			loose := e.BeginCatalogStage(e.CatalogRead())
 			var conflict catalog.Descriptor
 			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
 				index := map[string]int{"procedure": 1, "dictionary_procedure": 0, "init": 2, "lexize": 3}[kind]
-				n := *source.Descriptors[ext.Members[index]].(*catalog.Procedure)
+				n := *source.Get(ext.Members[index]).(*catalog.Procedure)
 				n.Extension = ids.ObjectAddress{}
 				n.Dictionary = ids.ObjectAddress{}
 				conflict = &n
@@ -216,14 +217,14 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			} else {
 				catalogNS := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 				for _, i := range []int{2, 3} {
-					n := *source.Descriptors[ext.Members[i]].(*catalog.Procedure)
+					n := *source.Get(ext.Members[i]).(*catalog.Procedure)
 					n.Extension = ids.ObjectAddress{}
 					n.ObjectNamespace = catalogNS
 					if err := loose.Create(&n); err != nil {
 						t.Fatal(err)
 					}
 				}
-				tmpl := *source.Descriptors[ext.Members[4]].(*catalog.TSTemplate)
+				tmpl := *source.Get(ext.Members[4]).(*catalog.TSTemplate)
 				tmpl.Extension = ids.ObjectAddress{}
 				if kind == "dictionary" {
 					tmpl.ObjectNamespace = catalogNS
@@ -233,7 +234,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 				conflict = &tmpl
 				if kind == "dictionary" {
-					dict := *source.Descriptors[ext.Members[5]].(*catalog.TSDictionary)
+					dict := *source.Get(ext.Members[5]).(*catalog.TSDictionary)
 					dict.Extension = ids.ObjectAddress{}
 					conflict = &dict
 					if err := loose.Create(&dict); err != nil {

@@ -131,7 +131,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		// source event also survives rollback, without changing observation
 		// validity/value, the last-demanded sequence, or a peer's analysis.
 		m.remaining = 0
-		m.analysisStamp = stage.Descriptors[a].(*catalog.Relation).SequencePlanStamp
+		m.analysisStamp = stage.Get(a).(*catalog.Relation).SequencePlanStamp
 	}
 	s.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	return observed, nil

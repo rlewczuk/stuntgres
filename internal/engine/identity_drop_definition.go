@@ -136,7 +136,7 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 func applyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) {
 	// A TYPE before-command may have staged AS. The real tombstone wins over
 	// that private descriptor/scalar without modifying any live generator.
-	delete(stage.Descriptors, address)
+	stage.ForgetDescriptor(address)
 	delete(stage.generators, address)
 }
 

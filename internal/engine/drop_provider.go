@@ -84,7 +84,7 @@ func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *Statemen
 
 func (p *dropProvider) replacement(address ids.ObjectAddress) catalog.Descriptor {
 	if p.stage != nil {
-		return p.stage.Descriptors[address]
+		return p.stage.Get(address)
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
 		if slot := prepared.slots[address]; slot.descriptor != 0 {
@@ -117,7 +117,7 @@ func (p *dropProvider) descriptor(address ids.ObjectAddress) catalog.Descriptor 
 
 func (p *dropProvider) removed(address ids.ObjectAddress) bool {
 	if p.stage != nil {
-		_, removed := p.stage.Removals[address]
+		_, removed := p.stage.Removal(address)
 		return removed
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
@@ -145,7 +145,7 @@ func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descri
 			}
 		}
 		if p.stage != nil {
-			for address, descriptor := range p.stage.Descriptors {
+			for address, descriptor := range p.stage.Descriptors() {
 				if p.base.Get(address) == nil && !yield(address, descriptor) {
 					return
 				}
@@ -209,7 +209,7 @@ func (p *dropProvider) observe(address ids.ObjectAddress) {
 func (p *dropProvider) descriptorCount() int {
 	count := p.base.DescriptorCount()
 	if p.stage != nil {
-		for address := range p.stage.Descriptors {
+		for address := range p.stage.Descriptors() {
 			if p.base.Get(address) == nil {
 				count++
 			}
@@ -228,7 +228,7 @@ func (p *dropProvider) descriptorCount() int {
 func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		if p.stage != nil {
-			for address, removal := range p.stage.Removals {
+			for address, removal := range p.stage.Removals() {
 				if !yield(address, removal.Descriptor) {
 					return
 				}
@@ -371,15 +371,6 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	if namespace {
 		stage.removeSchemaDefaults(ref.Address)
 	}
-	// Retire private rebound candidates without resurrecting their name slots.
-	if candidate := stage.Descriptors[ref.Address]; candidate != nil {
-		stagedKey := catalog.DescriptorNameKey(candidate)
-		if stage.Names[stagedKey] == ref.Address {
-			delete(stage.Names, stagedKey)
-		}
-	}
-	delete(stage.Descriptors, ref.Address)
-	stage.Touched[key] = ref.Address
 	return nil
 }
 

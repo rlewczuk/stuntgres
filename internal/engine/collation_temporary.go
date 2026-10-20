@@ -135,10 +135,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base catalo
 		stage.domainBases = append(stage.domainBases, ns)
 		for key := range base.State().DefaultACLs() {
 			if key.Schema == ns.Address() {
-				if stage.DefaultACLs == nil {
-					stage.DefaultACLs = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-				}
-				stage.DefaultACLs[key] = nil
+				stage.SetDefaultACL(key, nil)
 			}
 		}
 	}
@@ -161,7 +158,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base catalo
 		return false, err
 	}
 	var relations []ids.ObjectAddress
-	for a := range stage.Removals {
+	for a := range stage.Removals() {
 		if a.ClassID == ids.RelationClassID {
 			relations = append(relations, a)
 		}

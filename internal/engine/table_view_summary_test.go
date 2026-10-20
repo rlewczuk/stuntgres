@@ -129,7 +129,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	staged := stage.Descriptors[address].(*catalog.Relation)
+	staged := stage.Get(address).(*catalog.Relation)
 	if staged.Name() != "summary_renamed" || !staged.History.HasIndexes || staged == &next || next.History.HasIndexes || parent.History.HasIndexes {
 		t.Fatal("staged parent changes lost or mutated")
 	}

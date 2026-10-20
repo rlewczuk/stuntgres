@@ -411,12 +411,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if c != nil && materialize {
 			for _, d := range c.descriptors {
 				if d != nil {
-					if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
-						nextRevision = revision
-						if nextRevision != ids.DefinitionRevision(^uint64(0)) {
-							nextRevision++
-						}
-					}
+					nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, d)
 				}
 			}
 		}

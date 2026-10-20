@@ -256,8 +256,8 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 				return Result{}, err
 			}
 		}
-		roots := make([]ids.ObjectAddress, 0, len(stage.Removals))
-		for address := range stage.Removals {
+		roots := make([]ids.ObjectAddress, 0, stage.RemovalCount())
+		for address := range stage.Removals() {
 			roots = append(roots, address)
 		}
 		slices.SortFunc(roots, func(a, b ids.ObjectAddress) int {

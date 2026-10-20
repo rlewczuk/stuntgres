@@ -118,6 +118,42 @@ public selected proof/smoke instructions are in the functions README. Existing
 manager ownership, savepoint/prepared transfer, replacement and SSI tests remain
 at their canonical seams; moving SQL nodes does not move their authority.
 
+### Catalog write ownership
+
+`catalogStore.advanceRevisionFrontier` is a pure, saturating calculation over a
+descriptor revision and (for relations) its sequence plan stamp. It never reserves
+the global allocator or touches live generator state. Publication accumulates a
+local frontier and commits it only at the existing successful catalog/storage/
+visibility installation under `Engine.mu`; ALTER SET SCHEMA uses descriptor-local
+advancement and retains its distinct exhaustion diagnostic.
+
+`CatalogStage` embeds `catalog.Candidate`, whose seven overlay maps are private.
+Focused lookup/presence/count and iterator methods read overlay entries without
+copies or base enumeration. Method-owned private completion, staged rename,
+retirement and default-policy observation/delta writes preserve the same overlay
+authority. Original Base observations are distinct from private output, including
+nil tombstones. DDL authorization, lifecycle, rowtype synchronization, storage
+coordination and engine-dependent validators remain here.
+
+Selected internal contract selectors (historical proof commands; the latest
+user instruction requires quickcheck only, with no further race execution):
+
+```sh
+make check RUN='^Test(CatalogStoreRevisionFrontier|AlterDropColumnRevisionFrontier(Failures|Terminal)?|AlterSchema(WholeCandidate|OverflowAndSkip))$'
+make check RUN='^TestCandidate(PrivateUpdates|RenameRemovalReuse|DefaultObservations|RetainedState)$'
+make check RUN='^Test(DefaultPrivileges(CloneStage|RetainedMessage|SchemaLifecycle|CreationFence)|SQLRoutineStagedLookup|CatalogCopiesStayIndependent|UserOperatorIndex(CopyOnWrite|PublicationAndOverlay)|BuiltinProcedureNamesCopyOnEdit)$'
+make check RACE=1 RUN='^Test(Catalog(ConcurrentReplacement|CanceledPreparedPublication|SelfReplacementCanceledDuringPreparation|RelationsCapture)|DefaultPrivilegesCreationFence|ControlTransactionsReplacementCancellationBoundary)$'
+```
+
+Existing public reference definitions are unchanged. Root observed build,
+focused native and pinned PostgreSQL 18.6 proof, selected publication races,
+module-only dependencies and actual four-phase direct/prepared smoke passing.
+Fresh post-rebase quickcheck and smoke passed against master
+`9c6c4562326304fbe4cacff06b2b98b75fe03911`. Earlier full-race failures remain
+failed evidence; further racecheck and race-containing finalcheck are explicitly
+user-waived, not passing. Post-integration quickcheck replaces finalcheck.
+The preexisting <1ms startup target miss remains; warm allocations stayed 5152.
+No startup optimization or timing-equivalence claim is made.
 
 ### Closed function-source protocol
 

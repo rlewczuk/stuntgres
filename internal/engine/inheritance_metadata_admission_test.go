@@ -137,8 +137,8 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation,
 		err = e.schemaTableLocked(op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		address := stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}]
-		child, _ = stage.Descriptors[address].(*catalog.Relation)
+		address, _ := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
+		child, _ = stage.Get(address).(*catalog.Relation)
 		if child == nil {
 			err = errors.New("authentic CREATE provider did not stage the descendant")
 		}

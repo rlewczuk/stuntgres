@@ -56,7 +56,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	// Both halves of an uncommitted publication remain invisible.
 	before := e.CatalogRead()
 	stage := domainUnitStage(t, e, op, "CREATE DOMAIN public.pending AS TEXT")
-	if len(stage.Descriptors) != 2 || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: domain.Namespace(), Name: "pending"})) != 0 || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: domain.Namespace(), Name: "_pending"})) != 0 {
+	if stage.DescriptorCount() != 2 || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: domain.Namespace(), Name: "pending"})) != 0 || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: domain.Namespace(), Name: "_pending"})) != 0 {
 		t.Fatal("partial domain publication")
 	}
 	e.DiscardCatalogStage(stage)

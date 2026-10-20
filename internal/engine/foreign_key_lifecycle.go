@@ -372,7 +372,7 @@ func (s *StatementScope) validateAlterForeignKeys(view catalog.Read, address ids
 // providers need no live grant; external parents retain the canonical DDL mode.
 func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStage) error {
 	var refs []ids.ObjectRef
-	for address, descriptor := range stage.Descriptors {
+	for address, descriptor := range stage.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
@@ -419,7 +419,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
 	auth.Recapture(auth.Catalog)
 	e.mu.Unlock()
-	for address, descriptor := range stage.Descriptors {
+	for address, descriptor := range stage.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue

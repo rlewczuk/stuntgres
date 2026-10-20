@@ -170,7 +170,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	if err := stageOwnership(stage, ns, target); err == nil {
 		t.Fatal("metadata overflow accepted")
 	}
-	if len(stage.Descriptors) != 0 || e.catalog.state.Get(ns.Address()) != ns {
+	if stage.DescriptorCount() != 0 || e.catalog.state.Get(ns.Address()) != ns {
 		t.Fatal("overflow changed private/live descriptor")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

@@ -461,11 +461,11 @@ func stageOperatorDescriptor(stage *CatalogStage, d *catalog.Operator) error {
 	if _, exists := stage.Base.Find(d.Address()); exists {
 		return stage.Replace(d)
 	}
-	if old := stage.Descriptors[d.Address()]; old != nil {
+	if old := stage.Get(d.Address()); old != nil {
 		if catalog.DescriptorNameKey(old) != catalog.DescriptorNameKey(d) {
 			return catalog.Conflict{}
 		}
-		stage.Descriptors[d.Address()] = d
+		stage.UpdateDescriptor(d)
 		return nil
 	}
 	return stage.Create(d)

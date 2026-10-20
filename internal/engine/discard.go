@@ -247,7 +247,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		return err
 	}
 	var relations []ids.ObjectAddress
-	for address := range stage.Removals {
+	for address := range stage.Removals() {
 		if address.ClassID == ids.RelationClassID {
 			relations = append(relations, address)
 		}
@@ -263,7 +263,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 			if i != 0 && address == relations[i-1] {
 				continue
 			}
-			if _, removed := stage.Removals[address]; !removed {
+			if _, removed := stage.Removal(address); !removed {
 				continue
 			}
 			if err := s.discardTemporaryCursorPreflight(stage, address); err != nil {

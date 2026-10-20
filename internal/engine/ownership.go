@@ -48,7 +48,7 @@ func ownershipRoot(view catalog.Read, d catalog.Descriptor) bool {
 // roots. Only descriptor/ACL payloads change. All reciprocal members are staged
 // before the ordinary publication validator sees any of them.
 func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorization.PrincipalRef) error {
-	if next := stage.Descriptors[d.Address()]; next != nil {
+	if next := stage.Get(d.Address()); next != nil {
 		d = next
 	}
 	owner, _, _ := access.DescriptorACL(d)
@@ -175,7 +175,7 @@ func (e *Engine) ownershipStage(auth AuthorizationView, op *Operation) *CatalogS
 }
 func (e *Engine) publishOwnership(scope *StatementScope, stage *CatalogStage) (Result, error) {
 	defer e.DiscardCatalogStage(stage)
-	if len(stage.Descriptors) == 0 && len(stage.Removals) == 0 && len(stage.DefaultACLs) == 0 && stage.roleCandidate == nil {
+	if stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && stage.DefaultACLCount() == 0 && stage.roleCandidate == nil {
 		if err := e.validateOperation(scope.op); err != nil {
 			return Result{}, err
 		}

@@ -125,7 +125,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			if changes.enumCreated == nil {
 				changes.enumCreated = make(map[ids.ObjectAddress]bool)
 			}
-			for a, d := range stage.Descriptors {
+			for a, d := range stage.Descriptors() {
 				if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsEnum() {
 					changes.enumCreated[a] = true
 				}
@@ -222,7 +222,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, err
 		}
 	}
-	for a, d := range stage.Descriptors {
+	for a, d := range stage.Descriptors() {
 		e.catalogChangeLocked(changes, a, d)
 	}
 	scope.catalog = changes

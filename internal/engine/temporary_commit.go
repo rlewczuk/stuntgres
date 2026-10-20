@@ -107,7 +107,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		e.mu.Lock()
 		err := e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 		if err == nil {
-			for a := range stage.Descriptors {
+			for a := range stage.Descriptors() {
 				original, observed := next.originals[a]
 				if !observed {
 					original = base.Get(a)
@@ -117,7 +117,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 					break
 				}
 			}
-			for a := range stage.Removals {
+			for a := range stage.Removals() {
 				original, observed := next.originals[a]
 				if !observed {
 					original = base.Get(a)
@@ -130,7 +130,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		}
 		if err == nil {
 			e.stageCatalogChangesLocked(stage, next)
-			for a := range stage.Removals {
+			for a := range stage.Removals() {
 				delete(nextWrites, a)
 				delete(nextDeletes, a)
 			}

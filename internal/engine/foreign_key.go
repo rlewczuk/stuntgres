@@ -286,7 +286,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		return err
 	}
 	child.Constraints.ForeignKeys = append(child.Constraints.ForeignKeys, f)
-	stage.Descriptors[child.Address()] = child
+	stage.UpdateDescriptor(child)
 	return nil
 }
 

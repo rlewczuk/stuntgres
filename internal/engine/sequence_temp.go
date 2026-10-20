@@ -233,7 +233,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
-		if index, ok := stage.Descriptors[address].(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.matches(e.storage.Relations[index.SQLIndex.Parent]) {
+		if index, ok := stage.Get(address).(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.matches(e.storage.Relations[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
@@ -299,20 +299,15 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 			roots[address] = root
 		}
 	}
-	for a := range stage.Removals {
+	for a := range stage.Removals() {
 		delete(sequences, a)
 		delete(relations, a)
 		delete(roots, a)
 	}
 	catalog.PruneNamespaceDefaults(stage.Base.State(), next, namespaces)
 	nextRevision := e.catalog.nextRevision
-	for _, descriptor := range stage.Descriptors {
-		if revision := descriptorRevisionFrontier(descriptor); revision >= nextRevision {
-			nextRevision = revision
-			if nextRevision != ids.DefinitionRevision(^uint64(0)) {
-				nextRevision++
-			}
-		}
+	for _, descriptor := range stage.Descriptors() {
+		nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, descriptor)
 	}
 	e.catalog.state = next
 	e.storage.ReplaceSequencesLocked(sequences)
@@ -340,7 +335,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		return nil, catalog.Conflict{}
 	}
 	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*storage.IndexRoot)}
-	for address := range stage.Removals {
+	for address := range stage.Removals() {
 		index, ok := stage.Base.Relation(address)
 		if ok && index.SQLIndex != nil {
 			result.previous[address] = e.storage.IndexRoots[address]
@@ -386,7 +381,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	result.roots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(result.previous))
 	for address := range result.previous {
-		if _, removed := stage.Removals[address]; !removed {
+		if _, removed := stage.Removal(address); !removed {
 			index, ok := next.Relation(address)
 			if !ok || index.SQLIndex == nil {
 				return nil, ids.ErrCatalogReplaced

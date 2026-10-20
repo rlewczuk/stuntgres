@@ -99,7 +99,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 		if err := s.Remove(bad); err == nil {
 			t.Fatal("invalid ref accepted", bad)
 		}
-		if len(s.Removals) != 0 {
+		if s.RemovalCount() != 0 {
 			t.Fatal("failed Remove changed stage")
 		}
 	}
@@ -298,7 +298,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), address)); err == nil {
 			t.Fatal("unowned class accepted", address)
 		}
-		if len(stage.Removals) != 0 || e.CatalogRead().State() != base.State() {
+		if stage.RemovalCount() != 0 || e.CatalogRead().State() != base.State() {
 			t.Fatal("rejected removal changed authority")
 		}
 	}

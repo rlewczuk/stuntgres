@@ -155,7 +155,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	oldIndex := e.storage.IndexRoots[index]
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
-	replacement := stage.Descriptors[survivor.Address()].(*catalog.Relation)
+	replacement := stage.Get(survivor.Address()).(*catalog.Relation)
 	if len(replacement.ColumnMeta.Defaults) != 0 || len(replacement.Constraints.Check) != 0 || len(survivor.ColumnMeta.Defaults) != 1 || len(survivor.Constraints.Check) != 1 {
 		t.Fatal("candidate changed predecessor or failed expression closure")
 	}

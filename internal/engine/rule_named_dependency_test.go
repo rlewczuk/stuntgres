@@ -147,10 +147,11 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						if inferred {
 							want = 2
 						}
-						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.Descriptors[parent.Address()].(*catalog.Relation).Constraints.Unique) != 0 {
+						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.Get(parent.Address()).(*catalog.Relation).Constraints.Unique) != 0 {
 							t.Fatal("retirement changed unrelated rule or missed provider", rulesOf(current))
 						}
-						if stage.Removals[parent.Constraints.Unique[0].Index].Ref.Address != parent.Constraints.Unique[0].Index {
+						removal, removed := stage.Removal(parent.Constraints.Unique[0].Index)
+						if !removed || removal.Ref.Address != parent.Constraints.Unique[0].Index {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}

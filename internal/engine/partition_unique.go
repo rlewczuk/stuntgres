@@ -233,7 +233,7 @@ func partitionIndexEquivalent(ctx context.Context, view catalog.Read, table *cat
 
 func stagePartitionDescriptor(stage *CatalogStage, d *catalog.Relation) error {
 	if stage.Base.Get(d.Address()) == nil {
-		stage.Descriptors[d.Address()] = d
+		stage.UpdateDescriptor(d)
 		return nil
 	}
 	return stage.Replace(d)

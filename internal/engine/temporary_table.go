@@ -119,7 +119,8 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if err != nil {
 		return Result{}, err
 	}
-	created := e.catalog.Domain.Ref(base.Epoch(), stage.Names[key])
+	createdAddress, _ := stage.NameBinding(key)
+	created := e.catalog.Domain.Ref(base.Epoch(), createdAddress)
 	if temporary {
 		scope.owner.accessedTemporary = true
 		if len(stage.domainBases) != 0 {
@@ -201,7 +202,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err != nil {
 		return err
 	}
-	if len(stage.Removals) > 0 {
+	if stage.RemovalCount() > 0 {
 		scope.discardRemovedWrites(stage)
 	}
 	if err = scope.projectCatalogOverlayShapes(stage, changes); err != nil {
@@ -267,7 +268,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			shape.materializedConcurrent, shape.materializedContinuous = false, false
 		}
 		shape.replacement = rowShape.replacement
-		shape.relation, _ = stage.Descriptors[a].(*catalog.Relation)
+		shape.relation, _ = stage.Get(a).(*catalog.Relation)
 		if shape.relation == nil {
 			// An index-expression-only domain generation changes executable
 			// index authority without changing its parent's column descriptor.
@@ -295,7 +296,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		shape.snapshot, shape.hasSnapshot = nil, false
 		changes.storage[a] = shape
 	}
-	for a, d := range stage.Descriptors {
+	for a, d := range stage.Descriptors() {
 		e.catalogChangeLocked(changes, a, d)
 		if table, ok := d.(*catalog.Relation); ok && table.RelationKind.Stored() && e.privateStorageLocked(changes, a) == nil {
 			changes.storage[a] = catalogStorageChange{replacement: &storage.Relation{}, relation: table}
@@ -310,7 +311,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		}
 		changes.indexCandidates[address], changes.uniqueRoots[address] = candidate, candidate.root
 	}
-	for a := range stage.Removals {
+	for a := range stage.Removals() {
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.generators, a)
 		delete(changes.storage, a)
@@ -352,13 +353,13 @@ func (s *StatementScope) discardRemovedWrites(stage *CatalogStage) {
 	s.projectedRoots = true
 	s.stage.rows = make(map[ids.ObjectAddress][]storage.RowVersion, len(rows))
 	for a, values := range rows {
-		if _, removed := stage.Removals[a]; !removed {
+		if _, removed := stage.Removal(a); !removed {
 			s.stage.rows[a] = values
 		}
 	}
 	s.stage.deletes = make(map[ids.ObjectAddress]*visibility.PrivateDeletes, len(deletes))
 	for a, root := range deletes {
-		if _, removed := stage.Removals[a]; !removed {
+		if _, removed := stage.Removal(a); !removed {
 			s.stage.deletes[a] = root
 		}
 	}

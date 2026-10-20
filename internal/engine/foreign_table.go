@@ -112,7 +112,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err = e.schemaTableLocked(scope.op, auth, stage, foreignTableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
 		return nil, nil, err
 	}
-	d, ok := stage.Descriptors[stage.LookupName(key)].(*catalog.Relation)
+	d, ok := stage.Get(stage.LookupName(key)).(*catalog.Relation)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing staged foreign relation")
 	}

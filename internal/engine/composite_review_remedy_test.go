@@ -87,13 +87,13 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropRestrict, nil)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop column id of composite type pair because other objects depend on it")
-	if len(stage.Descriptors) != 0 {
+	if stage.DescriptorCount() != 0 {
 		t.Fatal("RESTRICT staged removal")
 	}
 	if err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
-	next := stage.Descriptors[original.Address()].(*catalog.Type)
+	next := stage.Get(original.Address()).(*catalog.Type)
 	if len(next.DomainChecks) != 1 || next.DomainChecks[0].Name != "keep_check" || next.DomainChecks[0].OID != original.DomainChecks[1].OID || next.SQLType.ID() != original.SQLType.ID() || next.SQLType.DomainBase() != original.SQLType.DomainBase() {
 		t.Fatal("wrong owner or constraint pruned")
 	}
@@ -114,10 +114,10 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if err := stage.removeDomainCheck(next, next.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.Descriptors[original.Address()].(*catalog.Type).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
+	if len(stage.Get(original.Address()).(*catalog.Type).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
 		t.Fatal("last removal mutated surviving capture")
 	}
-	if stage.Descriptors[original.Address()].(*catalog.Type).SQLType.HasDomainChecks() {
+	if stage.Get(original.Address()).(*catalog.Type).SQLType.HasDomainChecks() {
 		t.Fatal("empty CHECK owner retained codec authority")
 	}
 }
@@ -138,7 +138,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, original := range []*catalog.Relation{left, right, child} {
-		pruned := stage.Descriptors[original.Address()].(*catalog.Relation)
+		pruned := stage.Get(original.Address()).(*catalog.Relation)
 		if len(pruned.Constraints.Check) != 1 || pruned.Constraints.Check[0].Name != "keep_check" || len(original.Constraints.Check) != 2 {
 			t.Fatal("diamond owner pruning lost", original.Name())
 		}

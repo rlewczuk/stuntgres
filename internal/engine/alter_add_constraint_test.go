@@ -75,7 +75,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 		t.Fatal("lost stable keys or incumbent group", next.Constraints.Unique)
 	}
 	added := next.Constraints.Unique[1]
-	index := stage.Descriptors[added.Index].(*catalog.Relation)
+	index := stage.Get(added.Index).(*catalog.Relation)
 	if index.SQLIndex.Parent != next.Address() || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != added.OID {
 		t.Fatal("missing reciprocal real index", added, index)
 	}

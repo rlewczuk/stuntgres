@@ -30,7 +30,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catal
 	for i, old := range parent.Constraints.Exclusion {
 		index, ok := stage.Base.Relation(old.Index)
 		if !ok {
-			if current, exists := stage.Descriptors[old.Index].(*catalog.Relation); exists && current.SQLIndex != nil {
+			if current, exists := stage.Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
 				continue // New definitions already bind the completed TYPE shape.
 			}
 		}
@@ -40,7 +40,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catal
 		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			continue
 		}
-		if replacement, ok := stage.Descriptors[old.Index].(*catalog.Relation); ok {
+		if replacement, ok := stage.Get(old.Index).(*catalog.Relation); ok {
 			index = replacement
 		}
 		oldParent := stage.Base.MustRelation(parent.Address())

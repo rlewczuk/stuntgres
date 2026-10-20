@@ -76,8 +76,8 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 	}
 	name := syntax.Name.Parts[len(syntax.Name.Parts)-1].Text
-	address := stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
-	child := stage.Descriptors[address].(*catalog.Relation)
+	address, _ := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
+	child := stage.Get(address).(*catalog.Relation)
 	keyAuth := auth
 	keyAuth.Catalog = e.stageRead(stage)
 	keyAuth.Recapture(keyAuth.Catalog)
@@ -145,13 +145,13 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return nil
 	}
 	for _, constraint := range p.child.Constraints.Unique {
-		index := p.stage.Descriptors[constraint.Index].(*catalog.Relation)
+		index := p.stage.Get(constraint.Index).(*catalog.Relation)
 		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
 	}
 	for _, constraint := range p.child.Constraints.Exclusion {
-		index := p.stage.Descriptors[constraint.Index].(*catalog.Relation)
+		index := p.stage.Get(constraint.Index).(*catalog.Relation)
 		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}

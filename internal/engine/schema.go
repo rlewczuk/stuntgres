@@ -39,14 +39,14 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if namespace, ok := auth.Catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
-	if len(stage.Descriptors) != 0 || len(stage.Removals) != 0 || len(stage.OldNames) != 0 {
+	if stage.DescriptorCount() != 0 || stage.RemovalCount() != 0 || stage.OldNameCount() != 0 {
 		auth.Catalog = e.stageRead(stage)
 		auth.Recapture(auth.Catalog)
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}
 	_, baseExists := stage.Base.LookupName(key)
-	_, stagedExists := stage.Names[key]
+	_, stagedExists := stage.NameBinding(key)
 	if baseExists || stagedExists {
 		if s.IfNotExists {
 			op.existingRelationNotice(name)
@@ -63,7 +63,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		diagnostic.Hint = "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."
 		return diagnostic
 	}
-	if len(stage.Descriptors) != 0 || len(stage.Removals) != 0 || len(stage.OldNames) != 0 {
+	if stage.DescriptorCount() != 0 || stage.RemovalCount() != 0 || stage.OldNameCount() != 0 {
 		auth.Catalog = e.stageRead(stage)
 		auth.Recapture(auth.Catalog)
 	}
@@ -243,7 +243,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	// ownership pairing; never resolve an arbitrary later object by name.
 	var created ids.ObjectRef
 	if _, domain := stmt.(*parser.CreateDomain); domain {
-		for address, descriptor := range stage.Descriptors {
+		for address, descriptor := range stage.Descriptors() {
 			if typ, ok := descriptor.(*catalog.Type); ok && typ.SQLType.IsDomain() && stage.Base.Get(address) == nil {
 				created = e.catalog.Domain.Ref(stage.Base.Epoch(), address)
 				break
@@ -277,7 +277,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		}
 	}
 	var removedRelations []ids.ObjectAddress
-	for address, removal := range stage.Removals {
+	for address, removal := range stage.Removals() {
 		if _, ok := removal.Descriptor.(*catalog.Relation); ok {
 			removedRelations = append(removedRelations, address)
 		}
@@ -292,7 +292,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		return Result{}, err
 	}
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
-	for a := range stage.Removals {
+	for a := range stage.Removals() {
 		if r, ok := stage.Base.Relation(a); ok && r.RelationKind == catalog.SequenceRelation {
 			if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				return Result{}, err
@@ -314,7 +314,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	if err == nil {
-		for _, descriptor := range stage.Descriptors {
+		for _, descriptor := range stage.Descriptors() {
 			if ns, ok := descriptor.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == op.session.token {
 				op.session.temporaryNamespace = ns.Address()
 			}

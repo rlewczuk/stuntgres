@@ -77,7 +77,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if replacement, ok := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*catalog.Type); ok {
+	if replacement, ok := stage.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}).(*catalog.Type); ok {
 		base.Type = replacement.SQLType
 	}
 	base, err = e.resolveColumnCollation(base, s.Collation, op)

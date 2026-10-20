@@ -64,7 +64,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 			if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{dependency.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			pruned, ok := stage.Descriptors[ownerRef.Address].(*catalog.Relation)
+			pruned, ok := stage.Get(ownerRef.Address).(*catalog.Relation)
 			if !ok || len(pruned.Security.Policies) != 0 || len(private.Security.Policies) != 1 || private.Security.Policies[0].OID != oid || len(owner.Security.Policies) != 0 {
 				t.Fatal("closure mutated immutable private or committed policy root")
 			}

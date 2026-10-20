@@ -105,7 +105,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	err = e.stageCreateDomainLocked(op, auth, denied, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.mu.Unlock()
 	domainUnitDiagnostic(t, err, "42501", "permission denied for type mood")
-	if len(denied.Descriptors) != 0 {
+	if denied.DescriptorCount() != 0 {
 		t.Fatal("unauthorized dependent staged")
 	}
 }

@@ -113,19 +113,25 @@ see 5g results (kind payloads stayed top-level).
 Added when the later waves were planned (measured at `75fe0d710`). Two small
 readability changes that need no other step:
 
-1. **One revision-frontier helper.** The loop "advance past
-   `descriptorRevisionFrontier`, saturating at the maximum" is written out in
-   `catalog.go` (three times: `publishCatalog` and twice in
-   `replaceCatalog`, around lines 1230, 1419 and 1536),
-   `transaction_publication.go:414`, `sequence_temp.go:310` and
-   `alter_schema.go:165`. Give `catalogStore` one method that owns it, keep
-   each caller's exhaustion message, and call it from all six sites.
-2. **`Candidate` overlay behind methods.** `catalog.Candidate`
-   (`catalog/candidate.go:14`) exposes `Descriptors`, `Names`, `Touched`,
-   `Removals`, `OldNames`, `DefaultACLs` and `DefaultReads` as exported
-   maps. Measure the engine's direct writes to them (`CatalogStage` embeds
-   the candidate), route each through a `Candidate` method, and unexport the
-   maps if no reader outside `catalog` remains. Reads may stay as accessors.
+1. **One revision-frontier helper.** `catalogStore.advanceRevisionFrontier`
+   now calculates advance-past-revision/sequence-plan-stamp with saturation,
+   without mutating the allocator. All six publication/move sites and three
+   installer fixtures use it. Publication commits its local scalar only at the
+   existing successful install; ALTER SET SCHEMA advances descriptor-local
+   clocks and retains its distinct terminal error.
+2. **`Candidate` overlay behind methods.** All seven backing maps are private.
+   Overlay-only lookup/presence/count/iterator methods share immutable payloads
+   without copies or base scans. Private completion, explicit-key staged rename,
+   original-ref retirement and separate default observation/delta methods own
+   writes. Engine DDL/lifecycle/rowtype/storage validation stays engine-owned.
+   Original observations include nil absence; present nil output is a tombstone.
+   The typed prechange census covered 393 uses across 110 files, including all
+   109 external engine files; production and fixture callers migrate together.
+
+Implementation and root-owned proof are recorded in the 5h results below.
+The latest user instruction makes quickcheck the active gate and explicitly
+waives further racecheck and race-containing finalcheck; waived checks are not
+passing checks. The existing startup target miss remains reported separately.
 
 The relation, type, extension, operator and parameter validators that 5e
 left in the engine stay until a stored-SQL rendering seam exists (step 12
@@ -208,8 +214,9 @@ startup regression. 5f completes the step; optional 5g is done too.
   (`43c6b86ec`, `47a4495b2`, `089bf7856`, `3ef61771b`, `90f6a9b52`, then
   the commit that records this status) *(racecheck skipped at user
   request; targeted RACE=1 runs passed)*
-- [ ] 5h — Optional: one revision-frontier helper; `Candidate` overlay
-  behind methods
+- [x] 5h — One revision-frontier helper; private `Candidate` overlay methods
+  (the commit that records this status) *(quickcheck passed; further racecheck
+  and finalcheck skipped at user request)*
 
 Exported names chosen (5d; applied by 5e's move, with engine aliases):
 
@@ -672,6 +679,45 @@ keeps its constants; it is not a catalog alias.
   that `master` already misses. `make deps` lists only module paths.
   `catalog` imports are unchanged.
 
+5h results:
+
+- **Ownership.** One pure, saturating store frontier calculation serves all six
+  production sites and three installer fixtures. Publication retains its
+  speculative local scalar and original successful install point; ALTER moves
+  use descriptor-local clocks and preserve their exhaustion diagnostic.
+  All seven Candidate maps are private, with overlay-only readers and
+  method-owned writes. Original references, name fences, sparse default
+  observations/tombstones, immutable payload sharing and derived index
+  ownership stay with their existing authorities. Validators remain engine-owned.
+- **Coverage.** New independent frontier and Candidate units cover terminal
+  arithmetic, private completion, repeated rename/removal/name reuse, original
+  default inputs and retained snapshots/index sharing. All 109 external files
+  from the typed 393-use census migrated, including deliberate negative fixtures.
+  The authentic namespace fixture explicitly selects its renamed
+  `candidate_schema` through the canonical immutable settings registry;
+  it does not install an arbitrary namespace alias or evaluate a generator.
+- **Observed proof.** Production build, focused internal selections, unchanged
+  public definitions in quick and pinned PostgreSQL 18.6 modes, selected
+  publication/capture/cancellation races, actual direct/prepared four-phase
+  schema/default-privilege smoke and module-only dependency checks passed.
+  After rebase onto `9c6c4562326304fbe4cacff06b2b98b75fe03911`, fresh full
+  quickcheck and all four actual smoke phases passed (142.18s combined).
+  SAME-held rows/metadata, retained cursors, canonical Dump/Reset/Restore and
+  future-only ACL effects remained intact. Earlier API/fixture failures were
+  corrected; the post-rebase fixture uses `e.settings.Definitions()`.
+- **Execution disposition.** Earlier full-race attempts failed on scenario
+  deadlines/cancellation phase expectations, not reported data races; they are
+  not full-race passes. The user's latest instruction, “skip racecheck and rely
+  only on quickcheck,” waives further race execution and the race-containing
+  finalcheck. Post-integration quickcheck replaces finalcheck; independent
+  review and integration remain separate lifecycle gates.
+- **Startup.** The original five-run baseline was 1.013–1.245ms; isolated
+  postchange samples were 1.680–1.800ms versus contemporaneous unchanged
+  integration samples of 1.569–1.714ms. All series miss the <1ms target.
+  Warm allocations remain 5152 and bytes about 1.65–1.66MB/op. No warm allocation
+  regression was demonstrated; timing equivalence, optimization or target
+  attainment is not claimed. Startup optimization remains outside this part.
+
 Notes for later steps:
 
 - Later broad rewrites: the `fieldx`/`aliasx` approach (rename table, then
@@ -687,13 +733,11 @@ Notes for later steps:
 - Later: the relation, type, extension, operator and parameter validators
   can move once the catalog has a narrow seam for stored-SQL rendering,
   expression-node walks and the operator and settings inventories.
-  `Candidate`'s exported overlay fields can then become methods.
+  Candidate overlay encapsulation is independent and implemented in 5h.
 - 5a was a broad rewrite in practice (670 files). Do not run it, or a
   similar store grouping such as 6a, alongside another broad rewrite.
-- The revision-frontier loop ("advance past `descriptorRevisionFrontier`,
-  saturating at the maximum") is duplicated in `transaction_publication.go`,
-  `sequence_temp.go` and `catalog.go` (once in `publishCatalog`, twice in
-  `replaceCatalog`). One store helper could own it.
+- Revision-frontier policy is now owned by the pure store helper in 5h;
+  successful publication still owns committing the speculative scalar.
 - `foreignNamespaces` is replaced in the same Restore publication as
   `state` (`catalog.go`). Whoever moves the FDW state must keep that
   publication point.

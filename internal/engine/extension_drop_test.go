@@ -393,7 +393,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 							if err := rewire.removeDomainCheck(d, d.DomainChecks[0].OID); err != nil {
 								t.Fatal(err)
 							}
-							candidate.SetDescriptor(d.Address(), rewire.Descriptors[d.Address()])
+							candidate.SetDescriptor(d.Address(), rewire.Get(d.Address()))
 						} else {
 							replacement := *d
 							replacement.ObjectRevision++

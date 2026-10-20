@@ -168,7 +168,7 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *catalog
 		return nil, ids.ErrCatalogReplaced
 	}
 	index, clone := prepared.index, prepared.replacement
-	current := stage.Descriptors[index.Address()]
+	current := stage.Get(index.Address())
 	if current == nil {
 		current = stage.Base.Get(index.Address())
 	}
@@ -183,11 +183,8 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *catalog
 	}
 	if stage.Base.Get(index.Address()) == nil {
 		// Preserve the existing TYPE remint's original removal/name observation.
-		delete(stage.Names, catalog.DescriptorNameKey(index))
-		stage.Descriptors[index.Address()] = clone
 		key := catalog.DescriptorNameKey(clone)
-		stage.Names[key] = clone.Address()
-		stage.Touched[key] = stage.Base.NameAddress(key)
+		stage.RenameStagedDescriptor(catalog.DescriptorNameKey(index), clone, key)
 	} else if err := stage.Replace(clone); err != nil {
 		return nil, err
 	}

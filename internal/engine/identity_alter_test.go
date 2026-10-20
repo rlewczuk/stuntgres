@@ -49,7 +49,7 @@ func TestIdentityAddCandidatePrivateBeforeGuards(t *testing.T) {
 					t.Fatal(err)
 				}
 				identity := next.ColumnMeta.Identities[1]
-				sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
+				sequence := stage.Get(identity.Sequence).(*catalog.Relation)
 				want := ref.Address
 				want.SubID = 1
 				if sequence.Sequence.Owned != want || !sequence.Sequence.Identity || stage.generators[identity.Sequence] == nil {
@@ -123,7 +123,7 @@ func TestIdentityModeConflictCandidateUnchanged(t *testing.T) {
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatal(err)
 	}
-	if next != old || old.ColumnMeta.Identities[1] != identity || len(stage.Descriptors) != 0 || len(stage.generators) != 0 || e.catalog.state != base.State() {
+	if next != old || old.ColumnMeta.Identities[1] != identity || stage.DescriptorCount() != 0 || len(stage.generators) != 0 || e.catalog.state != base.State() {
 		t.Fatal("mode conflict changed candidate or published metadata")
 	}
 }

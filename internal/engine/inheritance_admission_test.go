@@ -98,7 +98,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if stage.Base.State() != base.State() || len(stage.Removals) != 1 {
+				if stage.Base.State() != base.State() || stage.RemovalCount() != 1 {
 					t.Fatal("cancel changed staged closure")
 				}
 			} else {
@@ -114,7 +114,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 					t.Fatal(err)
 				}
-				if len(stage.Removals) != 3 {
+				if stage.RemovalCount() != 3 {
 					t.Fatal("late child not included in CASCADE")
 				}
 			}
@@ -174,7 +174,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 	}
 	lockState := e.locks.Inspect(scope.ticket)
 	resources := len(lockState.Journals[scope.ticket])
-	if resources != 0 || stage.Base.State() != base.State() || len(stage.Removals) != 1 {
+	if resources != 0 || stage.Base.State() != base.State() || stage.RemovalCount() != 1 {
 		t.Fatal("standalone closure changed lock ownership or staged catalog")
 	}
 }

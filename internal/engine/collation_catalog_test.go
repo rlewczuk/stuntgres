@@ -189,7 +189,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	err = e.stageAlterCollationLocked(admin, auth, stage, change)
 	e.mu.Unlock()
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema private" || len(stage.Descriptors) != 0 {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema private" || stage.DescriptorCount() != 0 {
 		t.Fatal("membership waived target CREATE", err)
 	}
 	auth.State.CurrentUser = bootstrap.Ref
@@ -200,7 +200,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal("superuser failed owner transfer", err)
 	}
-	changed := stage.Descriptors[d.Address()].(*catalog.Collation)
+	changed := stage.Get(d.Address()).(*catalog.Collation)
 	if changed.Owner != target.Ref || changed.OID != d.OID {
 		t.Fatal("owner transfer lost identity", changed)
 	}

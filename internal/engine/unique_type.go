@@ -36,7 +36,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 		if !ok {
 			// A TYPE-reminted standalone index was already rebuilt before its
 			// USING INDEX attachment. Do not allocate another backing identity.
-			if current, exists := stage.Descriptors[old.Index].(*catalog.Relation); exists && current.SQLIndex != nil {
+			if current, exists := stage.Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
 				continue
 			}
 			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
@@ -44,7 +44,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 		if index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
 		}
-		if current, exists := stage.Descriptors[old.Index].(*catalog.Relation); exists && current.SQLIndex != nil {
+		if current, exists := stage.Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
 			index = current
 		}
 		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {

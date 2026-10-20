@@ -136,7 +136,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 					t.Fatal(err)
 				}
 				identity := destination.ColumnMeta.Identities[1]
-				sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
+				sequence := stage.Get(identity.Sequence).(*catalog.Relation)
 				fresh := stage.generators[identity.Sequence]
 				want := *sourceSequence.Sequence
 				want.Persistence = persistence

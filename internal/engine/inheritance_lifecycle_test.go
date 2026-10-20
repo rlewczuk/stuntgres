@@ -68,19 +68,19 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(stage.Removals) != 1 || e.catalog.state != base.State() {
+	if stage.RemovalCount() != 1 || e.catalog.state != base.State() {
 		t.Fatal("RESTRICT changed catalog/closure")
 	}
 	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*catalog.Relation{p, left, right, leaf} {
-		if _, ok := stage.Removals[table.Address()]; !ok {
+		if _, ok := stage.Removal(table.Address()); !ok {
 			t.Fatal("missing descendant", table.Name())
 		}
 	}
 	for _, table := range []*catalog.Relation{other, sibling} {
-		if _, ok := stage.Removals[table.Address()]; ok {
+		if _, ok := stage.Removal(table.Address()); ok {
 			t.Fatal("unrelated parent/sibling removed", table.Name())
 		}
 	}
@@ -110,7 +110,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.state != base.State() || len(stage.Removals) != 2 {
+	if e.catalog.state != base.State() || stage.RemovalCount() != 2 {
 		t.Fatal("cancel published changes")
 	}
 }

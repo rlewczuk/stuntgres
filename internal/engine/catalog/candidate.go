@@ -2,6 +2,8 @@ package catalog
 
 import (
 	"fmt"
+	"iter"
+	"maps"
 
 	"stuntgres/internal/engine/ids"
 )
@@ -13,21 +15,21 @@ import (
 // coordination.
 type Candidate struct {
 	Base Read
-	// Descriptors and Names hold the created and replaced descriptors and
+	// descriptors and names hold the created and replaced descriptors and
 	// their name bindings.
-	Descriptors map[ids.ObjectAddress]Descriptor
-	Names       map[ids.NameKey]ids.ObjectAddress
-	// Touched maps every name the candidate bound or vacated to the base
+	descriptors map[ids.ObjectAddress]Descriptor
+	names       map[ids.NameKey]ids.ObjectAddress
+	// touched maps every name the candidate bound or vacated to the base
 	// binding it observed, for publication validation.
-	Touched map[ids.NameKey]ids.ObjectAddress
-	// Removals are whole objects removed with their observed identity.
-	Removals map[ids.ObjectAddress]Removal
-	// OldNames are the base names that replacements vacated.
-	OldNames map[ids.NameKey]bool
-	// DefaultACLs are default ACL changes (a nil record removes its key);
-	// DefaultReads are the base records the candidate observed.
-	DefaultACLs  map[DefaultACLKey]*DefaultACLRecord
-	DefaultReads map[DefaultACLKey]*DefaultACLRecord
+	touched map[ids.NameKey]ids.ObjectAddress
+	// removals are whole objects removed with their observed identity.
+	removals map[ids.ObjectAddress]Removal
+	// oldNames are the base names that replacements vacated.
+	oldNames map[ids.NameKey]bool
+	// defaultACLs are default ACL changes (a nil record removes its key);
+	// defaultReads are the base records the candidate observed.
+	defaultACLs  map[DefaultACLKey]*DefaultACLRecord
+	defaultReads map[DefaultACLKey]*DefaultACLRecord
 }
 
 // Removal is one staged removal and the descriptor it observed.
@@ -36,25 +38,25 @@ type Removal struct {
 	Descriptor Descriptor
 }
 
-// newCatalogCandidate returns an empty candidate over base.
+// NewCandidate returns an empty candidate over base.
 func NewCandidate(base Read) Candidate {
-	return Candidate{Base: base, Descriptors: make(map[ids.ObjectAddress]Descriptor), Names: make(map[ids.NameKey]ids.ObjectAddress), Touched: make(map[ids.NameKey]ids.ObjectAddress)}
+	return Candidate{Base: base, descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress), touched: make(map[ids.NameKey]ids.ObjectAddress)}
 }
 
 // LookupName resolves the private candidate, including names vacated by a
 // replacement. The original name remains in Touched for publication
 // validation.
 func (c *Candidate) LookupName(k ids.NameKey) ids.ObjectAddress {
-	if address := c.Names[k]; address != (ids.ObjectAddress{}) {
-		if _, removed := c.Removals[address]; !removed {
+	if address := c.names[k]; address != (ids.ObjectAddress{}) {
+		if _, removed := c.removals[address]; !removed {
 			return address
 		}
 	}
 	address := c.Base.NameAddress(k)
-	if _, removed := c.Removals[address]; removed {
+	if _, removed := c.removals[address]; removed {
 		return ids.ObjectAddress{}
 	}
-	if replacement := c.Descriptors[address]; replacement != nil &&
+	if replacement := c.descriptors[address]; replacement != nil &&
 		DescriptorNameKey(replacement) != k {
 		return ids.ObjectAddress{}
 	}
@@ -74,7 +76,7 @@ func (c *Candidate) Create(d Descriptor) error {
 	if _, ok := c.Base.Find(a); ok {
 		return Conflict{}
 	}
-	if _, ok := c.Descriptors[a]; ok {
+	if _, ok := c.descriptors[a]; ok {
 		return Conflict{}
 	}
 	k := DescriptorNameKey(d)
@@ -83,9 +85,9 @@ func (c *Candidate) Create(d Descriptor) error {
 	if c.LookupName(k) != (ids.ObjectAddress{}) {
 		return Conflict{}
 	}
-	c.Touched[k] = c.Base.NameAddress(k)
-	c.Descriptors[a] = d
-	c.Names[k] = a
+	c.touched[k] = c.Base.NameAddress(k)
+	c.descriptors[a] = d
+	c.names[k] = a
 	return nil
 }
 
@@ -114,27 +116,35 @@ func (c *Candidate) Replace(d Descriptor) error {
 	if a := c.LookupName(newKey); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return Conflict{}
 	}
-	if previous := c.Descriptors[d.Address()]; previous != nil {
-		delete(c.Names, DescriptorNameKey(previous))
+	if previous := c.descriptors[d.Address()]; previous != nil {
+		delete(c.names, DescriptorNameKey(previous))
 	}
-	if c.OldNames == nil {
-		c.OldNames = make(map[ids.NameKey]bool)
+	if c.oldNames == nil {
+		c.oldNames = make(map[ids.NameKey]bool)
 	}
-	c.OldNames[oldKey] = true
-	c.Touched[oldKey] = c.Base.NameAddress(oldKey)
-	c.Touched[newKey] = c.Base.NameAddress(newKey)
-	c.Descriptors[d.Address()] = d
-	c.Names[newKey] = d.Address()
+	c.oldNames[oldKey] = true
+	c.touched[oldKey] = c.Base.NameAddress(oldKey)
+	c.touched[newKey] = c.Base.NameAddress(newKey)
+	c.descriptors[d.Address()] = d
+	c.names[newKey] = d.Address()
 	return nil
 }
 
-// RecordRemoval stages the removal of the whole object ref names, which
-// currently holds d.
+// RecordRemoval retires the original base identity and any private rebound
+// descriptor. The original ref and name observation remain publication fences.
 func (c *Candidate) RecordRemoval(ref ids.ObjectRef, d Descriptor) {
-	if c.Removals == nil {
-		c.Removals = make(map[ids.ObjectAddress]Removal)
+	if c.removals == nil {
+		c.removals = make(map[ids.ObjectAddress]Removal)
 	}
-	c.Removals[ref.Address] = Removal{Ref: ref, Descriptor: d}
+	c.removals[ref.Address] = Removal{Ref: ref, Descriptor: d}
+	if candidate := c.descriptors[ref.Address]; candidate != nil {
+		key := DescriptorNameKey(candidate)
+		if c.names[key] == ref.Address {
+			delete(c.names, key)
+		}
+	}
+	delete(c.descriptors, ref.Address)
+	c.touched[DescriptorNameKey(d)] = ref.Address
 }
 
 // State returns a new unpublished state: the base with the candidate's
@@ -146,28 +156,28 @@ func (c *Candidate) State() *State {
 	ns := cloneMap(c.Base.state.names)
 	operators := OperatorIndexEdit{Index: c.Base.state.operatorNames}
 	procedures := ProcedureIndexEdit{Index: c.Base.state.procedureNames}
-	for a, removal := range c.Removals {
+	for a, removal := range c.removals {
 		d := removal.Descriptor
-		operators.Replace(c.Base.Get(a), c.Descriptors[a])
-		procedures.Replace(c.Base.Get(a), c.Descriptors[a])
+		operators.Replace(c.Base.Get(a), c.descriptors[a])
+		procedures.Replace(c.Base.Get(a), c.descriptors[a])
 		delete(ds, a)
 		delete(ns, DescriptorNameKey(d))
 	}
-	for k := range c.OldNames {
+	for k := range c.oldNames {
 		delete(ns, k)
 	}
-	for k, v := range c.Descriptors {
-		if _, removed := c.Removals[k]; !removed {
+	for k, v := range c.descriptors {
+		if _, removed := c.removals[k]; !removed {
 			operators.Replace(c.Base.Get(k), v)
 			procedures.Replace(c.Base.Get(k), v)
 		}
 		ds[k] = v
 	}
-	for k, v := range c.Names {
+	for k, v := range c.names {
 		ns[k] = v
 	}
 	priorities := c.Base.state.dumpPriorities
-	if len(priorities) != 0 && len(c.Removals) != 0 {
+	if len(priorities) != 0 && len(c.removals) != 0 {
 		priorities = make(map[ids.ObjectAddress]ids.OID, len(c.Base.state.dumpPriorities))
 		for address, priority := range c.Base.state.dumpPriorities {
 			if _, exists := ds[address]; exists {
@@ -175,5 +185,97 @@ func (c *Candidate) State() *State {
 			}
 		}
 	}
-	return &State{epoch: c.Base.Epoch(), namespaceGeneration: c.Base.state.namespaceGeneration, descriptors: ds, names: ns, operatorNames: operators.Index, procedureNames: procedures.Index, defaultACLs: overlayDefaultACLs(c.Base.state.defaultACLs, c.DefaultACLs), dumpPriorities: priorities}
+	return &State{epoch: c.Base.Epoch(), namespaceGeneration: c.Base.state.namespaceGeneration, descriptors: ds, names: ns, operatorNames: operators.Index, procedureNames: procedures.Index, defaultACLs: overlayDefaultACLs(c.Base.state.defaultACLs, c.defaultACLs), dumpPriorities: priorities}
+}
+
+// Get and Find read only staged descriptors, not the base catalog.
+func (c *Candidate) Get(a ids.ObjectAddress) Descriptor { return c.descriptors[a] }
+func (c *Candidate) Find(a ids.ObjectAddress) (Descriptor, bool) {
+	d, ok := c.descriptors[a]
+	return d, ok
+}
+
+// Iterators share immutable payloads and visit overlay entries only. They are
+// valid during the candidate's read phase, not concurrent with its mutation.
+func (c *Candidate) Descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
+	return maps.All(c.descriptors)
+}
+func (c *Candidate) DescriptorCount() int                             { return len(c.descriptors) }
+func (c *Candidate) Names() iter.Seq2[ids.NameKey, ids.ObjectAddress] { return maps.All(c.names) }
+func (c *Candidate) NameBinding(k ids.NameKey) (ids.ObjectAddress, bool) {
+	a, ok := c.names[k]
+	return a, ok
+}
+func (c *Candidate) Removal(a ids.ObjectAddress) (Removal, bool) {
+	r, ok := c.removals[a]
+	return r, ok
+}
+func (c *Candidate) Removals() iter.Seq2[ids.ObjectAddress, Removal] { return maps.All(c.removals) }
+func (c *Candidate) RemovalCount() int                               { return len(c.removals) }
+func (c *Candidate) NameObservation(k ids.NameKey) (ids.ObjectAddress, bool) {
+	a, ok := c.touched[k]
+	return a, ok
+}
+func (c *Candidate) Touched() iter.Seq2[ids.NameKey, ids.ObjectAddress] { return maps.All(c.touched) }
+func (c *Candidate) OldNames() iter.Seq2[ids.NameKey, bool]             { return maps.All(c.oldNames) }
+func (c *Candidate) OldNameCount() int                                  { return len(c.oldNames) }
+func (c *Candidate) DefaultACLChange(k DefaultACLKey) (*DefaultACLRecord, bool) {
+	r, ok := c.defaultACLs[k]
+	return r, ok
+}
+func (c *Candidate) DefaultACLs() iter.Seq2[DefaultACLKey, *DefaultACLRecord] {
+	return maps.All(c.defaultACLs)
+}
+func (c *Candidate) DefaultACLCount() int { return len(c.defaultACLs) }
+func (c *Candidate) DefaultObservation(k DefaultACLKey) (*DefaultACLRecord, bool) {
+	r, ok := c.defaultReads[k]
+	return r, ok
+}
+func (c *Candidate) DefaultReads() iter.Seq2[DefaultACLKey, *DefaultACLRecord] {
+	return maps.All(c.defaultReads)
+}
+
+// ApplyDefaultACLs projects the delta onto the current publication source.
+func (c *Candidate) ApplyDefaultACLs(source, next *State) {
+	next.OverlayDefaultACLs(source, c.defaultACLs)
+}
+func (c *Candidate) DefaultRecordsUnchanged(current *State) bool {
+	return DefaultRecordsUnchanged(current, c.defaultReads)
+}
+
+// UpdateDescriptor completes a caller-owned private copy without replaying
+// Create/Replace, allocating revisions, or synchronizing rowtypes. CatalogStage
+// still owns lifecycle checks and publication validation.
+func (c *Candidate) UpdateDescriptor(d Descriptor) { c.descriptors[d.Address()] = d }
+
+// RenameStagedDescriptor rebinds an existing private/reminted identity using its
+// actual keys, including an array's explicit namespace override.
+func (c *Candidate) RenameStagedDescriptor(previousKey ids.NameKey, next Descriptor, nextKey ids.NameKey) {
+	delete(c.names, previousKey)
+	c.descriptors[next.Address()] = next
+	c.names[nextKey] = next.Address()
+	c.touched[nextKey] = c.Base.NameAddress(nextKey)
+}
+
+// ForgetDescriptor removes only the private descriptor entry.
+func (c *Candidate) ForgetDescriptor(a ids.ObjectAddress) { delete(c.descriptors, a) }
+
+// ObserveDefault captures the original base input once, including nil absence.
+func (c *Candidate) ObserveDefault(k DefaultACLKey) {
+	if _, observed := c.defaultReads[k]; observed {
+		return
+	}
+	if c.defaultReads == nil {
+		c.defaultReads = make(map[DefaultACLKey]*DefaultACLRecord)
+	}
+	c.defaultReads[k] = c.Base.State().DefaultACL(k)
+}
+
+// SetDefaultACL stages a delta only. A present nil record is a tombstone;
+// TEMP cleanup deliberately does not acquire an input observation.
+func (c *Candidate) SetDefaultACL(k DefaultACLKey, record *DefaultACLRecord) {
+	if c.defaultACLs == nil {
+		c.defaultACLs = make(map[DefaultACLKey]*DefaultACLRecord)
+	}
+	c.defaultACLs[k] = record
 }
