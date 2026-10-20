@@ -62,18 +62,18 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				return Result{}, err
 			}
 		}
-		if b.Insert.Conflict != nil {
-			if insertConflictOf(b.Insert.Conflict).predicate != nil {
-				insertConflictOf(b.Insert.Conflict).predicate, err = normalizeConflictPredicate(&evaluation, insertConflictOf(b.Insert.Conflict).predicate)
+		if conflict := newInsertConflictState(b.Insert.Conflict); conflict != nil {
+			if conflict.Predicate != nil {
+				conflict.Predicate, err = normalizeConflictPredicate(&evaluation, conflict.Predicate)
 				if err != nil {
 					return Result{}, err
 				}
 			}
-			if err := insertConflictOf(b.Insert.Conflict).selectArbiters(&evaluation, physicalBinding(b).Relation, auth.Catalog); err != nil {
+			if err := conflict.selectArbiters(&evaluation, physicalBinding(b).Relation, auth.Catalog); err != nil {
 				return Result{}, err
 			}
-			scope.insertConflict = insertConflictOf(b.Insert.Conflict)
-			if err := insertConflictOf(b.Insert.Conflict).preflightUpdate(&evaluation); err != nil {
+			scope.insertConflict = conflict
+			if err := conflict.preflightUpdate(&evaluation); err != nil {
 				return Result{}, err
 			}
 		}

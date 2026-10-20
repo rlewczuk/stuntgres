@@ -22,7 +22,7 @@ type ruleCommandScratch struct {
 	viewWrite  *viewWrite
 	sources    []exec.Leaf
 	unique     *uniqueWriteBinding
-	conflict   *boundInsertConflict
+	conflict   *insertConflictState
 	returning  *insertReturningOutput
 	partition  *partitionInsertState
 	locks      *exec.LockContext

@@ -61,7 +61,7 @@ func (s *StatementScope) finishInsertReturning() (Result, error) {
 // Revalidate the proposal before output, never output before possible filtering.
 func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *indexWriteCandidate, evaluation *exec.Context) (bool, error) {
 	row := candidate.values
-	if s.insertConflict != nil && s.insertConflict.update != nil {
+	if s.insertConflict != nil && s.insertConflict.Update != nil {
 		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
 	}
 	proposal := *candidate
@@ -198,7 +198,7 @@ func (s *StatementScope) admitInsertProducer(b binding, candidate *indexWriteCan
 	if s.insertReturning == nil {
 		return s.admitInsertRow(b.Ref, candidate, prefix, c)
 	}
-	if s.insertConflict == nil || s.insertConflict.update == nil {
+	if s.insertConflict == nil || s.insertConflict.Update == nil {
 		if err := s.op.session.Engine().checkViewRow(s, &b, row, c); err != nil {
 			return false, err
 		}

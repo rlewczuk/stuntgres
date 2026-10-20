@@ -23,15 +23,15 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 		d.Hint = "For example, ON CONFLICT (column_name)."
 		return d
 	}
-	c := &boundInsertConflict{targets: b.Targets}
-	b.Insert.Conflict = insertConflictSlotOf(c)
+	c := &analyze.InsertConflict{Targets: b.Targets}
+	b.Insert.Conflict = c
 	if raw.Constraint.Text != "" {
 		for _, u := range b.Relation.Constraints.Unique {
 			if u.Name == raw.Constraint.Text {
-				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: u.OID}
-				c.namedIndex = u.Index
+				c.Constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: u.OID}
+				c.NamedIndex = u.Index
 				for _, a := range u.Attributes {
-					c.reads = append(c.reads, slices.Index(b.Relation.Attributes, a))
+					c.Reads = append(c.Reads, slices.Index(b.Relation.Attributes, a))
 				}
 				return nil
 			}
@@ -40,22 +40,22 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 			if definition.Name != raw.Constraint.Text {
 				continue
 			}
-			c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
-			c.namedIndex = definition.Index
+			c.Constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
+			c.NamedIndex = definition.Index
 			index, ok := auth.ReadCatalog().Relation(definition.Index)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing named exclusion index")
 			}
 			for _, key := range index.SQLIndex.Keys {
 				if key.Derived == nil {
-					c.reads = append(c.reads, slices.Index(b.Relation.Attributes, key.Attribute))
+					c.Reads = append(c.Reads, slices.Index(b.Relation.Attributes, key.Attribute))
 					continue
 				}
 				for _, dependency := range key.Derived.Dependencies {
 					if dependency.Address.ClassID == b.Ref.Address.ClassID && dependency.Address.ObjectID == b.Ref.Address.ObjectID && dependency.Address.SubID != 0 {
 						slot := slices.Index(b.Relation.Attributes, dependency.Address.SubID)
-						if !slices.Contains(c.reads, slot) {
-							c.reads = append(c.reads, slot)
+						if !slices.Contains(c.Reads, slot) {
+							c.Reads = append(c.Reads, slot)
 						}
 					}
 				}
@@ -64,13 +64,13 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 		}
 		for _, check := range b.Relation.Constraints.Check {
 			if check.Name == raw.Constraint.Text {
-				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
+				c.Constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 				return nil
 			}
 		}
 		for _, nn := range b.Relation.Constraints.NotNull {
 			if nn.Name == raw.Constraint.Text {
-				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
+				c.Constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
 				return nil
 			}
 		}
@@ -83,7 +83,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 	if raw.Update {
 		binder.query.hidden = append(binder.query.hidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
 	}
-	c.keys = make([]conflictKey, len(raw.Keys))
+	c.Keys = make([]analyze.ConflictKey, len(raw.Keys))
 	for i, key := range raw.Keys {
 		if key.DirectionExplicit {
 			return expr.ErrorAt("42P10", "ASC/DESC is not allowed in ON CONFLICT clause", raw.Pos)
@@ -105,13 +105,13 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 			if !ok {
 				break
 			}
-			c.keys[i].collation = collated.ResultUsage().Collation.ID
+			c.Keys[i].Collation = collated.ResultUsage().Collation.ID
 			expression = collated.Child
 		}
 		if col, ok := expression.(plan.ColumnExpr); ok {
-			c.keys[i].attribute = col.Origin.Address.SubID
+			c.Keys[i].Attribute = col.Origin.Address.SubID
 		} else {
-			c.keys[i].expression = expression
+			c.Keys[i].Expression = expression
 		}
 		if key.Collation != nil {
 			id, err := shared.host.LookupCollation(*key.Collation)
@@ -121,14 +121,14 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 			if expression.ResultUsage().Type.Usage().Collation.ID == 0 {
 				return sqlError("42804", "collations are not supported by type "+expression.ResultUsage().Type.DiagnosticName())
 			}
-			c.keys[i].collation = id
+			c.Keys[i].Collation = id
 		}
 		if key.Opclass != nil {
 			class, err := shared.host.LookupIndexClass(auth, *key.Opclass, catalog.BtreeMethod)
 			if err != nil {
 				return err
 			}
-			c.keys[i].class = class
+			c.Keys[i].Class = class
 		}
 		// Released inference parses class options but does not instantiate a CREATE
 		// provider or apply its option validation; identity is family plus input.
@@ -139,9 +139,9 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 		if err != nil {
 			return err
 		}
-		c.predicate = predicate
+		c.Predicate = predicate
 	}
-	c.reads = binder.query.sources[0].Uses
+	c.Reads = binder.query.sources[0].Uses
 	shared.params.anyParameters = append(shared.params.anyParameters, binder.params.anyParameters...)
 	for _, dep := range binder.dependencies {
 		shared.dependency(dep.Ref, dep.Revision)

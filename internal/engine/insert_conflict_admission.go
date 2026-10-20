@@ -7,15 +7,15 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *boundInsertConflict) binding {
-	return binding{Ref: ref, Relation: parent, Targets: action.targets, Insert: insertBinding{Conflict: insertConflictSlotOf(action)}, QuerySources: action.sources, Returning: action.returning}
+func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *insertConflictState) binding {
+	return binding{Ref: ref, Relation: parent, Targets: action.Targets, Insert: insertBinding{Conflict: action.InsertConflict}, QuerySources: action.Sources, Returning: action.Returning}
 }
 func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *exec.Context) (bool, error) {
 	action := s.insertConflict
 	if action == nil {
 		return true, s.checkInsertUniqueRow(ref, candidate, prefix)
 	}
-	if action.update != nil {
+	if action.Update != nil {
 		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
 	}
 	return s.admitInsertConflictRow(ref, candidate, prefix, indexProbeRuntime)
@@ -65,7 +65,7 @@ func (s *StatementScope) insertConflictVisible(row storage.RowVersion, committed
 
 func (w *WriteStage) applyInsertValidated(ref ids.ObjectRef, rows indexWriteBatch) (int, error) {
 	count := len(rows.values)
-	if action := w.scope.insertConflict; action != nil && action.update != nil {
+	if action := w.scope.insertConflict; action != nil && action.Update != nil {
 		return action.affected, nil
 	}
 	if action := w.scope.insertConflict; action != nil {

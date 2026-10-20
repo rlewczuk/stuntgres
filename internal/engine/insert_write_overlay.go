@@ -24,7 +24,7 @@ type insertWriteOverlay struct {
 }
 
 func (s *StatementScope) writeOverlay() *insertWriteOverlay {
-	if s.insertConflict != nil && s.insertConflict.update != nil {
+	if s.insertConflict != nil && s.insertConflict.Update != nil {
 		return &s.insertConflict.insertWriteOverlay
 	}
 	if s.insertReturning != nil {

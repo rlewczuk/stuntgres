@@ -191,7 +191,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 		}
 		scope.rlsTargetDenied = decision == access.RLSDefaultDeny
 	}
-	proposedRead := b.Insert.Conflict != nil && len(insertConflictOf(b.Insert.Conflict).reads) != 0
+	proposedRead := b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0
 	switch stmt.(type) {
 	case *parser.Insert:
 		scope.rlsProposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, proposedRead)

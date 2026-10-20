@@ -10,8 +10,8 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	if s.Conflict == nil || !s.Conflict.Update {
 		return nil
 	}
-	c := insertConflictOf(b.Insert.Conflict)
-	c.width = len(b.Relation.Columns)
+	c := b.Insert.Conflict
+	c.Width = len(b.Relation.Columns)
 	binder.target.relation, binder.target.ref = b.Relation, b.Ref
 	binder.target.name, binder.target.alias = b.Relation.Name(), s.Alias.Text
 	binder.params.updateParameters = true
@@ -52,9 +52,9 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 		}
 		action.Predicate = predicate
 	}
-	c.update = action
-	c.updateTargets = actionBinding.Targets
-	c.actionReads = append([]int(nil), binder.target.uses...)
-	c.sources = binder.query.sources
+	c.Update = action
+	c.UpdateTargets = actionBinding.Targets
+	c.ActionReads = append([]int(nil), binder.target.uses...)
+	c.Sources = binder.query.sources
 	return nil
 }

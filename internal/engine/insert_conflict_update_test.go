@@ -46,13 +46,14 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) 
 		t.Fatal(err)
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	if err := insertConflictOf(b.Insert.Conflict).selectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
+	conflict := newInsertConflictState(b.Insert.Conflict)
+	if err := conflict.selectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if err := insertConflictOf(b.Insert.Conflict).preflightUpdate(&evaluation); err != nil {
+	if err := conflict.preflightUpdate(&evaluation); err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = insertConflictOf(b.Insert.Conflict)
+	scope.insertConflict = conflict
 	return op, scope, b
 }
 
@@ -62,9 +63,9 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 	sessionSQL(t, s, "CREATE TABLE src(k INT,v INT)")
 	op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t AS dst SELECT k,v FROM src ON CONFLICT(k) DO UPDATE SET v=dst.v+excluded.v WHERE excluded.k>0")
-	c := insertConflictOf(b.Insert.Conflict)
-	if !reflect.DeepEqual(b.Targets, []int{0, 1}) || !reflect.DeepEqual(c.updateTargets, []int{1}) || !reflect.DeepEqual(c.reads, []int{0}) || !reflect.DeepEqual(c.actionReads, []int{1, 0}) || len(c.sources) != 1 || !reflect.DeepEqual(c.sources[0].Uses, []int{0, 1}) {
-		t.Fatal("distinct INSERT/UPDATE/action/source manifests", b.Targets, c.updateTargets, c.reads, c.actionReads, c.sources)
+	c := b.Insert.Conflict
+	if !reflect.DeepEqual(b.Targets, []int{0, 1}) || !reflect.DeepEqual(c.UpdateTargets, []int{1}) || !reflect.DeepEqual(c.Reads, []int{0}) || !reflect.DeepEqual(c.ActionReads, []int{1, 0}) || len(c.Sources) != 1 || !reflect.DeepEqual(c.Sources[0].Uses, []int{0, 1}) {
+		t.Fatal("distinct INSERT/UPDATE/action/source manifests", b.Targets, c.UpdateTargets, c.Reads, c.ActionReads, c.Sources)
 	}
 	integer := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
@@ -75,7 +76,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	}
 	old := []sqltype.Value{integer(10), integer(1)}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{old[0], old[1], integer(10), integer(2)}}}
-	values, err := evaluateUpdateAssignments(&eval, c.update, c.updateTargets, old)
+	values, err := evaluateUpdateAssignments(&eval, c.Update, c.UpdateTargets, old)
 	if err != nil || testExport(values[1]) != int64(3) || testExport(old[1]) != int64(1) {
 		t.Fatal("target/excluded slots and immutable RHS", values, old, err)
 	}
@@ -136,23 +137,23 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
-		original := insertConflictOf(action.Insert.Conflict).update
-		err = insertConflictOf(action.Insert.Conflict).preflightUpdate(&evaluation)
+		original := action.Insert.Conflict.Update
+		err = newInsertConflictState(action.Insert.Conflict).preflightUpdate(&evaluation)
 		if tc.error {
 			var d *sqlstate.Error
-			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || insertConflictOf(action.Insert.Conflict).update != original {
+			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || action.Insert.Conflict.Update != original {
 				t.Fatal("immutable action planning error without plan mutation", tc.name, err)
 			}
 			continue
 		}
-		if err != nil || (tc.unchanged && insertConflictOf(action.Insert.Conflict).update != original) {
+		if err != nil || (tc.unchanged && action.Insert.Conflict.Update != original) {
 			t.Fatal("runtime-owned SET remains unevaluated and unchanged", tc.name, err)
 		}
 		if !tc.unchanged {
-			if insertConflictOf(action.Insert.Conflict).update == original {
+			if action.Insert.Conflict.Update == original {
 				t.Fatal("constant action requires private execution tree")
 			}
-			value, err := insertConflictOf(action.Insert.Conflict).update.Assignments[0].Eval(&evaluation)
+			value, err := action.Insert.Conflict.Update.Assignments[0].Eval(&evaluation)
 			if err != nil || testExport(value) != int64(3) {
 				t.Fatal(value, err)
 			}

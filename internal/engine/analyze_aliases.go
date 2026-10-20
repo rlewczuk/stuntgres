@@ -20,7 +20,6 @@ type (
 	defaultOrigin           = analyze.DefaultOrigin
 	deleteBinding           = analyze.DeleteBinding
 	insertBinding           = analyze.InsertBinding
-	insertConflictSlot      = analyze.InsertConflictSlot
 	lookupKind              = analyze.LookupKind
 	namespaceSelection      = analyze.NamespaceSelection
 	ParameterInfo           = analyze.ParameterInfo

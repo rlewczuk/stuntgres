@@ -49,7 +49,7 @@ func bindInsertReturning(b *binding, binder *expressionBinder, auth analyze.Auth
 	output.ReadRequired = readRequired
 	b.Returning = output
 	if b.Insert.Conflict != nil {
-		insertConflictOf(b.Insert.Conflict).returning = output
+		b.Insert.Conflict.Returning = output
 	}
 	return nil
 }

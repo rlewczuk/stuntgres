@@ -110,18 +110,18 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 			}
 		}
 		if b.Insert.Conflict != nil {
-			if insertConflictOf(b.Insert.Conflict).constraint != (ids.ObjectAddress{}) {
-				add([]ids.ObjectAddress{insertConflictOf(b.Insert.Conflict).constraint})
+			if b.Insert.Conflict.Constraint != (ids.ObjectAddress{}) {
+				add([]ids.ObjectAddress{b.Insert.Conflict.Constraint})
 			}
-			for _, key := range insertConflictOf(b.Insert.Conflict).keys {
-				if err := expr(key.expression); err != nil {
+			for _, key := range b.Insert.Conflict.Keys {
+				if err := expr(key.Expression); err != nil {
 					return err
 				}
 			}
-			if err := expr(insertConflictOf(b.Insert.Conflict).predicate); err != nil {
+			if err := expr(b.Insert.Conflict.Predicate); err != nil {
 				return err
 			}
-			if insertConflictOf(b.Insert.Conflict).update != nil {
+			if b.Insert.Conflict.Update != nil {
 				// PostgreSQL's EXCLUDED targetlist captures every live attribute
 				// at definition time, independently of executable ACL read demand.
 				for _, attribute := range b.Relation.Attributes {
@@ -129,18 +129,18 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 					a.SubID = attribute
 					add([]ids.ObjectAddress{a})
 				}
-				if err := targets(insertConflictOf(b.Insert.Conflict).update.ArrayTargets); err != nil {
+				if err := targets(b.Insert.Conflict.Update.ArrayTargets); err != nil {
 					return err
 				}
-				for i, value := range insertConflictOf(b.Insert.Conflict).update.Assignments {
+				for i, value := range b.Insert.Conflict.Update.Assignments {
 					if err := expr(value); err != nil {
 						return err
 					}
 					a := b.Ref.Address
-					a.SubID = b.Relation.Attributes[insertConflictOf(b.Insert.Conflict).updateTargets[i]]
+					a.SubID = b.Relation.Attributes[b.Insert.Conflict.UpdateTargets[i]]
 					add([]ids.ObjectAddress{a})
 				}
-				if err := expr(insertConflictOf(b.Insert.Conflict).update.Predicate); err != nil {
+				if err := expr(b.Insert.Conflict.Update.Predicate); err != nil {
 					return err
 				}
 			}

@@ -28,7 +28,7 @@ type statementMutation struct {
 	routineDependencies   []catalog.ExpressionDependency // Borrowed immutable manifest follows command activation.
 	uniqueBinding         *uniqueWriteBinding
 	indexBindings         map[ids.ObjectAddress]*uniqueWriteBinding
-	insertConflict        *boundInsertConflict
+	insertConflict        *insertConflictState
 	insertReturning       *insertReturningOutput
 	partitionInsert       *partitionInsertState
 	rlsTargetDenied       bool

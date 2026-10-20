@@ -205,48 +205,48 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		b.Prepared.SequenceConstants[i].Ref = ref(b.Prepared.SequenceConstants[i].Ref)
 	}
 	if b.Insert.Conflict != nil {
-		next := *insertConflictOf(b.Insert.Conflict).instantiate()
-		if next.constraint != (ids.ObjectAddress{}) {
+		next := *b.Insert.Conflict.Clone()
+		if next.Constraint != (ids.ObjectAddress{}) {
 			constraintRef := originalRef
-			constraintRef.Address = next.constraint
-			next.constraint = ref(constraintRef).Address
+			constraintRef.Address = next.Constraint
+			next.Constraint = ref(constraintRef).Address
 		}
-		if next.namedIndex != (ids.ObjectAddress{}) {
+		if next.NamedIndex != (ids.ObjectAddress{}) {
 			indexRef := originalRef
-			indexRef.Address = next.namedIndex
-			next.namedIndex = ref(indexRef).Address
+			indexRef.Address = next.NamedIndex
+			next.NamedIndex = ref(indexRef).Address
 		}
-		next.keys = slices.Clone(next.keys)
-		for i := range next.keys {
-			next.keys[i].expression, err = mapExpr(next.keys[i].expression)
+		next.Keys = slices.Clone(next.Keys)
+		for i := range next.Keys {
+			next.Keys[i].Expression, err = mapExpr(next.Keys[i].Expression)
 			if err != nil {
 				return b, err
 			}
-			if collation != nil && next.keys[i].collation != 0 {
-				mapped, err := collation(sqltype.CollationRef{ID: next.keys[i].collation})
+			if collation != nil && next.Keys[i].Collation != 0 {
+				mapped, err := collation(sqltype.CollationRef{ID: next.Keys[i].Collation})
 				if err != nil {
 					return b, err
 				}
-				next.keys[i].collation = mapped.ID
+				next.Keys[i].Collation = mapped.ID
 			}
 		}
-		next.predicate, err = mapExpr(next.predicate)
+		next.Predicate, err = mapExpr(next.Predicate)
 		if err != nil {
 			return b, err
 		}
-		next.update, err = mapUpdate(next.update)
+		next.Update, err = mapUpdate(next.Update)
 		if err != nil {
 			return b, err
 		}
-		next.returning, err = mapReturning(next.returning)
+		next.Returning, err = mapReturning(next.Returning)
 		if err != nil {
 			return b, err
 		}
-		next.sources, err = mapSources(next.sources)
+		next.Sources, err = mapSources(next.Sources)
 		if err != nil {
 			return b, err
 		}
-		b.Insert.Conflict = insertConflictSlotOf(&next)
+		b.Insert.Conflict = &next
 	}
 	b.CTEs = slices.Clone(b.CTEs)
 	for i, definition := range b.CTEs {
@@ -372,10 +372,10 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 		r.actions = slices.Clone(r.actions)
 		conflict := func(b binding) binding {
 			if b.Insert.Conflict != nil {
-				if address, ok := mapping[insertConflictOf(b.Insert.Conflict).constraint]; ok && address != insertConflictOf(b.Insert.Conflict).constraint {
-					copy := *insertConflictOf(b.Insert.Conflict)
-					copy.constraint = address
-					b.Insert.Conflict = insertConflictSlotOf(&copy)
+				if address, ok := mapping[b.Insert.Conflict.Constraint]; ok && address != b.Insert.Conflict.Constraint {
+					copy := *b.Insert.Conflict
+					copy.Constraint = address
+					b.Insert.Conflict = &copy
 				}
 			}
 			return b

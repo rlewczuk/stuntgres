@@ -13,7 +13,7 @@ import (
 
 // The SQL below constructs real analyzed templates and index providers. The
 // invariant under test is the production export -> parse -> rule-analysis path,
-// not public SQL results or a hand-built imitation of conflictKey.
+// not public SQL results or a hand-built imitation of analyze.ConflictKey.
 func TestRuleInferenceDumpReanalysis(t *testing.T) {
 	for _, expression := range []bool{false, true} {
 		for _, cte := range []bool{false, true} {
@@ -75,7 +75,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					}
 				}
 				assertSourceOwnership(stored)
-				conflict := func(r ruleDefinition) *boundInsertConflict {
+				conflict := func(r ruleDefinition) *analyze.InsertConflict {
 					t.Helper()
 					b := r.actions[0].binding
 					if cte {
@@ -84,23 +84,23 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						}
 						b = *cteMutationOf(b.CTEs[0])
 					}
-					if b.Insert.Conflict == nil || len(insertConflictOf(b.Insert.Conflict).keys) != 1 {
+					if b.Insert.Conflict == nil || len(b.Insert.Conflict.Keys) != 1 {
 						t.Fatal("analyzed modifier lost its inference key")
 					}
-					return insertConflictOf(b.Insert.Conflict)
+					return b.Insert.Conflict
 				}
 				original := conflict(stored)
-				assertKey := func(c *boundInsertConflict, catalog catalog.Read) {
+				assertKey := func(c *analyze.InsertConflict, catalog catalog.Read) {
 					t.Helper()
-					k := c.keys[0]
-					if k.collation != 950 || k.class.Name != "text_pattern_ops" {
-						t.Fatalf("retained decorations: collation=%d class=%q", k.collation, k.class.Name)
+					k := c.Keys[0]
+					if k.Collation != 950 || k.Class.Name != "text_pattern_ops" {
+						t.Fatalf("retained decorations: collation=%d class=%q", k.Collation, k.Class.Name)
 					}
 					if expression {
-						if k.attribute != 0 || k.expression == nil {
+						if k.Attribute != 0 || k.Expression == nil {
 							t.Fatal("expression inference became attribute inference")
 						}
-					} else if k.attribute != 1 || k.expression != nil {
+					} else if k.Attribute != 1 || k.Expression != nil {
 						t.Fatal("stable attribute inference changed")
 					}
 					parent := catalog.MustRelation(sinkRef.Address)
@@ -109,7 +109,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						want bool
 					}{{matchingRef, !expression}, {ordinaryRef, false}} {
 						index := catalog.MustRelation(test.ref.Address).SQLIndex
-						got, err := c.matches(parent, index)
+						got, err := newInsertConflictState(c).matches(parent, index)
 						if err != nil || got != test.want {
 							t.Fatalf("canonical inference match=%v want=%v error=%v", got, test.want, err)
 						}

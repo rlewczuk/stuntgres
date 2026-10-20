@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/lock"
@@ -107,7 +108,7 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	if err := f.e.SetObjectACL(context.Background(), ref, acl(authorization.InsertPrivilege)); err != nil {
 		t.Fatal(err)
 	}
-	b := bindingForConflict(ref, f.parent, &boundInsertConflict{targets: []int{0, 1}, reads: []int{0, 1}})
+	b := bindingForConflict(ref, f.parent, newInsertConflictState(&analyze.InsertConflict{Targets: []int{0, 1}, Reads: []int{0, 1}}))
 	check := func(want string) {
 		t.Helper()
 		f.e.mu.Lock()
@@ -144,7 +145,7 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	}
 	check("42501")
 	// Targetless DO NOTHING has no hidden selected-index SELECT manifest.
-	insertConflictOf(b.Insert.Conflict).reads = nil
+	b.Insert.Conflict.Reads = nil
 	check("")
 }
 

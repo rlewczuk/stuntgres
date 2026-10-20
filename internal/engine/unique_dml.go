@@ -340,7 +340,7 @@ func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *indexWrite
 	}
 	return nil
 }
-func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []storage.RowVersion, prefix indexWriteBatch, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
+func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []storage.RowVersion, prefix indexWriteBatch, action *insertConflictState, purpose indexProbePurpose) (uniqueConflict, error) {
 	row := candidate.values
 retry:
 	binding, err := s.bindUniqueWrite(ref)
@@ -443,7 +443,7 @@ retry:
 			}
 		}
 		var versions []storage.RowVersion
-		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
+		if action != nil && (action.Update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
 			if stored := e.privateStorageLocked(s.owner.catalog, ref.Address); stored != nil {
 				versions = stored.Versions
 			}
@@ -512,7 +512,7 @@ retry:
 				}
 			}
 			if !replaced {
-				if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
+				if action != nil && (action.Update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
 					head, err := conflictEntryVersion(versions, entry)
 					if err != nil {
 						return uniqueConflict{}, err

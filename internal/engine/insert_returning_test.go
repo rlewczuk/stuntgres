@@ -52,13 +52,14 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query str
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = insertConflictOf(b.Insert.Conflict)
-	if b.Insert.Conflict != nil {
+	conflict := newInsertConflictState(b.Insert.Conflict)
+	scope.insertConflict = conflict
+	if conflict != nil {
 		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if err := insertConflictOf(b.Insert.Conflict).selectArbiters(&c, b.Relation, e.CatalogRead()); err != nil {
+		if err := conflict.selectArbiters(&c, b.Relation, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		if err := insertConflictOf(b.Insert.Conflict).preflightUpdate(&c); err != nil {
+		if err := conflict.preflightUpdate(&c); err != nil {
 			t.Fatal(err)
 		}
 	}

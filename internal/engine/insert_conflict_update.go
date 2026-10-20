@@ -51,7 +51,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			if s.viewWrite != nil {
 				b := bindingForConflict(ref, s.viewWrite.base, c)
 				b.ViewWrite = viewWriteSlotOf(s.viewWrite)
-				b.Targets = c.targets
+				b.Targets = c.Targets
 				if err := e.checkViewRow(s, &b, proposal, &evaluation); err != nil {
 					return err
 				}
@@ -82,7 +82,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		manager.RestoreUniqueDelta(s.ticket)
 		s.discardExclusionCandidate(ref, candidate)
 		mode := lock.ForNoKeyUpdate
-		for _, target := range c.updateTargets {
+		for _, target := range c.UpdateTargets {
 			for _, key := range s.uniqueBinding.keySlots {
 				if target == key {
 					mode = lock.ForUpdate
@@ -120,12 +120,12 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		if c.frame == nil {
-			c.frame = make([]sqltype.Value, 2*c.width)
+			c.frame = make([]sqltype.Value, 2*c.Width)
 		}
 		copy(c.frame, old.Values)
-		copy(c.frame[c.width:], proposal)
+		copy(c.frame[c.Width:], proposal)
 		evaluation.Row = c.frame
-		matches, err := exec.UpdateMatches(&evaluation, c.update.Predicate)
+		matches, err := exec.UpdateMatches(&evaluation, c.Update.Predicate)
 		if err != nil {
 			return err
 		}
@@ -134,13 +134,13 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			s.discardExclusionCandidate(ref, candidate)
 			return nil
 		}
-		row, err := evaluateUpdateAssignments(&evaluation, c.update, c.updateTargets, old.Values)
+		row, err := evaluateUpdateAssignments(&evaluation, c.Update, c.UpdateTargets, old.Values)
 		if err != nil {
 			return err
 		}
 		b := bindingForConflict(ref, parent, c)
 		// Constraint Detail can disclose SET outputs, not unread carried target data.
-		b.Targets = c.updateTargets
+		b.Targets = c.UpdateTargets
 		if err := e.validatePhysicalInsertRow(s, b, &b, schema, row, &evaluation); err != nil {
 			return err
 		}
@@ -190,7 +190,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 	}
 }
 
-func (c *boundInsertConflict) markAffected(id ids.RowID, slot int) {
+func (c *insertConflictState) markAffected(id ids.RowID, slot int) {
 	if c.affectedRows == nil {
 		c.affectedRows = make(map[ids.RowID]int)
 	}
@@ -255,14 +255,14 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	return row, parent, namespace.Name(), live, nil
 }
 
-func (c *boundInsertConflict) preflightUpdate(evaluation *exec.Context) error {
-	if c.update == nil {
+func (c *insertConflictState) preflightUpdate(evaluation *exec.Context) error {
+	if c.Update == nil {
 		return nil
 	}
-	action, err := preflightUpdateWithPlanning(evaluation, c.update, true)
+	action, err := preflightUpdateWithPlanning(evaluation, c.Update, true)
 	if err != nil {
 		return err
 	}
-	c.update = action
+	c.Update = action
 	return nil
 }

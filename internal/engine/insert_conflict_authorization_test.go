@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"runtime"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -135,7 +136,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := scope.gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
+	action := newInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if err := action.selectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
@@ -255,7 +256,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := scope.gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
+	scope.insertConflict = newInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
 	if err := scope.insertConflict.selectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}

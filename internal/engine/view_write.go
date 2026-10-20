@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -580,14 +581,14 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		b.Returning = &r
 	}
 	if b.Insert.Conflict != nil {
-		conflict := *insertConflictOf(b.Insert.Conflict)
-		conflict.targets = b.Targets
-		conflict.keys = append([]conflictKey(nil), conflict.keys...)
-		for i, key := range conflict.keys {
-			if key.attribute != 0 {
+		conflict := *b.Insert.Conflict
+		conflict.Targets = b.Targets
+		conflict.Keys = append([]analyze.ConflictKey(nil), conflict.Keys...)
+		for i, key := range conflict.Keys {
+			if key.Attribute != 0 {
 				slot := -1
 				for j, attr := range w.logical.Relation.Attributes {
-					if attr == key.attribute {
+					if attr == key.Attribute {
 						slot = j
 						break
 					}
@@ -599,19 +600,19 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				if !ok {
 					return sqlError("42P10", "there is no unique or exclusion constraint matching the ON CONFLICT specification")
 				}
-				conflict.keys[i].attribute = w.base.Attributes[output.Slot]
-			} else if key.expression != nil {
-				conflict.keys[i].expression, err = lower(key.expression)
+				conflict.Keys[i].Attribute = w.base.Attributes[output.Slot]
+			} else if key.Expression != nil {
+				conflict.Keys[i].Expression, err = lower(key.Expression)
 				if err != nil {
 					return err
 				}
 			}
 		}
-		conflict.predicate, err = lower(conflict.predicate)
+		conflict.Predicate, err = lower(conflict.Predicate)
 		if err != nil {
 			return err
 		}
-		b.Insert.Conflict = insertConflictSlotOf(&conflict)
+		b.Insert.Conflict = &conflict
 	}
 	if insert, ok := stmt.(*parser.Insert); ok {
 		return e.lowerViewInsert(b, auth, insert)

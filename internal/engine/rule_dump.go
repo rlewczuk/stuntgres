@@ -61,8 +61,8 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if err != nil {
 			return "", err
 		}
-		if conflict := insertConflictOf(action.binding.Insert.Conflict); conflict != nil && conflict.update != nil &&
-			column.Scope == 1 && column.Frame == 1 && column.Slot >= conflict.width && column.Slot < 2*conflict.width &&
+		if conflict := action.binding.Insert.Conflict; conflict != nil && conflict.Update != nil &&
+			column.Scope == 1 && column.Frame == 1 && column.Slot >= conflict.Width && column.Slot < 2*conflict.Width &&
 			a == action.binding.Ref.Address {
 			return "EXCLUDED." + name, nil
 		}
@@ -380,7 +380,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		}
 		if s.Conflict != nil {
 			sql.WriteString(" ON CONFLICT")
-			if constraint := insertConflictOf(b.Insert.Conflict).constraint; constraint != (ids.ObjectAddress{}) {
+			if constraint := b.Insert.Conflict.Constraint; constraint != (ids.ObjectAddress{}) {
 				if constraint.ClassID != 2606 || constraint.SubID != 0 {
 					return "", fmt.Errorf("stuntgres: invalid named rule constraint identity")
 				}
@@ -391,48 +391,48 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 					return "", fmt.Errorf("stuntgres: missing named rule constraint")
 				}
 				sql.WriteString(" ON CONSTRAINT " + catalog.QuoteIdentifier(canonicalName))
-			} else if len(insertConflictOf(b.Insert.Conflict).keys) != 0 {
-				parts := make([]string, len(insertConflictOf(b.Insert.Conflict).keys))
-				for i, key := range insertConflictOf(b.Insert.Conflict).keys {
-					if key.attribute != 0 {
-						parts[i], err = deparseAttribute(d, key.attribute)
+			} else if len(b.Insert.Conflict.Keys) != 0 {
+				parts := make([]string, len(b.Insert.Conflict.Keys))
+				for i, key := range b.Insert.Conflict.Keys {
+					if key.Attribute != 0 {
+						parts[i], err = deparseAttribute(d, key.Attribute)
 					} else {
-						parts[i], err = ruleExpressionSQL(ctx, view, key.expression, action)
+						parts[i], err = ruleExpressionSQL(ctx, view, key.Expression, action)
 						parts[i] = "(" + parts[i] + ")"
 					}
 					if err != nil {
 						return "", err
 					}
-					if key.collation != 0 {
-						parts[i] += " COLLATE " + typedef.CollationSQLName(view, key.collation)
+					if key.Collation != 0 {
+						parts[i] += " COLLATE " + typedef.CollationSQLName(view, key.Collation)
 					}
-					if key.class.Name != "" {
-						parts[i] += " " + catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(key.class.Name)
+					if key.Class.Name != "" {
+						parts[i] += " " + catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(key.Class.Name)
 					}
 				}
 				sql.WriteString(" (" + strings.Join(parts, ", ") + ")")
 			}
-			if insertConflictOf(b.Insert.Conflict).predicate != nil {
-				text, err := ruleExpressionSQL(ctx, view, insertConflictOf(b.Insert.Conflict).predicate, action)
+			if b.Insert.Conflict.Predicate != nil {
+				text, err := ruleExpressionSQL(ctx, view, b.Insert.Conflict.Predicate, action)
 				if err != nil {
 					return "", err
 				}
 				sql.WriteString(" WHERE " + text)
 			}
-			if insertConflictOf(b.Insert.Conflict).update == nil {
+			if b.Insert.Conflict.Update == nil {
 				sql.WriteString(" DO NOTHING")
 			} else {
 				sql.WriteString(" DO UPDATE SET ")
-				for i, expr := range insertConflictOf(b.Insert.Conflict).update.Assignments {
+				for i, expr := range b.Insert.Conflict.Update.Assignments {
 					if i != 0 {
 						sql.WriteString(", ")
 					}
-					column, err := deparseAttribute(d, b.Relation.Attributes[insertConflictOf(b.Insert.Conflict).updateTargets[i]])
+					column, err := deparseAttribute(d, b.Relation.Attributes[b.Insert.Conflict.UpdateTargets[i]])
 					if err != nil {
 						return "", err
 					}
-					if len(insertConflictOf(b.Insert.Conflict).update.ArrayTargets) > i {
-						column, err = ruleAssignmentSQL(ctx, view, column, insertConflictOf(b.Insert.Conflict).update.ArrayTargets[i], action)
+					if len(b.Insert.Conflict.Update.ArrayTargets) > i {
+						column, err = ruleAssignmentSQL(ctx, view, column, b.Insert.Conflict.Update.ArrayTargets[i], action)
 						if err != nil {
 							return "", err
 						}
@@ -443,8 +443,8 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 					}
 					sql.WriteString(column + " = " + text)
 				}
-				if insertConflictOf(b.Insert.Conflict).update.Predicate != nil {
-					text, err := ruleExpressionSQL(ctx, view, insertConflictOf(b.Insert.Conflict).update.Predicate, action)
+				if b.Insert.Conflict.Update.Predicate != nil {
+					text, err := ruleExpressionSQL(ctx, view, b.Insert.Conflict.Update.Predicate, action)
 					if err != nil {
 						return "", err
 					}

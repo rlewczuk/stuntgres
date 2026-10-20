@@ -508,7 +508,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, nil
 		}
 	}
-	if b.Insert.Conflict != nil && insertConflictOf(b.Insert.Conflict).update != nil {
+	if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
 		if boundary := partitionWriteExtensionBoundary(stmt, physicalBinding(b).Relation); boundary != nil {
 			// Hierarchies have no conflict-update executor. Complete analysis
 			// and target/source authority before rejecting that capability,

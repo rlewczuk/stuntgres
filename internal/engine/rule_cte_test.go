@@ -2,9 +2,9 @@ package engine
 
 import (
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -210,12 +210,12 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	original := ruleUnitInsert(e, src, 1, 10).binding
 	modifier := ruleUnitInsert(e, sink, 1, 10)
-	recipe := &boundInsertConflict{
-		targets: modifier.binding.Targets, keys: []conflictKey{{attribute: 1}},
-		update:        &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
-		updateTargets: []int{1}, width: 2,
+	recipe := &analyze.InsertConflict{
+		Targets: modifier.binding.Targets, Keys: []analyze.ConflictKey{{Attribute: 1}},
+		Update:        &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
+		UpdateTargets: []int{1}, Width: 2,
 	}
-	modifier.binding.Insert.Conflict = insertConflictSlotOf(recipe)
+	modifier.binding.Insert.Conflict = recipe
 	definition := &plan.CTEDefinition{Statement: modifier.syntax, Mutation: &modifier.binding, Schema: plan.QuerySchema(sink.Columns), Owner: 3}
 	scan := &plan.DerivedNode{QuerySchema: definition.Schema, CTE: definition, ScanFrame: 1}
 	action := ruleUnitInsert(e, sink, 1, 10)
@@ -240,7 +240,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		}
 		return result
 	}
-	executable := func(b binding) (*plan.CTEDefinition, *boundInsertConflict) {
+	executable := func(b binding) (*plan.CTEDefinition, *analyze.InsertConflict) {
 		t.Helper()
 		provider := b.CTEs[0]
 		tuple := ruleCTEsOf(b.Rule.CTEs)[provider]
@@ -264,36 +264,32 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 			visit(right)
 		}
 		visit(b.Query.Root)
-		if !found || provider.Statement != definition.Statement || insertConflictOf(cteMutationOf(provider).Insert.Conflict) != insertConflictOf(tuple.command.binding.Insert.Conflict) {
+		if !found || provider.Statement != definition.Statement || cteMutationOf(provider).Insert.Conflict != tuple.command.binding.Insert.Conflict {
 			t.Fatal("composition/normalization disconnected modifier spool identity")
 		}
-		return provider, insertConflictOf(tuple.command.binding.Insert.Conflict)
+		return provider, tuple.command.binding.Insert.Conflict
 	}
 	first := compose()
 	firstDefinition, firstConflict := executable(first)
-	// Mutate the actual normalized execution binding, not a stand-alone clone.
-	firstConflict.markAffected(ids.RowID(42), 0)
-	firstConflict.selected = []ids.ObjectAddress{sink.Address()}
-	firstConflict.catalog = auth.Catalog.State()
-	firstConflict.checkpoint = make(lock.Checkpoint)
-	firstConflict.statementKeys = make(lock.Checkpoint)
-	firstConflict.frame = make([]sqltype.Value, 4)
-	firstConflict.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
-	firstConflict.ownRowSlots = map[ids.ObjectAddress]map[ids.RowID]int{sink.Address(): {ids.RowID(42): 0}}
+	// Mutate the actual normalized execution binding, not a stand-alone clone:
+	// execution replaces its normalized predicate through the command's state.
+	firstState := newInsertConflictState(firstConflict)
+	firstState.Predicate = ruleUnitInt(sink, 12)
+	firstState.markAffected(ids.RowID(42), 0)
 	second := compose()
 	secondDefinition, secondConflict := executable(second)
 	if firstConflict == secondConflict || firstConflict == recipe || secondConflict == recipe || firstDefinition == definition || secondDefinition == definition {
 		t.Fatal("stored modifier commands share a mutable conflict workspace")
 	}
-	for _, conflict := range []*boundInsertConflict{recipe, secondConflict} {
-		if conflict.affected != 0 || conflict.affectedRows != nil || conflict.selected != nil || conflict.catalog != nil || conflict.checkpoint != nil || conflict.statementKeys != nil || conflict.frame != nil || conflict.overlays != nil || conflict.ownRowSlots != nil {
+	for _, conflict := range []*analyze.InsertConflict{recipe, secondConflict} {
+		if conflict.Predicate != nil {
 			t.Fatal("normalized modifier mutated its definition or another command")
 		}
-		if conflict.update != recipe.update || &conflict.keys[0] != &recipe.keys[0] || &conflict.updateTargets[0] != &recipe.updateTargets[0] {
+		if conflict.Update != recipe.Update || &conflict.Keys[0] != &recipe.Keys[0] || &conflict.UpdateTargets[0] != &recipe.UpdateTargets[0] {
 			t.Fatal("unchanged analyzed conflict recipes were unnecessarily cloned")
 		}
 	}
-	if firstConflict.affected != 1 || firstConflict.affectedRows[ids.RowID(42)] != 0 || definition.Mutation != &modifier.binding || definition.Owner != 3 || scan.CTE != definition {
+	if firstConflict.Predicate == nil || firstState.affected != 1 || firstState.affectedRows[ids.RowID(42)] != 0 || definition.Mutation != &modifier.binding || definition.Owner != 3 || scan.CTE != definition {
 		t.Fatal("command cardinality or frozen definition/provider state changed")
 	}
 	// Executable descendants use the same stored-action refresh authority.
@@ -306,7 +302,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}
 	outer := refreshed.CTEs[0]
 	inner := cteMutationOf(outer).CTEs[0]
-	if outer == ancestor || inner == definition || insertConflictOf(cteMutationOf(outer).Insert.Conflict) == recipe || insertConflictOf(cteMutationOf(inner).Insert.Conflict) == recipe || insertConflictOf(cteMutationOf(outer).Insert.Conflict) == insertConflictOf(cteMutationOf(inner).Insert.Conflict) {
+	if outer == ancestor || inner == definition || cteMutationOf(outer).Insert.Conflict == recipe || cteMutationOf(inner).Insert.Conflict == recipe || cteMutationOf(outer).Insert.Conflict == cteMutationOf(inner).Insert.Conflict {
 		t.Fatal("recursive stored modifier ancestry retained shared workspace")
 	}
 	if outer.Owner != ancestor.Owner || inner.Owner != definition.Owner || nested.CTEs[0] != definition || ancestor.Mutation != &nested {
@@ -314,7 +310,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}
 	// Fresh ordinary bindings do not enter the stored modifier clone path.
 	ordinary, err := refreshRuleActionCTEs(auth, modifier.binding)
-	if err != nil || insertConflictOf(ordinary.Insert.Conflict) != recipe {
+	if err != nil || ordinary.Insert.Conflict != recipe {
 		t.Fatal("ordinary binding acquired an unnecessary workspace clone")
 	}
 }

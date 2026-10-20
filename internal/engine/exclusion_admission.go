@@ -449,7 +449,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 		return hit, potential, nil
 	}
 }
-func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []storage.RowVersion, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
+func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []storage.RowVersion, action *insertConflictState, purpose indexProbePurpose) (uniqueConflict, error) {
 	index := bound.index
 	if action != nil && !slices.Contains(action.selected, index.Address()) {
 		return uniqueConflict{}, nil

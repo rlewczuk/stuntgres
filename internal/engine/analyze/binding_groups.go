@@ -24,7 +24,7 @@ type InsertBinding struct {
 	DefaultOrigins  []DefaultOrigin
 	IdentityDiscard []bool
 	Projection      []int
-	Conflict        InsertConflictSlot
+	Conflict        *InsertConflict
 }
 
 // DeleteBinding is the DELETE payload: the USING source and its frame width.
@@ -122,10 +122,6 @@ type RuleBinding struct {
 // naming their types. The engine stores and recovers each value with one
 // checked helper (the engine's binding_slots.go) and never stores a nil pointer, so a nil
 // slot means the value is absent.
-
-// InsertConflictSlot holds the bound ON CONFLICT clause together with its
-// per-execution arbiter and write state.
-type InsertConflictSlot interface{ InsertConflictSlot() }
 
 // RuleCTEsSlot holds the rule commands of a rule action's CTEs, keyed by
 // their definitions.

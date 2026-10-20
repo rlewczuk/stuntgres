@@ -49,7 +49,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						t.Fatal("fixture lacks two distinct real named constraint providers")
 					}
 					stored := rulesOf(before.MustRelation(srcRef.Address))[0]
-					conflict := func(r ruleDefinition) *boundInsertConflict {
+					conflict := func(r ruleDefinition) *analyze.InsertConflict {
 						t.Helper()
 						b := r.actions[0].binding
 						if cte {
@@ -61,12 +61,12 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						if b.Insert.Conflict == nil {
 							t.Fatal("analyzed action lost its named conflict binding")
 						}
-						return insertConflictOf(b.Insert.Conflict)
+						return b.Insert.Conflict
 					}
 					original := conflict(stored)
 					frozen := *original
 					intendedAddress := ids.ObjectAddress{ClassID: 2606, ObjectID: intended.OID}
-					if original.constraint != intendedAddress || original.namedIndex != intended.Index {
+					if original.Constraint != intendedAddress || original.NamedIndex != intended.Index {
 						t.Fatal("creation did not bind the actual named constraint and physical id provider")
 					}
 					assertSources := func(r ruleDefinition) {
@@ -143,10 +143,10 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					reboundView := e.CatalogRead()
 					rebound := rulesOf(reboundView.MustRelation(srcRef.Address))[0]
 					assertSources(rebound)
-					if conflict(rebound).constraint != intendedAddress {
+					if conflict(rebound).Constraint != intendedAddress {
 						t.Fatal("reanalysis did not capture the actual class2606 renamed constraint identity")
 					}
-					provider := conflict(rebound).namedIndex
+					provider := conflict(rebound).NamedIndex
 					if provider != intended.Index || provider == other.Index {
 						t.Fatalf("reanalysis retargeted provider: got=%v intended=%v other=%v", provider, intended.Index, other.Index)
 					}
@@ -186,13 +186,13 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						}
 					}
 					if importedProvider.OID == 0 ||
-						importedConflict.constraint != (ids.ObjectAddress{ClassID: 2606, ObjectID: importedProvider.OID}) ||
-						importedConflict.namedIndex != importedProvider.Index ||
+						importedConflict.Constraint != (ids.ObjectAddress{ClassID: 2606, ObjectID: importedProvider.OID}) ||
+						importedConflict.NamedIndex != importedProvider.Index ||
 						len(importedProvider.Attributes) != 1 || importedProvider.Attributes[0] != importedParent.Attributes[0] {
 						t.Fatal("actual native import lost the named id constraint/backing relationship")
 					}
 					for _, definition := range importedParent.Constraints.Unique {
-						if definition.Name == "sink_key" && (definition.OID == importedConflict.constraint.ObjectID || definition.Index == importedConflict.namedIndex) {
+						if definition.Name == "sink_key" && (definition.OID == importedConflict.Constraint.ObjectID || definition.Index == importedConflict.NamedIndex) {
 							t.Fatal("actual native import retargeted the reused other-column provider")
 						}
 					}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -178,7 +179,7 @@ func TestViewWriteDefaults(t *testing.T) {
 		ObjectAddress: indexAddress,
 		SQLIndex:      &catalog.IndexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
-	conflict := &boundInsertConflict{}
+	conflict := newInsertConflictState(&analyze.InsertConflict{})
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	if err := conflict.selectArbiters(&evaluation, physicalBinding(b).Relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)

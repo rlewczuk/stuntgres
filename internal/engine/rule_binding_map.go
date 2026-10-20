@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -111,32 +112,32 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 		}
 	}
 	if b.Insert.Conflict != nil {
-		conflict := *insertConflictOf(b.Insert.Conflict)
-		var keys []conflictKey
-		for i, key := range conflict.keys {
-			next, changed, err := mapper.expression(key.expression)
+		conflict := *b.Insert.Conflict
+		var keys []analyze.ConflictKey
+		for i, key := range conflict.Keys {
+			next, changed, err := mapper.expression(key.Expression)
 			if err != nil {
 				return b, err
 			}
 			if changed {
 				if keys == nil {
-					keys = slices.Clone(conflict.keys)
+					keys = slices.Clone(conflict.Keys)
 				}
-				keys[i].expression = next
+				keys[i].Expression = next
 			}
 		}
 		if keys != nil {
-			conflict.keys = keys
+			conflict.Keys = keys
 		}
 		conflictChanged := keys != nil
 		var predicateChanged bool
-		conflict.predicate, predicateChanged, err = mapper.expression(conflict.predicate)
+		conflict.Predicate, predicateChanged, err = mapper.expression(conflict.Predicate)
 		if err != nil {
 			return b, err
 		}
 		conflictChanged = conflictChanged || predicateChanged
-		if conflict.update != nil {
-			update := *conflict.update
+		if conflict.Update != nil {
+			update := *conflict.Update
 			var assignmentsChanged, predicateChanged bool
 			update.Assignments, assignmentsChanged, err = list(update.Assignments)
 			if err != nil {
@@ -150,30 +151,30 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 			if err != nil {
 				return b, err
 			}
-			if assignmentsChanged || predicateChanged || !slices.Equal(update.ArrayTargets, conflict.update.ArrayTargets) {
-				conflict.update = &update
+			if assignmentsChanged || predicateChanged || !slices.Equal(update.ArrayTargets, conflict.Update.ArrayTargets) {
+				conflict.Update = &update
 				conflictChanged = true
 			}
 		}
-		if conflict.returning == originalReturning {
-			if conflict.returning != b.Returning {
-				conflict.returning = b.Returning
+		if conflict.Returning == originalReturning {
+			if conflict.Returning != b.Returning {
+				conflict.Returning = b.Returning
 				conflictChanged = true
 			}
-		} else if conflict.returning != nil {
-			values, changed, err := list(conflict.returning.Expressions)
+		} else if conflict.Returning != nil {
+			values, changed, err := list(conflict.Returning.Expressions)
 			if err != nil {
 				return b, err
 			}
 			if changed {
-				returning := *conflict.returning
+				returning := *conflict.Returning
 				returning.Expressions = values
-				conflict.returning = &returning
+				conflict.Returning = &returning
 				conflictChanged = true
 			}
 		}
 		if conflictChanged {
-			b.Insert.Conflict = insertConflictSlotOf(&conflict)
+			b.Insert.Conflict = &conflict
 		}
 	}
 	var definitions []*plan.CTEDefinition

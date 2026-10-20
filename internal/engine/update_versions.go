@@ -185,7 +185,7 @@ retry:
 		}
 	}
 	if conflictDistinct {
-		if s.insertConflict == nil || s.insertConflict.update == nil {
+		if s.insertConflict == nil || s.insertConflict.Update == nil {
 			return errors.New("stuntgres: distinct replacement without conflict update")
 		}
 		for _, predecessor := range old {

@@ -243,17 +243,17 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		if err := v.checkColumns(b, authorization.InsertPrivilege, b.Targets); err != nil {
 			return err
 		}
-		if b.Insert.Conflict != nil && len(insertConflictOf(b.Insert.Conflict).reads) != 0 {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, insertConflictOf(b.Insert.Conflict).reads); err != nil {
+		if b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0 {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.Insert.Conflict.Reads); err != nil {
 				return err
 			}
 		}
-		if b.Insert.Conflict != nil && insertConflictOf(b.Insert.Conflict).update != nil {
-			if err := v.checkColumns(b, authorization.UpdatePrivilege, insertConflictOf(b.Insert.Conflict).updateTargets); err != nil {
+		if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
+			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.Insert.Conflict.UpdateTargets); err != nil {
 				return err
 			}
-			if len(insertConflictOf(b.Insert.Conflict).actionReads) != 0 {
-				if err := v.checkColumns(b, authorization.SelectPrivilege, insertConflictOf(b.Insert.Conflict).actionReads); err != nil {
+			if len(b.Insert.Conflict.ActionReads) != 0 {
+				if err := v.checkColumns(b, authorization.SelectPrivilege, b.Insert.Conflict.ActionReads); err != nil {
 					return err
 				}
 			}

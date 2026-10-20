@@ -18,7 +18,7 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 		// catalog identity and every expression are unchanged. This mapper also
 		// visits action-owned descendant definitions and reconnects their scans;
 		// enclosing statement providers never enter this stored-action path.
-		body.Insert.Conflict = insertConflictSlotOf(insertConflictOf(body.Insert.Conflict).instantiate())
+		body.Insert.Conflict = body.Insert.Conflict.Clone()
 		if body.Ref.Epoch != auth.Catalog.Epoch() {
 			return body, ids.ErrCatalogReplaced
 		}

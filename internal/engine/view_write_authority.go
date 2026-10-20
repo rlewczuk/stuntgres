@@ -26,7 +26,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 	case *parser.Delete:
 		mask = authorization.DeletePrivilege
 	}
-	reads := b.Returning != nil || len(logical.UsedColumns) != 0 || logical.Insert.Conflict != nil && len(insertConflictOf(logical.Insert.Conflict).reads) != 0
+	reads := b.Returning != nil || len(logical.UsedColumns) != 0 || logical.Insert.Conflict != nil && len(logical.Insert.Conflict.Reads) != 0
 	for _, layer := range w.layers {
 		current, ok := v.Catalog.Relation(layer.ref.Address)
 		if !ok || current.View != layer.relation.View {

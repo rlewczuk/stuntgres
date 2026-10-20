@@ -6,28 +6,12 @@ import "stuntgres/internal/engine/plan"
 type ruleCTECommands map[*plan.CTEDefinition]*ruleCTECommand
 
 var (
-	_ insertConflictSlot = (*boundInsertConflict)(nil)
-	_ ruleCTEsSlot       = ruleCTECommands(nil)
-	_ viewWriteSlot      = (*viewWrite)(nil)
+	_ ruleCTEsSlot  = ruleCTECommands(nil)
+	_ viewWriteSlot = (*viewWrite)(nil)
 )
 
-func (*boundInsertConflict) InsertConflictSlot() {}
-func (ruleCTECommands) RuleCTEsSlot()            {}
-func (*viewWrite) ViewWriteSlot()                {}
-
-// insertConflictOf returns the bound ON CONFLICT clause in s, or nil.
-func insertConflictOf(s insertConflictSlot) *boundInsertConflict {
-	c, _ := s.(*boundInsertConflict)
-	return c
-}
-
-// insertConflictSlotOf stores c; a nil clause stays a nil slot.
-func insertConflictSlotOf(c *boundInsertConflict) insertConflictSlot {
-	if c == nil {
-		return nil
-	}
-	return c
-}
+func (ruleCTECommands) RuleCTEsSlot() {}
+func (*viewWrite) ViewWriteSlot()     {}
 
 // ruleCTEsOf returns the rule CTE commands in s, or nil.
 func ruleCTEsOf(s ruleCTEsSlot) ruleCTECommands {
