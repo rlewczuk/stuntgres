@@ -64,16 +64,19 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 
 - `AuthorizationView`: statement-level authority that embeds `View` and adds
   the session, settings, definition reader and path inputs. Its `Check`,
-  `CanUse`, `CheckCreate`, `Effective` and `checkColumns` are entry points
-  that pass the view itself as the `Environment`.
+  `CanUse`, `CheckCreate`, `Effective` and `CheckColumns` are entry points
+  that pass the view itself as the `Environment`. It implements
+  `analyze.Privileges` for the binding walkers.
 - View capture (`authorizationLocked`, `statementAuthorizationLocked`,
   `Operation.Authorization`), role publication (`roleStore`) and the catalog
   authority fences.
 - Role DDL, GRANT/REVOKE, ALTER DEFAULT PRIVILEGES and the ownership
   statements; `SetObjectACL` and `SetRoleReferences`.
 - Search path resolution and `temporaryNamespace`, RLS configuration and the
-  binding walkers (`checkBinding`, `checkQuerySources`, `checkViewWrite`,
-  `checkViewRowMarks*`), which call `access` for each object.
+  walkers over view definitions, view writes and rule programs
+  (`CheckViewWrite`, `checkViewRowMarks*`, the `row_security_setting.go`
+  walkers), which call `access` for each object. The binding walkers
+  (`CheckBinding`, `CheckQuerySources`) are in `analyze`.
 
 ## Testing
 

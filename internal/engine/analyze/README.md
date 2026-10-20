@@ -93,6 +93,13 @@ engine or `session`. See
   generated-column and inheritance conflicts, `TableKindError`,
   `GuardedCatalogRelation`, MERGE reachability). `statement_errors.go` holds
   the package's own `sqlError` and `insertError`.
+- **Binding privileges** (`binding_privileges.go`): `CheckBinding` and
+  `CheckQuerySources`, the walkers that check a bound statement's target,
+  column reads and query sources in PostgreSQL's order, each source under its
+  own principal. They decide nothing: `Privileges`, which the engine's
+  `AuthorizationView` implements, decides each object through `access` and
+  pairs a principal switch with its search path. View-write layers and view
+  row marks are checked through its `CheckViewWrite` and `CheckViewRowMarks`.
 - **Held signature** (`signature.go`): `Signature` and `CheckSignature`, the
   0A000 cached-plan check of a held description's parameters, results and
   catalog lifetime; `Expected.CheckLifetime` applies it to a replaced
@@ -186,7 +193,9 @@ view definitions, which the binder reads only through the host's
 `StoredViewVolatile`, `CaptureRetainedViewInput` and `ValidateViewReadGraph`
 (`query_cte_volatility.go`, `view_retained_input.go`, `view_cycles.go`); query set preflight
 (`preflightQuerySet`, `query_set_preflight.go`); rule rewriting (`rule_*.go`) and its CTE commands;
-view-write lowering (`viewWrite`); the ON CONFLICT execution state
+view-write lowering (`viewWrite`); the privilege walkers over view
+definitions, view writes and rule programs (`AuthorizationView.CheckViewWrite`,
+`checkViewRowMarks*`, the `row_security_setting.go` walkers); the ON CONFLICT execution state
 (`insertConflictState`: selected arbiters, unique-key checkpoints, the
 affected count, the EXCLUDED frame and the write overlay, built per command
 over the binding's clause); and the execution-side helpers over
@@ -198,8 +207,11 @@ the binding types: `physicalBinding`, `bindingDefaultOrigin`,
 
 ## Testing
 
-`TestInsertConflictCloneOwnsTheClauseHeader` covers `InsertConflict.Clone`
-and `TestExpectedCheckLifetimeFencesCatalogTypes` the held lifetime check.
+`TestInsertConflictCloneOwnsTheClauseHeader` covers `InsertConflict.Clone`,
+`TestExpectedCheckLifetimeFencesCatalogTypes` the held lifetime check, and
+`TestCheckQuerySourcesChecksEachSourceAsItsPrincipal` and
+`TestCheckBindingDeleteChecksDeleteBeforeReads` the binding privilege walkers
+(per-source principals, validation and check order).
 The binder needs an engine host, so its unit tests stay in the engine and
 name `analyze.Binder` and its exported members. The seams have engine unit tests: slots, binding
 authorities, held inputs, captured input retargeting and the host's rule
@@ -207,7 +219,7 @@ check, expression and query mapping, stored-view reads and the view read
 graph:
 
 ```sh
-make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
+make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestCheckQuerySourcesChecksEachSourceAsItsPrincipal|TestCheckBindingDeleteChecksDeleteBeforeReads|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
 ```
 
 ON CONFLICT execution state over the clause: `TestRuleConflictInstantiation`,

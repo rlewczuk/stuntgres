@@ -51,7 +51,8 @@ below has the details). They hold four kinds of code:
    `closeQuerySourceSetLocked`, `StatementScope.acquire(Admitted)QueryRelations`
    and `validateQuerySources`, `queryLockAdmission` with `queryLockTargets`
    and `firstSetRowClause`, the view row-lock legality checks and
-   `AuthorizationView.checkViewRowMarks*` (access B5).
+   `AuthorizationView.checkViewRowMarks*` (they stayed in access B5: they
+   walk the engine's view definitions).
 4. **Preflight** (stays): `preflightQuery`, `preflightJoin`, `preflightSet`,
    `preflightDistinct`, `preflightDistinctOn`, `preflightFunctionFrom` and the
    `preflightCoercions` family. It is statement preparation, called from
@@ -409,6 +410,8 @@ Notes for later steps:
   (11b result) is the only runtime call into them.
 - `access` B5: the binding walkers (`checkBinding`, `checkQuerySources`,
   `checkViewRowMarks*`) read lock modes and query leaves; they follow step 12.
+  (Done: `analyze.CheckBinding` and `CheckQuerySources`; `checkViewRowMarks*`
+  stays with the view definitions.)
 - Step 13: the authority slot is cleared by SQL cursors, protocol portals,
   routine scopes and transaction finish; when they move, they clear
   `exec.Authority.Host`.

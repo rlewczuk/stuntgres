@@ -1325,7 +1325,7 @@ result):
 - `catalog.ObjectNameText` now exists: `routine`'s private copy and
   `functions.qualifiedName` (both noted in their prompts) can use it.
 - `access` B5 moves the binding walkers; 12d has moved `binding` and the
-  binder (done with 12d.6).
+  binder (done with 12d.6). (Done: `binding_privileges.go`.)
 - Step 15 (`typedef`): the composite, enum and range binders move here, not
   with `typedef`.
 - Step 14 (`routine`): function and operator call resolution moves here.

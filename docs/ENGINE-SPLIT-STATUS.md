@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `3fbd7d241`. The later-wave plans
+Last verified against `master` at `859d932b0`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,11 +15,10 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **`access` B5** — the binding walkers (item 42).
 - **Step 13 `session`** — 13d.1, the journal (item 44a) **broad**, and
   13d.2, the statement lease (item 44b, in place); they may run in parallel.
 
-Steps 1, 2 and 4–12 and `access` A1–B4 are done. Step 13's in-place untangling (13a,
+Steps 1, 2 and 4–12 and `access` (A1–B5) are done. Step 13's in-place untangling (13a,
 13b) and its refine (13c) are done; 13d runs in six sessions (44a–44f). Step 16
 Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
 A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
@@ -227,7 +226,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     - [x] Names cleanup — diagnostic name helpers moved to `catalog`
       (`9a73852a6`, `416945ecb`, then the docs commit) *(racecheck skipped
       at user request)*
-    - [ ] B5 — Binding walkers moved next to `binding` (needs 12d)
+    - [x] B5 — Binding walkers moved into `analyze` (`76039ffea`,
+      `4748b28ca`, then the docs commit) *(racecheck/finalcheck skipped at
+      user request)*
 - [x] **Step 8 — `settings`** ([prompt](ENGINE-SPLIT-settings.md); needs —)
   - [x] 8a — Registry in place (`3c1e1115a`)
   - [x] 8b — `settings` created and definitions moved (`8057bb8d0`,
@@ -573,8 +574,12 @@ in the prompt file's Status section.
     · selected dual-mode proof and quickcheck passed; racecheck/finalcheck
     skipped at user request; the driver imports `analyze` for
     `ParameterInfo`
-42. [ ] Access B5: binding walkers —
-    [authorization](ENGINE-SPLIT-authorization.md) B5 · needs 40
+42. [x] Access B5: binding walkers —
+    [authorization](ENGINE-SPLIT-authorization.md) B5 · needs 40 ·
+    (`76039ffea`, `4748b28ca`, then the docs commit) · `CheckBinding` and
+    `CheckQuerySources` moved; view, view-write and RLS walkers stay with
+    their payloads · selected dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 43. [x] Session 13c (refine, docs only) —
     [session](ENGINE-SPLIT-session.md) 13c · needs 23, 37, 40, 14 · (the
     commit that records this status) · state moves, the scope and

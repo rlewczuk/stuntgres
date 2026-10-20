@@ -122,7 +122,9 @@ plan.
     `checkViewWrite`, `checkViewRowMarks*`). They read `binding`,
     `queryLeaf`, `queryRowMark` and `viewDefinition`, and lock modes (`lock`
     is not an `access` import), so they wait for the `plan`/`exec` wave and
-    call `access` for each object.
+    call `access` for each object. (B5 moved `checkBinding` and
+    `checkQuerySources` into `analyze`; the view, view-write and RLS walkers
+    stay with their engine payloads. See "B5 results".)
 - **Imports:** `access` imports `catalog`, `authorization`, `ids`, `sqltype`,
   `parser`, `sqlstate` and the standard library, and `expr` only if policy
   selection needs it. It keeps its own `sqlError` and identifier quoting, as
@@ -286,7 +288,9 @@ moved `binding` into `analyze` and step 10c the row marks into `plan`:
 - [x] Names cleanup — diagnostic name helpers moved to `catalog`, the
   `access` copy deleted (`9a73852a6`, `416945ecb`, then the commit that
   records this status) *(racecheck skipped at user request)*
-- [ ] B5 — Binding walkers moved next to `binding` (needs step 12d)
+- [x] B5 — Binding walkers moved next to `binding` in `analyze`
+  (`76039ffea`, `4748b28ca`, then the commit that records this status)
+  *(racecheck/finalcheck skipped at user request)*
 
 No aliases remain: B4 removed the nine B3 aliases and deleted
 `internal/engine/access_aliases.go`. Part A, B1 and B2 added none.
@@ -722,3 +726,72 @@ Names cleanup results:
   request; no locks or goroutines changed. `make bench` was not run: no
   startup path changed. `make deps` lists only module paths. `AGENTS.md`
   stays at 100 lines.
+
+B5 results:
+
+- **Re-measure.** On `master` at `3fbd7d241` the walkers' reach was:
+
+  | Walker | Reads | Outcome |
+  |---|---|---|
+  | `checkBinding` | `analyze.Binding`, the statement kind | moved |
+  | `checkQuerySources` | `exec.Leaf`, `exec.EffectiveQueryRowMark` | moved |
+  | `checkViewWrite` | the engine's `viewWrite` layers and `viewDefinition` | stays |
+  | `checkViewRowMarks(Expanded)` | `viewDefinition`, `validateViewReadGraph` | stays |
+  | `checkRowSecurityBinding`, `checkRowSecurityRuleProgram`, `checkRowSecuritySource` | `StatementScope`, rule CTE commands holding `AuthorizationView`, `viewDefinition` | stay |
+
+  12d and 10c removed the `binding` and row-mark blockers, but the view and
+  rule payloads are still engine types (the postponed `view` package). The
+  user chose to move the binding walkers only.
+- **Why not `access.View`.** A walker that switches the principal of a
+  source cannot keep the caller's `Environment`. `explicitPathFor` reads
+  `State.CurrentUser` for `$user`, so the reference path, and with it the
+  type-denial diagnostic names, follows the switch. The walkers therefore
+  check through the root's entry points.
+- **Seam.** `analyze/binding_privileges.go` holds `Privileges` (five
+  methods: `Check`, `CheckColumns`, `WithCurrentUser`, `CheckViewWrite`,
+  `CheckViewRowMarks`), `CheckBinding` and `CheckQuerySources`. The bodies
+  moved verbatim except for their selectors. `AuthorizationView`
+  implements `Privileges`: `checkColumns(binding, ...)` became
+  `CheckColumns(ref, relation, ...)` (9 other call sites, which built a
+  binding only for it), `checkViewWrite` became `CheckViewWrite`, and the new
+  `WithCurrentUser` (switch, then validate, as before) and
+  `CheckViewRowMarks` (the stored-mark guard, then `checkViewRowMarks` with
+  the current user as invoker) are one-line entry points. The engine
+  methods `checkBinding` and `checkQuerySources` are deleted: 13 production
+  and 11 test call sites now call `analyze.CheckBinding` or
+  `analyze.CheckQuerySources`. `access` imports are unchanged; `analyze`
+  gained no import.
+- **Cost.** Boxing the view into `Privileges` costs one allocation per
+  walker entry. A throwaway driver benchmark as a column-granted role
+  measured 133 to 134 allocations per SELECT, 200 to 201 through a definer
+  view and 95 to 96 per INSERT. `make bench`: 5,014 steady allocations
+  before and after, 0.84–1.09 ms/op before and 0.84–1.13 ms/op after (the
+  <1 ms target is already missed on `master`).
+- **Tests.** New `analyze/binding_privileges_test.go`:
+  `TestCheckQuerySourcesChecksEachSourceAsItsPrincipal` (per-source
+  principals, invalid principals before checks, analysis-only sources, the
+  SELECT pass before row marks, view row marks under the source principal)
+  and `TestCheckBindingDeleteChecksDeleteBeforeReads`. Dropping the
+  principal switch or checking view row marks as the caller makes them
+  fail. Nine engine test files changed only at their call sites. None moved or
+  deleted.
+- **Verification.** `make build` after each commit; targeted `make check`
+  (the engine walker, view-write, row-mark, rule-source, window, subquery,
+  COPY and ON CONFLICT tests, `access` and the new tests) passed after each
+  commit. `quickcheck` passed. The `authorization` README reference set
+  plus the role, column-grant, cursor, row-lock, rule, MERGE, DELETE,
+  UPDATE, CTE DML, view security and updatable-view privilege selections
+  passed in quick mode and with `REFERENCE=1`. `racecheck` and `finalcheck`
+  were skipped at the user's request; no locks or goroutines changed.
+  `make deps` lists only module paths. `AGENTS.md` stays at 100 lines.
+
+Notes for later steps (B5):
+
+- **`view` package:** `CheckViewWrite`, `checkViewRowMarks*`,
+  `viewHasStoredRowMarks` and the RLS walkers in `row_security_setting.go`
+  walk `viewDefinition`, `viewWrite` and the rule programs. They can move
+  with those payloads. `analyze.Privileges.CheckViewWrite` and
+  `CheckViewRowMarks` are the hooks they then implement.
+- **Rule package:** `ruleCommand.auth` and `ruleCTECommand.caller` hold
+  `AuthorizationView` by value, which is why the RLS walkers cannot take
+  `analyze.Privileges` yet.
