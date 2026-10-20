@@ -259,7 +259,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.initializeConversionRoutines()
-	e.initializeBuiltinRoutines()
+	e.installBuiltinProcedures()
 	e.initializeTablespaces()
 	for i := range catalog.BuiltinConversions {
 		d := new(catalog.Conversion)
@@ -270,7 +270,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	e.initializeOperators()
+	e.installBuiltinOperators()
 	e.seedProcedureNames()
 	e.initializeDatabase(database)
 	if err := e.initializeBuiltinDomainChecks(); err != nil {

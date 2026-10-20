@@ -46,15 +46,35 @@ var builtinRoutineBodyEdges = [...]struct {
 	{1741, 1736, catalog.BodyAlways}, {1481, 1736, catalog.BodyAlways},
 }
 
-func (e *Engine) initializeBuiltinRoutineBodies() {
-	storage := make([]catalog.RoutineBodyEdge, len(builtinRoutineBodyEdges))
+// builtinRoutineBodyLinks holds each body edge's outer and inner positions in
+// builtinRoutineDeclarations, resolved once per process so that seeding an
+// engine needs no lookup.
+var builtinRoutineBodyLinks = indexBuiltinRoutineBodies()
+
+func indexBuiltinRoutineBodies() (links [len(builtinRoutineBodyEdges)]struct{ outer, inner int }) {
+	positions := make(map[ids.OID]int, len(builtinRoutineDeclarations))
+	for i := range builtinRoutineDeclarations {
+		positions[builtinRoutineDeclarations[i].Identity.ID] = i
+	}
 	for i, edge := range builtinRoutineBodyEdges {
-		outer, ok := e.catalog.state.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: edge.outer})
-		inner, found := e.catalog.state.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: edge.inner})
+		outer, ok := positions[edge.outer]
+		inner, found := positions[edge.inner]
 		if !ok || !found {
 			panic("stuntgres: missing genuine SQL body declaration")
 		}
-		storage[i] = catalog.RoutineBodyEdge{inner, edge.demand}
+		links[i].outer, links[i].inner = outer, inner
+	}
+	return links
+}
+
+// attachBuiltinRoutineBodies points each outer builtin procedure at its body
+// edges. procedures is indexed like builtinRoutineDeclarations. Edges of one
+// outer routine are adjacent, so each body is one window of a shared array.
+func attachBuiltinRoutineBodies(procedures []catalog.Procedure) {
+	storage := make([]catalog.RoutineBodyEdge, len(builtinRoutineBodyEdges))
+	for i, edge := range builtinRoutineBodyEdges {
+		outer := &procedures[builtinRoutineBodyLinks[i].outer]
+		storage[i] = catalog.RoutineBodyEdge{&procedures[builtinRoutineBodyLinks[i].inner], edge.demand}
 		if len(outer.Body) == 0 {
 			outer.Body = storage[i : i+1 : i+1]
 		} else {

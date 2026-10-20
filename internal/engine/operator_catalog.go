@@ -95,16 +95,16 @@ func (operatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 	return nil
 }
 
-// Seeded operators share one engine-owned backing array, like built-in
-// routines. Both tables are sorted by OID, so metadata is merged in one pass.
-func (e *Engine) initializeOperators() {
-	e.catalog.state.SetOperatorNames(seededOperatorNames)
+// builtinOperatorDescriptors returns a fresh descriptor for every seeded
+// operator, in OID order, with its supported metadata merged in. Seeded
+// operators share one engine-owned backing array, like built-in routines.
+// Both tables are sorted by OID, so metadata is merged in one pass.
+func builtinOperatorDescriptors(owner authorization.PrincipalRef) []catalog.Operator {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
-	storage := make([]catalog.Operator, len(builtinOperators))
+	operators := make([]catalog.Operator, len(builtinOperators))
 	metadata := supportedOperatorMetadata[:]
 	for i, row := range builtinOperators {
-		d := &storage[i]
+		d := &operators[i]
 		*d = catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: owner}
 		if len(metadata) != 0 && metadata[0].oid == row.oid {
 			m := metadata[0]
@@ -114,10 +114,9 @@ func (e *Engine) initializeOperators() {
 			d.Restriction, d.Join = ids.OID(m.restriction), ids.OID(m.join)
 			d.Hash, d.Merge = m.hash, m.merge
 		}
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	if len(metadata) != 0 {
 		panic("stuntgres: operator metadata without a seeded operator")
 	}
+	return operators
 }

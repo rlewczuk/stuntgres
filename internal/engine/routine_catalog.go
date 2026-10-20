@@ -45,25 +45,25 @@ func indexBuiltinRoutineFormals() map[builtinRoutineKey]*catalog.BuiltinRoutineD
 	return byDeclaration
 }
 
-func (e *Engine) initializeBuiltinRoutines() {
-	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
-	// Catalog pointers retain this engine-owned backing array. Immutable cells
-	// remain stable; later ACL/owner changes still publish ordinary COW records.
-	storage := make([]catalog.Procedure, len(builtinRoutineDeclarations))
+// builtinProcedures returns a fresh descriptor for every builtin routine
+// declaration, in declaration order, with SQL bodies attached. The engine
+// installs them; descriptor pointers retain the returned backing array.
+// Immutable cells remain stable; later ACL/owner changes still publish
+// ordinary COW records.
+func builtinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
+	procedures := make([]catalog.Procedure, len(builtinRoutineDeclarations))
 	for i := range builtinRoutineDeclarations {
 		declaration := &builtinRoutineDeclarations[i]
-		d := &storage[i]
-		*d = catalog.Procedure{
+		procedures[i] = catalog.Procedure{
 			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID},
 			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.Identity.Namespace},
 			ObjectRevision:  1, ObjectName: declaration.Identity.Name, Signature: declaration.Identity.Signature,
 			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner,
 			Result: declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
 		}
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	e.initializeBuiltinRoutineBodies()
+	attachBuiltinRoutineBodies(procedures)
+	return procedures
 }
 
 // Called only after a concrete existing provider has successfully selected its
