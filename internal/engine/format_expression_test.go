@@ -241,7 +241,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil || text != "b/a" {
 		t.Fatal(text, err)
 	}
-	column := columnExpression{Info: expr.Info{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: b.frameID()}
+	column := columnExpression{Info: expr.Info{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.frameID()}
 	node.Variadic = false
 	node.Args = []expr.Expr{node.Args[0], column}
 	node.Property.RowDependent = true
@@ -259,9 +259,9 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if _, ok := node.Args[1].(columnExpression); !ok {
 		t.Fatal("group rewrite mutated shared children")
 	}
-	aggregate := aggregateExpression{Info: expr.Info{Usage: node.ResultUsage(), Property: expr.Properties{StageDependent: true}}, slot: 7}
+	aggregate := aggregateExpression{Info: expr.Info{Usage: node.ResultUsage(), Property: expr.Properties{StageDependent: true}}, Slot: 7}
 	node.Args = []expr.Expr{node.Args[0], column, aggregate}
-	if found := aggregateOccurrence(node); found == nil || found.slot != 7 {
+	if found := aggregateOccurrence(node); found == nil || found.Slot != 7 {
 		t.Fatal("all arguments must participate in aggregate traversal")
 	}
 }

@@ -24,7 +24,7 @@ func stringSplitMarker(t *testing.T, b *expressionBinder, pos int, args ...expr.
 }
 func stringSplitLiteral(b *expressionBinder, s string) expr.Expr {
 	text := b.typ(sqltype.Text)
-	return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, s)}
+	return literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, s)}
 }
 func TestStringSplitExpansion(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
@@ -66,8 +66,8 @@ func TestStringSplitExpansion(t *testing.T) {
 					node := root.(*setProjectNode)
 					text := binder.typ(sqltype.Text)
 					var observed []int
-					node.scalars[0] = mathObservedArgument{Info: expr.InfoOf(node.scalars[0]), value: sqltype.String(text, "s"), order: &observed, index: 0, err: scenario.scalarError}
-					functionSetUnitArgument(t, node.calls, 0, 0, mathObservedArgument{Info: expr.InfoOf(expr.Expr(node.calls[0]).(expr.Composite).Children()[0]), value: sqltype.String(text, scenario.input), order: &observed, index: 1, err: scenario.sourceError})
+					node.Scalars[0] = mathObservedArgument{Info: expr.InfoOf(node.Scalars[0]), value: sqltype.String(text, "s"), order: &observed, index: 0, err: scenario.scalarError}
+					functionSetUnitArgument(t, node.Calls, 0, 0, mathObservedArgument{Info: expr.InfoOf(expr.Expr(node.Calls[0]).(expr.Composite).Children()[0]), value: sqltype.String(text, scenario.input), order: &observed, index: 1, err: scenario.sourceError})
 					stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 					if err != nil {
 						t.Fatal(err)
@@ -158,14 +158,14 @@ func TestStringSplitExpansion(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					owner := &projectNode{querySchema: schema, child: root, expressions: requests, frame: 1, hasTargetSet: true}
+					owner := &projectNode{querySchema: schema, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
 					private, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: binder.bindingCatalog()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
 						t.Fatal(err)
 					}
 					project := private.(*projectNode)
-					expansion := project.child.(*setProjectNode)
-					for _, scalar := range expansion.scalars {
+					expansion := project.Child.(*setProjectNode)
+					for _, scalar := range expansion.Scalars {
 						if querySetDepth(scalar) != 0 || scalar.ResultUsage().Type == nil {
 							t.Fatal("effective scalar retained an executable set marker or unresolved usage", scalar)
 						}
@@ -178,10 +178,10 @@ func TestStringSplitExpansion(t *testing.T) {
 							nil,
 							func(expression expr.Expr) (expr.Expr, bool, error) {
 								literal, ok := expression.(literalExpression)
-								if !ok || literal.value.IsNull() {
+								if !ok || literal.Value.IsNull() {
 									return expression, false, nil
 								}
-								value, err := literal.value.Text()
+								value, err := literal.Value.Text()
 								if err != nil || value != "p" && value != ":" {
 									return expression, false, nil
 								}
@@ -191,30 +191,30 @@ func TestStringSplitExpansion(t *testing.T) {
 								}
 								info := expr.InfoOf(expression)
 								info.Property.Volatility = expr.Volatile
-								return mathObservedArgument{Info: info, value: literal.value, order: &observed, index: index, err: failure}, true, nil
+								return mathObservedArgument{Info: info, value: literal.Value, order: &observed, index: index, err: failure}, true, nil
 							})
 						return next, err
 					}
-					for i, expression := range project.expressions {
-						project.expressions[i], err = instrument(expression)
+					for i, expression := range project.Expressions {
+						project.Expressions[i], err = instrument(expression)
 						if err != nil {
 							t.Fatal(err)
 						}
 					}
-					for i, expression := range expansion.scalars {
-						expansion.scalars[i], err = instrument(expression)
+					for i, expression := range expansion.Scalars {
+						expansion.Scalars[i], err = instrument(expression)
 						if err != nil {
 							t.Fatal(err)
 						}
 					}
-					for i, call := range expansion.calls {
+					for i, call := range expansion.Calls {
 						for j, argument := range expr.Expr(call).(expr.Composite).Children() {
 							var next expr.Expr
 							next, err = instrument(argument)
 							if err != nil {
 								t.Fatal(err)
 							}
-							functionSetUnitArgument(t, expansion.calls, i, j, next)
+							functionSetUnitArgument(t, expansion.Calls, i, j, next)
 						}
 					}
 					executable, err := openQueryNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, private)
@@ -293,11 +293,11 @@ func TestStringSplitExpansion(t *testing.T) {
 		node := root.(*setProjectNode)
 		trace := []int{}
 		for i, value := range []string{"s", "t"} {
-			node.scalars[i] = mathObservedArgument{Info: expr.Info{Usage: node.scalars[i].ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.String(node.scalars[i].ResultUsage().Type, value), order: &trace, index: i}
+			node.Scalars[i] = mathObservedArgument{Info: expr.Info{Usage: node.Scalars[i].ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.String(node.Scalars[i].ResultUsage().Type, value), order: &trace, index: i}
 		}
 		for i, value := range []string{"a,b", "x"} {
-			argument := expr.Expr(node.calls[i]).(expr.Composite).Children()[0]
-			functionSetUnitArgument(t, node.calls, i, 0, mathObservedArgument{Info: expr.Info{Usage: argument.ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.String(argument.ResultUsage().Type, value), order: &trace, index: 10 + i})
+			argument := expr.Expr(node.Calls[i]).(expr.Composite).Children()[0]
+			functionSetUnitArgument(t, node.Calls, i, 0, mathObservedArgument{Info: expr.Info{Usage: argument.ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.String(argument.ResultUsage().Type, value), order: &trace, index: 10 + i})
 		}
 		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 		if err != nil {
@@ -327,7 +327,7 @@ func TestStringSplitExpansion(t *testing.T) {
 	first := stringSplitMarker(t, b, 1, input, delimiter, marker)
 	second := stringSplitMarker(t, b, 2, stringSplitLiteral(b, "x"), stringSplitLiteral(b, ","))
 	scalar := mathObservedArgument{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.String(text, "s"), order: &order, index: 3}
-	node := &setProjectNode{child: &singletonNode{}, calls: []expr.Expr{first, second}, callSlots: []int{0, 1}, markerWidth: 2, scalars: []expr.Expr{scalar}, scalarSlots: []int{0}, steps: []querySetStep{{kind: querySetCallStep, index: 0}, {kind: querySetCallStep, index: 1}, {kind: querySetScalarStep, index: 0}}, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}}
+	node := &setProjectNode{Child: &singletonNode{}, Calls: []expr.Expr{first, second}, CallSlots: []int{0, 1}, MarkerWidth: 2, Scalars: []expr.Expr{scalar}, ScalarSlots: []int{0}, Steps: []querySetStep{{Kind: querySetCallStep, Index: 0}, {Kind: querySetCallStep, Index: 1}, {Kind: querySetScalarStep, Index: 0}}, Frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}}
 	t.Run("sparse_slot_invariants", func(t *testing.T) {
 		for _, tc := range []struct {
 			name, message string
@@ -340,7 +340,7 @@ func TestStringSplitExpansion(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				private := *node
-				private.callSlots = tc.slots
+				private.CallSlots = tc.slots
 				if _, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, &private); err == nil || err.Error() != tc.message {
 					t.Fatal("invalid fixed marker layout admitted", err)
 				}
@@ -350,7 +350,7 @@ func TestStringSplitExpansion(t *testing.T) {
 	t.Run("scalar_slot_invariants", func(t *testing.T) {
 		for _, slots := range [][]int{{}, {-1}, {1}} {
 			private := *node
-			private.scalarSlots = slots
+			private.ScalarSlots = slots
 			if stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, &private); err == nil {
 				stage.Close()
 				t.Fatal("invalid explicit scalar slot admitted", slots)
@@ -358,14 +358,14 @@ func TestStringSplitExpansion(t *testing.T) {
 		}
 		private := *node
 		private.querySchema = append(append(querySchema(nil), node.querySchema...), catalog.Column{Usage: scalar.ResultUsage()})
-		private.scalars = []expr.Expr{scalar, scalar}
-		private.scalarSlots = []int{0, 0}
+		private.Scalars = []expr.Expr{scalar, scalar}
+		private.ScalarSlots = []int{0, 0}
 		if stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, &private); err == nil {
 			stage.Close()
 			t.Fatal("duplicate scalar slot admitted")
 		}
 		private = *node
-		private.scalars = []expr.Expr{first}
+		private.Scalars = []expr.Expr{first}
 		if stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, &private); err == nil {
 			stage.Close()
 			t.Fatal("unlowered marker admitted as scalar event")
@@ -374,22 +374,22 @@ func TestStringSplitExpansion(t *testing.T) {
 	t.Run("invalid_target_schedule", func(t *testing.T) {
 		for _, steps := range [][]querySetStep{
 			nil,
-			{{kind: querySetStepKind(255), index: 0}, {kind: querySetCallStep, index: 1}, {kind: querySetScalarStep, index: 0}},
-			{{kind: querySetCallStep, index: -1}, {kind: querySetCallStep, index: 1}, {kind: querySetScalarStep, index: 0}},
-			{{kind: querySetCallStep, index: 2}, {kind: querySetCallStep, index: 1}, {kind: querySetScalarStep, index: 0}},
-			{{kind: querySetCallStep, index: 0}, {kind: querySetCallStep, index: 0}, {kind: querySetScalarStep, index: 0}},
-			{{kind: querySetCallStep, index: 0}, {kind: querySetCallStep, index: 1}, {kind: querySetScalarStep, index: 1}},
+			{{Kind: querySetStepKind(255), Index: 0}, {Kind: querySetCallStep, Index: 1}, {Kind: querySetScalarStep, Index: 0}},
+			{{Kind: querySetCallStep, Index: -1}, {Kind: querySetCallStep, Index: 1}, {Kind: querySetScalarStep, Index: 0}},
+			{{Kind: querySetCallStep, Index: 2}, {Kind: querySetCallStep, Index: 1}, {Kind: querySetScalarStep, Index: 0}},
+			{{Kind: querySetCallStep, Index: 0}, {Kind: querySetCallStep, Index: 0}, {Kind: querySetScalarStep, Index: 0}},
+			{{Kind: querySetCallStep, Index: 0}, {Kind: querySetCallStep, Index: 1}, {Kind: querySetScalarStep, Index: 1}},
 		} {
 			private := *node
-			private.steps = steps
+			private.Steps = steps
 			if stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, &private); err == nil {
 				stage.Close()
 				t.Fatal("malformed target schedule admitted", steps)
 			}
 		}
 		if err := validateQuerySetStageOrder(
-			[]querySetStep{{kind: querySetCallStep, index: 0}, {kind: querySetScalarStep, index: 0}, {kind: querySetCallStep, index: 1}},
-			node.steps, node.callSlots, node.scalarSlots, len(node.scalars)); err == nil {
+			[]querySetStep{{Kind: querySetCallStep, Index: 0}, {Kind: querySetScalarStep, Index: 0}, {Kind: querySetCallStep, Index: 1}},
+			node.Steps, node.CallSlots, node.ScalarSlots, len(node.Scalars)); err == nil {
 			t.Fatal("valid event coverage concealed a reordered schedule")
 		}
 	})
@@ -449,7 +449,7 @@ func TestStringSplitFrames(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			owner := &projectNode{querySchema: schema, child: root, expressions: requests, frame: 1, hasTargetSet: true}
+			owner := &projectNode{querySchema: schema, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
 			executable, err := openQueryNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, owner)
 			if err != nil {
 				t.Fatal(err)
@@ -503,11 +503,11 @@ func TestStringSplitFrames(t *testing.T) {
 		t.Fatal(err)
 	}
 	upper := root.(*setProjectNode)
-	lower := upper.child.(*setProjectNode)
-	if len(lower.calls) != 2 || len(upper.calls) != 1 || len(upper.Schema()) != 3 || querySetDepth(projection[0]) != 0 || querySetDepth(projection[1]) != 0 {
+	lower := upper.Child.(*setProjectNode)
+	if len(lower.Calls) != 2 || len(upper.Calls) != 1 || len(upper.Schema()) != 3 || querySetDepth(projection[0]) != 0 || querySetDepth(projection[1]) != 0 {
 		t.Fatal("wrong expansion levels", lower, upper)
 	}
-	if projection[1].(columnExpression).slot != companion[0].(columnExpression).slot || projection[0].(columnExpression).frame != 7 {
+	if projection[1].(columnExpression).Slot != companion[0].(columnExpression).Slot || projection[0].(columnExpression).Frame != 7 {
 		t.Fatal("lost alias/frame occurrence")
 	}
 	stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 7}, upper)
@@ -592,10 +592,10 @@ func TestStringSplitBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal, ok := folded.(literalExpression)
-	if !ok || !literal.value.IsNull() || !b.clause.queryHasTargetSet {
+	if !ok || !literal.Value.IsNull() || !b.clause.queryHasTargetSet {
 		t.Fatal("lost original set analysis after strict folding", folded)
 	}
-	descriptor := &catalog.Relation{View: &viewDefinition{syntax: raw, query: &BoundQuery{Root: &projectNode{child: &singletonNode{}, expressions: []expr.Expr{folded}, hasTargetSet: b.clause.queryHasTargetSet}}}}
+	descriptor := &catalog.Relation{View: &viewDefinition{syntax: raw, query: &BoundQuery{Root: &projectNode{Child: &singletonNode{}, Expressions: []expr.Expr{folded}, HasTargetSet: b.clause.queryHasTargetSet}}}}
 	if _, _, _, reason := viewWriteShape(descriptor); reason != "Views that return set-returning functions are not automatically updatable." {
 		t.Fatal(reason)
 	}
@@ -606,12 +606,12 @@ func TestStringSplitLifecycle(t *testing.T) {
 		call := stringSplitMarker(t, b, 21, stringSplitLiteral(b, "a,b"), stringSplitLiteral(b, ","))
 		frame := uint32(1)
 		makeStage := func(analysis unknownOutput) *setProjectNode {
-			return &setProjectNode{child: &singletonNode{}, calls: []expr.Expr{call}, callSlots: []int{0},
-				markerWidth: 1, frame: frame, querySchema: querySchema{{Usage: call.ResultUsage()}}, steps: []querySetStep{{kind: querySetCallStep, index: 0}},
-				template: &querySetTemplate{group: &frame, expressions: []expr.Expr{analysis, call}, origins: []expr.Expr{call}, attempts: true, steps: []querySetStep{{kind: querySetCallStep, index: 0}}}}
+			return &setProjectNode{Child: &singletonNode{}, Calls: []expr.Expr{call}, CallSlots: []int{0},
+				MarkerWidth: 1, Frame: frame, querySchema: querySchema{{Usage: call.ResultUsage()}}, Steps: []querySetStep{{Kind: querySetCallStep, Index: 0}},
+				Template: &querySetTemplate{Group: &frame, Expressions: []expr.Expr{analysis, call}, Origins: []expr.Expr{call}, Attempts: true, Steps: []querySetStep{{Kind: querySetCallStep, Index: 0}}}}
 		}
 		for _, kind := range []parser.ValueKind{parser.NullValue, parser.StringValue} {
-			stage := makeStage(unknownOutput{raw: parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: "retained"}}})
+			stage := makeStage(unknownOutput{Raw: parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: "retained"}}})
 			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: stage}}); err != nil {
 				t.Fatal("genuine contextual template root rejected", err)
 			}
@@ -620,31 +620,31 @@ func TestStringSplitLifecycle(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if mapped.(*setProjectNode).template.group != stage.template.group {
+				if mapped.(*setProjectNode).Template.Group != stage.Template.Group {
 					t.Fatal("capture changed local-group identity")
 				}
-				if !reflect.DeepEqual(mapped.(*setProjectNode).steps, []querySetStep{{kind: querySetCallStep, index: 0}}) ||
-					!reflect.DeepEqual(mapped.(*setProjectNode).template.steps, []querySetStep{{kind: querySetCallStep, index: 0}}) {
+				if !reflect.DeepEqual(mapped.(*setProjectNode).Steps, []querySetStep{{Kind: querySetCallStep, Index: 0}}) ||
+					!reflect.DeepEqual(mapped.(*setProjectNode).Template.Steps, []querySetStep{{Kind: querySetCallStep, Index: 0}}) {
 					t.Fatal("capture changed target schedule")
 				}
 			}
 		}
-		for _, program := range [][]querySetStep{nil, {{kind: querySetStepKind(255), index: 0}}, {{kind: querySetCallStep, index: 1}}} {
-			stage := makeStage(unknownOutput{raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}})
-			stage.steps = program
+		for _, program := range [][]querySetStep{nil, {{Kind: querySetStepKind(255), Index: 0}}, {{Kind: querySetCallStep, Index: 1}}} {
+			stage := makeStage(unknownOutput{Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}})
+			stage.Steps = program
 			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: stage}}); err == nil {
 				t.Fatal("stored executable schedule admitted malformed event", program)
 			}
-			stage.steps = []querySetStep{{kind: querySetCallStep, index: 0}}
-			stage.template.steps = program
+			stage.Steps = []querySetStep{{Kind: querySetCallStep, Index: 0}}
+			stage.Template.Steps = program
 			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: stage}}); err == nil {
 				t.Fatal("stored template schedule admitted malformed event", program)
 			}
 		}
 		for _, malformed := range []unknownOutput{
-			{raw: parser.ColumnExpr{}},
-			{raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}},
-			{Info: expr.Info{Usage: call.ResultUsage()}, raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}},
+			{Raw: parser.ColumnExpr{}},
+			{Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}},
+			{Info: expr.Info{Usage: call.ResultUsage()}, Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}},
 		} {
 			stage := makeStage(malformed)
 			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: stage}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
@@ -656,13 +656,13 @@ func TestStringSplitLifecycle(t *testing.T) {
 		call := stringSplitMarker(t, b, 31, stringSplitLiteral(b, "a,b"), stringSplitLiteral(b, ","))
 		scalar := stringSplitLiteral(b, "s")
 		frame := uint32(1)
-		program := []querySetStep{{kind: querySetScalarStep, index: 0}, {kind: querySetCallStep, index: 0}}
+		program := []querySetStep{{Kind: querySetScalarStep, Index: 0}, {Kind: querySetCallStep, Index: 0}}
 		makeStage := func() *setProjectNode {
-			return &setProjectNode{child: &singletonNode{}, frame: frame, calls: []expr.Expr{call}, callSlots: []int{0},
-				markerWidth: 1, scalars: []expr.Expr{scalar}, steps: program,
+			return &setProjectNode{Child: &singletonNode{}, Frame: frame, Calls: []expr.Expr{call}, CallSlots: []int{0},
+				MarkerWidth: 1, Scalars: []expr.Expr{scalar}, Steps: program,
 				querySchema: querySchema{{Usage: call.ResultUsage()}, {Usage: scalar.ResultUsage()}},
-				template: &querySetTemplate{group: &frame, expressions: []expr.Expr{scalar, call}, origins: []expr.Expr{call},
-					scalars: []expr.Expr{scalar}, scalarRequests: []int{0}, attempts: true, steps: program}}
+				Template: &querySetTemplate{Group: &frame, Expressions: []expr.Expr{scalar, call}, Origins: []expr.Expr{call},
+					Scalars: []expr.Expr{scalar}, ScalarRequests: []int{0}, Attempts: true, Steps: program}}
 		}
 		stage := makeStage()
 		if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: stage}}); err != nil {
@@ -673,26 +673,26 @@ func TestStringSplitLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(mapped.(*setProjectNode).scalarSlots, stage.scalarSlots) || !reflect.DeepEqual(mapped.(*setProjectNode).template.scalarRequests, stage.template.scalarRequests) {
+			if !reflect.DeepEqual(mapped.(*setProjectNode).ScalarSlots, stage.ScalarSlots) || !reflect.DeepEqual(mapped.(*setProjectNode).Template.ScalarRequests, stage.Template.ScalarRequests) {
 				t.Fatal("capture changed scalar candidate identity")
 			}
 		}
 		for _, slots := range [][]int{{}, {-1}, {1}} {
 			stage := makeStage()
-			stage.scalarSlots = slots
+			stage.ScalarSlots = slots
 			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: stage}}); err == nil {
 				t.Fatal("malformed stored explicit scalar reservation admitted", slots)
 			}
 		}
 		stage = makeStage()
-		stage.template.scalarRequests = []int{1}
+		stage.Template.ScalarRequests = []int{1}
 		if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: stage}}); err == nil {
 			t.Fatal("scalar candidate mapped to a call owner")
 		}
 	})
 	t.Run("contextual_view_analysis", func(t *testing.T) {
 		value := stringSplitLiteral(b, "kept")
-		unknown := unknownOutput{raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
+		unknown := unknownOutput{Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
 		mapped, changed, err := retagBoundTypes(New().CatalogRead(), unknown, func(*sqltype.Descriptor) *sqltype.Descriptor {
 			t.Fatal("contextual analysis invented a descriptor to retag")
 			return nil
@@ -707,14 +707,14 @@ func TestStringSplitLifecycle(t *testing.T) {
 		if err != nil || !reflect.DeepEqual(captured, unknown) {
 			t.Fatal("contextual analysis changed during capture", captured, err)
 		}
-		if _, err := remapBoundExpression(unknownOutput{raw: parser.ColumnExpr{}}, nil, nil); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
+		if _, err := remapBoundExpression(unknownOutput{Raw: parser.ColumnExpr{}}, nil, nil); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
 			t.Fatal("nonliteral contextual capture accepted", err)
 		}
 		project := &projectNode{
 			querySchema:         querySchema{{Usage: value.ResultUsage()}},
-			child:               &singletonNode{},
-			expressions:         []expr.Expr{value},
-			analysisExpressions: []expr.Expr{unknown},
+			Child:               &singletonNode{},
+			Expressions:         []expr.Expr{value},
+			AnalysisExpressions: []expr.Expr{unknown},
 		}
 		definition := &viewDefinition{query: &BoundQuery{Root: project}}
 		if err := validateViewLeaves(b.bindingCatalog(), definition); err != nil {
@@ -742,18 +742,18 @@ func TestStringSplitLifecycle(t *testing.T) {
 			})
 		}
 		private := *project
-		private.expressions = []expr.Expr{unknown}
+		private.Expressions = []expr.Expr{unknown}
 		if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: &private}}); err == nil || err.Error() != "stuntgres: invalid view query usage" {
 			t.Fatal("unresolved executable output accepted", err)
 		}
 		private = *project
-		private.analysisExpressions = []expr.Expr{unknownOutput{raw: parser.ColumnExpr{}}}
+		private.AnalysisExpressions = []expr.Expr{unknownOutput{Raw: parser.ColumnExpr{}}}
 		if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: &private}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
 			t.Fatal("nonliteral contextual placeholder accepted", err)
 		}
 	})
 	call := stringSplitMarker(t, b, 1, stringSplitLiteral(b, "a,b"), stringSplitLiteral(b, ","))
-	node := &functionFromNode{calls: []expr.Expr{call}, querySchema: querySchema{{Usage: call.ResultUsage()}}, frame: 1}
+	node := &functionFromNode{Calls: []expr.Expr{call}, querySchema: querySchema{{Usage: call.ResultUsage()}}, Frame: 1}
 	open := func() (indexedStage, error) {
 		return openFunctionFromNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 	}
@@ -807,8 +807,8 @@ func TestStringSplitPreflight(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		text := b.typ(sqltype.Text)
 		info := expr.Info{Usage: text.Usage()}
-		lowered := columnExpression{Info: info, scope: 1, frame: 1, slot: 0}
-		reserved := columnExpression{Info: info, scope: 1, frame: 1, slot: 1}
+		lowered := columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 0}
+		reserved := columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 1}
 		for _, tc := range []struct {
 			name             string
 			scheduled, upper bool
@@ -819,7 +819,7 @@ func TestStringSplitPreflight(t *testing.T) {
 			{"upper_owner", false, true, "call-output"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				node := &setProjectNode{scalarUpper: tc.upper, scalarBindings: []querySetSlot{{original: lowered, column: reserved, scheduled: tc.scheduled}}}
+				node := &setProjectNode{ScalarUpper: tc.upper, ScalarBindings: []querySetSlot{{Original: lowered, Column: reserved, Scheduled: tc.scheduled}}}
 				expression, changed := queryScalarOwner(node, reserved)
 				if !changed {
 					t.Fatal("owner mapping did not resolve reserved reference")
@@ -864,33 +864,33 @@ func TestStringSplitPreflight(t *testing.T) {
 					t.Fatal(err)
 				}
 				retained := child.(*setProjectNode)
-				callSlots := append([]int(nil), retained.callSlots...)
-				steps := append([]querySetStep(nil), retained.steps...)
-				templateSteps := append([]querySetStep(nil), retained.template.steps...)
-				owner := &projectNode{querySchema: schema, child: child, expressions: expressions, frame: 1, hasTargetSet: true}
+				callSlots := append([]int(nil), retained.CallSlots...)
+				steps := append([]querySetStep(nil), retained.Steps...)
+				templateSteps := append([]querySetStep(nil), retained.Template.Steps...)
+				owner := &projectNode{querySchema: schema, Child: child, Expressions: expressions, Frame: 1, HasTargetSet: true}
 				for range 3 {
 					private, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
 						t.Fatal(err)
 					}
 					project := private.(*projectNode)
-					stage := project.child.(*setProjectNode)
-					if _, nested := stage.child.(*setProjectNode); nested {
+					stage := project.Child.(*setProjectNode)
+					if _, nested := stage.Child.(*setProjectNode); nested {
 						t.Fatal("obsolete deeper expansion stage survived simplification")
 					}
-					_, cached := project.expressions[0].(columnExpression)
+					_, cached := project.Expressions[0].(columnExpression)
 					if cached == tc.upper {
-						t.Fatal("scalar owner does not match surviving maximum depth", project.expressions, stage.scalars)
+						t.Fatal("scalar owner does not match surviving maximum depth", project.Expressions, stage.Scalars)
 					}
 					var trace []int
 					if tc.name == "decreased_depth" {
 						evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
-						value, err := stage.scalars[0].Eval(evaluation)
+						value, err := stage.Scalars[0].Eval(evaluation)
 						if err != nil {
 							t.Fatal(err)
 						}
-						stage.scalars[0] = mathObservedArgument{Info: expr.InfoOf(stage.scalars[0]), value: value, order: &trace, index: 0}
-						for i, call := range stage.calls {
+						stage.Scalars[0] = mathObservedArgument{Info: expr.InfoOf(stage.Scalars[0]), value: value, order: &trace, index: 0}
+						for i, call := range stage.Calls {
 							value, err := expr.Expr(call).(expr.Composite).Children()[0].Eval(evaluation)
 							if err != nil {
 								t.Fatal(err)
@@ -899,7 +899,7 @@ func TestStringSplitPreflight(t *testing.T) {
 							if !value.IsNull() {
 								event = 2
 							}
-							functionSetUnitArgument(t, stage.calls, i, 0, mathObservedArgument{Info: expr.InfoOf(expr.Expr(call).(expr.Composite).Children()[0]), value: value, order: &trace, index: event})
+							functionSetUnitArgument(t, stage.Calls, i, 0, mathObservedArgument{Info: expr.InfoOf(expr.Expr(call).(expr.Composite).Children()[0]), value: value, order: &trace, index: event})
 						}
 					}
 					executable, err := openQueryNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, private)
@@ -941,7 +941,7 @@ func TestStringSplitPreflight(t *testing.T) {
 					if tc.name == "decreased_depth" && !reflect.DeepEqual(trace, []int{0, 1, 2, 0, 0}) {
 						t.Fatal("decreased-depth expansion reordered target effects or reopened arguments", trace)
 					}
-					if retained.template == nil || !reflect.DeepEqual(retained.callSlots, callSlots) || !reflect.DeepEqual(retained.steps, steps) || !reflect.DeepEqual(retained.template.steps, templateSteps) || !owner.hasTargetSet {
+					if retained.Template == nil || !reflect.DeepEqual(retained.CallSlots, callSlots) || !reflect.DeepEqual(retained.Steps, steps) || !reflect.DeepEqual(retained.Template.Steps, templateSteps) || !owner.HasTargetSet {
 						t.Fatal("preflight mutated analyzed group")
 					}
 				}
@@ -975,7 +975,7 @@ func TestStringSplitPreflight(t *testing.T) {
 			t.Fatal(err)
 		}
 		retained := lowered.(*setProjectNode)
-		root := &projectNode{querySchema: schema, child: lowered, expressions: projection, frame: 1, hasTargetSet: true}
+		root := &projectNode{querySchema: schema, Child: lowered, Expressions: projection, Frame: 1, HasTargetSet: true}
 		for range 3 {
 			ctx, cancel := context.WithCancel(context.Background())
 			evaluation := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
@@ -983,13 +983,13 @@ func TestStringSplitPreflight(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			executable := private.(*projectNode).child.(*setProjectNode)
+			executable := private.(*projectNode).Child.(*setProjectNode)
 			wantCalls, wantRows := 0, 1
 			if peer {
 				wantCalls, wantRows = 1, 3
 			}
-			if executable == retained || executable.template != nil || len(executable.calls) != wantCalls ||
-				retained.template == nil || len(retained.calls) != len(raw.Targets) || len(retained.callSlots) != len(retained.calls) {
+			if executable == retained || executable.Template != nil || len(executable.Calls) != wantCalls ||
+				retained.Template == nil || len(retained.Calls) != len(raw.Targets) || len(retained.CallSlots) != len(retained.Calls) {
 				t.Fatal("preflight mutated retained level template")
 			}
 			state := &queryState{source: &querySource{}, frame: 1}
@@ -1046,7 +1046,7 @@ func TestStringSplitPreflightSiblingError(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22023" {
 		t.Fatal("strict NULL suppressed immutable sibling error", err)
 	}
-	if retained.template == nil || len(retained.calls) != 1 || len(retained.callSlots) != 1 || retained.callSlots[0] != 0 {
+	if retained.Template == nil || len(retained.Calls) != 1 || len(retained.CallSlots) != 1 || retained.CallSlots[0] != 0 {
 		t.Fatal("failed preflight mutated retained level")
 	}
 }

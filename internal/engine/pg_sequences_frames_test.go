@@ -21,38 +21,38 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 				d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 				provider := &pgSequencesSource{}
 				leaf := &querySource{pgSequences: provider}
-				child := &sourceNode{querySchema: d.Columns, occurrence: 0}
-				inner := columnExpression{scope: 1, frame: 2, slot: 1}
-				project := &projectNode{querySchema: d.Columns[:1], child: child, expressions: []expr.Expr{inner}, frame: 2}
-				column := columnExpression{scope: 1, frame: 1, slot: 0}
+				child := &sourceNode{querySchema: d.Columns, Occurrence: 0}
+				inner := columnExpression{Scope: 1, Frame: 2, Slot: 1}
+				project := &projectNode{querySchema: d.Columns[:1], Child: child, Expressions: []expr.Expr{inner}, Frame: 2}
+				column := columnExpression{Scope: 1, Frame: 1, Slot: 0}
 				switch invalid {
 				case "foreign_frame", "mixed_and":
-					column.frame = 9
+					column.Frame = 9
 				case "foreign_scope":
-					column.scope = 2
+					column.Scope = 2
 				case "unproven_frame":
-					column.frame = 0
+					column.Frame = 0
 				case "foreign_projection":
-					inner.frame = 9
-					project.expressions[0] = inner
+					inner.Frame = 9
+					project.Expressions[0] = inner
 				}
-				var predicate expr.Expr = nullTestExpression{child: column}
+				var predicate expr.Expr = nullTestExpression{Child: column}
 				if invalid == "mixed_and" {
-					predicate = logicalExpression{op: parser.LogicalAnd, left: nullTestExpression{child: columnExpression{scope: 1, frame: 1, slot: 0}}, right: predicate}
+					predicate = logicalExpression{Op: parser.LogicalAnd, Left: nullTestExpression{Child: columnExpression{Scope: 1, Frame: 1, Slot: 0}}, Right: predicate}
 				}
 				if invalid == "mixed_projection" {
 					foreign := inner
-					foreign.frame = 9
-					project.expressions = append(project.expressions, foreign)
+					foreign.Frame = 9
+					project.Expressions = append(project.Expressions, foreign)
 					project.querySchema = d.Columns[:2]
-					predicate = logicalExpression{op: parser.LogicalAnd,
-						left:  nullTestExpression{child: column},
-						right: nullTestExpression{child: columnExpression{scope: 1, frame: 1, slot: 1}},
+					predicate = logicalExpression{Op: parser.LogicalAnd,
+						Left:  nullTestExpression{Child: column},
+						Right: nullTestExpression{Child: columnExpression{Scope: 1, Frame: 1, Slot: 1}},
 					}
 				}
 				switch boundary {
 				case "derived":
-					node := &derivedNode{querySchema: d.Columns[:1], query: &BoundQuery{Root: project}, scanFrame: 1}
+					node := &derivedNode{querySchema: d.Columns[:1], Query: &BoundQuery{Root: project}, ScanFrame: 1}
 					admitPGSequencesPredicate(node, leaf, predicate, 0, 1)
 				case "stored_project":
 					source := &querySource{nestedRoot: project, nestedInputs: leaf}
@@ -78,34 +78,34 @@ func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 		t.Run(boundary, func(t *testing.T) {
 			provider := &pgSequencesSource{}
 			leaf := &querySource{pgSequences: provider}
-			child := &sourceNode{querySchema: d.Columns, occurrence: 0}
-			project := &projectNode{querySchema: d.Columns[:2], child: child, expressions: []expr.Expr{
-				columnExpression{scope: 1, frame: 2, slot: 1},
-				columnExpression{scope: 1, frame: 2, slot: 0},
-			}, frame: 2}
-			column := columnExpression{scope: 1, frame: 1, slot: 0}
+			child := &sourceNode{querySchema: d.Columns, Occurrence: 0}
+			project := &projectNode{querySchema: d.Columns[:2], Child: child, Expressions: []expr.Expr{
+				columnExpression{Scope: 1, Frame: 2, Slot: 1},
+				columnExpression{Scope: 1, Frame: 2, Slot: 0},
+			}, Frame: 2}
+			column := columnExpression{Scope: 1, Frame: 1, Slot: 0}
 			switch boundary {
 			case "derived":
-				column.slot = 3
-				node := &derivedNode{querySchema: d.Columns[:2], query: &BoundQuery{Root: project}, scanFrame: 1}
-				admitPGSequencesPredicate(node, leaf, nullTestExpression{child: column}, 3, 1)
+				column.Slot = 3
+				node := &derivedNode{querySchema: d.Columns[:2], Query: &BoundQuery{Root: project}, ScanFrame: 1}
+				admitPGSequencesPredicate(node, leaf, nullTestExpression{Child: column}, 3, 1)
 			case "stored_project":
 				source := &querySource{nestedRoot: project, nestedInputs: leaf}
-				admitPGSequencesSource(source, nullTestExpression{child: column}, 1)
+				admitPGSequencesSource(source, nullTestExpression{Child: column}, 1)
 			case "stored_input":
 				source := &querySource{input: leaf, layout: []int{1, 0}}
-				admitPGSequencesSource(source, nullTestExpression{child: column}, 1)
+				admitPGSequencesSource(source, nullTestExpression{Child: column}, 1)
 			}
 			if len(provider.predicates) != 1 {
 				t.Fatalf("local admission got %d predicates, want 1", len(provider.predicates))
 			}
-			mapped := provider.predicates[0].(nullTestExpression).child.(columnExpression)
+			mapped := provider.predicates[0].(nullTestExpression).Child.(columnExpression)
 			frame := uint32(2)
 			if boundary == "stored_input" {
 				frame = 1 // Layout adapts the row without entering another frame.
 			}
-			if mapped.scope != 1 || mapped.frame != frame || mapped.slot != 1 {
-				t.Fatalf("mapped scope/frame/slot = %d/%d/%d, want 1/%d/1", mapped.scope, mapped.frame, mapped.slot, frame)
+			if mapped.Scope != 1 || mapped.Frame != frame || mapped.Slot != 1 {
+				t.Fatalf("mapped scope/frame/slot = %d/%d/%d, want 1/%d/1", mapped.Scope, mapped.Frame, mapped.Slot, frame)
 			}
 		})
 	}
@@ -131,26 +131,26 @@ func TestPGSequencesAdmissionDerivedRowLockFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := query.Root.(*projectNode)
-	rowLock := project.child.(*rowLockNode)
-	filter := rowLock.child.(*filterNode)
-	derived := filter.child.(*derivedNode)
-	inner := derived.query.Root.(*projectNode)
-	state := queryState{frame: project.frame}
+	rowLock := project.Child.(*rowLockNode)
+	filter := rowLock.Child.(*filterNode)
+	derived := filter.Child.(*derivedNode)
+	inner := derived.Query.Root.(*projectNode)
+	state := queryState{frame: project.Frame}
 	evaluation := state.evaluation(op.Context())
-	if derived.scanFrame == 0 || derived.scanFrame != evaluation.Frame || inner.frame == evaluation.Frame {
-		t.Fatalf("caller/evaluation/derived/inner frames = %d/%d/%d/%d", project.frame, evaluation.Frame, derived.scanFrame, inner.frame)
+	if derived.ScanFrame == 0 || derived.ScanFrame != evaluation.Frame || inner.Frame == evaluation.Frame {
+		t.Fatalf("caller/evaluation/derived/inner frames = %d/%d/%d/%d", project.Frame, evaluation.Frame, derived.ScanFrame, inner.Frame)
 	}
 	provider := &pgSequencesSource{}
 	inputs := &querySource{pgSequences: provider}
-	admitPGSequencesPredicate(rowLock, inputs, filter.predicate, 0, evaluation.Frame)
+	admitPGSequencesPredicate(rowLock, inputs, filter.Predicate, 0, evaluation.Frame)
 	if len(provider.predicates) != 1 {
 		t.Fatalf("bound local row-lock predicate admitted %d predicates, want 1", len(provider.predicates))
 	}
-	mapped := provider.predicates[0].(comparisonExpression).left.(columnExpression)
-	if mapped.scope != 1 || mapped.frame != inner.frame || mapped.slot != 1 {
-		t.Fatalf("mapped scope/frame/slot = %d/%d/%d, want 1/%d/1", mapped.scope, mapped.frame, mapped.slot, inner.frame)
+	mapped := provider.predicates[0].(comparisonExpression).Left.(columnExpression)
+	if mapped.Scope != 1 || mapped.Frame != inner.Frame || mapped.Slot != 1 {
+		t.Fatalf("mapped scope/frame/slot = %d/%d/%d, want 1/%d/1", mapped.Scope, mapped.Frame, mapped.Slot, inner.Frame)
 	}
-	if !pgSequencesPredicateInFrame(filter.predicate, evaluation.Frame) {
+	if !pgSequencesPredicateInFrame(filter.Predicate, evaluation.Frame) {
 		t.Fatal("admission changed the residual predicate's lexical ownership")
 	}
 }

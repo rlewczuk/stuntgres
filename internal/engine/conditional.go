@@ -255,17 +255,17 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 	outputs := make([]comparisonOperand, len(arms)+1)
 	for i, arm := range raw.Arms {
 		if test == nil {
-			arms[i].condition, err = b.bindBoolean(arm.Condition, projectionContext, "CASE/WHEN")
+			arms[i].Condition, err = b.bindBoolean(arm.Condition, projectionContext, "CASE/WHEN")
 		} else {
 			o, e := b.comparisonOperand(arm.Condition)
 			if e != nil {
 				return nil, e
 			}
 			var view expr.Expr
-			view, arms[i].condition, arms[i].equality, arms[i].routine, err = b.conditionalEquality(comparisonOperand{node: implicitComparisonOperand{test}, raw: raw.Test}, o, arm.Pos)
+			view, arms[i].Condition, arms[i].Equality, arms[i].Routine, err = b.conditionalEquality(comparisonOperand{node: implicitComparisonOperand{test}, raw: raw.Test}, o, arm.Pos)
 			if err == nil {
-				arms[i].testUsage = view.ResultUsage()
-				arms[i].testPlan, err = sqltype.PlanCoercion(test.ResultUsage(), view.ResultUsage(), sqltype.Implicit)
+				arms[i].TestUsage = view.ResultUsage()
+				arms[i].TestPlan, err = sqltype.PlanCoercion(test.ResultUsage(), view.ResultUsage(), sqltype.Implicit)
 			}
 		}
 		if err != nil {
@@ -298,20 +298,20 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 	}
 	properties = expr.MergeProperties(properties, otherwiseNode.Properties())
 	for i := range arms {
-		arms[i].result, err = b.coerceConditional(outputs[i+1], usage, "CASE/WHEN")
+		arms[i].Result, err = b.coerceConditional(outputs[i+1], usage, "CASE/WHEN")
 		if err != nil {
 			return nil, err
 		}
-		properties = expr.MergeProperties(properties, arms[i].condition.Properties())
-		properties = expr.MergeProperties(properties, arms[i].result.Properties())
-		if test != nil && (arms[i].testPlan.SessionDependent() || arms[i].equality.SessionDependent()) {
+		properties = expr.MergeProperties(properties, arms[i].Condition.Properties())
+		properties = expr.MergeProperties(properties, arms[i].Result.Properties())
+		if test != nil && (arms[i].TestPlan.SessionDependent() || arms[i].Equality.SessionDependent()) {
 			properties = expr.MergeProperties(properties, expr.Properties{Volatility: expr.Stable})
 		}
 	}
 	info := b.info(usage.Type.Usage(), raw.Pos, properties)
 	info.Usage.Typmod = usage.Typmod
 	for _, arm := range arms {
-		info, err = b.collatedInfo(info, arm.result)
+		info, err = b.collatedInfo(info, arm.Result)
 		if err != nil {
 			return nil, err
 		}

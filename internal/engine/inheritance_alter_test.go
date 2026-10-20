@@ -149,7 +149,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
 	usage := testUsage(e, sqltype.Int4)
 	expression := func(n int64) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: usage}, value: inheritanceQueryInt(e, n)}
+		return literalExpression{Info: expr.Info{Usage: usage}, Value: inheritanceQueryInt(e, n)}
 	}
 	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(1)}}
 	c.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(9)}}

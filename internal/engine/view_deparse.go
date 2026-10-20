@@ -50,9 +50,9 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	}
 	previous, previousFrame, previousSimple, previousNamespace := renderer.query, renderer.frame, renderer.simple, renderer.namespace
 	previousFunctionSources := renderer.functionSources
-	renderer.query, renderer.frame = &BoundQuery{Root: project}, project.frame
+	renderer.query, renderer.frame = &BoundQuery{Root: project}, project.Frame
 	renderer.namespace = len(renderer.namespaces)
-	if frame, ok := renderer.renderFrames[project.frame]; ok {
+	if frame, ok := renderer.renderFrames[project.Frame]; ok {
 		renderer.namespace = frame.namespace
 	}
 	renderer.depth++
@@ -72,21 +72,21 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	v := renderer
 	if s.Set != nil {
 		set := querySetNode(viewFromRoot(project))
-		if set == nil || set.left == nil || set.right == nil {
+		if set == nil || set.Left == nil || set.Right == nil {
 			return "", fmt.Errorf("stuntgres: missing frozen set query")
 		}
 		if columns == nil {
 			columns = set.Schema()
 		}
-		if recursive, ok := viewFromRoot(project).(*recursiveUnionNode); ok && (recursive.search != nil || recursive.cycle != nil) {
+		if recursive, ok := viewFromRoot(project).(*recursiveUnionNode); ok && (recursive.Search != nil || recursive.Cycle != nil) {
 			// Symbolic clauses regenerate outputs and hidden parent carries.
-			columns = columns[:recursive.definition.userWidth]
+			columns = columns[:recursive.Definition.UserWidth]
 		}
-		left, err := renderer.selectQueryColumnsSQL(ctx, catalogView, s.Set.Left, set.left, columns, true)
+		left, err := renderer.selectQueryColumnsSQL(ctx, catalogView, s.Set.Left, set.Left, columns, true)
 		if err != nil {
 			return "", err
 		}
-		right, err := renderer.selectQueryColumnsSQL(ctx, catalogView, s.Set.Right, set.right, columns, true)
+		right, err := renderer.selectQueryColumnsSQL(ctx, catalogView, s.Set.Right, set.Right, columns, true)
 		if err != nil {
 			return "", err
 		}
@@ -106,8 +106,8 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		if presentation.deparse {
 			separator = "\n"
 		}
-		operator := strings.ToUpper(set.operation)
-		if set.all {
+		operator := strings.ToUpper(set.Operation)
+		if set.All {
 			operator += " ALL"
 		}
 		text := left + separator + operator + separator + right
@@ -129,7 +129,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing frozen VALUES query")
 		}
-		text, err := renderer.valuesSQL(ctx, catalogView, s.Values, values.viewOrdinal)
+		text, err := renderer.valuesSQL(ctx, catalogView, s.Values, values.ViewOrdinal)
 		if err != nil {
 			return "", err
 		}
@@ -186,7 +186,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing simple set-view source")
 			}
-			relation, ok := catalogView.Relation(root.ref.Address)
+			relation, ok := catalogView.Relation(root.Ref.Address)
 			if !ok {
 				return "", ids.ErrCatalogReplaced
 			}
@@ -202,7 +202,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	var targets []string
 	for i, expr := range s.Targets {
 		if _, star := expr.(parser.StarExpr); star {
-			for _, column := range v.stars[viewLiteralPath{query: project.frame, clause: viewTargetLiteral, target: i}] {
+			for _, column := range v.stars[viewLiteralPath{query: project.Frame, clause: viewTargetLiteral, target: i}] {
 				owner := v.frames[column.frame]
 				if owner == nil {
 					return "", fmt.Errorf("stuntgres: missing frozen star frame")
@@ -467,12 +467,12 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog ca
 
 func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog catalog.Read, slot int) (string, error) {
 	project, ok := renderer.query.Root.(*projectNode)
-	if !ok || project.syntax == nil || slot < 0 || slot >= len(project.Schema()) {
+	if !ok || project.Syntax == nil || slot < 0 || slot >= len(project.Schema()) {
 		return "", fmt.Errorf("stuntgres: missing view ORDER output occurrence")
 	}
 	ordinal := slot + 1
-	for target, raw := range project.syntax.Targets {
-		path := viewLiteralPath{query: project.frame, clause: viewTargetLiteral, target: target}
+	for target, raw := range project.Syntax.Targets {
+		path := viewLiteralPath{query: project.Frame, clause: viewTargetLiteral, target: target}
 		if _, star := raw.(parser.StarExpr); star {
 			columns := renderer.stars[path]
 			if slot < len(columns) {
@@ -582,15 +582,15 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path
 	// Frozen expression frames have slots but no SELECT syntax.
 	currentNames := v.presentation.deparse || v.currentNames
 	ownerSimple := false
-	if currentNames && column.frame != path.query && owner.syntax != nil {
-		_, ownerSimple = owner.syntax.From.(*parser.TableReference)
+	if currentNames && column.frame != path.query && owner.Syntax != nil {
+		_, ownerSimple = owner.Syntax.From.(*parser.TableReference)
 	}
 	if currentNames && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral || path.clause == viewDistinctOnLiteral)) || (column.frame != path.query && ownerSimple)) {
 		source, ok := root.(*sourceNode)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing simple view source")
 		}
-		relation := catalog.MustRelation(source.ref.Address)
+		relation := catalog.MustRelation(source.Ref.Address)
 		text, err := v.slotSQL(ctx, catalog, root, column.slot)
 		if err != nil {
 			return "", err
@@ -923,7 +923,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 		}
 		if usage.Type.ContainsACLItem() {
 			if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage &&
-				(v.presentation.deparse || !literal.value.IsNull() || usage.Type.IsArray() || usage.Type.IsDomain() || usage.Type.IsComposite()) {
+				(v.presentation.deparse || !literal.Value.IsNull() || usage.Type.IsArray() || usage.Type.IsDomain() || usage.Type.IsComposite()) {
 				// Public typed constants already own their annotation, including
 				// NULL. Replay scalar NULL is untyped and retains its source cast.
 				return text, nil

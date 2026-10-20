@@ -38,8 +38,8 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 		}
 		root := &aggregateNode{
 			querySchema: querySchema{{Name: "array_agg", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
-			child:       &valuesNode{},
-			calls:       []aggregateCall{{provider: p, includeNulls: true}},
+			Child:       &valuesNode{},
+			Calls:       []aggregateCall{{Provider: p, IncludeNulls: true}},
 		}
 		mapped, err := remapViewQuery(e.catalog.read(e.catalog.state), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == p.ResultUsage().Type {
@@ -53,13 +53,13 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := mapped.(*aggregateNode).calls[0]
-		provider := call.provider.(*functions.ArrayAggregateProvider)
+		call := mapped.(*aggregateNode).Calls[0]
+		provider := call.Provider.(*functions.ArrayAggregateProvider)
 		argument := &element
 		if arrays {
 			argument = array
 		}
-		if provider == p || provider.ArgumentType() != argument || provider.ResultUsage().Type != array || provider.Arrays() != arrays || !call.includeNulls || mapped.Schema()[0].Usage.Type != array {
+		if provider == p || provider.ArgumentType() != argument || provider.ResultUsage().Type != array || provider.Arrays() != arrays || !call.IncludeNulls || mapped.Schema()[0].Usage.Type != array {
 			t.Fatal("view provider/result remint", provider, mapped.Schema())
 		}
 		if p.ResultUsage().Type == array || p.ArgumentType() == argument {
@@ -128,8 +128,8 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 		p := functions.NewArrayAggregateProvider(argument, sourceUsage, arrays)
 		root := &aggregateNode{
 			querySchema: querySchema{{Name: "array_agg", Usage: sourceUsage, Nullable: true, NullabilityKnown: true}},
-			child:       &valuesNode{},
-			calls:       []aggregateCall{{provider: p, includeNulls: true}},
+			Child:       &valuesNode{},
+			Calls:       []aggregateCall{{Provider: p, IncludeNulls: true}},
 		}
 		mapped, err := remapViewQuery(destinationView, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == sourceElement {
@@ -148,11 +148,11 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := mapped.(*aggregateNode).calls[0]
-		provider := call.provider.(*functions.ArrayAggregateProvider)
+		call := mapped.(*aggregateNode).Calls[0]
+		provider := call.Provider.(*functions.ArrayAggregateProvider)
 		want := destinationArray.Usage()
 		want.Collation = destinationCapability
-		if provider == p || provider.ArgumentType() != expectedArgument || provider.Arrays() != arrays || !call.includeNulls || mapped.Schema()[0].Usage != want || provider.ResultUsage() != want || provider.ResultUsage() != mapped.Schema()[0].Usage {
+		if provider == p || provider.ArgumentType() != expectedArgument || provider.Arrays() != arrays || !call.IncludeNulls || mapped.Schema()[0].Usage != want || provider.ResultUsage() != want || provider.ResultUsage() != mapped.Schema()[0].Usage {
 			t.Fatal("complete remapped array aggregate Usage", arrays, provider.ResultUsage(), mapped.Schema()[0].Usage, want)
 		}
 		if !provider.ResultUsage().Collation.Valid() || provider.ResultUsage().Collation.CaseMode() != destinationCapability.CaseMode() {

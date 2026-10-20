@@ -13,26 +13,26 @@ func (e seriesExpression) SourceAdmission() (bool, bool) { return true, true }
 
 func (e seriesExpression) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(seriesExpression)
-	return ok && e.ResultUsage() == o.ResultUsage() && len(e.args) == len(o.args)
+	return ok && e.ResultUsage() == o.ResultUsage() && len(e.Args) == len(o.Args)
 }
 
 func (e seriesExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}
-	if len(e.args) != 2 && len(e.args) != 3 {
+	if len(e.Args) != 2 && len(e.Args) != 3 {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid series arguments")
 	}
 	if e.Usage.Type.ID() == sqltype.Numeric {
 		var values [3]sqltype.Value
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			value, err := arg.Eval(ctx)
 			if err != nil {
 				return expr.SourceCursor{}, err
 			}
 			values[i] = value
 		}
-		cursor, err := sqltype.OpenNumericSeries(ctx.FunctionContext(), values[0], values[1], values[2:len(e.args)]...)
+		cursor, err := sqltype.OpenNumericSeries(ctx.FunctionContext(), values[0], values[1], values[2:len(e.Args)]...)
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}
@@ -44,7 +44,7 @@ func (e seriesExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error
 	var values [3]int64
 	values[2] = 1
 	null := false
-	for i, arg := range e.args {
+	for i, arg := range e.Args {
 		v, err := arg.Eval(ctx)
 		if err != nil {
 			return expr.SourceCursor{}, err

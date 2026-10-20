@@ -128,14 +128,14 @@ func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string
 // Numeric's emitted annotation is authoritative: integer-spelled, sized and
 // special values are annotated, while genuinely bare decimal literals are not.
 func pgLiteralSimple(n literalExpression, rendered string) bool {
-	if n.value.IsNull() || n.Usage.Type.IsUserDefined() || n.Usage.Type.IsDomain() {
+	if n.Value.IsNull() || n.Usage.Type.IsUserDefined() || n.Usage.Type.IsDomain() {
 		return false
 	}
 	switch n.Usage.Type.ID() {
 	case sqltype.Bool:
 		return true
 	case sqltype.Int4:
-		value, err := n.value.Integer()
+		value, err := n.Value.Integer()
 		return err == nil && value >= 0
 	case sqltype.Numeric:
 		return !strings.Contains(rendered, "::")
@@ -146,7 +146,7 @@ func pgLiteralSimple(n literalExpression, rendered string) bool {
 
 func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, error) {
 	u := n.ResultUsage()
-	v := n.value
+	v := n.Value
 	if n.UnknownNull && (!v.IsNull() || u.Type == nil || u.Type.ID() != sqltype.Text) {
 		return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")
 	}
@@ -440,12 +440,12 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		if r.columnSQL != nil {
 			return r.columnSQL(n)
 		}
-		return r.attribute(r.relation, n.origin.Address.SubID)
+		return r.attribute(r.relation, n.Origin.Address.SubID)
 	case tableOIDExpression:
 		return "tableoid", nil
 	case rowExpression:
-		parts := make([]string, len(n.fields))
-		for i, field := range n.fields {
+		parts := make([]string, len(n.Fields))
+		for i, field := range n.Fields {
 			text, err := child(field)
 			if err != nil {
 				return "", err
@@ -464,18 +464,18 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		return text, nil
 	case fieldExpression:
-		text, err := child(n.base)
+		text, err := child(n.Base)
 		if err != nil {
 			return "", err
 		}
-		index, ok := n.base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.attribute)
+		index, ok := n.Base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.Attribute)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: retired deparse field")
 		}
-		return "(" + text + ")." + pgIdentifier(n.base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
+		return "(" + text + ")." + pgIdentifier(n.Base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
 	case arrayExpression:
-		parts := make([]string, len(n.elements))
-		for i, element := range n.elements {
+		parts := make([]string, len(n.Elements))
+		for i, element := range n.Elements {
 			text, err := child(element)
 			if err != nil {
 				return "", err
@@ -488,25 +488,25 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		return text, nil
 	case subscriptExpression:
-		text, err := child(n.base)
+		text, err := child(n.Base)
 		if err != nil {
 			return "", err
 		}
 		text = "(" + text + ")"
-		for _, s := range n.subscripts {
+		for _, s := range n.Subscripts {
 			text += "["
-			if s.lower != nil {
-				part, err := child(s.lower)
+			if s.Lower != nil {
+				part, err := child(s.Lower)
 				if err != nil {
 					return "", err
 				}
 				text += part
 			}
-			if s.slice {
+			if s.Slice {
 				text += ":"
 			}
-			if s.upper != nil {
-				part, err := child(s.upper)
+			if s.Upper != nil {
+				part, err := child(s.Upper)
 				if err != nil {
 					return "", err
 				}
@@ -516,7 +516,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		return text, nil
 	case collationExpression:
-		text, err := child(n.child)
+		text, err := child(n.Child)
 		if err != nil {
 			return "", err
 		}
@@ -526,53 +526,53 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		return "(" + text + ")", nil
 	case coercionExpression:
-		if n.plan.IsJSONReturning() {
-			spec, supported, err := jsonReturningRendering(n.child)
+		if n.Plan.IsJSONReturning() {
+			spec, supported, err := jsonReturningRendering(n.Child)
 			if err != nil {
 				return "", err
 			}
 			if supported {
-				return r.renderingWithReturning(ctx, n.child, spec, parent, n.Usage)
+				return r.renderingWithReturning(ctx, n.Child, spec, parent, n.Usage)
 			}
 		}
 		// Identifier leaves already retain their scalar annotation. A transparent
 		// relabel must not duplicate it around a genuine enclosing conversion.
-		if n.child != nil && sqltype.IsTransactionIdentifier(n.Usage.Type.ID()) && n.child.ResultUsage() == n.Usage {
-			return r.sql(ctx, n.child, parent)
+		if n.Child != nil && sqltype.IsTransactionIdentifier(n.Usage.Type.ID()) && n.Child.ResultUsage() == n.Usage {
+			return r.sql(ctx, n.Child, parent)
 		}
-		if literal, ok := n.child.(literalExpression); ok && n.mode == sqltype.Explicit &&
+		if literal, ok := n.Child.(literalExpression); ok && n.Mode == sqltype.Explicit &&
 			literal.Usage.Type == n.Usage.Type && n.Usage.Typmod >= 0 {
 			literal.Usage = n.Usage
 			return r.literal(ctx, literal)
 		}
-		if n.mode == sqltype.Implicit && !showImplicit {
+		if n.Mode == sqltype.Implicit && !showImplicit {
 			// Const coercions have type-owned annotations; casts of Vars for operator
 			// resolution are invisible in PostgreSQL presentation.
-			if _, ok := n.child.(literalExpression); !ok {
-				return r.sql(ctx, n.child, parent)
+			if _, ok := n.Child.(literalExpression); !ok {
+				return r.sql(ctx, n.Child, parent)
 			}
-			if n.child.ResultUsage().Type.ID() == n.ResultUsage().Type.ID() {
-				return r.sql(ctx, n.child, parent)
+			if n.Child.ResultUsage().Type.ID() == n.ResultUsage().Type.ID() {
+				return r.sql(ctx, n.Child, parent)
 			}
 		}
-		if n.mode == sqltype.Assignment && !sqlJSONResult(n.child) {
-			return r.sql(ctx, n.child, parent)
+		if n.Mode == sqltype.Assignment && !sqlJSONResult(n.Child) {
+			return r.sql(ctx, n.Child, parent)
 		}
-		text, err := child(n.child)
+		text, err := child(n.Child)
 		if err != nil {
 			return "", err
 		}
-		_, simpleColumn := n.child.(columnExpression)
-		_, simpleLiteral := n.child.(literalExpression)
-		_, castChild := n.child.(coercionExpression)
+		_, simpleColumn := n.Child.(columnExpression)
+		_, simpleLiteral := n.Child.(literalExpression)
+		_, castChild := n.Child.(coercionExpression)
 		simpleFunctionCall := false
-		if call, ok := n.child.(expr.Renderable); ok {
+		if call, ok := n.Child.(expr.Renderable); ok {
 			spec, err := call.Render()
 			simpleFunctionCall = err == nil && spec.SimpleCast
 		}
 		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.pretty && parent.functionArgument && castChild)
 	case selectedOperatorExpression:
-		d, ok := r.view.Operator(n.ref.Address)
+		d, ok := r.view.Operator(n.Ref.Address)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing selected operator during deparse")
 		}
@@ -583,7 +583,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		op := "OPERATOR(" + catalog.QuoteIdentifier(namespace.Name()) + "." + d.Name() + ")"
 		var operands [2]expr.Expr
 		count := 0
-		boundExpressionChildren(n.provider, func(arg expr.Expr) {
+		boundExpressionChildren(n.Provider, func(arg expr.Expr) {
 			if arg != nil && count < len(operands) {
 				operands[count] = arg
 				count++
@@ -602,49 +602,49 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		return binary(operands[0], operands[1], op, 5, parent)
 	case arithmeticExpression:
 		ops := [...]string{"+", "-", "*", "/", "%", "^"}
-		if int(n.operator) >= len(ops) {
+		if int(n.Operator) >= len(ops) {
 			return "", fmt.Errorf("stuntgres: invalid deparse arithmetic operator")
 		}
-		op := operator(n.namespace, ops[n.operator])
-		if n.right == nil {
-			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 5, operator: op, unary: true})
+		op := operator(n.Namespace, ops[n.Operator])
+		if n.Right == nil {
+			text, err := r.sql(ctx, n.Left, pgRenderParent{precedence: 5, operator: op, unary: true})
 			text = op + " " + text
 			if !r.pretty || pgOperatorGrouped(op, false, parent) {
 				text = "(" + text + ")"
 			}
 			return text, err
 		}
-		return binary(n.left, n.right, op, 5, parent)
+		return binary(n.Left, n.Right, op, 5, parent)
 	case bitwiseExpression:
 		ops := [...]string{"&", "|", "#", "~", "<<", ">>"}
-		if int(n.operator) >= len(ops) {
+		if int(n.Operator) >= len(ops) {
 			return "", fmt.Errorf("stuntgres: invalid deparse bitwise operator")
 		}
-		op := operator(n.namespace, ops[n.operator])
-		if n.right == nil {
-			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 5, operator: op, unary: true})
+		op := operator(n.Namespace, ops[n.Operator])
+		if n.Right == nil {
+			text, err := r.sql(ctx, n.Left, pgRenderParent{precedence: 5, operator: op, unary: true})
 			text = op + " " + text
 			if !r.pretty || pgOperatorGrouped(op, false, parent) {
 				text = "(" + text + ")"
 			}
 			return text, err
 		}
-		return binary(n.left, n.right, op, 5, parent)
+		return binary(n.Left, n.Right, op, 5, parent)
 	case likeExpression:
-		return binary(n.left, n.right, operator(n.namespace, n.operator), 5, parent)
+		return binary(n.Left, n.Right, operator(n.Namespace, n.Operator), 5, parent)
 	case rowComparisonExpression:
-		spelling := n.operator
-		if !n.distinct() {
-			if len(n.comparisons) == 0 {
+		spelling := n.Operator
+		if !n.Distinct() {
+			if len(n.Comparisons) == 0 {
 				return "", fmt.Errorf("stuntgres: invalid row comparison")
 			}
-			spelling = operator(n.comparisons[0].namespace, n.operator)
+			spelling = operator(n.Comparisons[0].Namespace, n.Operator)
 		}
 		return renderRowComparison(n, child, spelling)
 	case scalarArrayComparisonExpression:
 		return renderScalarArrayComparison(n, child, r.identifier)
 	case unnestExpression:
-		if n.procedure == nil {
+		if n.Procedure == nil {
 			spec, err := n.Render()
 			if err != nil {
 				return "", err
@@ -653,98 +653,98 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		argRenderer := r
 		argRenderer.showImplicit = true
-		arg, err := argRenderer.sql(ctx, n.args[0], pgRenderParent{})
+		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
 		if err != nil {
 			return "", err
 		}
 		name := pgIdentifier("unnest")
-		if n.procedure != nil {
-			if err := validateIntaggIdentity(r.view, n.procedure, n.ref, "int_array_enum"); err != nil {
+		if n.Procedure != nil {
+			if err := validateIntaggIdentity(r.view, n.Procedure, n.Ref, "int_array_enum"); err != nil {
 				return "", err
 			}
-			namespace, ok := r.view.Namespace(n.procedure.Namespace())
+			namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing intagg namespace")
 			}
-			name = pgIdentifier(namespace.Name()) + "." + pgIdentifier(n.procedure.Name())
+			name = pgIdentifier(namespace.Name()) + "." + pgIdentifier(n.Procedure.Name())
 		}
 		return name + "(" + arg + ")", nil
 	case comparisonExpression:
-		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
+		return binary(n.Left, n.Right, operator(n.Namespace, n.Operator), 4, parent)
 	case nullTestExpression:
 		suffix := " IS NULL"
-		if n.not {
+		if n.Not {
 			suffix = " IS NOT NULL"
 		}
-		if n.whole && n.child.ResultUsage().Type.BaseType().IsComposite() {
+		if n.Whole && n.Child.ResultUsage().Type.BaseType().IsComposite() {
 			suffix = " IS NOT DISTINCT FROM NULL"
-			if n.not {
+			if n.Not {
 				suffix = " IS DISTINCT FROM NULL"
 			}
 		}
-		return unary(n.child, suffix)
+		return unary(n.Child, suffix)
 	case truthTestExpression:
 		truth := [...]string{"FALSE", "TRUE", "UNKNOWN"}
-		if int(n.truth) >= len(truth) {
+		if int(n.Truth) >= len(truth) {
 			return "", fmt.Errorf("stuntgres: invalid deparse truth")
 		}
 		suffix := " IS "
-		if n.not {
+		if n.Not {
 			suffix += "NOT "
 		}
-		return unary(n.child, suffix+truth[n.truth])
+		return unary(n.Child, suffix+truth[n.Truth])
 	case distinctExpression:
 		enclosing := parent
-		if n.not {
+		if n.Not {
 			enclosing = pgRenderParent{precedence: 3, operator: "NOT"}
 		}
-		text, err := binary(n.left, n.right, "IS DISTINCT FROM", 4, enclosing)
-		if n.not && err == nil {
+		text, err := binary(n.Left, n.Right, "IS DISTINCT FROM", 4, enclosing)
+		if n.Not && err == nil {
 			text = logicalNot(text)
 		}
 		return text, err
 	case logicalExpression:
-		if n.op == parser.LogicalNot {
-			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 3, operator: "NOT"})
+		if n.Op == parser.LogicalNot {
+			text, err := r.sql(ctx, n.Left, pgRenderParent{precedence: 3, operator: "NOT"})
 			if err != nil {
 				return "", err
 			}
 			return logicalNot(text), nil
 		}
 		op, precedence := "AND", 2
-		if n.op == parser.LogicalOr {
+		if n.Op == parser.LogicalOr {
 			op, precedence = "OR", 1
 		}
-		return binary(n.left, n.right, op, precedence, parent)
+		return binary(n.Left, n.Right, op, precedence, parent)
 	case conditionalExpression:
 		names := [...]string{"COALESCE", "NULLIF", "GREATEST", "LEAST"}
-		if int(n.kind) >= len(names) {
+		if int(n.Kind) >= len(names) {
 			return "", fmt.Errorf("stuntgres: invalid deparse conditional")
 		}
-		return function(names[n.kind], n.args, false)
+		return function(names[n.Kind], n.Args, false)
 	case caseExpression:
 		var text strings.Builder
 		text.WriteString("\nCASE")
-		if n.test != nil {
-			test, err := child(n.test)
+		if n.Test != nil {
+			test, err := child(n.Test)
 			if err != nil {
 				return "", err
 			}
 			text.WriteByte(' ')
 			text.WriteString(test)
 		}
-		for _, arm := range n.arms {
-			condition, err := child(arm.condition)
+		for _, arm := range n.Arms {
+			condition, err := child(arm.Condition)
 			if err != nil {
 				return "", err
 			}
-			result, err := child(arm.result)
+			result, err := child(arm.Result)
 			if err != nil {
 				return "", err
 			}
 			text.WriteString("\n    WHEN " + condition + " THEN " + result)
 		}
-		otherwise, err := child(n.otherwise)
+		otherwise, err := child(n.Otherwise)
 		if err != nil {
 			return "", err
 		}
@@ -752,11 +752,11 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		text.WriteString("\nEND")
 		return text.String(), nil
 	case sqlRoutineExpression:
-		namespace, ok := r.view.Namespace(n.procedure.Namespace())
+		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), n.args, true)
+		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
 	case extensionPathsExpression:
 		args := [1]expr.Expr{n.arg}
 		return function("pg_extension_update_paths", args[:], true)

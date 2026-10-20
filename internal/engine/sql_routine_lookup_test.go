@@ -116,7 +116,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	if err != nil || !handled {
 		t.Fatal("staged SQL addition did not bind", handled, err)
 	}
-	if call, ok := node.(sqlRoutineExpression); !ok || call.procedure != added {
+	if call, ok := node.(sqlRoutineExpression); !ok || call.Procedure != added {
 		t.Fatal("selected wrong staged provider")
 	}
 	prepared := &preparedDrop{base: base, discovery: base, input: reader}

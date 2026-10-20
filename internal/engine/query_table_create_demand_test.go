@@ -22,13 +22,13 @@ func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*projectNode, *
 	for i := range schema {
 		usage := testUsage(e, sqltype.Int4)
 		schema[i] = catalog.Column{Name: "i", Usage: usage}
-		expressions[i] = columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: i}
+		expressions[i] = columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: i}
 		for j := range rows {
 			rows[j][i], _ = sqltype.Integer(usage.Type, int64(j+1))
 		}
 	}
 	source := &querySource{anonymous: rows}
-	return &projectNode{querySchema: schema, child: &sourceNode{querySchema: schema}, expressions: expressions, frame: 1}, source
+	return &projectNode{querySchema: schema, Child: &sourceNode{querySchema: schema}, Expressions: expressions, Frame: 1}, source
 }
 
 func TestQueryTableCreateDemand(t *testing.T) {
@@ -36,12 +36,12 @@ func TestQueryTableCreateDemand(t *testing.T) {
 	project, source := queryCreateBoundSource(t, e, 1)
 	usage := project.Schema()[0].Usage
 	calls, predicates := 0, 0
-	project.child = &filterNode{querySchema: project.Schema(), child: project.child, predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
+	project.Child = &filterNode{querySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
 		predicates++
 		value, _ := c.Row[0].Integer()
 		return sqltype.Boolean(testUsage(e, sqltype.Bool).Type, value >= 2), nil
 	})}
-	project.expressions = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil })}
+	project.Expressions = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil })}
 	result, count, err := finalizeQuery(context.Background(), project, source, nil)
 	if err != nil || count != 2 || calls != 2 || predicates != 3 {
 		t.Fatal(result, count, err, calls, predicates)
@@ -123,12 +123,12 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 		cleanup := errors.New("required source close")
 		failure := errors.New("primary expression failure")
 		closes := 0
-		inner := indexedStage{source: input, schema: project.Schema(), expressions: project.expressions, evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, finish: func() error { closes++; return cleanup }}
+		inner := indexedStage{source: input, schema: project.Schema(), expressions: project.Expressions, evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, finish: func() error { closes++; return cleanup }}
 		if primary {
 			inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 		}
 		bridge := &querySource{nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
-		outer := &projectNode{querySchema: project.Schema(), child: &sourceNode{querySchema: project.Schema()}, expressions: project.expressions, frame: 1}
+		outer := &projectNode{querySchema: project.Schema(), Child: &sourceNode{querySchema: project.Schema()}, Expressions: project.Expressions, Frame: 1}
 		result, count, err := finalizeQuery(context.Background(), outer, bridge, nil)
 		want := cleanup
 		if primary {

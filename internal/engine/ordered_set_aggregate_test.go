@@ -229,7 +229,7 @@ func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
 			direct, _ := sqltype.Float(p.FractionType(), .5)
 			var err error
 			if phase == ".sortOrderedAggregate.func1" {
-				_, err = sortOrderedAggregate(probe, &queryState{}, aggregateCall{stageWidth: 2, order: []sortKey{{comparison: p.Comparison(), cache: 0}}}, in.Values)
+				_, err = sortOrderedAggregate(probe, &queryState{}, aggregateCall{StageWidth: 2, Order: []sortKey{{Comparison: p.Comparison(), Cache: 0}}}, in.Values)
 			} else {
 				_, err = orderedSetUnitFinalize(probe, p, direct, in, sqltype.InputEnvironment{})
 			}
@@ -243,15 +243,15 @@ func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
 func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 	p := orderedSetUnitProvider(t, functions.AggregatePercentileCont, sqltype.Float8, false)
 	info := expr.Info{Usage: p.InputType().Usage(), Property: expr.Properties{RowDependent: true}}
-	key := columnExpression{Info: info, scope: 1, frame: 1, slot: 0}
-	arg := columnExpression{Info: info, scope: 1, frame: 1, slot: 1}
+	key := columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 0}
+	arg := columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 1}
 	grouping, err := sqltype.BindGrouping(key.ResultUsage())
 	if err != nil {
 		t.Fatal(err)
 	}
 	literal := func(n float64) expr.Expr {
 		value, _ := sqltype.Float(p.InputType(), n)
-		return literalExpression{Info: expr.Info{Usage: p.InputType().Usage()}, value: value}
+		return literalExpression{Info: expr.Info{Usage: p.InputType().Usage()}, Value: value}
 	}
 	for _, phase := range []string{"success", "having", "direct", "prepare", "sort", "scan", "array", "percentile"} {
 		t.Run(phase, func(t *testing.T) {
@@ -294,15 +294,15 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				if provider.Array() {
 					return orderedSetUnitFractionArray(t, provider).Input(c.Context, "{.25,.75}", -1)
 				}
-				return groupExpression{Info: expr.Info{Usage: provider.FractionType().Usage()}, slot: 0, frame: 1}.Eval(c)
+				return groupExpression{Info: expr.Info{Usage: provider.FractionType().Usage()}, Slot: 0, Frame: 1}.Eval(c)
 			})
-			child := &valuesNode{querySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: p.InputType().Usage()}}, rows: [][]expr.Expr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
-			call := aggregateCall{provider: provider, argument: arg, direct: []expr.Expr{direct}, operation: provider.Operation(), stageWidth: 2, order: []sortKey{{expression: arg, comparison: provider.Comparison(), slot: 0, cache: 0}}}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: provider.ResultUsage()}}, child: child, keys: []expr.Expr{key}, grouping: []queryGrouping{{Grouping: grouping}}, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: querySchema{{Usage: provider.ResultUsage()}}, child: aggregate, expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, slot: 1, frame: 1}}, frame: 1}
+			child := &valuesNode{querySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: p.InputType().Usage()}}, Rows: [][]expr.Expr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
+			call := aggregateCall{Provider: provider, Argument: arg, Direct: []expr.Expr{direct}, Operation: provider.Operation(), StageWidth: 2, Order: []sortKey{{Expression: arg, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
+			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: provider.ResultUsage()}}, Child: child, Keys: []expr.Expr{key}, Grouping: []queryGrouping{{Grouping: grouping}}, Calls: []aggregateCall{call}}
+			root := &projectNode{querySchema: querySchema{{Usage: provider.ResultUsage()}}, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 1, Frame: 1}}, Frame: 1}
 			if phase == "having" {
 				boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
-				root.child = &filterNode{querySchema: aggregate.querySchema, child: aggregate, predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}
+				root.Child = &filterNode{querySchema: aggregate.querySchema, Child: aggregate, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 			}
 			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, flat: []sqltype.Value{sqltype.Null(p.InputType())}}
 			source := &querySource{sources: []*querySource{owned}}
@@ -380,8 +380,8 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 		if got := node.ResultUsage().Type.DiagnosticName(); got != tc.result {
 			t.Fatal(tc, got)
 		}
-		call := b.grouping.aggregates[node.(aggregateExpression).slot]
-		if call.order[0].slot != 0 || call.order[0].cache != 0 || call.stageWidth != 2 || (call.direct == nil) != (tc.name == "mode") {
+		call := b.grouping.aggregates[node.(aggregateExpression).Slot]
+		if call.Order[0].Slot != 0 || call.Order[0].Cache != 0 || call.StageWidth != 2 || (call.Direct == nil) != (tc.name == "mode") {
 			t.Fatal("uncached input/direct identity", tc, call)
 		}
 	}
@@ -393,7 +393,7 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		slots = append(slots, node.(aggregateExpression).slot)
+		slots = append(slots, node.(aggregateExpression).Slot)
 	}
 	if slots[0] == slots[1] || slots[0] != slots[2] {
 		t.Fatal("fraction identity", slots)
@@ -480,12 +480,12 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						child.rows = append(child.rows, []expr.Expr{literalExpression{Info: expr.Info{Usage: provider.InputType().Usage()}, value: value}})
+						child.Rows = append(child.Rows, []expr.Expr{literalExpression{Info: expr.Info{Usage: provider.InputType().Usage()}, Value: value}})
 					}
 				}
-				call := aggregateCall{provider: provider, argument: argument, direct: []expr.Expr{direct}, operation: family.operation, stageWidth: 2, order: []sortKey{{expression: argument, comparison: provider.Comparison(), slot: 0, cache: 0}}}
-				node := &aggregateNode{querySchema: querySchema{{Usage: provider.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
-				root := &projectNode{querySchema: node.querySchema, child: node, expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
+				call := aggregateCall{Provider: provider, Argument: argument, Direct: []expr.Expr{direct}, Operation: family.operation, StageWidth: 2, Order: []sortKey{{Expression: argument, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
+				node := &aggregateNode{querySchema: querySchema{{Usage: provider.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
+				root := &projectNode{querySchema: node.querySchema, Child: node, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: ".Comparison.Compare"}
@@ -655,7 +655,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			call := b.grouping.aggregates[0]
-			argument := call.argument
+			argument := call.Argument
 			if b.bindingCatalog().State() != catalogView.State() || argument.ResultUsage().Type != input {
 				t.Fatal("input lost coherent binding generation", argument.ResultUsage(), input)
 			}
@@ -672,7 +672,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				}
 				want.Type = array
 			}
-			provider := call.provider.(*functions.OrderedSet)
+			provider := call.Provider.(*functions.OrderedSet)
 			actual := result.ResultUsage()
 			if actual != want || provider.ResultUsage() != want || provider.InputType() != input {
 				t.Fatal("complete exact Usage/provider authority", actual, want, provider)
@@ -688,7 +688,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if tc.array && (actual.Type.Element() != input || actual.Type.Element() != provider.InputType() || resultOwner.SQLType.Element() != input || inputOwner.Array != actual.Type.ID()) {
 				t.Fatal("actual result/leaf/owner relationship", actual, input, inputOwner)
 			}
-			for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.order[0].comparison} {
+			for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.Order[0].Comparison} {
 				collation, indeterminate := comparison.InputCollation()
 				if collation != argument.ResultUsage().Collation || indeterminate != argument.CollationIndeterminate() {
 					t.Fatal("actual comparison collation authority", collation, indeterminate, argument.ResultUsage(), argument.CollationIndeterminate())
@@ -741,18 +741,18 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 		if column.OriginTable != 0 || column.OriginAttribute != 0 || column.Usage.Typmod != -1 || !column.NullabilityKnown || !column.Nullable {
 			t.Fatal("computed aggregate origin/schema", expression, column)
 		}
-		call := q.Root.(*projectNode).child.(*aggregateNode).calls[0]
-		if column.Usage != call.provider.ResultUsage() {
-			t.Fatal("schema/provider authority drift", column, call.provider.ResultUsage())
+		call := q.Root.(*projectNode).Child.(*aggregateNode).Calls[0]
+		if column.Usage != call.Provider.ResultUsage() {
+			t.Fatal("schema/provider authority drift", column, call.Provider.ResultUsage())
 		}
 		if strings.Contains(expression, "ORDER BY v)") && column.Usage.Collation != table.Columns[0].Usage.Collation {
 			t.Fatal("lost source-column collation authority", expression, column.Usage, table.Columns[0].Usage)
 		}
-		provider := call.provider.(*functions.OrderedSet)
-		for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.order[0].comparison} {
+		provider := call.Provider.(*functions.OrderedSet)
+		for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.Order[0].Comparison} {
 			collation, indeterminate := comparison.InputCollation()
-			if collation != call.argument.ResultUsage().Collation || indeterminate != call.argument.CollationIndeterminate() {
-				t.Fatal("declared-column comparison authority", expression, collation, indeterminate, call.argument.ResultUsage())
+			if collation != call.Argument.ResultUsage().Collation || indeterminate != call.Argument.CollationIndeterminate() {
+				t.Fatal("declared-column comparison authority", expression, collation, indeterminate, call.Argument.ResultUsage())
 			}
 		}
 	}

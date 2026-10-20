@@ -17,10 +17,10 @@ func (c *EvalContext) EvalTableOID(n tableOIDExpression) (sqltype.Value, error) 
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.Scope != 1 || c.Frame != 1 || n.owner.Address.ObjectID == 0 {
+	if c.Scope != 1 || c.Frame != 1 || n.Owner.Address.ObjectID == 0 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid generated tableoid frame")
 	}
-	owner := n.owner
+	owner := n.Owner
 	if c.physicalTable != (ids.ObjectRef{}) {
 		owner = c.physicalTable
 	}
@@ -167,55 +167,55 @@ func generationImmutable(node expr.Expr) bool {
 	}
 	switch n := node.(type) {
 	case rowExpression:
-		return args(n.fields)
+		return args(n.Fields)
 	case fieldExpression:
-		return one(n.base)
+		return one(n.Base)
 	case arrayExpression:
-		return args(n.elements)
+		return args(n.Elements)
 	case subscriptExpression:
 		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
 	case literalExpression, columnExpression, tableOIDExpression:
 		return true
 	case collationExpression:
-		return one(n.child)
+		return one(n.Child)
 	case coercionExpression:
-		return one(n.child) && (n.mode == sqltype.Assignment || !n.plan.SessionDependent())
+		return one(n.Child) && (n.Mode == sqltype.Assignment || !n.Plan.SessionDependent())
 	case selectedOperatorExpression:
-		return one(n.provider)
+		return one(n.Provider)
 	case arithmeticExpression:
-		return !n.provider.SessionDependent() && both(n.left, n.right)
+		return !n.Provider.SessionDependent() && both(n.Left, n.Right)
 	case bitwiseExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case rowComparisonExpression:
-		for _, pair := range n.comparisons {
-			if pair.predicate.SessionDependent() || !both(pair.left, pair.right) {
+		for _, pair := range n.Comparisons {
+			if pair.Predicate.SessionDependent() || !both(pair.Left, pair.Right) {
 				return false
 			}
 		}
 		return true
 	case scalarArrayComparisonExpression:
-		return !n.predicate.SessionDependent() && one(n.left) && (n.array == nil || one(n.array)) && args(n.items)
+		return !n.Predicate.SessionDependent() && one(n.Left) && (n.Array == nil || one(n.Array)) && args(n.Items)
 	case comparisonExpression:
-		return !n.predicate.SessionDependent() && both(n.left, n.right)
+		return !n.Predicate.SessionDependent() && both(n.Left, n.Right)
 	case logicalExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case distinctExpression:
-		return !n.equality.SessionDependent() && both(n.left, n.right)
+		return !n.Equality.SessionDependent() && both(n.Left, n.Right)
 	case nullTestExpression:
-		return one(n.child)
+		return one(n.Child)
 	case truthTestExpression:
-		return one(n.child)
+		return one(n.Child)
 	case likeExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case conditionalExpression:
-		return !n.comparison.SessionDependent() && args(n.args)
+		return !n.Comparison.SessionDependent() && args(n.Args)
 	case caseExpression:
-		if !both(n.test, n.otherwise) {
+		if !both(n.Test, n.Otherwise) {
 			return false
 		}
-		for _, arm := range n.arms {
-			if !both(arm.condition, arm.result) || n.test != nil && (arm.testPlan.SessionDependent() || arm.equality.SessionDependent()) {
+		for _, arm := range n.Arms {
+			if !both(arm.Condition, arm.Result) || n.Test != nil && (arm.TestPlan.SessionDependent() || arm.Equality.SessionDependent()) {
 				return false
 			}
 		}
@@ -360,55 +360,55 @@ func generationHasTableOID(node expr.Expr) bool {
 	}
 	switch n := node.(type) {
 	case rowExpression:
-		return args(n.fields)
+		return args(n.Fields)
 	case fieldExpression:
-		return one(n.base)
+		return one(n.Base)
 	case arrayExpression:
-		return args(n.elements)
+		return args(n.Elements)
 	case subscriptExpression:
 		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
 	case tableOIDExpression:
 		return true
 	case collationExpression:
-		return one(n.child)
+		return one(n.Child)
 	case coercionExpression:
-		return one(n.child)
+		return one(n.Child)
 	case selectedOperatorExpression:
-		return one(n.provider)
+		return one(n.Provider)
 	case arithmeticExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case bitwiseExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case rowComparisonExpression:
-		for _, pair := range n.comparisons {
-			if both(pair.left, pair.right) {
+		for _, pair := range n.Comparisons {
+			if both(pair.Left, pair.Right) {
 				return true
 			}
 		}
 		return false
 	case scalarArrayComparisonExpression:
-		return one(n.left) || n.array != nil && one(n.array) || args(n.items)
+		return one(n.Left) || n.Array != nil && one(n.Array) || args(n.Items)
 	case comparisonExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case logicalExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case distinctExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case nullTestExpression:
-		return one(n.child)
+		return one(n.Child)
 	case truthTestExpression:
-		return one(n.child)
+		return one(n.Child)
 	case likeExpression:
-		return both(n.left, n.right)
+		return both(n.Left, n.Right)
 	case conditionalExpression:
-		return args(n.args)
+		return args(n.Args)
 	case caseExpression:
-		if both(n.test, n.otherwise) {
+		if both(n.Test, n.Otherwise) {
 			return true
 		}
-		for _, arm := range n.arms {
-			if both(arm.condition, arm.result) {
+		for _, arm := range n.Arms {
+			if both(arm.Condition, arm.Result) {
 				return true
 			}
 		}
@@ -633,34 +633,34 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	switch n := node.(type) {
 	case rowExpression:
 		shape := n.Usage.Type.BaseType()
-		if !shape.IsComposite() || n.fieldProjection == nil && len(n.fields) != shape.CompositeLen() || n.fieldProjection != nil && len(n.fieldProjection) != len(n.fields) || n.presenceSlot < 0 || n.wholeNames == nil && (n.presenceSlot != 0 || n.presenceFrame != 0) || n.wholeNames != nil && (len(n.wholeNames) != len(n.fields) || n.presenceFrame == 0) {
+		if !shape.IsComposite() || n.FieldProjection == nil && len(n.Fields) != shape.CompositeLen() || n.FieldProjection != nil && len(n.FieldProjection) != len(n.Fields) || n.PresenceSlot < 0 || n.WholeNames == nil && (n.PresenceSlot != 0 || n.PresenceFrame != 0) || n.WholeNames != nil && (len(n.WholeNames) != len(n.Fields) || n.PresenceFrame == 0) {
 			return fmt.Errorf("stuntgres: invalid composite row plan")
 		}
-		if n.fieldProjection == nil {
-			for i, field := range n.fields {
+		if n.FieldProjection == nil {
+			for i, field := range n.Fields {
 				if field == nil || !sqltype.SameRecordUsage(field.ResultUsage(), shape.CompositeMember(i).Usage) {
 					return fmt.Errorf("stuntgres: incompatible composite row member")
 				}
 			}
 		} else {
-			if n.raw == nil {
+			if n.Raw == nil {
 				return fmt.Errorf("stuntgres: retained row projection has no constructor")
 			}
-			seen := make(map[int32]bool, len(n.fieldProjection))
+			seen := make(map[int32]bool, len(n.FieldProjection))
 			live := 0
-			for i, projection := range n.fieldProjection {
-				if n.fields[i] == nil || projection.attribute <= 0 || seen[projection.attribute] {
+			for i, projection := range n.FieldProjection {
+				if n.Fields[i] == nil || projection.Attribute <= 0 || seen[projection.Attribute] {
 					return fmt.Errorf("stuntgres: invalid retained row attribute")
 				}
-				seen[projection.attribute] = true
-				slot, present := shape.CompositeAttributeIndex(projection.attribute)
+				seen[projection.Attribute] = true
+				slot, present := shape.CompositeAttributeIndex(projection.Attribute)
 				if !present {
-					if projection.slot != -1 {
+					if projection.Slot != -1 {
 						return fmt.Errorf("stuntgres: invalid retired row slot")
 					}
 					continue
 				}
-				if slot != projection.slot || !sqltype.SameRecordUsage(n.fields[i].ResultUsage(), shape.CompositeMember(slot).Usage) {
+				if slot != projection.Slot || !sqltype.SameRecordUsage(n.Fields[i].ResultUsage(), shape.CompositeMember(slot).Usage) {
 					return fmt.Errorf("stuntgres: incompatible retained row member")
 				}
 				live++
@@ -669,91 +669,91 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 				return fmt.Errorf("stuntgres: incomplete retained row shape")
 			}
 		}
-		return args(n.fields)
+		return args(n.Fields)
 	case fieldExpression:
-		if n.base == nil || n.base.ResultUsage().Type == nil || !n.base.ResultUsage().Type.BaseType().IsComposite() {
+		if n.Base == nil || n.Base.ResultUsage().Type == nil || !n.Base.ResultUsage().Type.BaseType().IsComposite() {
 			return fmt.Errorf("stuntgres: invalid composite field base")
 		}
-		shape := n.base.ResultUsage().Type.BaseType()
-		index, ok := shape.CompositeAttributeIndex(n.attribute)
+		shape := n.Base.ResultUsage().Type.BaseType()
+		index, ok := shape.CompositeAttributeIndex(n.Attribute)
 		source := index
-		if row, constructor := n.base.(rowExpression); constructor {
-			source = row.fieldSourceIndex(index)
+		if row, constructor := n.Base.(rowExpression); constructor {
+			source = row.FieldSourceIndex(index)
 		}
-		if !ok || source != n.index || !sqltype.SameRecordUsage(n.Usage, shape.CompositeMember(index).Usage) {
+		if !ok || source != n.Index || !sqltype.SameRecordUsage(n.Usage, shape.CompositeMember(index).Usage) {
 			return fmt.Errorf("stuntgres: invalid composite field plan")
 		}
-		return child(n.base)
+		return child(n.Base)
 	case arrayExpression:
-		return args(n.elements)
+		return args(n.Elements)
 	case subscriptExpression:
 		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
 	case columnExpression:
-		if _, generated := d.ColumnMeta.Generations[n.origin.Address.SubID]; generated || n.virtual != nil {
+		if _, generated := d.ColumnMeta.Generations[n.Origin.Address.SubID]; generated || n.Virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")
 		}
-		if !storedReferenceEpochValid(view, d, n.origin) || n.origin.Address.ClassID != d.Address().ClassID || n.origin.Address.ObjectID != d.Address().ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.Columns) || d.Attributes[n.slot] != n.origin.Address.SubID || usage != d.Columns[n.slot].Usage {
+		if !storedReferenceEpochValid(view, d, n.Origin) || n.Origin.Address.ClassID != d.Address().ClassID || n.Origin.Address.ObjectID != d.Address().ObjectID || n.Scope != 1 || n.Frame != 1 || n.Slot < 0 || n.Slot >= len(d.Columns) || d.Attributes[n.Slot] != n.Origin.Address.SubID || usage != d.Columns[n.Slot].Usage {
 			return fmt.Errorf("stuntgres: invalid generation plan row")
 		}
 		return nil
 	case tableOIDExpression:
-		if !storedReferenceEpochValid(view, d, n.owner) || n.owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
+		if !storedReferenceEpochValid(view, d, n.Owner) || n.Owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
 			return fmt.Errorf("stuntgres: invalid generation plan owner")
 		}
 		return nil
 	case literalExpression:
-		if n.value.Type() != usage.Type {
+		if n.Value.Type() != usage.Type {
 			return fmt.Errorf("stuntgres: invalid generation plan literal")
 		}
 		return nil
 	case collationExpression:
-		return child(n.child)
+		return child(n.Child)
 	case coercionExpression:
-		return child(n.child)
+		return child(n.Child)
 	case selectedOperatorExpression:
-		return child(n.provider)
+		return child(n.Provider)
 	case arithmeticExpression:
-		return pair(n.left, n.right)
+		return pair(n.Left, n.Right)
 	case bitwiseExpression:
-		return pair(n.left, n.right)
+		return pair(n.Left, n.Right)
 	case rowComparisonExpression:
-		for _, comparison := range n.comparisons {
-			if err := pair(comparison.left, comparison.right); err != nil {
+		for _, comparison := range n.Comparisons {
+			if err := pair(comparison.Left, comparison.Right); err != nil {
 				return err
 			}
 		}
 		return nil
 	case scalarArrayComparisonExpression:
-		if err := child(n.left); err != nil {
+		if err := child(n.Left); err != nil {
 			return err
 		}
-		if n.array != nil {
-			if err := child(n.array); err != nil {
+		if n.Array != nil {
+			if err := child(n.Array); err != nil {
 				return err
 			}
 		}
-		return args(n.items)
+		return args(n.Items)
 	case comparisonExpression:
-		return pair(n.left, n.right)
+		return pair(n.Left, n.Right)
 	case logicalExpression:
-		return pair(n.left, n.right)
+		return pair(n.Left, n.Right)
 	case distinctExpression:
-		return pair(n.left, n.right)
+		return pair(n.Left, n.Right)
 	case nullTestExpression:
-		return child(n.child)
+		return child(n.Child)
 	case truthTestExpression:
-		return child(n.child)
+		return child(n.Child)
 	case likeExpression:
-		return pair(n.left, n.right)
+		return pair(n.Left, n.Right)
 	case conditionalExpression:
-		return args(n.args)
+		return args(n.Args)
 	case caseExpression:
-		if err := pair(n.test, n.otherwise); err != nil {
+		if err := pair(n.Test, n.Otherwise); err != nil {
 			return err
 		}
-		for _, arm := range n.arms {
-			if err := pair(arm.condition, arm.result); err != nil {
+		for _, arm := range n.Arms {
+			if err := pair(arm.Condition, arm.Result); err != nil {
 				return err
 			}
 		}

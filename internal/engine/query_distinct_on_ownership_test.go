@@ -12,24 +12,24 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 	for _, suffix := range []string{"", " ORDER BY v+0,id DESC"} {
 		_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v+0) v+0 AS shown FROM t"+suffix)
 		project := query.Root.(*projectNode)
-		node := project.child.(*distinctOnNode)
+		node := project.Child.(*distinctOnNode)
 		var cached []expr.Expr
-		switch input := node.child.(type) {
+		switch input := node.Child.(type) {
 		case *evaluationNode:
-			cached = input.expressions
+			cached = input.Expressions
 		case *sortNode:
-			cached = []expr.Expr{input.keys[0].expression}
+			cached = []expr.Expr{input.Keys[0].Expression}
 		default:
 			t.Fatalf("missing key cache %T", input)
 		}
 		original := cached[0]
 		calls := 0
 		probe := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
-		switch input := node.child.(type) {
+		switch input := node.Child.(type) {
 		case *evaluationNode:
-			input.expressions[0] = probe
+			input.Expressions[0] = probe
 		case *sortNode:
-			input.keys[0].expression = probe
+			input.Keys[0].Expression = probe
 		}
 		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if err != nil || count != 3 || calls != 4 {
@@ -56,10 +56,10 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 
 func TestQueryDistinctOnScratchKeyMutation(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
-	node := query.Root.(*projectNode).child.(*distinctOnNode)
-	usage := node.expressions[0].ResultUsage()
+	node := query.Root.(*projectNode).Child.(*distinctOnNode)
+	usage := node.Expressions[0].ResultUsage()
 	scratch := make([]sqltype.Value, 1)
-	node.expressions[0] = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+	node.Expressions[0] = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 		id, err := c.Row[0].Integer()
 		if err != nil {
 			return sqltype.Value{}, err
@@ -99,8 +99,8 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 		closeFailure := errors.New("ON child close")
 		primary := errors.New("ON key or sort primary")
 		closed := 0
-		inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{one}}}, schema: schema, expressions: []expr.Expr{literalExpression{Info: expr.Info{Usage: usage}, value: one}}, evaluation: EvalContext{}, finish: func() error { closed++; return closeFailure }}
-		bridge := &querySource{materialized: true, flatWidth: 1, nestedRoot: &projectNode{querySchema: schema, child: &singletonNode{}}, nestedStage: inner}
+		inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{one}}}, schema: schema, expressions: []expr.Expr{literalExpression{Info: expr.Info{Usage: usage}, Value: one}}, evaluation: EvalContext{}, finish: func() error { closed++; return closeFailure }}
+		bridge := &querySource{materialized: true, flatWidth: 1, nestedRoot: &projectNode{querySchema: schema, Child: &singletonNode{}}, nestedStage: inner}
 		source := &querySource{sources: []*querySource{bridge}}
 		key := queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 			if phase == "key" {
@@ -108,16 +108,16 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		var child LogicalNode = &sourceNode{querySchema: schema, occurrence: 0}
+		var child LogicalNode = &sourceNode{querySchema: schema, Occurrence: 0}
 		if phase == "sort" {
 			comparison, err := sqltype.BindOrdering(usage)
 			if err != nil {
 				t.Fatal(err)
 			}
-			child = &sortNode{querySchema: schema, child: child, cacheWidth: 1, keys: []sortKey{{cache: 0, slot: -1, comparison: comparison, expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
+			child = &sortNode{querySchema: schema, Child: child, CacheWidth: 1, Keys: []sortKey{{Cache: 0, Slot: -1, Comparison: comparison, Expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
 		}
-		node := &distinctOnNode{querySchema: schema, child: child, expressions: []expr.Expr{key}, grouping: []queryGrouping{{Grouping: family}}}
-		root := &projectNode{querySchema: schema, child: node, expressions: []expr.Expr{columnExpression{Info: expr.Info{Usage: usage}, scope: 1, frame: 1, slot: 0}}}
+		node := &distinctOnNode{querySchema: schema, Child: child, Expressions: []expr.Expr{key}, Grouping: []queryGrouping{{Grouping: family}}}
+		root := &projectNode{querySchema: schema, Child: node, Expressions: []expr.Expr{columnExpression{Info: expr.Info{Usage: usage}, Scope: 1, Frame: 1, Slot: 0}}}
 		rows, count, err := finalizeQuery(context.Background(), root, source, nil)
 		want := error(primary)
 		if phase == "close" {

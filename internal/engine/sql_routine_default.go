@@ -30,7 +30,7 @@ func sqlRoutineDefaultClosure(node expr.Expr) (valid, containsSQL bool) {
 	}
 	switch n := node.(type) {
 	case sqlRoutineExpression:
-		if n.procedure == nil || n.procedure.SQL == nil || n.ref == (ids.ObjectRef{}) || n.ref.Address != n.procedure.Address() || n.Info.RoutineReference != n.procedure || n.ValidateStoredProvider() != nil {
+		if n.Procedure == nil || n.Procedure.SQL == nil || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Info.RoutineReference != n.Procedure || n.ValidateStoredProvider() != nil {
 			return false, false
 		}
 		containsSQL = true

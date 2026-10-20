@@ -196,7 +196,7 @@ func TestDefaultQuerySourcePreflightKeepsStoredStructure(t *testing.T) {
 		current := e.CatalogRead().MustRelation(ref.Address)
 		stored := current.ColumnMeta.Defaults[current.Attributes[1]]
 		cast, ok := stored.Expression.(coercionExpression)
-		if !ok || cast.mode != sqltype.Explicit || !reflect.DeepEqual(stored, definition) {
+		if !ok || cast.Mode != sqltype.Explicit || !reflect.DeepEqual(stored, definition) {
 			t.Fatal("execution preflight replaced stored default", stored, definition)
 		}
 	}

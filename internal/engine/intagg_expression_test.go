@@ -46,27 +46,27 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	b, call := intaggUnitAggregate(t, e)
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	array, _ := e.CatalogRead().LookupArray(integer)
-	provider := call.provider.(*functions.ArrayAggregateProvider)
-	if call.procedure != e.catalog.state.Get(ext.Members[0]) || call.ref.Address != ext.Members[0] || !call.includeNulls || call.operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
+	provider := call.Provider.(*functions.ArrayAggregateProvider)
+	if call.Procedure != e.catalog.state.Get(ext.Members[0]) || call.Ref.Address != ext.Members[0] || !call.IncludeNulls || call.Operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
 		t.Fatal("fixed scalar wrapper authority", call)
 	}
 	if !b.sameAggregateCall(call, call) {
 		t.Fatal("same installed aggregate unequal")
 	}
 	builtin := call
-	builtin.procedure, builtin.ref = nil, ids.ObjectRef{}
+	builtin.Procedure, builtin.Ref = nil, ids.ObjectRef{}
 	if b.sameAggregateCall(call, builtin) {
 		t.Fatal("wrapper/builtin identity collapsed")
 	}
 	changed := call
-	changed.ref.Epoch++
+	changed.Ref.Epoch++
 	if b.sameAggregateCall(call, changed) {
 		t.Fatal("aggregate epoch collapsed")
 	}
-	proc := *call.procedure
+	proc := *call.Procedure
 	proc.ObjectRevision++
 	changed = call
-	changed.procedure = &proc
+	changed.Procedure = &proc
 	if b.sameAggregateCall(call, changed) {
 		t.Fatal("aggregate revision collapsed")
 	}
@@ -100,13 +100,13 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	if err != nil || !value.IsNull() || value.Type() != array {
 		t.Fatal("empty group", value, err)
 	}
-	root := &aggregateNode{child: &valuesNode{}, calls: []aggregateCall{call}}
+	root := &aggregateNode{Child: &valuesNode{}, Calls: []aggregateCall{call}}
 	refs := pgDependRefs{ctx: ctx, catalog: e.CatalogRead()}
 	refs.query(root)
 	if refs.err != nil {
 		t.Fatal(refs.err)
 	}
-	if _, ok := refs.addresses[call.ref.Address]; !ok {
+	if _, ok := refs.addresses[call.Ref.Address]; !ok {
 		t.Fatal("aggregateNode lost procedure dependency")
 	}
 }
@@ -114,25 +114,25 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 func TestIntaggEnumerationIdentity(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	n := intaggUnitEnum(t, e, "{2,2,NULL}")
-	if n.procedure != e.catalog.state.Get(ext.Members[1]) || n.ref.Address != ext.Members[1] || n.Usage.Type.ID() != sqltype.Int4 {
+	if n.Procedure != e.catalog.state.Get(ext.Members[1]) || n.Ref.Address != ext.Members[1] || n.Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixed enum identity", n)
 	}
 	builtin := n
-	builtin.procedure, builtin.ref = nil, ids.ObjectRef{}
+	builtin.Procedure, builtin.Ref = nil, ids.ObjectRef{}
 	if sameGroupExpression(n, builtin) || sameQuerySetOccurrence(n, builtin) {
 		t.Fatal("enum/builtin identity collapsed")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), n)
-	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("enum dependency", refs, err)
 	}
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}}
-	input, err := n.args[0].Eval(c)
+	input, err := n.Args[0].Eval(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	count := 0
-	n.args = []expr.Expr{queryProbe(n.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return input, nil })}
+	n.Args = []expr.Expr{queryProbe(n.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return input, nil })}
 	first, err := openFunctionSource(c, n)
 	if err != nil {
 		t.Fatal(err)
@@ -168,7 +168,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	for _, wholeNull := range []bool{false, true} {
 		empty := intaggUnitEnum(t, e, "{}")
 		if wholeNull {
-			empty.args = []expr.Expr{literalExpression{Info: expr.InfoOf(empty.args[0]), value: sqltype.Null(empty.args[0].ResultUsage().Type)}}
+			empty.Args = []expr.Expr{literalExpression{Info: expr.InfoOf(empty.Args[0]), Value: sqltype.Null(empty.Args[0].ResultUsage().Type)}}
 		}
 		cursor, err := openFunctionSource(c, empty)
 		if err != nil {
@@ -181,20 +181,20 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		}
 	}
 	rewritten, changed, err := expr.MapSubstituted(n, func(arg expr.Expr) (expr.Expr, bool, error) {
-		return literalExpression{Info: expr.InfoOf(arg), value: input}, true, nil
+		return literalExpression{Info: expr.InfoOf(arg), Value: input}, true, nil
 	})
 	mapped := rewritten.(unnestExpression)
-	if err != nil || !changed || mapped.procedure != n.procedure || mapped.ref != n.ref {
+	if err != nil || !changed || mapped.Procedure != n.Procedure || mapped.Ref != n.Ref {
 		t.Fatal("child rewrite lost installation", err)
 	}
 	for _, foreign := range []bool{false, true} {
-		bad := n.ref
+		bad := n.Ref
 		if foreign {
 			bad = New().catalog.Domain.Ref(bad.Epoch, bad.Address)
 		} else {
 			bad.Epoch++
 		}
-		if err := validateIntaggIdentity(e.CatalogRead(), n.procedure, bad, "int_array_enum"); err == nil {
+		if err := validateIntaggIdentity(e.CatalogRead(), n.Procedure, bad, "int_array_enum"); err == nil {
 			t.Fatal("foreign/stale enum accepted")
 		}
 	}
@@ -241,13 +241,13 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		}
 		return old
 	}
-	root := &aggregateNode{querySchema: querySchema{{Name: "a", Usage: call.provider.ResultUsage()}}, child: &valuesNode{}, calls: []aggregateCall{call}}
+	root := &aggregateNode{querySchema: querySchema{{Name: "a", Usage: call.Provider.ResultUsage()}}, Child: &valuesNode{}, Calls: []aggregateCall{call}}
 	mapped, err := remapViewQuery(view, root, ref, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := mapped.(*aggregateNode).calls[0]
-	if remapped.procedure != next.Get(mapping[call.ref.Address]) || remapped.ref != ref(call.ref) || remapped.provider == call.provider {
+	remapped := mapped.(*aggregateNode).Calls[0]
+	if remapped.Procedure != next.Get(mapping[call.Ref.Address]) || remapped.Ref != ref(call.Ref) || remapped.Provider == call.Provider {
 		t.Fatal("aggregate remap authority", remapped)
 	}
 	node, err := remapBoundExpression(enum, ref, nil)
@@ -259,18 +259,18 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(unnestExpression)
-	if n.ref != ref(enum.ref) || n.procedure != next.Get(n.ref.Address) {
-		t.Fatal("enum remap authority", n.ref)
+	if n.Ref != ref(enum.Ref) || n.Procedure != next.Get(n.Ref.Address) {
+		t.Fatal("enum remap authority", n.Ref)
 	}
 	text, err := (pgRenderer{view: view}).sql(context.Background(), n, pgRenderParent{})
 	if err != nil || !strings.Contains(text, "int_array_enum") || strings.Contains(text, "unnest") {
 		t.Fatal("wrapper renderer", text, err)
 	}
-	if call.procedure != before.Get(call.ref.Address) || enum.ref.Epoch != before.Epoch() {
+	if call.Procedure != before.Get(call.Ref.Address) || enum.Ref.Epoch != before.Epoch() {
 		t.Fatal("source authority mutated")
 	}
-	next.RemoveDescriptor(n.ref.Address)
-	if err := validateIntaggIdentity(view, n.procedure, n.ref, "int_array_enum"); err == nil {
+	next.RemoveDescriptor(n.Ref.Address)
+	if err := validateIntaggIdentity(view, n.Procedure, n.Ref, "int_array_enum"); err == nil {
 		t.Fatal("missing destination procedure accepted")
 	}
 }

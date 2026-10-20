@@ -52,16 +52,16 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	var err error
 	switch n := node.(type) {
 	case tableOIDExpression:
-		fmt.Fprintf(out, "TableOID owner %d", n.owner.Address.ObjectID)
+		fmt.Fprintf(out, "TableOID owner %d", n.Owner.Address.ObjectID)
 	case literalExpression:
 		out.WriteString("Const")
-		if n.value.IsNull() {
+		if n.Value.IsNull() {
 			out.WriteString(" null")
 			if n.UnknownNull {
 				out.WriteString(" unknown")
 			}
 		} else {
-			text, failure := n.value.Type().Output(ctx, n.value)
+			text, failure := n.Value.Type().Output(ctx, n.Value)
 			if failure != nil {
 				return failure
 			}
@@ -71,112 +71,112 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case domainValueExpression:
 		fmt.Fprint(out, "DomainValue")
 	case columnExpression:
-		fmt.Fprintf(out, "Var attnum %d", n.origin.Address.SubID)
+		fmt.Fprintf(out, "Var attnum %d", n.Origin.Address.SubID)
 	case rowExpression:
 		fmt.Fprint(out, "Row")
-		for _, field := range n.fields {
+		for _, field := range n.Fields {
 			if err = child(field); err != nil {
 				break
 			}
 		}
 	case fieldExpression:
-		fmt.Fprintf(out, "Field attnum %d", n.attribute)
-		err = child(n.base)
+		fmt.Fprintf(out, "Field attnum %d", n.Attribute)
+		err = child(n.Base)
 	case arrayExpression:
 		fmt.Fprint(out, "Array")
-		for _, element := range n.elements {
+		for _, element := range n.Elements {
 			if err = child(element); err != nil {
 				break
 			}
 		}
 	case subscriptExpression:
-		fmt.Fprintf(out, "Subscript slice %t", n.slice)
-		if err = child(n.base); err != nil {
+		fmt.Fprintf(out, "Subscript slice %t", n.Slice)
+		if err = child(n.Base); err != nil {
 			return err
 		}
-		for _, s := range n.subscripts {
-			fmt.Fprintf(out, " Dimension slice %t lower %t upper %t", s.slice, s.lower != nil, s.upper != nil)
-			if s.lower != nil {
-				if err = child(s.lower); err != nil {
+		for _, s := range n.Subscripts {
+			fmt.Fprintf(out, " Dimension slice %t lower %t upper %t", s.Slice, s.Lower != nil, s.Upper != nil)
+			if s.Lower != nil {
+				if err = child(s.Lower); err != nil {
 					return err
 				}
 			}
-			if s.upper != nil {
-				if err = child(s.upper); err != nil {
+			if s.Upper != nil {
+				if err = child(s.Upper); err != nil {
 					return err
 				}
 			}
 		}
 	case collationExpression:
 		fmt.Fprintf(out, "Collate oid %d", n.Usage.Collation.ID)
-		err = child(n.child)
+		err = child(n.Child)
 	case coercionExpression:
-		fmt.Fprintf(out, "Coerce mode %d", n.mode)
-		err = child(n.child)
+		fmt.Fprintf(out, "Coerce mode %d", n.Mode)
+		err = child(n.Child)
 	case selectedOperatorExpression:
-		fmt.Fprintf(out, "Operator oid %d", n.ref.Address.ObjectID)
-		err = child(n.provider)
+		fmt.Fprintf(out, "Operator oid %d", n.Ref.Address.ObjectID)
+		err = child(n.Provider)
 	case arithmeticExpression:
-		fmt.Fprintf(out, "Arithmetic %d namespace %q", n.operator, n.namespace)
-		err = pair(n.left, n.right)
+		fmt.Fprintf(out, "Arithmetic %d namespace %q", n.Operator, n.Namespace)
+		err = pair(n.Left, n.Right)
 	case bitwiseExpression:
-		fmt.Fprintf(out, "Bitwise %d namespace %q", n.operator, n.namespace)
-		err = pair(n.left, n.right)
+		fmt.Fprintf(out, "Bitwise %d namespace %q", n.Operator, n.Namespace)
+		err = pair(n.Left, n.Right)
 	case likeExpression:
-		fmt.Fprintf(out, "Like %s namespace %q", n.operator, n.namespace)
-		err = pair(n.left, n.right)
+		fmt.Fprintf(out, "Like %s namespace %q", n.Operator, n.Namespace)
+		err = pair(n.Left, n.Right)
 	case rowComparisonExpression:
-		fmt.Fprintf(out, "RowCompare %s", n.operator)
-		for _, comparison := range n.comparisons {
-			if err = pair(comparison.left, comparison.right); err != nil {
+		fmt.Fprintf(out, "RowCompare %s", n.Operator)
+		for _, comparison := range n.Comparisons {
+			if err = pair(comparison.Left, comparison.Right); err != nil {
 				break
 			}
 		}
 	case scalarArrayComparisonExpression:
-		fmt.Fprintf(out, "ScalarArrayCompare %s namespace %q all %t", n.operator, n.namespace, n.all)
-		err = child(n.left)
-		if err == nil && n.array != nil {
-			err = child(n.array)
+		fmt.Fprintf(out, "ScalarArrayCompare %s namespace %q all %t", n.Operator, n.Namespace, n.All)
+		err = child(n.Left)
+		if err == nil && n.Array != nil {
+			err = child(n.Array)
 		}
 		if err == nil {
-			err = args(n.items)
+			err = args(n.Items)
 		}
 	case comparisonExpression:
-		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
-		err = pair(n.left, n.right)
+		fmt.Fprintf(out, "Compare %s namespace %q", n.Operator, n.Namespace)
+		err = pair(n.Left, n.Right)
 	case logicalExpression:
-		fmt.Fprintf(out, "Bool %d", n.op)
-		err = pair(n.left, n.right)
+		fmt.Fprintf(out, "Bool %d", n.Op)
+		err = pair(n.Left, n.Right)
 	case nullTestExpression:
-		fmt.Fprintf(out, "NullTest not %t", n.not)
-		if n.whole {
+		fmt.Fprintf(out, "NullTest not %t", n.Not)
+		if n.Whole {
 			out.WriteString(" whole true")
 		}
-		err = child(n.child)
+		err = child(n.Child)
 	case truthTestExpression:
-		fmt.Fprintf(out, "TruthTest %d not %t", n.truth, n.not)
-		err = child(n.child)
+		fmt.Fprintf(out, "TruthTest %d not %t", n.Truth, n.Not)
+		err = child(n.Child)
 	case distinctExpression:
-		fmt.Fprintf(out, "Distinct not %t", n.not)
-		err = pair(n.left, n.right)
+		fmt.Fprintf(out, "Distinct not %t", n.Not)
+		err = pair(n.Left, n.Right)
 	case conditionalExpression:
-		fmt.Fprintf(out, "Conditional %d", n.kind)
-		err = args(n.args)
+		fmt.Fprintf(out, "Conditional %d", n.Kind)
+		err = args(n.Args)
 	case caseExpression:
-		if n.test == nil {
+		if n.Test == nil {
 			out.WriteString("Case searched")
 		} else {
 			out.WriteString("Case simple")
-			err = child(n.test)
+			err = child(n.Test)
 		}
-		for _, arm := range n.arms {
+		for _, arm := range n.Arms {
 			if err != nil {
 				return err
 			}
-			err = pair(arm.condition, arm.result)
+			err = pair(arm.Condition, arm.Result)
 		}
 		if err == nil {
-			err = child(n.otherwise)
+			err = child(n.Otherwise)
 		}
 	case extensionPathsExpression:
 		if failure := n.validate(); failure != nil {
@@ -199,8 +199,8 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		fmt.Fprintf(out, "InstalledCrypto %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
 		err = args(n.Args)
 	case sqlRoutineExpression:
-		fmt.Fprintf(out, "SQLRoutine %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
-		err = args(n.args)
+		fmt.Fprintf(out, "SQLRoutine %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
+		err = args(n.Args)
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})

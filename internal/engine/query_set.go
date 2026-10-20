@@ -88,19 +88,19 @@ func (a *setArm) next(ctx context.Context) ([]sqltype.Value, bool, error) {
 }
 
 func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexedStage, err error) {
-	if n.operation == "union" && n.all {
+	if n.Operation == "union" && n.All {
 		return openUnionAll(ctx, state, n)
 	}
-	if len(n.grouping) != len(n.Schema()) {
+	if len(n.Grouping) != len(n.Schema()) {
 		return out, fmt.Errorf("stuntgres: invalid set grouping schema")
 	}
 	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}
 	buckets := make(map[uint64][]int)
 	var counts [][2]int
-	for side, arm := range [2]*projectNode{n.left, n.right} {
-		expressions := n.leftExpressions
+	for side, arm := range [2]*projectNode{n.Left, n.Right} {
+		expressions := n.LeftExpressions
 		if side == 1 {
-			expressions = n.rightExpressions
+			expressions = n.RightExpressions
 		}
 		child, failure := openSetArm(ctx, state, arm, expressions, n.Schema())
 		if failure != nil {
@@ -121,7 +121,7 @@ func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexe
 					break
 				}
 				hash := uint64(14695981039346656037)
-				for j, family := range n.grouping {
+				for j, family := range n.Grouping {
 					value, err := family.PrepareKey(ctx, row[j])
 					if err != nil {
 						return err
@@ -133,7 +133,7 @@ func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexe
 					}
 					hash = (hash ^ h) * 1099511628211
 				}
-				index, err := findDistinctTuple(ctx, n.grouping, row, source.flat, buckets[hash])
+				index, err := findDistinctTuple(ctx, n.Grouping, row, source.flat, buckets[hash])
 				if err != nil {
 					return err
 				}
@@ -157,7 +157,7 @@ func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexe
 	}
 	out = indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 	for i, count := range counts {
-		for copies := setMultiplicity(n.operation, n.all, count[0], count[1]); copies > 0; copies-- {
+		for copies := setMultiplicity(n.Operation, n.All, count[0], count[1]); copies > 0; copies-- {
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
 			}
@@ -181,9 +181,9 @@ func openUnionAll(ctx context.Context, state *queryState, n *setNode) (indexedSt
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		for side < 2 {
 			if !opened {
-				arm, expressions := n.left, n.leftExpressions
+				arm, expressions := n.Left, n.LeftExpressions
 				if side == 1 {
-					arm, expressions = n.right, n.rightExpressions
+					arm, expressions = n.Right, n.RightExpressions
 				}
 				var err error
 				child, err = openSetArm(ctx, state, arm, expressions, n.Schema())
@@ -215,18 +215,18 @@ func openUnionAll(ctx context.Context, state *queryState, n *setNode) (indexedSt
 }
 
 func preflightSet(c *EvalContext, n *setNode) (LogicalNode, error) {
-	left, err := preflightQuery(c, n.left)
+	left, err := preflightQuery(c, n.Left)
 	if err != nil {
 		return nil, err
 	}
-	right, err := preflightQuery(c, n.right)
+	right, err := preflightQuery(c, n.Right)
 	if err != nil {
 		return nil, err
 	}
 	copy := *n
-	copy.left, copy.right = left.(*projectNode), right.(*projectNode)
-	changed := left != n.left || right != n.right
-	for side, expressions := range [2][]expr.Expr{n.leftExpressions, n.rightExpressions} {
+	copy.Left, copy.Right = left.(*projectNode), right.(*projectNode)
+	changed := left != n.Left || right != n.Right
+	for side, expressions := range [2][]expr.Expr{n.LeftExpressions, n.RightExpressions} {
 		var next []expr.Expr
 		for i, expression := range expressions {
 			folded, different, err := preflightCoercions(c, expression)
@@ -243,9 +243,9 @@ func preflightSet(c *EvalContext, n *setNode) (LogicalNode, error) {
 		}
 		if next != nil {
 			if side == 0 {
-				copy.leftExpressions = next
+				copy.LeftExpressions = next
 			} else {
-				copy.rightExpressions = next
+				copy.RightExpressions = next
 			}
 		}
 	}

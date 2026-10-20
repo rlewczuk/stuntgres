@@ -170,7 +170,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 			}
 		}
 	}
-	literal := literalExpression{Info: expr.Info{Usage: dictionary.Usage()}, value: live}
+	literal := literalExpression{Info: expr.Info{Usage: dictionary.Usage()}, Value: live}
 	text, err := catalogLiteralSQL(ctx, view, literal)
 	if err != nil || !strings.Contains(text, `"Reg.TS".unaccent`) || strings.Contains(text, "91000") {
 		t.Fatal("qualified logical reference", text, err)
@@ -227,8 +227,8 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, _ := remapped.(literalExpression).value.RegTSOID()
-	original, _ := literal.value.RegTSOID()
+	id, _ := remapped.(literalExpression).Value.RegTSOID()
+	original, _ := literal.Value.RegTSOID()
 	if id != 92000 || original != 91000 {
 		t.Fatal("immutable literal remap", id, original)
 	}

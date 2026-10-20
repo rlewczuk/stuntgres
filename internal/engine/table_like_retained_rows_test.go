@@ -40,9 +40,9 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 					walkBoundExpression(node, func(node expr.Expr) {
 						switch n := node.(type) {
 						case columnExpression:
-							refs = append(refs, n.origin)
+							refs = append(refs, n.Origin)
 						case tableOIDExpression:
-							refs = append(refs, n.owner)
+							refs = append(refs, n.Owner)
 						}
 					})
 				}
@@ -224,8 +224,8 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		walkBoundExpression(node, func(node expr.Expr) {
 			switch n := node.(type) {
 			case columnExpression:
-				if n.origin.Domain() != e.catalog.Domain || n.origin.Epoch != stage.Base.Epoch() || n.origin.Address.ObjectID != destination.Address().ObjectID {
-					t.Fatal("local row authority not current", n.origin)
+				if n.Origin.Domain() != e.catalog.Domain || n.Origin.Epoch != stage.Base.Epoch() || n.Origin.Address.ObjectID != destination.Address().ObjectID {
+					t.Fatal("local row authority not current", n.Origin)
 				}
 			case literalExpression:
 				if n.RegclassRef.Address == anchor.Address() && n.RegclassRef != oldRef {

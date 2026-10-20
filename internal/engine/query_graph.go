@@ -14,36 +14,36 @@ import (
 func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
 	switch n := node.(type) {
 	case *setProjectNode:
-		return n.child, nil
+		return n.Child, nil
 	case *setNode:
-		return n.left, n.right
+		return n.Left, n.Right
 	case *recursiveUnionNode:
-		return n.left, n.right
+		return n.Left, n.Right
 	case *projectNode:
-		return n.child, nil
+		return n.Child, nil
 	case *filterNode:
-		return n.child, nil
+		return n.Child, nil
 	case *sortNode:
-		return n.child, nil
+		return n.Child, nil
 	case *windowNode:
-		return n.child, nil
+		return n.Child, nil
 	case *aggregateNode:
-		return n.child, nil
+		return n.Child, nil
 	case *distinctNode:
-		return n.child, nil
+		return n.Child, nil
 	case *distinctOnNode:
-		return n.child, nil
+		return n.Child, nil
 	case *limitNode:
-		return n.child, nil
+		return n.Child, nil
 	case *rowLockNode:
-		return n.child, nil
+		return n.Child, nil
 	case *evaluationNode:
-		return n.child, nil
+		return n.Child, nil
 	case *joinNode:
-		return n.left, n.right
+		return n.Left, n.Right
 	case *derivedNode:
-		if n.query != nil {
-			return n.query.Root, nil
+		if n.Query != nil {
+			return n.Query.Root, nil
 		}
 	}
 	return nil, nil
@@ -57,78 +57,78 @@ func queryExpressions(node LogicalNode, visit func(expr.Expr)) {
 	}
 	switch n := node.(type) {
 	case *functionFromNode:
-		for _, call := range n.calls {
+		for _, call := range n.Calls {
 			visit(call)
 		}
 	case *setProjectNode:
-		for _, call := range n.calls {
+		for _, call := range n.Calls {
 			visit(call)
 		}
-		args(n.scalars)
-		if n.template != nil {
-			args(n.template.expressions)
-			args(n.template.origins)
-			args(n.template.scalars)
+		args(n.Scalars)
+		if n.Template != nil {
+			args(n.Template.Expressions)
+			args(n.Template.Origins)
+			args(n.Template.Scalars)
 		}
 	case *setNode:
-		args(n.leftExpressions)
-		args(n.rightExpressions)
+		args(n.LeftExpressions)
+		args(n.RightExpressions)
 	case *recursiveUnionNode:
-		args(n.leftExpressions)
-		args(n.rightExpressions)
-		if c := n.cycle; c != nil {
-			visit(c.mark)
-			visit(c.fallback)
+		args(n.LeftExpressions)
+		args(n.RightExpressions)
+		if c := n.Cycle; c != nil {
+			visit(c.Mark)
+			visit(c.Fallback)
 		}
 	case *projectNode:
-		args(n.expressions)
-		args(n.analysisExpressions)
+		args(n.Expressions)
+		args(n.AnalysisExpressions)
 	case *filterNode:
-		visit(n.predicate)
+		visit(n.Predicate)
 	case *sortNode:
-		for _, key := range n.keys {
-			visit(key.expression)
+		for _, key := range n.Keys {
+			visit(key.Expression)
 		}
-		args(n.outputs)
+		args(n.Outputs)
 	case *windowNode:
-		for _, call := range n.calls {
-			if call.analysisOnly {
+		for _, call := range n.Calls {
+			if call.AnalysisOnly {
 				continue
 			}
-			visit(call.argument)
-			visit(call.ordinal)
-			visit(call.defaultValue)
+			visit(call.Argument)
+			visit(call.Ordinal)
+			visit(call.DefaultValue)
 		}
-		for i, spec := range n.specs {
-			if !n.specActive(i) {
+		for i, spec := range n.Specs {
+			if !n.SpecActive(i) {
 				continue
 			}
-			args(spec.partition)
-			for _, key := range spec.order {
-				visit(key.expression)
+			args(spec.Partition)
+			for _, key := range spec.Order {
+				visit(key.Expression)
 			}
-			visit(spec.frame.start.offset)
-			visit(spec.frame.end.offset)
+			visit(spec.Frame.Start.Offset)
+			visit(spec.Frame.End.Offset)
 		}
 	case *aggregateNode:
-		args(n.keys)
-		for _, call := range n.calls {
-			call.expressions(visit)
+		args(n.Keys)
+		for _, call := range n.Calls {
+			call.Expressions(visit)
 		}
 	case *distinctNode:
-		args(n.expressions)
+		args(n.Expressions)
 	case *distinctOnNode:
-		args(n.expressions)
+		args(n.Expressions)
 	case *limitNode:
-		visit(n.offset)
-		visit(n.count)
+		visit(n.Offset)
+		visit(n.Count)
 	case *evaluationNode:
-		args(n.expressions)
+		args(n.Expressions)
 	case *joinNode:
-		visit(n.predicate)
-		args(n.merges)
+		visit(n.Predicate)
+		args(n.Merges)
 	case *valuesNode:
-		for _, row := range n.rows {
+		for _, row := range n.Rows {
 			args(row)
 		}
 	}
@@ -144,11 +144,11 @@ func collectQueryFrames(root LogicalNode) (map[uint32]*projectNode, map[*parser.
 		if node == nil {
 			return
 		}
-		if n, ok := node.(*projectNode); ok && n.syntax != nil {
-			if frames[n.frame] != nil {
+		if n, ok := node.(*projectNode); ok && n.Syntax != nil {
+			if frames[n.Frame] != nil {
 				return
 			}
-			frames[n.frame], queries[n.syntax] = n, n
+			frames[n.Frame], queries[n.Syntax] = n, n
 		}
 		left, right := queryInputs(node)
 		walk(left)
@@ -156,7 +156,7 @@ func collectQueryFrames(root LogicalNode) (map[uint32]*projectNode, map[*parser.
 		queryExpressions(node, func(bound expr.Expr) {
 			walkBoundExpression(bound, func(expr expr.Expr) {
 				if e, ok := expr.(subqueryExpression); ok {
-					walk(e.queryPlan.Root)
+					walk(e.QueryPlan.Root)
 				}
 			})
 		})
@@ -180,7 +180,7 @@ func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sq
 			if typ(expr.ResultUsage().Type) != expr.ResultUsage().Type {
 				changed = true
 			}
-			if child, ok := expr.(subqueryExpression); ok && queryDescriptorsChanged(child.queryPlan.Root, typ) {
+			if child, ok := expr.(subqueryExpression); ok && queryDescriptorsChanged(child.QueryPlan.Root, typ) {
 				changed = true
 			}
 		})
@@ -206,7 +206,7 @@ func queryRoutineCarriersChanged(view catalog.Read, node LogicalNode) bool {
 			if err != nil || captured != nil && view.Get(captured.Address()) != captured {
 				changed = true
 			}
-			if subquery, ok := expression.(subqueryExpression); ok && queryRoutineCarriersChanged(view, subquery.queryPlan.Root) {
+			if subquery, ok := expression.(subqueryExpression); ok && queryRoutineCarriersChanged(view, subquery.QueryPlan.Root) {
 				changed = true
 			}
 		})
@@ -221,13 +221,13 @@ func queryRoutineCarriersChanged(view catalog.Read, node LogicalNode) bool {
 func queryIgnoresOwnExpressions(node LogicalNode) bool {
 	switch n := node.(type) {
 	case *sortNode:
-		return n.presenceOnly
+		return n.PresenceOnly
 	case *aggregateNode:
-		return n.presenceOnly
+		return n.PresenceOnly
 	case *distinctNode:
-		return n.presenceOnly
+		return n.PresenceOnly
 	case *distinctOnNode:
-		return n.presenceOnly
+		return n.PresenceOnly
 	}
 	return false
 }
@@ -254,27 +254,27 @@ func queryDemandProperties(project *projectNode, presence bool) expr.Properties 
 					var frame uint32
 					switch n := expr.(type) {
 					case columnExpression:
-						frame = n.frame
+						frame = n.Frame
 					case returningWholeRowExpression:
-						frame = n.frame
+						frame = n.Frame
 					case mergeActionExpression:
-						frame = n.frame
+						frame = n.Frame
 					case groupExpression:
-						frame = n.frame
+						frame = n.Frame
 					case aggregateExpression:
-						frame = n.frame
+						frame = n.Frame
 					case groupingExpression:
-						frame = n.frame
+						frame = n.Frame
 					case *windowExpression:
-						frame = n.frame
+						frame = n.Frame
 					case subqueryExpression:
 						var ignoredChild *projectNode
-						if n.presenceOnly {
-							ignoredChild = n.queryPlan.Root.(*projectNode)
+						if n.PresenceOnly {
+							ignoredChild = n.QueryPlan.Root.(*projectNode)
 						}
-						walk(n.queryPlan.Root, ignoredChild)
+						walk(n.QueryPlan.Root, ignoredChild)
 					}
-					if frame != 0 && frame < project.frame {
+					if frame != 0 && frame < project.Frame {
 						properties.RowDependent = true
 					}
 				})
@@ -307,7 +307,7 @@ func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) ma
 			return
 		}
 		if project, ok := node.(*projectNode); ok {
-			frame, offset = project.frame, 0
+			frame, offset = project.Frame, 0
 			if frame == 0 {
 				frame = 1
 			}
@@ -318,13 +318,13 @@ func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) ma
 				reads = make(map[int][]int32)
 			}
 			frames[frame] = append(frames[frame], span{source, offset})
-			reads[source.occurrence] = []int32{}
+			reads[source.Occurrence] = []int32{}
 		}
 		left, right := queryInputs(node)
 		walk(left, frame, offset, ignored, collect)
 		rightOffset := offset
 		if join, ok := node.(*joinNode); ok {
-			rightOffset += join.leftWidth
+			rightOffset += join.LeftWidth
 		}
 		walk(right, frame, rightOffset, ignored, collect)
 		if node == ignored || queryIgnoresOwnExpressions(node) {
@@ -338,32 +338,32 @@ func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) ma
 						return
 					}
 					var ignoredChild *projectNode
-					if e.presenceOnly {
-						ignoredChild = e.queryPlan.Root.(*projectNode)
+					if e.PresenceOnly {
+						ignoredChild = e.QueryPlan.Root.(*projectNode)
 					}
-					walk(e.queryPlan.Root, frame, 0, ignoredChild, collect)
+					walk(e.QueryPlan.Root, frame, 0, ignoredChild, collect)
 				case columnExpression:
-					if !collect || e.scope != 1 || e.origin.Address.SubID <= 0 {
+					if !collect || e.Scope != 1 || e.Origin.Address.SubID <= 0 {
 						return
 					}
-					for _, input := range frames[e.frame] {
-						if e.slot < input.offset || e.slot >= input.offset+len(input.source.Schema()) || e.origin.Address.ClassID != input.source.ref.Address.ClassID || e.origin.Address.ObjectID != input.source.ref.Address.ObjectID {
+					for _, input := range frames[e.Frame] {
+						if e.Slot < input.offset || e.Slot >= input.offset+len(input.source.Schema()) || e.Origin.Address.ClassID != input.source.Ref.Address.ClassID || e.Origin.Address.ObjectID != input.source.Ref.Address.ObjectID {
 							continue
 						}
-						items := reads[input.source.occurrence]
+						items := reads[input.source.Occurrence]
 						for _, attribute := range items {
-							if attribute == e.origin.Address.SubID {
+							if attribute == e.Origin.Address.SubID {
 								return
 							}
 						}
-						reads[input.source.occurrence] = append(items, e.origin.Address.SubID)
+						reads[input.source.Occurrence] = append(items, e.Origin.Address.SubID)
 						return
 					}
 				}
 			})
 		}
 		if project, ok := node.(*projectNode); ok {
-			for _, expression := range project.expressions {
+			for _, expression := range project.Expressions {
 				visit(expression)
 			}
 		} else {

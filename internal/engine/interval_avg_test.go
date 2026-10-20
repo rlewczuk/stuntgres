@@ -10,11 +10,11 @@ import (
 func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT avg(INTERVAL '1 day'),avg(INTERVAL '1 day'),count(*),bool_and(f) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 3 {
-		t.Fatal("operation sharing", len(node.calls))
+	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 3 {
+		t.Fatal("operation sharing", len(node.Calls))
 	}
-	if node.calls[0].operation != functions.AggregateIntervalAvg {
+	if node.Calls[0].Operation != functions.AggregateIntervalAvg {
 		t.Fatal("wrong operation")
 	}
 	for _, c := range q.Root.Schema()[:2] {
@@ -41,7 +41,7 @@ func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 	}
 	_, volatile, owner := queryCoreFixture(t, "SELECT avg(CASE WHEN nextval($1)>0 THEN INTERVAL '1 day' ELSE INTERVAL '0' END),avg(CASE WHEN nextval($1)>0 THEN INTERVAL '1 day' ELSE INTERVAL '0' END) FROM t")
 	defer owner.close()
-	if len(volatile.Root.(*projectNode).child.(*aggregateNode).calls) != 2 {
+	if len(volatile.Root.(*projectNode).Child.(*aggregateNode).Calls) != 2 {
 		t.Fatal("volatile average arguments shared")
 	}
 }

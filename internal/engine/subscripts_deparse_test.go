@@ -12,8 +12,8 @@ import (
 func TestSubscriptsDeparse(t *testing.T) {
 	view := New().CatalogRead()
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: -2, Length: 3}}, 1)
-	arrayLiteral := e.args[0].(literalExpression)
-	integerLiteral := e.args[1].(literalExpression)
+	arrayLiteral := e.Args[0].(literalExpression)
+	integerLiteral := e.Args[1].(literalExpression)
 	arrayUsage := arrayLiteral.ResultUsage()
 	wide, _ := view.LookupType(sqltype.Int8)
 	wideArray, _ := view.LookupArray(wide)

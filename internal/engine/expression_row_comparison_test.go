@@ -40,8 +40,8 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				probe := func(id int, value sqltype.Value, failure error) expr.Expr {
 					return rowOperandEffect{expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, value, &order, id, failure}
 				}
-				row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, operator: mode, comparisons: []comparisonExpression{{
-					Info: expr.Info{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "=",
+				row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Operator: mode, Comparisons: []comparisonExpression{{
+					Info: expr.Info{Usage: boolean.Usage()}, Left: probe(0, tc.left, nil), Right: probe(1, tc.right, nil), Predicate: predicate, Operator: "=",
 				}}}
 				value, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 				truth, boolErr := value.Boolean()
@@ -52,7 +52,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				if err != nil || boolErr != nil || truth != want || !reflect.DeepEqual(order, []int{0, 1}) {
 					t.Fatal("single pair total result/demand", value, err, boolErr, order)
 				}
-				row.comparisons = append(row.comparisons, comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, one, nil), predicate: predicate, operator: "="})
+				row.Comparisons = append(row.Comparisons, comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(2, one, failure), Right: probe(3, one, nil), Predicate: predicate, Operator: "="})
 				order = nil
 				_, err = row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 				if tc.distinct {
@@ -72,7 +72,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 		}
 	}
 	for _, mode := range []string{"IS DISTINCT FROM", "IS NOT DISTINCT FROM"} {
-		row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, operator: mode}
+		row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Operator: mode}
 		value, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		truth, boolErr := value.Boolean()
 		if err != nil || boolErr != nil || truth != (mode == "IS NOT DISTINCT FROM") {
@@ -111,8 +111,8 @@ func TestRowComparisonAnalysis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pair := node.(rowComparisonExpression).comparisons[0]
-	if pair.left.ResultUsage().Type.ID() != sqltype.Int4 || pair.right.ResultUsage().Type.ID() != sqltype.Int4 {
+	pair := node.(rowComparisonExpression).Comparisons[0]
+	if pair.Left.ResultUsage().Type.ID() != sqltype.Int4 || pair.Right.ResultUsage().Type.ID() != sqltype.Int4 {
 		t.Fatal("unknown finalized before pair inference")
 	}
 	fields := make([]parser.Expr, 1665)
@@ -142,7 +142,7 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 		}
 		original := node.(rowComparisonExpression)
 		if width != 0 {
-			original.expansions[0] = map[int]compositeExpansionBinding{0: {base: original.comparisons[0].left, fields: []expr.Expr{original.comparisons[0].left}}}
+			original.Expansions[0] = map[int]compositeExpansionBinding{0: {Base: original.Comparisons[0].Left, Fields: []expr.Expr{original.Comparisons[0].Left}}}
 		}
 		retained := func(old *sqltype.Descriptor) *sqltype.Descriptor { return eType(t, target, old.ID()) }
 		mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, retained)
@@ -150,16 +150,16 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 			t.Fatal(width, changed, err)
 		}
 		next := mapped.(rowComparisonExpression)
-		if next.operator != original.operator || len(next.ordering) != 0 {
+		if next.Operator != original.Operator || len(next.Ordering) != 0 {
 			t.Fatal("mode/provider changed")
 		}
-		for i, pair := range next.comparisons {
-			if pair.left.ResultUsage().Type != eType(t, target, sqltype.Int4) || original.comparisons[i].left.ResultUsage().Type != eType(t, source, sqltype.Int4) {
+		for i, pair := range next.Comparisons {
+			if pair.Left.ResultUsage().Type != eType(t, target, sqltype.Int4) || original.Comparisons[i].Left.ResultUsage().Type != eType(t, source, sqltype.Int4) {
 				t.Fatal("pair ownership/source mutation")
 			}
 		}
 		if width != 0 {
-			if next.expansions[0][0].base.ResultUsage().Type != eType(t, target, sqltype.Int4) || original.expansions[0][0].fields[0].ResultUsage().Type != eType(t, source, sqltype.Int4) {
+			if next.Expansions[0][0].Base.ResultUsage().Type != eType(t, target, sqltype.Int4) || original.Expansions[0][0].Fields[0].ResultUsage().Type != eType(t, source, sqltype.Int4) {
 				t.Fatal("expansion association not reowned immutably")
 			}
 		}

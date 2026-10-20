@@ -17,7 +17,7 @@ func TestQueryTiesPeerCacheIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keys := []sortKey{{cache: 0, comparison: comparison}, {cache: 1, comparison: comparison}}
+	keys := []sortKey{{Cache: 0, Comparison: comparison}, {Cache: 1, Comparison: comparison}}
 	child := indexedStage{cacheWidth: 2, orderValues: []sqltype.Value{one, one, two, two, one, one}, cacheOccurrences: []int{2, 1, 0}}
 	boundary := make([]sqltype.Value, 2)
 	captureQueryTiesBoundary(&child, 0, keys, boundary)
@@ -46,7 +46,7 @@ func TestQueryTiesNullAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keys := []sortKey{{cache: 0, comparison: comparison}, {cache: 1, comparison: comparison}}
+	keys := []sortKey{{Cache: 0, Comparison: comparison}, {Cache: 1, Comparison: comparison}}
 	child := indexedStage{cacheWidth: 2, orderValues: []sqltype.Value{null, one, null, one, null, null, one, one}}
 	boundary := []sqltype.Value{null, one}
 	for _, tc := range []struct {
@@ -71,10 +71,10 @@ func TestQueryTiesLookaheadFailureAtomic(t *testing.T) {
 		t.Run(map[bool]string{false: "error", true: "cancel"}[cancelled], func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id FETCH FIRST ROW WITH TIES")
 			project := query.Root.(*projectNode)
-			limit := project.child.(*limitNode)
+			limit := project.Child.(*limitNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			original := project.expressions[0]
+			original := project.Expressions[0]
 			calls := 0
 			sentinel := errors.New("lookahead projection")
 			probe := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
@@ -88,7 +88,7 @@ func TestQueryTiesLookaheadFailureAtomic(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			limit.child = &evaluationNode{querySchema: limit.child.Schema(), child: limit.child, expressions: []expr.Expr{probe}}
+			limit.Child = &evaluationNode{querySchema: limit.Child.Schema(), Child: limit.Child, Expressions: []expr.Expr{probe}}
 			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
 			want := sentinel
 			if cancelled {
@@ -134,7 +134,7 @@ func TestQueryTiesBorrowedBoundaryAndComparisonFailure(t *testing.T) {
 	}
 	source := &querySource{input: &querySource{anonymous: [][]sqltype.Value{{one}, {two}, {one}}}, layout: []int{0}, scratch: make([]sqltype.Value, 1)}
 	child := indexedStage{source: source, selection: []int{0, 1, 2}}
-	keys := []sortKey{{slot: 0, cache: -1, comparison: comparison}}
+	keys := []sortKey{{Slot: 0, Cache: -1, Comparison: comparison}}
 	boundary := make([]sqltype.Value, 1)
 	captureQueryTiesBoundary(&child, 0, keys, boundary)
 	for _, tc := range []struct {

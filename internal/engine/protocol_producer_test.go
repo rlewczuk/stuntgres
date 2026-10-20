@@ -9,9 +9,9 @@ import (
 func TestProtocolPortalProducer(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
 	root := query.Root.(*projectNode)
-	original := root.expressions[0]
+	original := root.Expressions[0]
 	calls := 0
-	root.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
+	root.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
 	state := queryState{source: source, hashFilter: hashQueryFilter(root)}
 	stage, err := openQueryProjectStage(context.Background(), &state, root)
 	if err != nil {

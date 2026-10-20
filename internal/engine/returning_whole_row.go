@@ -10,15 +10,15 @@ import (
 )
 
 func (c *EvalContext) EvalReturningWholeRow(e returningWholeRowExpression) (sqltype.Value, error) {
-	parent, err := returningRowContext(c, e.scope, e.frame)
+	parent, err := returningRowContext(c, e.Scope, e.Frame)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.merge && mergeReturningAbsent(parent, e.side) || !e.merge && e.old && parent.OldRow == nil {
+	if e.Merge && mergeReturningAbsent(parent, e.Side) || !e.Merge && e.Old && parent.OldRow == nil {
 		return sqltype.Null(e.Usage.Type), nil
 	}
-	fields := make([]sqltype.Value, len(e.members))
-	for i, member := range e.members {
+	fields := make([]sqltype.Value, len(e.Members))
+	for i, member := range e.Members {
 		fields[i], err = member.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -53,12 +53,12 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 	for i := range members {
 		if aliases.mode == returningMerge && side == mergeDefaultSide {
 			column := b.columnAtOf(relation, i, pos).(columnExpression)
-			column.frame = frame
+			column.Frame = frame
 			members[i] = column
 		} else {
 			members[i] = b.outerReturningColumnAt(scope, i, pos, !old)
 		}
 	}
 	info := b.info(sqltype.Usage{Type: descriptor.SQLType, Typmod: -1}, pos, expr.Properties{RowDependent: true})
-	return returningWholeRowExpression{Info: info, members: members, scope: 1, frame: frame, old: old, merge: aliases.mode == returningMerge, side: side}, true, nil
+	return returningWholeRowExpression{Info: info, Members: members, Scope: 1, Frame: frame, Old: old, Merge: aliases.mode == returningMerge, Side: side}, true, nil
 }

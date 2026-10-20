@@ -140,13 +140,13 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 				return nil
 			}
 			mode := lock.AccessShare
-			if leaf.mark.mode != 0 {
+			if leaf.mark.Mode != 0 {
 				mode = lock.RowShare
 			}
 			// Named query roots already have exact-identity grants. Leave the
 			// ordinary single-table path allocation- and reacquisition-free.
 			for _, root := range roots {
-				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == catalog.TableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
+				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == catalog.TableRelation && (root.mark.Mode != 0 || mode == lock.AccessShare) {
 					return nil
 				}
 			}
@@ -160,7 +160,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 				for i := range pending {
 					if pending[i].ref == leaf.ref {
 						pending[i].mark = leaf.mark
-						grants[leaf.ref] = leaf.mark.mode
+						grants[leaf.ref] = leaf.mark.Mode
 						return nil
 					}
 				}
@@ -170,7 +170,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			if grants == nil {
 				grants = make(map[ids.ObjectRef]lock.Mode)
 			}
-			grants[leaf.ref] = leaf.mark.mode
+			grants[leaf.ref] = leaf.mark.Mode
 			return nil
 		})
 		if err == nil && len(pending) == 0 {

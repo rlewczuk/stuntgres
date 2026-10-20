@@ -75,7 +75,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 		usage := project.Schema()[0].Usage
 		sentinel := errors.New("later target")
 		calls := 0
-		project.expressions[0] = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+		project.Expressions[0] = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 			calls++
 			if calls == 3 {
 				return sqltype.Value{}, sentinel
@@ -91,7 +91,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
 		project := query.Root.(*projectNode)
 		calls := 0
-		project.expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+		project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 			calls++
 			id, _ := c.Row[0].Integer()
 			if id == 2 || id == 3 {
@@ -131,14 +131,14 @@ func TestQueryCoreCancellation(t *testing.T) {
 			calls := 0
 			if phase == "rejected scan" {
 				typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
-				filter := project.child.(*filterNode)
-				filter.predicate = queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+				filter := project.Child.(*filterNode)
+				filter.Predicate = queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					cancel()
 					return sqltype.Boolean(typ, false), nil
 				})
 			} else {
-				project.expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if phase == "projection" || calls == 2 {
 						cancel()
@@ -198,7 +198,7 @@ func TestQueryCoreSortErrors(t *testing.T) {
 	}
 	t.Run("type comparison failure prevents publication", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
-		query.Root.(*projectNode).child.(*sortNode).keys[0].comparison = sqltype.Comparison{}
+		query.Root.(*projectNode).Child.(*sortNode).Keys[0].Comparison = sqltype.Comparison{}
 		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if rows != nil || count != 0 || err == nil || err.Error() != "invalid comparison values" || source.view != nil {
 			t.Fatal(rows, count, err, source.view)
@@ -346,7 +346,7 @@ func TestQueryCoreStageContractsAndDescriptors(t *testing.T) {
 		t.Run(q, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, q)
 			project := query.Root.(*projectNode)
-			stage, err := openQueryNode(context.Background(), &queryState{source: source}, project.child)
+			stage, err := openQueryNode(context.Background(), &queryState{source: source}, project.Child)
 			if err != nil {
 				t.Fatal(err)
 			}

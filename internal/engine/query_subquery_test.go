@@ -32,22 +32,22 @@ func subqueryTestExpression(t *testing.T, e *Engine, q *BoundQuery, kind parser.
 	if kind == parser.SubqueryScalar {
 		usage = q.Root.Schema()[0].Usage
 	}
-	return subqueryExpression{Info: expr.Info{Usage: usage}, kind: kind, queryPlan: q, presenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
+	return subqueryExpression{Info: expr.Info{Usage: usage}, Kind: kind, QueryPlan: q, PresenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
 }
 
 // Replace an actual scheduler-owned target rather than mocking a query result.
 func subqueryTestTarget(t *testing.T, project *projectNode, replacement expr.Expr) {
 	t.Helper()
-	for node := project.child; node != nil; {
+	for node := project.Child; node != nil; {
 		switch n := node.(type) {
 		case *evaluationNode:
-			if len(n.expressions) > 0 {
-				n.expressions[0] = replacement
+			if len(n.Expressions) > 0 {
+				n.Expressions[0] = replacement
 				return
 			}
 		case *sortNode:
-			if len(n.outputs) > 0 {
-				n.outputs[0] = replacement
+			if len(n.Outputs) > 0 {
+				n.Outputs[0] = replacement
 				return
 			}
 		}
@@ -57,10 +57,10 @@ func subqueryTestTarget(t *testing.T, project *projectNode, replacement expr.Exp
 		}
 		node = left
 	}
-	if len(project.expressions) == 0 {
+	if len(project.Expressions) == 0 {
 		t.Fatal("missing target")
 	}
-	project.expressions[0] = replacement
+	project.Expressions[0] = replacement
 }
 
 func TestQuerySubqueryDemand(t *testing.T) {
@@ -86,11 +86,11 @@ func TestQuerySubqueryDemand(t *testing.T) {
 			// An ORDER output owns its cache; replace that key instead of assuming
 			// a target ordinal is also an evaluation cache ordinal.
 			ordered := false
-			for node := project.child; node != nil; {
+			for node := project.Child; node != nil; {
 				if n, ok := node.(*sortNode); ok {
-					for i, key := range n.keys {
-						if key.output {
-							n.keys[i].expression = probe
+					for i, key := range n.Keys {
+						if key.Output {
+							n.Keys[i].Expression = probe
 							ordered = true
 						}
 					}
@@ -144,7 +144,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 		calls := 0
 		found := false
 		for frame, project := range frames {
-			if frame != root.frame {
+			if frame != root.Frame {
 				subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel }))
 				found = true
 			}
@@ -310,7 +310,7 @@ func TestQuerySubqueryManifest(t *testing.T) {
 			t.Fatal(i, bound.querySources[i].relation.Name())
 		}
 	}
-	if bound.querySources[0].mark.mode != 0 || bound.querySources[1].mark.mode != 0 || bound.querySources[2].mark.mode == 0 {
+	if bound.querySources[0].mark.Mode != 0 || bound.querySources[1].mark.Mode != 0 || bound.querySources[2].mark.Mode == 0 {
 		t.Fatal("row marks leaked across query boundaries")
 	}
 	changed := append([]queryLeaf(nil), bound.querySources...)
@@ -409,15 +409,15 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound := subqueryExpression{Info: expr.Info{Usage: boolean.Usage()}, operator: tc.text}
+			bound := subqueryExpression{Info: expr.Info{Usage: boolean.Usage()}, Operator: tc.text}
 			for i := range tc.right {
-				bound.comparisons = append(bound.comparisons, comparisonExpression{right: columnExpression{Info: expr.Info{Usage: integer.Usage()}, scope: 1, frame: 9, slot: i}, predicate: predicate})
+				bound.Comparisons = append(bound.Comparisons, comparisonExpression{Right: columnExpression{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 9, Slot: i}, Predicate: predicate})
 				if tc.operator > sqltype.CompareNotEqual {
-					bound.ordering = append(bound.ordering, comparison)
+					bound.Ordering = append(bound.Ordering, comparison)
 				}
 			}
 			c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 9, Row: tc.right}}
-			answer, err := bound.compare(&c, tc.left)
+			answer, err := bound.Compare(&c, tc.left)
 			truth, _ := answer.Boolean()
 			if err != nil || answer.IsNull() != tc.unknown || (!tc.unknown && truth != tc.want) {
 				t.Fatal(answer, err)
@@ -436,8 +436,8 @@ func TestQuerySubqueryOperandDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	leftCalls, targetCalls := 0, 0
-	project.expressions[0] = queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
-	bound.comparisons = []comparisonExpression{{left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), right: columnExpression{Info: expr.Info{Usage: integer.Usage()}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
+	project.Expressions[0] = queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
+	bound.Comparisons = []comparisonExpression{{Left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), Right: columnExpression{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
 	parent := queryState{source: source}
 	c := parent.evaluation(context.Background())
 	for demand := 1; demand <= 2; demand++ {
@@ -510,7 +510,7 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 	}
 	for frame, old := range before {
 		project := after[frame]
-		if project == nil || project == old || project.syntax != old.syntax {
+		if project == nil || project == old || project.Syntax != old.Syntax {
 			t.Fatal("frame identity or immutability lost", frame)
 		}
 		for i, column := range old.Schema() {
@@ -531,11 +531,11 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 	walk = func(node LogicalNode) {
 		if n, ok := node.(*sourceNode); ok {
 			if capture {
-				originalRefs[n.occurrence] = n.ref
+				originalRefs[n.Occurrence] = n.Ref
 			} else {
-				old, found := originalRefs[n.occurrence]
-				if !found || n.ref != refs(old) {
-					t.Fatal("nested physical identity not remapped", n.occurrence, n.ref)
+				old, found := originalRefs[n.Occurrence]
+				if !found || n.Ref != refs(old) {
+					t.Fatal("nested physical identity not remapped", n.Occurrence, n.Ref)
 				}
 			}
 		}
@@ -549,7 +549,7 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 		queryExpressions(node, func(bound expr.Expr) {
 			walkBoundExpression(bound, func(expr expr.Expr) {
 				if child, ok := expr.(subqueryExpression); ok {
-					walk(child.queryPlan.Root)
+					walk(child.QueryPlan.Root)
 				}
 			})
 		})
@@ -567,7 +567,7 @@ func TestQuerySubqueryDerivedDuplicateSchema(t *testing.T) {
 	}
 	frames, _ := collectQueryFrames(q.Root)
 	for frame, project := range frames {
-		if frame != q.Root.(*projectNode).frame {
+		if frame != q.Root.(*projectNode).Frame {
 			if project.Schema()[0].Name != "x" || project.Schema()[1].Name != "x" {
 				t.Fatal("child names changed", project.Schema())
 			}

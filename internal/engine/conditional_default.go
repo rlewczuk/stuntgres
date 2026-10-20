@@ -19,7 +19,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 		}
 		// Retain known text and bigint leaves on replay; bare strings are unknown
 		// and small bigint constants would otherwise turn into integer constants.
-		if literal, ok := child.(literalExpression); ok && (literal.value.Type().ID() == sqltype.Text || literal.value.Type().ID() == sqltype.Int8 || literal.value.IsNull()) {
+		if literal, ok := child.(literalExpression); ok && (literal.Value.Type().ID() == sqltype.Text || literal.Value.Type().ID() == sqltype.Int8 || literal.Value.IsNull()) {
 			if sqltype.BaselineCastType(child.ResultUsage().Type.ID()) {
 				declaration, err := child.ResultUsage().Declaration()
 				if err != nil {
@@ -32,46 +32,46 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 	}
 	switch e := node.(type) {
 	case caseExpression:
-		if len(e.arms) == 0 || e.otherwise == nil {
+		if len(e.Arms) == 0 || e.Otherwise == nil {
 			return "", fmt.Errorf("stuntgres: invalid stored CASE")
 		}
-		if e.otherwise.ResultUsage().Type != e.Usage.Type {
+		if e.Otherwise.ResultUsage().Type != e.Usage.Type {
 			return "", fmt.Errorf("stuntgres: invalid stored CASE result")
 		}
 		var sql strings.Builder
 		sql.WriteString("(CASE")
-		if e.test != nil {
-			text, err := operand(e.test)
+		if e.Test != nil {
+			text, err := operand(e.Test)
 			if err != nil {
 				return "", err
 			}
 			sql.WriteByte(' ')
 			sql.WriteString(text)
 		}
-		for _, arm := range e.arms {
-			if arm.result == nil || arm.result.ResultUsage().Type != e.Usage.Type || arm.condition == nil {
+		for _, arm := range e.Arms {
+			if arm.Result == nil || arm.Result.ResultUsage().Type != e.Usage.Type || arm.Condition == nil {
 				return "", fmt.Errorf("stuntgres: invalid stored CASE arm")
 			}
-			if e.test == nil {
-				if arm.condition.ResultUsage().Type.ID() != sqltype.Bool {
+			if e.Test == nil {
+				if arm.Condition.ResultUsage().Type.ID() != sqltype.Bool {
 					return "", fmt.Errorf("stuntgres: invalid stored CASE condition")
 				}
 			} else {
-				plan, err := sqltype.PlanCoercion(e.test.ResultUsage(), arm.testUsage, sqltype.Implicit)
-				if err != nil || plan != arm.testPlan {
+				plan, err := sqltype.PlanCoercion(e.Test.ResultUsage(), arm.TestUsage, sqltype.Implicit)
+				if err != nil || plan != arm.TestPlan {
 					return "", fmt.Errorf("stuntgres: invalid stored CASE test coercion")
 				}
-				ref, conflict := arm.equality.InputCollation()
-				comparison, err := sqltype.BindComparison(arm.testUsage.Type, arm.condition.ResultUsage().Type, ref, conflict)
-				if err != nil || !comparison.Equal(arm.equality) {
+				ref, conflict := arm.Equality.InputCollation()
+				comparison, err := sqltype.BindComparison(arm.TestUsage.Type, arm.Condition.ResultUsage().Type, ref, conflict)
+				if err != nil || !comparison.Equal(arm.Equality) {
 					return "", fmt.Errorf("stuntgres: invalid stored CASE equality")
 				}
 			}
-			condition, err := operand(arm.condition)
+			condition, err := operand(arm.Condition)
 			if err != nil {
 				return "", err
 			}
-			result, err := operand(arm.result)
+			result, err := operand(arm.Result)
 			if err != nil {
 				return "", err
 			}
@@ -80,7 +80,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 			sql.WriteString(" THEN ")
 			sql.WriteString(result)
 		}
-		otherwise, err := operand(e.otherwise)
+		otherwise, err := operand(e.Otherwise)
 		if err != nil {
 			return "", err
 		}
@@ -89,42 +89,42 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 		sql.WriteString(" END)")
 		return sql.String(), nil
 	case conditionalExpression:
-		if len(e.args) == 0 || e.kind == parser.NullIf && len(e.args) != 2 || e.kind.String() == "" {
+		if len(e.Args) == 0 || e.Kind == parser.NullIf && len(e.Args) != 2 || e.Kind.String() == "" {
 			return "", fmt.Errorf("stuntgres: invalid stored conditional")
 		}
-		if e.kind == parser.NullIf {
-			if e.args[0].ResultUsage() != e.Usage {
+		if e.Kind == parser.NullIf {
+			if e.Args[0].ResultUsage() != e.Usage {
 				return "", fmt.Errorf("stuntgres: invalid stored NULLIF result")
 			}
 		} else {
-			for _, arg := range e.args {
+			for _, arg := range e.Args {
 				if arg == nil || arg.ResultUsage().Type != e.Usage.Type {
 					return "", fmt.Errorf("stuntgres: invalid stored conditional argument")
 				}
 			}
 		}
-		if e.kind != parser.Coalesce {
+		if e.Kind != parser.Coalesce {
 			left, right := e.Usage.Type, e.Usage.Type
-			if e.kind == parser.NullIf {
-				left, right = e.args[0].ResultUsage().Type, e.args[1].ResultUsage().Type
+			if e.Kind == parser.NullIf {
+				left, right = e.Args[0].ResultUsage().Type, e.Args[1].ResultUsage().Type
 			}
 			var comparison sqltype.Comparison
 			var err error
 			missingOrdering := false
-			ref, conflict := e.comparison.InputCollation()
-			if e.kind == parser.Greatest || e.kind == parser.Least {
+			ref, conflict := e.Comparison.InputCollation()
+			if e.Kind == parser.Greatest || e.Kind == parser.Least {
 				comparison, missingOrdering, err = bindExtremaComparison(e.Usage, conflict)
 			} else {
 				comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}
-			if err != nil || !comparison.Equal(e.comparison) || missingOrdering != e.missingOrdering {
+			if err != nil || !comparison.Equal(e.Comparison) || missingOrdering != e.MissingOrdering {
 				return "", fmt.Errorf("stuntgres: invalid stored conditional comparison")
 			}
 		}
 		var sql strings.Builder
-		sql.WriteString(e.kind.String())
+		sql.WriteString(e.Kind.String())
 		sql.WriteByte('(')
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			if i > 0 {
 				sql.WriteByte(',')
 			}

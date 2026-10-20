@@ -39,37 +39,37 @@ type queryLockAdmission struct {
 }
 
 func mergeQueryRowMark(a, b queryRowMark) queryRowMark {
-	if a.diagnosticMode == 0 {
-		a.diagnosticMode = b.diagnosticMode
+	if a.DiagnosticMode == 0 {
+		a.DiagnosticMode = b.DiagnosticMode
 	}
-	if a.mode == 0 {
-		a.order = b.order
+	if a.Mode == 0 {
+		a.Order = b.Order
 	}
-	a.mode = strongerQueryRowMode(a.mode, b.mode)
-	if b.wait > a.wait {
-		a.wait = b.wait
+	a.Mode = strongerQueryRowMode(a.Mode, b.Mode)
+	if b.Wait > a.Wait {
+		a.Wait = b.Wait
 	}
 	return a
 }
 
 func queryRowDiagnostic(mark queryRowMark) lock.Mode {
-	if mark.diagnosticMode != 0 {
-		return mark.diagnosticMode
+	if mark.DiagnosticMode != 0 {
+		return mark.DiagnosticMode
 	}
-	return mark.mode
+	return mark.Mode
 }
 
 func queryRootRowMarks(node LogicalNode) []queryRowMark {
 	for {
 		switch n := node.(type) {
 		case *projectNode:
-			node = n.child
+			node = n.Child
 		case *limitNode:
-			node = n.child
+			node = n.Child
 		case *evaluationNode:
-			node = n.child
+			node = n.Child
 		case *rowLockNode:
-			return n.marks
+			return n.Marks
 		default:
 			return nil
 		}
@@ -134,7 +134,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 			childTargets, _ := queryLockTargets(n.Query.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, virtual...)
 			childIndex := 0
 			_ = parser.VisitQuerySources(&parser.Select{From: n.Query.From}, nil, func(table *parser.TableReference, _ *parser.Select) error {
-				if childIndex < len(childTargets) && childTargets[childIndex].mode != 0 {
+				if childIndex < len(childTargets) && childTargets[childIndex].Mode != 0 {
 					selected = append(selected, indices[table])
 				}
 				childIndex++
@@ -161,13 +161,13 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 	order := 0
 	for _, clause := range clauses {
 		mode := queryRowMode(clause.Mode)
-		mark := queryRowMark{mode: mode, wait: clause.Wait, diagnosticMode: mode}
+		mark := queryRowMark{Mode: mode, Wait: clause.Wait, DiagnosticMode: mode}
 		if len(clause.Targets) == 0 {
 			for _, target := range targets {
 				for _, i := range target.occurrences {
-					if marks[i].mode == 0 {
+					if marks[i].Mode == 0 {
 						order++
-						mark.order = order
+						mark.Order = order
 					}
 					marks[i] = mergeQueryRowMark(marks[i], mark)
 				}
@@ -197,9 +197,9 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 					return marks, expr.ErrorAt("0A000", clause.Mode+" cannot be applied to a function", name.Parts[0].Pos)
 				}
 				for _, occurrence := range target.occurrences {
-					if marks[occurrence].mode == 0 {
+					if marks[occurrence].Mode == 0 {
 						order++
-						mark.order = order
+						mark.Order = order
 					}
 					marks[occurrence] = mergeQueryRowMark(marks[occurrence], mark)
 				}
@@ -230,7 +230,7 @@ func firstSetRowClause(sel *parser.Select) string {
 // candidate loop only consults this immutable manifest.
 func appendPendingRowMarks(dst []queryPendingMark, marks []queryRowMark, inputs *querySource) []queryPendingMark {
 	for i, mark := range marks {
-		if mark.mode == 0 {
+		if mark.Mode == 0 {
 			continue
 		}
 		source := querySourceAt(inputs, i)
@@ -239,7 +239,7 @@ func appendPendingRowMarks(dst []queryPendingMark, marks []queryRowMark, inputs 
 		// a stored/derived/join boundary must not resurrect an SQL-only mark.
 		physical := occurrences[:0]
 		for _, occurrence := range occurrences {
-			if effectiveQueryRowMark(inputs.locks.leaves[occurrence].leaf.relation, mark).mode != 0 {
+			if effectiveQueryRowMark(inputs.locks.leaves[occurrence].leaf.relation, mark).Mode != 0 {
 				physical = append(physical, occurrence)
 			}
 		}

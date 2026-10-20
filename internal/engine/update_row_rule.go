@@ -11,7 +11,7 @@ func validateRuleNewUpdateOutput(recipe expr.Expr) error {
 		case updateOutputExpression:
 			found = true
 		case subqueryExpression:
-			found = found || n.updateWidth != 0
+			found = found || n.UpdateWidth != 0
 		}
 	})
 	if found {

@@ -8,8 +8,8 @@ import (
 // sqlJSONResult retains enclosing casts at a protocol constructor's
 // representation boundary. Ordinary callable spelling conveys no such identity.
 func sqlJSONResult(node expr.Expr) bool {
-	if conversion, ok := node.(coercionExpression); ok && conversion.plan.IsJSONReturning() {
-		node = conversion.child
+	if conversion, ok := node.(coercionExpression); ok && conversion.Plan.IsJSONReturning() {
+		node = conversion.Child
 	}
 	renderable, ok := node.(expr.Renderable)
 	if !ok {
@@ -32,8 +32,8 @@ func jsonReturningRendering(node expr.Expr) (expr.Rendering, bool, error) {
 }
 
 func sqlJSONSource(arg expr.Expr) expr.Expr {
-	if conversion, ok := arg.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
-		return conversion.child
+	if conversion, ok := arg.(coercionExpression); ok && conversion.Plan.IsJSONFormattedInput() {
+		return conversion.Child
 	}
 	return arg
 }

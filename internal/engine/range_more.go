@@ -35,7 +35,7 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 	if len(operands) == 1 {
 		operand = operands[0]
 	}
-	input, result := unnestInputTypes(operand.Usage)
+	input, result := UnnestInputTypes(operand.Usage)
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if !visible || name != "unnest" || len(raw.ArgNames) != 0 || len(raw.Args) != 1 || result == nil {
 		names := make([]string, len(raw.Args))
@@ -93,5 +93,5 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 	if err != nil {
 		return nil, err
 	}
-	return unnestExpression{Info: info, args: []expr.Expr{arg}}, nil
+	return unnestExpression{Info: info, Args: []expr.Expr{arg}}, nil
 }

@@ -53,7 +53,7 @@ func foldStrictParameterNull(c *EvalContext, node expr.Expr) (expr.Expr, bool, e
 		return node, false, nil
 	}
 	info := foldedExpressionInfo(node)
-	return literalExpression{Info: info, value: sqltype.ResultNull(info.Usage)}, true, nil
+	return literalExpression{Info: info, Value: sqltype.ResultNull(info.Usage)}, true, nil
 }
 
 // Expanded variadic path elements form one non-NULL array argument. A NULL
@@ -72,27 +72,27 @@ func executionKnownNullArgument(c *EvalContext, node expr.Expr) (bool, error) {
 	}
 	switch e := node.(type) {
 	case literalExpression:
-		return e.value.IsNull(), nil
+		return e.Value.IsNull(), nil
 	case parameterExpression:
 		// Description and partially imported frames do not supply a value.
-		if e.number <= 0 || e.number > len(c.Parameters) || c.Parameters[e.number-1].Type() == nil {
+		if e.Number <= 0 || e.Number > len(c.Parameters) || c.Parameters[e.Number-1].Type() == nil {
 			return false, nil
 		}
 		value, err := e.Eval(c) // Typed frame access only; no operator/function/domain Eval.
 		return value.IsNull(), err
 	case collationExpression:
-		return executionKnownNullArgument(c, e.child)
+		return executionKnownNullArgument(c, e.Child)
 	case coercionExpression:
 		if e.Usage.Type == nil || e.Usage.Type.IsDomain() {
 			return false, nil
 		}
-		return executionKnownNullArgument(c, e.child)
+		return executionKnownNullArgument(c, e.Child)
 	case caseExpression:
 		// Existing conditional planning preserves conservative properties on
 		// this already-decided native CASE carrier, rather than adding a cast
 		// or substituting parameters throughout the analyzed expression.
-		if e.test == nil && len(e.arms) == 0 {
-			return executionKnownNullArgument(c, e.otherwise)
+		if e.Test == nil && len(e.Arms) == 0 {
+			return executionKnownNullArgument(c, e.Otherwise)
 		}
 	}
 	return false, nil

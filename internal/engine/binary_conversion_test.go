@@ -97,7 +97,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			}
 			for i, arg := range args {
 				observed := arg.(mathObservedArgument)
-				args[i] = literalExpression{Info: observed.Info, value: observed.value}
+				args[i] = literalExpression{Info: observed.Info, Value: observed.value}
 			}
 			if generationImmutable(bound) != (tc.volatility == expr.Immutable) {
 				t.Fatal("generation intrinsic volatility lost")

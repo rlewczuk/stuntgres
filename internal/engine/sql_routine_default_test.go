@@ -42,8 +42,8 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 		{"invented-stage-dependency", func(n *sqlRoutineExpression) { n.Property.StageDependent = true }},
 		{"invented-domain-dependency", func(n *sqlRoutineExpression) { n.Property.DomainDependent = true }},
 		{"missing-carrier", func(n *sqlRoutineExpression) { n.RoutineReference = nil }},
-		{"missing-argument", func(n *sqlRoutineExpression) { n.args = nil }},
-		{"nil-argument", func(n *sqlRoutineExpression) { n.args = []expr.Expr{nil} }},
+		{"missing-argument", func(n *sqlRoutineExpression) { n.Args = nil }},
+		{"nil-argument", func(n *sqlRoutineExpression) { n.Args = []expr.Expr{nil} }},
 		{"wrong-result", func(n *sqlRoutineExpression) { n.Usage = b.typ(sqltype.Int8).Usage() }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 		})
 	}
 	foreign := original
-	foreign.ref = New().catalog.Domain.Ref(original.ref.Epoch, original.ref.Address)
+	foreign.Ref = New().catalog.Domain.Ref(original.Ref.Epoch, original.Ref.Address)
 	if _, err := (scalarRenderer{}).sql(ctx, read, foreign); err == nil {
 		t.Fatal("foreign SQL lifetime accepted")
 	}

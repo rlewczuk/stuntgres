@@ -79,7 +79,7 @@ func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref 
 func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (expr.Expr, []catalog.ExpressionDependency, error) {
 	if action.Using == nil {
 		source := original.Index[action.Column.Text]
-		return columnExpression{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
+		return columnExpression{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: source}.WithGeneration(original, source, 0), nil, nil
 	}
 	if namespace == nil {
 		namespace = alterTypeNamespace(auth, original, ref)
@@ -317,10 +317,10 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		expression := definition.Expression
 		for {
 			wrapper, ok := expression.(coercionExpression)
-			if !ok || wrapper.mode == sqltype.Explicit {
+			if !ok || wrapper.Mode == sqltype.Explicit {
 				break
 			}
-			expression = wrapper.child
+			expression = wrapper.Child
 		}
 		input, annotations := domainCoercionInput(expression, usage)
 		info, err := storageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)

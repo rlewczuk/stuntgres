@@ -10,14 +10,14 @@ import (
 func TestQueryOrderSharedHiddenKeysAndOwnedIndices(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id+1 DESC,id+1,id+2")
 	project := query.Root.(*projectNode)
-	sorted := project.child.(*sortNode)
+	sorted := project.Child.(*sortNode)
 	calls := [2]int{}
-	for i := range sorted.keys {
+	for i := range sorted.Keys {
 		counter := 0
 		if i == 2 {
 			counter = 1
 		}
-		sorted.keys[i].expression = queryProbe(sorted.keys[i].expression.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		sorted.Keys[i].Expression = queryProbe(sorted.Keys[i].Expression.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 			calls[counter]++
 			return c.Row[0], nil
 		})

@@ -90,7 +90,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if c.Usage.Type.ID() != sqltype.NameArray || c.Usage.Type.Name() != "_name" || c.Usage.Type.DatabaseName() != "_NAME" || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 950 || c.OriginTable != 0 || c.OriginAttribute != 0 || table.Columns[0].Usage != c.Usage {
 		t.Fatal(c, table.Columns)
 	}
-	value, err := query.Root.(*projectNode).expressions[0].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}})
+	value, err := query.Root.(*projectNode).Expressions[0].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}})
 	if err != nil {
 		t.Fatal(err)
 	}

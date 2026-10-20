@@ -63,15 +63,15 @@ func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, defi
 }
 
 func (c *EvalContext) admitColumnVirtualGeneration(e columnExpression, view catalog.Read) error {
-	if e.virtualOwner == nil {
+	if e.VirtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
-	definition, ok := e.virtualOwner.ColumnMeta.Generations[e.virtualAttribute]
+	definition, ok := e.VirtualOwner.ColumnMeta.Generations[e.VirtualAttribute]
 	if !ok || definition.Kind != catalog.GenerationVirtual || definition.Planned == nil {
 		return fmt.Errorf("stuntgres: missing original virtual generation")
 	}
 	recipe := *c
-	selectVirtualGenerationRecipe(&recipe, e.virtualOwner, definition)
+	selectVirtualGenerationRecipe(&recipe, e.VirtualOwner, definition)
 	recipe.Scope, recipe.Frame = 1, 1
 	recipe.Row, recipe.Outer = nil, nil
 	node, _, err := preflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
@@ -87,12 +87,12 @@ func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 	for i := range d.Constraints.Check {
 		next, changed, err := mapBoundExpression(catalog, d.Constraints.Check[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(columnExpression)
-			if !ok || column.origin.Address.ClassID != d.Address().ClassID || column.origin.Address.ObjectID != d.Address().ObjectID {
+			if !ok || column.Origin.Address.ClassID != d.Address().ClassID || column.Origin.Address.ObjectID != d.Address().ObjectID {
 				return node, false, nil
 			}
 			slot := -1
 			for i, attribute := range d.Attributes {
-				if attribute == column.origin.Address.SubID {
+				if attribute == column.Origin.Address.SubID {
 					slot = i
 					break
 				}
@@ -100,11 +100,11 @@ func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 			if slot < 0 {
 				return nil, false, fmt.Errorf("stuntgres: missing destination CHECK attribute")
 			}
-			column.slot = slot
-			column.virtual = nil
-			column.virtualOwner, column.virtualAttribute = nil, 0
-			column.rowStart, column.rowWidth, column.queryOccurrence = 0, 0, 0
-			column = column.withGeneration(d, slot, 0)
+			column.Slot = slot
+			column.Virtual = nil
+			column.VirtualOwner, column.VirtualAttribute = nil, 0
+			column.RowStart, column.RowWidth, column.QueryOccurrence = 0, 0, 0
+			column = column.WithGeneration(d, slot, 0)
 			return column, true, nil
 		})
 		if err != nil {
@@ -121,7 +121,7 @@ func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *E
 	if definition, ok := d.ColumnMeta.Generations[d.Attributes[slot]]; !ok || definition.Kind != catalog.GenerationVirtual {
 		return row[slot], nil
 	}
-	column := columnExpression{Info: expr.Info{Usage: d.Columns[slot].Usage}, scope: 1, frame: 1, slot: slot}.withGeneration(d, slot, 0)
+	column := columnExpression{Info: expr.Info{Usage: d.Columns[slot].Usage}, Scope: 1, Frame: 1, Slot: slot}.WithGeneration(d, slot, 0)
 	local := *c
 	local.Scope, local.Frame, local.Row = 1, 1, row
 	return column.Eval(&local)
@@ -140,7 +140,7 @@ func (c *EvalContext) columnCapturedGeneration(e columnExpression, source *query
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing virtual source descriptor")
 	}
-	definition, ok := logical.ColumnMeta.Generations[e.origin.Address.SubID]
+	definition, ok := logical.ColumnMeta.Generations[e.Origin.Address.SubID]
 	if !ok || definition.Kind != catalog.GenerationVirtual || definition.Planned == nil {
 		return nil, nil, fmt.Errorf("stuntgres: missing captured virtual generation")
 	}

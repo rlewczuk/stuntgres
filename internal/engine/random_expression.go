@@ -15,11 +15,11 @@ func (c *EvalContext) FunctionRandomOwner() (expr.RandomOwner, error) {
 func randomLiteralNull(arg expr.Expr) bool {
 	switch e := arg.(type) {
 	case literalExpression:
-		return e.value.IsNull()
+		return e.Value.IsNull()
 	case collationExpression:
-		return randomLiteralNull(e.child)
+		return randomLiteralNull(e.Child)
 	case coercionExpression:
-		return randomLiteralNull(e.child)
+		return randomLiteralNull(e.Child)
 	}
 	return false
 }

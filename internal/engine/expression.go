@@ -138,10 +138,10 @@ func (c *EvalContext) FunctionOverlapsConstant(node expr.Expr) bool {
 func (c *EvalContext) FunctionLiteralNull(node expr.Expr) bool { return randomLiteralNull(node) }
 func (c *EvalContext) WholeRowNullPresence(node expr.Expr) (handled, absent bool, err error) {
 	row, ok := node.(rowExpression)
-	if !ok || row.wholeNames == nil {
+	if !ok || row.WholeNames == nil {
 		return false, false, nil
 	}
-	if row.Usage.Type == nil || !row.Usage.Type.Concrete() || !row.Usage.Type.BaseType().IsComposite() || len(row.fields) != row.Usage.Type.BaseType().CompositeLen() {
+	if row.Usage.Type == nil || !row.Usage.Type.Concrete() || !row.Usage.Type.BaseType().IsComposite() || len(row.Fields) != row.Usage.Type.BaseType().CompositeLen() {
 		return true, false, fmt.Errorf("stuntgres: invalid null-count argument type")
 	}
 	absent, err = c.RowAbsent(row)
@@ -223,18 +223,18 @@ func (c *EvalContext) FrameValue(scope, frame uint32, slot int, usage sqltype.Us
 }
 
 func (c *EvalContext) EvalColumn(e columnExpression) (sqltype.Value, error) {
-	row, err := c.frameRow(e.scope, e.frame, e.slot, e.Usage)
+	row, err := c.frameRow(e.Scope, e.Frame, e.Slot, e.Usage)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.mergeSource && !row.mergeSourcePresent {
+	if e.MergeSource && !row.mergeSourcePresent {
 		return sqltype.ResultNull(e.Usage), nil
 	}
-	if e.virtual == nil {
-		return row.Row[e.slot], nil
+	if e.Virtual == nil {
+		return row.Row[e.Slot], nil
 	}
-	if e.queryOccurrence != 0 {
-		absent, err := row.queryOperandAbsent(e.queryOccurrence - 1)
+	if e.QueryOccurrence != 0 {
+		absent, err := row.queryOperandAbsent(e.QueryOccurrence - 1)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -242,26 +242,26 @@ func (c *EvalContext) EvalColumn(e columnExpression) (sqltype.Value, error) {
 			return sqltype.ResultNull(e.Usage), nil
 		}
 	}
-	if e.rowStart < 0 || e.rowWidth <= 0 || e.rowStart > len(row.Row)-e.rowWidth {
+	if e.RowStart < 0 || e.RowWidth <= 0 || e.RowStart > len(row.Row)-e.RowWidth {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid virtual expression row window")
 	}
 	local := *row
 	local.Context = c.Context
 	local.Scope, local.Frame = 1, 1
-	local.Row = row.Row[e.rowStart : e.rowStart+e.rowWidth]
-	recipe := e.virtual
-	if e.virtualOwner != nil {
-		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.ColumnMeta.Generations[e.virtualAttribute])
-	} else if e.origin != (ids.ObjectRef{}) {
+	local.Row = row.Row[e.RowStart : e.RowStart+e.RowWidth]
+	recipe := e.Virtual
+	if e.VirtualOwner != nil {
+		selectVirtualGenerationRecipe(&local, e.VirtualOwner, e.VirtualOwner.ColumnMeta.Generations[e.VirtualAttribute])
+	} else if e.Origin != (ids.ObjectRef{}) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
-	if e.queryOccurrence != 0 {
-		source, index, err := row.queryOperandSource(e.queryOccurrence - 1)
+	if e.QueryOccurrence != 0 {
+		source, index, err := row.queryOperandSource(e.QueryOccurrence - 1)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		local.physicalTable = source.physicalRef(index)
-		if source.view != nil && e.origin.Address.SubID != 0 {
+		if source.view != nil && e.Origin.Address.SubID != 0 {
 			var current []sqltype.Value
 			if row.queryCurrentRows != nil {
 				if source.occurrence < 0 || source.occurrence >= len(row.queryCurrentRows) || row.queryCurrentRows[source.occurrence] == nil {
@@ -349,16 +349,16 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	}
 	switch e := expression.(type) {
 	case subqueryExpression:
-		if !c.planStaticOperators || e.cteDefinition || e.queryPlan == nil {
+		if !c.planStaticOperators || e.cteDefinition || e.QueryPlan == nil {
 			return e, false, nil
 		}
-		input := e.queryPlan.Root
+		input := e.QueryPlan.Root
 		var presence *projectNode
-		if e.presenceOnly {
+		if e.PresenceOnly {
 			// Eligible EXISTS uses nextOccurrence, never its outer targets.
 			// Keep actual child predicate and presence/sort preparation.
 			presence = input.(*projectNode)
-			input = presence.child
+			input = presence.Child
 		}
 		root, err := preflightQuery(c, input)
 		if err != nil {
@@ -369,12 +369,12 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 		if presence != nil {
 			copy := *presence
-			copy.child = root
+			copy.Child = root
 			root = &copy
 		}
-		query := *e.queryPlan
+		query := *e.QueryPlan
 		query.Root = root
-		e.queryPlan = &query
+		e.QueryPlan = &query
 		return e, true, nil
 	case domainValueExpression:
 		return e, false, nil
@@ -469,21 +469,21 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 		return e, args != nil, nil
 	case assignmentValueExpression:
-		base, baseChanged, err := preflightCoercionsWithPolicy(c, e.base, decisiveDefaults)
+		base, baseChanged, err := preflightCoercionsWithPolicy(c, e.Base, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		value, valueChanged, err := preflightCoercionsWithPolicy(c, e.value, decisiveDefaults)
+		value, valueChanged, err := preflightCoercionsWithPolicy(c, e.Value, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		targets, err := preflightArrayTargetsWithPlanning(c, []*arrayAssignmentTarget{e.target}, decisiveDefaults)
+		targets, err := preflightArrayTargetsWithPlanning(c, []*arrayAssignmentTarget{e.Target}, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		changed := baseChanged || valueChanged || targets[0] != e.target
+		changed := baseChanged || valueChanged || targets[0] != e.Target
 		if changed {
-			e.base, e.value, e.target = base, value, targets[0]
+			e.Base, e.Value, e.Target = base, value, targets[0]
 		}
 		return e, changed, nil
 	case installedFunctionExpression:
@@ -498,20 +498,20 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		})
 	case groupingExpression:
 		var args []expr.Expr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.Args...)
 				}
 				args[i] = next
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		return e, args != nil, nil
 	case extensionPathsExpression:
@@ -524,27 +524,27 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	case caseExpression:
 		return simplifyConditional(c, expression, decisiveDefaults)
 	case conditionalExpression:
-		if err := e.extremaError(); err != nil {
+		if err := e.ExtremaError(); err != nil {
 			return nil, false, err
 		}
-		if e.kind == parser.Coalesce {
+		if e.Kind == parser.Coalesce {
 			return simplifyConditional(c, expression, decisiveDefaults)
 		}
 		var args []expr.Expr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.Args...)
 				}
 				args[i] = next
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
@@ -559,28 +559,28 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		})
 		return next, changed, err
 	case fieldExpression:
-		base, changed, err := preflightCoercionsWithPolicy(c, e.base, decisiveDefaults)
+		base, changed, err := preflightCoercionsWithPolicy(c, e.Base, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.base = base
+		e.Base = base
 		return e, changed, nil
 	case arrayExpression:
 		var elements []expr.Expr
-		for i, old := range e.elements {
+		for i, old := range e.Elements {
 			next, changed, err := preflightCoercionsWithPolicy(c, old, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if elements == nil {
-					elements = append([]expr.Expr(nil), e.elements...)
+					elements = append([]expr.Expr(nil), e.Elements...)
 				}
 				elements[i] = next
 			}
 		}
 		if elements != nil {
-			e.elements = elements
+			e.Elements = elements
 		}
 		p := e.Properties()
 		if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
@@ -594,20 +594,20 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		})
 		return next, changed, err
 	case collationExpression:
-		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
+		child, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.child = child
+		e.Child = child
 		return e, changed, nil
 	case coercionExpression:
-		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
+		child, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.child = child
-		if e.plan.ChecksDomain() {
-			if err := c.prepareDomainConversion(e.child.ResultUsage().Type, e.Usage.Type); err != nil {
+		e.Child = child
+		if e.Plan.ChecksDomain() {
+			if err := c.prepareDomainConversion(e.Child.ResultUsage().Type, e.Usage.Type); err != nil {
 				return nil, false, err
 			}
 		}
@@ -626,15 +626,15 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return e, true, nil
 		}
 	case likeExpression:
-		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		left, lc, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		right, rc, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		right, rc, err := preflightCoercionsWithPolicy(c, e.Right, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.left, e.right = left, right
+		e.Left, e.Right = left, right
 		if randomLiteralNull(left) || randomLiteralNull(right) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
@@ -646,12 +646,12 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		return e, lc || rc, nil
 	case rowComparisonExpression:
 		var pairs []comparisonExpression
-		for i, pair := range e.comparisons {
-			left, leftChanged, err := preflightCoercionsWithPolicy(c, pair.left, false)
+		for i, pair := range e.Comparisons {
+			left, leftChanged, err := preflightCoercionsWithPolicy(c, pair.Left, false)
 			if err != nil {
 				return nil, false, err
 			}
-			right, rightChanged, err := preflightCoercionsWithPolicy(c, pair.right, false)
+			right, rightChanged, err := preflightCoercionsWithPolicy(c, pair.Right, false)
 			if err != nil {
 				return nil, false, err
 			}
@@ -659,14 +659,14 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			// not an independently foldable scalar comparison.
 			if leftChanged || rightChanged {
 				if pairs == nil {
-					pairs = append([]comparisonExpression(nil), e.comparisons...)
+					pairs = append([]comparisonExpression(nil), e.Comparisons...)
 				}
-				pair.left, pair.right = left, right
+				pair.Left, pair.Right = left, right
 				pairs[i] = pair
 			}
 		}
 		if pairs != nil {
-			e.comparisons = pairs
+			e.Comparisons = pairs
 			return e, true, nil
 		}
 		return e, false, nil
@@ -685,11 +685,11 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return next, true, nil
 		}
 	case comparisonExpression:
-		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		right, rightChanged, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		right, rightChanged, err := preflightCoercionsWithPolicy(c, e.Right, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
@@ -697,29 +697,29 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			_, leftConstant := left.(literalExpression)
 			_, rightConstant := right.(literalExpression)
 			if leftConstant && rightConstant {
-				e.left, e.right = left, right
+				e.Left, e.Right = left, right
 				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if leftChanged || rightChanged {
-			e.left, e.right = left, right
+			e.Left, e.Right = left, right
 			return e, true, nil
 		}
 	case bitwiseExpression:
-		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		left, lc, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		var right expr.Expr
 		var rc bool
-		if e.right != nil {
-			right, rc, err = preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		if e.Right != nil {
+			right, rc, err = preflightCoercionsWithPolicy(c, e.Right, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 		}
-		e.left, e.right = left, right
+		e.Left, e.Right = left, right
 		if bitwiseConstantNull(left) || bitwiseConstantNull(right) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
@@ -745,32 +745,32 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return e, true, nil
 		}
 	case selectedOperatorExpression:
-		provider, changed, err := preflightCoercionsWithPolicy(c, e.provider, decisiveDefaults)
+		provider, changed, err := preflightCoercionsWithPolicy(c, e.Provider, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		if changed {
-			e.provider = provider
+			e.Provider = provider
 			return e, true, nil
 		}
 	case arithmeticExpression:
-		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		var right expr.Expr
 		var rightChanged bool
-		if e.right != nil {
-			right, rightChanged, err = preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		if e.Right != nil {
+			right, rightChanged, err = preflightCoercionsWithPolicy(c, e.Right, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 		}
-		e.left, e.right = left, right
+		e.Left, e.Right = left, right
 		if arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
-		if (e.left.ResultUsage().Type.ID() == sqltype.Inet || e.right != nil && e.right.ResultUsage().Type.ID() == sqltype.Inet) && networkOperatorExecutionConstant(e, c) {
+		if (e.Left.ResultUsage().Type.ID() == sqltype.Inet || e.Right != nil && e.Right.ResultUsage().Type.ID() == sqltype.Inet) && networkOperatorExecutionConstant(e, c) {
 			if folded, changed, err := foldStrictParameterNull(c, e); err != nil || changed {
 				return folded, changed, err
 			}
@@ -791,43 +791,43 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return e, true, nil
 		}
 	case nullTestExpression:
-		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
+		child, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		if decisiveDefaults {
 			if _, constant := child.(literalExpression); constant {
-				e.child = child
+				e.Child = child
 				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if changed {
-			e.child = child
+			e.Child = child
 			return e, true, nil
 		}
 	case truthTestExpression:
-		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
+		child, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		if decisiveDefaults {
 			if _, constant := child.(literalExpression); constant {
-				e.child = child
+				e.Child = child
 				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if changed {
-			e.child = child
+			e.Child = child
 			return e, true, nil
 		}
 	case distinctExpression:
-		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		right, rightChanged, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		right, rightChanged, err := preflightCoercionsWithPolicy(c, e.Right, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
@@ -835,25 +835,25 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			_, leftConstant := left.(literalExpression)
 			_, rightConstant := right.(literalExpression)
 			if leftConstant && rightConstant {
-				e.left, e.right = left, right
+				e.Left, e.Right = left, right
 				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if leftChanged || rightChanged {
-			e.left, e.right = left, right
+			e.Left, e.Right = left, right
 			return e, true, nil
 		}
 	case logicalExpression:
-		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		var leftConstant bool
 		if decisiveDefaults {
 			_, leftConstant = left.(literalExpression)
-			e.left = left
-			value, decisive, err := decisiveLogicalValue(&e)
+			e.Left = left
+			value, decisive, err := DecisiveLogicalValue(&e)
 			if err != nil {
 				return nil, false, err
 			}
@@ -863,22 +863,22 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 		var right expr.Expr
 		var rightChanged bool
-		if e.right != nil {
-			right, rightChanged, err = preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		if e.Right != nil {
+			right, rightChanged, err = preflightCoercionsWithPolicy(c, e.Right, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 		}
 		if decisiveDefaults && leftConstant {
 			_, rightConstant := right.(literalExpression)
-			if e.op == parser.LogicalNot || rightConstant {
-				e.left, e.right = left, right
+			if e.Op == parser.LogicalNot || rightConstant {
+				e.Left, e.Right = left, right
 				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if leftChanged || rightChanged {
-			e.left, e.right = left, right
+			e.Left, e.Right = left, right
 			return e, true, nil
 		}
 	case expr.Composite:
@@ -897,7 +897,7 @@ func preflightValue(c *EvalContext, info expr.Info, value sqltype.Value, err err
 		return nil, false, err
 	}
 	info.RoutineReference = nil
-	return literalExpression{Info: info, value: value}, true, nil
+	return literalExpression{Info: info, Value: value}, true, nil
 }
 
 type expressionContext uint8
@@ -1032,7 +1032,7 @@ func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position
 		if b.params.updateParameters {
 			// UPDATE uses occurrence-sensitive inference diagnostics; other
 			// assignment consumers retain their selected 0A000 boundary.
-			_, err := b.coerceParameter(parameterExpression{Info: expr.Info{Pos: pos}, number: n}, u)
+			_, err := b.coerceParameter(parameterExpression{Info: expr.Info{Pos: pos}, Number: n}, u)
 			return err
 		}
 		return sqlError("0A000", "parameter reused with different destination types")
@@ -1044,8 +1044,8 @@ func (b *expressionBinder) finish() (ParameterInfo, error) {
 	// Retained unknown ANY and null-test occurrences share binding order.
 	// Diagnose occurrence mismatches before gaps or unresolved shared slots.
 	for _, p := range b.params.anyParameters {
-		if b.params.parameters[p.number].Type != nil {
-			return ParameterInfo{}, expr.ErrorAt("42P08", fmt.Sprintf("could not determine data type of parameter $%d", p.number), p.Pos)
+		if b.params.parameters[p.Number].Type != nil {
+			return ParameterInfo{}, expr.ErrorAt("42P08", fmt.Sprintf("could not determine data type of parameter $%d", p.Number), p.Pos)
 		}
 	}
 	keys := make([]int, 0, len(b.params.parameters))
@@ -1111,7 +1111,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 			return nil, diagnostic
 		}
 		if column, ok := node.(columnExpression); ok {
-			if _, generated := owner.ColumnMeta.Generations[column.origin.Address.SubID]; generated {
+			if _, generated := owner.ColumnMeta.Generations[column.Origin.Address.SubID]; generated {
 				diagnostic := expr.ErrorAt("42P17", fmt.Sprintf(`cannot use generated column "%s" in column generation expression`, name), raw.Pos).(*sqlstate.Error)
 				diagnostic.Detail = "A generated column cannot reference another generated column."
 				return nil, diagnostic
@@ -1193,9 +1193,9 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
 
 func (b *expressionBinder) columnAtOf(relation *catalog.Relation, i int, pos parser.Position) expr.Expr {
 	ref := b.useColumnOf(relation, i)
-	column := columnExpression{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
+	column := columnExpression{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: i}
 	if b.target.generatedOwner == nil {
-		column = column.withGeneration(relation, i, 0)
+		column = column.WithGeneration(relation, i, 0)
 	}
 	return column
 }
@@ -1215,7 +1215,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			// Selection analyzed this operand before the winning argument
 			// owner existed. Preserve its lexical occurrence even if the
 			// signature does not retain an executable argument.
-			if nested := windowOccurrence(node); nested != nil && nested.frame == b.frameID() {
+			if nested := windowOccurrence(node); nested != nil && nested.Frame == b.frameID() {
 				b.grouping.argumentOwner.first, b.grouping.argumentOwner.found = nested.Pos, true
 			}
 		}
@@ -2058,7 +2058,7 @@ func domainCoercionInput(child expr.Expr, target sqltype.Usage) (expr.Expr, expr
 		if !ok {
 			return child, annotations
 		}
-		child = annotation.child
+		child = annotation.Child
 	}
 }
 
@@ -2071,7 +2071,7 @@ func restoreDomainCastCollations(original, coerced expr.Expr) expr.Expr {
 		return coerced
 	}
 	ref := annotation.Usage.Collation
-	annotation.child = restoreDomainCastCollations(annotation.child, coerced)
+	annotation.Child = restoreDomainCastCollations(annotation.Child, coerced)
 	annotation.Usage = coerced.ResultUsage()
 	annotation.Usage.Collation = ref
 	annotation.Property = coerced.Properties()
@@ -2110,7 +2110,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 		if !ok {
 			break
 		}
-		bound = coercion.child
+		bound = coercion.Child
 	}
 	switch r := raw.(type) {
 	case parser.RowExpr:
@@ -2127,8 +2127,8 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 			return "exists", true
 		}
 		if r.Kind == parser.SubqueryScalar {
-			if child, ok := bound.(subqueryExpression); ok && len(child.queryPlan.Root.Schema()) == 1 {
-				name := child.queryPlan.Root.Schema()[0].Name
+			if child, ok := bound.(subqueryExpression); ok && len(child.QueryPlan.Root.Schema()) == 1 {
+				name := child.QueryPlan.Root.Schema()[0].Name
 				return name, name != "?column?" || len(r.Query.Labels) > 0 && r.Query.Labels[0].Text != ""
 			}
 		}
@@ -2147,7 +2147,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 		if r.Else != nil {
 			var otherwise expr.Expr
 			if expr, ok := bound.(caseExpression); ok {
-				otherwise = expr.otherwise
+				otherwise = expr.Otherwise
 			}
 			if name, strong := expressionName(r.Else, usage, otherwise); strong {
 				return name, true
@@ -2179,7 +2179,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 		return "timezone", true
 	case parser.CollateExpr:
 		if expr, ok := bound.(collationExpression); ok {
-			bound = expr.child
+			bound = expr.Child
 		}
 		return expressionName(r.Child, usage, bound)
 	case parser.CastExpr:
@@ -2293,7 +2293,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return node.(literalExpression).value, nil
+		return node.(literalExpression).Value, nil
 	}
 	if sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsCube() || u.Type.BaseType().IsQueryInt() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().ID() == sqltype.DateRange || u.Type.BaseType().ID() == sqltype.TimestampRange || u.Type.BaseType().ID() == sqltype.TimestamptzRange {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
@@ -2555,7 +2555,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 	case functions.RecordFormalArgument:
 		var record *sqltype.Descriptor
 		if parameter, ok := argument.Expression.(parameterExpression); ok {
-			record = b.params.parameters[parameter.number].Type
+			record = b.params.parameters[parameter.Number].Type
 		}
 		if record == nil {
 			var err error
@@ -2692,13 +2692,13 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 }
 
 func (b *expressionBinder) coerceParameter(p parameterExpression, u sqltype.Usage) (expr.Expr, error) {
-	if existing := b.params.parameters[p.number]; existing.Type != nil && existing.Type != u.Type {
-		d := expr.ErrorAt("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.number), p.Pos).(*sqlstate.Error)
+	if existing := b.params.parameters[p.Number]; existing.Type != nil && existing.Type != u.Type {
+		d := expr.ErrorAt("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.Number), p.Pos).(*sqlstate.Error)
 		d.Detail = fmt.Sprintf("%s versus %s", existing.Type.DiagnosticName(), u.Type.DiagnosticName())
 		return nil, d
 	}
-	b.params.parameters[p.number] = u.Type.Usage()
-	return parameterExpression{b.info(u.Type.Usage(), p.Pos, p.Property), p.number}, nil
+	b.params.parameters[p.Number] = u.Type.Usage()
+	return parameterExpression{b.info(u.Type.Usage(), p.Pos, p.Property), p.Number}, nil
 }
 
 func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Descriptor) (expr.Expr, error) {
@@ -2822,7 +2822,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 // NULL makes its result independent of producer demand. Ordinary row arithmetic
 // and imported parameter NULLs retain their existing execution-owned behavior.
 func arithmeticSetConstantNull(original, current arithmeticExpression) bool {
-	return (bitwiseConstantNull(current.left) || bitwiseConstantNull(current.right)) &&
+	return (bitwiseConstantNull(current.Left) || bitwiseConstantNull(current.Right)) &&
 		(querySetDepth(original) != 0 || querySetDepth(current) != 0)
 }
 

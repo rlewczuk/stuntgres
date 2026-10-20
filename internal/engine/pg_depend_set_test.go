@@ -23,24 +23,24 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 	literal := literalExpression{Info: expr.Info{Usage: integer.Usage()}}
 	// The ordinary project arms contain no unpinned references. Both targets
 	// exist solely in the set's analyzed coercion expression arrays.
-	left := &projectNode{expressions: []expr.Expr{literal}}
-	right := &projectNode{expressions: []expr.Expr{literal}}
-	node := &setNode{operation: "union", all: true, left: left, right: right,
-		leftExpressions:  []expr.Expr{coercionExpression{Info: expr.Info{Usage: domains[0].Usage()}, child: literal}},
-		rightExpressions: []expr.Expr{coercionExpression{Info: expr.Info{Usage: domains[1].Usage()}, child: literal}}}
+	left := &projectNode{Expressions: []expr.Expr{literal}}
+	right := &projectNode{Expressions: []expr.Expr{literal}}
+	node := &setNode{Operation: "union", All: true, Left: left, Right: right,
+		LeftExpressions:  []expr.Expr{coercionExpression{Info: expr.Info{Usage: domains[0].Usage()}, Child: literal}},
+		RightExpressions: []expr.Expr{coercionExpression{Info: expr.Info{Usage: domains[1].Usage()}, Child: literal}}}
 	got, err := pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: node})
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{pgDependUnitAddress(1247, 49501, 0), pgDependUnitAddress(1247, 49502, 0)})
-	node.rightExpressions = append(node.rightExpressions, node.leftExpressions[0])
+	node.RightExpressions = append(node.RightExpressions, node.LeftExpressions[0])
 	got, err = pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: node})
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{pgDependUnitAddress(1247, 49501, 0), pgDependUnitAddress(1247, 49502, 0)})
-	node.leftExpressions = nil
-	node.rightExpressions = nil
+	node.LeftExpressions = nil
+	node.RightExpressions = nil
 	// Result metadata is not itself a Const or coercion target.
 	node.querySchema = querySchema{{Usage: domains[0].Usage()}}
 	got, err = pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: node})

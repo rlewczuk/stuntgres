@@ -13,9 +13,9 @@ import (
 func updateRowTestAction(t *testing.T, e *Engine, q *BoundQuery) *boundUpdate {
 	t.Helper()
 	source := subqueryTestExpression(t, e, q, parser.SubqueryScalar)
-	source.updateWidth = 2
+	source.UpdateWidth = 2
 	source.Property.StageDependent = true
-	return &boundUpdate{assignments: []expr.Expr{source, updateOutputExpression{Info: expr.Info{Usage: q.Root.Schema()[1].Usage, Property: expr.Properties{StageDependent: true}}, index: 1}}, groups: []updateAssignmentGroup{{start: 0, width: 2}}, outputWidth: 2}
+	return &boundUpdate{assignments: []expr.Expr{source, updateOutputExpression{Info: expr.Info{Usage: q.Root.Schema()[1].Usage, Property: expr.Properties{StageDependent: true}}, Index: 1}}, groups: []updateAssignmentGroup{{start: 0, width: 2}}, outputWidth: 2}
 }
 
 func TestUpdateRowEvaluation(t *testing.T) {
@@ -85,7 +85,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		c := execution.evaluation(context.Background())
 		action := updateRowTestAction(t, e, q)
 		second := action.assignments[1].(updateOutputExpression)
-		second.group = 2
+		second.Group = 2
 		action.assignments = append(action.assignments, action.assignments[0], second)
 		action.groups = append(action.groups, updateAssignmentGroup{start: 2, width: 2})
 		typ := project.Schema()[0].Usage.Type
@@ -134,7 +134,7 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 			}
 			op, scope, b, target, sources := updateFromBoundSources(t, e, owner, ctx, q)
 			source := b.update.assignments[0].(subqueryExpression)
-			project := source.queryPlan.Root.(*projectNode)
+			project := source.QueryPlan.Root.(*projectNode)
 			calls, stagedBeforeCancel := 0, false
 			subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 				calls++

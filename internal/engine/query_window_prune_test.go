@@ -33,25 +33,25 @@ func TestQueryWindowSurvivingOccurrences(t *testing.T) {
 			e, query, source := queryCoreFixture(t, tc.sql)
 			defer source.close()
 			original := pruningTestWindow(t, query.Root)
-			calls := append([]windowCall(nil), original.calls...)
+			calls := append([]windowCall(nil), original.Calls...)
 			for range 2 {
-				prepared, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: query.Root.(*projectNode).frame}}, query.Root)
+				prepared, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: query.Root.(*projectNode).Frame}}, query.Root)
 				if err != nil {
 					t.Fatal(err)
 				}
 				window := pruningTestWindow(t, prepared)
-				if len(window.calls) != len(tc.inactive) {
-					t.Fatalf("call count %d, want %d", len(window.calls), len(tc.inactive))
+				if len(window.Calls) != len(tc.inactive) {
+					t.Fatalf("call count %d, want %d", len(window.Calls), len(tc.inactive))
 				}
-				for i, call := range window.calls {
-					if call.analysisOnly != tc.inactive[i] {
-						t.Fatalf("call %d inactive=%v, want %v", i, call.analysisOnly, tc.inactive[i])
+				for i, call := range window.Calls {
+					if call.AnalysisOnly != tc.inactive[i] {
+						t.Fatalf("call %d inactive=%v, want %v", i, call.AnalysisOnly, tc.inactive[i])
 					}
-					if call.expression != calls[i].expression || call.routine != calls[i].routine {
+					if call.Expression != calls[i].Expression || call.Routine != calls[i].Routine {
 						t.Fatal("pruning changed original slot or routine identity")
 					}
 				}
-				if !reflect.DeepEqual(original.calls, calls) {
+				if !reflect.DeepEqual(original.Calls, calls) {
 					t.Fatal("execution mutated analyzed calls")
 				}
 			}
@@ -62,7 +62,7 @@ func TestQueryWindowSurvivingOccurrences(t *testing.T) {
 func TestQueryWindowPrunedSharedSort(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT CASE WHEN FALSE THEN lag(v) OVER(ORDER BY id) ELSE 7 END,lead(v) OVER(ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) FROM t ORDER BY id")
 	original := pruningTestWindow(t, query.Root)
-	if len(original.specs) != 2 || original.sortIndices[1] != 0 {
+	if len(original.Specs) != 2 || original.SortIndices[1] != 0 {
 		t.Fatal("fixture does not have distinct frames sharing the first sort")
 	}
 	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
@@ -81,7 +81,7 @@ func TestQueryWindowPrunedSharedSort(t *testing.T) {
 	if present, err := rows.Next(context.Background(), values[:]); present || err != nil {
 		t.Fatalf("shared-sort end present=%v, err=%v", present, err)
 	}
-	if original.calls[0].analysisOnly || original.calls[1].analysisOnly {
+	if original.Calls[0].AnalysisOnly || original.Calls[1].AnalysisOnly {
 		t.Fatal("execution mutated the analyzed shared-sort definition")
 	}
 }
@@ -99,25 +99,25 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			e, query, source := queryCoreFixture(t, tc.sql)
 			defer source.close()
 			original := pruningTestWindow(t, query.Root)
-			originalCall := original.calls[0]
+			originalCall := original.Calls[0]
 			project := query.Root.(*projectNode)
-			frame := project.frame + 7
+			frame := project.Frame + 7
 			// Exercise the same physical-layout graft as writable rules while
 			// leaving original window call metadata untouched.
-			schema := append([]catalog.Column(nil), original.child.Schema()...)
+			schema := append([]catalog.Column(nil), original.Child.Schema()...)
 			schema = append(schema, schema[0])
-			input := &evaluationNode{querySchema: querySchema(schema), child: original.child}
+			input := &evaluationNode{querySchema: querySchema(schema), Child: original.Child}
 			slots := make(map[int]int)
-			grafted, err := ruleGraftSchemas(query.Root, original.child, input, slots)
+			grafted, err := ruleGraftSchemas(query.Root, original.Child, input, slots)
 			if err != nil {
 				t.Fatal(err)
 			}
 			grafted, err = rewriteQueryExpressions(grafted, func(bound expr.Expr) (expr.Expr, bool, error) {
 				return rewriteViewExpression(e.CatalogRead(), bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
-					if occurrence, ok := expr.(*windowExpression); ok && occurrence.frame == project.frame {
+					if occurrence, ok := expr.(*windowExpression); ok && occurrence.Frame == project.Frame {
 						copy := *occurrence
-						copy.slot = slots[occurrence.slot]
-						copy.frame = frame
+						copy.Slot = slots[occurrence.Slot]
+						copy.Frame = frame
 						return &copy, true, nil
 					}
 					return expr, false, nil
@@ -127,17 +127,17 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 				t.Fatal(err)
 			}
 			copy := *grafted.(*projectNode)
-			copy.frame = frame
+			copy.Frame = frame
 			pruned, err := pruneProjectWindows(&copy)
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := pruningTestWindow(t, pruned).calls[0]
-			if call.analysisOnly != tc.inactive {
-				t.Fatalf("grafted window inactive=%v, want %v", call.analysisOnly, tc.inactive)
+			call := pruningTestWindow(t, pruned).Calls[0]
+			if call.AnalysisOnly != tc.inactive {
+				t.Fatalf("grafted window inactive=%v, want %v", call.AnalysisOnly, tc.inactive)
 			}
-			if call.expression != originalCall.expression || call.routine != originalCall.routine ||
-				!reflect.DeepEqual(original.calls[0], originalCall) {
+			if call.Expression != originalCall.Expression || call.Routine != originalCall.Routine ||
+				!reflect.DeepEqual(original.Calls[0], originalCall) {
 				t.Fatal("grafted demand changed original window identity")
 			}
 		})

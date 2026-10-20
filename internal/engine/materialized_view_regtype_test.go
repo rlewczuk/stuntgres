@@ -22,7 +22,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	renderer := pgRenderer{view: source.stageRead(sourceStage), path: []ids.ObjectAddress{original.Namespace()}}
-	text, err := renderer.literal(context.Background(), literalExpression{Info: expr.Info{Usage: regtype.Usage()}, value: builtin})
+	text, err := renderer.literal(context.Background(), literalExpression{Info: expr.Info{Usage: regtype.Usage()}, Value: builtin})
 	if err != nil || text != "'integer'::regtype" {
 		t.Fatalf("builtin symbolic deparse: %q %v", text, err)
 	}
@@ -60,7 +60,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	renderer = pgRenderer{view: destination.stageRead(destinationStage), path: []ids.ObjectAddress{reminted.Namespace()}}
-	text, err = renderer.literal(context.Background(), literalExpression{Info: expr.Info{Usage: destinationRegtype.Usage()}, value: value})
+	text, err = renderer.literal(context.Background(), literalExpression{Info: expr.Info{Usage: destinationRegtype.Usage()}, Value: value})
 	if err != nil || text != "'unit_mv'::regtype" {
 		t.Fatalf("reminted symbolic deparse: %q %v", text, err)
 	}

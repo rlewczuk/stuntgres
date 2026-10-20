@@ -94,7 +94,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		if err = validateQueryTableOutputType(typ); err != nil {
 			return nil, nil, false, err
 		}
-		if projection.expressions[i].CollationIndeterminate() {
+		if projection.Expressions[i].CollationIndeterminate() {
 			return nil, nil, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`no collation was derived for column "%s" with collatable type %s`, column.Name, typ.Name()), Hint: "Use the COLLATE clause to set the collation explicitly."}
 		}
 		if !column.Usage.Valid() {

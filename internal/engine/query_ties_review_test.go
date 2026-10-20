@@ -14,19 +14,19 @@ func TestQueryTiesPresenceOnly(t *testing.T) {
 	if !canSimplifyExists(query) {
 		t.Fatal("literal positive bound not eligible")
 	}
-	original := query.Root.(*projectNode).child.(*limitNode)
+	original := query.Root.(*projectNode).Child.(*limitNode)
 	limit := presenceQueryInput(original).(*limitNode)
-	ordered := limit.child.(*sortNode)
-	if !limit.presenceOnly || !ordered.presenceOnly || limit.count != original.count || !limit.withTies || len(limit.peerKeys) != len(original.peerKeys) {
+	ordered := limit.Child.(*sortNode)
+	if !limit.PresenceOnly || !ordered.PresenceOnly || limit.Count != original.Count || !limit.WithTies || len(limit.PeerKeys) != len(original.PeerKeys) {
 		t.Fatal("presence transformation lost analyzed graph")
 	}
 	calls := 0
 	failure := errors.New("ignored bounds or ORDER executed")
-	limit.count = queryProbe(limit.count.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
-	probe := queryProbe(ordered.keys[0].expression.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
-	ordered.keys = append([]sortKey(nil), ordered.keys...)
-	ordered.keys[0].expression = probe
-	limit.peerKeys = ordered.keys
+	limit.Count = queryProbe(limit.Count.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
+	probe := queryProbe(ordered.Keys[0].Expression.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
+	ordered.Keys = append([]sortKey(nil), ordered.Keys...)
+	ordered.Keys[0].Expression = probe
+	limit.PeerKeys = ordered.Keys
 	state := &queryState{source: source}
 	stage, err := openLimitNode(context.Background(), state, limit)
 	if err != nil {
@@ -58,10 +58,10 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 			t.Run(properties.name+"/"+mode, func(t *testing.T) {
 				calls := 0
 				expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: properties.properties}, eval: func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
-				ordered := &sortNode{keys: []sortKey{{cache: 0, expression: expr, output: mode == "only visible"}, {cache: 0, expression: expr, output: mode == "only visible"}}, cacheWidth: 1}
+				ordered := &sortNode{Keys: []sortKey{{Cache: 0, Expression: expr, Output: mode == "only visible"}, {Cache: 0, Expression: expr, Output: mode == "only visible"}}, CacheWidth: 1}
 				if mode == "ties hidden" {
-					limit := &limitNode{withTies: true}
-					limit.finishTies(ordered)
+					limit := &limitNode{WithTies: true}
+					limit.FinishTies(ordered)
 				}
 				evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{orderValues: []sqltype.Value{one}}}
 				if err := refreshLockedOrder(ordered, []sqltype.Value{two}, &evaluation); err != nil {
@@ -128,9 +128,9 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			if phase == "physical slot" {
 				slot = -1
 			}
-			ordered := &sortNode{keys: []sortKey{{cache: slot, expression: expr}}, cacheWidth: 1}
-			limit := &limitNode{withTies: true}
-			limit.finishTies(ordered)
+			ordered := &sortNode{Keys: []sortKey{{Cache: slot, Expression: expr}}, CacheWidth: 1}
+			limit := &limitNode{WithTies: true}
+			limit.FinishTies(ordered)
 			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{orderValues: []sqltype.Value{one}}}
 			err := refreshLockedOrder(ordered, []sqltype.Value{one}, &evaluation)
 			if evaluation.orderValues[0] != one {
@@ -166,8 +166,8 @@ func TestQueryTiesPresenceBoundEligibility(t *testing.T) {
 			if canSimplifyExists(query) {
 				t.Fatal("ordinary bound incorrectly discarded")
 			}
-			limit := query.Root.(*projectNode).child.(*limitNode)
-			if limit.presenceOnly || limit.child.(*sortNode).presenceOnly {
+			limit := query.Root.(*projectNode).Child.(*limitNode)
+			if limit.PresenceOnly || limit.Child.(*sortNode).PresenceOnly {
 				t.Fatal("ordinary ORDER production bypassed")
 			}
 		})

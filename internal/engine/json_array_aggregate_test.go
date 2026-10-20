@@ -51,7 +51,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 		t.Fatal("incompatible operations shared a slot", len(b.grouping.aggregates))
 	}
 	for _, call := range b.grouping.aggregates {
-		if !call.includeNulls {
+		if !call.IncludeNulls {
 			t.Fatal("presence lost before provider")
 		}
 	}
@@ -92,7 +92,7 @@ func TestJSONArrayAggregateProviderRemap(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.JSON, sqltype.JSONB} {
 		result, _ := source.CatalogRead().LookupType(id)
 		p := jsonArrayProviderUnit(t, input.Usage(), result.Usage(), true)
-		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: functions.AggregateJSONStrict, includeNulls: true}}}
+		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: functions.AggregateJSONStrict, IncludeNulls: true}}}
 		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
@@ -100,25 +100,25 @@ func TestJSONArrayAggregateProviderRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := mapped.(*aggregateNode).calls[0]
+		call := mapped.(*aggregateNode).Calls[0]
 		newInput, _ := destination.CatalogRead().LookupType(sqltype.Int4)
 		newResult, _ := destination.CatalogRead().LookupType(id)
-		if call.provider.ResultUsage().Type != newResult || mapped.Schema()[0].Usage.Type != newResult || p.ResultUsage().Type != result || !call.includeNulls {
+		if call.Provider.ResultUsage().Type != newResult || mapped.Schema()[0].Usage.Type != newResult || p.ResultUsage().Type != result || !call.IncludeNulls {
 			t.Fatal("incomplete immutable remap")
 		}
-		state, err := call.provider.Init(ctx)
+		state, err := call.Provider.Init(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		old, _ := sqltype.Integer(input, 1)
 		next, _ := sqltype.Integer(newInput, 1)
-		if err = call.provider.Advance(ctx, state, old, sqltype.Value{}); err == nil {
+		if err = call.Provider.Advance(ctx, state, old, sqltype.Value{}); err == nil {
 			t.Fatal("old owner accepted")
 		}
-		if err = call.provider.Advance(ctx, state, next, sqltype.Value{}); err != nil {
+		if err = call.Provider.Advance(ctx, state, next, sqltype.Value{}); err != nil {
 			t.Fatal("remapped plan not rebound", err)
 		}
-		value, err := call.provider.Finalize(ctx, state)
+		value, err := call.Provider.Finalize(ctx, state)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,9 +142,9 @@ func TestJSONArrayAggregateRunnerNullPresence(t *testing.T) {
 			}
 			qtext += " FROM t"
 			_, q, source := queryCoreFixture(t, qtext)
-			node := q.Root.(*projectNode).child.(*aggregateNode)
-			usage := node.calls[0].argument.ResultUsage()
-			node.calls[0].argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+			node := q.Root.(*projectNode).Child.(*aggregateNode)
+			usage := node.Calls[0].Argument.ResultUsage()
+			node.Calls[0].Argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated rejected argument")
 				}
@@ -182,11 +182,11 @@ func TestJSONArrayAggregateReachedEagerCancellation(t *testing.T) {
 		{"json_agg", ".writeJSONBString"}, {"jsonb_agg", ".jsonbOutput"}, {"jsonb_agg", ".(*jsonbBuilder).close"},
 	} {
 		e, q, source := queryCoreFixture(t, "SELECT "+tc.name+"(v) FROM t")
-		node := q.Root.(*projectNode).child.(*aggregateNode)
+		node := q.Root.(*projectNode).Child.(*aggregateNode)
 		input, _ := e.CatalogRead().LookupType(sqltype.Text)
-		result := node.calls[0].provider.ResultUsage()
-		node.calls[0].provider = jsonArrayProviderUnit(t, input.Usage(), result, false)
-		node.calls[0].argument = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
+		result := node.Calls[0].Provider.ResultUsage()
+		node.Calls[0].Provider = jsonArrayProviderUnit(t, input.Usage(), result, false)
+		node.Calls[0].Argument = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
 		rows, n, err := finalizeQuery(probe, q.Root, source, nil)

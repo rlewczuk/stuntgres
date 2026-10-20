@@ -14,30 +14,30 @@ unwrap:
 	for {
 		switch n := root.(type) {
 		case *projectNode:
-			root = n.child
+			root = n.Child
 		case *sortNode:
-			root = n.child
+			root = n.Child
 		case *limitNode:
-			root = n.child
+			root = n.Child
 		case *filterNode:
-			root = n.child
+			root = n.Child
 		default:
 			break unwrap
 		}
 	}
 	switch n := root.(type) {
 	case *sourceNode:
-		slot = &n.presenceSlot
+		slot = &n.PresenceSlot
 	case *valuesNode:
-		slot = &n.presenceSlot
+		slot = &n.PresenceSlot
 	case *derivedNode:
-		slot = &n.presenceSlot
+		slot = &n.PresenceSlot
 	case *worktableScanNode:
-		slot = &n.presenceSlot
+		slot = &n.PresenceSlot
 	case *joinNode:
-		slot = &n.presenceSlot
+		slot = &n.PresenceSlot
 	case *functionFromNode:
-		slot = &n.presenceSlot
+		slot = &n.PresenceSlot
 	default:
 		return 0, fmt.Errorf("stuntgres: missing whole-row source occurrence")
 	}
@@ -52,25 +52,25 @@ unwrap:
 }
 
 func (c *EvalContext) RowAbsent(n rowExpression) (bool, error) {
-	if n.presenceSlot == 0 && n.wholeNames == nil {
+	if n.PresenceSlot == 0 && n.WholeNames == nil {
 		return false, nil
 	}
-	for c != nil && (c.Scope != 1 || c.Frame != n.presenceFrame) {
+	for c != nil && (c.Scope != 1 || c.Frame != n.PresenceFrame) {
 		c = c.Outer
 	}
 	if c == nil {
 		return false, fmt.Errorf("stuntgres: missing whole-row source frame")
 	}
-	if n.mergeSource && !c.mergeSourcePresent {
+	if n.MergeSource && !c.mergeSourcePresent {
 		return true, nil
 	}
-	if n.presenceSlot == 0 {
+	if n.PresenceSlot == 0 {
 		return false, nil
 	}
-	if n.presenceSlot > len(c.presenceSlots) {
+	if n.PresenceSlot > len(c.presenceSlots) {
 		return false, fmt.Errorf("stuntgres: missing whole-row presence frame")
 	}
-	index := c.presenceSlots[n.presenceSlot-1] - 1
+	index := c.presenceSlots[n.PresenceSlot-1] - 1
 	if index < 0 || index >= len(c.presence) {
 		return false, fmt.Errorf("stuntgres: missing whole-row presence occurrence")
 	}
@@ -128,30 +128,30 @@ func markPresenceTopology(root LogicalNode, slots []int) int {
 	slot := 0
 	switch n := root.(type) {
 	case *sourceNode:
-		slot = n.presenceSlot
+		slot = n.PresenceSlot
 	case *valuesNode:
-		slot = n.presenceSlot
+		slot = n.PresenceSlot
 	case *derivedNode:
-		slot = n.presenceSlot
+		slot = n.PresenceSlot
 	case *worktableScanNode:
-		slot = n.presenceSlot
+		slot = n.PresenceSlot
 	case *functionFromNode:
-		slot = n.presenceSlot
+		slot = n.PresenceSlot
 	case *joinNode:
-		slot = n.presenceSlot
-		width := max(markPresenceTopology(n.left, slots), markPresenceTopology(n.right, slots))
+		slot = n.PresenceSlot
+		width := max(markPresenceTopology(n.Left, slots), markPresenceTopology(n.Right, slots))
 		if slots != nil && slot != 0 {
 			slots[slot-1] = 1
 		}
 		return max(width, slot)
 	case *projectNode:
-		return markPresenceTopology(n.child, slots)
+		return markPresenceTopology(n.Child, slots)
 	case *sortNode:
-		return markPresenceTopology(n.child, slots)
+		return markPresenceTopology(n.Child, slots)
 	case *limitNode:
-		return markPresenceTopology(n.child, slots)
+		return markPresenceTopology(n.Child, slots)
 	case *filterNode:
-		return markPresenceTopology(n.child, slots)
+		return markPresenceTopology(n.Child, slots)
 	}
 	if slots != nil && slot != 0 {
 		slots[slot-1] = 1

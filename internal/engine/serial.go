@@ -62,25 +62,25 @@ func closedSequenceDefault(node expr.Expr) bool {
 	}
 	switch n := node.(type) {
 	case coercionExpression:
-		return closedSequenceDefault(n.child)
+		return closedSequenceDefault(n.Child)
 	case rowExpression:
-		for _, field := range n.fields {
+		for _, field := range n.Fields {
 			if field.Properties().Volatility > expr.Stable && !closedSequenceDefault(field) {
 				return false
 			}
 		}
 		return true
 	case fieldExpression:
-		return closedSequenceDefault(n.base)
+		return closedSequenceDefault(n.Base)
 	case functions.SequenceCall:
 		if n.Name != "nextval" || n.Identity || len(n.Args) != 1 || n.Ref == (ids.ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (expr.Properties{Volatility: expr.Volatile}) {
 			return false
 		}
 		literal, ok := n.Args[0].(literalExpression)
-		if !ok || literal.value.IsNull() || literal.ResultUsage().Type.ID() != sqltype.Regclass || literal.Properties() != (expr.Properties{}) {
+		if !ok || literal.Value.IsNull() || literal.ResultUsage().Type.ID() != sqltype.Regclass || literal.Properties() != (expr.Properties{}) {
 			return false
 		}
-		text, err := literal.value.Text()
+		text, err := literal.Value.Text()
 		return err == nil && text == strconv.FormatUint(uint64(n.Ref.Address.ObjectID), 10)
 	}
 	return false
@@ -94,29 +94,29 @@ func closedRegclassDefault(node expr.Expr) bool {
 	case literalExpression:
 		return true
 	case coercionExpression:
-		return closedRegclassDefault(n.child)
+		return closedRegclassDefault(n.Child)
 	case rowExpression:
-		for _, field := range n.fields {
+		for _, field := range n.Fields {
 			if !closedRegclassDefault(field) {
 				return false
 			}
 		}
 		return true
 	case fieldExpression:
-		return closedRegclassDefault(n.base)
+		return closedRegclassDefault(n.Base)
 	case arrayExpression:
-		for _, element := range n.elements {
+		for _, element := range n.Elements {
 			if !closedRegclassDefault(element) {
 				return false
 			}
 		}
 		return true
 	case subscriptExpression:
-		if !closedRegclassDefault(n.base) {
+		if !closedRegclassDefault(n.Base) {
 			return false
 		}
-		for _, s := range n.subscripts {
-			if s.lower != nil && !closedRegclassDefault(s.lower) || s.upper != nil && !closedRegclassDefault(s.upper) {
+		for _, s := range n.Subscripts {
+			if s.Lower != nil && !closedRegclassDefault(s.Lower) || s.Upper != nil && !closedRegclassDefault(s.Upper) {
 				return false
 			}
 		}

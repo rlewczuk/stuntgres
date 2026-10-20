@@ -15,7 +15,7 @@ import (
 // facts; conservative row/stage dependence on an already-pruned literal remains.
 func bitwiseConstantNull(node expr.Expr) bool {
 	literal, ok := node.(literalExpression)
-	return ok && !literal.Property.ParameterDependent && literal.value.IsNull()
+	return ok && !literal.Property.ParameterDependent && literal.Value.IsNull()
 }
 
 func integralBitwiseType(t *sqltype.Descriptor) bool {
@@ -253,8 +253,8 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 	}
 	return bitwiseExpression{
 		Info: selectedInfo,
-		left: l, right: r, provider: provider, bits: bits, network: network,
-		operator: op, namespace: namespace,
+		Left: l, Right: r, Provider: provider, Bits: bits, Network: network,
+		Operator: op, Namespace: namespace,
 	}, nil
 }
 
@@ -272,7 +272,7 @@ func networkOperatorExecutionConstant(node expr.Expr, c *EvalContext) bool {
 	case literalExpression:
 		return true
 	case parameterExpression:
-		return n.number > 0 && n.number <= len(c.Parameters)
+		return n.Number > 0 && n.Number <= len(c.Parameters)
 	case columnExpression, groupExpression, aggregateExpression, groupingExpression, subqueryExpression:
 		return false
 	}

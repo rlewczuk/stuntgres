@@ -107,12 +107,12 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 		t.Fatal("full analysis invalidation cannot refresh role literal")
 	}
 	textType := aclUnitType(t, e, sqltype.Text)
-	text := literalExpression{Info: expr.Info{Usage: textType.Usage()}, value: sqltype.String(textType, "unit_role")}
+	text := literalExpression{Info: expr.Info{Usage: textType.Usage()}, Value: sqltype.String(textType, "unit_role")}
 	plan, err := sqltype.PlanCoercion(textType.Usage(), d.Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtime := coercionExpression{Info: expr.Info{Usage: d.Usage()}, child: text, plan: plan, mode: sqltype.Explicit}
+	runtime := coercionExpression{Info: expr.Info{Usage: d.Usage()}, Child: text, Plan: plan, Mode: sqltype.Explicit}
 	snapshot := false
 	if _, err := (scalarRenderer{commentSnapshot: &snapshot}).sql(context.Background(), e.CatalogRead(), runtime); err != nil || !snapshot {
 		t.Fatal("stored runtime input omitted statement snapshot demand", snapshot, err)
@@ -138,7 +138,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		if got := validateRegroleStoredLiteral(value); !reflect.DeepEqual(got, want) {
 			t.Fatal("complete stored diagnostic", got)
 		}
-		literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
+		literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
 		if _, err := (scalarRenderer{}).sql(context.Background(), view, literal); !reflect.DeepEqual(err, want) {
 			t.Fatal("renderer boundary", err)
 		}
@@ -174,17 +174,17 @@ func TestRegroleStoredLiteral(t *testing.T) {
 			t.Fatal("non-scalar-Const rejected", err)
 		}
 	}
-	literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
+	literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
 	textType := aclUnitType(t, e, sqltype.Text)
 	plan, err := sqltype.PlanCoercion(d.Usage(), textType.Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer := coercionExpression{Info: expr.Info{Usage: textType.Usage()}, child: literal, plan: plan, mode: sqltype.Explicit}
+	outer := coercionExpression{Info: expr.Info{Usage: textType.Usage()}, Child: literal, Plan: plan, Mode: sqltype.Explicit}
 	if _, err := (scalarRenderer{}).sql(context.Background(), view, outer); !reflect.DeepEqual(err, want) {
 		t.Fatal("outer cast hid prohibited child", err)
 	}
-	arrayLiteral := literalExpression{Info: expr.Info{Usage: arrayType.Usage()}, value: array}
+	arrayLiteral := literalExpression{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
 	renderer := viewRenderer{viewDefinition: &viewDefinition{
 		literals:   map[viewLiteralPath]literalExpression{{node: 1}: arrayLiteral},
 		castUsages: map[viewLiteralPath]sqltype.Usage{{}: arrayType.Usage()},

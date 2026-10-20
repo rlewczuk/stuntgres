@@ -47,7 +47,7 @@ func defaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 		literal, ok := child.(literalExpression)
 		if ok && literal.RegclassRef != (ids.ObjectRef{}) &&
 			literal.RegclassRef.Address.ClassID == ids.RelationClassID && literal.RegclassRef.Address.SubID == 0 &&
-			literal.ResultUsage().Type.ID() == sqltype.Regclass && !literal.value.IsNull() &&
+			literal.ResultUsage().Type.ID() == sqltype.Regclass && !literal.Value.IsNull() &&
 			slices.Contains(definition.Dependencies, literal.RegclassRef) {
 			captured = true
 		}

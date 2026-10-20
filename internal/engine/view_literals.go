@@ -63,16 +63,16 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 	// member CastExpr. Their enclosing constructor owns the annotation.
 	for {
 		coercion, ok := bound.(coercionExpression)
-		if !ok || coercion.mode == sqltype.Explicit && !coercion.syntheticConstructorElement {
+		if !ok || coercion.Mode == sqltype.Explicit && !coercion.SyntheticConstructorElement {
 			break
 		}
-		if constructor, ok := raw.(parser.SQLJSONExpr); ok && constructor.Returning != nil && coercion.mode == sqltype.Assignment {
+		if constructor, ok := raw.(parser.SQLJSONExpr); ok && constructor.Returning != nil && coercion.Mode == sqltype.Assignment {
 			break
 		}
-		if aggregate, ok := raw.(parser.AggregateExpr); ok && aggregate.JSON != nil && aggregate.JSON.Returning != nil && coercion.mode == sqltype.Assignment {
+		if aggregate, ok := raw.(parser.AggregateExpr); ok && aggregate.JSON != nil && aggregate.JSON.Returning != nil && coercion.Mode == sqltype.Assignment {
 			break // RETURNING owns this assignment conversion in the raw syntax.
 		}
-		bound = coercion.child
+		bound = coercion.Child
 	}
 	child := func(raw parser.Expr, bound expr.Expr) error {
 		childPath := path
@@ -127,7 +127,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		for i, written := range raw {
 			arg, _ := operands.At(hook, i) // Check validated every slot before any map write.
 			if operands.SelectedImplicit || operands.CallImplicit {
-				if coercion, ok := arg.(coercionExpression); ok && coercion.mode == sqltype.Implicit {
+				if coercion, ok := arg.(coercionExpression); ok && coercion.Mode == sqltype.Implicit {
 					if b.capture.castUsages == nil {
 						b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
 					}
@@ -151,20 +151,20 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 	case parser.ParameterExpr:
 		// MV parameter admission follows complete typed analysis. No such
 		// definition can publish; leave this occurrence to the later 0A000.
-		if parameter, ok := bound.(parameterExpression); b.consumer.materializedDefinition && ok && parameter.number == r.Number {
+		if parameter, ok := bound.(parameterExpression); b.consumer.materializedDefinition && ok && parameter.Number == r.Number {
 			return nil
 		}
 	case parser.ArrayComparisonExpr:
 		if n, ok := bound.(scalarArrayComparisonExpression); ok {
-			if err := child(r.Left, n.left); err != nil {
+			if err := child(r.Left, n.Left); err != nil {
 				return err
 			}
-			if n.array == nil {
+			if n.Array == nil {
 				// A homogeneous IN batch has synthetic frozen ARRAY syntax,
 				// but no array construction in its executable representation.
-				return child(r.Right, arrayExpression{elements: n.items})
+				return child(r.Right, arrayExpression{Elements: n.Items})
 			}
-			return child(r.Right, n.array)
+			return child(r.Right, n.Array)
 		}
 	case parser.SQLJSONExpr:
 		if r.Returning != nil {
@@ -173,7 +173,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			b.capture.castUsages[path] = bound.ResultUsage()
 			if c, ok := bound.(coercionExpression); ok {
-				bound = c.child
+				bound = c.Child
 			}
 		}
 		if r.Query != nil {
@@ -195,8 +195,8 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		return protocol(expr.CaptureCurrentDateTime, nil)
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if _, typed := r.(parser.TypedLiteralExpr); typed {
-			if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
-				if literal, ok := coercion.child.(literalExpression); ok && literal.Usage.Type == coercion.Usage.Type {
+			if coercion, ok := bound.(coercionExpression); ok && coercion.Mode == sqltype.Explicit {
+				if literal, ok := coercion.Child.(literalExpression); ok && literal.Usage.Type == coercion.Usage.Type {
 					// The stored query retains the executable typmod coercion.
 					// Literal replay writes its raw value with the typed occurrence's
 					// annotation, so ordinary binding reconstructs that same coercion.
@@ -214,11 +214,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				if !ok {
 					break
 				}
-				bound = coercion.child
+				bound = coercion.Child
 			}
 		}
 		if literal, ok := bound.(literalExpression); ok {
-			if err := validateRegroleStoredLiteral(literal.value); err != nil {
+			if err := validateRegroleStoredLiteral(literal.Value); err != nil {
 				return err
 			}
 			if b.capture.literals == nil {
@@ -232,21 +232,21 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			if b.capture.columns == nil {
 				b.capture.columns = make(map[viewLiteralPath]viewColumn)
 			}
-			captured := viewColumn{frame: column.frame, slot: column.slot}
-			if column.scope == rulePseudoScope {
-				captured.ruleRef = column.origin
-				captured.ruleSide = column.frame
+			captured := viewColumn{frame: column.Frame, slot: column.Slot}
+			if column.Scope == rulePseudoScope {
+				captured.ruleRef = column.Origin
+				captured.ruleSide = column.Frame
 			}
 			b.capture.columns[path] = captured
 			return nil
 		}
-		if row, ok := bound.(rowExpression); ok && row.wholeNames != nil {
+		if row, ok := bound.(rowExpression); ok && row.WholeNames != nil {
 			b.capture.captureViewComposite(path, compositeWholeRow, row, nil)
 			return nil
 		}
 	case parser.GroupingExpr:
 		if n, ok := bound.(groupingExpression); ok {
-			return children(r.Args, n.args)
+			return children(r.Args, n.Args)
 		}
 	case parser.AggregateExpr:
 		if r.JSON != nil && r.JSON.Returning != nil {
@@ -255,44 +255,44 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			b.capture.castUsages[path] = bound.ResultUsage()
 			if conversion, ok := bound.(coercionExpression); ok {
-				bound = conversion.child
+				bound = conversion.Child
 			}
 		}
 		if n, ok := bound.(*windowExpression); ok && r.Window != nil {
-			if n.call < 0 || n.call >= len(b.grouping.windowCalls) {
+			if n.Call < 0 || n.Call >= len(b.grouping.windowCalls) {
 				return fmt.Errorf("stuntgres: invalid stored window occurrence")
 			}
-			if call := b.grouping.windowCalls[n.call]; call.argument != nil {
-				if err := child(r.Args[0], call.argument); err != nil {
+			if call := b.grouping.windowCalls[n.Call]; call.Argument != nil {
+				if err := child(r.Args[0], call.Argument); err != nil {
 					return err
 				}
 			}
-			if call := b.grouping.windowCalls[n.call]; call.ordinal != nil {
-				if err := child(r.Args[1], call.ordinal); err != nil {
+			if call := b.grouping.windowCalls[n.Call]; call.Ordinal != nil {
+				if err := child(r.Args[1], call.Ordinal); err != nil {
 					return err
 				}
 			}
-			if call := b.grouping.windowCalls[n.call]; call.defaultValue != nil {
-				if err := child(r.Args[2], call.defaultValue); err != nil {
+			if call := b.grouping.windowCalls[n.Call]; call.DefaultValue != nil {
+				if err := child(r.Args[2], call.DefaultValue); err != nil {
 					return err
 				}
 			}
-			spec := b.grouping.windowCalls[n.call].spec
+			spec := b.grouping.windowCalls[n.Call].Spec
 			for i, key := range r.Window.Partition {
-				if err := child(key, spec.partition[i]); err != nil {
+				if err := child(key, spec.Partition[i]); err != nil {
 					return err
 				}
 			}
 			for i, key := range r.Window.Order {
-				if err := child(key.Expr, spec.order[spec.orderMap[i]].expression); err != nil {
+				if err := child(key.Expr, spec.Order[spec.OrderMap[i]].Expression); err != nil {
 					return err
 				}
 			}
 			if r.Window.Frame != nil {
-				if err := child(r.Window.Frame.Start.Offset, spec.frame.start.offset); err != nil {
+				if err := child(r.Window.Frame.Start.Offset, spec.Frame.Start.Offset); err != nil {
 					return err
 				}
-				if err := child(r.Window.Frame.End.Offset, spec.frame.end.offset); err != nil {
+				if err := child(r.Window.Frame.End.Offset, spec.Frame.End.Offset); err != nil {
 					return err
 				}
 			}
@@ -300,28 +300,28 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		if n, ok := bound.(aggregateExpression); ok {
 			if call, ok := b.aggregateCallAt(n); ok {
-				if call.procedure != nil {
-					if err := b.captureIntaggReference(path, call.procedure, call.ref, "int_array_aggregate"); err != nil {
+				if call.Procedure != nil {
+					if err := b.captureIntaggReference(path, call.Procedure, call.Ref, "int_array_aggregate"); err != nil {
 						return err
 					}
 				}
 				for i, arg := range r.Args {
-					expression := call.argument
+					expression := call.Argument
 					if r.Within {
-						if i >= len(call.direct) {
+						if i >= len(call.Direct) {
 							return fmt.Errorf("stuntgres: invalid stored direct arguments")
 						}
-						expression = call.direct[i]
+						expression = call.Direct[i]
 					} else if i == 1 {
-						expression = call.separator
+						expression = call.Separator
 					} else if i > 1 {
 						return fmt.Errorf("stuntgres: invalid stored aggregate arguments")
 					}
-					if call.operation.Hypothetical() {
-						expression = expression.(collationExpression).child
+					if call.Operation.Hypothetical() {
+						expression = expression.(collationExpression).Child
 					}
-					if conversion, ok := expression.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
-						expression = conversion.child
+					if conversion, ok := expression.(coercionExpression); ok && conversion.Plan.IsJSONFormattedInput() {
+						expression = conversion.Child
 					}
 					if expression == nil {
 						return fmt.Errorf("stuntgres: invalid stored aggregate arguments")
@@ -330,20 +330,20 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 						return err
 					}
 				}
-				if len(r.Order) != len(call.order) {
+				if len(r.Order) != len(call.Order) {
 					return fmt.Errorf("stuntgres: invalid stored aggregate ordering")
 				}
 				for i, key := range r.Order {
-					expression := call.order[i].expression
-					if call.operation.Hypothetical() {
-						expression = expression.(collationExpression).child
+					expression := call.Order[i].Expression
+					if call.Operation.Hypothetical() {
+						expression = expression.(collationExpression).Child
 					}
 					if err := child(key.Expr, expression); err != nil {
 						return err
 					}
 				}
 				if r.Filter != nil {
-					if err := child(r.Filter, call.filter); err != nil {
+					if err := child(r.Filter, call.Filter); err != nil {
 						return err
 					}
 				}
@@ -359,49 +359,49 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(rowExpression); ok {
 			slot := 0
 			for target, field := range r.Fields {
-				if expansion, expanded := n.expansions[target]; expanded {
+				if expansion, expanded := n.Expansions[target]; expanded {
 					if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
 						return err
 					}
-					slot += len(expansion.fields)
+					slot += len(expansion.Fields)
 				} else {
-					if slot >= len(n.fields) {
+					if slot >= len(n.Fields) {
 						return fmt.Errorf("stuntgres: missing row source association")
 					}
-					if err := child(field, n.fields[slot]); err != nil {
+					if err := child(field, n.Fields[slot]); err != nil {
 						return err
 					}
 					slot++
 				}
 			}
-			if slot != len(n.fields) {
+			if slot != len(n.Fields) {
 				return fmt.Errorf("stuntgres: invalid row source association")
 			}
 			return nil
 		}
 	case parser.FieldExpr:
 		if n, ok := bound.(fieldExpression); ok {
-			b.capture.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
-			return child(r.Base, n.base)
+			b.capture.captureViewComposite(path, compositeSelection, n.Base, []int32{n.Attribute})
+			return child(r.Base, n.Base)
 		}
 		return protocol(expr.CaptureField, []parser.Expr{r.Base})
 	case parser.ArrayExpr:
 		if n, ok := bound.(arrayExpression); ok {
-			return children(r.Elements, n.elements)
+			return children(r.Elements, n.Elements)
 		}
 	case parser.SubscriptExpr:
-		if n, ok := bound.(subscriptExpression); ok && len(r.Subscripts) == len(n.subscripts) {
-			if err := child(r.Base, n.base); err != nil {
+		if n, ok := bound.(subscriptExpression); ok && len(r.Subscripts) == len(n.Subscripts) {
+			if err := child(r.Base, n.Base); err != nil {
 				return err
 			}
 			for i, s := range r.Subscripts {
 				if s.Lower != nil {
-					if err := child(s.Lower, n.subscripts[i].lower); err != nil {
+					if err := child(s.Lower, n.Subscripts[i].Lower); err != nil {
 						return err
 					}
 				}
 				if s.Upper != nil {
-					if err := child(s.Upper, n.subscripts[i].upper); err != nil {
+					if err := child(s.Upper, n.Subscripts[i].Upper); err != nil {
 						return err
 					}
 				}
@@ -414,7 +414,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				b.capture.collations = make(map[viewLiteralPath]uint32)
 			}
 			b.capture.collations[path] = n.Usage.Collation.ID
-			return child(r.Child, n.child)
+			return child(r.Child, n.Child)
 		}
 	case parser.CastExpr:
 		// Domain casts retain top annotations outside their executable coercion.
@@ -428,21 +428,21 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				if !ok {
 					break
 				}
-				bound = annotation.child
+				bound = annotation.Child
 			}
 		}
 		if b.capture.castUsages == nil {
 			b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
 		}
 		b.capture.castUsages[path] = bound.ResultUsage()
-		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
-			bound = coercion.child
+		if coercion, ok := bound.(coercionExpression); ok && coercion.Mode == sqltype.Explicit {
+			bound = coercion.Child
 		}
 		bound = restoreDomainCastCollations(annotations, bound)
 		return child(r.Child, bound)
 	case parser.RegclassExpr:
-		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
-			bound = coercion.child
+		if coercion, ok := bound.(coercionExpression); ok && coercion.Mode == sqltype.Explicit {
+			bound = coercion.Child
 		}
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
@@ -467,51 +467,51 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				}
 			}
 		case bitwiseExpression:
-			if err := child(r.Args[0], n.left); err != nil {
+			if err := child(r.Args[0], n.Left); err != nil {
 				return err
 			}
 			if len(r.Args) == 2 {
-				return child(r.Args[1], n.right)
+				return child(r.Args[1], n.Right)
 			}
 			return nil
 		case selectedOperatorExpression:
 			if b.capture.operatorRefs == nil {
 				b.capture.operatorRefs = make(map[viewLiteralPath]ids.ObjectRef)
 			}
-			b.capture.operatorRefs[path] = n.ref
+			b.capture.operatorRefs[path] = n.Ref
 			var operands []expr.Expr
-			boundExpressionChildren(n.provider, func(arg expr.Expr) {
+			boundExpressionChildren(n.Provider, func(arg expr.Expr) {
 				if arg != nil {
 					operands = append(operands, arg)
 				}
 			})
 			return children(r.Args, operands)
 		case arithmeticExpression:
-			if err := child(r.Args[0], n.left); err != nil {
+			if err := child(r.Args[0], n.Left); err != nil {
 				return err
 			}
 			if len(r.Args) == 2 {
-				return child(r.Args[1], n.right)
+				return child(r.Args[1], n.Right)
 			}
 			return nil
 		case likeExpression:
-			if err := child(r.Args[0], n.left); err != nil {
+			if err := child(r.Args[0], n.Left); err != nil {
 				return err
 			}
-			return child(r.Args[1], n.right)
+			return child(r.Args[1], n.Right)
 		case comparisonExpression:
-			if err := child(r.Args[0], n.left); err != nil {
+			if err := child(r.Args[0], n.Left); err != nil {
 				return err
 			}
-			return child(r.Args[1], n.right)
+			return child(r.Args[1], n.Right)
 		}
 		return protocol(expr.CaptureOperator, r.Args)
 	case parser.LogicalExpr:
 		if n, ok := bound.(logicalExpression); ok {
-			if err := child(r.Left, n.left); err != nil {
+			if err := child(r.Left, n.Left); err != nil {
 				return err
 			}
-			return child(r.Right, n.right)
+			return child(r.Right, n.Right)
 		}
 	case parser.PredicateExpr:
 		switch n := bound.(type) {
@@ -519,35 +519,35 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return b.captureRowComparison([]parser.Expr{r.Left, r.Right}, n, path, ordinal)
 		case nullTestExpression:
 			if (r.Kind == parser.IsDistinct || r.Kind == parser.IsNotDistinct) && rawNull(r.Left) {
-				return child(r.Right, n.child)
+				return child(r.Right, n.Child)
 			}
-			return child(r.Left, n.child)
+			return child(r.Left, n.Child)
 		case truthTestExpression:
-			return child(r.Left, n.child)
+			return child(r.Left, n.Child)
 		case distinctExpression:
-			if err := child(r.Left, n.left); err != nil {
+			if err := child(r.Left, n.Left); err != nil {
 				return err
 			}
-			return child(r.Right, n.right)
+			return child(r.Right, n.Right)
 		}
 	case parser.ConditionalExpr:
 		if n, ok := bound.(conditionalExpression); ok {
-			return children(r.Args, n.args)
+			return children(r.Args, n.Args)
 		}
 	case parser.CaseExpr:
-		if n, ok := bound.(caseExpression); ok && len(r.Arms) == len(n.arms) {
-			if err := child(r.Test, n.test); err != nil {
+		if n, ok := bound.(caseExpression); ok && len(r.Arms) == len(n.Arms) {
+			if err := child(r.Test, n.Test); err != nil {
 				return err
 			}
 			for i, arm := range r.Arms {
-				if err := child(arm.Condition, n.arms[i].condition); err != nil {
+				if err := child(arm.Condition, n.Arms[i].Condition); err != nil {
 					return err
 				}
-				if err := child(arm.Result, n.arms[i].result); err != nil {
+				if err := child(arm.Result, n.Arms[i].Result); err != nil {
 					return err
 				}
 			}
-			return child(r.Else, n.otherwise)
+			return child(r.Else, n.Otherwise)
 		}
 	case parser.FunctionExpr:
 		if n, ok := bound.(sqlRoutineExpression); ok {
@@ -560,18 +560,18 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return protocol(expr.CaptureFunction, r.Args)
 		}
 		if n, ok := bound.(seriesExpression); ok {
-			return children(r.Args, n.args)
+			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(subscriptsExpression); ok {
-			return children(r.Args, n.args)
+			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(unnestExpression); ok {
-			if n.procedure != nil {
-				if err := b.captureIntaggReference(path, n.procedure, n.ref, "int_array_enum"); err != nil {
+			if n.Procedure != nil {
+				if err := b.captureIntaggReference(path, n.Procedure, n.Ref, "int_array_enum"); err != nil {
 					return err
 				}
 			}
-			return children(r.Args, n.args)
+			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(installedSoundexFunctionExpression); ok {
 			return children(r.Args, n.Args)
@@ -592,10 +592,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return children(r.Args, []expr.Expr{n.Arg})
 		}
 		if n, ok := bound.(fieldExpression); ok && len(r.Args) == 1 {
-			b.capture.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
-			return child(r.Args[0], n.base)
+			b.capture.captureViewComposite(path, compositeSelection, n.Base, []int32{n.Attribute})
+			return child(r.Args[0], n.Base)
 		}
-		if n, ok := bound.(literalExpression); ok && n.value.IsNull() {
+		if n, ok := bound.(literalExpression); ok && n.Value.IsNull() {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 				node, err := functions.BindIndexPropertyStructure(b, r, false)
@@ -611,7 +611,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				return children(r.Args, structure.Children())
 			}
 		}
-		if n, ok := bound.(literalExpression); ok && n.value.IsNull() && n.value.Type().ID() == sqltype.Text {
+		if n, ok := bound.(literalExpression); ok && n.Value.IsNull() && n.Value.Type().ID() == sqltype.Text {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 			case "col_description", "obj_description", "shobj_description":
 				visible, err := b.builtinVisible(r.Name, functionLookup)
@@ -643,7 +643,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 	count, columnCount, starCount, compositeCount, routineCount := 0, 0, 0, 0, 0
 	for frame, project := range v.frames {
-		s := project.syntax
+		s := project.Syntax
 		if s == nil {
 			if frame != 1 || v.expressionSyntax == nil {
 				return fmt.Errorf("stuntgres: missing stored query syntax")
@@ -656,11 +656,11 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 		}
 		if s.Set != nil {
 			set := querySetNode(viewFromRoot(project))
-			if set == nil || set.left == nil || set.right == nil || set.left.syntax != s.Set.Left || set.right.syntax != s.Set.Right || set.operation != s.Set.Operator || set.all != s.Set.All {
+			if set == nil || set.Left == nil || set.Right == nil || set.Left.Syntax != s.Set.Left || set.Right.Syntax != s.Set.Right || set.Operation != s.Set.Operator || set.All != s.Set.All {
 				return fmt.Errorf("stuntgres: invalid frozen set syntax frames")
 			}
 			left, right := v.queries[s.Set.Left], v.queries[s.Set.Right]
-			if left == nil || right == nil || left.frame != set.left.frame || right.frame != set.right.frame {
+			if left == nil || right == nil || left.Frame != set.Left.Frame || right.Frame != set.Right.Frame {
 				return fmt.Errorf("stuntgres: invalid frozen set syntax frames")
 			}
 		}
@@ -757,13 +757,13 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 					return fmt.Errorf("stuntgres: invalid stored string function frame")
 				}
 				for i, call := range parser.NormalizedFunctionCalls(raw) {
-					if table.regexpNamespace {
-						path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: table.viewOrdinal, target: i}
+					if table.RegexpNamespace {
+						path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: table.ViewOrdinal, target: i}
 						ordinal := 0
 						if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount, &compositeCount, &routineCount); err != nil {
 							return err
 						}
-					} else if err := validate(call, viewFunctionLiteral, table.viewOrdinal+i); err != nil {
+					} else if err := validate(call, viewFunctionLiteral, table.ViewOrdinal+i); err != nil {
 						return err
 					}
 				}
@@ -775,26 +775,26 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored join frame")
 				}
-				if err := validate(raw.On, viewJoinLiteral, join.viewOrdinal); err != nil {
+				if err := validate(raw.On, viewJoinLiteral, join.ViewOrdinal); err != nil {
 					return err
 				}
-				if err := from(raw.Left, join.left); err != nil {
+				if err := from(raw.Left, join.Left); err != nil {
 					return err
 				}
-				return from(raw.Right, join.right)
+				return from(raw.Right, join.Right)
 			case *parser.ValuesQuery:
 				values, ok := viewFromRoot(node).(*valuesNode)
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored VALUES frame")
 				}
-				return v.validateValuesLiterals(catalog, raw, frame, values.viewOrdinal, &count, &columnCount, &compositeCount, &routineCount)
+				return v.validateValuesLiterals(catalog, raw, frame, values.ViewOrdinal, &count, &columnCount, &compositeCount, &routineCount)
 			case *parser.FunctionFrom:
 				function, ok := viewFromRoot(node).(*functionFromNode)
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored function frame")
 				}
 				for i, call := range raw.Calls {
-					path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: function.viewOrdinal, target: i}
+					path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: function.ViewOrdinal, target: i}
 					ordinal := 0
 					if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount, &compositeCount, &routineCount); err != nil {
 						return err
@@ -920,11 +920,11 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 		return nil
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if literal, ok := v.literals[path]; ok {
-			if err := validateRegroleStoredLiteral(literal.value); err != nil {
+			if err := validateRegroleStoredLiteral(literal.Value); err != nil {
 				return err
 			}
 			usage := literal.ResultUsage()
-			if !usage.Valid() || literal.value.Type() != usage.Type {
+			if !usage.Valid() || literal.Value.Type() != usage.Type {
 				return fmt.Errorf("stuntgres: invalid view literal usage")
 			}
 			if err := validateUsageCollation(catalog, usage); err != nil {
@@ -937,7 +937,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			}
 			if ref := literal.RegclassRef; ref != (ids.ObjectRef{}) {
 				consumer, _ := catalog.Relation(v.consumer)
-				if !storedViewReferenceValid(catalog, consumer, ref) || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || usage.Type.ID() != sqltype.Regclass || literal.value.IsNull() {
+				if !storedViewReferenceValid(catalog, consumer, ref) || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || usage.Type.ID() != sqltype.Regclass || literal.Value.IsNull() {
 					return fmt.Errorf("stuntgres: invalid view regclass literal authority")
 				}
 			}
@@ -976,7 +976,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if err := v.validateCompositeSource(captured); err != nil {
 				return err
 			}
-			if v.namespaces[captured.source.namespace-1].qualifiers[captured.source.qualifier].name != r.Name.Parts[len(r.Name.Parts)-1].Text {
+			if v.namespaces[captured.source.Namespace-1].qualifiers[captured.source.Qualifier].name != r.Name.Parts[len(r.Name.Parts)-1].Text {
 				return fmt.Errorf("stuntgres: mismatched frozen whole row qualifier")
 			}
 			(*compositeCount)++
@@ -1006,7 +1006,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if err := v.validateCompositeSource(captured); err != nil {
 				return err
 			}
-			if captured.source.namespace == 0 || v.namespaces[captured.source.namespace-1].qualifiers[captured.source.qualifier].name != r.Qualifier.Parts[len(r.Qualifier.Parts)-1].Text {
+			if captured.source.Namespace == 0 || v.namespaces[captured.source.Namespace-1].qualifiers[captured.source.Qualifier].name != r.Qualifier.Parts[len(r.Qualifier.Parts)-1].Text {
 				return fmt.Errorf("stuntgres: mismatched frozen whole row star")
 			}
 			(*compositeCount)++
@@ -1125,23 +1125,23 @@ func (b *expressionBinder) captureSubqueryLeft(raw parser.Expr, n subqueryExpres
 	if raw == nil {
 		return nil
 	}
-	if constructor, ok := n.leftConstructor.(rowExpression); ok {
+	if constructor, ok := n.LeftConstructor.(rowExpression); ok {
 		row, ok := raw.(parser.RowExpr)
 		if !ok {
 			return fmt.Errorf("stuntgres: mismatched normalized quantified constructor")
 		}
 		path.node = *ordinal
 		(*ordinal)++
-		return b.captureConstructorFields(row, len(constructor.fields), func(i int) expr.Expr { return constructor.fields[i] }, constructor.expansions, true, path, ordinal)
+		return b.captureConstructorFields(row, len(constructor.Fields), func(i int) expr.Expr { return constructor.Fields[i] }, constructor.Expansions, true, path, ordinal)
 	}
 	if row, ok := raw.(parser.RowExpr); ok {
 		(*ordinal)++
-		return b.captureRowComparisonFields(row, n.comparisons, 0, n.leftExpansions, false, path, ordinal)
+		return b.captureRowComparisonFields(row, n.Comparisons, 0, n.LeftExpansions, false, path, ordinal)
 	}
-	if len(n.comparisons) != 1 {
+	if len(n.Comparisons) != 1 {
 		return fmt.Errorf("stuntgres: mismatched frozen scalar comparison")
 	}
-	return b.captureViewLiteralTree(raw, n.comparisons[0].left, path, ordinal)
+	return b.captureViewLiteralTree(raw, n.Comparisons[0].Left, path, ordinal)
 }
 
 func (b *expressionBinder) captureRowComparison(raw []parser.Expr, n rowComparisonExpression, path viewLiteralPath, ordinal *int) error {
@@ -1155,7 +1155,7 @@ func (b *expressionBinder) captureRowComparison(raw []parser.Expr, n rowComparis
 		}
 		path.node = *ordinal
 		(*ordinal)++ // The structural constructor has no scalar datum.
-		if err := b.captureRowComparisonFields(row, n.comparisons, side, n.expansions[side], n.memberCasts[side], path, ordinal); err != nil {
+		if err := b.captureRowComparisonFields(row, n.Comparisons, side, n.Expansions[side], n.MemberCasts[side], path, ordinal); err != nil {
 			return err
 		}
 	}
@@ -1166,8 +1166,8 @@ func (b *expressionBinder) captureRowComparisonFields(row parser.RowExpr, pairs 
 	path.argument = 0
 	return b.captureConstructorFields(row, len(pairs), func(i int) expr.Expr {
 		if side == 1 {
-			return pairs[i].right
+			return pairs[i].Right
 		}
-		return pairs[i].left
+		return pairs[i].Left
 	}, expansions, memberCasts, path, ordinal)
 }

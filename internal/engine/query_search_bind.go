@@ -8,76 +8,76 @@ import (
 )
 
 func (b *expressionBinder) bindSearchShape(d *cteDefinition) error {
-	s := d.search
-	s.slot = d.userWidth
-	s.depth = b.typ(sqltype.Int8)
-	s.keys = make([]int, len(s.syntax.Keys))
+	s := d.Search
+	s.Slot = d.UserWidth
+	s.Depth = b.typ(sqltype.Int8)
+	s.Keys = make([]int, len(s.Syntax.Keys))
 	offset := 0
-	if s.syntax.Breadth {
+	if s.Syntax.Breadth {
 		offset = 1
 	}
-	members := make([]sqltype.CompositeMember, len(s.keys)+offset)
+	members := make([]sqltype.CompositeMember, len(s.Keys)+offset)
 	if offset != 0 {
-		members[0] = sqltype.CompositeMember{Attribute: 1, Name: "*DEPTH*", Usage: s.depth.Usage()}
+		members[0] = sqltype.CompositeMember{Attribute: 1, Name: "*DEPTH*", Usage: s.Depth.Usage()}
 	}
-	for i, key := range s.syntax.Keys {
+	for i, key := range s.Syntax.Keys {
 		slot := -1
-		for j, column := range d.schema[:d.userWidth] {
+		for j, column := range d.Schema[:d.UserWidth] {
 			if column.Name == key.Text {
 				slot = j
 				break
 			}
 		}
-		if slot < 0 && s.shapeError == nil {
-			s.shapeError = expr.ErrorAt("42601", fmt.Sprintf(`search column "%s" not in WITH query column list`, key.Text), s.syntax.Pos)
+		if slot < 0 && s.ShapeError == nil {
+			s.ShapeError = expr.ErrorAt("42601", fmt.Sprintf(`search column "%s" not in WITH query column list`, key.Text), s.Syntax.Pos)
 		}
-		for _, prior := range s.keys[:i] {
-			if slot >= 0 && prior == slot && s.shapeError == nil {
-				s.shapeError = expr.ErrorAt("42701", fmt.Sprintf(`search column "%s" specified more than once`, key.Text), s.syntax.Pos)
+		for _, prior := range s.Keys[:i] {
+			if slot >= 0 && prior == slot && s.ShapeError == nil {
+				s.ShapeError = expr.ErrorAt("42701", fmt.Sprintf(`search column "%s" specified more than once`, key.Text), s.Syntax.Pos)
 			}
 		}
-		s.keys[i] = slot
+		s.Keys[i] = slot
 		usage := b.typ(sqltype.Text).Usage()
 		if slot >= 0 {
-			usage = d.schema[slot].Usage
+			usage = d.Schema[slot].Usage
 		}
 		members[i+offset] = sqltype.CompositeMember{Attribute: int32(i + offset + 1), Name: key.Text, Usage: usage}
 	}
 	var err error
-	s.record, err = sqltype.RecordShape(members)
+	s.Record, err = sqltype.RecordShape(members)
 	if err != nil {
 		return err
 	}
-	s.result = s.record
-	if !s.syntax.Breadth {
-		s.result, err = sqltype.Array(2287, "_record", s.record)
+	s.Result = s.Record
+	if !s.Syntax.Breadth {
+		s.Result, err = sqltype.Array(2287, "_record", s.Record)
 		if err != nil {
 			return err
 		}
 	}
-	d.schema = append(d.schema, catalog.Column{Name: s.syntax.Sequence.Text, Usage: s.result.Usage()})
+	d.Schema = append(d.Schema, catalog.Column{Name: s.Syntax.Sequence.Text, Usage: s.Result.Usage()})
 	return nil
 }
 
 func searchNameError(d *cteDefinition) error {
-	s := d.search
-	if s.shapeError != nil {
-		return s.shapeError
+	s := d.Search
+	if s.ShapeError != nil {
+		return s.ShapeError
 	}
-	for _, column := range d.schema[:d.userWidth] {
-		if column.Name == s.syntax.Sequence.Text {
-			return expr.ErrorAt("42601", fmt.Sprintf(`search sequence column name "%s" already used in WITH query column list`, column.Name), s.syntax.Pos)
+	for _, column := range d.Schema[:d.UserWidth] {
+		if column.Name == s.Syntax.Sequence.Text {
+			return expr.ErrorAt("42601", fmt.Sprintf(`search sequence column name "%s" already used in WITH query column list`, column.Name), s.Syntax.Pos)
 		}
 	}
 	return nil
 }
 
 func (b *expressionBinder) bindSearchIdentity(d *cteDefinition) error {
-	s := d.search
-	s.grouping = make([]sqltype.Grouping, s.record.CompositeLen())
-	for i := range s.grouping {
+	s := d.Search
+	s.Grouping = make([]sqltype.Grouping, s.Record.CompositeLen())
+	for i := range s.Grouping {
 		var err error
-		s.grouping[i], err = sqltype.BindGrouping(s.record.CompositeMember(i).Usage)
+		s.Grouping[i], err = sqltype.BindGrouping(s.Record.CompositeMember(i).Usage)
 		if err != nil {
 			return err
 		}

@@ -23,9 +23,9 @@ func TestPGCursorsSource(t *testing.T) {
 	}
 	sessionSQL(t, s, "DECLARE own SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 	cursor := s.cursors.entries["own"]
-	original := cursor.root.expressions[0]
+	original := cursor.root.Expressions[0]
 	calls := 0
-	cursor.root.expressions[0] = queryProbe(original.ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
+	cursor.root.Expressions[0] = queryProbe(original.ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("metadata opened cursor producer")
 	})
@@ -83,9 +83,9 @@ func TestPGCursorsSource(t *testing.T) {
 
 	// Restore the real expression, then explicitly fail the cursor producer.
 	// The recovered failed entry is still observable without rerunning it.
-	cursor.root.expressions[0] = original
+	cursor.root.Expressions[0] = original
 	sessionSQL(t, s, "SAVEPOINT recover")
-	cursor.root.expressions[0] = queryProbe(original.ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
+	cursor.root.Expressions[0] = queryProbe(original.ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("failed producer")
 	})

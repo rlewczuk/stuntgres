@@ -115,10 +115,10 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark que
 	e := s.op.session.Engine()
 	// Conditional requests reuse the manager's atomic immediate-grant branch:
 	// no journal request or timer exists on an unavailable NOWAIT/SKIP probe.
-	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: mark.wait != parser.RowLockBlock, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.ref, Row: row}, mark.mode, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: mark.Wait != parser.RowLockBlock, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.ref, Row: row}, mark.Mode, policy)
 	if errors.Is(err, lock.ErrUnavailable) {
-		if mark.wait == parser.RowLockSkip {
+		if mark.Wait == parser.RowLockSkip {
 			return false, nil
 		}
 		return false, sqlError("55P03", fmt.Sprintf("could not obtain lock on row in relation %q", leaf.relation.Name()))
@@ -203,16 +203,16 @@ func openRowLockNode(ctx context.Context, state *queryState, n *rowLockNode) (in
 	}
 	previous := state.locking
 	state.locking = true
-	child, err := openQueryNode(ctx, state, n.child)
+	child, err := openQueryNode(ctx, state, n.Child)
 	state.locking = previous
 	if err != nil {
 		return indexedStage{}, err
 	}
-	if !queryHasPhysicalInput(n.child) {
+	if !queryHasPhysicalInput(n.Child) {
 		return child, nil
 	}
 	if state.source.locks != nil {
-		child.pending = appendPendingRowMarks(child.pending, n.marks, state.source)
+		child.pending = appendPendingRowMarks(child.pending, n.Marks, state.source)
 	}
 	return child, nil
 }

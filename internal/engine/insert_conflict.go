@@ -149,10 +149,10 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 				break
 			}
 			c.keys[i].collation = collated.ResultUsage().Collation.ID
-			expression = collated.child
+			expression = collated.Child
 		}
 		if col, ok := expression.(columnExpression); ok {
-			c.keys[i].attribute = col.origin.Address.SubID
+			c.keys[i].attribute = col.Origin.Address.SubID
 		} else {
 			c.keys[i].expression = expression
 		}

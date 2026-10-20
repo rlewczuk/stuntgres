@@ -33,25 +33,25 @@ func TestVisibilityInquiryStoredNullManifest(t *testing.T) {
 			check := relation.Constraints.Check[0]
 			switch tc.name {
 			case "wrapped-null":
-				inquiry, ok := check.Expression.(nullTestExpression).child.(functions.VisibilityInquiry)
+				inquiry, ok := check.Expression.(nullTestExpression).Child.(functions.VisibilityInquiry)
 				if !ok {
-					t.Fatalf("wrapped NULL inquiry folded to %T", check.Expression.(nullTestExpression).child)
+					t.Fatalf("wrapped NULL inquiry folded to %T", check.Expression.(nullTestExpression).Child)
 				}
 				coercion, ok := inquiry.Arg.(coercionExpression)
 				if !ok || coercion.ResultUsage().Type.ID() != sqltype.Oid {
 					t.Fatalf("missing integer-to-OID coercion: %T", inquiry.Arg)
 				}
-				literal, ok := coercion.child.(literalExpression)
-				if !ok || literal.ResultUsage().Type.ID() != sqltype.Int4 || !literal.value.IsNull() {
-					t.Fatalf("missing integer NULL beneath coercion: %T", coercion.child)
+				literal, ok := coercion.Child.(literalExpression)
+				if !ok || literal.ResultUsage().Type.ID() != sqltype.Int4 || !literal.Value.IsNull() {
+					t.Fatalf("missing integer NULL beneath coercion: %T", coercion.Child)
 				}
 			case "bare-null":
-				literal, ok := check.Expression.(nullTestExpression).child.(literalExpression)
-				if !ok || literal.ResultUsage().Type.ID() != sqltype.Bool || !literal.value.IsNull() {
+				literal, ok := check.Expression.(nullTestExpression).Child.(literalExpression)
+				if !ok || literal.ResultUsage().Type.ID() != sqltype.Bool || !literal.Value.IsNull() {
 					t.Fatal("bare NULL must still fold to an executable BOOL NULL")
 				}
 			case "conversion-wrapped-null":
-				conversion, ok := check.Expression.(nullTestExpression).child.(functions.Binary)
+				conversion, ok := check.Expression.(nullTestExpression).Child.(functions.Binary)
 				if !ok || conversion.Plan.Immutable() {
 					t.Fatal("expected retained catalog-sensitive binary conversion")
 				}
@@ -59,9 +59,9 @@ func TestVisibilityInquiryStoredNullManifest(t *testing.T) {
 				if !ok || coercion.ResultUsage().Type.ID() != sqltype.Name {
 					t.Fatalf("missing text-to-NAME coercion: %T", conversion.Args[1])
 				}
-				literal, ok := coercion.child.(literalExpression)
-				if !ok || literal.ResultUsage().Type.ID() != sqltype.Text || !literal.value.IsNull() {
-					t.Fatalf("missing text NULL beneath coercion: %T", coercion.child)
+				literal, ok := coercion.Child.(literalExpression)
+				if !ok || literal.ResultUsage().Type.ID() != sqltype.Text || !literal.Value.IsNull() {
+					t.Fatalf("missing text NULL beneath coercion: %T", coercion.Child)
 				}
 			}
 

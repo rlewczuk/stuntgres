@@ -22,19 +22,19 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 	var exposed []string
 	var scalarRoot LogicalNode
 	var scalarColumns []viewNamespaceColumn
-	if captured.source.namespace != 0 {
+	if captured.source.Namespace != 0 {
 		rendered, ok := v.wholeRows[captured.source]
 		if !ok || rendered.sql == "" {
 			return nil, fmt.Errorf("stuntgres: missing rendered whole-row field namespace")
 		}
 		exposed = rendered.names
-		namespace := v.namespaces[captured.source.namespace-1]
+		namespace := v.namespaces[captured.source.Namespace-1]
 		root := v.namespaceRoot(namespace)
-		if function, ok := root.(*functionFromNode); ok && len(function.calls) == 1 && !function.ordinality && !function.calls[0].ResultUsage().Type.IsComposite() && captured.kind == compositeExpansion {
+		if function, ok := root.(*functionFromNode); ok && len(function.Calls) == 1 && !function.Ordinality && !function.Calls[0].ResultUsage().Type.IsComposite() && captured.kind == compositeExpansion {
 			// A namespace list is not a composite field selection on the
 			// function's scalar alias value. Replay its analyzed column slots.
 			scalarRoot = root
-			scalarColumns = namespace.qualifiers[captured.source.qualifier].columns
+			scalarColumns = namespace.qualifiers[captured.source.Qualifier].columns
 		}
 	}
 	for i, attribute := range captured.attributes {

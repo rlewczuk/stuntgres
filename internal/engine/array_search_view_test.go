@@ -32,14 +32,14 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	integer, wide, text := b.typ(sqltype.Int4), b.typ(sqltype.Int8), b.typ(sqltype.Text)
 	array, wideArray, textArray := b.typ(integer.AssociatedArray()), b.typ(wide.AssociatedArray()), b.typ(text.AssociatedArray())
 	literal := func(value sqltype.Value) expr.Expr {
-		return literalExpression{Info: b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), value: value}
+		return literalExpression{Info: b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), Value: value}
 	}
 	coerce := func(child expr.Expr, target *sqltype.Descriptor, mode sqltype.CoercionContext) expr.Expr {
 		plan, err := sqltype.PlanCoercion(child.ResultUsage(), target.Usage(), mode)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return coercionExpression{Info: b.info(target.Usage(), parser.Position{}, coercionProperties(child, plan)), child: child, plan: plan, mode: mode}
+		return coercionExpression{Info: b.info(target.Usage(), parser.Position{}, coercionProperties(child, plan)), Child: child, Plan: plan, Mode: mode}
 	}
 	one, err := sqltype.Integer(integer, 1)
 	if err != nil {
@@ -79,7 +79,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	position := parser.Position{Character: 1}
 	info := b.info(usage, position, expr.Properties{})
 	info.CollationExplicit = position
-	collated := collationExpression{Info: info, child: literal(strings)}
+	collated := collationExpression{Info: info, Child: literal(strings)}
 	search, replacement := literal(sqltype.String(text, "a")), literal(sqltype.String(text, "b"))
 	replace, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []expr.Expr{collated, search, replacement})
 	if err != nil {
@@ -106,7 +106,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		}
 	}
 	syntax := &parser.Select{Targets: []parser.Expr{raw, rawText}}
-	project := &projectNode{querySchema: querySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, child: &singletonNode{}, expressions: []expr.Expr{outer, positions}, frame: b.frameID(), syntax: syntax}
+	project := &projectNode{querySchema: querySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{outer, positions}, Frame: b.frameID(), Syntax: syntax}
 	original := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, literals: b.capture.literals, castUsages: b.capture.castUsages, collations: b.capture.collations}
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
@@ -159,9 +159,9 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	}
 	render(targetView, mapped, 0, raw, numericSQL)
 	render(targetView, mapped, 1, rawText, targetTextSQL)
-	assertValue(mappedProject.expressions[0], targetBinder.typ(wideArray.ID()), "{1,2}")
-	assertValue(mappedProject.expressions[1], targetBinder.typ(array.ID()), "{1,2}")
-	newPlan := mappedProject.expressions[1].(functions.ArraySearch).Plan
+	assertValue(mappedProject.Expressions[0], targetBinder.typ(wideArray.ID()), "{1,2}")
+	assertValue(mappedProject.Expressions[1], targetBinder.typ(array.ID()), "{1,2}")
+	newPlan := mappedProject.Expressions[1].(functions.ArraySearch).Plan
 	newRef, conflict := newPlan.InputCollation()
 	if conflict || !newRef.Valid() || newRef.ID != uint32(targetCollation.OID) {
 		t.Fatal("retained stale comparison collation", newRef, conflict)

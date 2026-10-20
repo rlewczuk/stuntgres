@@ -366,7 +366,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	}
 	ref := roleTableRef(t, e, "enum_window")
 	definition := viewOf(e.CatalogRead().MustRelation(ref.Address))
-	original := definition.query.Root.(*projectNode).child.(*windowNode)
+	original := definition.query.Root.(*projectNode).Child.(*windowNode)
 	oldEnum := domainUnitType(t, e.CatalogRead(), "window_enum").SQLType
 	oldDomain := domainUnitType(t, e.CatalogRead(), "window_domain").SQLType
 	var dump bytes.Buffer
@@ -398,46 +398,46 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	if err != nil || mapped == definition.query.Root {
 		t.Fatal(mapped, err)
 	}
-	next := mapped.(*projectNode).child.(*windowNode)
+	next := mapped.(*projectNode).Child.(*windowNode)
 	value, err := newDomain.Input(context.Background(), "a", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	grouped, ordered := false, false
-	for i, spec := range original.specs {
-		for j, key := range spec.partition {
+	for i, spec := range original.Specs {
+		for j, key := range spec.Partition {
 			if key.ResultUsage().Type != oldDomain {
 				continue
 			}
 			grouped = true
-			if next.specs[i].partition[j].ResultUsage().Type != newDomain {
+			if next.Specs[i].Partition[j].ResultUsage().Type != newDomain {
 				t.Fatal("partition usage not replaced")
 			}
-			if _, err := next.specs[i].grouping[j].Hash(context.Background(), value); err != nil {
+			if _, err := next.Specs[i].Grouping[j].Hash(context.Background(), value); err != nil {
 				t.Fatal("remapped grouping retained old owner", err)
 			}
-			if _, err := spec.grouping[j].Hash(context.Background(), value); err == nil {
+			if _, err := spec.Grouping[j].Hash(context.Background(), value); err == nil {
 				t.Fatal("original grouping accepted replacement owner")
 			}
 			if key.ResultUsage().Type != oldDomain {
 				t.Fatal("original partition mutated")
 			}
 		}
-		for j, key := range spec.order {
-			if key.expression.ResultUsage().Type != oldDomain {
+		for j, key := range spec.Order {
+			if key.Expression.ResultUsage().Type != oldDomain {
 				continue
 			}
 			ordered = true
-			if next.specs[i].order[j].expression.ResultUsage().Type != newDomain {
+			if next.Specs[i].Order[j].Expression.ResultUsage().Type != newDomain {
 				t.Fatal("ordering usage not replaced")
 			}
-			if sign, err := next.specs[i].order[j].comparison.Compare(context.Background(), value, value, sqltype.InputEnvironment{}); err != nil || sign != 0 {
+			if sign, err := next.Specs[i].Order[j].Comparison.Compare(context.Background(), value, value, sqltype.InputEnvironment{}); err != nil || sign != 0 {
 				t.Fatal("remapped ordering retained old owner", sign, err)
 			}
-			if _, err := key.comparison.Compare(context.Background(), value, value, sqltype.InputEnvironment{}); err == nil {
+			if _, err := key.Comparison.Compare(context.Background(), value, value, sqltype.InputEnvironment{}); err == nil {
 				t.Fatal("original ordering accepted replacement owner")
 			}
-			if key.expression.ResultUsage().Type != oldDomain {
+			if key.Expression.ResultUsage().Type != oldDomain {
 				t.Fatal("original ordering mutated")
 			}
 		}
@@ -445,8 +445,8 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	if !grouped || !ordered {
 		t.Fatal("descriptor-changing partition/order witnesses absent", grouped, ordered)
 	}
-	for i, call := range original.calls {
-		if next.calls[i].expression.slot != call.expression.slot || next.calls[i].expression == call.expression {
+	for i, call := range original.Calls {
+		if next.Calls[i].Expression.Slot != call.Expression.Slot || next.Calls[i].Expression == call.Expression {
 			t.Fatal("remap lost slot or retained original occurrence")
 		}
 	}
@@ -529,7 +529,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			aggregates, windows := b.grouping.aggregates, b.grouping.windowCalls
 			aggregateValues := append([]aggregateCall(nil), aggregates...)
 			windowValues := append([]windowCall(nil), windows...)
-			seedOccurrence := *windows[0].expression
+			seedOccurrence := *windows[0].Expression
 			frame, clause := b.query.frame, b.clause.aggregateClause
 			raw := statement(t, tc.sql).(*parser.Select).Targets[0]
 			_, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -542,7 +542,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 				t.Fatal("failed analysis replaced exact registration headers", len(b.grouping.aggregates), cap(b.grouping.aggregates), len(b.grouping.windowCalls), cap(b.grouping.windowCalls))
 			}
 			if !reflect.DeepEqual(aggregateValues, b.grouping.aggregates) || !reflect.DeepEqual(windowValues, b.grouping.windowCalls) ||
-				!reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].expression) || b.grouping.argumentOwner != (argumentWindowOwner{}) ||
+				!reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].Expression) || b.grouping.argumentOwner != (argumentWindowOwner{}) ||
 				len(b.query.scopes) != 0 || b.query.frame != frame || b.clause.aggregateClause != clause {
 				t.Fatal("failed analysis mutated seed entries, occurrence identities or scoped state", b.grouping.argumentOwner, b.grouping.aggregates, b.grouping.windowCalls, b.query.scopes)
 			}
@@ -559,7 +559,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 				t.Fatal(err)
 			}
 			if len(b.grouping.windowCalls) != len(windows)+1 || b.grouping.argumentOwner != (argumentWindowOwner{}) ||
-				!reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].expression) || b.query.frame != frame || b.clause.aggregateClause != clause {
+				!reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].Expression) || b.query.frame != frame || b.clause.aggregateClause != clause {
 				t.Fatal("successful sibling retained failed owner or mutated seed", b.grouping.argumentOwner, b.grouping.windowCalls)
 			}
 			retainedWindows := b.grouping.windowCalls
@@ -579,7 +579,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 				len(b.grouping.aggregates) != len(retainedAggregates) || cap(b.grouping.aggregates) != cap(retainedAggregates) ||
 				&b.grouping.aggregates[0] != &retainedAggregates[0] || !reflect.DeepEqual(retainedAggregateValues, b.grouping.aggregates) ||
 				len(b.grouping.windowCalls) != len(retainedWindows) || cap(b.grouping.windowCalls) != cap(retainedWindows) ||
-				&b.grouping.windowCalls[0] != &retainedWindows[0] || !reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].expression) ||
+				&b.grouping.windowCalls[0] != &retainedWindows[0] || !reflect.DeepEqual(seedOccurrence, *b.grouping.windowCalls[0].Expression) ||
 				b.query.frame != frame || b.clause.aggregateClause != clause || len(b.query.scopes) != 0 {
 				t.Fatal("lexical child failed to restore parent ownership")
 			}

@@ -24,32 +24,32 @@ func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (expr.E
 func (b *expressionBinder) sameAggregateTarget(target, expression expr.Expr) bool {
 	for {
 		c, ok := target.(coercionExpression)
-		if !ok || c.mode != sqltype.Implicit {
+		if !ok || c.Mode != sqltype.Implicit {
 			break
 		}
-		target = c.child
+		target = c.Child
 	}
 	return b.sameGroupExpression(target, expression)
 }
 
 func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
-	call.filter = filter
-	objectProvider, object := call.provider.(functions.JSONObjectAggregate)
+	call.Filter = filter
+	objectProvider, object := call.Provider.(functions.JSONObjectAggregate)
 	if raw.Distinct && !object {
 		var err error
-		call.argument, err = b.finalizeProjection(call.argument)
+		call.Argument, err = b.finalizeProjection(call.Argument)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if _, ordered := call.provider.(functions.OrderedAggregate); !ordered {
-		call.order = make([]sortKey, len(raw.Order))
+	if _, ordered := call.Provider.(functions.OrderedAggregate); !ordered {
+		call.Order = make([]sortKey, len(raw.Order))
 	}
-	if len(raw.Order) > 0 && call.stageWidth == 0 {
-		call.stageWidth = 2
+	if len(raw.Order) > 0 && call.StageWidth == 0 {
+		call.StageWidth = 2
 	}
 	for i, key := range raw.Order {
-		if _, ordered := call.provider.(functions.OrderedAggregate); ordered {
+		if _, ordered := call.Provider.(functions.OrderedAggregate); ordered {
 			break
 		}
 		expression, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
@@ -60,20 +60,20 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		if object {
 			// Match before UNKNOWN coercion changes structural usage. ORDER
 			// selects one first equal input, not every use of its parameter.
-			if b.sameAggregateTarget(call.argument, expression) {
+			if b.sameAggregateTarget(call.Argument, expression) {
 				slot = 0
-				call.argument, err = b.completeJSONObjectAggregateInput(call.argument)
-			} else if b.sameAggregateTarget(call.separator, expression) {
+				call.Argument, err = b.completeJSONObjectAggregateInput(call.Argument)
+			} else if b.sameAggregateTarget(call.Separator, expression) {
 				slot = 1
-				call.separator, err = b.completeJSONObjectAggregateInput(call.separator)
+				call.Separator, err = b.completeJSONObjectAggregateInput(call.Separator)
 			}
 			if err != nil {
 				return nil, err
 			}
 		} else {
 			// Preserve other providers' existing provisional-target inference.
-			if call.argument != nil && call.argument.ResultUsage().Type == nil && b.sameAggregateTarget(call.argument, expression) {
-				call.argument, err = b.finalizeProjection(call.argument)
+			if call.Argument != nil && call.Argument.ResultUsage().Type == nil && b.sameAggregateTarget(call.Argument, expression) {
+				call.Argument, err = b.finalizeProjection(call.Argument)
 				if err != nil {
 					return nil, err
 				}
@@ -95,16 +95,16 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, err
 		}
 		if !object {
-			if call.argument != nil && b.sameAggregateTarget(call.argument, expression) {
+			if call.Argument != nil && b.sameAggregateTarget(call.Argument, expression) {
 				slot = 0
-			} else if call.separator != nil && b.sameAggregateTarget(call.separator, expression) {
+			} else if call.Separator != nil && b.sameAggregateTarget(call.Separator, expression) {
 				slot = 1
 			}
 		}
 		if slot == 0 {
-			comparison, err = functions.AggregateOrdering(call.argument.ResultUsage(), key.Pos, false)
+			comparison, err = functions.AggregateOrdering(call.Argument.ResultUsage(), key.Pos, false)
 		} else if slot == 1 {
-			comparison, err = functions.AggregateOrdering(call.separator.ResultUsage(), key.Pos, false)
+			comparison, err = functions.AggregateOrdering(call.Separator.ResultUsage(), key.Pos, false)
 		}
 		if err != nil {
 			return nil, err
@@ -113,8 +113,8 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, expr.ErrorAt("42P10", "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list", parser.ExpressionStart(key.Expr))
 		}
 		if slot < 0 {
-			for j, prior := range call.order[:i] {
-				if b.sameAggregateTarget(prior.expression, expression) {
+			for j, prior := range call.Order[:i] {
+				if b.sameAggregateTarget(prior.Expression, expression) {
 					slot = j + 2
 					break
 				}
@@ -122,27 +122,27 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		}
 		cache := slot
 		if slot < 0 {
-			cache = call.stageWidth
-			call.stageWidth++
+			cache = call.StageWidth
+			call.StageWidth++
 		} else if slot >= 2 {
-			cache = call.order[slot-2].cache
+			cache = call.Order[slot-2].Cache
 		}
-		call.order[i] = sortKey{expression: expression, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, slot: slot, cache: cache}
+		call.Order[i] = sortKey{Expression: expression, Comparison: comparison, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, Slot: slot, Cache: cache}
 	}
 	if raw.Distinct {
 		if object {
 			var err error
-			call.argument, err = b.completeJSONObjectAggregateInput(call.argument)
+			call.Argument, err = b.completeJSONObjectAggregateInput(call.Argument)
 			if err != nil {
 				return nil, err
 			}
-			call.separator, err = b.completeJSONObjectAggregateInput(call.separator)
+			call.Separator, err = b.completeJSONObjectAggregateInput(call.Separator)
 			if err != nil {
 				return nil, err
 			}
 		}
-		call.distinct = make([]queryGrouping, len(raw.Args))
-		args := [2]expr.Expr{call.argument, call.separator}
+		call.Distinct = make([]queryGrouping, len(raw.Args))
+		args := [2]expr.Expr{call.Argument, call.Separator}
 		for i, arg := range args {
 			if arg == nil {
 				continue
@@ -160,21 +160,21 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			if _, err := functions.AggregateOrdering(arg.ResultUsage(), pos, true); err != nil {
 				return nil, err
 			}
-			call.distinct[i] = grouping
+			call.Distinct[i] = grouping
 		}
 	}
 	if err := b.grouping.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
 	if object {
-		provider, err := objectProvider.Complete(call.argument.ResultUsage(), call.separator.ResultUsage())
+		provider, err := objectProvider.Complete(call.Argument.ResultUsage(), call.Separator.ResultUsage())
 		if err != nil {
 			return nil, err
 		}
-		call.provider = provider
+		call.Provider = provider
 	}
 	properties := expr.Properties{StageDependent: true}
-	call.expressions(func(bound expr.Expr) {
+	call.Expressions(func(bound expr.Expr) {
 		if bound != nil {
 			properties = expr.MergeProperties(properties, bound.Properties())
 		}
@@ -192,30 +192,30 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 	if slot == len(b.grouping.aggregates) {
 		b.grouping.aggregates = append(b.grouping.aggregates, call)
 	}
-	return aggregateExpression{Info: info, slot: slot, frame: b.frameID()}, nil
+	return aggregateExpression{Info: info, Slot: slot, Frame: b.frameID()}, nil
 }
 
 func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
-	if !sameIntaggIdentity(a.procedure, a.ref, other.procedure, other.ref) {
+	if !SameIntaggIdentity(a.Procedure, a.Ref, other.Procedure, other.Ref) {
 		return false
 	}
-	if p, ok := a.provider.(functions.JSONObjectAggregate); ok {
-		q, same := other.provider.(functions.JSONObjectAggregate)
+	if p, ok := a.Provider.(functions.JSONObjectAggregate); ok {
+		q, same := other.Provider.(functions.JSONObjectAggregate)
 		if !same || p.Unique() != q.Unique() {
 			return false
 		}
 	}
-	if a.operation != other.operation || a.includeNulls != other.includeNulls || a.stageWidth != other.stageWidth || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.distinct) != len(other.distinct) || len(a.order) != len(other.order) || len(a.direct) != len(other.direct) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) || !b.sameGroupExpression(a.filter, other.filter) {
+	if a.Operation != other.Operation || a.IncludeNulls != other.IncludeNulls || a.StageWidth != other.StageWidth || a.Provider.ResultUsage() != other.Provider.ResultUsage() || len(a.Distinct) != len(other.Distinct) || len(a.Order) != len(other.Order) || len(a.Direct) != len(other.Direct) || !b.sameGroupExpression(a.Argument, other.Argument) || !b.sameGroupExpression(a.Separator, other.Separator) || !b.sameGroupExpression(a.Filter, other.Filter) {
 		return false
 	}
-	for i, direct := range a.direct {
-		if !b.sameGroupExpression(direct, other.direct[i]) {
+	for i, direct := range a.Direct {
+		if !b.sameGroupExpression(direct, other.Direct[i]) {
 			return false
 		}
 	}
-	for i, key := range a.order {
-		o := other.order[i]
-		if key.desc != o.desc || key.nullsFirst != o.nullsFirst || key.slot != o.slot || key.cache != o.cache || !b.sameGroupExpression(key.expression, o.expression) {
+	for i, key := range a.Order {
+		o := other.Order[i]
+		if key.Desc != o.Desc || key.NullsFirst != o.NullsFirst || key.Slot != o.Slot || key.Cache != o.Cache || !b.sameGroupExpression(key.Expression, o.Expression) {
 			return false
 		}
 	}
@@ -234,7 +234,7 @@ func (b *expressionBinder) completeJSONObjectAggregateInput(node expr.Expr) (exp
 		return nil, err
 	}
 	for i, prior := range b.params.anyParameters {
-		if prior.number != p.number || prior.Pos != p.Pos {
+		if prior.Number != p.Number || prior.Pos != p.Pos {
 			continue
 		}
 		copy(b.params.anyParameters[i:], b.params.anyParameters[i+1:])

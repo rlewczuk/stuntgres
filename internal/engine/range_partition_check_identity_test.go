@@ -55,7 +55,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	implicit := coercionExpression{binder.info(original.ResultUsage(), original.SourcePosition(), original.Properties()), original, plan, sqltype.Implicit, false}
 	explicit := implicit
-	explicit.mode = sqltype.Explicit
+	explicit.Mode = sqltype.Explicit
 	grouping := expressionBinder{}
 	if !equality.sameGroupExpression(implicit, explicit) || grouping.sameGroupExpression(implicit, explicit) {
 		t.Fatal("CHECK-only coercion identity changed grouping semantics")

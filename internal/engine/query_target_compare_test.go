@@ -25,7 +25,7 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 	} {
 		_, query, source := queryCoreFixture(t, "SELECT "+tc.left+","+tc.right+" FROM t")
 		project := query.Root.(*projectNode)
-		a, b := project.expressions[0], project.expressions[1]
+		a, b := project.Expressions[0], project.Expressions[1]
 		got := (*expressionBinder)(nil).sameSubqueryTarget(a, b)
 		source.close()
 		if got != tc.same {
@@ -43,11 +43,11 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON((SELECT max(v) FROM t)) id FROM t ORDER BY (SELECT /* λ */ max(t.v) FROM t),id DESC")
 	defer source.close()
-	node := query.Root.(*projectNode).child.(*distinctOnNode)
-	sorted := node.child.(*sortNode)
-	key := node.expressions[0].(cachedOrderExpression)
-	if key.slot != sorted.keys[0].cache || len(sorted.outputs) != 0 {
-		t.Fatal("ON/ORDER same-query datum not shared", key, sorted.keys, sorted.outputs)
+	node := query.Root.(*projectNode).Child.(*distinctOnNode)
+	sorted := node.Child.(*sortNode)
+	key := node.Expressions[0].(cachedOrderExpression)
+	if key.Slot != sorted.Keys[0].Cache || len(sorted.Outputs) != 0 {
+		t.Fatal("ON/ORDER same-query datum not shared", key, sorted.Keys, sorted.Outputs)
 	}
 	fresh := map[sqltype.ID]*sqltype.Descriptor{}
 	for _, d := range sqltype.Builtins() {
@@ -57,9 +57,9 @@ func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := remapped.(*projectNode).child.(*distinctOnNode)
-	sort := next.child.(*sortNode)
-	if next.expressions[0].(cachedOrderExpression).slot != sort.keys[0].cache || next.expressions[0].ResultUsage().Type != fresh[sqltype.Int4] {
+	next := remapped.(*projectNode).Child.(*distinctOnNode)
+	sort := next.Child.(*sortNode)
+	if next.Expressions[0].(cachedOrderExpression).Slot != sort.Keys[0].Cache || next.Expressions[0].ResultUsage().Type != fresh[sqltype.Int4] {
 		t.Fatal("remapped scoped target sharing lost", next, sort)
 	}
 }
@@ -72,10 +72,10 @@ func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 	}
 	_, query, source := queryCoreFixture(t, "SELECT (SELECT v FROM t) FROM t")
 	defer source.close()
-	root := query.Root.(*projectNode).expressions[0].(subqueryExpression).queryPlan.Root.(*projectNode)
-	leaf := root.child.(*sourceNode)
+	root := query.Root.(*projectNode).Expressions[0].(subqueryExpression).QueryPlan.Root.(*projectNode)
+	leaf := root.Child.(*sourceNode)
 	changed := *leaf
-	changed.ref = ids.ObjectRef{}
+	changed.Ref = ids.ObjectRef{}
 	var occurrences [4]queryTargetOccurrence
 	c = queryTargetComparison{frames: frames[:0], occurrences: occurrences[:0]}
 	if c.sameQuery(nil, leaf, &changed) {

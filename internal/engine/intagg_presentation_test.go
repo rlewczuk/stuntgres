@@ -36,9 +36,9 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			var child LogicalNode = &singletonNode{}
 			if len(b.grouping.aggregates) != 0 {
-				child = &aggregateNode{child: child, calls: b.grouping.aggregates}
+				child = &aggregateNode{Child: child, Calls: b.grouping.aggregates}
 			}
-			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, child: child, expressions: []expr.Expr{node}, frame: b.frameID(), syntax: syntax}
+			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: syntax}
 			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			if err := definition.validateLiterals(e.CatalogRead()); err != nil {

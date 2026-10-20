@@ -63,7 +63,7 @@ func nodeRuntimeOf(ctx expr.Context) (nodeRuntime, error) {
 }
 
 // beginEvaluation recovers the node runtime and runs the node prologue.
-func beginEvaluation(ctx expr.Context) (nodeRuntime, error) {
+func BeginEvaluation(ctx expr.Context) (nodeRuntime, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return nil, err

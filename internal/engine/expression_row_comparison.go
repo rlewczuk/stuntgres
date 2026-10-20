@@ -52,13 +52,13 @@ func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOpe
 	}
 	operand, err := b.comparisonOperand(raw)
 	result := inComparisonOperand{scalar: operand}
-	if row, ok := operand.node.(rowExpression); ok && row.raw != nil && !row.Usage.Type.IsDomain() {
-		result.constructor, result.expansions = true, row.expansions
+	if row, ok := operand.node.(rowExpression); ok && row.Raw != nil && !row.Usage.Type.IsDomain() {
+		result.constructor, result.expansions = true, row.Expansions
 		result.fields = make([]comparisonOperand, row.Usage.Type.BaseType().CompositeLen())
-		for i, field := range row.fields {
+		for i, field := range row.Fields {
 			slot := i
-			if row.fieldProjection != nil {
-				slot = row.fieldProjection[i].slot
+			if row.FieldProjection != nil {
+				slot = row.FieldProjection[i].Slot
 				if slot < 0 {
 					continue
 				}
@@ -104,7 +104,7 @@ func (b *expressionBinder) inScalarOperand(operand *inComparisonOperand) (compar
 		return comparisonOperand{}, err
 	}
 	raw := operand.scalar.raw.(parser.RowExpr)
-	operand.scalar.node = rowExpression{Info: b.info(shape.Usage(), raw.Pos, properties), fields: fields, raw: &raw, expansions: operand.expansions}
+	operand.scalar.node = rowExpression{Info: b.info(shape.Usage(), raw.Pos, properties), Fields: fields, Raw: &raw, Expansions: operand.expansions}
 	return operand.scalar, nil
 }
 
@@ -124,13 +124,13 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 	if len(lhs) != len(rhs) {
 		return nil, expr.ErrorAt("42601", "unequal number of entries in row expressions", raw.Pos)
 	}
-	e := rowComparisonExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, expr.Properties{}), operator: mode, expansions: [2]map[int]compositeExpansionBinding{le, re}}
-	if len(lhs) == 0 && !e.distinct() {
+	e := rowComparisonExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, expr.Properties{}), Operator: mode, Expansions: [2]map[int]compositeExpansionBinding{le, re}}
+	if len(lhs) == 0 && !e.Distinct() {
 		return nil, expr.ErrorAt("0A000", "cannot compare rows of zero length", raw.Pos)
 	}
-	e.comparisons = make([]comparisonExpression, len(lhs))
+	e.Comparisons = make([]comparisonExpression, len(lhs))
 	if operator > sqltype.CompareNotEqual {
-		e.ordering = make([]sqltype.Comparison, len(lhs))
+		e.Ordering = make([]sqltype.Comparison, len(lhs))
 	}
 	for i, l := range lhs {
 		r := rhs[i]
@@ -142,18 +142,18 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: invalid row comparison pair")
 		}
-		e.comparisons[i] = pair
+		e.Comparisons[i] = pair
 		e.Property = expr.MergeProperties(e.Property, pair.Properties())
-		if len(e.ordering) != 0 {
-			ref, conflict := pair.predicate.InputCollation()
-			e.ordering[i], err = sqltype.BindComparison(pair.left.ResultUsage().Type, pair.right.ResultUsage().Type, ref, conflict)
+		if len(e.Ordering) != 0 {
+			ref, conflict := pair.Predicate.InputCollation()
+			e.Ordering[i], err = sqltype.BindComparison(pair.Left.ResultUsage().Type, pair.Right.ResultUsage().Type, ref, conflict)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	if !e.distinct() {
-		if err := b.checkRowComparisonInterpretation(raw, e.comparisons); err != nil {
+	if !e.Distinct() {
+		if err := b.checkRowComparisonInterpretation(raw, e.Comparisons); err != nil {
 			return nil, err
 		}
 	}
@@ -161,23 +161,23 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 }
 
 func renderRowComparison(e rowComparisonExpression, operand func(expr.Expr) (string, error), operator string) (string, error) {
-	if len(e.comparisons) == 0 && !e.distinct() {
+	if len(e.Comparisons) == 0 && !e.Distinct() {
 		return "", fmt.Errorf("stuntgres: invalid stored row comparison")
 	}
-	left, right := make([]string, len(e.comparisons)), make([]string, len(e.comparisons))
-	for i, pair := range e.comparisons {
+	left, right := make([]string, len(e.Comparisons)), make([]string, len(e.Comparisons))
+	for i, pair := range e.Comparisons {
 		var err error
-		left[i], err = operand(pair.left)
+		left[i], err = operand(pair.Left)
 		if err != nil {
 			return "", err
 		}
-		right[i], err = operand(pair.right)
+		right[i], err = operand(pair.Right)
 		if err != nil {
 			return "", err
 		}
 	}
 	constructor := ""
-	if len(e.comparisons) < 2 {
+	if len(e.Comparisons) < 2 {
 		constructor = "ROW"
 	}
 	return "(" + constructor + "(" + strings.Join(left, ", ") + ") " + operator + " " + constructor + "(" + strings.Join(right, ", ") + "))", nil
@@ -186,8 +186,8 @@ func renderRowComparison(e rowComparisonExpression, operand func(expr.Expr) (str
 // Reuse the constructor's copy-on-change ownership mapping for analysis-only
 // expansion associations; executable pairs are mapped by their existing owners.
 func mapRowComparisonExpansions(expansions map[int]compositeExpansionBinding, child func(expr.Expr) (expr.Expr, bool, error)) (map[int]compositeExpansionBinding, bool, error) {
-	row, changed, err := mapRowAnalysis(rowExpression{expansions: expansions}, child)
-	return row.expansions, changed, err
+	row, changed, err := mapRowAnalysis(rowExpression{Expansions: expansions}, child)
+	return row.Expansions, changed, err
 }
 func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) {
 	if len(raw.Args) != 2 {

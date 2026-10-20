@@ -17,7 +17,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	aclUnitRoles(e, "acl_render_a", "acl_render_b")
 	value := aclUnitValue(t, e, "acl_render_a=r*/acl_render_b")
 	view := e.CatalogRead()
-	literal := literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, value: value}
+	literal := literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	captured := capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles()}
 	text, err := (scalarRenderer{aclOutput: captured}).sql(context.Background(), view, literal)
 	if err != nil || text != "CAST('acl_render_a=r*/acl_render_b' AS ACLITEM)" {
@@ -29,7 +29,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	// Build the actual persisted CHECK provider and its dependency manifest
 	// without issuing SQL or asserting only a standalone formatting helper.
 	boolean := aclUnitType(t, e, sqltype.Bool)
-	ordinaryBoolean := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, true)}
+	ordinaryBoolean := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
 	if _, err := defaultSQL(context.Background(), view, ordinaryBoolean); err != nil {
 		t.Fatal("non-ACL presentation acquired authority requirement", err)
 	}
@@ -37,7 +37,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	comparison := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: literal, right: literal, predicate: predicate, operator: "="}
+	comparison := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Left: literal, Right: literal, Predicate: predicate, Operator: "="}
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45000}, Attributes: []int32{1}}
 	var refs []ids.ObjectRef
 	if _, err := (scalarRenderer{aclOutput: captured, owner: relation, dependencies: &refs}).sql(context.Background(), view, comparison); err != nil {
@@ -79,7 +79,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreignLiteral := literal
-	foreignLiteral.value = foreignValue
+	foreignLiteral.Value = foreignValue
 	if _, err := validation.sql(context.Background(), view, foreignLiteral); err == nil {
 		t.Fatal("foreign token validated through coincident descriptor/IDs")
 	}
@@ -95,7 +95,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		render := func(value sqltype.Value, target sqltype.Usage) (string, error) {
 			leafPath := viewLiteralPath{node: 1}
 			renderer := viewRenderer{viewDefinition: &viewDefinition{
-				literals:   map[viewLiteralPath]literalExpression{leafPath: {Info: expr.Info{Usage: value.Type().Usage()}, value: value}},
+				literals:   map[viewLiteralPath]literalExpression{leafPath: {Info: expr.Info{Usage: value.Type().Usage()}, Value: value}},
 				castUsages: map[viewLiteralPath]sqltype.Usage{{}: target},
 			}}
 			ordinal := 0

@@ -18,9 +18,9 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 		}
 	}
 	info := expr.Info{Usage: integer.Usage()}
-	key := columnExpression{Info: info, slot: 0}
+	key := columnExpression{Info: info, Slot: 0}
 	key.Property.RowDependent = true
-	count := aggregateExpression{Info: info, slot: 0}
+	count := aggregateExpression{Info: info, Slot: 0}
 	count.Property.StageDependent = true
 	plan, err := sqltype.PlanCoercion(integer.Usage(), integer.Usage(), sqltype.Implicit)
 	if err != nil {
@@ -30,28 +30,28 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arm := caseBranch{condition: key, result: key, testPlan: plan, equality: equality, testUsage: integer.Usage()}
-	groupCase := caseExpression{Info: info, test: key, arms: []caseBranch{arm}, otherwise: key}
-	groupList := conditionalExpression{Info: info, kind: parser.Coalesce, args: []expr.Expr{groupCase, key}}
+	arm := caseBranch{Condition: key, Result: key, TestPlan: plan, Equality: equality, TestUsage: integer.Usage()}
+	groupCase := caseExpression{Info: info, Test: key, Arms: []caseBranch{arm}, Otherwise: key}
+	groupList := conditionalExpression{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{groupCase, key}}
 	// Aggregates cannot occur in grouping keys. Use scalar-only keys for
 	// structural identity, and a separate aggregate-containing tree for rewrite.
 	original := groupCase
-	original.arms = []caseBranch{arm}
-	original.arms[0].result = count
-	list := conditionalExpression{Info: info, kind: parser.Coalesce, args: []expr.Expr{original, count}}
+	original.Arms = []caseBranch{arm}
+	original.Arms[0].Result = count
+	list := conditionalExpression{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{original, count}}
 	if !b.sameGroupExpression(groupCase, groupCase) || !b.sameGroupExpression(groupList, groupList) {
 		t.Fatal("identical conditional grouping keys differ")
 	}
 	changed := groupCase
-	changed.arms = []caseBranch{arm}
+	changed.Arms = []caseBranch{arm}
 	otherKey := key
-	otherKey.slot = 1
-	changed.arms[0].condition = otherKey
+	otherKey.Slot = 1
+	changed.Arms[0].Condition = otherKey
 	if b.sameGroupExpression(groupCase, changed) {
 		t.Fatal("different WHEN expression accepted as grouping key")
 	}
 	changedList := groupList
-	changedList.kind = parser.Greatest
+	changedList.Kind = parser.Greatest
 	if b.sameGroupExpression(groupList, changedList) {
 		t.Fatal("different conditional kind accepted as grouping key")
 	}
@@ -63,26 +63,26 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := rewritten.(conditionalExpression)
-	branch := out.args[0].(caseExpression)
-	if _, ok := branch.test.(groupExpression); !ok {
+	branch := out.Args[0].(caseExpression)
+	if _, ok := branch.Test.(groupExpression); !ok {
 		t.Fatal("CASE test not rewritten")
 	}
-	if _, ok := branch.arms[0].condition.(groupExpression); !ok {
+	if _, ok := branch.Arms[0].Condition.(groupExpression); !ok {
 		t.Fatal("WHEN not rewritten")
 	}
-	if g, ok := branch.arms[0].result.(groupExpression); !ok || g.slot != 1 {
+	if g, ok := branch.Arms[0].Result.(groupExpression); !ok || g.Slot != 1 {
 		t.Fatal("aggregate result not rewritten")
 	}
-	if _, ok := branch.otherwise.(groupExpression); !ok {
+	if _, ok := branch.Otherwise.(groupExpression); !ok {
 		t.Fatal("ELSE not rewritten")
 	}
 	if !out.Properties().StageDependent || !branch.Properties().StageDependent {
 		t.Fatal("stage dependence lost")
 	}
-	if _, ok := original.arms[0].result.(aggregateExpression); !ok {
+	if _, ok := original.Arms[0].Result.(aggregateExpression); !ok {
 		t.Fatal("immutable CASE arms mutated")
 	}
-	if _, ok := list.args[1].(aggregateExpression); !ok {
+	if _, ok := list.Args[1].(aggregateExpression); !ok {
 		t.Fatal("immutable list args mutated")
 	}
 	for _, bound := range []expr.Expr{groupCase, groupList} {

@@ -20,7 +20,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
-	if hierarchyRelation(d) && mark.mode != 0 {
+	if hierarchyRelation(d) && mark.Mode != 0 {
 		e.mu.Unlock()
 		return nil, sqlError("0A000", "row locking partition hierarchies is unsupported")
 	}
@@ -132,7 +132,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 			return err
 		}
 	}
-	if mark.mode != 0 || viewHasStoredRowMarks(d, auth.Catalog) {
+	if mark.Mode != 0 || viewHasStoredRowMarks(d, auth.Catalog) {
 		return auth.checkViewRowMarks(d, mark, invoker)
 	}
 	return nil

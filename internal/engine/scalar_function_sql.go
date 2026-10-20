@@ -17,19 +17,19 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		if err := n.ValidateStoredProvider(); err != nil {
 			return "", err
 		}
-		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) {
+		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) {
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine reference")
 		}
-		procedure, ok := r.descriptor(view, n.ref.Address).(*catalog.Procedure)
-		if !ok || !routine.SameRoutineDeclaration(procedure, n.procedure) {
+		procedure, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
+		if !ok || !routine.SameRoutineDeclaration(procedure, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine declaration")
 		}
 		namespace, ok := r.descriptor(view, procedure.Namespace()).(*catalog.Namespace)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored SQL routine namespace")
 		}
-		r.record(n.ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.args)
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case installedSoundexFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Soundex reference")
@@ -145,16 +145,16 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 // stored expression or converting a temporal introducer into an unsupported cast.
 func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 	u := n.ResultUsage()
-	if n.value.Type() != u.Type {
+	if n.Value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
 	}
 	if n.UnknownNull {
-		if !n.value.IsNull() || u.Type.ID() != sqltype.Text {
+		if !n.Value.IsNull() || u.Type.ID() != sqltype.Text {
 			return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")
 		}
 		return "NULL::unknown", nil
 	}
-	literal, err := u.Type.SQLLiteral(ctx, n.value)
+	literal, err := u.Type.SQLLiteral(ctx, n.Value)
 	if err == nil && sqltype.IsFTS(u.Type.ID()) {
 		return "CAST(" + literal + " AS " + u.Type.SQLName() + ")", nil
 	}
@@ -176,7 +176,7 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 	if err == nil && u.Type.ID() == sqltype.JSONPath {
 		return "CAST(" + literal + " AS JSONPATH)", nil
 	}
-	if err != nil || n.value.IsNull() {
+	if err != nil || n.Value.IsNull() {
 		return literal, err
 	}
 	switch u.Type.ID() {
@@ -210,7 +210,7 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 		}
 		return declaration + " " + literal, nil
 	case sqltype.Numeric:
-		text, err := u.Type.Output(ctx, n.value)
+		text, err := u.Type.Output(ctx, n.Value)
 		if err != nil {
 			return "", err
 		}

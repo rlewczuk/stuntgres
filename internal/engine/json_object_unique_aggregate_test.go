@@ -29,11 +29,11 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 				t.Fatal(err)
 			}
 			second, err := b.bind(raw, expressionPolicy{context: projectionContext})
-			if err != nil || first.(aggregateExpression).slot != second.(aggregateExpression).slot {
+			if err != nil || first.(aggregateExpression).Slot != second.(aggregateExpression).Slot {
 				t.Fatal("identical call did not reuse slot", err)
 			}
-			call := b.grouping.aggregates[first.(aggregateExpression).slot]
-			p := call.provider.(functions.JSONObjectAggregate)
+			call := b.grouping.aggregates[first.(aggregateExpression).Slot]
+			p := call.Provider.(functions.JSONObjectAggregate)
 			id := sqltype.JSON
 			if strings.HasPrefix(name, "jsonb_") {
 				id = sqltype.JSONB
@@ -44,13 +44,13 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			if strict {
 				operation = functions.AggregateJSONObjectStrict
 			}
-			if p.Strict() != strict || p.Unique() != unique || p.ResultUsage().Type != result || p.ResultUsage().Typmod != -1 || p.KeyUsage().Type != key || p.InputUsage().Type != input || !call.includeNulls || call.operation != operation || !first.Properties().StageDependent {
+			if p.Strict() != strict || p.Unique() != unique || p.ResultUsage().Type != result || p.ResultUsage().Typmod != -1 || p.KeyUsage().Type != key || p.InputUsage().Type != input || !call.IncludeNulls || call.Operation != operation || !first.Properties().StageDependent {
 				t.Fatal("fixed descriptor or policy lost", call, p)
 			}
 			if !unique {
 				return
 			}
-			root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: p.ResultUsage()}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: call.operation, includeNulls: call.includeNulls}}}
+			root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: p.ResultUsage()}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: call.Operation, IncludeNulls: call.IncludeNulls}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := destination.CatalogRead().LookupType(old.ID())
 				return next
@@ -58,7 +58,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			q := mapped.(*aggregateNode).calls[0].provider.(functions.JSONObjectAggregate)
+			q := mapped.(*aggregateNode).Calls[0].Provider.(functions.JSONObjectAggregate)
 			newKey, _ := destination.CatalogRead().LookupType(sqltype.Text)
 			newInput, _ := destination.CatalogRead().LookupType(sqltype.Int4)
 			newResult, _ := destination.CatalogRead().LookupType(id)

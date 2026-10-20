@@ -69,11 +69,11 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				outcome = err
 				t.Fatal(err)
 			}
-			project.child = &sourceNode{querySchema: project.Schema(), ref: sourceRef}
+			project.Child = &sourceNode{querySchema: project.Schema(), Ref: sourceRef}
 			usage := project.Schema()[0].Usage
-			project.expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: sourceRef, scope: 1, frame: 1, slot: 0}}
+			project.Expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: sourceRef, Scope: 1, Frame: 1, Slot: 0}}
 			predicates := 0
-			project.child = &filterNode{querySchema: project.Schema(), child: project.child, predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
+			project.Child = &filterNode{querySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
 				predicates++
 				value, _ := c.Row[0].Integer()
 				threshold := int64(2)

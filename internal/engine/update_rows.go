@@ -16,10 +16,10 @@ type updateAssignmentGroup struct {
 }
 
 func (c *EvalContext) EvalUpdateOutput(e updateOutputExpression) (sqltype.Value, error) {
-	if e.index >= len(c.updateOutputs) || !c.updateOutputsReady {
+	if e.Index >= len(c.updateOutputs) || !c.updateOutputsReady {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: UPDATE output outside its assignment group")
 	}
-	return c.updateOutputs[e.index], nil
+	return c.updateOutputs[e.Index], nil
 }
 
 // Analyze sources in original SET order, before the shared destination pass.
@@ -108,11 +108,11 @@ func (e *Engine) prepareUpdateAssignments(b *binding, binder *expressionBinder, 
 			properties := queryDemandProperties(project, false)
 			properties.StageDependent = true
 			for j, target := range a.Targets {
-				origin := project.expressions[j].SourcePosition()
+				origin := project.Expressions[j].SourcePosition()
 				info := binder.info(project.Schema()[j].Usage, origin, properties)
-				var node expr.Expr = updateOutputExpression{Info: info, index: j, group: start}
+				var node expr.Expr = updateOutputExpression{Info: info, Index: j, Group: start}
 				if j == 0 {
-					node = subqueryExpression{Info: info, kind: parser.SubqueryScalar, queryPlan: query, updateWidth: len(a.Targets)}
+					node = subqueryExpression{Info: info, Kind: parser.SubqueryScalar, QueryPlan: query, UpdateWidth: len(a.Targets)}
 				}
 				member := parser.UpdateAssignment{Target: parser.Identifier{Text: target.Name, Pos: target.Pos}, Steps: target.Steps, Value: a.Value}
 				if err := appendMember(member, node, origin); err != nil {

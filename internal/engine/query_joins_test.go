@@ -118,7 +118,7 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 		result.Close()
 	}
 	e, query, source := queryJoinsFixture(t, "SELECT a.k,b.k,k FROM a JOIN b USING(k)")
-	join := query.Root.(*projectNode).child.(*joinNode)
+	join := query.Root.(*projectNode).Child.(*joinNode)
 	if len(join.Schema()) != 6 || len(query.Root.Schema()) != 3 {
 		t.Fatal(join.Schema(), query.Root.Schema())
 	}
@@ -131,8 +131,8 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 	}
 	project := query.Root.(*projectNode)
 	for i, want := range []int{1, 5, 1} {
-		if project.expressions[i].(columnExpression).slot != want {
-			t.Fatal(project.expressions)
+		if project.Expressions[i].(columnExpression).Slot != want {
+			t.Fatal(project.Expressions)
 		}
 	}
 }
@@ -143,7 +143,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON a.k=b.k")
 			children := append([]*querySource(nil), source.sources...)
 			project := query.Root.(*projectNode)
-			join := project.child.(*joinNode)
+			join := project.Child.(*joinNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("join provider sentinel")
@@ -153,7 +153,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			switch mode {
 			case "reject_cancel":
 				want = context.Canceled
-				join.predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+				join.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						cancel()
@@ -161,7 +161,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 					return sqltype.Boolean(boolType, false), nil
 				})
 			case "admitted_error", "rejected_error":
-				join.predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+				join.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -169,8 +169,8 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 					return sqltype.Boolean(boolType, mode == "admitted_error"), nil
 				})
 			case "late_target":
-				original := project.expressions[0]
-				project.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				original := project.Expressions[0]
+				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -178,9 +178,9 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 					return original.Eval(c)
 				})
 			case "merge_error":
-				usage := project.expressions[0].ResultUsage()
+				usage := project.Expressions[0].ResultUsage()
 				join.querySchema = append(join.querySchema, catalog.Column{Usage: usage})
-				join.merges = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+				join.Merges = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -188,11 +188,11 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 					return c.Row[1], nil
 				})}
 			case "second_open":
-				join.right.(*sourceNode).occurrence = len(children)
+				join.Right.(*sourceNode).Occurrence = len(children)
 			case "bad_width":
-				join.leftWidth++
+				join.LeftWidth++
 			case "bad_usage":
-				join.predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[1], nil })
+				join.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[1], nil })
 			}
 			rows, n, err := finalizeQuery(ctx, query.Root, source, nil)
 			if rows != nil || n != 0 || err == nil {
@@ -221,10 +221,10 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON FALSE")
 	defer source.close()
-	join := query.Root.(*projectNode).child.(*joinNode)
+	join := query.Root.(*projectNode).Child.(*joinNode)
 	calls := 0
-	usage := join.predicate.ResultUsage()
-	join.predicate = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+	usage := join.Predicate.ResultUsage()
+	join.Predicate = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(usage.Type, false), nil
 	})
@@ -347,7 +347,7 @@ func TestQueryJoinsZeroWidthAndHeldRoots(t *testing.T) {
 
 func TestQueryJoinsAdmittedFrameLayout(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON TRUE")
-	join := query.Root.(*projectNode).child.(*joinNode)
+	join := query.Root.(*projectNode).Child.(*joinNode)
 	left := append([]sqltype.Value(nil), source.sources[0].row(0)...)
 	right := append([]sqltype.Value(nil), source.sources[1].row(0)...)
 	stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)

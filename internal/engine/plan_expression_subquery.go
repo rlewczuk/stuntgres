@@ -13,20 +13,20 @@ import (
 // Correlated scans reopen; uncorrelated hashed occurrences retain a built RHS.
 type subqueryExpression struct {
 	expr.Info
-	kind            parser.SubqueryKind
-	queryPlan       *BoundQuery
-	comparisons     []comparisonExpression
-	ordering        []sqltype.Comparison
-	membership      []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
-	operator        string
-	negate          bool
-	presenceOnly    bool
+	Kind            parser.SubqueryKind
+	QueryPlan       *BoundQuery
+	Comparisons     []comparisonExpression
+	Ordering        []sqltype.Comparison
+	Membership      []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
+	Operator        string
+	Negate          bool
+	PresenceOnly    bool
 	cteDefinition   bool // Analysis-only graph edge, never expression demand.
-	jsonArray       *sqlJSONArrayQuery
-	leftExpansions  map[int]compositeExpansionBinding // Analysis-only source associations.
-	leftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
-	erasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
-	updateWidth     int                               // Nonzero only for the first recipe of an UPDATE tuple source.
+	JSONArray       *sqlJSONArrayQuery
+	LeftExpansions  map[int]compositeExpansionBinding // Analysis-only source associations.
+	LeftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
+	ErasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
+	UpdateWidth     int                               // Nonzero only for the first recipe of an UPDATE tuple source.
 }
 
 func (e subqueryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -39,43 +39,43 @@ func (e subqueryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type sqlRoutineExpression struct {
 	expr.Info
-	procedure *catalog.Procedure
-	ref       ids.ObjectRef
-	args      []expr.Expr
+	Procedure *catalog.Procedure
+	Ref       ids.ObjectRef
+	Args      []expr.Expr
 }
 
-func (n sqlRoutineExpression) Children() []expr.Expr { return n.args }
+func (n sqlRoutineExpression) Children() []expr.Expr { return n.Args }
 
 func (n sqlRoutineExpression) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
 	if kind != expr.CaptureFunction {
 		return expr.CaptureOperands{}, false, nil
 	}
-	return expr.CaptureOperands{Args: n.args, Count: len(n.args), SelectedImplicit: true}, true, nil
+	return expr.CaptureOperands{Args: n.Args, Count: len(n.Args), SelectedImplicit: true}, true, nil
 }
 
 func (n sqlRoutineExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if current, ok := info.RoutineReference.(*catalog.Procedure); ok {
-		n.procedure = current
+		n.Procedure = current
 	}
-	if n.procedure == nil || n.procedure.SQL == nil || len(children) != len(n.procedure.SQL.Inputs) {
+	if n.Procedure == nil || n.Procedure.SQL == nil || len(children) != len(n.Procedure.SQL.Inputs) {
 		return nil, fmt.Errorf("invalid SQL routine provider")
 	}
 	for i, child := range children {
-		if child == nil || child.ResultUsage().Type == nil || child.ResultUsage().Type.ID() != n.procedure.SQL.Inputs[i].Type.ID() {
+		if child == nil || child.ResultUsage().Type == nil || child.ResultUsage().Type.ID() != n.Procedure.SQL.Inputs[i].Type.ID() {
 			return nil, fmt.Errorf("invalid SQL routine argument")
 		}
 	}
-	n.Info, n.args = info, children
+	n.Info, n.Args = info, children
 	return n, nil
 }
 
 func (n sqlRoutineExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
 	o, ok := other.(sqlRoutineExpression)
-	if !ok || n.ref != o.ref || n.procedure.SQL != o.procedure.SQL || len(n.args) != len(o.args) {
+	if !ok || n.Ref != o.Ref || n.Procedure.SQL != o.Procedure.SQL || len(n.Args) != len(o.Args) {
 		return false
 	}
-	for i, arg := range n.args {
-		if !same(arg, o.args[i]) {
+	for i, arg := range n.Args {
+		if !same(arg, o.Args[i]) {
 			return false
 		}
 	}
@@ -83,14 +83,14 @@ func (n sqlRoutineExpression) SameGroup(other expr.Expr, same func(expr.Expr, ex
 }
 
 func (n sqlRoutineExpression) ValidateStoredProvider() error {
-	if n.procedure == nil || n.procedure.SQL == nil || n.Info.RoutineReference != n.procedure || n.ref == (ids.ObjectRef{}) || n.ref.Address != n.procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Usage.Type.ID() != sqltype.ID(n.procedure.Result) {
+	if n.Procedure == nil || n.Procedure.SQL == nil || n.Info.RoutineReference != n.Procedure || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Usage.Type.ID() != sqltype.ID(n.Procedure.Result) {
 		return fmt.Errorf("invalid stored SQL routine provider")
 	}
-	if _, err := n.Rebuild(n.Info, n.args); err != nil {
+	if _, err := n.Rebuild(n.Info, n.Args); err != nil {
 		return err
 	}
 	want := expr.Properties{Volatility: expr.Volatile}
-	for _, arg := range n.args {
+	for _, arg := range n.Args {
 		want = expr.MergeProperties(want, arg.Properties())
 	}
 	if n.Property != want {

@@ -13,10 +13,10 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 	inspect := func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
 			column, ok := node.(columnExpression)
-			if !ok || column.scope != rulePseudoScope || column.frame != 2 {
+			if !ok || column.Scope != rulePseudoScope || column.Frame != 2 {
 				return
 			}
-			target := slices.Index(original.relation.Attributes, column.origin.Address.SubID)
+			target := slices.Index(original.relation.Attributes, column.Origin.Address.SubID)
 			for output, slot := range original.targets {
 				if slot == target && !slices.Contains(uses, output) {
 					uses = append(uses, output)
@@ -27,15 +27,15 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 	query := func(root LogicalNode) { visitCTEQuery(root, func(LogicalNode) {}, inspect, true) }
 	expression := func(bound expr.Expr) {
 		if bound != nil {
-			query(&projectNode{expressions: []expr.Expr{bound}})
+			query(&projectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
 	targets := func(items []*arrayAssignmentTarget) {
 		for _, target := range items {
-			for ; target != nil; target = target.next {
-				for _, sub := range target.node.subscripts {
-					expression(sub.lower)
-					expression(sub.upper)
+			for ; target != nil; target = target.Next {
+				for _, sub := range target.Node.Subscripts {
+					expression(sub.Lower)
+					expression(sub.Upper)
 				}
 			}
 		}
@@ -106,20 +106,20 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 			return
 		}
 		if derived, ok := node.(*derivedNode); ok {
-			if bySource[derived] != nil || derived.query == nil {
+			if bySource[derived] != nil || derived.Query == nil {
 				return
 			}
-			project, ok := derived.query.Root.(*projectNode)
+			project, ok := derived.Query.Root.(*projectNode)
 			if !ok {
 				return
 			}
-			frame := derived.scanFrame
+			frame := derived.ScanFrame
 			if frame == 0 {
 				// Synthetic producers inherit their consumer's current frame;
 				// zero is not a separate lexical namespace.
 				frame = inputFrame
 			}
-			item := &producer{frame: frame, offset: offset, demand: derived.demand, project: project, uses: []int{}}
+			item := &producer{frame: frame, offset: offset, demand: derived.Demand, project: project, uses: []int{}}
 			bySource[derived] = item
 			producers = append(producers, item)
 			// openDerivedNode creates a fresh inner query state. Its project
@@ -138,15 +138,15 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 			// A projection's child owns a local input frame, even when the
 			// projected output follows another arm in a correlated join.
 			offset = 0
-			if project.frame != 0 {
-				inputFrame = project.frame
+			if project.Frame != 0 {
+				inputFrame = project.Frame
 			}
 		}
 		left, right := queryInputs(node)
 		if join, joined := node.(*joinNode); joined {
 			frame := inputFrame
-			if join.frame != 0 {
-				frame = join.frame
+			if join.Frame != 0 {
+				frame = join.Frame
 			}
 			collect(left, offset, frame, frame)
 			collect(right, offset+len(left.Schema()), frame, frame)
@@ -156,8 +156,8 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 		}
 		queryExpressions(node, func(expression expr.Expr) {
 			walkDemandedBoundExpression(expression, func(node expr.Expr) {
-				if subquery, ok := node.(subqueryExpression); ok && !subquery.cteDefinition && subquery.queryPlan != nil {
-					collect(subquery.queryPlan.Root, 0, 0, 1)
+				if subquery, ok := node.(subqueryExpression); ok && !subquery.cteDefinition && subquery.QueryPlan != nil {
+					collect(subquery.QueryPlan.Root, 0, 0, 1)
 				}
 			})
 		})
@@ -192,8 +192,8 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 		walkDemandedBoundExpression(expression, func(node expr.Expr) {
 			if column, ok := node.(columnExpression); ok {
 				for _, item := range producers {
-					slot := column.slot - prefix - item.offset
-					if column.frame != item.frame || slot < 0 || slot >= len(item.project.expressions) {
+					slot := column.Slot - prefix - item.offset
+					if column.Frame != item.frame || slot < 0 || slot >= len(item.project.Expressions) {
 						continue
 					}
 					activate(item)
@@ -203,8 +203,8 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 					}
 				}
 			}
-			if subquery, ok := node.(subqueryExpression); ok && !subquery.cteDefinition && subquery.queryPlan != nil {
-				observe(subquery.queryPlan.Root)
+			if subquery, ok := node.(subqueryExpression); ok && !subquery.cteDefinition && subquery.QueryPlan != nil {
+				observe(subquery.QueryPlan.Root)
 			}
 		})
 	}
@@ -285,11 +285,11 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 			return node, nil
 		}
 		copy := *pruned[project]
-		child, err := rewriteQueryExpressions(copy.child, identity, rewrite)
+		child, err := rewriteQueryExpressions(copy.Child, identity, rewrite)
 		if err != nil {
 			return nil, err
 		}
-		copy.child = child
+		copy.Child = child
 		return &copy, nil
 	}
 	return rewriteQueryExpressions(root, identity, rewrite)
@@ -318,10 +318,10 @@ func ruleMutationProducerDemand(b binding) (binding, error) {
 			visit(b.predicate)
 		}
 		for _, target := range targets {
-			for ; target != nil; target = target.next {
-				for _, subscript := range target.node.subscripts {
-					visit(subscript.lower)
-					visit(subscript.upper)
+			for ; target != nil; target = target.Next {
+				for _, subscript := range target.Node.Subscripts {
+					visit(subscript.Lower)
+					visit(subscript.Upper)
 				}
 			}
 		}

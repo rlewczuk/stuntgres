@@ -20,7 +20,7 @@ func TestArrayCompareReduction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	left := literalExpression{Info: b.info(integer.Usage(), parser.Position{}, expr.Properties{}), value: leftValue}
+	left := literalExpression{Info: b.info(integer.Usage(), parser.Position{}, expr.Properties{}), Value: leftValue}
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for _, tc := range []struct {
 		input string
@@ -45,23 +45,23 @@ func TestArrayCompareReduction(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		right := literalExpression{Info: b.info(arrayType.Usage(), parser.Position{}, expr.Properties{}), value: array}
+		right := literalExpression{Info: b.info(arrayType.Usage(), parser.Position{}, expr.Properties{}), Value: array}
 		for i, name := range []string{"=", "=", "<>", "<>"} {
 			op, _ := comparisonOperator(name)
 			predicate, err := sqltype.BindComparisonPredicate(op, integer, integer, boolean, sqltype.CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := scalarArrayComparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), left: left, array: right, predicate: predicate, operator: name, all: i%2 == 1}
+			node := scalarArrayComparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: left, Array: right, Predicate: predicate, Operator: name, All: i%2 == 1}
 			value, err := node.Eval(c)
 			if err != nil {
 				t.Fatal(tc.input, err)
 			}
 			truth, err := TruthOf(value)
 			if err != nil || truth != tc.want[i] {
-				t.Fatal(tc.input, name, node.all, truth, tc.want[i], err)
+				t.Fatal(tc.input, name, node.All, truth, tc.want[i], err)
 			}
-			node.left = literalExpression{Info: left.Info, value: sqltype.Null(integer)}
+			node.Left = literalExpression{Info: left.Info, Value: sqltype.Null(integer)}
 			value, err = node.Eval(c)
 			if err != nil {
 				t.Fatal(err)
@@ -70,7 +70,7 @@ func TestArrayCompareReduction(t *testing.T) {
 			want := Unknown
 			if !tc.null && array.ArrayLen() == 0 {
 				want = False
-				if node.all {
+				if node.All {
 					want = True
 				}
 			}
@@ -91,7 +91,7 @@ func TestArrayCompareReduction(t *testing.T) {
 	}
 	calls := 0
 	last := queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return leftValue, nil })
-	node := scalarArrayComparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), left: left, items: []expr.Expr{left, last}, predicate: predicate, operator: "="}
+	node := scalarArrayComparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: left, Items: []expr.Expr{left, last}, Predicate: predicate, Operator: "="}
 	value, err := node.Eval(c)
 	truth, truthErr := TruthOf(value)
 	if err != nil || truthErr != nil || truth != True || calls != 1 {
@@ -117,7 +117,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		var numbers []int
 		walkBoundExpression(original, func(child expr.Expr) {
 			if p, ok := child.(parameterExpression); ok {
-				numbers = append(numbers, p.number)
+				numbers = append(numbers, p.Number)
 			}
 		})
 		if !reflect.DeepEqual(numbers, []int{1, 2}) {
@@ -150,14 +150,14 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 			t.Fatal("structural identity ignored predicate generations")
 		}
 		node := original.(scalarArrayComparisonExpression)
-		replacement := literalExpression{Info: b.info(node.left.ResultUsage(), parser.Position{}, expr.Properties{}), value: sqltype.Null(node.left.ResultUsage().Type)}
+		replacement := literalExpression{Info: b.info(node.Left.ResultUsage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(node.Left.ResultUsage().Type)}
 		next, changed, err := mapScalarArrayChildren(node, func(old expr.Expr) (expr.Expr, bool, error) {
-			if old == node.left {
+			if old == node.Left {
 				return replacement, true, nil
 			}
 			return old, false, nil
 		})
-		if err != nil || !changed || reflect.DeepEqual(next.left, node.left) {
+		if err != nil || !changed || reflect.DeepEqual(next.Left, node.Left) {
 			t.Fatal(next, changed, err)
 		}
 		value, err = original.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})

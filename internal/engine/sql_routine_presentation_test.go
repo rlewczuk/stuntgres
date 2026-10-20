@@ -43,7 +43,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			}
 			ownedSyntax := *syntax
 			ownedSyntax.Targets = []parser.Expr{frozen}
-			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, child: &singletonNode{}, expressions: []expr.Expr{node}, frame: b.frameID(), syntax: &ownedSyntax}
+			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: &ownedSyntax}
 			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: &ownedSyntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			read := e.CatalogRead()
@@ -51,11 +51,11 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				t.Fatal(err)
 			}
 			path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
-			if definition.routineRefs[path] != n.ref || len(definition.castUsages) != 1 {
+			if definition.routineRefs[path] != n.Ref || len(definition.castUsages) != 1 {
 				t.Fatal("lost selected identity or implicit argument conversion")
 			}
-			badReferences := []ids.ObjectRef{{}, New().catalog.Domain.Ref(n.ref.Epoch, n.ref.Address), n.ref.Domain().Ref(n.ref.Epoch+1, n.ref.Address)}
-			subID := n.ref
+			badReferences := []ids.ObjectRef{{}, New().catalog.Domain.Ref(n.Ref.Epoch, n.Ref.Address), n.Ref.Domain().Ref(n.Ref.Epoch+1, n.Ref.Address)}
+			subID := n.Ref
 			subID.Address.SubID = 1
 			badReferences = append(badReferences, subID)
 			builtins := read.State().ProceduresNamed(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, "abs")
@@ -76,7 +76,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				t.Fatal("missing SQL capture accepted")
 			}
 			extra := *definition
-			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: n.ref, {query: b.frameID(), target: 99}: n.ref}
+			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: n.Ref, {query: b.frameID(), target: 99}: n.Ref}
 			if err := extra.validateLiterals(read); err == nil {
 				t.Fatal("extra SQL capture accepted")
 			}
@@ -95,14 +95,14 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				}
 				return text
 			}
-			if text := render(); !strings.HasPrefix(text, `"public"."`+n.procedure.Name()+`"(`) {
+			if text := render(); !strings.HasPrefix(text, `"public"."`+n.Procedure.Name()+`"(`) {
 				t.Fatal("lost qualified frozen identity", text)
 			}
 			run(t, e, "ALTER SCHEMA public RENAME TO routine_recipe_moved")
-			if text := render(); !strings.HasPrefix(text, `"routine_recipe_moved"."`+n.procedure.Name()+`"(`) {
+			if text := render(); !strings.HasPrefix(text, `"routine_recipe_moved"."`+n.Procedure.Name()+`"(`) {
 				t.Fatal("rendered stale source namespace", text)
 			}
-			if frozen.Name.Parts[0].Text != "public" || definition.routineRefs[path] != n.ref {
+			if frozen.Name.Parts[0].Text != "public" || definition.routineRefs[path] != n.Ref {
 				t.Fatal("render mutated frozen source or capture")
 			}
 		})

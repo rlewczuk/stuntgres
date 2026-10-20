@@ -30,7 +30,7 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 				if !ok || node.ResultUsage().Type != text {
 					t.Fatal("returning wrapper", node)
 				}
-				if _, ok = wrapper.child.(aggregateExpression); !ok {
+				if _, ok = wrapper.Child.(aggregateExpression); !ok {
 					t.Fatal("returning did not retain owned aggregate", wrapper)
 				}
 			}
@@ -40,7 +40,7 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 		t.Fatal("policies lost or duplicate ownership", len(b.grouping.aggregates))
 	}
 	for _, call := range b.grouping.aggregates {
-		if !call.includeNulls {
+		if !call.IncludeNulls {
 			t.Fatal("executor dropped NULL keys")
 		}
 	}
@@ -57,7 +57,7 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage()}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: functions.AggregateJSONObjectStrict, includeNulls: true}}}
+		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage()}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: functions.AggregateJSONObjectStrict, IncludeNulls: true}}}
 		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
@@ -65,7 +65,7 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		q := mapped.(*aggregateNode).calls[0].provider.(functions.JSONObjectAggregate)
+		q := mapped.(*aggregateNode).Calls[0].Provider.(functions.JSONObjectAggregate)
 		if !q.Unique() || !q.Strict() || q.KeyUsage().Type == p.KeyUsage().Type || q.InputUsage().Type == p.InputUsage().Type || q.ResultUsage().Type == p.ResultUsage().Type {
 			t.Fatal("remap lost policy or ownership")
 		}

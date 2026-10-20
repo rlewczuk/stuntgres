@@ -100,10 +100,10 @@ func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent,
 			slot := in.targetSlots[parent.IndexForAttribute(key.Attribute)]
 			ref := view.Owner().Domain.Ref(view.Epoch(), relation.Address())
 			ref.Address.SubID = relation.Attributes[slot]
-			node = columnExpression{Info: expr.Info{Usage: relation.Columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
+			node = columnExpression{Info: expr.Info{Usage: relation.Columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: slot}
 		}
 		if node.ResultUsage().Collation.ID != key.Usage.Collation.ID {
-			node = collationExpression{Info: expr.Info{Usage: key.Usage, Property: node.Properties()}, child: node}
+			node = collationExpression{Info: expr.Info{Usage: key.Usage, Property: node.Properties()}, Child: node}
 		}
 		keys[i] = node
 	}
@@ -156,7 +156,7 @@ func partitionProofSame(a, b expr.Expr) bool {
 func (p *partitionProof) nonNull(key expr.Expr) bool {
 	if column, ok := key.(columnExpression); ok {
 		for _, constraint := range p.relation.Constraints.NotNull {
-			if constraint.Attribute == column.origin.Address.SubID && !constraint.NotValid {
+			if constraint.Attribute == column.Origin.Address.SubID && !constraint.NotValid {
 				return true
 			}
 		}
@@ -172,13 +172,13 @@ func (p *partitionProof) nonNull(key expr.Expr) bool {
 func partitionCheckNonNull(node, key expr.Expr) bool {
 	switch e := node.(type) {
 	case nullTestExpression:
-		return e.not && partitionProofSame(e.child, key)
+		return e.Not && partitionProofSame(e.Child, key)
 	case logicalExpression:
-		if e.op == parser.LogicalAnd {
-			return partitionCheckNonNull(e.left, key) || partitionCheckNonNull(e.right, key)
+		if e.Op == parser.LogicalAnd {
+			return partitionCheckNonNull(e.Left, key) || partitionCheckNonNull(e.Right, key)
 		}
-		if e.op == parser.LogicalOr {
-			return partitionCheckNonNull(e.left, key) && partitionCheckNonNull(e.right, key)
+		if e.Op == parser.LogicalOr {
+			return partitionCheckNonNull(e.Left, key) && partitionCheckNonNull(e.Right, key)
 		}
 	}
 	return false
@@ -223,12 +223,12 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 	}
 	// An OR fact needs every possible non-false branch. Different branches may
 	// establish different alternatives of a lexicographic target predicate.
-	if e, ok := node.(logicalExpression); ok && e.op == parser.LogicalOr {
-		a, err := p.fact(e.left, goal)
+	if e, ok := node.(logicalExpression); ok && e.Op == parser.LogicalOr {
+		a, err := p.fact(e.Left, goal)
 		if err != nil || !a {
 			return a, err
 		}
-		return p.fact(e.right, goal)
+		return p.fact(e.Right, goal)
 	}
 	if goal.op == "or" {
 		a, err := p.fact(node, goal.left)
@@ -243,24 +243,24 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 	// A conjunction can supply facts jointly for an AND target, or a complete
 	// disjunctive subpredicate for an OR target. Unknown unrelated facts cannot
 	// establish a new comparison.
-	if e, ok := node.(logicalExpression); ok && e.op == parser.LogicalAnd {
-		a, err := p.fact(e.left, goal)
+	if e, ok := node.(logicalExpression); ok && e.Op == parser.LogicalAnd {
+		a, err := p.fact(e.Left, goal)
 		if err != nil || a {
 			return a, err
 		}
-		return p.fact(e.right, goal)
+		return p.fact(e.Right, goal)
 	}
 	if goal.op == "or" {
 		return false, nil
 	}
-	if e, ok := node.(literalExpression); ok && e.value.Type().ID() == sqltype.Bool {
-		truth, err := TruthOf(e.value)
+	if e, ok := node.(literalExpression); ok && e.Value.Type().ID() == sqltype.Bool {
+		truth, err := TruthOf(e.Value)
 		return truth == False, err
 	}
 	if e, ok := node.(nullTestExpression); ok {
 		for _, key := range p.keys {
-			if partitionProofSame(e.child, key) {
-				return !e.not, nil
+			if partitionProofSame(e.Child, key) {
+				return !e.Not, nil
 			}
 		}
 		return false, nil
@@ -270,11 +270,11 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		return false, nil
 	}
 	key := p.keys[goal.key]
-	operator := e.operator
-	literal, matched := e.right.(literalExpression)
-	if !partitionProofSame(e.left, key) || !matched {
-		literal, matched = e.left.(literalExpression)
-		if !matched || !partitionProofSame(e.right, key) {
+	operator := e.Operator
+	literal, matched := e.Right.(literalExpression)
+	if !partitionProofSame(e.Left, key) || !matched {
+		literal, matched = e.Left.(literalExpression)
+		if !matched || !partitionProofSame(e.Right, key) {
 			return false, nil
 		}
 		switch operator {
@@ -289,7 +289,7 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		}
 	}
 	entry := p.entries[goal.key]
-	if literal.value.IsNull() || literal.value.Type() != entry.Usage.Type {
+	if literal.Value.IsNull() || literal.Value.Type() != entry.Usage.Type {
 		return false, nil
 	}
 	// A custom index ordering is not automatically the CHECK operator's family.
@@ -301,13 +301,13 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 	if err != nil || ordering != entry.Comparison {
 		return false, nil
 	}
-	collation, indeterminate := e.predicate.InputCollation()
+	collation, indeterminate := e.Predicate.InputCollation()
 	if indeterminate || collation.ID != entry.Usage.Collation.ID {
 		return false, nil
 	}
 	order := 0
-	if !sqltype.SameDatum(literal.value, goal.value) {
-		order, err = entry.Comparison.Compare(p.scope.op.Context(), literal.value, goal.value, p.scope.input)
+	if !sqltype.SameDatum(literal.Value, goal.value) {
+		order, err = entry.Comparison.Compare(p.scope.op.Context(), literal.Value, goal.value, p.scope.input)
 		if err != nil {
 			return false, err
 		}

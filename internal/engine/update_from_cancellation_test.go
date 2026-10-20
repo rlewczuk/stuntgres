@@ -32,12 +32,12 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 				switch phase {
 				case "source_rejected":
 					join := b.update.from.(*joinNode)
-					join.predicate = queryProbe(join.predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+					join.Predicate = queryProbe(join.Predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
 						}
-						return sqltype.Boolean(join.predicate.ResultUsage().Type, false), nil
+						return sqltype.Boolean(join.Predicate.ResultUsage().Type, false), nil
 					})
 				case "candidate_rejected":
 					usage := b.update.predicate.ResultUsage()

@@ -27,39 +27,39 @@ func viewValuesAt(node LogicalNode, ordinal int) *valuesNode {
 	visit = func(node LogicalNode) *valuesNode {
 		switch n := node.(type) {
 		case *valuesNode:
-			if ordinal == n.viewOrdinal {
+			if ordinal == n.ViewOrdinal {
 				return n
 			}
 		case *setNode:
-			if found := visit(n.left); found != nil {
+			if found := visit(n.Left); found != nil {
 				return found
 			}
-			return visit(n.right)
+			return visit(n.Right)
 		case *joinNode:
-			if found := visit(n.left); found != nil {
+			if found := visit(n.Left); found != nil {
 				return found
 			}
-			return visit(n.right)
+			return visit(n.Right)
 		case *projectNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *sortNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *limitNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *evaluationNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *filterNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *aggregateNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *windowNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *distinctNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *distinctOnNode:
-			return visit(n.child)
+			return visit(n.Child)
 		case *rowLockNode:
-			return visit(n.child)
+			return visit(n.Child)
 		}
 		return nil
 	}

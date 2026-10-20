@@ -79,7 +79,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				u.arrayTargets = make([]*arrayAssignmentTarget, len(assignments))
 			}
 			u.arrayTargets[i] = target
-			dest = target.column(dest)
+			dest = target.Column(dest)
 		}
 		if source.ResultUsage() != dest.Usage {
 			// Prebound tuple outputs bypass scalar source binding, but still need
@@ -171,7 +171,7 @@ func evaluateUpdateAssignments(eval *EvalContext, action *boundUpdate, targets [
 		var value sqltype.Value
 		var err error
 		if len(action.arrayTargets) != 0 && action.arrayTargets[i] != nil {
-			value, err = action.arrayTargets[i].applyExpression(eval, row[target], expr)
+			value, err = action.arrayTargets[i].ApplyExpression(eval, row[target], expr)
 		} else if len(action.defaultOrigins) != 0 && action.defaultOrigins[i].requested {
 			value, err = evalDefaultExpression(eval, expr, action.defaultOrigins[i])
 		} else {

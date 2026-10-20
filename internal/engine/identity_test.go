@@ -193,8 +193,8 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 				t.Fatal("discard erased inferred import signature", bound.parameters)
 			}
 			project := bound.query.Root.(*projectNode)
-			output, isLiteral := project.expressions[0].(literalExpression)
-			if got := isLiteral && output.value.IsNull(); got != tc.outputNull {
+			output, isLiteral := project.Expressions[0].(literalExpression)
+			if got := isLiteral && output.Value.IsNull(); got != tc.outputNull {
 				t.Fatal("output demand", got, tc.outputNull)
 			}
 			if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 {

@@ -71,5 +71,5 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 			}
 		}
 	}
-	return logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), op: raw.Op, left: left, right: right, queryRight: b.query.nextQueryFrame != queryFrame}, nil
+	return logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), Op: raw.Op, Left: left, Right: right, QueryRight: b.query.nextQueryFrame != queryFrame}, nil
 }

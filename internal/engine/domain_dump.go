@@ -172,7 +172,7 @@ func catalogLiteralWithACL(ctx context.Context, view catalog.Read, n literalExpr
 
 func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader definitionReader, n literalExpression, aclOutput sqltype.ACLItemFormatter) (string, error) {
 	u := n.ResultUsage()
-	if n.value.Type() != u.Type {
+	if n.Value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
 	}
 	if u.Type.IsEnum() || u.Type.IsQueryInt() || u.Type.IsCube() {
@@ -180,7 +180,7 @@ func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader defi
 		if err != nil {
 			return "", err
 		}
-		literal, err := u.Type.SQLLiteral(ctx, n.value)
+		literal, err := u.Type.SQLLiteral(ctx, n.Value)
 		if err != nil {
 			return "", err
 		}
@@ -191,32 +191,32 @@ func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader defi
 		if err != nil {
 			return "", err
 		}
-		value, err := n.value.BaseValue()
+		value, err := n.Value.BaseValue()
 		if err != nil {
 			return "", err
 		}
 		n.Usage = u.BaseUsage()
-		n.value = value
+		n.Value = value
 		literal, err := catalogLiteralWithACLAt(ctx, view, reader, n, aclOutput)
 		if err != nil {
 			return "", err
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
-	if !n.value.IsNull() && u.Type.ID() == sqltype.ACLItemArray && n.value.ArrayRank() == 1 && n.value.ArrayDimension(0) == (sqltype.ArrayDimension{Lower: 1, Length: 0}) {
+	if !n.Value.IsNull() && u.Type.ID() == sqltype.ACLItemArray && n.Value.ArrayRank() == 1 && n.Value.ArrayDimension(0) == (sqltype.ArrayDimension{Lower: 1, Length: 0}) {
 		return `pg_catalog.acldefault('c'::"char",0::oid)`, nil
 	}
 	// Composite text input discards the special empty ACL shape. Retain typed
 	// member expressions instead, including domain wrappers at every depth.
-	if !n.value.IsNull() && u.Type.IsComposite() && containsEmptyACL(n.value) {
+	if !n.Value.IsNull() && u.Type.IsComposite() && containsEmptyACL(n.Value) {
 		declaration, err := catalogTypeDeclarationAt(view, reader, u)
 		if err != nil {
 			return "", err
 		}
-		parts := make([]string, n.value.CompositeLen())
+		parts := make([]string, n.Value.CompositeLen())
 		for i := range parts {
-			member := n.value.CompositeField(i)
-			literal := literalExpression{Info: expr.Info{Usage: u.Type.CompositeMember(i).Usage}, value: member}
+			member := n.Value.CompositeField(i)
+			literal := literalExpression{Info: expr.Info{Usage: u.Type.CompositeMember(i).Usage}, Value: member}
 			parts[i], err = catalogLiteralWithACLAt(ctx, view, reader, literal, aclOutput)
 			if err != nil {
 				return "", err
@@ -224,27 +224,27 @@ func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader defi
 		}
 		return "CAST(ROW(" + strings.Join(parts, ", ") + ") AS " + declaration + ")", nil
 	}
-	if !n.value.IsNull() && u.Type.IsArray() && u.Type.ID() != sqltype.ACLItemArray && containsEmptyACL(n.value) {
+	if !n.Value.IsNull() && u.Type.IsArray() && u.Type.ID() != sqltype.ACLItemArray && containsEmptyACL(n.Value) {
 		return "", fmt.Errorf("stuntgres: dump cannot serialize rank-one empty ACL inside an array of composite carriers")
 	}
-	if sqltype.IsRoutineAlias(u.Type.ID()) && !n.value.IsNull() {
-		return routineLiteralSQL(view, n.value)
+	if sqltype.IsRoutineAlias(u.Type.ID()) && !n.Value.IsNull() {
+		return routineLiteralSQL(view, n.Value)
 	}
-	if sqltype.IsOperatorAlias(u.Type.ID()) && !n.value.IsNull() {
-		return operatorLiteralSQL(view, n.value)
+	if sqltype.IsOperatorAlias(u.Type.ID()) && !n.Value.IsNull() {
+		return operatorLiteralSQL(view, n.Value)
 	}
 	if u.Type.IsArray() || u.Type.IsComposite() {
 		declaration, err := catalogTypeDeclarationAt(view, reader, u)
 		if err != nil {
 			return "", err
 		}
-		if (u.Type.ContainsRegproc() || u.Type.ContainsOperatorAlias()) && !n.value.IsNull() {
-			return routineContainerLiteralAt(ctx, view, reader, n.value, u, aclOutput)
+		if (u.Type.ContainsRegproc() || u.Type.ContainsOperatorAlias()) && !n.Value.IsNull() {
+			return routineContainerLiteralAt(ctx, view, reader, n.Value, u, aclOutput)
 		}
 		literal := "NULL"
-		if !n.value.IsNull() {
+		if !n.Value.IsNull() {
 			output := dumpCatalogAliasOutput{view: view}
-			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view, definition: reader}, Regtype: output, Regcollation: output, Regnamespace: output, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, Regproc: catalogRoutineOutput{view: view, qualified: true}, RegTS: dumpRegTSOutput{view: view}, ACLItem: aclOutput})
+			text, err := u.Type.OutputWithEnvironment(ctx, n.Value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view, definition: reader}, Regtype: output, Regcollation: output, Regnamespace: output, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, Regproc: catalogRoutineOutput{view: view, qualified: true}, RegTS: dumpRegTSOutput{view: view}, ACLItem: aclOutput})
 			if err != nil {
 				return "", err
 			}
@@ -252,45 +252,45 @@ func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader defi
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
-	if u.Type.ID() == sqltype.ACLItem && !n.value.IsNull() {
-		text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{ACLItem: aclOutput})
+	if u.Type.ID() == sqltype.ACLItem && !n.Value.IsNull() {
+		text, err := u.Type.OutputWithEnvironment(ctx, n.Value, sqltype.OutputEnvironment{ACLItem: aclOutput})
 		if err != nil {
 			return "", err
 		}
 		return "CAST('" + strings.ReplaceAll(text, "'", "''") + "' AS ACLITEM)", nil
 	}
-	if u.Type.ID() == sqltype.Regrole && !n.value.IsNull() {
-		text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regrole: regroleContextFormatter(ctx)})
+	if u.Type.ID() == sqltype.Regrole && !n.Value.IsNull() {
+		text, err := u.Type.OutputWithEnvironment(ctx, n.Value, sqltype.OutputEnvironment{Regrole: regroleContextFormatter(ctx)})
 		if err != nil {
 			return "", err
 		}
 		return "CAST('" + strings.ReplaceAll(text, "'", "''") + "' AS REGROLE)", nil
 	}
-	if sqltype.IsRegTS(u.Type.ID()) && !n.value.IsNull() {
-		id, err := n.value.RegTSOID()
+	if sqltype.IsRegTS(u.Type.ID()) && !n.Value.IsNull() {
+		id, err := n.Value.RegTSOID()
 		if err != nil {
 			return "", err
 		}
 		text := regTSSpelling(view, nil, id, u.Type.ID(), true)
 		return "CAST('" + strings.ReplaceAll(text, "'", "''") + "' AS " + u.Type.SQLName() + ")", nil
 	}
-	if u.Type.ID() == sqltype.Regtype && !n.value.IsNull() {
-		id, err := n.value.TypeOID()
+	if u.Type.ID() == sqltype.Regtype && !n.Value.IsNull() {
+		id, err := n.Value.TypeOID()
 		if err != nil {
 			return "", err
 		}
 		return "CAST('" + strings.ReplaceAll(regtypeReference(view, id), "'", "''") + "' AS REGTYPE)", nil
 	}
-	if sqltype.IsRegObjectAlias(u.Type.ID()) && !n.value.IsNull() {
+	if sqltype.IsRegObjectAlias(u.Type.ID()) && !n.Value.IsNull() {
 		output := dumpCatalogAliasOutput{view: view}
-		text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regcollation: output, Regnamespace: output})
+		text, err := u.Type.OutputWithEnvironment(ctx, n.Value, sqltype.OutputEnvironment{Regcollation: output, Regnamespace: output})
 		if err != nil {
 			return "", err
 		}
 		return "CAST('" + strings.ReplaceAll(text, "'", "''") + "' AS " + u.Type.SQLName() + ")", nil
 	}
-	if u.Type.ID() == sqltype.Regclass && !n.value.IsNull() {
-		text, err := n.value.Text()
+	if u.Type.ID() == sqltype.Regclass && !n.Value.IsNull() {
+		text, err := n.Value.Text()
 		if err != nil {
 			return "", err
 		}

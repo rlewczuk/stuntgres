@@ -13,8 +13,8 @@ import (
 // actual graph remapper's descriptor-owned support and immutable original graph.
 func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
 	_, query, _ := queryCoreFixture(t, "SELECT count(*) OVER w FROM t WINDOW w AS(ORDER BY id RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING)")
-	original := query.Root.(*projectNode).child.(*windowNode)
-	before := original.specs[0].frame
+	original := query.Root.(*projectNode).Child.(*windowNode)
+	before := original.Specs[0].Frame
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
@@ -23,32 +23,32 @@ func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
 	if err != nil || mapped == query.Root {
 		t.Fatal(mapped, err)
 	}
-	next := mapped.(*projectNode).child.(*windowNode)
-	if next == original || original.specs[0].definition != 1 || next.specs[0].definition != original.specs[0].definition || !reflect.DeepEqual(next.sortIndices, original.sortIndices) || next.calls[0].expression == original.calls[0].expression || next.calls[0].expression.slot != original.calls[0].expression.slot {
+	next := mapped.(*projectNode).Child.(*windowNode)
+	if next == original || original.Specs[0].Definition != 1 || next.Specs[0].Definition != original.Specs[0].Definition || !reflect.DeepEqual(next.SortIndices, original.SortIndices) || next.Calls[0].Expression == original.Calls[0].Expression || next.Calls[0].Expression.Slot != original.Calls[0].Expression.Slot {
 		t.Fatal("graph/slot ownership", next, original)
 	}
 	ctx := context.Background()
 	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}}
-	for _, pair := range [][2]boundWindowBound{{before.start, next.specs[0].frame.start}, {before.end, next.specs[0].frame.end}} {
+	for _, pair := range [][2]boundWindowBound{{before.Start, next.Specs[0].Frame.Start}, {before.End, next.Specs[0].Frame.End}} {
 		old, bound := pair[0], pair[1]
-		if bound.kind != old.kind || bound.offset == old.offset || bound.support == old.support || bound.offset.ResultUsage().Type != types[sqltype.Int4] || old.offset.ResultUsage().Type == types[sqltype.Int4] {
+		if bound.Kind != old.Kind || bound.Offset == old.Offset || bound.Support == old.Support || bound.Offset.ResultUsage().Type != types[sqltype.Int4] || old.Offset.ResultUsage().Type == types[sqltype.Int4] {
 			t.Fatal("support/offset ownership", old, bound)
 		}
-		offset, err := bound.offset.Eval(&evaluation)
+		offset, err := bound.Offset.Eval(&evaluation)
 		if err != nil {
 			t.Fatal(err)
 		}
 		val, _ := sqltype.Integer(types[sqltype.Int4], 3)
 		base, _ := sqltype.Integer(types[sqltype.Int4], 2)
-		got, err := bound.support.InRange(ctx, val, base, offset, true, false, sqltype.InputEnvironment{})
+		got, err := bound.Support.InRange(ctx, val, base, offset, true, false, sqltype.InputEnvironment{})
 		if err != nil || !got {
 			t.Fatal(got, err)
 		}
-		if _, err := old.support.InRange(ctx, val, base, offset, true, false, sqltype.InputEnvironment{}); err == nil {
+		if _, err := old.Support.InRange(ctx, val, base, offset, true, false, sqltype.InputEnvironment{}); err == nil {
 			t.Fatal("original support accepted replacement authority")
 		}
 	}
-	if original.specs[0].frame != before {
+	if original.Specs[0].Frame != before {
 		t.Fatal("remap mutated original frame")
 	}
 }
@@ -56,12 +56,12 @@ func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
 func TestQueryWindowRangeNamedFrameCloneIdentity(t *testing.T) {
 	_, query, _ := queryCoreFixture(t, "SELECT count(*) OVER w,count(*) OVER w,count(*) OVER v FROM t WINDOW w AS(ORDER BY id RANGE 1 PRECEDING),v AS(ORDER BY id RANGE 1 PRECEDING)")
 	project := query.Root.(*projectNode)
-	original := project.child.(*windowNode)
-	if len(original.specs) != 2 || len(original.calls) != 2 || original.specs[0].definition != 1 || original.specs[1].definition != 2 || !reflect.DeepEqual(original.sortIndices, []int{0, 0}) || !reflect.DeepEqual(original.specIndices, []int{0, 1}) {
+	original := project.Child.(*windowNode)
+	if len(original.Specs) != 2 || len(original.Calls) != 2 || original.Specs[0].Definition != 1 || original.Specs[1].Definition != 2 || !reflect.DeepEqual(original.SortIndices, []int{0, 0}) || !reflect.DeepEqual(original.SpecIndices, []int{0, 1}) {
 		t.Fatal("named frame identity or shared sort", original)
 	}
-	a, b, c := project.expressions[0].(*windowExpression), project.expressions[1].(*windowExpression), project.expressions[2].(*windowExpression)
-	if a.slot != b.slot || a.slot == c.slot {
+	a, b, c := project.Expressions[0].(*windowExpression), project.Expressions[1].(*windowExpression), project.Expressions[2].(*windowExpression)
+	if a.Slot != b.Slot || a.Slot == c.Slot {
 		t.Fatal("same-name/distinct-name call slots", a, b, c)
 	}
 	copied, err := rewriteQueryExpressions(query.Root, func(expr expr.Expr) (expr.Expr, bool, error) {
@@ -70,26 +70,26 @@ func TestQueryWindowRangeNamedFrameCloneIdentity(t *testing.T) {
 			return expr, false, nil
 		}
 		value, err := sqltype.Integer(literal.ResultUsage().Type, 2)
-		literal.value = value
+		literal.Value = value
 		return literal, true, err
 	})
 	if err != nil || copied == query.Root {
 		t.Fatal(copied, err)
 	}
-	next := copied.(*projectNode).child.(*windowNode)
-	if next == original || !reflect.DeepEqual(next.sortIndices, original.sortIndices) {
+	next := copied.(*projectNode).Child.(*windowNode)
+	if next == original || !reflect.DeepEqual(next.SortIndices, original.SortIndices) {
 		t.Fatal("clone/sort ownership", next)
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
-	for i, spec := range original.specs {
-		if next.specs[i].definition != spec.definition {
+	for i, spec := range original.Specs {
+		if next.Specs[i].Definition != spec.Definition {
 			t.Fatal("rewrite lost named identity")
 		}
-		oldValue, err := spec.frame.start.offset.Eval(&evaluation)
+		oldValue, err := spec.Frame.Start.Offset.Eval(&evaluation)
 		if err != nil {
 			t.Fatal(err)
 		}
-		newValue, err := next.specs[i].frame.start.offset.Eval(&evaluation)
+		newValue, err := next.Specs[i].Frame.Start.Offset.Eval(&evaluation)
 		if err != nil {
 			t.Fatal(err)
 		}

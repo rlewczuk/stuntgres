@@ -57,17 +57,17 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 			if !ok {
 				break
 			}
-			arg = wrapper.child
+			arg = wrapper.Child
 		}
 		array := arg.(arrayExpression)
-		conversion := array.elements[0].(coercionExpression)
-		written := conversion.child.(coercionExpression)
+		conversion := array.Elements[0].(coercionExpression)
+		written := conversion.Child.(coercionExpression)
 		length, known := written.Usage.Length()
-		if conversion.mode != sqltype.Explicit || !conversion.syntheticConstructorElement || written.syntheticConstructorElement || written.mode != sqltype.Explicit || written.Usage.Type.ID() != sqltype.VarChar || !known || length != 1 {
+		if conversion.Mode != sqltype.Explicit || !conversion.SyntheticConstructorElement || written.SyntheticConstructorElement || written.Mode != sqltype.Explicit || written.Usage.Type.ID() != sqltype.VarChar || !known || length != 1 {
 			t.Fatal("conversion context or written origin changed", conversion, written)
 		}
 		plan, err := sqltype.PlanCoercion(written.ResultUsage(), conversion.ResultUsage(), sqltype.Explicit)
-		if err != nil || !plan.Equal(conversion.plan) {
+		if err != nil || !plan.Equal(conversion.Plan) {
 			t.Fatal("synthetic provenance changed executable plan", err)
 		}
 		return conversion

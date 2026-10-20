@@ -12,33 +12,33 @@ import (
 )
 
 func setOperand(arm *projectNode, slot int) comparisonOperand {
-	expression := arm.expressions[slot]
+	expression := arm.Expressions[slot]
 	if unknown, ok := expression.(unknownOutput); ok {
-		return comparisonOperand{raw: unknown.raw}
+		return comparisonOperand{raw: unknown.Raw}
 	}
 	operand := comparisonOperand{node: expression}
-	if arm.syntax != nil && len(arm.syntax.Targets) == len(arm.expressions) {
-		operand.raw = arm.syntax.Targets[slot]
+	if arm.Syntax != nil && len(arm.Syntax.Targets) == len(arm.Expressions) {
+		operand.raw = arm.Syntax.Targets[slot]
 	}
 	return operand
 }
 
 func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target sqltype.Usage, operation string) (expr.Expr, error) {
-	original := arm.expressions[slot]
+	original := arm.Expressions[slot]
 	operand := setOperand(arm, slot)
 	oldFrame := b.query.frame
-	b.query.frame = arm.frame
+	b.query.frame = arm.Frame
 	defer func() { b.query.frame = oldFrame }()
 	node, err := b.coerceConditional(operand, target, operation)
 	if err != nil {
 		return nil, err
 	}
 	if unknown, ok := original.(unknownOutput); ok {
-		arm.expressions[slot] = node
+		arm.Expressions[slot] = node
 		arm.querySchema[slot].Usage = node.ResultUsage()
 		if b.params.noParameters || b.consumer.materializedDefinition {
-			for i, raw := range arm.syntax.Targets {
-				if raw == unknown.raw {
+			for i, raw := range arm.Syntax.Targets {
+				if raw == unknown.Raw {
 					if err := b.captureViewLiterals(raw, node, viewTargetLiteral, i); err != nil {
 						return nil, err
 					}
@@ -47,14 +47,14 @@ func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target
 			}
 		}
 	} else if original.ResultUsage().Type == nil {
-		arm.expressions[slot] = node
+		arm.Expressions[slot] = node
 		arm.querySchema[slot].Usage = node.ResultUsage()
 	}
 	return node, nil
 }
 
 func (b *expressionBinder) bindSet(s *parser.Select) (*BoundQuery, error) {
-	if d := b.cte.recursiveDefinition; d != nil && d.syntax == s {
+	if d := b.cte.recursiveDefinition; d != nil && d.Syntax == s {
 		return b.bindRecursiveSet(s, d)
 	}
 	leftQuery, err := b.bindSelect(s.Set.Left, true)
@@ -73,18 +73,18 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 	operation := strings.ToUpper(s.Set.Operator)
 	if len(left.Schema()) != len(right.Schema()) {
 		pos := s.Set.Right.Pos
-		if len(right.expressions) > 0 {
-			pos = right.expressions[0].SourcePosition()
+		if len(right.Expressions) > 0 {
+			pos = right.Expressions[0].SourcePosition()
 		}
 		return nil, expr.ErrorAt("42601", "each "+operation+" query must have the same number of columns", pos)
 	}
 	width := len(left.Schema())
-	n := &setNode{querySchema: make(querySchema, width), left: left, right: right, operation: strings.ToLower(operation), all: s.Set.All, leftExpressions: make([]expr.Expr, width), rightExpressions: make([]expr.Expr, width)}
+	n := &setNode{querySchema: make(querySchema, width), Left: left, Right: right, Operation: strings.ToLower(operation), All: s.Set.All, LeftExpressions: make([]expr.Expr, width), RightExpressions: make([]expr.Expr, width)}
 	projection := make([]expr.Expr, width)
 	names := make([]string, width)
 	namespace := queryNamespace{frame: n.querySchema, columns: make([]queryColumn, width)}
-	if !(n.operation == "union" && n.all) {
-		n.grouping = make([]queryGrouping, width)
+	if !(n.Operation == "union" && n.All) {
+		n.Grouping = make([]queryGrouping, width)
 	}
 	regclass := false
 	for i := range width {
@@ -120,18 +120,18 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 			coercionInfo.Property = coercionProperties(node, plan)
 			expression := coercionExpression{coercionInfo, node, plan, sqltype.Implicit, false}
 			if side == 0 {
-				n.leftExpressions[i] = expression
+				n.LeftExpressions[i] = expression
 			} else {
-				n.rightExpressions[i] = expression
+				n.RightExpressions[i] = expression
 			}
 		}
 		n.querySchema[i] = catalog.Column{Name: left.Schema()[i].Name, Usage: common}
 		names[i] = n.Schema()[i].Name
 		namespace.columns[i] = queryColumn{descriptor: n.Schema()[i], slot: i, leaf: -1, physical: -1}
-		projection[i] = columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: i}
+		projection[i] = columnExpression{Info: info, Scope: 1, Frame: b.frameID(), Slot: i}
 		regclass = regclass || common.Type.ContainsCatalogIdentifier()
-		if n.grouping != nil {
-			n.grouping[i], err = b.bindDistinctGrouping(projection[i])
+		if n.Grouping != nil {
+			n.Grouping[i], err = b.bindDistinctGrouping(projection[i])
 			if err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
 					copy := *diagnostic
@@ -157,13 +157,13 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		return nil, err
 	}
 	if bounds != nil {
-		bounds.finishTies(root)
+		bounds.FinishTies(root)
 	}
 	if bounds != nil {
-		bounds.querySchema, bounds.child = root.Schema(), root
+		bounds.querySchema, bounds.Child = root.Schema(), root
 		root = bounds
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: n.querySchema, child: root, expressions: projection, frame: b.frameID(), syntax: s}, regclassOutput: regclass, visibilitySnapshot: leftQuery.visibilitySnapshot || rightQuery.visibilitySnapshot}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: n.querySchema, Child: root, Expressions: projection, Frame: b.frameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []catalog.Column) ([]sortKey, error) {
@@ -213,7 +213,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 				return nil, err
 			}
 		}
-		keys[i] = sortKey{expression: projection[slot], position: raw.Pos.Character, outputOrdinal: slot + 1, desc: raw.Desc, nullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc, cache: -1}
+		keys[i] = sortKey{Expression: projection[slot], Position: raw.Pos.Character, OutputOrdinal: slot + 1, Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc, Cache: -1}
 	}
 	return keys, nil
 }

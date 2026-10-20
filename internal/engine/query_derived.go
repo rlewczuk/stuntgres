@@ -7,10 +7,10 @@ import (
 )
 
 func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (indexedStage, error) {
-	if n.cte != nil && !n.cte.folded() {
+	if n.CTE != nil && !n.CTE.Folded() {
 		return openCTEScan(ctx, state, n)
 	}
-	project, ok := n.query.Root.(*projectNode)
+	project, ok := n.Query.Root.(*projectNode)
 	if !ok {
 		return indexedStage{}, fmt.Errorf("stuntgres: derived query lacks final projection")
 	}
@@ -20,7 +20,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 		return indexedStage{}, err
 	}
 	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
-	establishSourcePresence(source, n.presenceSlot)
+	establishSourcePresence(source, n.PresenceSlot)
 	if state.source.locks != nil {
 		source.lineage = &queryLockLineage{root: project, inputs: state.source, stage: inner.source, state: innerState}
 	}
@@ -66,7 +66,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 		source.flat = append(source.flat, make([]sqltype.Value, len(n.Schema()))...)
 		row := source.flat[start:]
 		for j, expr := range inner.expressions {
-			if n.cte != nil && !n.demand[j] {
+			if n.CTE != nil && !n.Demand[j] {
 				row[j] = sqltype.ResultNull(n.Schema()[j].Usage)
 				continue
 			}

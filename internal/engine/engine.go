@@ -799,7 +799,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		// manifest, including bindings discovered after the auxiliary body.
 		mutation.dependencies = b.dependencies
 		if mutation.relation.VirtualView {
-			switch definition.statement.(type) {
+			switch definition.Statement.(type) {
 			case *parser.Insert:
 				return b, pgcatalog.VirtualViewWriteError(mutation.relation, "insert", mutation.targets)
 			case *parser.Update:

@@ -16,8 +16,8 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 		return nil, err
 	}
 	query := bound.(subqueryExpression)
-	project := query.queryPlan.Root.(*projectNode)
-	arg := expr.Expr(columnExpression{Info: b.info(query.Usage, raw.Pos, expr.Properties{RowDependent: true}), scope: 1, frame: project.frame, slot: 0})
+	project := query.QueryPlan.Root.(*projectNode)
+	arg := expr.Expr(columnExpression{Info: b.info(query.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: 0})
 	var format *parser.JSONFormat
 	if len(raw.Formats) > 0 {
 		format = raw.Formats[0]
@@ -52,7 +52,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if err != nil {
 		return nil, err
 	}
-	query.jsonArray = &sqlJSONArrayQuery{raw: raw, input: arg, plan: plan}
+	query.JSONArray = &sqlJSONArrayQuery{Raw: raw, Input: arg, Plan: plan}
 	query.Usage = usage
 	if returning.Type == nil {
 		return query, nil
@@ -68,8 +68,8 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	return coercionExpression{info, query, coercion, sqltype.Assignment, false}, nil
 }
 func (c *EvalContext) subqueryJSONArray(e subqueryExpression, state *queryState, stage *indexedStage) (sqltype.Value, error) {
-	p := e.jsonArray
-	aggregate, err := p.plan.Init(c.Context, c.FunctionJSONOutput())
+	p := e.JSONArray
+	aggregate, err := p.Plan.Init(c.Context, c.FunctionJSONOutput())
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -80,16 +80,16 @@ func (c *EvalContext) subqueryJSONArray(e subqueryExpression, state *queryState,
 			return sqltype.Value{}, err
 		}
 		if !present {
-			return p.plan.Finalize(c.Context, aggregate)
+			return p.Plan.Finalize(c.Context, aggregate)
 		}
 		inner := state.evaluation(c.Context)
-		inner.Frame = e.queryPlan.Root.(*projectNode).frame
+		inner.Frame = e.QueryPlan.Root.(*projectNode).Frame
 		inner.Row = row[:]
-		value, err := p.input.Eval(&inner)
+		value, err := p.Input.Eval(&inner)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err = p.plan.Advance(c.Context, aggregate, value); err != nil {
+		if err = p.Plan.Advance(c.Context, aggregate, value); err != nil {
 			return sqltype.Value{}, err
 		}
 	}

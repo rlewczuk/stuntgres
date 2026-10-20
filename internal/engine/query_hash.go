@@ -18,7 +18,7 @@ type capturedHashIndex struct {
 // The caller holds e.mu, the same owner as visibility-prefix capture. After
 // this proof, probing consults only the retained root and retained source rows.
 func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf, source *querySource, mark queryRowMark) error {
-	if !scope.implicit || scope.catalog != nil || mark.mode != 0 || source.view == nil || source.inheritance != nil || len(source.own) != 0 {
+	if !scope.implicit || scope.catalog != nil || mark.Mode != 0 || source.view == nil || source.inheritance != nil || len(source.own) != 0 {
 		return nil
 	}
 	data := source.view.Data()
@@ -75,15 +75,15 @@ func hashQueryFilter(root LogicalNode) *filterNode {
 	if !ok {
 		return nil
 	}
-	child := project.child
+	child := project.Child
 	for {
 		switch node := child.(type) {
 		case *sortNode:
-			child = node.child
+			child = node.Child
 		case *evaluationNode:
-			child = node.child
+			child = node.Child
 		case *filterNode:
-			if _, ok := node.child.(*sourceNode); ok {
+			if _, ok := node.Child.(*sourceNode); ok {
 				return node
 			}
 			return nil
@@ -97,24 +97,24 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 	if state.hashFilter != n {
 		return nil, nil
 	}
-	if _, ok := n.child.(*sourceNode); !ok {
+	if _, ok := n.Child.(*sourceNode); !ok {
 		return nil, nil
 	}
 	if source == nil || len(source.hashIndexes) == 0 || source.count() == 0 || source.input != nil || source.final != nil || source.materialized || source.nestedRoot != nil || len(source.own) != 0 || state.source.sources != nil {
 		return nil, nil
 	}
-	predicate, ok := n.predicate.(comparisonExpression)
-	if !ok || predicate.operator != "=" || predicate.namespace != "" && predicate.namespace != "pg_catalog" {
+	predicate, ok := n.Predicate.(comparisonExpression)
+	if !ok || predicate.Operator != "=" || predicate.Namespace != "" && predicate.Namespace != "pg_catalog" {
 		return nil, nil
 	}
-	column, ok := predicate.left.(columnExpression)
-	probe := predicate.right
+	column, ok := predicate.Left.(columnExpression)
+	probe := predicate.Right
 	if !ok {
-		column, ok = predicate.right.(columnExpression)
-		probe = predicate.left
+		column, ok = predicate.Right.(columnExpression)
+		probe = predicate.Left
 	}
 	evaluation := state.evaluation(ctx)
-	if !ok || column.scope != evaluation.Scope || column.frame != evaluation.Frame || column.origin.Domain() != source.ref.Domain() || column.origin.Epoch != source.ref.Epoch || column.origin.Address.ClassID != source.ref.Address.ClassID || column.origin.Address.ObjectID != source.ref.Address.ObjectID {
+	if !ok || column.Scope != evaluation.Scope || column.Frame != evaluation.Frame || column.Origin.Domain() != source.ref.Domain() || column.Origin.Epoch != source.ref.Epoch || column.Origin.Address.ClassID != source.ref.Address.ClassID || column.Origin.Address.ObjectID != source.ref.Address.ObjectID {
 		return nil, nil
 	}
 	switch probe.(type) {
@@ -122,12 +122,12 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 	default:
 		return nil, nil
 	}
-	if probe.ResultUsage() != column.ResultUsage() || !predicate.predicate.EqualityFor(column.ResultUsage()) {
+	if probe.ResultUsage() != column.ResultUsage() || !predicate.Predicate.EqualityFor(column.ResultUsage()) {
 		return nil, nil
 	}
 	for _, capture := range source.hashIndexes {
 		key := capture.definition.Keys[0]
-		if key.Derived != nil || key.Attribute != column.origin.Address.SubID || column.slot != capture.root.Binding.Slot || capture.usage != column.ResultUsage() || !capture.root.Binding.Provider.OrdinaryEquality() {
+		if key.Derived != nil || key.Attribute != column.Origin.Address.SubID || column.Slot != capture.root.Binding.Slot || capture.usage != column.ResultUsage() || !capture.root.Binding.Provider.OrdinaryEquality() {
 			continue
 		}
 		value, err := probe.Eval(&evaluation)

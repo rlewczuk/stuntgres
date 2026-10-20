@@ -333,7 +333,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		if len(n.(expr.Composite).Children()) != 0 {
 			column := columnExpression{
 				Info:   b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, expr.Properties{RowDependent: true}),
-				origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
+				Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
 			}
 			info := expr.InfoOf(n)
 			info.Property = expr.MergeProperties(expr.Properties{Volatility: expr.Volatile}, column.Properties())
@@ -350,11 +350,11 @@ func TestCommitTimeExpression(t *testing.T) {
 			}
 			next := persisted
 			mappedColumn := next.(expr.Composite).Children()[0].(columnExpression)
-			if next.(expr.StoredProvider).ValidateStoredProvider() != nil || expr.InfoOf(next).CallRoutineReference() != expr.InfoOf(n).CallRoutineReference() || next.Properties() != withColumn.Properties() || next.ResultUsage() != n.ResultUsage() || mappedColumn.origin.Address.SubID != 2 || mappedColumn.slot != 3 {
+			if next.(expr.StoredProvider).ValidateStoredProvider() != nil || expr.InfoOf(next).CallRoutineReference() != expr.InfoOf(n).CallRoutineReference() || next.Properties() != withColumn.Properties() || next.ResultUsage() != n.ResultUsage() || mappedColumn.Origin.Address.SubID != 2 || mappedColumn.Slot != 3 {
 				t.Fatal("persistence failed to remap the inquiry's child")
 			}
 			originalColumn := withColumn.(expr.Composite).Children()[0].(columnExpression)
-			if originalColumn.origin.Address.SubID != 1 || originalColumn.slot != 0 {
+			if originalColumn.Origin.Address.SubID != 1 || originalColumn.Slot != 0 {
 				t.Fatal("persistence mutated the original inquiry child")
 			}
 		}

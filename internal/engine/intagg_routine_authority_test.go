@@ -67,8 +67,8 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("missing actual aggregate")
 				}
 				call := binder.grouping.aggregates[0]
-				captured, ref = call.procedure, call.routine
-				if ref != call.ref || ref == (ids.ObjectRef{}) {
+				captured, ref = call.Procedure, call.Routine
+				if ref != call.Ref || ref == (ids.ObjectRef{}) {
 					t.Fatal("aggregate lost original compact authority")
 				}
 				if carrier, err := routine.ExpressionRoutineDescriptor(node); err != nil || carrier != nil {
@@ -79,7 +79,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				if !ok || !sourceAdmitted(enum) || !binder.clause.queryHasTargetSet {
 					t.Fatal("lost genuine set carrier")
 				}
-				captured, ref = enum.procedure, enum.ref
+				captured, ref = enum.Procedure, enum.Ref
 				carrier, err := routine.ExpressionRoutineDescriptor(node)
 				if err != nil || carrier != captured || !procedureReturnsSet(captured) || strictScalarRoutine(captured) {
 					t.Fatal("enum selected declaration/set classification", err)
@@ -142,7 +142,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			}
 			before := node
 			if enum, ok := node.(unnestExpression); ok {
-				enum.args = append([]expr.Expr(nil), enum.args...)
+				enum.Args = append([]expr.Expr(nil), enum.Args...)
 				before = enum
 			}
 			for _, mode := range []string{"nil", "empty", "missing", "epoch", "revision", "foreign_ref"} {
@@ -232,8 +232,8 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("structural parameter rewrite lost original authority", err)
 					}
 					foreignEnum := node.(unnestExpression)
-					foreignEnum.ref = other.catalog.Domain.Ref(foreignEnum.ref.Epoch, foreignEnum.ref.Address)
-					foreignEnum.ref.Epoch = foreign.catalog.Epoch()
+					foreignEnum.Ref = other.catalog.Domain.Ref(foreignEnum.Ref.Epoch, foreignEnum.Ref.Address)
+					foreignEnum.Ref.Epoch = foreign.catalog.Epoch()
 					foreignNode, _, err := retagBoundTypes(foreign.catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
 							return nil

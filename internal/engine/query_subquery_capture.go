@@ -14,8 +14,8 @@ import (
 // The normalized constructor is a source association only. Executable comparison
 // fields retain their existing ownership and are never evaluated through it.
 func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, constructor rowExpression) (expr.Expr, error) {
-	members := make([]sqltype.CompositeMember, len(constructor.fields))
-	for i, field := range constructor.fields {
+	members := make([]sqltype.CompositeMember, len(constructor.Fields))
+	for i, field := range constructor.Fields {
 		members[i] = constructor.Usage.Type.CompositeMember(i)
 		members[i].Attribute = int32(i + 1)
 		members[i].Usage = field.ResultUsage()
@@ -28,7 +28,7 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 	if b.stored.syntax == nil {
 		b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 	}
-	b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = *constructor.raw
+	b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = *constructor.Raw
 	return constructor, nil
 }
 
@@ -39,11 +39,11 @@ func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.Expression
 	var erased map[sqltype.ID]bool
 	visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
-			if n, ok := node.(subqueryExpression); ok && n.erasedLeftType != 0 {
+			if n, ok := node.(subqueryExpression); ok && n.ErasedLeftType != 0 {
 				if erased == nil {
 					erased = make(map[sqltype.ID]bool)
 				}
-				erased[n.erasedLeftType] = true
+				erased[n.ErasedLeftType] = true
 			}
 		})
 	}, true)
@@ -79,11 +79,11 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 		if expansion, ok := expansions[source]; ok {
 			key := path
 			key.node = *ordinal
-			if slot+len(expansion.fields) > count {
+			if slot+len(expansion.Fields) > count {
 				return fmt.Errorf("stuntgres: missing row comparison source association")
 			}
 			if memberCasts {
-				for i := range expansion.fields {
+				for i := range expansion.Fields {
 					key.argument = i + 1
 					b.capture.castUsages[key] = fieldAt(slot + i).ResultUsage()
 				}
@@ -91,7 +91,7 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 			if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
 				return err
 			}
-			slot += len(expansion.fields)
+			slot += len(expansion.Fields)
 			continue
 		}
 		if slot >= count {

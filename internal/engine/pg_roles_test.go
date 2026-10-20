@@ -146,7 +146,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 		view.VirtualView = false
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		attrs := append([]int32(nil), d.Attributes...)
-		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
+		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), Ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
 		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}

@@ -22,7 +22,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, 
 	var definition *viewDefinition
 	var consumer *catalog.Relation
 	for _, layer := range w.layers {
-		if _, found := viewOf(layer.relation).queries[project.syntax]; found {
+		if _, found := viewOf(layer.relation).queries[project.Syntax]; found {
 			definition = viewOf(layer.relation)
 			consumer = layer.relation
 			break
@@ -67,7 +67,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, 
 			return
 		}
 		if project, ok := node.(*projectNode); ok {
-			frames[project.frame] = true
+			frames[project.Frame] = true
 		}
 		left, right := queryInputs(node)
 		ownFrames(left)
@@ -76,24 +76,24 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, 
 	ownFrames(root)
 	translate := func(n expr.Expr) (expr.Expr, bool, error) {
 		column, ok := n.(columnExpression)
-		if !ok || column.origin == (ids.ObjectRef{}) || !frames[column.frame] {
+		if !ok || column.Origin == (ids.ObjectRef{}) || !frames[column.Frame] {
 			return n, false, nil
 		}
 		changed := false
-		if column.queryOccurrence != 0 {
-			slot, err := mapOccurrence(column.queryOccurrence - 1)
+		if column.QueryOccurrence != 0 {
+			slot, err := mapOccurrence(column.QueryOccurrence - 1)
 			if err != nil {
 				return nil, false, err
 			}
-			column.queryOccurrence = slot + 1
+			column.QueryOccurrence = slot + 1
 			changed = true
 		}
-		use, err := storedViewUseReference(view, consumer, column.origin)
+		use, err := storedViewUseReference(view, consumer, column.Origin)
 		if err != nil {
 			return nil, false, err
 		}
-		changed = changed || column.origin != use
-		column.origin = use
+		changed = changed || column.Origin != use
+		column.Origin = use
 		return column, changed, nil
 	}
 	return rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
@@ -108,13 +108,13 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, 
 		if !ok {
 			return node, nil
 		}
-		slot, err := mapOccurrence(source.occurrence)
+		slot, err := mapOccurrence(source.Occurrence)
 		if err != nil {
 			return nil, err
 		}
 		copy := *source
-		copy.occurrence = slot
-		copy.ref = b.querySources[slot].ref
+		copy.Occurrence = slot
+		copy.Ref = b.querySources[slot].ref
 		return &copy, nil
 	})
 }

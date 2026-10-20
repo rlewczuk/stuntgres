@@ -87,7 +87,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 					plan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
 					if err == nil {
 						info.Property = coercionProperties(input, plan)
-						node = restoreDomainCastCollations(annotations, coercionExpression{Info: info, child: input, plan: plan, mode: sqltype.Explicit, syntheticConstructorElement: true})
+						node = restoreDomainCastCollations(annotations, coercionExpression{Info: info, Child: input, Plan: plan, Mode: sqltype.Explicit, SyntheticConstructorElement: true})
 					}
 				}
 			}
@@ -104,12 +104,12 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 	if err != nil {
 		return nil, err
 	}
-	return arrayExpression{Info: info, elements: elements, multidimensional: multidimensional}, nil
+	return arrayExpression{Info: info, Elements: elements, Multidimensional: multidimensional}, nil
 }
 
 func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n arrayExpression) (string, error) {
-	parts := make([]string, len(n.elements))
-	for i, child := range n.elements {
+	parts := make([]string, len(n.Elements))
+	for i, child := range n.Elements {
 		text, err := r.sql(ctx, view, child)
 		if err != nil {
 			return "", err
@@ -189,7 +189,7 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, e
 	}
 	properties := base.Properties()
 	for _, s := range subs {
-		for _, child := range [2]expr.Expr{s.lower, s.upper} {
+		for _, child := range [2]expr.Expr{s.Lower, s.Upper} {
 			if child != nil {
 				properties = expr.MergeProperties(properties, child.Properties())
 			}
@@ -206,25 +206,25 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, e
 }
 
 func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n subscriptExpression) (string, error) {
-	text, err := r.sql(ctx, view, n.base)
+	text, err := r.sql(ctx, view, n.Base)
 	if err != nil {
 		return "", err
 	}
 	text = "(" + text + ")"
-	for _, s := range n.subscripts {
+	for _, s := range n.Subscripts {
 		text += "["
-		if s.lower != nil {
-			part, err := r.sql(ctx, view, s.lower)
+		if s.Lower != nil {
+			part, err := r.sql(ctx, view, s.Lower)
 			if err != nil {
 				return "", err
 			}
 			text += part
 		}
-		if s.slice {
+		if s.Slice {
 			text += ":"
 		}
-		if s.upper != nil {
-			part, err := r.sql(ctx, view, s.upper)
+		if s.Upper != nil {
+			part, err := r.sql(ctx, view, s.Upper)
 			if err != nil {
 				return "", err
 			}
@@ -237,17 +237,17 @@ func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n s
 
 func subscriptChildren(n subscriptExpression, storage *[13]expr.Expr) []expr.Expr {
 	count := 0
-	if n.base != nil {
-		storage[count] = n.base
+	if n.Base != nil {
+		storage[count] = n.Base
 		count++
 	}
-	for _, s := range n.subscripts {
-		if s.lower != nil {
-			storage[count] = s.lower
+	for _, s := range n.Subscripts {
+		if s.Lower != nil {
+			storage[count] = s.Lower
 			count++
 		}
-		if s.upper != nil {
-			storage[count] = s.upper
+		if s.Upper != nil {
+			storage[count] = s.Upper
 			count++
 		}
 	}
@@ -256,32 +256,32 @@ func subscriptChildren(n subscriptExpression, storage *[13]expr.Expr) []expr.Exp
 
 // Only actual changed child lists are copied; shared plans remain immutable.
 func mapSubscript(n subscriptExpression, rewrite func(expr.Expr) (expr.Expr, bool, error)) (subscriptExpression, bool, error) {
-	base, changed, err := rewrite(n.base)
+	base, changed, err := rewrite(n.Base)
 	if err != nil {
 		return n, false, err
 	}
-	n.base = base
+	n.Base = base
 	var subs []boundArraySubscript
-	for i, s := range n.subscripts {
-		lower, did, err := rewrite(s.lower)
+	for i, s := range n.Subscripts {
+		lower, did, err := rewrite(s.Lower)
 		if err != nil {
 			return n, false, err
 		}
-		upper, more, err := rewrite(s.upper)
+		upper, more, err := rewrite(s.Upper)
 		if err != nil {
 			return n, false, err
 		}
 		if did || more {
 			if subs == nil {
-				subs = append([]boundArraySubscript(nil), n.subscripts...)
+				subs = append([]boundArraySubscript(nil), n.Subscripts...)
 			}
-			s.lower, s.upper = lower, upper
+			s.Lower, s.Upper = lower, upper
 			subs[i] = s
 			changed = true
 		}
 	}
 	if subs != nil {
-		n.subscripts = subs
+		n.Subscripts = subs
 	}
 	return n, changed, nil
 }

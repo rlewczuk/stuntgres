@@ -57,12 +57,12 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 	for i, column := range d.Columns {
 		ref := b.ref
 		ref.Address.SubID = d.Attributes[i]
-		p.old[i] = columnExpression{Info: ruleColumnInfo(column), origin: ref, scope: 1, frame: 1, slot: i}
+		p.old[i] = columnExpression{Info: ruleColumnInfo(column), Origin: ref, Scope: 1, Frame: 1, Slot: i}
 		p.new[i] = p.old[i]
 	}
 	if event == "INSERT" {
 		for i, column := range d.Columns {
-			p.old[i] = literalExpression{Info: ruleColumnInfo(column), value: sqltype.Null(column.Usage.Type)}
+			p.old[i] = literalExpression{Info: ruleColumnInfo(column), Value: sqltype.Null(column.Usage.Type)}
 			p.new[i] = p.old[i]
 			if len(b.insert.defaults) > i && b.insert.defaults[i] != nil {
 				p.new[i] = b.insert.defaults[i]
@@ -71,7 +71,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 		assign := func(output int, value expr.Expr) {
 			slot := b.targets[output]
 			if len(b.arrayTargets) > output && b.arrayTargets[output] != nil {
-				value = assignmentValueExpression{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
+				value = assignmentValueExpression{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, Base: p.new[slot], Value: value, Target: b.arrayTargets[output]}
 			}
 			p.new[slot] = value
 		}
@@ -85,14 +85,14 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 						return p, err
 					}
 				}
-				p.root = &derivedNode{querySchema: querySchema(project.Schema()), query: &BoundQuery{Root: project}}
+				p.root = &derivedNode{querySchema: querySchema(project.Schema()), Query: &BoundQuery{Root: project}}
 				for i := range b.targets {
-					assign(i, columnExpression{Info: ruleColumnInfo(project.Schema()[i]), scope: 1, frame: project.frame, slot: i})
+					assign(i, columnExpression{Info: ruleColumnInfo(project.Schema()[i]), Scope: 1, Frame: project.Frame, Slot: i})
 				}
 			} else {
-				p.root = project.child
+				p.root = project.Child
 				for i := range b.targets {
-					assign(i, project.expressions[i])
+					assign(i, project.Expressions[i])
 				}
 			}
 		} else if len(b.expressions) == 1 {
@@ -109,17 +109,17 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 				if len(b.expressions) != 0 {
 					schema[i].Usage = b.expressions[0][i].ResultUsage()
 				}
-				assign(i, columnExpression{Info: ruleColumnInfo(schema[i]), scope: 1, frame: 1, slot: i})
+				assign(i, columnExpression{Info: ruleColumnInfo(schema[i]), Scope: 1, Frame: 1, Slot: i})
 			}
 			if len(b.expressions) == 0 {
 				p.root = &singletonNode{}
 			} else {
-				p.root = &valuesNode{querySchema: schema, rows: b.expressions}
+				p.root = &valuesNode{querySchema: schema, Rows: b.expressions}
 			}
 		}
 	} else {
 		p.sources = append([]queryLeaf{{ref: b.ref, relation: d, storage: b.storage, uses: b.usedColumns}}, b.querySources...)
-		p.root = &sourceNode{querySchema: querySchema(d.Columns), ref: b.ref, occurrence: 0}
+		p.root = &sourceNode{querySchema: querySchema(d.Columns), Ref: b.ref, Occurrence: 0}
 		var from LogicalNode
 		var condition expr.Expr
 		if event == "UPDATE" {
@@ -128,7 +128,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 			for i, slot := range b.targets {
 				value := b.update.assignments[i]
 				if len(b.update.arrayTargets) > i && b.update.arrayTargets[i] != nil {
-					value = assignmentValueExpression{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
+					value = assignmentValueExpression{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, Base: p.new[slot], Value: value, Target: b.update.arrayTargets[i]}
 				}
 				p.new[slot] = value
 			}
@@ -143,12 +143,12 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 					return expr, false, nil
 				}
 				changed := false
-				if column.scope == 0 && column.frame == 0 {
-					column.scope, column.frame = 1, 1
+				if column.Scope == 0 && column.Frame == 0 {
+					column.Scope, column.Frame = 1, 1
 					changed = true
 				}
-				if column.queryOccurrence != 0 {
-					column.queryOccurrence++
+				if column.QueryOccurrence != 0 {
+					column.QueryOccurrence++
 					changed = true
 				}
 				return column, changed, nil
@@ -166,7 +166,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 			from, err = rewriteQueryExpressions(from, mapper, func(node LogicalNode) (LogicalNode, error) {
 				if source, ok := node.(*sourceNode); ok {
 					copy := *source
-					copy.occurrence++
+					copy.Occurrence++
 					return &copy, nil
 				}
 				return node, nil
@@ -182,7 +182,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 			if err != nil {
 				return p, err
 			}
-			p.root = &filterNode{querySchema: querySchema(p.root.Schema()), child: p.root, predicate: condition}
+			p.root = &filterNode{querySchema: querySchema(p.root.Schema()), Child: p.root, Predicate: condition}
 		}
 	}
 	return p, nil
@@ -242,8 +242,8 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 			return
 		}
 		if expression, ok := node.(caseExpression); ok {
-			for _, arm := range expression.arms {
-				record(arm.routine)
+			for _, arm := range expression.Arms {
+				record(arm.Routine)
 			}
 		}
 		captured, err := routine.ExpressionRoutineDescriptor(node)
@@ -275,7 +275,7 @@ func ruleJoin(left, right LogicalNode) LogicalNode {
 		return left
 	}
 	schema := append(slices.Clone(left.Schema()), right.Schema()...)
-	return &joinNode{querySchema: querySchema(schema), kind: parser.JoinInner, left: left, right: right, leftWidth: len(left.Schema()), rightWidth: len(right.Schema()), frame: 1}
+	return &joinNode{querySchema: querySchema(schema), Kind: parser.JoinInner, Left: left, Right: right, LeftWidth: len(left.Schema()), RightWidth: len(right.Schema()), Frame: 1}
 }
 
 // The FROM input is grafted below WHERE/aggregate/window evaluation, so original
@@ -284,23 +284,23 @@ func ruleQueryInput(root LogicalNode) LogicalNode {
 	for {
 		switch n := root.(type) {
 		case *projectNode:
-			root = n.child
+			root = n.Child
 		case *filterNode:
-			root = n.child
+			root = n.Child
 		case *sortNode:
-			root = n.child
+			root = n.Child
 		case *limitNode:
-			root = n.child
+			root = n.Child
 		case *aggregateNode:
-			root = n.child
+			root = n.Child
 		case *windowNode:
-			root = n.child
+			root = n.Child
 		case *evaluationNode:
-			root = n.child
+			root = n.Child
 		case *setProjectNode:
-			root = n.child
+			root = n.Child
 		case *rowLockNode:
-			root = n.child
+			root = n.Child
 		default:
 			return root
 		}
@@ -316,13 +316,13 @@ func normalizeRuleInsert(b binding) binding {
 		schema[i] = b.relation.Columns[slot]
 	}
 	if len(b.expressions) == 1 {
-		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, child: &singletonNode{}, expressions: b.expressions[0], frame: 1}}
+		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, Child: &singletonNode{}, Expressions: b.expressions[0], Frame: 1}}
 	} else {
 		projection := make([]expr.Expr, len(schema))
 		for i, column := range schema {
-			projection[i] = columnExpression{Info: ruleColumnInfo(column), scope: 1, frame: 1, slot: i}
+			projection[i] = columnExpression{Info: ruleColumnInfo(column), Scope: 1, Frame: 1, Slot: i}
 		}
-		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, child: &valuesNode{querySchema: schema, rows: b.expressions}, expressions: projection, frame: 1}}
+		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, Child: &valuesNode{querySchema: schema, Rows: b.expressions}, Expressions: projection, Frame: 1}}
 	}
 	b.commandQuery = true
 	b.expressions = nil
@@ -396,11 +396,11 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	}
 	actionFrame := uint32(1)
 	if b.query != nil {
-		actionFrame = b.query.Root.(*projectNode).frame
+		actionFrame = b.query.Root.(*projectNode).Frame
 	}
 	producerFrame := uint32(1)
 	if original.query != nil {
-		producerFrame = original.query.Root.(*projectNode).frame
+		producerFrame = original.query.Root.(*projectNode).Frame
 	}
 	actionMax, producerMax := ruleBindingMaxFrame(b), ruleBindingMaxFrame(original)
 	if actionFrame != producerFrame || producerMax > 1 || original.insert.subquerySource {
@@ -457,10 +457,10 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	windowSlots := make(map[int]int)
 	targetOffset, shift := targetWidth, true
 	substitute := func(bound expr.Expr) (expr.Expr, bool, error) {
-		if window, ok := bound.(*windowExpression); ok && window.frame == actionFrame {
-			if slot, ok := windowSlots[window.slot]; ok && slot != window.slot {
+		if window, ok := bound.(*windowExpression); ok && window.Frame == actionFrame {
+			if slot, ok := windowSlots[window.Slot]; ok && slot != window.Slot {
 				copy := *window
-				copy.slot = slot
+				copy.Slot = slot
 				return &copy, true, nil
 			}
 		}
@@ -468,22 +468,22 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		if !ok {
 			return bound, false, nil
 		}
-		if column.scope == rulePseudoScope {
+		if column.Scope == rulePseudoScope {
 			recipes := p.old
-			if column.frame == 2 {
+			if column.Frame == 2 {
 				recipes = p.new
 			}
-			slot := slices.Index(original.relation.Attributes, column.origin.Address.SubID)
+			slot := slices.Index(original.relation.Attributes, column.Origin.Address.SubID)
 			if slot < 0 || slot >= len(recipes) {
 				return nil, false, ids.ErrCatalogReplaced
 			}
-			if column.frame == 2 && len(original.insert.defaults) > slot && original.insert.defaults[slot] != nil {
+			if column.Frame == 2 && len(original.insert.defaults) > slot && original.insert.defaults[slot] != nil {
 				if err := loanRuleDefaultDependencies(catalog, original.relation, slot, &b.dependencies, &dependenciesPrivate); err != nil {
 					return nil, false, err
 				}
 			}
 			recipe := recipes[slot]
-			if column.frame == 2 {
+			if column.Frame == 2 {
 				if err := validateRuleNewUpdateOutput(recipe); err != nil {
 					return nil, false, err
 				}
@@ -492,10 +492,10 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 				var err error
 				recipe, _, err = rewriteViewExpression(catalog, recipe, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					c, ok := expr.(columnExpression)
-					if ok && c.scope == 1 && c.frame == actionFrame {
-						c.slot += targetOffset
-						if c.virtual != nil {
-							c.rowStart += targetOffset
+					if ok && c.Scope == 1 && c.Frame == actionFrame {
+						c.Slot += targetOffset
+						if c.Virtual != nil {
+							c.RowStart += targetOffset
 						}
 						return c, true, nil
 					}
@@ -508,10 +508,10 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			return recipe, true, nil
 		}
 		changed := false
-		if shift && column.scope == 1 && column.frame == actionFrame && column.slot >= targetWidth {
-			column.slot += width
-			if column.virtual != nil {
-				column.rowStart += width
+		if shift && column.Scope == 1 && column.Frame == actionFrame && column.Slot >= targetWidth {
+			column.Slot += width
+			if column.Virtual != nil {
+				column.RowStart += width
 			}
 			changed = true
 		}
@@ -567,7 +567,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		if err != nil {
 			return b, err
 		}
-		condition = cb.query.Root.(*projectNode).expressions[0]
+		condition = cb.query.Root.(*projectNode).Expressions[0]
 		_, condition, err = rewriteRuleFrames(catalog, nil, condition, func(old uint32) uint32 {
 			if old == 0 {
 				return 0
@@ -615,9 +615,9 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			}
 			projection := make([]expr.Expr, len(right.Schema()))
 			for i, column := range right.Schema() {
-				projection[i] = columnExpression{Info: ruleColumnInfo(column), scope: 1, frame: innerFrame, slot: i}
+				projection[i] = columnExpression{Info: ruleColumnInfo(column), Scope: 1, Frame: innerFrame, Slot: i}
 			}
-			right = &projectNode{querySchema: querySchema(right.Schema()), child: right, expressions: projection, frame: innerFrame, ruleInvocation: true}
+			right = &projectNode{querySchema: querySchema(right.Schema()), Child: right, Expressions: projection, Frame: innerFrame, RuleInvocation: true}
 		} else {
 			right, err = mapQuery(right, true)
 			if err != nil {
@@ -625,11 +625,11 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			}
 		}
 		joined := ruleJoin(p.root, right).(*joinNode)
-		joined.frame = actionFrame
-		joined.correlatedRight = correlated
+		joined.Frame = actionFrame
+		joined.CorrelatedRight = correlated
 		var replacement LogicalNode = joined
 		if condition != nil && targetWidth == 0 {
-			replacement = &filterNode{querySchema: querySchema(joined.Schema()), child: joined, predicate: condition}
+			replacement = &filterNode{querySchema: querySchema(joined.Schema()), Child: joined, Predicate: condition}
 		}
 		patched, err := ruleGraftSchemas(root, input, replacement, windowSlots)
 		if err != nil {
@@ -919,7 +919,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 			if err != nil {
 				return b, err
 			}
-			qualification = cb.query.Root.(*projectNode).expressions[0]
+			qualification = cb.query.Root.(*projectNode).Expressions[0]
 			maxFrame := ruleBindingMaxFrame(b)
 			_, qualification, err = rewriteRuleFrames(catalog, nil, qualification, func(old uint32) uint32 {
 				if old <= 1 {
@@ -936,17 +936,17 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 			b.prepared.regtypeConstants = append(slices.Clone(b.prepared.regtypeConstants), cb.prepared.regtypeConstants...)
 		}
 		tree := newRuleTreeMapper(catalog, nil, 0, b.ctes, ruleTreeMapping{finish: ruleQueryFinalizer(catalog), leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
-			if column, ok := expr.(columnExpression); ok && column.scope == rulePseudoScope {
+			if column, ok := expr.(columnExpression); ok && column.Scope == rulePseudoScope {
 				recipes := p.old
-				if column.frame == 2 {
+				if column.Frame == 2 {
 					recipes = p.new
 				}
-				slot := slices.Index(b.relation.Attributes, column.origin.Address.SubID)
+				slot := slices.Index(b.relation.Attributes, column.Origin.Address.SubID)
 				if slot < 0 || slot >= len(recipes) {
 					return nil, false, ids.ErrCatalogReplaced
 				}
 				recipe := recipes[slot]
-				if column.frame == 2 {
+				if column.Frame == 2 {
 					if err := validateRuleNewUpdateOutput(recipe); err != nil {
 						return nil, false, err
 					}
@@ -959,7 +959,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		if err != nil {
 			return b, err
 		}
-		predicates = append(predicates, truthTestExpression{Info: expr.Info{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, child: condition, truth: True, not: true})
+		predicates = append(predicates, truthTestExpression{Info: expr.Info{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, Child: condition, Truth: True, Not: true})
 	}
 	if len(predicates) == 0 {
 		return b, nil
@@ -968,15 +968,15 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		schema := make(querySchema, len(b.targets))
 		frame := uint32(1)
 		if b.query != nil {
-			frame = b.query.Root.(*projectNode).frame
+			frame = b.query.Root.(*projectNode).Frame
 		}
 		projection := make([]expr.Expr, len(b.targets))
 		for i, slot := range b.targets {
 			schema[i] = b.relation.Columns[slot]
 			projection[i] = p.new[slot]
 		}
-		root := &filterNode{querySchema: querySchema(p.root.Schema()), child: p.root, predicate: viewWritePredicate(predicates, nil)}
-		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, child: root, expressions: projection, frame: frame}}
+		root := &filterNode{querySchema: querySchema(p.root.Schema()), Child: p.root, Predicate: viewWritePredicate(predicates, nil)}
+		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, Child: root, Expressions: projection, Frame: frame}}
 		b.commandQuery = true
 		b.expressions = nil
 	} else if event == "UPDATE" {
@@ -1004,10 +1004,10 @@ func ruleReturningProjection(catalog catalog.Read, original, provider *boundRetu
 			if !ok {
 				return expr, false, nil
 			}
-			if column.slot >= len(provider.expressions) {
+			if column.Slot >= len(provider.expressions) {
 				return nil, false, ids.ErrCatalogReplaced
 			}
-			return provider.expressions[column.slot], true, nil
+			return provider.expressions[column.Slot], true, nil
 		})
 		if err != nil {
 			return nil, err
@@ -1067,22 +1067,22 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 		}
 	}
 	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
-		if column, ok := expr.(columnExpression); ok && column.scope == 1 && column.frame == 1 && column.slot >= len(old.Columns) {
-			column.slot += len(current.Columns) - len(old.Columns)
-			if column.virtual != nil {
-				column.rowStart += len(current.Columns) - len(old.Columns)
+		if column, ok := expr.(columnExpression); ok && column.Scope == 1 && column.Frame == 1 && column.Slot >= len(old.Columns) {
+			column.Slot += len(current.Columns) - len(old.Columns)
+			if column.Virtual != nil {
+				column.RowStart += len(current.Columns) - len(old.Columns)
 			}
 			return column, true, nil
 		}
 		column, ok := expr.(columnExpression)
-		if !ok || column.origin.Address.ObjectID != b.ref.Address.ObjectID {
+		if !ok || column.Origin.Address.ObjectID != b.ref.Address.ObjectID {
 			return expr, false, nil
 		}
-		if !(column.scope == 0 && column.frame == 0) && !(column.scope == 1 && column.frame == 1 && column.slot < len(old.Columns)) {
+		if !(column.Scope == 0 && column.Frame == 0) && !(column.Scope == 1 && column.Frame == 1 && column.Slot < len(old.Columns)) {
 			return expr, false, nil
 		}
-		column.slot = slices.Index(current.Attributes, column.origin.Address.SubID)
-		if column.slot < 0 {
+		column.Slot = slices.Index(current.Attributes, column.Origin.Address.SubID)
+		if column.Slot < 0 {
 			return nil, false, ids.ErrCatalogReplaced
 		}
 		return column, true, nil
@@ -1204,25 +1204,25 @@ func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relat
 	oldWidth, width := len(b.relation.Attributes), len(current.Attributes)
 	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
 		column, ok := expr.(columnExpression)
-		if !ok || column.origin.Address.ClassID != b.ref.Address.ClassID || column.origin.Address.ObjectID != b.ref.Address.ObjectID {
+		if !ok || column.Origin.Address.ClassID != b.ref.Address.ClassID || column.Origin.Address.ObjectID != b.ref.Address.ObjectID {
 			return expr, false, nil
 		}
-		if !(column.scope == 0 && column.frame == 0) && !(column.scope == 1 && column.frame == 1) {
+		if !(column.Scope == 0 && column.Frame == 0) && !(column.Scope == 1 && column.Frame == 1) {
 			return expr, false, nil
 		}
-		slot := current.IndexForAttribute(column.origin.Address.SubID)
+		slot := current.IndexForAttribute(column.Origin.Address.SubID)
 		if slot < 0 {
 			return nil, false, ids.ErrCatalogReplaced
 		}
-		if column.scope == 1 && column.frame == 1 && column.slot >= oldWidth {
+		if column.Scope == 1 && column.Frame == 1 && column.Slot >= oldWidth {
 			slot += width
 		}
-		column.slot = slot
-		if column.virtual != nil {
-			if column.rowStart >= oldWidth {
-				column.rowStart = width
+		column.Slot = slot
+		if column.Virtual != nil {
+			if column.RowStart >= oldWidth {
+				column.RowStart = width
 			}
-			column.rowWidth = width
+			column.RowWidth = width
 		}
 		return column, true, nil
 	}
@@ -1241,7 +1241,7 @@ func ruleBindingHasPseudo(b binding) bool {
 	found := false
 	inspect := func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
-			if column, ok := node.(columnExpression); ok && column.scope == rulePseudoScope {
+			if column, ok := node.(columnExpression); ok && column.Scope == rulePseudoScope {
 				found = true
 			}
 		})
@@ -1253,15 +1253,15 @@ func ruleBindingHasPseudo(b binding) bool {
 	}
 	expression := func(bound expr.Expr) {
 		if bound != nil && !found {
-			query(&projectNode{expressions: []expr.Expr{bound}})
+			query(&projectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
 	targets := func(items []*arrayAssignmentTarget) {
 		for _, target := range items {
-			for ; target != nil; target = target.next {
-				for _, sub := range target.node.subscripts {
-					expression(sub.lower)
-					expression(sub.upper)
+			for ; target != nil; target = target.Next {
+				for _, sub := range target.Node.Subscripts {
+					expression(sub.Lower)
+					expression(sub.Upper)
 				}
 			}
 		}

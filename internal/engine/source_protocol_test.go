@@ -28,7 +28,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 		t.Fatal("test requires distinct descriptor owners")
 	}
 	replacement := queryProbe(fresh.Usage(), func(*EvalContext) (sqltype.Value, error) { return value, nil })
-	node := &functionFromNode{calls: []expr.Expr{original}}
+	node := &functionFromNode{Calls: []expr.Expr{original}}
 	mapped, err := rewriteQueryExpressions(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == original.Args[0] {
 			return replacement, true, nil
@@ -38,7 +38,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := mapped.(*functionFromNode).calls[0].(functions.JSONRecord)
+	call := mapped.(*functionFromNode).Calls[0].(functions.JSONRecord)
 	staged, err := b.mapQuerySetStage(original, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == original.Args[0] {
 			return replacement, true, nil
@@ -58,7 +58,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 			t.Fatal("record value/layout changed", got, err)
 		}
 	}
-	if call.Plan != original.Plan || call.SourcePosition() != original.SourcePosition() || call.Defined != original.Defined || node.calls[0].(functions.JSONRecord).Args[0] != original.Args[0] {
+	if call.Plan != original.Plan || call.SourcePosition() != original.SourcePosition() || call.Defined != original.Defined || node.Calls[0].(functions.JSONRecord).Args[0] != original.Args[0] {
 		t.Fatal("selected provider, provenance or immutable template changed")
 	}
 	t.Run("surviving scalar across lowering and preflight", sourceProtocolSurvivorSubstitution)
@@ -69,7 +69,7 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 	first := seriesUnit(t, d, 1, 3)
 	otherArity := seriesUnit(t, d, 1, 3, 1)
 	otherUsage := seriesUnit(t, seriesUnitType(t, sqltype.Int8), 1, 3)
-	otherFamily := subscriptsExpression{Info: first.Info, args: first.args}
+	otherFamily := subscriptsExpression{Info: first.Info, Args: first.Args}
 	for _, other := range []expr.Expr{otherArity, otherUsage, otherFamily} {
 		if sameQuerySetOccurrence(first, other) || sameQuerySetOccurrence(other, first) {
 			t.Fatal("distinct occurrence collapsed", other)
@@ -85,7 +85,7 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 	}
 	// RegexpSet deliberately compares only family after the set/position guard.
 	left := functions.RegexpSet{RegexpCall: functions.RegexpCall{Info: first.Info}}
-	right := functions.RegexpSet{RegexpCall: functions.RegexpCall{Info: first.Info, Args: []expr.Expr{first.args[0]}}}
+	right := functions.RegexpSet{RegexpCall: functions.RegexpCall{Info: first.Info, Args: []expr.Expr{first.Args[0]}}}
 	if !sameQuerySetOccurrence(left, right) {
 		t.Fatal("legacy RegexpSet occurrence narrowed")
 	}
@@ -108,13 +108,13 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 	engine, _ := intaggUnitInstalled(t)
 	installed := intaggUnitEnum(t, engine, "{1,2}")
 	changed := installed
-	changed.ref.Epoch++
+	changed.Ref.Epoch++
 	if sameQuerySetOccurrence(installed, changed) {
 		t.Fatal("installed owner epoch collapsed")
 	}
-	copyProcedure := *installed.procedure
+	copyProcedure := *installed.Procedure
 	changed = installed
-	changed.procedure = &copyProcedure
+	changed.Procedure = &copyProcedure
 	if !sameQuerySetOccurrence(installed, changed) {
 		t.Fatal("equivalent installed descriptor identity changed")
 	}
@@ -123,7 +123,7 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 		t.Fatal("installed procedure revision collapsed")
 	}
 	changed = installed
-	changed.procedure = nil
+	changed.Procedure = nil
 	if sameQuerySetOccurrence(installed, changed) {
 		t.Fatal("installed and builtin unnest collapsed")
 	}
@@ -249,7 +249,7 @@ func TestSourceProtocolPresence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := unnestExpression{Info: expr.Info{Usage: empty.Usage()}, args: []expr.Expr{literalExpression{Info: expr.Info{Usage: array.Usage()}, value: value}}}
+		call := unnestExpression{Info: expr.Info{Usage: empty.Usage()}, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
 		for _, reverse := range []bool{false, true} {
 			borrowed, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, call)
 			if err != nil {
@@ -280,7 +280,7 @@ func TestSourceProtocolCancellation(t *testing.T) {
 	call := seriesUnit(t, d, 1, 2)
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	call.args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	call.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("precanceled open evaluated an argument")
 		return sqltype.Value{}, nil
 	})
@@ -317,8 +317,8 @@ func TestSourceProtocolCleanup(t *testing.T) {
 	first := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	failure := errors.New("later source argument")
 	later := seriesUnit(t, seriesUnitType(t, sqltype.Int4), 1, 2)
-	later.args[0] = queryProbe(later.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
-	invocation, err := openFunctionInvocation(ctx, &functionFromNode{calls: []expr.Expr{first, later}})
+	later.Args[0] = queryProbe(later.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
+	invocation, err := openFunctionInvocation(ctx, &functionFromNode{Calls: []expr.Expr{first, later}})
 	if !errors.Is(err, failure) || invocation.cursors != nil {
 		t.Fatal("partial open exposed an invocation", invocation, err)
 	}
@@ -350,7 +350,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := expr.Info{Usage: record.Usage, Property: expr.Properties{Volatility: expr.Stable, StageDependent: true}}
-	member, err := functions.NewJSONRecord(info, "json_to_recordset", -1, []expr.Expr{literalExpression{Info: expr.Info{Usage: input.Type().Usage()}, value: array}})
+	member, err := functions.NewJSONRecord(info, "json_to_recordset", -1, []expr.Expr{literalExpression{Info: expr.Info{Usage: input.Type().Usage()}, Value: array}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +371,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := &projectNode{querySchema: querySchema{{Name: "record", Usage: call.Usage}}, child: root, expressions: requests, frame: 1, hasTargetSet: true}
+	project := &projectNode{querySchema: querySchema{{Name: "record", Usage: call.Usage}}, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
 	planned, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: engine.CatalogRead()}}, project)
 	if err != nil {
 		t.Fatal(err)

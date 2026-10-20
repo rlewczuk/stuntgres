@@ -42,7 +42,7 @@ func orderOrdinal(raw parser.Expr, width int, clause string) (int, bool, error) 
 func (b *expressionBinder) orderOutput(expression expr.Expr) (expr.Expr, error) {
 	if unknown, ok := expression.(unknownOutput); ok {
 		var err error
-		expression, err = b.bind(unknown.raw, expressionPolicy{context: projectionContext})
+		expression, err = b.bind(unknown.Raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr
 						output = j
 						expression = candidate
 						for k := firstWindowCall; k < len(b.grouping.windowCalls); k++ {
-							b.grouping.windowCalls[k].analysisOnly = true
+							b.grouping.windowCalls[k].AnalysisOnly = true
 						}
 						break
 					}
@@ -117,16 +117,16 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr
 		}
 		if demand := b.query.namespace.identityValuesOrderDemand; len(demand) != 0 {
 			if column, ok := expression.(columnExpression); ok {
-				demand[column.slot] = true
+				demand[column.Slot] = true
 			}
 		}
 		keys[i] = sortKey{
-			expression:    expression,
-			position:      raw.Pos.Character,
-			outputOrdinal: output + 1,
-			desc:          raw.Desc,
-			nullsFirst:    raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc,
-			cache:         -1,
+			Expression:    expression,
+			Position:      raw.Pos.Character,
+			OutputOrdinal: output + 1,
+			Desc:          raw.Desc,
+			NullsFirst:    raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc,
+			Cache:         -1,
 		}
 	}
 	return keys, nil
@@ -141,56 +141,56 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 	computed := 0
 	for i := range keys {
 		key := &keys[i]
-		if key.targetIdentity == 0 && key.outputOrdinal > 0 {
-			key.targetIdentity = key.outputOrdinal
+		if key.TargetIdentity == 0 && key.OutputOrdinal > 0 {
+			key.TargetIdentity = key.OutputOrdinal
 		}
-		if !key.expression.CollationIndeterminate() && !key.comparison.OrderingBound() {
-			provider, err := sqltype.BindOrdering(key.expression.ResultUsage())
+		if !key.Expression.CollationIndeterminate() && !key.Comparison.OrderingBound() {
+			provider, err := sqltype.BindOrdering(key.Expression.ResultUsage())
 			if err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
 					positioned := *diagnostic
-					if key.position > 0 {
-						positioned.Position = strconv.Itoa(key.position)
+					if key.Position > 0 {
+						positioned.Position = strconv.Itoa(key.Position)
 					}
 					return nil, &positioned
 				}
 				return nil, err
 			}
-			key.comparison = provider
+			key.Comparison = provider
 		}
 		// Indeterminate set collations reject during execution preflight.
 		// They still participate in the ordinary output/cache equivalence.
-		key.slot = -1
-		switch e := key.expression.(type) {
+		key.Slot = -1
+		switch e := key.Expression.(type) {
 		case columnExpression:
-			if e.virtual == nil {
-				key.slot = e.slot
+			if e.Virtual == nil {
+				key.Slot = e.Slot
 			}
 		case groupExpression:
-			key.slot = e.slot
+			key.Slot = e.Slot
 		}
-		if key.slot >= 0 {
+		if key.Slot >= 0 {
 			continue
 		}
 		// SQL99 resolves against the accumulated ORDER target list, including
 		// preceding hidden targets. Direction and NULL policy remain per key.
 		for previous := range i {
-			if keys[previous].cache >= 0 && ((key.targetIdentity != 0 && keys[previous].targetIdentity == key.targetIdentity) || (key.targetIdentity == 0 && b.sameGroupExpression(keys[previous].expression, key.expression))) {
-				key.cache = keys[previous].cache
+			if keys[previous].Cache >= 0 && ((key.TargetIdentity != 0 && keys[previous].TargetIdentity == key.TargetIdentity) || (key.TargetIdentity == 0 && b.sameGroupExpression(keys[previous].Expression, key.Expression))) {
+				key.Cache = keys[previous].Cache
 				break
 			}
 		}
-		if key.cache < 0 {
-			key.cache = computed
+		if key.Cache < 0 {
+			key.Cache = computed
 			computed++
 		}
 	}
 	for j, output := range projection {
 		chosen, demanded := -1, false
 		for k, key := range keys {
-			if key.outputOrdinal == j+1 {
+			if key.OutputOrdinal == j+1 {
 				demanded = true
-				if key.cache >= 0 {
+				if key.Cache >= 0 {
 					chosen = k
 					break
 				}
@@ -198,7 +198,7 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		}
 		if !demanded {
 			for k, key := range keys {
-				if key.cache >= 0 && b.sameGroupExpression(output, key.expression) {
+				if key.Cache >= 0 && b.sameGroupExpression(output, key.Expression) {
 					chosen = k
 					break
 				}
@@ -206,23 +206,23 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		}
 		if chosen >= 0 {
 			key := &keys[chosen]
-			key.output = true
+			key.Output = true
 			properties := output.Properties()
 			properties.StageDependent = true
 			info := expr.InfoOf(output)
 			info.Property = properties
-			projection[j] = cachedOrderExpression{Info: info, slot: key.cache}
+			projection[j] = cachedOrderExpression{Info: info, Slot: key.Cache}
 		}
 	}
-	return &sortNode{querySchema: root.Schema(), child: root, keys: keys, cacheWidth: computed}, nil
+	return &sortNode{querySchema: root.Schema(), Child: root, Keys: keys, CacheWidth: computed}, nil
 }
 
 func (c *EvalContext) EvalCachedOrder(e cachedOrderExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.slot < 0 || e.slot >= len(c.orderValues) {
+	if e.Slot < 0 || e.Slot >= len(c.orderValues) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing ordering output")
 	}
-	return c.orderValues[e.slot], nil
+	return c.orderValues[e.Slot], nil
 }

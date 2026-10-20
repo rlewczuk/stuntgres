@@ -236,7 +236,7 @@ func TestInsertConflictInferenceInstalledStates(t *testing.T) {
 }
 func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
-	expression := logicalExpression{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{RowDependent: true}}, op: parser.LogicalNot, left: f.predicate}
+	expression := logicalExpression{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{RowDependent: true}}, Op: parser.LogicalNot, Left: f.predicate}
 	class, _ := sqltype.DefaultIndexClass(f.predicate.Usage.Type)
 	for i := range 2 {
 		index := *f.index
@@ -264,7 +264,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		t.Fatal("complete mixed expression set", action.selected, err)
 	}
 	unrelated := expression
-	unrelated.left = logicalExpression{Info: expression.Info, op: parser.LogicalNot, left: f.predicate}
+	unrelated.Left = logicalExpression{Info: expression.Info, Op: parser.LogicalNot, Left: f.predicate}
 	action.keys[1].expression = unrelated
 	action.keys[2].expression = unrelated
 	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err == nil {

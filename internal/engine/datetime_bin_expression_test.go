@@ -110,7 +110,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		}
 		for i := range e.Args {
 			null := e
-			null.Args[i] = literalExpression{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.Null(e.Args[i].ResultUsage().Type)}
+			null.Args[i] = literalExpression{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(e.Args[i].ResultUsage().Type)}
 			simplified, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, null, false)
 			if err != nil || !changed || !generationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
@@ -146,7 +146,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeBin)
-	column := columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
+	column := columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
 	e.Args[1] = column
 	e.Property.RowDependent = true
 	var children []expr.Expr
@@ -171,12 +171,12 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	remapped := mapped.(functions.DatetimeBin).Args[1].(columnExpression)
-	if remapped.origin.Address.ObjectID != 456 || remapped.slot != 2 {
+	if remapped.Origin.Address.ObjectID != 456 || remapped.Slot != 2 {
 		t.Fatal(remapped)
 	}
 	// Preflight must traverse a child codec conversion rather than attempting
 	// date_bin on a mismatched descriptor or bypassing coercion failures.
-	text := literalExpression{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
+	text := literalExpression{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
 	plan, err := sqltype.PlanCoercion(text.ResultUsage(), b.typ(sqltype.Timestamp).Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)

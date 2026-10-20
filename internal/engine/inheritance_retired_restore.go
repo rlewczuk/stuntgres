@@ -83,8 +83,8 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 func constraintAttributeKeys(table *catalog.Relation, expression expr.Expr) []int32 {
 	var keys []int32
 	walkBoundExpression(expression, func(node expr.Expr) {
-		if column, ok := node.(columnExpression); ok && column.origin.Address.ClassID == ids.RelationClassID && column.origin.Address.ObjectID == table.Address().ObjectID && !slices.Contains(keys, column.origin.Address.SubID) {
-			keys = append(keys, column.origin.Address.SubID)
+		if column, ok := node.(columnExpression); ok && column.Origin.Address.ClassID == ids.RelationClassID && column.Origin.Address.ObjectID == table.Address().ObjectID && !slices.Contains(keys, column.Origin.Address.SubID) {
+			keys = append(keys, column.Origin.Address.SubID)
 		}
 	})
 	return keys

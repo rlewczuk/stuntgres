@@ -26,13 +26,13 @@ func (b *expressionBinder) captureSQLRoutineReference(path viewLiteralPath, n sq
 		return err
 	}
 	read := b.bindingCatalog()
-	if n.ref != b.engine.catalog.Domain.Ref(read.Epoch(), n.procedure.Address()) {
+	if n.Ref != b.engine.catalog.Domain.Ref(read.Epoch(), n.Procedure.Address()) {
 		return fmt.Errorf("stuntgres: invalid frozen SQL routine reference")
 	}
-	if _, err := routine.ValidateStoredRoutineDescriptor(read, n.procedure); err != nil {
+	if _, err := routine.ValidateStoredRoutineDescriptor(read, n.Procedure); err != nil {
 		return err
 	}
-	return b.capture.captureRoutineReference(path, n.ref)
+	return b.capture.captureRoutineReference(path, n.Ref)
 }
 
 func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path viewLiteralPath, raw parser.FunctionExpr) (*catalog.Procedure, error) {

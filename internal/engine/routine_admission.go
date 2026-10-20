@@ -67,12 +67,12 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	var ordering []sqltype.Comparison
 	switch expression := node.(type) {
 	case rowComparisonExpression:
-		pairs, ordering = expression.comparisons, expression.ordering
+		pairs, ordering = expression.Comparisons, expression.Ordering
 	case subqueryExpression:
-		pairs, ordering = expression.comparisons, expression.ordering
+		pairs, ordering = expression.Comparisons, expression.Ordering
 	case caseExpression:
-		if expression.test != nil && !randomLiteralNull(expression.test) {
-			for _, arm := range expression.arms {
+		if expression.Test != nil && !randomLiteralNull(expression.Test) {
+			for _, arm := range expression.Arms {
 				if err := admitCaseEquality(c, arm); err != nil {
 					return err
 				}
@@ -120,14 +120,14 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 }
 
 func admitCaseEquality(c *EvalContext, arm caseBranch) error {
-	if arm.routine == nil || arm.routine.Strict && randomLiteralNull(arm.condition) {
+	if arm.Routine == nil || arm.Routine.Strict && randomLiteralNull(arm.Condition) {
 		return nil
 	}
 	auth, dependencies, err := c.routineAdmissionAuthority()
 	if err != nil || auth.engine == nil {
 		return err
 	}
-	return admitRecipeRoutineDescriptor(c, auth, dependencies, arm.routine)
+	return admitRecipeRoutineDescriptor(c, auth, dependencies, arm.Routine)
 }
 
 func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
@@ -259,16 +259,16 @@ func admitQueryGroupings(c *EvalContext, groups []queryGrouping, keys []expr.Exp
 	}
 	for i, group := range groups {
 		private := privateTreeGrouping(keys[i].ResultUsage().Type)
-		if private != group.privateTree {
+		if private != group.PrivateTree {
 			return fmt.Errorf("stuntgres: changed query grouping capability")
 		}
 		if private {
-			if group.routine.Address.ObjectID != 0 {
+			if group.Routine.Address.ObjectID != 0 {
 				return fmt.Errorf("stuntgres: native tree grouping has a callable identity")
 			}
 			continue
 		}
-		if err := admitRoutineReference(c, group.routine, "function"); err != nil {
+		if err := admitRoutineReference(c, group.Routine, "function"); err != nil {
 			return err
 		}
 	}

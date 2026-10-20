@@ -56,7 +56,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	defer previous.close()
 	origin := ref
 	origin.Address.SubID = 2
-	frozen := columnExpression{Info: expr.Info{Usage: old.Columns[1].Usage}, origin: origin, scope: 1, frame: 1, slot: 1, queryOccurrence: 1}.withGeneration(old, 1, 0)
+	frozen := columnExpression{Info: expr.Info{Usage: old.Columns[1].Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: 1, QueryOccurrence: 1}.WithGeneration(old, 1, 0)
 	add := parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: "c", TypeName: parser.TypeName{Name: "int4"}, Constraints: []parser.ColumnConstraint{{Default: alterGenerationLiteral(5)}}}}
 	set := alterGenerationAction(alterGenerationOperator("+", alterGenerationColumn("a"), alterGenerationColumn("c")))
 	if _, err := e.Execute(admin, &parser.AlterTable{Name: alterGenerationName("g"), Actions: []parser.AlterTableAction{add, set}}, 0, nil); err != nil {
@@ -93,7 +93,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	latest := [][]sqltype.Value{{three, sqltype.Null(old.Columns[1].Usage.Type), five}}
 	evaluate(bridge, 8, latest)
 	evaluate(bridge, 7, nil)
-	if len(old.Columns) != 2 || previous.view.Load().Catalog.Get(ref.Address) != old || !reflect.DeepEqual(frozen.virtual, old.ColumnMeta.Generations[2].Planned) {
+	if len(old.Columns) != 2 || previous.view.Load().Catalog.Get(ref.Address) != old || !reflect.DeepEqual(frozen.Virtual, old.ColumnMeta.Generations[2].Planned) {
 		t.Fatal("frozen source recipe changed")
 	}
 	recipeContext := EvalContext{}
@@ -147,7 +147,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	}
 	node, _, evaluation := strictNullUnitBind(t, e, op, scope, "h")
 	column, ok := node.(columnExpression)
-	if !ok || column.virtualOwner == nil {
+	if !ok || column.VirtualOwner == nil {
 		t.Fatal("bound virtual column lost owning generation", node)
 	}
 	authority := evaluation.routineAuthority
@@ -157,17 +157,17 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	if evaluation.routineAuthority != authority {
 		t.Fatal("generation admission changed current invoker")
 	}
-	owner := *column.virtualOwner
-	definition := owner.ColumnMeta.Generations[column.virtualAttribute]
-	owner.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{column.virtualAttribute: definition}
+	owner := *column.VirtualOwner
+	definition := owner.ColumnMeta.Generations[column.VirtualAttribute]
+	owner.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{column.VirtualAttribute: definition}
 	missing := column
-	missing.virtualOwner = &owner
+	missing.VirtualOwner = &owner
 	definition.Dependencies = nil
-	owner.ColumnMeta.Generations[column.virtualAttribute] = definition
+	owner.ColumnMeta.Generations[column.VirtualAttribute] = definition
 	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.catalog); err == nil {
 		t.Fatal("generation recovered a missing original manifest from enclosing query or current OID")
 	}
-	missing.virtualOwner = nil
+	missing.VirtualOwner = nil
 	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.catalog); err == nil {
 		t.Fatal("SQL virtual column admitted without its original owner")
 	}
@@ -176,10 +176,10 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	local := evaluation
 	local.routineGraft = true
 	local.routineChecks = []catalog.ExpressionDependency{{}}
-	selectVirtualGenerationRecipe(&local, column.virtualOwner, column.virtualOwner.ColumnMeta.Generations[column.virtualAttribute])
-	if local.routineAuthority != authority || local.routineConsumer != column.virtualOwner ||
+	selectVirtualGenerationRecipe(&local, column.VirtualOwner, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute])
+	if local.routineAuthority != authority || local.routineConsumer != column.VirtualOwner ||
 		local.routineGraft || !local.routineRecipe || local.routineChecks != nil ||
-		!reflect.DeepEqual(local.routineReferences, column.virtualOwner.ColumnMeta.Generations[column.virtualAttribute].Dependencies) {
+		!reflect.DeepEqual(local.routineReferences, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute].Dependencies) {
 		t.Fatal("virtual generation retained enclosing recipe authority")
 	}
 	invoker := evaluation

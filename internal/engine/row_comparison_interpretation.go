@@ -53,7 +53,7 @@ func (b *expressionBinder) checkRowComparisonInterpretation(raw parser.OperatorE
 		name = "<>"
 	}
 	for _, pair := range pairs {
-		left, right := pair.left.ResultUsage().Type.BaseType(), pair.right.ResultUsage().Type.BaseType()
+		left, right := pair.Left.ResultUsage().Type.BaseType(), pair.Right.ResultUsage().Type.BaseType()
 		declaration, _, err := b.comparisonRoutineDeclaration(name, left, right)
 		if err != nil {
 			return err

@@ -75,8 +75,8 @@ func TestQueryWindowRowsEndpoints(t *testing.T) {
 func TestQueryWindowRowsRemap(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)")
 	defer source.close()
-	original := query.Root.(*projectNode).child.(*windowNode)
-	before := original.specs[0].frame
+	original := query.Root.(*projectNode).Child.(*windowNode)
+	before := original.Specs[0].Frame
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
@@ -85,31 +85,31 @@ func TestQueryWindowRowsRemap(t *testing.T) {
 	if err != nil || mapped == query.Root {
 		t.Fatal(mapped, err)
 	}
-	next := mapped.(*projectNode).child.(*windowNode)
-	if next == original || next.specs[0].frame.unit != parser.FrameRows || next.specs[0].definition != original.specs[0].definition || !reflect.DeepEqual(next.sortIndices, original.sortIndices) || next.calls[0].expression == original.calls[0].expression || next.calls[0].expression.slot != original.calls[0].expression.slot {
+	next := mapped.(*projectNode).Child.(*windowNode)
+	if next == original || next.Specs[0].Frame.Unit != parser.FrameRows || next.Specs[0].Definition != original.Specs[0].Definition || !reflect.DeepEqual(next.SortIndices, original.SortIndices) || next.Calls[0].Expression == original.Calls[0].Expression || next.Calls[0].Expression.Slot != original.Calls[0].Expression.Slot {
 		t.Fatal("graph/identity ownership", next, original)
 	}
-	if next.specs[0].order[0].expression.ResultUsage().Type != types[sqltype.Int4] || original.specs[0].order[0].expression.ResultUsage().Type == types[sqltype.Int4] {
+	if next.Specs[0].Order[0].Expression.ResultUsage().Type != types[sqltype.Int4] || original.Specs[0].Order[0].Expression.ResultUsage().Type == types[sqltype.Int4] {
 		t.Fatal("key descriptor ownership")
 	}
-	oldSource := original.child.(*sourceNode)
-	newSource := next.child.(*sourceNode)
-	if oldSource == newSource || newSource.ref.Address.ObjectID != oldSource.ref.Address.ObjectID+100 || oldSource.ref != source.ref {
-		t.Fatal("source identity remap", oldSource.ref, newSource.ref)
+	oldSource := original.Child.(*sourceNode)
+	newSource := next.Child.(*sourceNode)
+	if oldSource == newSource || newSource.Ref.Address.ObjectID != oldSource.Ref.Address.ObjectID+100 || oldSource.Ref != source.ref {
+		t.Fatal("source identity remap", oldSource.Ref, newSource.Ref)
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
-	for _, pair := range [][2]boundWindowBound{{before.start, next.specs[0].frame.start}, {before.end, next.specs[0].frame.end}} {
+	for _, pair := range [][2]boundWindowBound{{before.Start, next.Specs[0].Frame.Start}, {before.End, next.Specs[0].Frame.End}} {
 		old, bound := pair[0], pair[1]
-		if bound.kind != old.kind || bound.offset == old.offset || bound.offset.ResultUsage().Type != types[sqltype.Int8] || old.offset.ResultUsage().Type == types[sqltype.Int8] || bound.support != (sqltype.RangeSupport{}) || old.support != (sqltype.RangeSupport{}) {
+		if bound.Kind != old.Kind || bound.Offset == old.Offset || bound.Offset.ResultUsage().Type != types[sqltype.Int8] || old.Offset.ResultUsage().Type == types[sqltype.Int8] || bound.Support != (sqltype.RangeSupport{}) || old.Support != (sqltype.RangeSupport{}) {
 			t.Fatal("bigint offset ownership/support", old, bound)
 		}
-		value, err := bound.offset.Eval(&evaluation)
+		value, err := bound.Offset.Eval(&evaluation)
 		n, integerErr := value.Integer()
 		if err != nil || integerErr != nil || n != 1 || value.Type() != types[sqltype.Int8] {
 			t.Fatal(value, err, integerErr)
 		}
 	}
-	if original.specs[0].frame != before {
+	if original.Specs[0].Frame != before {
 		t.Fatal("remap mutated original frame")
 	}
 }
@@ -118,12 +118,12 @@ func TestQueryWindowRowsIdentity(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,count(*) OVER w,count(*) OVER v,count(*) OVER(ORDER BY id RANGE 1 PRECEDING) FROM t WINDOW w AS(ORDER BY id ROWS 1 PRECEDING),v AS(ORDER BY id ROWS 1 PRECEDING)")
 	defer source.close()
 	project := query.Root.(*projectNode)
-	original := project.child.(*windowNode)
-	if len(original.specs) != 3 || len(original.calls) != 3 || original.specs[0].definition != 1 || original.specs[1].definition != 2 || original.specs[2].frame.unit != parser.FrameRange || !reflect.DeepEqual(original.sortIndices, []int{0, 0, 0}) || !reflect.DeepEqual(original.specIndices, []int{0, 1, 2}) {
+	original := project.Child.(*windowNode)
+	if len(original.Specs) != 3 || len(original.Calls) != 3 || original.Specs[0].Definition != 1 || original.Specs[1].Definition != 2 || original.Specs[2].Frame.Unit != parser.FrameRange || !reflect.DeepEqual(original.SortIndices, []int{0, 0, 0}) || !reflect.DeepEqual(original.SpecIndices, []int{0, 1, 2}) {
 		t.Fatal("unit/named identity/shared sort", original)
 	}
-	a, b, c := project.expressions[0].(*windowExpression), project.expressions[1].(*windowExpression), project.expressions[2].(*windowExpression)
-	if a.slot != b.slot || a.slot == c.slot {
+	a, b, c := project.Expressions[0].(*windowExpression), project.Expressions[1].(*windowExpression), project.Expressions[2].(*windowExpression)
+	if a.Slot != b.Slot || a.Slot == c.Slot {
 		t.Fatal("named slots", a, b, c)
 	}
 	// The query mapper calls its callback on whole expressions. ROWS 1 has
@@ -133,12 +133,12 @@ func TestQueryWindowRowsIdentity(t *testing.T) {
 		switch e := expr.(type) {
 		case literalExpression:
 			value, err := sqltype.Integer(e.ResultUsage().Type, 2)
-			e.value = value
+			e.Value = value
 			return e, true, err
 		case coercionExpression:
-			child, changed, err := replaceLiteral(e.child)
+			child, changed, err := replaceLiteral(e.Child)
 			if changed {
-				e.child = child
+				e.Child = child
 			}
 			return e, changed, err
 		default:
@@ -149,20 +149,20 @@ func TestQueryWindowRowsIdentity(t *testing.T) {
 	if err != nil || copied == query.Root {
 		t.Fatal(copied, err)
 	}
-	next := copied.(*projectNode).child.(*windowNode)
-	if next == original || !reflect.DeepEqual(next.sortIndices, original.sortIndices) {
+	next := copied.(*projectNode).Child.(*windowNode)
+	if next == original || !reflect.DeepEqual(next.SortIndices, original.SortIndices) {
 		t.Fatal("clone sort ownership", next)
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
-	for i, spec := range original.specs {
-		if next.specs[i].definition != spec.definition || next.specs[i].frame.unit != spec.frame.unit {
+	for i, spec := range original.Specs {
+		if next.Specs[i].Definition != spec.Definition || next.Specs[i].Frame.Unit != spec.Frame.Unit {
 			t.Fatal("lost frame identity")
 		}
-		old, err := spec.frame.start.offset.Eval(&evaluation)
+		old, err := spec.Frame.Start.Offset.Eval(&evaluation)
 		if err != nil {
 			t.Fatal(err)
 		}
-		value, err := next.specs[i].frame.start.offset.Eval(&evaluation)
+		value, err := next.Specs[i].Frame.Start.Offset.Eval(&evaluation)
 		oldN, _ := old.Integer()
 		newN, _ := value.Integer()
 		if err != nil || oldN != 1 || newN != 2 {
@@ -172,8 +172,8 @@ func TestQueryWindowRowsIdentity(t *testing.T) {
 	// Inline specs must also distinguish units when their key/bound SQL matches.
 	_, inline, inlineSource := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY id ROWS 1 PRECEDING),count(*) OVER(ORDER BY id RANGE 1 PRECEDING) FROM t")
 	defer inlineSource.close()
-	n := inline.Root.(*projectNode).child.(*windowNode)
-	if len(n.specs) != 2 || !reflect.DeepEqual(n.sortIndices, []int{0, 0}) {
+	n := inline.Root.(*projectNode).Child.(*windowNode)
+	if len(n.Specs) != 2 || !reflect.DeepEqual(n.SortIndices, []int{0, 0}) {
 		t.Fatal(n)
 	}
 }
@@ -324,14 +324,14 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := description.query.Root
-	original := root.(*projectNode).child.(*windowNode)
+	original := root.(*projectNode).Child.(*windowNode)
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
-	key := original.specs[0].order[0].expression.ResultUsage().Type
+	key := original.Specs[0].Order[0].Expression.ResultUsage().Type
 	var offsetDomain *sqltype.Descriptor
-	walkBoundExpression(original.specs[0].frame.start.offset, func(expr expr.Expr) {
+	walkBoundExpression(original.Specs[0].Frame.Start.Offset, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			offsetDomain = expr.ResultUsage().Type
 		}
@@ -351,12 +351,12 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := mapped.(*projectNode).child.(*windowNode)
-	if next.specs[0].frame.unit != parser.FrameRows || next.specs[0].definition != 1 || next.specs[0].frame.start.support != (sqltype.RangeSupport{}) || next.specs[0].order[0].expression.ResultUsage().Type != types[key.ID()] || original.specs[0].order[0].expression.ResultUsage().Type != key {
+	next := mapped.(*projectNode).Child.(*windowNode)
+	if next.Specs[0].Frame.Unit != parser.FrameRows || next.Specs[0].Definition != 1 || next.Specs[0].Frame.Start.Support != (sqltype.RangeSupport{}) || next.Specs[0].Order[0].Expression.ResultUsage().Type != types[key.ID()] || original.Specs[0].Order[0].Expression.ResultUsage().Type != key {
 		t.Fatal("domain/unit ownership", next)
 	}
 	var mappedDomain *sqltype.Descriptor
-	walkBoundExpression(next.specs[0].frame.start.offset, func(expr expr.Expr) {
+	walkBoundExpression(next.Specs[0].Frame.Start.Offset, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			mappedDomain = expr.ResultUsage().Type
 		}
@@ -365,7 +365,7 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 		t.Fatal("offset domain remap retained/mutated descriptors", mappedDomain, offsetDomain)
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
-	value, err := next.specs[0].frame.start.offset.Eval(&evaluation)
+	value, err := next.Specs[0].Frame.Start.Offset.Eval(&evaluation)
 	n, integerErr := value.Integer()
 	if err != nil || integerErr != nil || n != 1 || value.Type() != types[sqltype.Int8] {
 		t.Fatal(value, err, integerErr)

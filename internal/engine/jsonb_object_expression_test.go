@@ -30,7 +30,7 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 				t.Fatal(err)
 			}
 			usages[i] = types[1009].Usage()
-			args[i] = literalExpression{Info: expr.Info{Usage: usages[i]}, value: value}
+			args[i] = literalExpression{Info: expr.Info{Usage: usages[i]}, Value: value}
 		}
 		plan, err := sqltype.BindBinary("jsonb_object", types[sqltype.JSONB].Usage(), usages...)
 		if err != nil {

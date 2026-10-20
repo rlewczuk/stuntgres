@@ -71,7 +71,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	if err != nil || strict.Type() != boolType || !strict.IsNull() {
 		t.Fatal("ordinary equality lost UNKNOWN", strict, err)
 	}
-	column := columnExpression{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), scope: 1, frame: 1, slot: 0}
+	column := columnExpression{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: 0}
 	parameter := parameterExpression{b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), 1}
 	nodes := []expr.Expr{nullTestExpression{boolInfo, column, false, false}, truthTestExpression{boolInfo, column, True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
 	invalid := []*EvalContext{nil, {evalStatement: evalStatement{Context: evalContext.Context}, evalFrame: evalFrame{Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}}}}
@@ -209,7 +209,7 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := b.query.Root.(*projectNode).expressions[0]
+	node := b.query.Root.(*projectNode).Expressions[0]
 	if !node.Properties().RowDependent || node.Properties().ParameterDependent || node.ResultUsage().Type.ID() != sqltype.Bool || node.ResultUsage().Typmod != -1 {
 		t.Fatal(node)
 	}
@@ -326,11 +326,11 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	} {
 		b, ref := describe("SELECT " + tc.expr + " FROM t WHERE " + tc.expr)
 		project := b.query.Root.(*projectNode)
-		filter := project.child.(*filterNode)
+		filter := project.Child.(*filterNode)
 		if b.parameters.Count != 0 {
 			t.Fatal(b.parameters)
 		}
-		for _, node := range []expr.Expr{project.expressions[0], filter.predicate} {
+		for _, node := range []expr.Expr{project.Expressions[0], filter.Predicate} {
 			p := node.Properties()
 			if !p.RowDependent || p.ParameterDependent || p.StageDependent || p.Volatility != expr.Immutable || node.ResultUsage() != boolean.Usage() {
 				t.Fatal(tc.expr, p, node.ResultUsage())
@@ -362,10 +362,10 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	if b.parameters.Count != 1 || !reflect.DeepEqual(b.parameters.Types, []sqltype.Usage{integer.Usage()}) {
 		t.Fatal("held mixed comparison must infer INT4", b.parameters)
 	}
-	filter := b.query.Root.(*projectNode).child.(*sortNode).child.(*filterNode)
-	p := filter.predicate.Properties()
-	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Immutable || filter.predicate.ResultUsage() != boolean.Usage() {
-		t.Fatal(p, filter.predicate.ResultUsage())
+	filter := b.query.Root.(*projectNode).Child.(*sortNode).Child.(*filterNode)
+	p := filter.Predicate.Properties()
+	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Immutable || filter.Predicate.ResultUsage() != boolean.Usage() {
+		t.Fatal(p, filter.Predicate.ResultUsage())
 	}
 	column := ref
 	column.Address.SubID = 2
@@ -379,7 +379,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	for n, parameter := range []sqltype.Value{intValue(1), intValue(2), sqltype.Null(integer), intValue(1)} {
 		want := [][4]bool{{true, false, false, true}, {false, false, true, false}, {false, true, false, false}, {true, false, false, true}}[n]
 		for i, row := range rows {
-			got, err := filter.predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: op.ctx, Parameters: []sqltype.Value{parameter}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}})
+			got, err := filter.Predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: op.ctx, Parameters: []sqltype.Value{parameter}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}})
 			value, valueErr := got.Boolean()
 			if err != nil || valueErr != nil || got.IsNull() || value != want[i] {
 				t.Fatal(n, i, got, err, valueErr)

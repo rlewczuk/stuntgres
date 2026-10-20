@@ -8,7 +8,7 @@ import (
 )
 
 func (c *EvalContext) EvalMergeAction(e mergeActionExpression) (sqltype.Value, error) {
-	owner, err := returningRowContext(c, e.scope, e.frame)
+	owner, err := returningRowContext(c, e.Scope, e.Frame)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -44,7 +44,7 @@ func (b *expressionBinder) bindMergeAction(raw parser.MergeActionExpr) (expr.Exp
 	if frame == 0 {
 		return nil, expr.ErrorAt("42601", "MERGE_ACTION() can only be used in the RETURNING list of a MERGE command", raw.Pos)
 	}
-	return mergeActionExpression{Info: b.info(b.typ(sqltype.Text).Usage(), raw.Pos, expr.Properties{RowDependent: true}), scope: 1, frame: frame}, nil
+	return mergeActionExpression{Info: b.info(b.typ(sqltype.Text).Usage(), raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: frame}, nil
 }
 func (b *expressionBinder) mergeReturningFrame(frame uint32) bool {
 	if frame == b.frameID() && b.target.returningAliases != nil && b.target.returningAliases.mode == returningMerge {

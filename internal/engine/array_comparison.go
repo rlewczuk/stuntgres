@@ -200,7 +200,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 			return nil, err
 		}
 	}
-	return scalarArrayComparisonExpression{Info: info, left: l, array: r, predicate: predicate, operator: name, namespace: namespace, all: raw.All}, nil
+	return scalarArrayComparisonExpression{Info: info, Left: l, Array: r, Predicate: predicate, Operator: name, Namespace: namespace, All: raw.All}, nil
 }
 
 func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
@@ -210,13 +210,13 @@ func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
 	visit = func(child expr.Expr) {
 		switch n := child.(type) {
 		case columnExpression:
-			found = found || n.frame == frame
+			found = found || n.Frame == frame
 		case returningWholeRowExpression:
-			found = found || n.frame == frame
+			found = found || n.Frame == frame
 		case aggregateExpression:
-			if n.frame == frame {
+			if n.Frame == frame {
 				if call, ok := b.aggregateCallAt(n); ok {
-					call.expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
+					call.Expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
 				}
 			}
 		}
@@ -357,7 +357,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 					return nil, err
 				}
 			}
-			result = scalarArrayComparisonExpression{Info: info, left: l, items: children, predicate: predicate, operator: name, all: raw.Negate}
+			result = scalarArrayComparisonExpression{Info: info, Left: l, Items: children, Predicate: predicate, Operator: name, All: raw.Negate}
 			// PostgreSQL coerces an unknown Param occurrence in place, unlike
 			// an unknown Const. Only the original batch lhs is updated before
 			// Var pairs copy it; other transformed occurrences stay independent.
@@ -412,8 +412,8 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 				for side, input := range [2]inComparisonOperand{leftInput, rowItems[i]} {
 					_, rawRow := input.scalar.raw.(parser.RowExpr)
 					if constructor, ok := input.scalar.node.(rowExpression); ok && !rawRow {
-						args[side] = *constructor.raw
-						comparison.memberCasts[side] = true
+						args[side] = *constructor.Raw
+						comparison.MemberCasts[side] = true
 					}
 				}
 				pair = comparison
@@ -428,7 +428,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 			continue
 		}
 		properties := expr.MergeProperties(result.Properties(), pair.Properties())
-		result = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), op: logical, left: result, right: pair}
+		result = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), Op: logical, Left: result, Right: pair}
 		if capture {
 			syntax = parser.LogicalExpr{Op: logical, Left: syntax, Right: pairSyntax, Pos: raw.Pos}
 		}
@@ -444,27 +444,27 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 
 // Copy only changed list storage; the analyzed tree remains immutable.
 func mapScalarArrayChildren(n scalarArrayComparisonExpression, child func(expr.Expr) (expr.Expr, bool, error)) (scalarArrayComparisonExpression, bool, error) {
-	left, changed, err := child(n.left)
+	left, changed, err := child(n.Left)
 	if err != nil {
 		return n, false, err
 	}
-	n.left = left
-	if n.array != nil {
-		array, replaced, err := child(n.array)
+	n.Left = left
+	if n.Array != nil {
+		array, replaced, err := child(n.Array)
 		if err != nil {
 			return n, false, err
 		}
-		n.array = array
+		n.Array = array
 		changed = changed || replaced
 	}
 	var items []expr.Expr
-	for i, old := range n.items {
+	for i, old := range n.Items {
 		next, replaced, err := child(old)
 		if err != nil {
 			return n, false, err
 		}
 		if replaced && items == nil {
-			items = append([]expr.Expr(nil), n.items...)
+			items = append([]expr.Expr(nil), n.Items...)
 		}
 		if items != nil {
 			items[i] = next
@@ -472,25 +472,25 @@ func mapScalarArrayChildren(n scalarArrayComparisonExpression, child func(expr.E
 		changed = changed || replaced
 	}
 	if items != nil {
-		n.items = items
+		n.Items = items
 	}
 	return n, changed, nil
 }
 
 func renderScalarArrayComparison(n scalarArrayComparisonExpression, child func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
-	left, err := child(n.left)
+	left, err := child(n.Left)
 	if err != nil {
 		return "", err
 	}
 	var right string
-	if n.array != nil {
-		right, err = child(n.array)
+	if n.Array != nil {
+		right, err = child(n.Array)
 		if err != nil {
 			return "", err
 		}
 	} else {
-		items := make([]string, len(n.items))
-		for i, item := range n.items {
+		items := make([]string, len(n.Items))
+		for i, item := range n.Items {
 			items[i], err = child(item)
 			if err != nil {
 				return "", err
@@ -498,12 +498,12 @@ func renderScalarArrayComparison(n scalarArrayComparisonExpression, child func(e
 		}
 		right = "ARRAY[" + strings.Join(items, ", ") + "]"
 	}
-	operator := n.operator
-	if n.namespace != "" {
-		operator = "OPERATOR(" + identifier(n.namespace) + "." + operator + ")"
+	operator := n.Operator
+	if n.Namespace != "" {
+		operator = "OPERATOR(" + identifier(n.Namespace) + "." + operator + ")"
 	}
 	quantifier := "ANY"
-	if n.all {
+	if n.All {
 		quantifier = "ALL"
 	}
 	return "(" + left + " " + operator + " " + quantifier + " (" + right + "))", nil

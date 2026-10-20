@@ -53,7 +53,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					if effective {
 						original.querySources[0].principal = reader.Ref
 					}
-					from := &sourceNode{querySchema: querySchema(input.Columns), ref: inputRef}
+					from := &sourceNode{querySchema: querySchema(input.Columns), Ref: inputRef}
 					var syntax parser.Statement = &parser.Delete{}
 					original.delete.using = from
 					if event == "UPDATE" {
@@ -63,15 +63,15 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					action := ruleUnitInsert(e, sink, 7, 8)
 					ref := lookupRef
 					ref.Address.SubID = sink.Attributes[0]
-					value := expr.Expr(columnExpression{Info: ruleColumnInfo(sink.Columns[0]), origin: ref, scope: 1, frame: 1})
+					value := expr.Expr(columnExpression{Info: ruleColumnInfo(sink.Columns[0]), Origin: ref, Scope: 1, Frame: 1})
 					if dependent {
 						ref = original.ref
 						ref.Address.SubID = src.Attributes[0]
-						value = columnExpression{Info: ruleColumnInfo(src.Columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}
+						value = columnExpression{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 1}
 					}
 					action.binding.expressions = nil
 					action.binding.commandQuery = true
-					action.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), child: &sourceNode{querySchema: querySchema(sink.Columns), ref: lookupRef}, expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, frame: 1}}
+					action.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), Child: &sourceNode{querySchema: querySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
 					action.binding.querySources = []queryLeaf{{ref: lookupRef, relation: sink, uses: []int{0}}}
 					src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}})
 					program := ruleProgram{count: -1, returning: -1}

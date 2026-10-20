@@ -16,7 +16,7 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 			ref := roleTableRef(t, e, "d")
 			relation := e.CatalogRead().MustRelation(ref.Address)
 			project := query.Root.(*projectNode)
-			project.child = &limitNode{querySchema: project.child.Schema(), child: project.child, offset: queryLimitBound(t, e, 1), count: queryLimitBound(t, e, count)}
+			project.Child = &limitNode{querySchema: project.Child.Schema(), Child: project.Child, Offset: queryLimitBound(t, e, 1), Count: queryLimitBound(t, e, count)}
 			typ := relation.Columns[1].Usage.Type
 			value, _ := sqltype.Integer(typ, 7)
 			calls := 0
@@ -46,7 +46,7 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 	ref := roleTableRef(t, e, "d")
 	relation := e.CatalogRead().MustRelation(ref.Address)
 	project := query.Root.(*projectNode)
-	project.child = &limitNode{querySchema: project.child.Schema(), child: project.child, count: queryLimitBound(t, e, 2)}
+	project.Child = &limitNode{querySchema: project.Child.Schema(), Child: project.Child, Count: queryLimitBound(t, e, 2)}
 	value, _ := sqltype.Integer(relation.Columns[1].Usage.Type, 7)
 	failure := errors.New("retained runtime default failure")
 	calls := 0

@@ -85,7 +85,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			continue
 		}
 		count++
-		if scope.owner.readOnly && !temporaryDataTarget(auth, mutation, definition.statement) {
+		if scope.owner.readOnly && !temporaryDataTarget(auth, mutation, definition.Statement) {
 			primaryTag = modifyingTag(statement)
 			if primaryTag == "" {
 				primaryTag = "SELECT"
@@ -100,7 +100,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		if !ok {
 			continue
 		}
-		syntax, commandBinding, commandAuth := definition.statement, *mutation, auth
+		syntax, commandBinding, commandAuth := definition.Statement, *mutation, auth
 		rewrite := b.rule.ctes[definition]
 		if rewrite != nil {
 			if _, selectOnly := rewrite.command.syntax.(*parser.Select); selectOnly {
@@ -111,7 +111,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		} else {
 			scope.ruleActionAuth = originalRuleAuth
 		}
-		index := scope.mutationIndex(definition.statement)
+		index := scope.mutationIndex(definition.Statement)
 		if rewrite != nil {
 			index = rewrite.mutation
 		}
@@ -222,10 +222,10 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	}
 	addOwners := func(definitions []*cteDefinition) {
 		for _, definition := range definitions {
-			if findOwner(definition.owner) != nil {
+			if findOwner(definition.Owner) != nil {
 				continue
 			}
-			current := &cteInvocation{frame: definition.owner, parent: owner, state: queryState{source: source, parameters: parameters, input: scope.input, output: scope.output, locking: source.locks != nil}}
+			current := &cteInvocation{frame: definition.Owner, parent: owner, state: queryState{source: source, parameters: parameters, input: scope.input, output: scope.output, locking: source.locks != nil}}
 			current.state.ctes = current
 			owner = current
 		}
@@ -263,7 +263,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		if err != nil {
 			return Result{}, err
 		}
-		commandOwner := findOwner(command.definition.owner)
+		commandOwner := findOwner(command.definition.Owner)
 		if commandOwner == nil {
 			return Result{}, fmt.Errorf("stuntgres: missing admitted CTE owner")
 		}

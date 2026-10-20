@@ -11,32 +11,32 @@ import (
 
 type literalExpression struct {
 	expr.Info
-	value sqltype.Value
+	Value sqltype.Value
 }
 
 func (e literalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.value.Type() != e.Usage.Type ||
-		e.UnknownNull && (!e.value.IsNull() || e.Usage.Type.ID() != sqltype.Text) {
+	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.Value.Type() != e.Usage.Type ||
+		e.UnknownNull && (!e.Value.IsNull() || e.Usage.Type.ID() != sqltype.Text) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid literal expression")
 	}
-	return e.value, nil
+	return e.Value, nil
 }
 
 type columnExpression struct {
 	expr.Info
-	origin             ids.ObjectRef
-	scope, frame       uint32
-	slot               int
-	virtual            expr.Expr
-	virtualOwner       *catalog.Relation
-	virtualAttribute   int32
-	rowStart, rowWidth int
+	Origin             ids.ObjectRef
+	Scope, Frame       uint32
+	Slot               int
+	Virtual            expr.Expr
+	VirtualOwner       *catalog.Relation
+	VirtualAttribute   int32
+	RowStart, RowWidth int
 	// Zero denotes an owner-row read; SQL occurrence IDs are encoded plus one.
-	queryOccurrence int
-	mergeSource     bool // Missing MERGE source tuples short-circuit virtual recipes.
+	QueryOccurrence int
+	MergeSource     bool // Missing MERGE source tuples short-circuit virtual recipes.
 }
 
 func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -45,15 +45,15 @@ func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	// A plain column passes only its frame coordinates, not the whole node.
-	if e.virtual == nil && !e.mergeSource {
-		return runtime.FrameValue(e.scope, e.frame, e.slot, e.Usage)
+	if e.Virtual == nil && !e.MergeSource {
+		return runtime.FrameValue(e.Scope, e.Frame, e.Slot, e.Usage)
 	}
 	return runtime.EvalColumn(e)
 }
 
 type parameterExpression struct {
 	expr.Info
-	number int
+	Number int
 }
 
 func (e parameterExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -61,31 +61,31 @@ func (e parameterExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return runtime.ParameterValue(e.number, e.Usage)
+	return runtime.ParameterValue(e.Number, e.Usage)
 }
 
 type coercionExpression struct {
 	expr.Info
-	child expr.Expr
-	plan  sqltype.CoercionPlan
-	mode  sqltype.CoercionContext
+	Child expr.Expr
+	Plan  sqltype.CoercionPlan
+	Mode  sqltype.CoercionContext
 	// The explicit conversion belongs to the enclosing ARRAY or ROW cast, not
 	// to a written cast at this element's raw syntax occurrence.
-	syntheticConstructorElement bool
+	SyntheticConstructorElement bool
 }
 
 // COLLATE changes analyzed usage only; values retain the same type and datum.
 type collationExpression struct {
 	expr.Info
-	child expr.Expr
+	Child expr.Expr
 }
 
 func (e collationExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	return e.child.Eval(ctx)
+	return e.Child.Eval(ctx)
 }
 
 func (e coercionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	v, err := e.child.Eval(ctx)
+	v, err := e.Child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -93,27 +93,27 @@ func (e coercionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return runtime.ApplyCoercion(e.plan, v, sqltype.ContainsDomainConstraints(e.Usage.Type))
+	return runtime.ApplyCoercion(e.Plan, v, sqltype.ContainsDomainConstraints(e.Usage.Type))
 }
 
 type comparisonExpression struct {
 	expr.Info
-	left, right expr.Expr
-	predicate   sqltype.ComparisonPredicate
-	operator    string
-	namespace   string
+	Left, Right expr.Expr
+	Predicate   sqltype.ComparisonPredicate
+	Operator    string
+	Namespace   string
 }
 
 func (e comparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	a, err := e.left.Eval(ctx)
+	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	b, err := e.right.Eval(ctx)
+	b, err := e.Right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.predicate.Evaluate(ctx.FunctionContext(), a, b, ctx.FunctionInput())
+	return e.Predicate.Evaluate(ctx.FunctionContext(), a, b, ctx.FunctionInput())
 }
 
 type Truth uint8
@@ -150,23 +150,23 @@ func TruthOf(v sqltype.Value) (Truth, error) {
 
 type arithmeticExpression struct {
 	expr.Info
-	left, right expr.Expr
-	provider    sqltype.Arithmetic
-	operator    sqltype.ArithmeticOperator
-	namespace   string
+	Left, Right expr.Expr
+	Provider    sqltype.Arithmetic
+	Operator    sqltype.ArithmeticOperator
+	Namespace   string
 }
 
 func (e arithmeticExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	a, err := e.left.Eval(ctx)
+	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.right == nil {
-		return e.provider.Unary(ctx.FunctionContext(), a, ctx.FunctionInput())
+	if e.Right == nil {
+		return e.Provider.Unary(ctx.FunctionContext(), a, ctx.FunctionInput())
 	}
-	v, err := e.right.Eval(ctx)
+	v, err := e.Right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.provider.Binary(ctx.FunctionContext(), a, v, ctx.FunctionInput())
+	return e.Provider.Binary(ctx.FunctionContext(), a, v, ctx.FunctionInput())
 }

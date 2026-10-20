@@ -129,7 +129,7 @@ func (b *expressionBinder) CaptureTypeInput(typ *sqltype.Descriptor) error {
 
 func (b *expressionBinder) ConstantValue(node expr.Expr) (sqltype.Value, bool) {
 	literal, ok := node.(literalExpression)
-	return literal.value, ok
+	return literal.Value, ok
 }
 
 func (b *expressionBinder) BuiltinOperatorVisible(name parser.ObjectName) (bool, error) {
@@ -167,22 +167,22 @@ func (b *expressionBinder) AnalyzeAggregateFilter(raw parser.AggregateExpr) (exp
 
 func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functions.AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
 	result, err := b.finishAggregate(raw, aggregateCall{
-		provider:     call.Provider,
-		routine:      call.Routine,
-		argument:     call.Argument,
-		separator:    call.Separator,
-		direct:       call.Direct,
-		stageWidth:   call.StageWidth,
-		operation:    call.Operation,
-		includeNulls: call.IncludeNulls,
-		order:        withinGroupOrder(call.Order),
+		Provider:     call.Provider,
+		Routine:      call.Routine,
+		Argument:     call.Argument,
+		Separator:    call.Separator,
+		Direct:       call.Direct,
+		StageWidth:   call.StageWidth,
+		Operation:    call.Operation,
+		IncludeNulls: call.IncludeNulls,
+		Order:        withinGroupOrder(call.Order),
 	}, filter, info)
 	if err != nil || !call.RetainUntypedArgument {
 		return result, err
 	}
 	// ORDER BY matching may have resolved an UNKNOWN target; only an actual
 	// remaining ANY occurrence joins the unresolved-parameter guard.
-	b.RetainUntypedParameter(b.grouping.aggregates[result.(aggregateExpression).slot].argument)
+	b.RetainUntypedParameter(b.grouping.aggregates[result.(aggregateExpression).Slot].Argument)
 	return result, nil
 }
 
@@ -225,7 +225,7 @@ func (b *expressionBinder) SequenceArgument(raw parser.Expr) (expr.Expr, ids.Obj
 	node, ref, err := b.bindRegclass(raw)
 	if err == nil && b.consumer.defaultConsumer {
 		literal, ok := node.(literalExpression)
-		if !ok || literal.value.IsNull() || ref == (ids.ObjectRef{}) {
+		if !ok || literal.Value.IsNull() || ref == (ids.ObjectRef{}) {
 			return nil, ref, expr.ErrorAt("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
 		}
 	}
@@ -262,7 +262,7 @@ func withinGroupOrder(keys []functions.AggregateSortKey) []sortKey {
 		if key.Argument {
 			slot, cache = 0, 0
 		}
-		order[i] = sortKey{expression: key.Expression, comparison: key.Comparison, position: key.Key.Pos.Character, desc: key.Key.Desc, nullsFirst: key.Key.Nulls == parser.NullsFirst || key.Key.Nulls == parser.NullsDefault && key.Key.Desc, slot: slot, cache: cache}
+		order[i] = sortKey{Expression: key.Expression, Comparison: key.Comparison, Position: key.Key.Pos.Character, Desc: key.Key.Desc, NullsFirst: key.Key.Nulls == parser.NullsFirst || key.Key.Nulls == parser.NullsDefault && key.Key.Desc, Slot: slot, Cache: cache}
 	}
 	return order
 }
@@ -276,5 +276,5 @@ func (b *expressionBinder) CommonArgumentUsage(operands []functions.Argument, la
 }
 
 func (b *expressionBinder) CollationRelabel(child expr.Expr, info expr.Info) expr.Expr {
-	return collationExpression{Info: info, child: child}
+	return collationExpression{Info: info, Child: child}
 }

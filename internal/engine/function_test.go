@@ -150,7 +150,7 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 		t.Fatal(bound.querySources)
 	}
 	project := bound.query.Root.(*projectNode)
-	for _, expression := range project.expressions {
+	for _, expression := range project.Expressions {
 		if p := expression.Properties(); p.Volatility != expr.Immutable || !p.RowDependent || p.ParameterDependent || p.StageDependent {
 			t.Fatal(p)
 		}

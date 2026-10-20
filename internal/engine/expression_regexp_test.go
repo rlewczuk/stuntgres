@@ -86,7 +86,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := bound.(functions.Regexp)
-	node.Args[1] = columnExpression{Info: expr.Info{Usage: node.Args[1].ResultUsage(), Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}}, slot: 0}
+	node.Args[1] = columnExpression{Info: expr.Info{Usage: node.Args[1].ResultUsage(), Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}}, Slot: 0}
 	node.Property.RowDependent = true
 	_, _, err = preflightCoercionsWithPolicy(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node, true)
 	if err != nil {
@@ -148,16 +148,16 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 		seen[node] = true
 		if n, ok := node.(*functionFromNode); ok {
 			from++
-			if n.frame <= 1 {
-				t.Fatal("function lost its inner lexical frame", n.frame)
+			if n.Frame <= 1 {
+				t.Fatal("function lost its inner lexical frame", n.Frame)
 			}
-			for _, call := range n.calls {
+			for _, call := range n.Calls {
 				for _, arg := range expr.Expr(call).(expr.Composite).Children() {
 					walkBoundExpression(arg, func(child expr.Expr) {
 						if column, ok := child.(columnExpression); ok {
 							captured++
-							if column.frame != 1 {
-								t.Fatal("outer reference rebound to inner frame", column.frame)
+							if column.Frame != 1 {
+								t.Fatal("outer reference rebound to inner frame", column.Frame)
 							}
 						}
 					})
@@ -167,7 +167,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 		queryExpressions(node, func(bound expr.Expr) {
 			walkBoundExpression(bound, func(child expr.Expr) {
 				if subquery, ok := child.(subqueryExpression); ok {
-					inspect(subquery.queryPlan.Root)
+					inspect(subquery.QueryPlan.Root)
 				}
 			})
 		})

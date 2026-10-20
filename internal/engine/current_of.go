@@ -24,7 +24,7 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 	marked := false
 	if c.locks != nil {
 		for i, leaf := range c.locks.leaves {
-			if leaf.mark.mode == 0 {
+			if leaf.mark.Mode == 0 {
 				continue
 			}
 			marked = true
@@ -74,17 +74,17 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 func cursorSimpleScan(node LogicalNode, inputs *querySource) *querySource {
 	switch n := node.(type) {
 	case *projectNode:
-		return cursorSimpleScan(n.child, inputs)
+		return cursorSimpleScan(n.Child, inputs)
 	case *filterNode:
-		return cursorSimpleScan(n.child, inputs)
+		return cursorSimpleScan(n.Child, inputs)
 	case *evaluationNode:
-		return cursorSimpleScan(n.child, inputs)
+		return cursorSimpleScan(n.Child, inputs)
 	case *limitNode:
-		return cursorSimpleScan(n.child, inputs)
+		return cursorSimpleScan(n.Child, inputs)
 	case *derivedNode:
-		return cursorSimpleScan(n.query.Root, inputs)
+		return cursorSimpleScan(n.Query.Root, inputs)
 	case *sourceNode:
-		source := querySourceAt(inputs, n.occurrence)
+		source := querySourceAt(inputs, n.Occurrence)
 		for source.input != nil {
 			source = source.input
 		}

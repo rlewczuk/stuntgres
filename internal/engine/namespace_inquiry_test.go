@@ -81,7 +81,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			if err != nil || toast == (ids.ObjectAddress{}) {
 				t.Fatal("TOAST pair", err)
 			}
-			classifier := functions.NamespaceInquiry{Info: expr.Info{Usage: boolType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Kind: functions.OtherTempNamespace, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
+			classifier := functions.NamespaceInquiry{Info: expr.Info{Usage: boolType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Kind: functions.OtherTempNamespace, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, Value: input}}
 			value, err = classifier.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}})
 			if err != nil {
 				t.Fatal(err)
@@ -131,7 +131,7 @@ func TestNamespaceIdentityTypedBinding(t *testing.T) {
 	}
 	defer op.Done()
 	query := domainUnitBindSelect(t, e, op, "SELECT pg_my_temp_schema(),pg_is_other_temp_schema($1)")
-	expressions := query.Root.(*projectNode).expressions
+	expressions := query.Root.(*projectNode).Expressions
 	getter, ok := expressions[0].(functions.NamespaceInquiry)
 	if !ok || getter.Kind != functions.MyTempNamespace || getter.Arg != nil || getter.ResultUsage().Type.ID() != sqltype.Oid || getter.Properties().Volatility != expr.Stable {
 		t.Fatal("getter typed node", expressions[0])

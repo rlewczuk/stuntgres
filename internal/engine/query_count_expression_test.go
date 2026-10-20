@@ -10,12 +10,12 @@ import (
 func TestCountExpressionArgumentVeto(t *testing.T) {
 	for _, cancelArgument := range []bool{false, true} {
 		_, query, source := queryCoreFixture(t, "SELECT count(v) FROM t")
-		node := query.Root.(*projectNode).child.(*aggregateNode)
-		original := node.calls[0].argument
+		node := query.Root.(*projectNode).Child.(*aggregateNode)
+		original := node.Calls[0].Argument
 		ctx, cancel := context.WithCancel(context.Background())
 		sentinel := errors.New("count argument failed")
 		calls := 0
-		node.calls[0].argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 			calls++
 			if cancelArgument {
 				cancel()
@@ -37,9 +37,9 @@ func TestCountExpressionArgumentVeto(t *testing.T) {
 
 func TestCountExpressionSlotsAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*),count(v),count(f),count(NULL),count(v) FROM t")
-	node := query.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 4 {
-		t.Fatal("distinct calls collapsed or immutable call not shared", len(node.calls))
+	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 4 {
+		t.Fatal("distinct calls collapsed or immutable call not shared", len(node.Calls))
 	}
 	for _, column := range query.Root.Schema() {
 		if column.Name != "count" || column.Usage.Type.ID() != sqltype.Int8 || column.Usage.Typmod != -1 || column.OriginTable != 0 || column.OriginAttribute != 0 || !column.NullabilityKnown || column.Nullable {
@@ -66,11 +66,11 @@ func TestCountExpressionSlotsAndMetadata(t *testing.T) {
 
 func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT count(v) FROM t")
-	node := b.query.Root.(*projectNode).child.(*aggregateNode)
-	original := node.calls[0].argument
+	node := b.query.Root.(*projectNode).Child.(*aggregateNode)
+	original := node.Calls[0].Argument
 	sentinel := errors.New("late INSERT count argument")
 	calls := 0
-	node.calls[0].argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		calls++
 		if calls == 3 {
 			return sqltype.Value{}, sentinel
@@ -85,9 +85,9 @@ func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 
 func TestCountExpressionVolatileCalls(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT count(random()),count(random()) FROM t")
-	node := query.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 2 {
-		t.Fatal("volatile calls shared", len(node.calls))
+	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 2 {
+		t.Fatal("volatile calls shared", len(node.Calls))
 	}
 	// The low-level source fixture has no execution scope. Random requires
 	// the same real session/statement authority as ordinary query execution.

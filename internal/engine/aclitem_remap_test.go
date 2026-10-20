@@ -80,9 +80,9 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	// The literal retagger must apply ACL import even without type changes.
 	next := catalog.CloneState(source.catalog.state)
 	next.SetACLItemImport(importer)
-	literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
+	literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
 	rebound, changed, err := retagBoundTypes(target.catalog.read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
-	if err != nil || !changed || rebound.(literalExpression).value == value {
+	if err != nil || !changed || rebound.(literalExpression).Value == value {
 		t.Fatal("constant principal import skipped", changed, err)
 	}
 	// Carrier-only changes must also reach enclosing CHECK/index expressions;
@@ -92,20 +92,20 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	comparison := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: literal, right: literal, predicate: predicate, operator: "="}
+	comparison := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Left: literal, Right: literal, Predicate: predicate, Operator: "="}
 	rebound, changed, err = retagBoundTypes(target.catalog.read(next), comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed {
 		t.Fatal("enclosing principal import skipped", changed, err)
 	}
 	imported := rebound.(comparisonExpression)
-	if imported.left.(literalExpression).value != sameDescriptor || imported.right.(literalExpression).value != sameDescriptor || comparison.left.(literalExpression).value != value {
+	if imported.Left.(literalExpression).Value != sameDescriptor || imported.Right.(literalExpression).Value != sameDescriptor || comparison.Left.(literalExpression).Value != value {
 		t.Fatal("enclosing import lost mapped carriers or mutated source")
 	}
 	if _, err := (scalarRenderer{validation: true}).sql(context.Background(), target.catalog.read(next), imported); err != nil {
 		t.Fatal("target validation ran with source CHECK carriers", err)
 	}
 	retained, changed, err := retagBoundTypes(target.catalog.read(next), imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
-	if err != nil || changed || retained.(comparisonExpression).left.(literalExpression).value != sameDescriptor {
+	if err != nil || changed || retained.(comparisonExpression).Left.(literalExpression).Value != sameDescriptor {
 		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45002}
@@ -176,7 +176,7 @@ func TestACLItemStaleDump(t *testing.T) {
 	value := aclUnitValue(t, e, "acl_dump_a=r*/acl_dump_b")
 	captured := capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles(), lossless: true}
 	ctx := aclItemOutputContext(context.Background(), captured)
-	literal := literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, value: value}
+	literal := literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	if text, err := catalogLiteralSQL(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
 		t.Fatal(text, err)
 	}

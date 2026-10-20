@@ -26,21 +26,21 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 	}
 	targets := append([]expr.Expr(nil), projection...)
 	identify := func(key *sortKey) {
-		if key.outputOrdinal != 0 {
-			key.targetIdentity = key.outputOrdinal
+		if key.OutputOrdinal != 0 {
+			key.TargetIdentity = key.OutputOrdinal
 			return
 		}
 		for i, e := range targets {
-			if b.sameQueryTarget(e, key.expression) {
-				key.targetIdentity = i + 1
+			if b.sameQueryTarget(e, key.Expression) {
+				key.TargetIdentity = i + 1
 				if i < len(projection) {
-					key.outputOrdinal = i + 1
+					key.OutputOrdinal = i + 1
 				}
 				return
 			}
 		}
-		targets = append(targets, key.expression)
-		key.targetIdentity = len(targets)
+		targets = append(targets, key.Expression)
+		key.TargetIdentity = len(targets)
 	}
 	for i := range order {
 		identify(&order[i])
@@ -52,13 +52,13 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 	gap := false
 	used := make(map[int]bool)
 	for _, key := range order {
-		if used[key.targetIdentity] {
+		if used[key.TargetIdentity] {
 			continue
 		}
-		used[key.targetIdentity] = true
+		used[key.TargetIdentity] = true
 		found := false
 		for i, k := range on {
-			if key.targetIdentity == k.targetIdentity {
+			if key.TargetIdentity == k.TargetIdentity {
 				if gap {
 					return nil, nil, expr.ErrorAt("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", raw[i].Pos)
 				}
@@ -79,7 +79,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 	}
 	families := make([]queryGrouping, len(on))
 	for i, k := range on {
-		families[i], err = b.bindDistinctGrouping(k.expression)
+		families[i], err = b.bindDistinctGrouping(k.Expression)
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok {
 				copy := *d
@@ -93,18 +93,18 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 }
 
 func bindOnOrdering(key *sortKey) error {
-	if key.expression.CollationIndeterminate() {
+	if key.Expression.CollationIndeterminate() {
 		return nil
 	}
-	provider, err := sqltype.BindOrdering(key.expression.ResultUsage())
+	provider, err := sqltype.BindOrdering(key.Expression.ResultUsage())
 	if d, ok := err.(*sqlstate.Error); ok {
 		copy := *d
-		if key.position > 0 {
-			copy.Position = strconv.Itoa(key.position)
+		if key.Position > 0 {
+			copy.Position = strconv.Itoa(key.Position)
 		}
 		return &copy
 	}
-	key.comparison = provider
+	key.Comparison = provider
 	return err
 }
 
@@ -113,9 +113,9 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 	effective := make([]sortKey, 0, len(order))
 	seen := make(map[int]bool)
 	for _, k := range order {
-		if !seen[k.targetIdentity] {
+		if !seen[k.TargetIdentity] {
 			effective = append(effective, k)
-			seen[k.targetIdentity] = true
+			seen[k.TargetIdentity] = true
 		}
 	}
 	var err error
@@ -126,7 +126,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 	sorted, _ := root.(*sortNode)
 	cacheWidth := 0
 	if sorted != nil {
-		cacheWidth = sorted.cacheWidth
+		cacheWidth = sorted.CacheWidth
 	}
 	var extra []expr.Expr
 	required := make([]sortKey, len(effective)+len(on))
@@ -137,24 +137,24 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 		if i < len(effective) {
 			continue
 		}
-		k.cache = -1
+		k.Cache = -1
 		for j := range i {
-			if required[j].targetIdentity == k.targetIdentity {
-				k.expression = required[j].expression
-				k.cache = required[j].cache
+			if required[j].TargetIdentity == k.TargetIdentity {
+				k.Expression = required[j].Expression
+				k.Cache = required[j].Cache
 				break
 			}
 		}
-		if k.cache >= 0 {
+		if k.Cache >= 0 {
 			continue
 		}
-		switch k.expression.(type) {
+		switch k.Expression.(type) {
 		case columnExpression, groupExpression:
 			continue
 		}
-		k.cache = cacheWidth
+		k.Cache = cacheWidth
 		cacheWidth++
-		extra = append(extra, k.expression)
+		extra = append(extra, k.Expression)
 	}
 	// Exact demanded output slots win; only undemanded payload may share a
 	// structurally equivalent required datum (the observed random x/y case).
@@ -162,7 +162,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 		chosen := -1
 		demanded := false
 		for i, k := range required {
-			if k.targetIdentity == j+1 {
+			if k.TargetIdentity == j+1 {
 				chosen = i
 				demanded = true
 				break
@@ -170,29 +170,29 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 		}
 		if !demanded {
 			for i, k := range required {
-				if b.sameGroupExpression(expr, k.expression) {
+				if b.sameGroupExpression(expr, k.Expression) {
 					chosen = i
 					break
 				}
 			}
 		}
-		if chosen >= 0 && required[chosen].cache >= 0 {
-			projection[j] = distinctOnCached(expr, required[chosen].cache)
+		if chosen >= 0 && required[chosen].Cache >= 0 {
+			projection[j] = distinctOnCached(expr, required[chosen].Cache)
 			if sorted != nil && chosen < len(effective) {
-				sorted.keys[chosen].output = true
+				sorted.Keys[chosen].Output = true
 			}
 		}
 	}
 	if sorted != nil {
-		sorted.outputs = append(sorted.outputs, extra...)
-		sorted.cacheWidth = cacheWidth
+		sorted.Outputs = append(sorted.Outputs, extra...)
+		sorted.CacheWidth = cacheWidth
 	} else if len(extra) != 0 {
-		root = &evaluationNode{querySchema: root.Schema(), child: root, expressions: extra, base: 0}
+		root = &evaluationNode{querySchema: root.Schema(), Child: root, Expressions: extra, Base: 0}
 	}
 	// Cheap nonvolatile outputs are required below ON, not complete-row keys.
 	if sorted != nil {
 		root = b.scheduleQueryProjection(root, projection, false)
-		cacheWidth = sorted.cacheWidth
+		cacheWidth = sorted.CacheWidth
 	} else {
 		early := make([]expr.Expr, 0)
 		for i, e := range projection {
@@ -210,7 +210,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 			early = append(early, e)
 		}
 		if len(early) != 0 {
-			root = &evaluationNode{querySchema: root.Schema(), child: root, expressions: early, base: cacheWidth}
+			root = &evaluationNode{querySchema: root.Schema(), Child: root, Expressions: early, Base: cacheWidth}
 			cacheWidth += len(early)
 		}
 	}
@@ -218,13 +218,13 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 	grouping := make([]queryGrouping, 0, len(on))
 	clear(seen)
 	for i, k := range required[len(effective):] {
-		if seen[k.targetIdentity] {
+		if seen[k.TargetIdentity] {
 			continue
 		}
-		seen[k.targetIdentity] = true
-		e := k.expression
-		if k.cache >= 0 {
-			e = distinctOnCached(e, k.cache)
+		seen[k.TargetIdentity] = true
+		e := k.Expression
+		if k.Cache >= 0 {
+			e = distinctOnCached(e, k.Cache)
 		}
 		expressions = append(expressions, e)
 		grouping = append(grouping, families[i])
@@ -235,11 +235,11 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 			projection[i] = cached
 		}
 	}
-	return &distinctOnNode{querySchema: root.Schema(), child: root, expressions: expressions, grouping: grouping}, nil
+	return &distinctOnNode{querySchema: root.Schema(), Child: root, Expressions: expressions, Grouping: grouping}, nil
 }
 
 func distinctOnCached(expression expr.Expr, slot int) cachedOrderExpression {
 	info := expr.InfoOf(expression)
 	info.Property.StageDependent = true
-	return cachedOrderExpression{Info: info, slot: slot}
+	return cachedOrderExpression{Info: info, Slot: slot}
 }

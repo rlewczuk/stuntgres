@@ -16,7 +16,7 @@ import (
 func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
 	typ := d.Columns[0].Usage.Type
-	base := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	base := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
 	two, _ := sqltype.Integer(typ, 2)
 	seven, _ := sqltype.Integer(typ, 7)
@@ -26,14 +26,14 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() || row[1].Type() != typ {
 		t.Fatal(row, err)
 	}
-	generated := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 2}.withGeneration(d, 1, 1)
+	generated := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 2}.WithGeneration(d, 1, 1)
 	outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{ten, two, row[1]}, OldRow: []sqltype.Value{ten, seven, row[1]}}}
 	inner := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer}}
 	v, err := generated.Eval(&inner)
 	if n, e := v.Integer(); err != nil || e != nil || n != 2 {
 		t.Fatal(v, err, e)
 	}
-	v, err = (returningColumnExpression{columnExpression: generated, old: true}).Eval(&inner)
+	v, err = (returningColumnExpression{columnExpression: generated, Old: true}).Eval(&inner)
 	if n, e := v.Integer(); err != nil || e != nil || n != 7 {
 		t.Fatal(v, err, e)
 	}
@@ -42,9 +42,9 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	}
 	// An absent side finds its owning frame but never demands a virtual value.
 	invalid := base
-	invalid.slot = 99
-	generated.virtual = invalid
-	if v, err = (returningColumnExpression{columnExpression: generated, absent: true}).Eval(&inner); err != nil || !v.IsNull() || v.Type() != typ {
+	invalid.Slot = 99
+	generated.Virtual = invalid
+	if v, err = (returningColumnExpression{columnExpression: generated, Absent: true}).Eval(&inner); err != nil || !v.IsNull() || v.Type() != typ {
 		t.Fatal(v, err)
 	}
 	if _, err = generated.Eval(&inner); err == nil {
@@ -108,9 +108,9 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 	if err := virtualDestination(catalog.Column{Name: "b", Usage: builtinArray.Usage()}); err != nil {
 		t.Fatal(err)
 	}
-	hidden := literalExpression{Info: expr.Info{Usage: domain.Usage(), Pos: parser.Position{Character: 17}}, value: sqltype.Null(domain)}
-	otherwise := literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: sqltype.Null(integer)}
-	tree := caseExpression{Info: expr.Info{Usage: integer.Usage()}, arms: []caseBranch{{result: hidden}}, otherwise: otherwise}
+	hidden := literalExpression{Info: expr.Info{Usage: domain.Usage(), Pos: parser.Position{Character: 17}}, Value: sqltype.Null(domain)}
+	otherwise := literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
+	tree := caseExpression{Info: expr.Info{Usage: integer.Usage()}, Arms: []caseBranch{{Result: hidden}}, Otherwise: otherwise}
 	var diagnostic *sqlstate.Error
 	if err := virtualGenerationSecurity(tree); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Position != "17" || diagnostic.Message != "generation expression uses user-defined type" {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	typ := d.Columns[0].Usage.Type
-	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}
+	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 0}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
@@ -162,7 +162,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	d.ObjectAddress.ObjectID++
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
-	node := tableOIDExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner: ref}
+	node := tableOIDExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: node, Planned: node}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	store := &storage.Relation{Versions: []storage.RowVersion{{Values: []sqltype.Value{base, sqltype.Null(oid)}}}}

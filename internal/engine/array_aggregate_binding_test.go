@@ -26,21 +26,21 @@ func TestArrayAggregateBinding(t *testing.T) {
 			t.Fatal(q, err)
 		}
 		call := b.grouping.aggregates[0]
-		argument := call.argument
+		argument := call.Argument
 		usage := result.ResultUsage()
-		if usage.Typmod != -1 || usage.Collation != argument.ResultUsage().Collation || !result.Properties().StageDependent || !call.includeNulls {
+		if usage.Typmod != -1 || usage.Collation != argument.ResultUsage().Collation || !result.Properties().StageDependent || !call.IncludeNulls {
 			t.Fatal("aggregate usage/admission", usage, argument.ResultUsage())
 		}
 		if result.ExplicitCollation() != argument.ExplicitCollation() || result.CollationIndeterminate() != argument.CollationIndeterminate() {
 			t.Fatal("collation provenance lost")
 		}
 		if argument.ResultUsage().Type.IsArray() {
-			if usage.Type != argument.ResultUsage().Type || call.operation != functions.AggregateArrayArray {
+			if usage.Type != argument.ResultUsage().Type || call.Operation != functions.AggregateArrayArray {
 				t.Fatal("array overload identity")
 			}
 		} else {
 			associated, ok := e.CatalogRead().LookupArray(argument.ResultUsage().Type)
-			if !ok || usage.Type != associated || call.operation != functions.AggregateArrayScalar {
+			if !ok || usage.Type != associated || call.Operation != functions.AggregateArrayScalar {
 				t.Fatal("coherent associated array identity")
 			}
 		}
@@ -54,11 +54,11 @@ func TestArrayAggregateBinding(t *testing.T) {
 			t.Fatal("missing result-array dependency")
 		}
 		again, err := b.bind(raw, expressionPolicy{context: projectionContext})
-		if err != nil || again.(aggregateExpression).slot != result.(aggregateExpression).slot {
+		if err != nil || again.(aggregateExpression).Slot != result.(aggregateExpression).Slot {
 			t.Fatal("identical aggregate failed state-slot sharing", err)
 		}
 		other := call
-		other.includeNulls = false
+		other.IncludeNulls = false
 		if b.sameAggregateCall(call, other) {
 			t.Fatal("NULL admission omitted from aggregate identity")
 		}
@@ -113,8 +113,8 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := b.grouping.aggregates[0]
-		provider := call.provider.(*functions.ArrayAggregateProvider)
-		if result.ResultUsage().Type != tc.want || provider.ResultUsage().Type != tc.want || provider.Arrays() != tc.arrays || provider.ArgumentType() != call.argument.ResultUsage().Type {
+		provider := call.Provider.(*functions.ArrayAggregateProvider)
+		if result.ResultUsage().Type != tc.want || provider.ResultUsage().Type != tc.want || provider.Arrays() != tc.arrays || provider.ArgumentType() != call.Argument.ResultUsage().Type {
 			t.Fatal("domain overload lost exact catalog generation", tc, provider)
 		}
 		if !tc.arrays && provider.ResultUsage().Type.Element() != tc.input {

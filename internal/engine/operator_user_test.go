@@ -157,7 +157,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			args[i] = literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
+			args[i] = literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		}
 		procedure := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.oid})
 		node, err := b.bindSelectedOperatorRoutine(procedure, args, parser.Position{})
@@ -182,7 +182,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	text, _ := view.LookupType(sqltype.Text)
-	arg := literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "ABC")}
+	arg := literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "ABC")}
 	routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 870})
 	node, err := b.bindSelectedOperatorRoutine(routine, []expr.Expr{arg}, parser.Position{})
 	if err != nil {
@@ -353,7 +353,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	two, _ := sqltype.Integer(integer, 2)
 	three, _ := sqltype.Integer(integer, 3)
-	args := []expr.Expr{literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: two}, literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: three}}
+	args := []expr.Expr{literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: two}, literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: three}}
 	routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 177})
 	provider, err := b.bindSelectedOperatorRoutine(routine, args, parser.Position{})
 	if err != nil {
@@ -361,7 +361,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	}
 	info := expr.InfoOf(provider)
 	info.RoutineReference = nil
-	wrapped := selectedOperatorExpression{Info: info, operator: source, ref: original, provider: provider}
+	wrapped := selectedOperatorExpression{Info: info, Operator: source, Ref: original, Provider: provider}
 	assertManifest := func(node expr.Expr, operator ids.ObjectAddress) {
 		t.Helper()
 		_, manifest, err := renderColumnDefault(context.Background(), view, node)
@@ -401,7 +401,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := mapped.(selectedOperatorExpression)
-	if got.ref.Address.ObjectID != 90001 || wrapped.ref != original {
+	if got.Ref.Address.ObjectID != 90001 || wrapped.Ref != original {
 		t.Fatal("operator reference remap lost provenance")
 	}
 	children := 0

@@ -139,7 +139,7 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 	// Stage dependence is preserved from each child without any row-time allocation.
 	typ := b.typ(sqltype.Bool)
 	child := literalExpression{expr.Info{Usage: typ.Usage(), Property: expr.Properties{StageDependent: true}}, sqltype.Boolean(typ, true)}
-	invalid := logicalExpression{Info: expr.Info{Usage: typ.Usage()}, op: parser.LogicalOperator(99), left: child, right: child}
+	invalid := logicalExpression{Info: expr.Info{Usage: typ.Usage()}, Op: parser.LogicalOperator(99), Left: child, Right: child}
 	if _, err := invalid.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("invalid bound operator")
 	}
@@ -174,7 +174,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 		t.Fatal(bound.parameters)
 	}
 	project := bound.query.Root.(*projectNode)
-	for i, node := range project.expressions {
+	for i, node := range project.Expressions {
 		p := node.Properties()
 		volatility := expr.Immutable
 		if i == 3 {

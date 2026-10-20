@@ -37,13 +37,13 @@ func TestJSONStripNullsJoinDependencies(t *testing.T) {
 				}
 				e := jsonStripUnitBind(t, b, q).(functions.JSONStripNulls)
 				if tc.nullTarget {
-					e.Args[0] = literalExpression{Info: expr.Info{Usage: e.Args[0].ResultUsage()}, value: sqltype.Null(e.Args[0].ResultUsage().Type)}
+					e.Args[0] = literalExpression{Info: expr.Info{Usage: e.Args[0].ResultUsage()}, Value: sqltype.Null(e.Args[0].ResultUsage().Type)}
 				}
 				for formal, slot := range [2]int{tc.target, tc.flag} {
 					if slot < 0 {
 						continue
 					}
-					e.Args[formal] = columnExpression{Info: expr.Info{Usage: e.Args[formal].ResultUsage(), Property: expr.Properties{RowDependent: true}}, slot: slot}
+					e.Args[formal] = columnExpression{Info: expr.Info{Usage: e.Args[formal].ResultUsage(), Property: expr.Properties{RowDependent: true}}, Slot: slot}
 				}
 				next, err := e.Reconstruct(e.Info, e.Args)
 				if err != nil {

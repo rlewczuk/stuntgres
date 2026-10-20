@@ -14,7 +14,7 @@ func overlapsExecutionConstant(node expr.Expr, c *EvalContext) bool {
 	case literalExpression:
 		return true
 	case parameterExpression:
-		return n.number > 0 && n.number <= len(c.Parameters)
+		return n.Number > 0 && n.Number <= len(c.Parameters)
 	case columnExpression, groupExpression, aggregateExpression, groupingExpression, subqueryExpression:
 		return false
 	}
@@ -58,17 +58,17 @@ func overlapsNodeCost(node expr.Expr) int {
 	case literalExpression, parameterExpression, columnExpression, groupExpression, aggregateExpression, groupingExpression, collationExpression, logicalExpression, nullTestExpression, truthTestExpression, returningColumnExpression, returningWholeRowExpression:
 		return 0
 	case caseExpression:
-		if n.test != nil {
-			return len(n.arms)
+		if n.Test != nil {
+			return len(n.Arms)
 		}
 		return 0
 	case conditionalExpression:
-		if n.kind == parser.NullIf || n.kind == parser.Greatest || n.kind == parser.Least {
+		if n.Kind == parser.NullIf || n.Kind == parser.Greatest || n.Kind == parser.Least {
 			return 1
 		}
 		return 0
 	case coercionExpression:
-		cost := n.plan.EvaluationFunctionCount()
+		cost := n.Plan.EvaluationFunctionCount()
 		if n.ResultUsage().Type.IsDomain() {
 			cost++
 		}
@@ -140,7 +140,7 @@ func simplifyOverlapsRoute(c *EvalContext, e functions.DatetimeOverlaps) (functi
 			if err := admitOverlapsPair(c, e, pair); err != nil {
 				return e, false, err
 			}
-			end, err := e.Plan.DurationEnd(c.Context, pair, start.value, interval.value, c.Input)
+			end, err := e.Plan.DurationEnd(c.Context, pair, start.Value, interval.Value, c.Input)
 			if err != nil {
 				return e, false, functions.OverlapsErrorContext(err, `SQL function "overlaps" during inlining`)
 			}

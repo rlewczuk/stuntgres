@@ -59,12 +59,12 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 	}
 	switch n := expr.(type) {
 	case sqlRoutineExpression:
-		r.add(n.ref.Address)
+		r.add(n.Ref.Address)
 	case selectedOperatorExpression:
-		r.add(n.ref.Address)
+		r.add(n.Ref.Address)
 	case unnestExpression:
-		if n.procedure != nil {
-			r.add(n.ref.Address)
+		if n.Procedure != nil {
+			r.add(n.Ref.Address)
 		}
 	case installedSoundexFunctionExpression:
 		r.add(n.ref.Address)
@@ -84,19 +84,19 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 		}
 		r.add(n.RegclassRef.Address)
 		if r.err == nil {
-			r.err = walkCatalogAliasDependenciesAt(r.catalog, r.definition, n.value, func(address ids.ObjectAddress) error {
+			r.err = walkCatalogAliasDependenciesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 		if r.err == nil {
-			r.err = walkOperatorReferencesAt(r.catalog, r.definition, n.value, func(address ids.ObjectAddress) error {
+			r.err = walkOperatorReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 		if r.err == nil {
-			r.err = walkRegTSReferencesAt(r.catalog, r.definition, n.value, func(address ids.ObjectAddress) error {
+			r.err = walkRegTSReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
@@ -112,15 +112,15 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 	case collationExpression:
 		r.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(n.ResultUsage().Collation.ID)})
 	case columnExpression:
-		r.add(n.origin.Address)
+		r.add(n.Origin.Address)
 	case tableOIDExpression:
-		address := n.owner.Address
+		address := n.Owner.Address
 		address.SubID = -6
 		r.add(address)
 	case functions.SequenceCall:
 		r.add(n.Ref.Address)
 	case subqueryExpression:
-		r.query(n.queryPlan.Root)
+		r.query(n.QueryPlan.Root)
 	}
 	// Fixed builtin providers are pinned; installed providers above record their
 	// genuine procedure identity. Arguments include every analyzed CASE arm,
@@ -136,12 +136,12 @@ func (r *pgDependRefs) query(node LogicalNode) {
 		return
 	}
 	if source, ok := node.(*sourceNode); ok {
-		r.add(source.ref.Address)
+		r.add(source.Ref.Address)
 	}
 	if aggregate, ok := node.(*aggregateNode); ok {
-		for _, call := range aggregate.calls {
-			if call.procedure != nil {
-				r.add(call.ref.Address)
+		for _, call := range aggregate.Calls {
+			if call.Procedure != nil {
+				r.add(call.Ref.Address)
 			}
 		}
 	}
@@ -150,8 +150,8 @@ func (r *pgDependRefs) query(node LogicalNode) {
 			// The set binder always installs an outer adaptation wrapper.
 			// An unchanged usage is not an analyzed cast dependency; genuine
 			// casts remain in its child and still take the ordinary path.
-			if wrapper, ok := expr.(coercionExpression); ok && wrapper.child.ResultUsage() == wrapper.ResultUsage() {
-				r.expression(wrapper.child)
+			if wrapper, ok := expr.(coercionExpression); ok && wrapper.Child.ResultUsage() == wrapper.ResultUsage() {
+				r.expression(wrapper.Child)
 			} else {
 				r.expression(expr)
 			}

@@ -43,7 +43,7 @@ func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, er
 	}
 	source := planned.(*functionFromNode)
 	var scalarNull []bool
-	for i, call := range source.calls {
+	for i, call := range source.Calls {
 		if !strictScalarFunctionSource(call) {
 			continue
 		}
@@ -53,34 +53,34 @@ func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, er
 		}
 		if randomLiteralNull(next) {
 			if scalarNull == nil {
-				scalarNull = make([]bool, len(source.calls))
+				scalarNull = make([]bool, len(source.Calls))
 			}
 			scalarNull[i] = true
 		}
 	}
-	if scalarNull == nil && source.scalarNull == nil {
+	if scalarNull == nil && source.ScalarNull == nil {
 		return source, nil
 	}
 	copy := *source
-	copy.scalarNull = scalarNull
+	copy.ScalarNull = scalarNull
 	return &copy, nil
 }
 
 // openFunctionCall opens call i of a ROWS FROM item; a strict call with a NULL
 // scalar argument yields its typed NULL after the node prologue.
 func openFunctionCall(c *EvalContext, n *functionFromNode, i int) (expr.SourceCursor, error) {
-	if n.scalarNull != nil && n.scalarNull[i] {
+	if n.ScalarNull != nil && n.ScalarNull[i] {
 		if err := evaluationContext(c); err != nil {
 			return expr.SourceCursor{}, err
 		}
-		return expr.ScalarSource(sqltype.Null(n.calls[i].ResultUsage().Type)), nil
+		return expr.ScalarSource(sqltype.Null(n.Calls[i].ResultUsage().Type)), nil
 	}
-	return openFunctionSource(c, n.calls[i])
+	return openFunctionSource(c, n.Calls[i])
 }
 
 func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInvocation, error) {
-	s := functionSetInvocation{cursors: make([]expr.SourceCursor, len(n.calls))}
-	for i := range n.calls {
+	s := functionSetInvocation{cursors: make([]expr.SourceCursor, len(n.Calls))}
+	for i := range n.Calls {
 		cursor, err := openFunctionCall(c, n, i)
 		if err != nil {
 			s.close()
@@ -102,14 +102,14 @@ func openFunctionSource(c *EvalContext, expression expr.Expr) (expr.SourceCursor
 }
 
 func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFromNode) (indexedStage, error) {
-	if n.frame == 0 {
+	if n.Frame == 0 {
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid function source frame")
 	}
 	if err := validateFunctionFromLayout(n); err != nil {
 		return indexedStage{}, err
 	}
 	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}
-	establishSourcePresence(source, n.presenceSlot)
+	establishSourcePresence(source, n.PresenceSlot)
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 	var invocation functionSetInvocation
 	opened := false
@@ -117,15 +117,15 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 	frame := make([]sqltype.Value, len(n.Schema()))
 	out.finish = func() error { invocation.close(); return nil }
 	evaluation := state.evaluation(nil)
-	evaluation.Frame = n.frame
-	if state.invocation != nil && state.invocation.Scope == evaluation.Scope && state.invocation.Frame == n.frame {
+	evaluation.Frame = n.Frame
+	if state.invocation != nil && state.invocation.Scope == evaluation.Scope && state.invocation.Frame == n.Frame {
 		evaluation.Row = state.invocation.Row
 		evaluation.presenceSlots = state.invocation.presenceSlots
 		evaluation.presence = state.invocation.presence
 		evaluation.queryOccurrences = state.invocation.queryOccurrences
 		evaluation.queryProvenance = state.invocation.queryProvenance
 		evaluation.queryCurrentRows = state.invocation.queryCurrentRows
-	} else if n.correlated {
+	} else if n.Correlated {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing function invocation frame")
 	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
@@ -138,7 +138,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 			}
 			opened = true
 		}
-		present, err := invocation.nextFrom(ctx, n.calls, frame)
+		present, err := invocation.nextFrom(ctx, n.Calls, frame)
 		if err != nil {
 			return false, err
 		}
@@ -146,7 +146,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 			invocation.close()
 			return false, nil
 		}
-		if n.ordinality {
+		if n.Ordinality {
 			if ordinal == math.MaxInt64 {
 				return false, sqlError("22003", "bigint out of range")
 			}
@@ -197,27 +197,27 @@ func appendFunctionStageRow(ctx context.Context, out *indexedStage, schema []cat
 }
 
 func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNode) (indexedStage, error) {
-	child, err := openQueryNode(ctx, state, n.child)
+	child, err := openQueryNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
 	width := len(n.Schema())
-	base, callWidth := n.baseWidth, n.markerWidth
-	if base < 0 || callWidth < len(n.calls) || base+callWidth+len(n.scalars) > width ||
-		(len(n.child.Schema()) != base && len(n.child.Schema()) != width) || len(n.callSlots) != len(n.calls) || n.scalarSlots != nil && len(n.scalarSlots) != len(n.scalars) {
+	base, callWidth := n.BaseWidth, n.MarkerWidth
+	if base < 0 || callWidth < len(n.Calls) || base+callWidth+len(n.Scalars) > width ||
+		(len(n.Child.Schema()) != base && len(n.Child.Schema()) != width) || len(n.CallSlots) != len(n.Calls) || n.ScalarSlots != nil && len(n.ScalarSlots) != len(n.Scalars) {
 		child.Close()
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid string set frame")
 	}
-	for i, slot := range n.callSlots {
+	for i, slot := range n.CallSlots {
 		if slot < 0 || slot >= callWidth {
 			child.Close()
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid string set call slot")
 		}
-		if !sourceReturnsSet(n.calls[i]) || n.calls[i].ResultUsage() != n.Schema()[base+slot].Usage {
+		if !sourceReturnsSet(n.Calls[i]) || n.Calls[i].ResultUsage() != n.Schema()[base+slot].Usage {
 			child.Close()
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid function set call usage")
 		}
-		for _, previous := range n.callSlots[:i] {
+		for _, previous := range n.CallSlots[:i] {
 			if previous == slot {
 				child.Close()
 				return indexedStage{}, fmt.Errorf("stuntgres: duplicate string set call slot")
@@ -225,29 +225,29 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 		}
 	}
 	scalarWidth := width - base - callWidth
-	for i := range n.scalars {
-		slot := querySetScalarSlot(n.scalarSlots, i)
-		if slot < 0 || slot >= scalarWidth || n.scalars[i] == nil || querySetDepth(n.scalars[i]) != 0 || n.scalars[i].ResultUsage() != n.Schema()[base+callWidth+slot].Usage {
+	for i := range n.Scalars {
+		slot := querySetScalarSlot(n.ScalarSlots, i)
+		if slot < 0 || slot >= scalarWidth || n.Scalars[i] == nil || querySetDepth(n.Scalars[i]) != 0 || n.Scalars[i].ResultUsage() != n.Schema()[base+callWidth+slot].Usage {
 			child.Close()
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid string set scalar slot")
 		}
 		for previous := range i {
-			if querySetScalarSlot(n.scalarSlots, previous) == slot {
+			if querySetScalarSlot(n.ScalarSlots, previous) == slot {
 				child.Close()
 				return indexedStage{}, fmt.Errorf("stuntgres: duplicate string set scalar slot")
 			}
 		}
 	}
-	if err := validateQuerySetSteps(n.steps, len(n.calls), len(n.scalars)); err != nil {
+	if err := validateQuerySetSteps(n.Steps, len(n.Calls), len(n.Scalars)); err != nil {
 		child.Close()
 		return indexedStage{}, err
 	}
-	if n.template != nil {
-		if err := validateQuerySetSteps(n.template.steps, len(n.template.origins), len(n.template.scalars)); err != nil {
+	if n.Template != nil {
+		if err := validateQuerySetSteps(n.Template.Steps, len(n.Template.Origins), len(n.Template.Scalars)); err != nil {
 			child.Close()
 			return indexedStage{}, err
 		}
-		if err := validateQuerySetStageOrder(n.template.steps, n.steps, n.callSlots, n.scalarSlots, len(n.scalars)); err != nil {
+		if err := validateQuerySetStageOrder(n.Template.Steps, n.Steps, n.CallSlots, n.ScalarSlots, len(n.Scalars)); err != nil {
 			child.Close()
 			return indexedStage{}, err
 		}
@@ -261,7 +261,7 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 		frame[base+i] = sqltype.Null(n.Schema()[base+i].Usage.Type)
 	}
 	evaluation := state.evaluation(nil)
-	evaluation.Frame = n.frame
+	evaluation.Frame = n.Frame
 	out.finish = func() error { invocation.close(); return child.Close() }
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		for {
@@ -275,20 +275,20 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 				evaluation.bindQueryRow(child.source, child.index(i))
 				evaluation.orderValues = child.orderRow(i)
 				copy(frame, evaluation.Row)
-				invocation = functionSetInvocation{cursors: make([]expr.SourceCursor, len(n.calls))}
+				invocation = functionSetInvocation{cursors: make([]expr.SourceCursor, len(n.Calls))}
 			}
-			present := len(n.calls) == 0 // Zero-depth groups have one scalar attempt.
-			for _, step := range n.steps {
-				if step.kind == querySetScalarStep {
-					value, err := n.scalars[step.index].Eval(&evaluation)
+			present := len(n.Calls) == 0 // Zero-depth groups have one scalar attempt.
+			for _, step := range n.Steps {
+				if step.Kind == querySetScalarStep {
+					value, err := n.Scalars[step.Index].Eval(&evaluation)
 					if err != nil {
 						return false, err
 					}
-					frame[base+callWidth+querySetScalarSlot(n.scalarSlots, step.index)] = value
+					frame[base+callWidth+querySetScalarSlot(n.ScalarSlots, step.Index)] = value
 					continue
 				}
-				call := n.calls[step.index]
-				cursor := &invocation.cursors[step.index]
+				call := n.Calls[step.Index]
+				cursor := &invocation.cursors[step.Index]
 				if cursor.Type == nil {
 					opened, err := openFunctionSource(&evaluation, call)
 					if err != nil {
@@ -300,7 +300,7 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 				if err != nil {
 					return false, err
 				}
-				frame[base+n.callSlots[step.index]] = value
+				frame[base+n.CallSlots[step.Index]] = value
 				present = present || field
 			}
 			if !present {
@@ -320,7 +320,7 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 					source.versions = appendQueryVersions(source.versions, child.source, child.index(input), state.source.locks)
 				}
 			}
-			if len(n.calls) == 0 {
+			if len(n.Calls) == 0 {
 				input = -1
 			}
 			return true, ctx.Err()
@@ -339,15 +339,15 @@ func functionFromCallWidth(call expr.Expr) int {
 }
 
 func validateFunctionFromLayout(n *functionFromNode) error {
-	if len(n.calls) == 0 {
+	if len(n.Calls) == 0 {
 		return fmt.Errorf("stuntgres: empty function source")
 	}
-	if n.scalarNull != nil && len(n.scalarNull) != len(n.calls) {
+	if n.ScalarNull != nil && len(n.ScalarNull) != len(n.Calls) {
 		return fmt.Errorf("stuntgres: invalid function source scalar plan")
 	}
 	offset := 0
-	for i, call := range n.calls {
-		if n.scalarNull != nil && n.scalarNull[i] {
+	for i, call := range n.Calls {
+		if n.ScalarNull != nil && n.ScalarNull[i] {
 			if !strictScalarFunctionSource(call) {
 				return fmt.Errorf("stuntgres: invalid function source scalar plan")
 			}
@@ -367,7 +367,7 @@ func validateFunctionFromLayout(n *functionFromNode) error {
 		}
 		offset += width
 	}
-	if n.ordinality {
+	if n.Ordinality {
 		if offset >= len(n.Schema()) || n.Schema()[offset].Usage.Type.ID() != sqltype.Int8 {
 			return fmt.Errorf("stuntgres: invalid function source ordinality")
 		}

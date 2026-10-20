@@ -151,7 +151,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	qualifier := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !raw.Ordinality}
 	b.query.hidden = append(b.query.hidden, qualifier)
 	captures := b.functionCaptures(calls)
-	node := &functionFromNode{querySchema: schema, calls: calls, ordinality: raw.Ordinality, correlated: len(captures) != 0, frame: b.frameID(), viewOrdinal: ordinal, captures: captures}
+	node := &functionFromNode{querySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.frameID(), ViewOrdinal: ordinal, Captures: captures}
 	return node, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
 }
 
@@ -172,7 +172,7 @@ func (b *expressionBinder) mapQuerySetStage(bound expr.Expr, leaf func(expr.Expr
 func functionFrameReference(bound expr.Expr, frame uint32) bool {
 	found := false
 	walkQueryArgumentExpression(bound, func(node expr.Expr) {
-		if column, ok := node.(columnExpression); ok && column.frame == frame {
+		if column, ok := node.(columnExpression); ok && column.Frame == frame {
 			found = true
 		}
 	})
@@ -207,13 +207,13 @@ func (b *expressionBinder) functionCaptures(calls []expr.Expr) []functionCorrela
 		for _, arg := range call.(expr.Composite).Children() {
 			walkQueryArgumentExpression(arg, func(expr expr.Expr) {
 				column, ok := expr.(columnExpression)
-				if !ok || column.frame != b.frameID() {
+				if !ok || column.Frame != b.frameID() {
 					return
 				}
 				name := ""
 				for _, qualifier := range b.query.namespace.qualifiers {
 					for _, candidate := range qualifier.columns {
-						if candidate.slot == column.slot {
+						if candidate.slot == column.Slot {
 							name = qualifier.name
 							break
 						}
@@ -222,7 +222,7 @@ func (b *expressionBinder) functionCaptures(calls []expr.Expr) []functionCorrela
 						break
 					}
 				}
-				captures = append(captures, functionCorrelation{frame: column.frame, slot: column.slot, name: name, pos: column.Pos})
+				captures = append(captures, functionCorrelation{Frame: column.Frame, Slot: column.Slot, Name: name, Pos: column.Pos})
 			})
 		}
 	}

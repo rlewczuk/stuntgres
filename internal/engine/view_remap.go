@@ -54,14 +54,14 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	var next expr.Expr
 	switch n := node.(type) {
 	case sqlRoutineExpression:
-		n.args = args(n.args)
+		n.Args = args(n.Args)
 		if ref != nil {
-			n.ref = ref(n.ref)
+			n.Ref = ref(n.Ref)
 		}
 		next = n
 	case assignmentValueExpression:
-		n.base, n.value = child(n.base), child(n.value)
-		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.target}, func(expr expr.Expr) (expr.Expr, bool, error) {
+		n.Base, n.Value = child(n.Base), child(n.Value)
+		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.Target}, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if expr == nil {
 				return nil, false, nil
 			}
@@ -70,12 +70,12 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		if failure != nil {
 			return nil, failure
 		}
-		n.target = targets[0]
+		n.Target = targets[0]
 		next = n
 	case unknownOutput:
 		// Captured contextual analysis carries immutable literal syntax only;
 		// it is not a persisted scalar value or a remappable object reference.
-		literal, ok := n.raw.(parser.LiteralExpr)
+		literal, ok := n.Raw.(parser.LiteralExpr)
 		if !ok || n.ResultUsage() != (sqltype.Usage{}) || literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue {
 			return nil, fmt.Errorf("stuntgres: invalid contextual view output")
 		}
@@ -84,10 +84,10 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		n, _, err = mapRowAnalysis(n, func(old expr.Expr) (expr.Expr, bool, error) { next := child(old); return next, true, err })
 		next = n
 	case fieldExpression:
-		n.base = child(n.base)
+		n.Base = child(n.Base)
 		next = n
 	case arrayExpression:
-		n.elements = args(n.elements)
+		n.Elements = args(n.Elements)
 		next = n
 	case subscriptExpression:
 		n, _, err = mapSubscript(n, func(old expr.Expr) (expr.Expr, bool, error) {
@@ -100,28 +100,28 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		next = n
 	case subqueryExpression:
 		if queryMapper != nil {
-			root, failure := queryMapper(n.queryPlan.Root)
+			root, failure := queryMapper(n.QueryPlan.Root)
 			if failure != nil {
 				return nil, failure
 			}
-			copy := *n.queryPlan
+			copy := *n.QueryPlan
 			copy.Root = root
-			n.queryPlan = &copy
+			n.QueryPlan = &copy
 		}
-		n.comparisons = append([]comparisonExpression(nil), n.comparisons...)
-		for i, c := range n.comparisons {
+		n.Comparisons = append([]comparisonExpression(nil), n.Comparisons...)
+		for i, c := range n.Comparisons {
 			mapped := child(c)
 			if err != nil {
 				return nil, err
 			}
-			n.comparisons[i] = mapped.(comparisonExpression)
+			n.Comparisons[i] = mapped.(comparisonExpression)
 		}
-		n.leftExpansions, _, err = mapRowComparisonExpansions(n.leftExpansions, func(old expr.Expr) (expr.Expr, bool, error) {
+		n.LeftExpansions, _, err = mapRowComparisonExpansions(n.LeftExpansions, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := child(old)
 			return next, true, err
 		})
-		if n.leftConstructor != nil {
-			n.leftConstructor = child(n.leftConstructor)
+		if n.LeftConstructor != nil {
+			n.LeftConstructor = child(n.LeftConstructor)
 		}
 		next = n
 	case updateOutputExpression:
@@ -136,45 +136,45 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		if n.RegclassRef != (ids.ObjectRef{}) {
 			n.RegclassRef = ref(n.RegclassRef)
 		}
-		if n.Usage.Type.ContainsRegclass() && !n.value.IsNull() {
+		if n.Usage.Type.ContainsRegclass() && !n.Value.IsNull() {
 			var failure error
-			n.value, failure = remapRegclassDatum(n.value, func(id ids.OID) ids.OID {
+			n.Value, failure = remapRegclassDatum(n.Value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
 			}
 		}
-		if (n.Usage.Type.ContainsRegtype() || n.Usage.Type.ContainsRegObject()) && !n.value.IsNull() {
+		if (n.Usage.Type.ContainsRegtype() || n.Usage.Type.ContainsRegObject()) && !n.Value.IsNull() {
 			var failure error
-			n.value, failure = remapCatalogAliasDatum(n.value, func(address ids.ObjectAddress) ids.ObjectAddress {
+			n.Value, failure = remapCatalogAliasDatum(n.Value, func(address ids.ObjectAddress) ids.ObjectAddress {
 				return ref(ids.ObjectRef{Address: address}).Address
 			})
 			if failure != nil {
 				return nil, failure
 			}
 		}
-		if n.Usage.Type.ContainsRegproc() && !n.value.IsNull() {
+		if n.Usage.Type.ContainsRegproc() && !n.Value.IsNull() {
 			var failure error
-			n.value, failure = remapRoutineDatum(n.value, func(id ids.OID) ids.OID {
+			n.Value, failure = remapRoutineDatum(n.Value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
 			}
 		}
-		if n.Usage.Type.ContainsOperatorAlias() && !n.value.IsNull() {
+		if n.Usage.Type.ContainsOperatorAlias() && !n.Value.IsNull() {
 			var failure error
-			n.value, failure = remapOperatorDatum(n.value, func(id ids.OID) ids.OID {
+			n.Value, failure = remapOperatorDatum(n.Value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
 			}
 		}
-		if n.Usage.Type.ContainsRegTS() && !n.value.IsNull() {
+		if n.Usage.Type.ContainsRegTS() && !n.Value.IsNull() {
 			var failure error
-			n.value, failure = remapRegTSDatum(n.value, func(address ids.ObjectAddress) ids.ObjectAddress {
+			n.Value, failure = remapRegTSDatum(n.Value, func(address ids.ObjectAddress) ids.ObjectAddress {
 				return ref(ids.ObjectRef{Address: address}).Address
 			})
 			if failure != nil {
@@ -183,7 +183,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		next = n
 	case tableOIDExpression:
-		n.owner = rowRef(n.owner)
+		n.Owner = rowRef(n.Owner)
 		next = n
 	case returningColumnExpression:
 		mapped := child(n.columnExpression)
@@ -195,32 +195,32 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			return nil, fmt.Errorf("stuntgres: invalid remapped RETURNING column")
 		}
 		n.columnExpression = column
-		n.value = child(n.value)
+		n.Value = child(n.Value)
 		next = n
 	case returningWholeRowExpression:
-		n.members = args(n.members)
+		n.Members = args(n.Members)
 		next = n
 	case mergeActionExpression:
 		next = n
 	case columnExpression:
-		n.origin = rowRef(n.origin)
+		n.Origin = rowRef(n.Origin)
 		if ref == nil && slots != nil {
 			// Owner-row copies carry attribute identity only. CREATE attaches
 			// the completed destination's recipe and full layout afterward.
-			n.virtual = nil
-			n.rowStart, n.rowWidth, n.queryOccurrence = 0, 0, 0
+			n.Virtual = nil
+			n.RowStart, n.RowWidth, n.QueryOccurrence = 0, 0, 0
 		} else {
-			n.virtual = child(n.virtual)
+			n.Virtual = child(n.Virtual)
 		}
 		if slots != nil {
-			slot, ok := slots[n.origin.Address.SubID]
+			slot, ok := slots[n.Origin.Address.SubID]
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: missing remapped row attribute")
 			}
-			n.slot = slot
-			if n.virtual != nil {
-				n.rowStart = 0
-				n.rowWidth = len(slots)
+			n.Slot = slot
+			if n.Virtual != nil {
+				n.RowStart = 0
+				n.RowWidth = len(slots)
 			}
 		}
 		next = n
@@ -229,7 +229,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	case aggregateExpression:
 		next = n
 	case groupingExpression:
-		n.args = args(n.args)
+		n.Args = args(n.Args)
 		next = n
 	case *windowExpression:
 		copy := *n
@@ -237,42 +237,42 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	case cachedOrderExpression:
 		next = n // The cache slot belongs to this immutable query plan.
 	case collationExpression:
-		n.child = child(n.child)
+		n.Child = child(n.Child)
 		next = n
 	case coercionExpression:
-		n.child = child(n.child)
+		n.Child = child(n.Child)
 		next = n
 	case bitwiseExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
 	case selectedOperatorExpression:
-		n.provider = child(n.provider)
+		n.Provider = child(n.Provider)
 		if ref != nil {
-			n.ref = ref(n.ref)
+			n.Ref = ref(n.Ref)
 		}
 		next = n
 	case arithmeticExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
 	case unnestExpression:
-		n.args = args(n.args)
-		if ref != nil && n.procedure != nil {
-			n.ref = ref(n.ref)
+		n.Args = args(n.Args)
+		if ref != nil && n.Procedure != nil {
+			n.Ref = ref(n.Ref)
 		}
 		next = n
 	case likeExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
 	case rowComparisonExpression:
-		n.comparisons = append([]comparisonExpression(nil), n.comparisons...)
-		for i, pair := range n.comparisons {
-			n.comparisons[i] = child(pair).(comparisonExpression)
+		n.Comparisons = append([]comparisonExpression(nil), n.Comparisons...)
+		for i, pair := range n.Comparisons {
+			n.Comparisons[i] = child(pair).(comparisonExpression)
 		}
 		if err != nil {
 			return nil, err
 		}
-		for side, expansions := range n.expansions {
-			n.expansions[side], _, err = mapRowComparisonExpansions(expansions, func(old expr.Expr) (expr.Expr, bool, error) {
+		for side, expansions := range n.Expansions {
+			n.Expansions[side], _, err = mapRowComparisonExpansions(expansions, func(old expr.Expr) (expr.Expr, bool, error) {
 				next := child(old)
 				return next, true, err
 			})
@@ -282,32 +282,32 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		next = n
 	case scalarArrayComparisonExpression:
-		n.left = child(n.left)
-		if n.array != nil {
-			n.array = child(n.array)
+		n.Left = child(n.Left)
+		if n.Array != nil {
+			n.Array = child(n.Array)
 		}
-		n.items = append([]expr.Expr(nil), n.items...)
-		for i := range n.items {
-			n.items[i] = child(n.items[i])
+		n.Items = append([]expr.Expr(nil), n.Items...)
+		for i := range n.Items {
+			n.Items[i] = child(n.Items[i])
 		}
 		next = n
 	case comparisonExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
 	case nullTestExpression:
-		n.child = child(n.child)
+		n.Child = child(n.Child)
 		next = n
 	case truthTestExpression:
-		n.child = child(n.child)
+		n.Child = child(n.Child)
 		next = n
 	case distinctExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
 	case logicalExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
 	case conditionalExpression:
-		n.args = args(n.args)
+		n.Args = args(n.Args)
 		next = n
 	case extensionPathsExpression:
 		n.arg = child(n.arg)
@@ -366,10 +366,10 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		n.Args = args(n.Args)
 		next = n
 	case caseExpression:
-		n.test, n.otherwise = child(n.test), child(n.otherwise)
-		n.arms = append([]caseBranch(nil), n.arms...)
-		for i := range n.arms {
-			n.arms[i].condition, n.arms[i].result = child(n.arms[i].condition), child(n.arms[i].result)
+		n.Test, n.Otherwise = child(n.Test), child(n.Otherwise)
+		n.Arms = append([]caseBranch(nil), n.Arms...)
+		for i := range n.Arms {
+			n.Arms[i].Condition, n.Arms[i].Result = child(n.Arms[i].Condition), child(n.Arms[i].Result)
 		}
 		next = n
 	case expr.Composite:
@@ -503,278 +503,278 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 	case *functionFromNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.calls = append([]expr.Expr(nil), n.calls...)
-		for i, call := range copy.calls {
+		copy.Calls = append([]expr.Expr(nil), n.Calls...)
+		for i, call := range copy.Calls {
 			next := expression(call)
 			if err == nil {
-				copy.calls[i] = next
+				copy.Calls[i] = next
 			}
 		}
 		next = &copy
 	case *setProjectNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.child = child(n.child)
-		copy.scalars = expressions(n.scalars)
-		if n.template != nil {
-			template := *n.template
-			template.expressions, template.origins, template.scalars = expressions(n.template.expressions), expressions(n.template.origins), expressions(n.template.scalars)
-			copy.template = &template
+		copy.Child = child(n.Child)
+		copy.Scalars = expressions(n.Scalars)
+		if n.Template != nil {
+			template := *n.Template
+			template.Expressions, template.Origins, template.Scalars = expressions(n.Template.Expressions), expressions(n.Template.Origins), expressions(n.Template.Scalars)
+			copy.Template = &template
 		}
-		copy.calls = append([]expr.Expr(nil), n.calls...)
-		for i, call := range copy.calls {
+		copy.Calls = append([]expr.Expr(nil), n.Calls...)
+		for i, call := range copy.Calls {
 			next := expression(call)
 			if err == nil {
-				copy.calls[i] = next
+				copy.Calls[i] = next
 			}
 		}
 		next = &copy
 	case *valuesNode:
-		rows := make([][]expr.Expr, len(n.rows))
-		for i, row := range n.rows {
+		rows := make([][]expr.Expr, len(n.Rows))
+		for i, row := range n.Rows {
 			rows[i] = expressions(row)
 		}
-		next = &valuesNode{querySchema: schema, rows: rows, viewOrdinal: n.viewOrdinal, identityOrderDemand: append([]bool(nil), n.identityOrderDemand...), presenceSlot: n.presenceSlot}
+		next = &valuesNode{querySchema: schema, Rows: rows, ViewOrdinal: n.ViewOrdinal, IdentityOrderDemand: append([]bool(nil), n.IdentityOrderDemand...), PresenceSlot: n.PresenceSlot}
 	case *limitNode:
-		copy := &limitNode{querySchema: schema, child: child(n.child), offset: expression(n.offset), count: expression(n.count), withTies: n.withTies, presenceOnly: n.presenceOnly}
+		copy := &limitNode{querySchema: schema, Child: child(n.Child), Offset: expression(n.Offset), Count: expression(n.Count), WithTies: n.WithTies, PresenceOnly: n.PresenceOnly}
 		if err == nil {
-			copy.finishTies(copy.child)
+			copy.FinishTies(copy.Child)
 		}
 		next = copy
 	case *evaluationNode:
-		next = &evaluationNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), base: n.base}
+		next = &evaluationNode{querySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), Base: n.Base}
 	case *rowLockNode:
-		next = &rowLockNode{querySchema: schema, child: child(n.child), marks: n.marks, firstMode: n.firstMode}
+		next = &rowLockNode{querySchema: schema, Child: child(n.Child), Marks: n.Marks, FirstMode: n.FirstMode}
 	case *sourceNode:
-		next = &sourceNode{querySchema: schema, ref: ref(n.ref), occurrence: n.occurrence, presenceSlot: n.presenceSlot}
+		next = &sourceNode{querySchema: schema, Ref: ref(n.Ref), Occurrence: n.Occurrence, PresenceSlot: n.PresenceSlot}
 	case *joinNode:
-		next = &joinNode{querySchema: schema, kind: n.kind, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges), viewOrdinal: n.viewOrdinal, correlatedRight: n.correlatedRight, frame: n.frame, correlationPrefix: n.correlationPrefix, captures: n.captures, presenceSlot: n.presenceSlot}
+		next = &joinNode{querySchema: schema, Kind: n.Kind, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
 	case *singletonNode:
 		next = &singletonNode{querySchema: schema}
 	case *worktableScanNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.cte, err = m.cte(n.cte)
+		copy.CTE, err = m.cte(n.CTE)
 		next = &copy
 	case *derivedNode:
 		copy := *n
 		copy.querySchema = schema
-		if n.cte != nil {
-			copy.cte, err = m.cte(n.cte)
+		if n.CTE != nil {
+			copy.CTE, err = m.cte(n.CTE)
 		}
-		if err == nil && n.query != nil {
-			query := *n.query
+		if err == nil && n.Query != nil {
+			query := *n.Query
 			query.Root, err = m.nested(query.Root)
-			copy.query = &query
+			copy.Query = &query
 		}
 		next = &copy
 	case *projectNode:
-		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), analysisExpressions: expressions(n.analysisExpressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax, cteOwner: n.cteOwner, hasTargetSet: n.hasTargetSet}
+		next = &projectNode{querySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), AnalysisExpressions: expressions(n.AnalysisExpressions), FrozenValues: n.FrozenValues, Frame: n.Frame, Syntax: n.Syntax, CTEOwner: n.CTEOwner, HasTargetSet: n.HasTargetSet}
 	case *setNode, *recursiveUnionNode:
 		set := querySetNode(node)
 		copy := *set
 		copy.querySchema = schema
 		var definition *cteDefinition
 		if recursive, ok := node.(*recursiveUnionNode); ok {
-			definition, err = m.cte(recursive.definition)
+			definition, err = m.cte(recursive.Definition)
 		}
 		if err == nil {
 			var left LogicalNode
-			left, err = m.nested(set.left)
+			left, err = m.nested(set.Left)
 			if err == nil {
-				copy.left = left.(*projectNode)
+				copy.Left = left.(*projectNode)
 			}
 		}
 		if err == nil {
 			var right LogicalNode
-			right, err = m.nested(set.right)
+			right, err = m.nested(set.Right)
 			if err == nil {
-				copy.right = right.(*projectNode)
+				copy.Right = right.(*projectNode)
 			}
 		}
-		copy.leftExpressions = expressions(set.leftExpressions)
-		copy.rightExpressions = expressions(set.rightExpressions)
-		copy.grouping = nil
-		if !(copy.operation == "union" && copy.all) {
-			width := len(set.grouping)
-			copy.grouping = make([]queryGrouping, width)
-			for i := range copy.grouping {
+		copy.LeftExpressions = expressions(set.LeftExpressions)
+		copy.RightExpressions = expressions(set.RightExpressions)
+		copy.Grouping = nil
+		if !(copy.Operation == "union" && copy.All) {
+			width := len(set.Grouping)
+			copy.Grouping = make([]queryGrouping, width)
+			for i := range copy.Grouping {
 				slot := i
-				if definition != nil && definition.cycle != nil && i == definition.userWidth {
-					slot = definition.cycle.markSlot
+				if definition != nil && definition.Cycle != nil && i == definition.UserWidth {
+					slot = definition.Cycle.MarkSlot
 				}
-				copy.grouping[i] = set.grouping[i]
-				copy.grouping[i].routine = ref(set.grouping[i].routine)
+				copy.Grouping[i] = set.Grouping[i]
+				copy.Grouping[i].Routine = ref(set.Grouping[i].Routine)
 				if err == nil {
-					copy.grouping[i].Grouping, err = sqltype.BindGrouping(schema[slot].Usage)
+					copy.Grouping[i].Grouping, err = sqltype.BindGrouping(schema[slot].Usage)
 				}
 			}
 		}
 		if definition != nil {
-			cycle := definition.cycle
-			if original := node.(*recursiveUnionNode).cycle; original != nil && original != node.(*recursiveUnionNode).definition.cycle {
+			cycle := definition.Cycle
+			if original := node.(*recursiveUnionNode).Cycle; original != nil && original != node.(*recursiveUnionNode).Definition.Cycle {
 				cycle, err = m.cycle(original)
 			}
-			next = &recursiveUnionNode{setNode: copy, definition: definition, search: definition.search, cycle: cycle}
+			next = &recursiveUnionNode{setNode: copy, Definition: definition, Search: definition.Search, Cycle: cycle}
 		} else {
 			next = &copy
 		}
 	case *distinctNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.child = child(n.child)
-		copy.expressions = expressions(n.expressions)
-		copy.grouping = make([]queryGrouping, len(copy.expressions))
-		for i, expression := range copy.expressions {
-			copy.grouping[i] = n.grouping[i]
-			copy.grouping[i].routine = ref(n.grouping[i].routine)
+		copy.Child = child(n.Child)
+		copy.Expressions = expressions(n.Expressions)
+		copy.Grouping = make([]queryGrouping, len(copy.Expressions))
+		for i, expression := range copy.Expressions {
+			copy.Grouping[i] = n.Grouping[i]
+			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
 			if err == nil {
-				copy.grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
+				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
 			}
 		}
 		next = &copy
 	case *distinctOnNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.child = child(n.child)
-		copy.expressions = expressions(n.expressions)
-		copy.grouping = make([]queryGrouping, len(copy.expressions))
-		for i, expression := range copy.expressions {
-			copy.grouping[i] = n.grouping[i]
-			copy.grouping[i].routine = ref(n.grouping[i].routine)
+		copy.Child = child(n.Child)
+		copy.Expressions = expressions(n.Expressions)
+		copy.Grouping = make([]queryGrouping, len(copy.Expressions))
+		for i, expression := range copy.Expressions {
+			copy.Grouping[i] = n.Grouping[i]
+			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
 			if err == nil {
-				copy.grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
+				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
 			}
 		}
 		next = &copy
 	case *filterNode:
-		next = &filterNode{querySchema: schema, child: child(n.child), predicate: expression(n.predicate)}
+		next = &filterNode{querySchema: schema, Child: child(n.Child), Predicate: expression(n.Predicate)}
 	case *sortNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.child = child(n.child)
-		copy.keys = append([]sortKey(nil), n.keys...)
-		copy.outputs = expressions(n.outputs)
-		for i, key := range copy.keys {
-			copy.keys[i].expression = expression(key.expression)
-			if err == nil && !copy.keys[i].expression.CollationIndeterminate() {
-				copy.keys[i].comparison, err = sqltype.BindOrdering(copy.keys[i].expression.ResultUsage())
+		copy.Child = child(n.Child)
+		copy.Keys = append([]sortKey(nil), n.Keys...)
+		copy.Outputs = expressions(n.Outputs)
+		for i, key := range copy.Keys {
+			copy.Keys[i].Expression = expression(key.Expression)
+			if err == nil && !copy.Keys[i].Expression.CollationIndeterminate() {
+				copy.Keys[i].Comparison, err = sqltype.BindOrdering(copy.Keys[i].Expression.ResultUsage())
 			}
 		}
 		next = &copy
 	case *windowNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.child = child(n.child)
-		copy.specs = append([]boundWindowSpec(nil), n.specs...)
-		for i, spec := range copy.specs {
-			spec.partition = expressions(spec.partition)
-			spec.grouping = make([]queryGrouping, len(spec.partition))
-			for j, key := range spec.partition {
-				spec.grouping[j] = n.specs[i].grouping[j]
-				spec.grouping[j].routine = ref(n.specs[i].grouping[j].routine)
+		copy.Child = child(n.Child)
+		copy.Specs = append([]boundWindowSpec(nil), n.Specs...)
+		for i, spec := range copy.Specs {
+			spec.Partition = expressions(spec.Partition)
+			spec.Grouping = make([]queryGrouping, len(spec.Partition))
+			for j, key := range spec.Partition {
+				spec.Grouping[j] = n.Specs[i].Grouping[j]
+				spec.Grouping[j].Routine = ref(n.Specs[i].Grouping[j].Routine)
 				if err == nil {
-					spec.grouping[j].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
+					spec.Grouping[j].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
 				}
 			}
-			spec.order = append([]sortKey(nil), spec.order...)
-			for j, key := range spec.order {
-				spec.order[j].expression = expression(key.expression)
-				spec.order[j].equalityRoutine = ref(key.equalityRoutine)
+			spec.Order = append([]sortKey(nil), spec.Order...)
+			for j, key := range spec.Order {
+				spec.Order[j].Expression = expression(key.Expression)
+				spec.Order[j].EqualityRoutine = ref(key.EqualityRoutine)
 				if err == nil {
-					spec.order[j].comparison, err = sqltype.BindOrdering(spec.order[j].expression.ResultUsage())
+					spec.Order[j].Comparison, err = sqltype.BindOrdering(spec.Order[j].Expression.ResultUsage())
 				}
 			}
-			for _, bound := range []*boundWindowBound{&spec.frame.start, &spec.frame.end} {
-				bound.offset = expression(bound.offset)
-				if err == nil && spec.frame.unit == parser.FrameRange {
-					bound.support, err = bound.support.Remap(m.typ)
+			for _, bound := range []*boundWindowBound{&spec.Frame.Start, &spec.Frame.End} {
+				bound.Offset = expression(bound.Offset)
+				if err == nil && spec.Frame.Unit == parser.FrameRange {
+					bound.Support, err = bound.Support.Remap(m.typ)
 				}
 			}
-			copy.specs[i] = spec
+			copy.Specs[i] = spec
 		}
-		copy.calls = append([]windowCall(nil), n.calls...)
-		for i, call := range copy.calls {
-			copy.calls[i].routine = ref(call.routine)
-			copy.calls[i].expression = expression(call.expression).(*windowExpression)
-			copy.calls[i].argument = expression(call.argument)
-			copy.calls[i].ordinal = expression(call.ordinal)
-			copy.calls[i].defaultValue = expression(call.defaultValue)
-			switch p := call.provider.(type) {
+		copy.Calls = append([]windowCall(nil), n.Calls...)
+		for i, call := range copy.Calls {
+			copy.Calls[i].Routine = ref(call.Routine)
+			copy.Calls[i].Expression = expression(call.Expression).(*windowExpression)
+			copy.Calls[i].Argument = expression(call.Argument)
+			copy.Calls[i].Ordinal = expression(call.Ordinal)
+			copy.Calls[i].DefaultValue = expression(call.DefaultValue)
+			switch p := call.Provider.(type) {
 			case functions.IntegralSum:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.NumericSum:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.FloatSum:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			}
 		}
 		next = &copy
 	case *aggregateNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.child = child(n.child)
-		copy.keys = expressions(n.keys)
-		copy.grouping = make([]queryGrouping, len(copy.keys))
-		for i, key := range copy.keys {
-			copy.grouping[i] = n.grouping[i]
-			copy.grouping[i].routine = ref(n.grouping[i].routine)
+		copy.Child = child(n.Child)
+		copy.Keys = expressions(n.Keys)
+		copy.Grouping = make([]queryGrouping, len(copy.Keys))
+		for i, key := range copy.Keys {
+			copy.Grouping[i] = n.Grouping[i]
+			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
 			if err == nil {
-				copy.grouping[i].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
+				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
 			}
 		}
-		copy.calls = make([]aggregateCall, len(n.calls))
-		for i, call := range n.calls {
-			copy.calls[i] = call
-			if call.procedure != nil && ref != nil {
-				copy.calls[i].ref = ref(call.ref)
+		copy.Calls = make([]aggregateCall, len(n.Calls))
+		for i, call := range n.Calls {
+			copy.Calls[i] = call
+			if call.Procedure != nil && ref != nil {
+				copy.Calls[i].Ref = ref(call.Ref)
 				if !m.referencesOnly {
-					proc, ok := m.catalog.Procedure(copy.calls[i].ref.Address)
+					proc, ok := m.catalog.Procedure(copy.Calls[i].Ref.Address)
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: missing remapped intagg aggregate")
 					}
-					copy.calls[i].procedure = proc
-					if failure := validateIntaggIdentity(m.catalog, proc, copy.calls[i].ref, "int_array_aggregate"); failure != nil {
+					copy.Calls[i].Procedure = proc
+					if failure := validateIntaggIdentity(m.catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
 						return nil, failure
 					}
 				}
 			}
-			copy.calls[i].routine = ref(call.routine)
-			switch p := call.provider.(type) {
+			copy.Calls[i].Routine = ref(call.Routine)
+			switch p := call.Provider.(type) {
 			case *functions.HypotheticalSet:
-				copy.calls[i].provider = functions.NewHypotheticalSet(usage(p.ResultUsage()), p.Operation())
+				copy.Calls[i].Provider = functions.NewHypotheticalSet(usage(p.ResultUsage()), p.Operation())
 			case *functions.OrderedSet:
 				result, input, fraction := usage(p.ResultUsage()), typ(p.InputType()), typ(p.FractionType())
 				var comparison sqltype.Comparison
 				if err == nil {
-					comparison, err = sqltype.BindOrdering(usage(call.argument.ResultUsage()))
+					comparison, err = sqltype.BindOrdering(usage(call.Argument.ResultUsage()))
 				}
 				if err == nil {
-					copy.calls[i].provider, err = functions.NewOrderedSet(result, input, fraction, p.Operation(), p.Array(), comparison)
+					copy.Calls[i].Provider, err = functions.NewOrderedSet(result, input, fraction, p.Operation(), p.Array(), comparison)
 				}
 			case functions.CountProvider:
-				copy.calls[i].provider = functions.NewCountProvider(usage(p.ResultUsage()))
+				copy.Calls[i].Provider = functions.NewCountProvider(usage(p.ResultUsage()))
 			case functions.BooleanAggregateProvider:
-				copy.calls[i].provider = functions.NewBooleanAggregateProvider(usage(p.ResultUsage()), p.Conjunction())
+				copy.Calls[i].Provider = functions.NewBooleanAggregateProvider(usage(p.ResultUsage()), p.Conjunction())
 			case functions.IntervalAvg:
-				copy.calls[i].provider = p.Reconstruct(usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(usage(p.ResultUsage()))
 			case functions.NumericAvg:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.FloatAvg:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.StatisticalAggregate:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.RegressionAggregate:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.RegressionCountAggregate:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.IntegralBitwiseAggregateProvider:
 				u := usage(p.ResultUsage())
 				if err == nil {
 					var bound sqltype.Bitwise
 					bound, err = sqltype.BindBitwise(p.Operator(), u.Type, u.Type)
 					if err == nil {
-						copy.calls[i].provider = functions.NewIntegralBitwiseAggregateProvider(u, p.Operator(), bound)
+						copy.Calls[i].Provider = functions.NewIntegralBitwiseAggregateProvider(u, p.Operator(), bound)
 					}
 				}
 			case functions.MoneySum:
@@ -782,27 +782,27 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				if err == nil {
 					var rebound functions.MoneySum
 					rebound, err = p.Reconstruct(u)
-					copy.calls[i].provider = rebound
+					copy.Calls[i].Provider = rebound
 				}
 			case functions.IntervalSum:
-				copy.calls[i].provider = p.Reconstruct(usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(usage(p.ResultUsage()))
 			case functions.BitStringAggregateProvider:
-				copy.calls[i].provider = functions.NewBitStringAggregateProvider(usage(p.ResultUsage()), p.Operator())
+				copy.Calls[i].Provider = functions.NewBitStringAggregateProvider(usage(p.ResultUsage()), p.Operator())
 			case functions.IntegralSum:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.NumericSum:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.FloatSum:
-				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.AnyValue:
-				copy.calls[i].provider = p.Reconstruct(usage(p.ResultUsage()))
+				copy.Calls[i].Provider = p.Reconstruct(usage(p.ResultUsage()))
 			case functions.JSONArrayAggregateProvider:
 				input, result := usage(p.InputUsage()), usage(p.ResultUsage())
 				if err == nil {
 					var plan sqltype.JSONArrayAggregatePlan
 					plan, err = sqltype.BindJSONArrayAggregate(input, result, p.Absent())
 					if err == nil {
-						copy.calls[i].provider = functions.NewJSONArrayAggregateProvider(input, result, p.Absent(), plan)
+						copy.Calls[i].Provider = functions.NewJSONArrayAggregateProvider(input, result, p.Absent(), plan)
 					}
 				}
 			case functions.JSONObjectAggregate:
@@ -810,7 +810,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				if err == nil {
 					var rebound functions.JSONObjectAggregate
 					rebound, err = p.Reconstruct(key, input, result)
-					copy.calls[i].provider = rebound
+					copy.Calls[i].Provider = rebound
 				}
 			case functions.ExtremaProvider:
 				result := usage(p.ResultUsage())
@@ -819,13 +819,13 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					var comparison sqltype.Comparison
 					comparison, err = sqltype.BindComparison(result.Type, result.Type, result.Collation, conflict)
 					if err == nil {
-						copy.calls[i].provider = functions.NewExtremaProvider(result, comparison, p.Maximum())
+						copy.Calls[i].Provider = functions.NewExtremaProvider(result, comparison, p.Maximum())
 					}
 				}
 			case functions.StringAggregateProvider:
-				copy.calls[i].provider = functions.NewStringAggregateProvider(usage(p.ResultUsage()))
+				copy.Calls[i].Provider = functions.NewStringAggregateProvider(usage(p.ResultUsage()))
 			case *functions.ArrayAggregateProvider:
-				copy.calls[i].provider = functions.NewArrayAggregateProvider(typ(p.ArgumentType()), usage(p.ResultUsage()), p.Arrays())
+				copy.Calls[i].Provider = functions.NewArrayAggregateProvider(typ(p.ArgumentType()), usage(p.ResultUsage()), p.Arrays())
 			case functions.RangeAggregateProvider:
 				input, result := usage(p.InputUsage()), usage(p.ResultUsage())
 				if err == nil {
@@ -835,50 +835,50 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 						err = fmt.Errorf("stuntgres: inconsistent remapped range aggregate result")
 					}
 					if err == nil {
-						copy.calls[i].provider = functions.NewRangeAggregateProvider(input, result, p.Operation(), bound)
+						copy.Calls[i].Provider = functions.NewRangeAggregateProvider(input, result, p.Operation(), bound)
 					}
 				}
 			default:
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
 			}
-			if call.argument != nil {
-				copy.calls[i].argument = expression(call.argument)
+			if call.Argument != nil {
+				copy.Calls[i].Argument = expression(call.Argument)
 			}
-			if call.separator != nil {
-				copy.calls[i].separator = expression(call.separator)
+			if call.Separator != nil {
+				copy.Calls[i].Separator = expression(call.Separator)
 			}
-			copy.calls[i].direct = expressions(call.direct)
-			if call.filter != nil {
-				copy.calls[i].filter = expression(call.filter)
+			copy.Calls[i].Direct = expressions(call.Direct)
+			if call.Filter != nil {
+				copy.Calls[i].Filter = expression(call.Filter)
 			}
-			copy.calls[i].distinct = make([]queryGrouping, len(call.distinct))
-			for k := range call.distinct {
-				copy.calls[i].distinct[k] = call.distinct[k]
-				copy.calls[i].distinct[k].routine = ref(call.distinct[k].routine)
-				arg := copy.calls[i].argument
+			copy.Calls[i].Distinct = make([]queryGrouping, len(call.Distinct))
+			for k := range call.Distinct {
+				copy.Calls[i].Distinct[k] = call.Distinct[k]
+				copy.Calls[i].Distinct[k].Routine = ref(call.Distinct[k].Routine)
+				arg := copy.Calls[i].Argument
 				if k == 1 {
-					arg = copy.calls[i].separator
+					arg = copy.Calls[i].Separator
 				}
 				if err == nil {
-					copy.calls[i].distinct[k].Grouping, err = sqltype.BindGrouping(arg.ResultUsage())
+					copy.Calls[i].Distinct[k].Grouping, err = sqltype.BindGrouping(arg.ResultUsage())
 				}
 				if err == nil {
 					_, err = functions.AggregateOrdering(arg.ResultUsage(), arg.SourcePosition(), true)
 				}
 			}
-			copy.calls[i].order = append([]sortKey(nil), call.order...)
-			for k, key := range call.order {
-				copy.calls[i].order[k].expression = expression(key.expression)
+			copy.Calls[i].Order = append([]sortKey(nil), call.Order...)
+			for k, key := range call.Order {
+				copy.Calls[i].Order[k].Expression = expression(key.Expression)
 				if err == nil {
-					usage := copy.calls[i].order[k].expression.ResultUsage()
-					if key.slot == 0 {
-						usage = copy.calls[i].argument.ResultUsage()
-					} else if key.slot == 1 {
-						usage = copy.calls[i].separator.ResultUsage()
-					} else if key.slot >= 2 {
-						usage = copy.calls[i].order[key.slot-2].expression.ResultUsage()
+					usage := copy.Calls[i].Order[k].Expression.ResultUsage()
+					if key.Slot == 0 {
+						usage = copy.Calls[i].Argument.ResultUsage()
+					} else if key.Slot == 1 {
+						usage = copy.Calls[i].Separator.ResultUsage()
+					} else if key.Slot >= 2 {
+						usage = copy.Calls[i].Order[key.Slot-2].Expression.ResultUsage()
 					}
-					copy.calls[i].order[k].comparison, err = functions.AggregateOrdering(usage, key.expression.SourcePosition(), false)
+					copy.Calls[i].Order[k].Comparison, err = functions.AggregateOrdering(usage, key.Expression.SourcePosition(), false)
 				}
 			}
 		}
@@ -1025,54 +1025,54 @@ func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
 	}
 	copy := *old
 	m.ctes[old] = &copy
-	copy.schema = append(querySchema(nil), old.schema...)
-	for i := range copy.schema {
-		copy.schema[i].Usage.Type = m.typ(copy.schema[i].Usage.Type)
+	copy.Schema = append(querySchema(nil), old.Schema...)
+	for i := range copy.Schema {
+		copy.Schema[i].Usage.Type = m.typ(copy.Schema[i].Usage.Type)
 		if m.collation != nil {
-			collation, err := m.collation(copy.schema[i].Usage.Collation)
+			collation, err := m.collation(copy.Schema[i].Usage.Collation)
 			if err != nil {
 				return nil, err
 			}
-			copy.schema[i].Usage.Collation = collation
+			copy.Schema[i].Usage.Collation = collation
 		}
 	}
-	if old.search != nil {
+	if old.Search != nil {
 		var err error
-		copy.search, err = m.search(old.search)
+		copy.Search, err = m.search(old.Search)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if old.cycle != nil {
+	if old.Cycle != nil {
 		var err error
-		copy.cycle, err = m.cycle(old.cycle)
+		copy.Cycle, err = m.cycle(old.Cycle)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if old.query != nil {
-		query := *old.query
+	if old.Query != nil {
+		query := *old.Query
 		root, err := m.nested(query.Root)
 		if err != nil {
 			return nil, err
 		}
 		query.Root = root
-		copy.query = &query
+		copy.Query = &query
 	}
-	if old.mutation != nil && m.mutation != nil {
+	if old.Mutation != nil && m.mutation != nil {
 		body, err := m.mutation(old)
 		if err != nil {
 			return nil, err
 		}
-		copy.mutation = &body
+		copy.Mutation = &body
 	}
 	return &copy, nil
 }
 
 func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 	copy := *old
-	copy.record, copy.path = m.typ(old.record), m.typ(old.path)
-	if !sqltype.OccurrenceRecordArray(copy.path) || copy.path.Element() != copy.record {
+	copy.Record, copy.Path = m.typ(old.Record), m.typ(old.Path)
+	if !sqltype.OccurrenceRecordArray(copy.Path) || copy.Path.Element() != copy.Record {
 		return nil, ids.ErrCatalogReplaced
 	}
 	expression := func(old expr.Expr) (expr.Expr, error) {
@@ -1086,18 +1086,18 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 		return next, err
 	}
 	var err error
-	copy.mark, err = expression(old.mark)
+	copy.Mark, err = expression(old.Mark)
 	if err != nil {
 		return nil, err
 	}
-	copy.fallback, err = expression(old.fallback)
+	copy.Fallback, err = expression(old.Fallback)
 	if err != nil {
 		return nil, err
 	}
 	if m.referencesOnly {
 		return &copy, nil
 	}
-	for i, usage := range old.typedConstants {
+	for i, usage := range old.TypedConstants {
 		if usage.Type == nil {
 			continue
 		}
@@ -1108,11 +1108,11 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 				return nil, err
 			}
 		}
-		copy.typedConstants[i] = usage
+		copy.TypedConstants[i] = usage
 	}
-	copy.grouping = make([]sqltype.Grouping, len(old.grouping))
-	for i := range copy.grouping {
-		copy.grouping[i], err = sqltype.BindGrouping(copy.record.CompositeMember(i).Usage)
+	copy.Grouping = make([]sqltype.Grouping, len(old.Grouping))
+	for i := range copy.Grouping {
+		copy.Grouping[i], err = sqltype.BindGrouping(copy.Record.CompositeMember(i).Usage)
 		if err != nil {
 			return nil, err
 		}
@@ -1121,8 +1121,8 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 	if !ok {
 		return nil, ids.ErrCatalogReplaced
 	}
-	usage := copy.mark.ResultUsage()
-	copy.inequality, err = sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, usage.Type, usage.Type, boolean, usage.Collation, copy.mark.CollationIndeterminate())
+	usage := copy.Mark.ResultUsage()
+	copy.Inequality, err = sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, usage.Type, usage.Type, boolean, usage.Collation, copy.Mark.CollationIndeterminate())
 	if err != nil {
 		return nil, err
 	}
@@ -1131,16 +1131,16 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 
 func (m *viewQueryRemapper) search(old *searchRecipe) (*searchRecipe, error) {
 	copy := *old
-	copy.record, copy.result, copy.depth = m.typ(old.record), m.typ(old.result), m.typ(old.depth)
-	if copy.record == nil || copy.record.ID() != 2249 || !copy.record.IsComposite() ||
-		old.syntax.Breadth && copy.result != copy.record ||
-		!old.syntax.Breadth && (!sqltype.OccurrenceRecordArray(copy.result) || copy.result.Element() != copy.record) {
+	copy.Record, copy.Result, copy.Depth = m.typ(old.Record), m.typ(old.Result), m.typ(old.Depth)
+	if copy.Record == nil || copy.Record.ID() != 2249 || !copy.Record.IsComposite() ||
+		old.Syntax.Breadth && copy.Result != copy.Record ||
+		!old.Syntax.Breadth && (!sqltype.OccurrenceRecordArray(copy.Result) || copy.Result.Element() != copy.Record) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	copy.grouping = make([]sqltype.Grouping, len(old.grouping))
-	for i := range copy.grouping {
+	copy.Grouping = make([]sqltype.Grouping, len(old.Grouping))
+	for i := range copy.Grouping {
 		var err error
-		copy.grouping[i], err = sqltype.BindGrouping(copy.record.CompositeMember(i).Usage)
+		copy.Grouping[i], err = sqltype.BindGrouping(copy.Record.CompositeMember(i).Usage)
 		if err != nil {
 			return nil, err
 		}

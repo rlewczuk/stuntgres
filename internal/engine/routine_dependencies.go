@@ -15,12 +15,12 @@ func (r scalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) e
 	if selected, ok := node.(selectedOperatorExpression); ok {
 		// The wrapper owns operator identity, not a second invocation. Its
 		// actual provider owns the selected routine and immutable body.
-		return r.recordStoredRoutine(view, selected.provider)
+		return r.recordStoredRoutine(view, selected.Provider)
 	}
-	if expression, ok := node.(caseExpression); ok && expression.test != nil {
-		for _, arm := range expression.arms {
-			if arm.routine != nil {
-				if err := r.recordStoredRoutineDescriptor(view, arm.routine); err != nil {
+	if expression, ok := node.(caseExpression); ok && expression.Test != nil {
+		for _, arm := range expression.Arms {
+			if arm.Routine != nil {
+				if err := r.recordStoredRoutineDescriptor(view, arm.Routine); err != nil {
 					return err
 				}
 			}

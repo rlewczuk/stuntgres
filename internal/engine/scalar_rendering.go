@@ -136,7 +136,7 @@ func (r scalarRenderer) replayTemplate(pieces []expr.Piece, args []expr.RenderAr
 		if !ok {
 			return "", fmt.Errorf("stuntgres: invalid normalization syntax form")
 		}
-		return literal.value.Text()
+		return literal.Value.Text()
 	})
 }
 

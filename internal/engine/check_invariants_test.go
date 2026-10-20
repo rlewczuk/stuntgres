@@ -19,18 +19,18 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	descriptor, _ := view.Descriptor(ref.Address)
 	original := descriptor.(*catalog.Relation)
 	predicate := original.Constraints.Check[0].Expression.(comparisonExpression)
-	column := predicate.left.(columnExpression)
+	column := predicate.Left.(columnExpression)
 	for _, tc := range []struct {
 		name   string
 		change func(*columnExpression)
 	}{
-		{"foreign owner", func(c *columnExpression) { c.origin = New().catalog.Domain.Ref(c.origin.Epoch, c.origin.Address) }},
-		{"foreign relation", func(c *columnExpression) { c.origin.Address.ObjectID++ }},
-		{"foreign epoch", func(c *columnExpression) { c.origin.Epoch++ }},
-		{"stale attribute", func(c *columnExpression) { c.origin.Address.SubID++ }},
-		{"wrong dense slot", func(c *columnExpression) { c.slot++ }},
-		{"wrong scope", func(c *columnExpression) { c.scope++ }},
-		{"wrong frame", func(c *columnExpression) { c.frame++ }},
+		{"foreign owner", func(c *columnExpression) { c.Origin = New().catalog.Domain.Ref(c.Origin.Epoch, c.Origin.Address) }},
+		{"foreign relation", func(c *columnExpression) { c.Origin.Address.ObjectID++ }},
+		{"foreign epoch", func(c *columnExpression) { c.Origin.Epoch++ }},
+		{"stale attribute", func(c *columnExpression) { c.Origin.Address.SubID++ }},
+		{"wrong dense slot", func(c *columnExpression) { c.Slot++ }},
+		{"wrong scope", func(c *columnExpression) { c.Scope++ }},
+		{"wrong frame", func(c *columnExpression) { c.Frame++ }},
 		{"foreign type", func(c *columnExpression) { c.Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Int4) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -39,7 +39,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 			bad := column
 			tc.change(&bad)
 			p := predicate
-			p.left = bad
+			p.Left = bad
 			copy.Constraints.Check[0].Expression = p
 			if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("invalid descriptor accepted")
@@ -47,8 +47,8 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		})
 	}
 	for _, node := range []expr.Expr{
-		parameterExpression{Info: expr.Info{Usage: predicate.Usage}, number: 1},
-		aggregateExpression{Info: expr.Info{Usage: predicate.Usage}, slot: 0},
+		parameterExpression{Info: expr.Info{Usage: predicate.Usage}, Number: 1},
+		aggregateExpression{Info: expr.Info{Usage: predicate.Usage}, Slot: 0},
 	} {
 		copy := *original
 		copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)

@@ -60,7 +60,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 			}
 		}
 		project := bound.query.Root.(*projectNode)
-		for i, node := range project.expressions {
+		for i, node := range project.Expressions {
 			comparison, ok := node.(comparisonExpression)
 			if !ok {
 				t.Fatal(node)
@@ -77,7 +77,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 			if result.Name != "?column?" || result.OriginTable != 0 || result.OriginAttribute != 0 || result.NullabilityKnown {
 				t.Fatal(result)
 			}
-			for j, child := range []expr.Expr{comparison.left, comparison.right} {
+			for j, child := range []expr.Expr{comparison.Left, comparison.Right} {
 				if child.SourcePosition() != raw.Args[j].SourcePosition() {
 					t.Fatal(child.SourcePosition(), raw.Args[j].SourcePosition())
 				}
@@ -87,11 +87,11 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 				if col, ok := child.(columnExpression); ok {
 					found := false
 					for _, d := range bound.dependencies {
-						if d.Ref == col.origin {
+						if d.Ref == col.Origin {
 							found = true
 						}
 					}
-					if !found || col.origin.Address.SubID != int32(col.slot+1) {
+					if !found || col.Origin.Address.SubID != int32(col.Slot+1) {
 						t.Fatal(col, bound.dependencies)
 					}
 				}
@@ -103,7 +103,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	p := parameterExpression{Info: expr.Info{Pos: parser.Position{Character: 8}, Property: expr.Properties{ParameterDependent: true}}, number: 1}
+	p := parameterExpression{Info: expr.Info{Pos: parser.Position{Character: 8}, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 	b.params.parameters[1] = b.typ(sqltype.Int4).Usage()
 	_, err := b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 	state(t, err, "42P08")
@@ -114,7 +114,7 @@ func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := node.(comparisonExpression)
-	if c.left.ResultUsage().Type.ID() != sqltype.Int4 || c.right.ResultUsage().Type.ID() != sqltype.Int8 || b.params.parameters[1].Type.ID() != sqltype.Int4 {
+	if c.Left.ResultUsage().Type.ID() != sqltype.Int4 || c.Right.ResultUsage().Type.ID() != sqltype.Int8 || b.params.parameters[1].Type.ID() != sqltype.Int4 {
 		t.Fatal(c, b.params.parameters)
 	}
 }
@@ -175,8 +175,8 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			c := rebound.query.Root.(*projectNode).expressions[0].(comparisonExpression)
-			if c.left.ResultUsage().Typmod != -1 || c.right.ResultUsage().Typmod != 0 {
+			c := rebound.query.Root.(*projectNode).Expressions[0].(comparisonExpression)
+			if c.Left.ResultUsage().Typmod != -1 || c.Right.ResultUsage().Typmod != 0 {
 				e.mu.Unlock()
 				t.Fatal(c)
 			}

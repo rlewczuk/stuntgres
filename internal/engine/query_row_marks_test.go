@@ -31,7 +31,7 @@ func TestQueryLockOccurrenceNormalization(t *testing.T) {
 			t.Fatal(tc.q, marks, err)
 		}
 		for i, mark := range marks {
-			if mark.mode != tc.modes[i] || mark.wait != tc.waits[i] {
+			if mark.Mode != tc.modes[i] || mark.Wait != tc.waits[i] {
 				t.Fatal(tc.q, i, mark)
 			}
 		}
@@ -138,13 +138,13 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
-	marks := []queryRowMark{{mode: lock.ForUpdate, wait: parser.RowLockSkip}, {mode: lock.ForShare, wait: parser.RowLockNowait}}
+	marks := []queryRowMark{{Mode: lock.ForUpdate, Wait: parser.RowLockSkip}, {Mode: lock.ForShare, Wait: parser.RowLockNowait}}
 	pending := appendPendingRowMarks(nil, marks, inputs)
 	if len(pending) != 2 || !reflect.DeepEqual(pending[0].occurrences, []int{0}) || !reflect.DeepEqual(pending[1].occurrences, []int{1}) || pending[0].mark != marks[0] || pending[1].mark != marks[1] {
 		t.Fatal(pending)
 	}
 	pending[0].occurrences[0] = 99
-	if inputs.sources[0].occurrence != 0 || marks[0].mode != lock.ForUpdate {
+	if inputs.sources[0].occurrence != 0 || marks[0].Mode != lock.ForUpdate {
 		t.Fatal("execution pending state mutated bound/source identity")
 	}
 }
@@ -153,7 +153,7 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	e := New()
 	view := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	table := &catalog.Relation{RelationKind: catalog.TableRelation}
-	requested := queryRowMark{mode: lock.ForUpdate, wait: parser.RowLockNowait, diagnosticMode: lock.ForUpdate, order: 1}
+	requested := queryRowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
 	locks := &queryLockContext{leaves: []queryLockLeaf{
 		{leaf: queryLeaf{relation: view, mark: requested}, mark: effectiveQueryRowMark(view, requested)},
 		{leaf: queryLeaf{relation: table, mark: requested}, mark: effectiveQueryRowMark(table, requested)},

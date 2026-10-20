@@ -258,8 +258,8 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 				return fail(err)
 			}
 			if column, ok := derived.Definition.(columnExpression); ok {
-				key.Attribute = column.origin.Address.SubID
-				columns[i] = parent.Columns[column.slot]
+				key.Attribute = column.Origin.Address.SubID
+				columns[i] = parent.Columns[column.Slot]
 			} else {
 				key.Derived = derived
 			}

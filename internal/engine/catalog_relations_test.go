@@ -105,7 +105,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	if !ok {
 		t.Fatal("catalog set was not lowered")
 	}
-	if err := validateQuerySetSteps(stage.steps, len(stage.calls), len(stage.scalars)); err != nil {
+	if err := validateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {
 		t.Fatal("catalog set occurrence lost its schedule", err)
 	}
 	if _, ok := requests[0].(columnExpression); !ok {
@@ -195,7 +195,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
+		node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, Value: input}}
 		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}})
 		if err != nil {
 			t.Fatal(err)
@@ -233,7 +233,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	saved := current.inquiry.commentRoles
 	current.inquiry.commentRoles = foreign.roles.published.Root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
-	node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
+	node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, Value: input}}
 	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: current}}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}

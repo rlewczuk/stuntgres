@@ -60,7 +60,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	}
 	defer op.Done()
 	query := domainUnitBindSelect(t, e, op, "SELECT pg_blocking_pids($1),pg_safe_snapshot_blocking_pids(NULL)")
-	expressions := query.Root.(*projectNode).expressions
+	expressions := query.Root.(*projectNode).Expressions
 	for i, raw := range expressions {
 		n, ok := raw.(functions.BlockingInquiry)
 		if !ok || n.Kind != functions.BlockingKind(i) || n.Arg.ResultUsage().Type != blockingUnitType(e) || n.ResultUsage().Type.ID() != 1007 || n.ResultUsage().Type.Element() != n.Arg.ResultUsage().Type || n.Properties().Volatility != expr.Volatile || n.Validate() != nil {
@@ -95,7 +95,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	defer scope.Finish(context.Canceled)
 	inquiry := expressions[0].(functions.BlockingInquiry)
 	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.token.ID()))
-	inquiry.Arg = literalExpression{Info: expr.Info{Usage: input.Type().Usage()}, value: input}
+	inquiry.Arg = literalExpression{Info: expr.Info{Usage: input.Type().Usage()}, Value: input}
 	inquiry.Property = expr.Properties{Volatility: expr.Volatile}
 	evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}}
 	before, err := inquiry.Eval(evaluation)
@@ -114,7 +114,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if err != nil || after.IsNull() || after.ArrayLen() != 0 || len(after.ArrayDimensions()) != 0 || before.ArrayLen() != 1 {
 		t.Fatal("cached or aliased inquiry", before, after, err)
 	}
-	pruned := domainUnitBindSelect(t, e, op, "SELECT CASE WHEN false THEN pg_blocking_pids(1/0) ELSE '{}'::integer[] END").Root.(*projectNode).expressions[0]
+	pruned := domainUnitBindSelect(t, e, op, "SELECT CASE WHEN false THEN pg_blocking_pids(1/0) ELSE '{}'::integer[] END").Root.(*projectNode).Expressions[0]
 	planned, _, err := preflightCoercions(evaluation, pruned)
 	if err != nil {
 		t.Fatal("undemanded branch preflight", err)

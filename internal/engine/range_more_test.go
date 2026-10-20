@@ -22,7 +22,7 @@ func moreUnitExpression(t *testing.T, view catalog.Read) unnestExpression {
 	}
 	return unnestExpression{
 		Info: expr.Info{Usage: r.Usage(), Pos: parser.Position{Offset: 7, Character: 8}, Property: expr.Properties{Volatility: expr.Immutable, StageDependent: true}},
-		args: []expr.Expr{literalExpression{Info: expr.Info{Usage: m.Usage()}, value: v}},
+		Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: m.Usage()}, Value: v}},
 	}
 }
 
@@ -37,8 +37,8 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 		t.Fatal("unlifted scalar execution")
 	}
 	count := 0
-	value := e.args[0].(literalExpression).value
-	e.args[0] = queryProbe(e.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return value, nil })
+	value := e.Args[0].(literalExpression).Value
+	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return value, nil })
 	first, err := openFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
@@ -94,15 +94,15 @@ func TestRangeMoreExpressionHooks(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	n := next.(unnestExpression)
-	if n.ResultUsage().Type == e.ResultUsage().Type || n.args[0].ResultUsage().Type == e.args[0].ResultUsage().Type || n.Properties() != e.Properties() || n.SourcePosition() != e.SourcePosition() {
+	if n.ResultUsage().Type == e.ResultUsage().Type || n.Args[0].ResultUsage().Type == e.Args[0].ResultUsage().Type || n.Properties() != e.Properties() || n.SourcePosition() != e.SourcePosition() {
 		t.Fatal("retag lost authority or properties")
 	}
 	if sameQuerySetOccurrence(e, n) || !sameQuerySetOccurrence(e, e) {
 		t.Fatal("occurrence identity")
 	}
-	rewritten, changed, err := expr.MapSubstituted(e, func(expr.Expr) (expr.Expr, bool, error) { return n.args[0], true, nil })
+	rewritten, changed, err := expr.MapSubstituted(e, func(expr.Expr) (expr.Expr, bool, error) { return n.Args[0], true, nil })
 	mapped := rewritten.(unnestExpression)
-	if err != nil || !changed || mapped.args[0].ResultUsage() != n.args[0].ResultUsage() || e.args[0].ResultUsage() == n.args[0].ResultUsage() {
+	if err != nil || !changed || mapped.Args[0].ResultUsage() != n.Args[0].ResultUsage() || e.Args[0].ResultUsage() == n.Args[0].ResultUsage() {
 		t.Fatal("child map mutated source", err)
 	}
 	if _, err := expr.Substitute(expr.Expr(e).(expr.Composite), expr.InfoOf(e), nil); err == nil {
@@ -126,7 +126,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
+		arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
 		raw := nullCountRaw("multirange")
 		node, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {

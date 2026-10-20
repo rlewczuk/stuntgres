@@ -12,8 +12,8 @@ import (
 )
 
 func assignmentTargetHasVirtualReads(target *arrayAssignmentTarget) bool {
-	for ; target != nil; target = target.next {
-		if target.attribute == 0 && boundHasVirtualReads(target.node) {
+	for ; target != nil; target = target.Next {
+		if target.Attribute == 0 && boundHasVirtualReads(target.Node) {
 			return true
 		}
 	}
@@ -49,7 +49,7 @@ func (b *expressionBinder) bindArrayTarget(column catalog.Column, raw []parser.A
 	if err != nil {
 		return nil, err
 	}
-	return &arrayAssignmentTarget{node: subscriptExpression{subscripts: subs, slice: slice}, container: column.Usage, destination: arrayTargetUsage(column.Usage, raw), reapply: plan, name: column.Name, pos: pos}, nil
+	return &arrayAssignmentTarget{Node: subscriptExpression{Subscripts: subs, Slice: slice}, Container: column.Usage, Destination: arrayTargetUsage(column.Usage, raw), Reapply: plan, Name: column.Name, Pos: pos}, nil
 }
 
 func (b *expressionBinder) arrayAssignmentDiagnostic(t *arrayAssignmentTarget, err error, source *sqltype.Descriptor) error {
@@ -61,18 +61,18 @@ func (b *expressionBinder) arrayAssignmentDiagnostic(t *arrayAssignmentTarget, e
 		return err
 	}
 	copy := *d
-	destinationName, sourceName := b.diagnosticTypeName(t.destination.Type), b.diagnosticTypeName(source)
+	destinationName, sourceName := b.diagnosticTypeName(t.Destination.Type), b.diagnosticTypeName(source)
 	leaf := t
-	for leaf.next != nil {
-		leaf = leaf.next
+	for leaf.Next != nil {
+		leaf = leaf.Next
 	}
-	if leaf.attribute != 0 {
-		copy.Message = fmt.Sprintf("subfield %q is of type %s but expression is of type %s", leaf.name, destinationName, sourceName)
+	if leaf.Attribute != 0 {
+		copy.Message = fmt.Sprintf("subfield %q is of type %s but expression is of type %s", leaf.Name, destinationName, sourceName)
 	} else {
-		copy.Message = fmt.Sprintf("subscripted assignment to %q requires type %s but expression is of type %s", t.name, destinationName, sourceName)
+		copy.Message = fmt.Sprintf("subscripted assignment to %q requires type %s but expression is of type %s", t.Name, destinationName, sourceName)
 	}
 	copy.Hint = "You will need to rewrite or cast the expression."
-	copy.Position = strconv.Itoa(t.pos.Character)
+	copy.Position = strconv.Itoa(t.Pos.Character)
 	return &copy
 }
 
@@ -107,19 +107,19 @@ func preflightAssignmentTarget(c *EvalContext, target *arrayAssignmentTarget, pl
 	if target == nil {
 		return nil, nil
 	}
-	node, changed, err := mapSubscript(target.node, func(old expr.Expr) (expr.Expr, bool, error) { return preflightUpdateExpression(c, old, planConstants) })
+	node, changed, err := mapSubscript(target.Node, func(old expr.Expr) (expr.Expr, bool, error) { return preflightUpdateExpression(c, old, planConstants) })
 	if err != nil {
 		return nil, err
 	}
-	next, err := preflightAssignmentTarget(c, target.next, planConstants)
+	next, err := preflightAssignmentTarget(c, target.Next, planConstants)
 	if err != nil {
 		return nil, err
 	}
-	if !changed && next == target.next {
+	if !changed && next == target.Next {
 		return target, nil
 	}
 	copy := *target
-	copy.node, copy.next = node, next
+	copy.Node, copy.Next = node, next
 	return &copy, nil
 }
 
@@ -182,13 +182,13 @@ func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps
 			if err != nil {
 				return nil, err
 			}
-			target := &arrayAssignmentTarget{container: column.Usage, destination: member.Usage, reapply: reapply, name: member.Name, pos: pos, attribute: member.Attribute}
+			target := &arrayAssignmentTarget{Container: column.Usage, Destination: member.Usage, Reapply: reapply, Name: member.Name, Pos: pos, Attribute: member.Attribute}
 			if len(steps) > 1 {
-				target.next, err = b.bindAssignmentTargetPath(catalog.Column{Name: member.Name, Usage: member.Usage}, steps[1:], pos, parser.Position{})
+				target.Next, err = b.bindAssignmentTargetPath(catalog.Column{Name: member.Name, Usage: member.Usage}, steps[1:], pos, parser.Position{})
 				if err != nil {
 					return nil, err
 				}
-				target.destination = target.next.destination
+				target.Destination = target.Next.Destination
 			}
 			return target, nil
 		}
@@ -210,13 +210,13 @@ func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps
 	if err != nil {
 		return nil, err
 	}
-	target.pos = pos
+	target.Pos = pos
 	if count < len(steps) {
-		target.next, err = b.bindAssignmentTargetPath(catalog.Column{Name: column.Name, Usage: target.destination}, steps[count:], pos, containerPos)
+		target.Next, err = b.bindAssignmentTargetPath(catalog.Column{Name: column.Name, Usage: target.Destination}, steps[count:], pos, containerPos)
 		if err != nil {
 			return nil, err
 		}
-		target.destination = target.next.destination
+		target.Destination = target.Next.Destination
 	}
 	return target, nil
 }

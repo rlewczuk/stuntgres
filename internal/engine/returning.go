@@ -48,21 +48,21 @@ func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, err
 }
 
 func (c *EvalContext) EvalReturningColumn(e returningColumnExpression) (sqltype.Value, error) {
-	parent, err := returningRowContext(c, e.scope, e.frame)
+	parent, err := returningRowContext(c, e.Scope, e.Frame)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.merge && mergeReturningAbsent(parent, e.side) {
+	if e.Merge && mergeReturningAbsent(parent, e.Side) {
 		return sqltype.Null(e.Usage.Type), nil
 	}
-	if e.absent || !e.merge && e.old && parent.OldRow == nil {
+	if e.Absent || !e.Merge && e.Old && parent.OldRow == nil {
 		return sqltype.Null(e.Usage.Type), nil
 	}
 	value := expr.Expr(e.columnExpression)
-	if e.value != nil {
-		value = e.value
+	if e.Value != nil {
+		value = e.Value
 	}
-	if !e.old {
+	if !e.Old {
 		return value.Eval(c)
 	}
 	old := *parent
@@ -134,16 +134,16 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		switch column := expression.(type) {
 		case columnExpression:
 			if b.query.namespace != nil {
-				descriptor = b.query.namespace.frame[column.slot]
+				descriptor = b.query.namespace.frame[column.Slot]
 			} else {
-				descriptor = b.target.relation.Columns[column.slot]
+				descriptor = b.target.relation.Columns[column.Slot]
 			}
-			if column.mergeSource {
+			if column.MergeSource {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
 		case returningColumnExpression:
-			descriptor = b.target.relation.Columns[column.slot]
-			if mode == returningMerge || column.absent || column.old && mode == returningInsert {
+			descriptor = b.target.relation.Columns[column.Slot]
+			if mode == returningMerge || column.Absent || column.Old && mode == returningInsert {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
 		case mergeActionExpression:
@@ -209,8 +209,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			if err != nil {
 				return nil, err
 			}
-			for i, expr := range expansion.fields {
-				appendOutput(expr, expansion.names[i])
+			for i, expr := range expansion.Fields {
+				appendOutput(expr, expansion.Names[i])
 			}
 		} else {
 			expr, err := b.bindOutput(expression, false)
@@ -286,13 +286,13 @@ func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newV
 		if newValues {
 			side = mergeNewSide
 		}
-		return returningColumnExpression{columnExpression: column, old: !newValues, merge: true, side: side}
+		return returningColumnExpression{columnExpression: column, Old: !newValues, Merge: true, Side: side}
 	}
 	if !newValues && b.target.returningAliases.mode != returningDelete {
-		return returningColumnExpression{columnExpression: column, old: true}
+		return returningColumnExpression{columnExpression: column, Old: true}
 	}
 	if newValues && b.target.returningAliases.mode == returningDelete {
-		return returningColumnExpression{columnExpression: column, absent: true}
+		return returningColumnExpression{columnExpression: column, Absent: true}
 	}
 	return column
 }
@@ -429,19 +429,19 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 
 func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot int, pos parser.Position, newValues bool) expr.Expr {
 	column := b.columnAtOf(scope.relation, slot, pos).(columnExpression)
-	column.frame = scope.frame
+	column.Frame = scope.frame
 	if scope.returning.mode == returningMerge {
 		side := mergeOldSide
 		if newValues {
 			side = mergeNewSide
 		}
-		return returningColumnExpression{columnExpression: column, old: !newValues, merge: true, side: side}
+		return returningColumnExpression{columnExpression: column, Old: !newValues, Merge: true, Side: side}
 	}
 	if !newValues && scope.returning.mode != returningDelete {
-		return returningColumnExpression{columnExpression: column, old: true}
+		return returningColumnExpression{columnExpression: column, Old: true}
 	}
 	if newValues && scope.returning.mode == returningDelete {
-		return returningColumnExpression{columnExpression: column, absent: true}
+		return returningColumnExpression{columnExpression: column, Absent: true}
 	}
 	return column
 }
@@ -464,5 +464,5 @@ func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos 
 		props = expr.MergeProperties(props, fields[i].Properties())
 	}
 	typ, _ := b.bindingCatalog().LookupType(scope.relation.RowType)
-	return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: scope.returning.mode == returningDelete && newValues}, nil
+	return rowExpression{Info: b.info(typ.Usage(), pos, props), Fields: fields, ReturningWhole: true, ReturningNull: scope.returning.mode == returningDelete && newValues}, nil
 }

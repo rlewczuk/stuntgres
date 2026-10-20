@@ -17,25 +17,25 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 				cleanup := errors.New("required inner close")
 				failure := errors.New("primary projection failure")
 				closes := 0
-				inner := indexedStage{source: input, schema: project.Schema(), expressions: project.expressions, evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, finish: func() error { closes++; return cleanup }}
+				inner := indexedStage{source: input, schema: project.Schema(), expressions: project.Expressions, evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, finish: func() error { closes++; return cleanup }}
 				if primary {
 					inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 				}
 				bridge := &querySource{ref: input.ref, nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
-				var child LogicalNode = &sourceNode{querySchema: project.Schema(), ref: input.ref}
+				var child LogicalNode = &sourceNode{querySchema: project.Schema(), Ref: input.ref}
 				if mode != "all" {
-					limit := &limitNode{querySchema: project.Schema(), child: child, count: queryLimitBound(t, e, 1)}
+					limit := &limitNode{querySchema: project.Schema(), Child: child, Count: queryLimitBound(t, e, 1)}
 					if mode == "ties" {
 						comparison, err := sqltype.BindOrdering(project.Schema()[0].Usage)
 						if err != nil {
 							t.Fatal(err)
 						}
-						limit.withTies = true
-						limit.peerKeys = []sortKey{{slot: 0, cache: -1, comparison: comparison}}
+						limit.WithTies = true
+						limit.PeerKeys = []sortKey{{Slot: 0, Cache: -1, Comparison: comparison}}
 					}
 					child = limit
 				}
-				outer := &projectNode{querySchema: project.Schema(), child: child, expressions: project.expressions}
+				outer := &projectNode{querySchema: project.Schema(), Child: child, Expressions: project.Expressions}
 				rows, n, err := finalizeQuery(context.Background(), outer, bridge, nil)
 				want := cleanup
 				if primary {
@@ -54,9 +54,9 @@ func TestQueryLimitEOFCloses(t *testing.T) {
 	project := query.Root.(*projectNode)
 	failure := errors.New("EOF close failure")
 	closes := 0
-	child := indexedStage{source: input, schema: project.child.Schema(), selection: []int{0}, finish: func() error { closes++; return failure }}
+	child := indexedStage{source: input, schema: project.Child.Schema(), selection: []int{0}, finish: func() error { closes++; return failure }}
 	stage := producingStage(&child, project.Schema())
-	stage.expressions = project.expressions
+	stage.expressions = project.Expressions
 	stage.evaluation = EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	stage.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		i, present, err := child.nextOccurrence(ctx)

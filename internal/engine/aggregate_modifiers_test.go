@@ -86,7 +86,7 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 	} {
 		raw := statement(t, "SELECT "+tc.call).(*parser.Select).Targets[0]
 		expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
-		if err != nil || expr.(aggregateExpression).slot != tc.slot {
+		if err != nil || expr.(aggregateExpression).Slot != tc.slot {
 			t.Fatal(i, expr, err)
 		}
 	}
@@ -95,12 +95,12 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := b.grouping.aggregates[bound.(aggregateExpression).slot]
-	if call.order[0].slot != 0 || call.order[1].slot != 0 || bound.Properties().Volatility != expr.Volatile {
+	call := b.grouping.aggregates[bound.(aggregateExpression).Slot]
+	if call.Order[0].Slot != 0 || call.Order[1].Slot != 0 || bound.Properties().Volatility != expr.Volatile {
 		t.Fatal(call, bound.Properties())
 	}
 	altered := call
-	altered.provider = functions.NewCountProvider(b.typ(sqltype.Int4).Usage())
+	altered.Provider = functions.NewCountProvider(b.typ(sqltype.Int4).Usage())
 	if b.sameAggregateCall(call, altered) {
 		t.Fatal("result Usage omitted from identity")
 	}
@@ -122,10 +122,10 @@ func TestAggregateModifiersParameterTargets(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		call := b.grouping.aggregates[expression.(aggregateExpression).slot]
+		call := b.grouping.aggregates[expression.(aggregateExpression).Slot]
 		if parameters.Count != 1 || parameters.Types[0].Type.ID() != sqltype.Text ||
-			call.argument.ResultUsage().Type.ID() != sqltype.Text ||
-			call.order[0].slot != 0 || call.order[0].cache != 0 || len(b.params.anyParameters) != 0 {
+			call.Argument.ResultUsage().Type.ID() != sqltype.Text ||
+			call.Order[0].Slot != 0 || call.Order[0].Cache != 0 || len(b.params.anyParameters) != 0 {
 			t.Fatal(query, parameters, call, b.params.anyParameters)
 		}
 	}
@@ -189,15 +189,15 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 	for _, phase := range []string{"success", "filter", "key", "hash", "equality", "sort", "replay", "finalize"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT count(DISTINCT v ORDER BY v) FILTER(WHERE TRUE) FROM t")
-			node := query.Root.(*projectNode).child.(*aggregateNode)
-			call := &node.calls[0]
+			node := query.Root.(*projectNode).Child.(*aggregateNode)
+			call := &node.Calls[0]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			filters, values, keys, advances, finalizes := 0, 0, 0, 0, 0
-			original := call.argument
-			call.argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { values++; return original.Eval(c) })
-			boolType := call.filter.ResultUsage().Type
-			call.filter = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+			original := call.Argument
+			call.Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { values++; return original.Eval(c) })
+			boolType := call.Filter.ResultUsage().Type
+			call.Filter = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 				filters++
 				if phase == "filter" {
 					cancel()
@@ -205,7 +205,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 				return sqltype.Boolean(boolType, filters != 2), nil
 			})
 			// A matched order expression must never be evaluated separately.
-			call.order[0].expression = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			call.Order[0].Expression = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 				keys++
 				if phase == "key" {
 					cancel()
@@ -213,10 +213,10 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 				return original.Eval(c)
 			})
 			if phase == "key" {
-				call.order[0].slot = -1
+				call.Order[0].Slot = -1
 			}
-			provider := call.provider
-			call.provider = aggregateProbeProvider{AggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
+			provider := call.Provider
+			call.Provider = aggregateProbeProvider{AggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 				advances++
 				err := provider.Advance(ctx, s, v, d)
 				if phase == "replay" {
@@ -283,26 +283,26 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(DISTINCT v ORDER BY v) FILTER(WHERE f) FROM t")
 	defer source.close()
-	node := query.Root.(*projectNode).child.(*aggregateNode)
-	original := node.calls[0]
+	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	original := node.Calls[0]
 	rewritten, err := rewriteQueryExpressions(node, func(bound expr.Expr) (expr.Expr, bool, error) {
 		column, ok := bound.(columnExpression)
-		if !ok || column.slot != 2 {
+		if !ok || column.Slot != 2 {
 			return bound, false, nil
 		}
-		return literalExpression{Info: expr.Info{Usage: column.ResultUsage()}, value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
+		return literalExpression{Info: expr.Info{Usage: column.ResultUsage()}, Value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
 	})
 	if err != nil || rewritten == node {
 		t.Fatal("FILTER rewrite not copied", rewritten, err)
 	}
-	changed := rewritten.(*aggregateNode).calls[0]
-	if _, ok := changed.filter.(literalExpression); !ok {
+	changed := rewritten.(*aggregateNode).Calls[0]
+	if _, ok := changed.Filter.(literalExpression); !ok {
 		t.Fatal("FILTER rewrite lost")
 	}
-	if _, ok := node.calls[0].filter.(columnExpression); !ok {
+	if _, ok := node.Calls[0].Filter.(columnExpression); !ok {
 		t.Fatal("original FILTER mutated")
 	}
-	if changed.order[0].slot != original.order[0].slot || changed.order[0].cache != original.order[0].cache || changed.stageWidth != original.stageWidth {
+	if changed.Order[0].Slot != original.Order[0].Slot || changed.Order[0].Cache != original.Order[0].Cache || changed.StageWidth != original.StageWidth {
 		t.Fatal("target reuse lost across rewrite")
 	}
 	folded, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
@@ -317,30 +317,30 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	if err != nil || remapped == node {
 		t.Fatal(remapped, err)
 	}
-	call := remapped.(*aggregateNode).calls[0]
-	if call.filter.ResultUsage().Type == original.filter.ResultUsage().Type || call.argument.ResultUsage().Type == original.argument.ResultUsage().Type {
+	call := remapped.(*aggregateNode).Calls[0]
+	if call.Filter.ResultUsage().Type == original.Filter.ResultUsage().Type || call.Argument.ResultUsage().Type == original.Argument.ResultUsage().Type {
 		t.Fatal("modifier descriptor ownership not remapped")
 	}
-	value, _ := sqltype.Integer(call.argument.ResultUsage().Type, 1)
-	if _, err := call.distinct[0].Hash(context.Background(), value); err != nil {
+	value, _ := sqltype.Integer(call.Argument.ResultUsage().Type, 1)
+	if _, err := call.Distinct[0].Hash(context.Background(), value); err != nil {
 		t.Fatal("remapped grouping retains old descriptor", err)
 	}
-	if _, err := original.distinct[0].Hash(context.Background(), value); err == nil {
+	if _, err := original.Distinct[0].Hash(context.Background(), value); err == nil {
 		t.Fatal("original grouping mutated")
 	}
-	if sign, err := call.order[0].comparison.Compare(context.Background(), value, value, sqltype.InputEnvironment{}); err != nil || sign != 0 {
+	if sign, err := call.Order[0].Comparison.Compare(context.Background(), value, value, sqltype.InputEnvironment{}); err != nil || sign != 0 {
 		t.Fatal("remapped comparison retains old descriptor", sign, err)
 	}
-	if original.argument.ResultUsage().Type != node.calls[0].argument.ResultUsage().Type || original.filter.ResultUsage().Type != node.calls[0].filter.ResultUsage().Type {
+	if original.Argument.ResultUsage().Type != node.Calls[0].Argument.ResultUsage().Type || original.Filter.ResultUsage().Type != node.Calls[0].Filter.ResultUsage().Type {
 		t.Fatal("remap mutated original inputs")
 	}
 }
 
 func TestAggregateModifiersOuterOwnershipSharing(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT (SELECT count(*) FILTER(WHERE o.v=1)),(SELECT count(*) FILTER(WHERE o.v=1)),(SELECT count(*) FILTER(WHERE o.v=2)) FROM t o")
-	node := query.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 2 || node.calls[0].filter == nil || node.calls[1].filter == nil {
-		t.Fatal("incomplete outer-owner modifier identity", node.calls)
+	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 2 || node.Calls[0].Filter == nil || node.Calls[1].Filter == nil {
+		t.Fatal("incomplete outer-owner modifier identity", node.Calls)
 	}
 	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 	if err != nil || count != 1 {

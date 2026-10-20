@@ -148,7 +148,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	importing := catalog.NewState(0)
 	importing.SetScalarImports(imports)
 	view := New().catalog.read(importing)
-	literal := literalExpression{Info: expr.Info{Usage: source.Usage()}, value: v}
+	literal := literalExpression{Info: expr.Info{Usage: source.Usage()}, Value: v}
 	rebound, changed, err := retagBoundTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == source {
 			return target
@@ -158,7 +158,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(err)
 	}
-	id, _ = rebound.(literalExpression).value.EnumMemberID()
+	id, _ = rebound.(literalExpression).Value.EnumMemberID()
 	if id != 80 {
 		t.Fatal("stored literal import", id)
 	}

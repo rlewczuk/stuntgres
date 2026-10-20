@@ -28,7 +28,7 @@ func preflightCast(t *testing.T, q string) expr.Expr {
 func TestCastCoercionPreflightRecursivePrivate(t *testing.T) {
 	original := preflightCast(t, "SELECT CAST(int4('42'::text) AS text) FROM t")
 	outer := original.(coercionExpression)
-	inner := outer.child.(coercionExpression)
+	inner := outer.Child.(coercionExpression)
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for range 2 {
 		folded, changed, err := preflightCoercions(&evaluation, original)
@@ -44,24 +44,24 @@ func TestCastCoercionPreflightRecursivePrivate(t *testing.T) {
 		if err != nil || accessErr != nil || text != "42" {
 			t.Fatal(value, err, accessErr)
 		}
-		if _, ok := original.(coercionExpression).child.(coercionExpression); !ok {
+		if _, ok := original.(coercionExpression).Child.(coercionExpression); !ok {
 			t.Fatal("original tree mutated")
 		}
 	}
-	column := columnExpression{Info: expr.Info{Usage: inner.ResultUsage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	predicate := comparisonExpression{Info: expr.Info{Property: expr.Properties{RowDependent: true}}, left: column, right: inner}
+	column := columnExpression{Info: expr.Info{Usage: inner.ResultUsage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
+	predicate := comparisonExpression{Info: expr.Info{Property: expr.Properties{RowDependent: true}}, Left: column, Right: inner}
 	folded, changed, err := preflightCoercions(&evaluation, predicate)
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
 	}
-	if _, ok := folded.(comparisonExpression).right.(literalExpression); !ok {
+	if _, ok := folded.(comparisonExpression).Right.(literalExpression); !ok {
 		t.Fatal(folded)
 	}
-	if _, ok := predicate.right.(coercionExpression); !ok {
+	if _, ok := predicate.Right.(coercionExpression); !ok {
 		t.Fatal("original predicate mutated")
 	}
 	bad := preflightCast(t, "SELECT int4('oops'::text) FROM t")
-	predicate.right = bad
+	predicate.Right = bad
 	_, _, err = preflightCoercions(&evaluation, predicate)
 	state(t, err, "22P02")
 }
@@ -108,13 +108,13 @@ func TestCastCoercionPreflightDependentParent(t *testing.T) {
 			t.Fatal(folded, changed, err)
 		}
 		parent, ok := folded.(coercionExpression)
-		if !ok || parent.Info != original.Info || parent.mode != original.mode {
+		if !ok || parent.Info != original.Info || parent.Mode != original.Mode {
 			t.Fatal(folded)
 		}
-		if _, ok := parent.child.(literalExpression); !ok {
+		if _, ok := parent.Child.(literalExpression); !ok {
 			t.Fatal("independent child was not folded")
 		}
-		if _, ok := original.child.(coercionExpression); !ok {
+		if _, ok := original.Child.(coercionExpression); !ok {
 			t.Fatal("original parent mutated")
 		}
 	}
@@ -124,36 +124,36 @@ func TestCastCoercionQueryPreflightSharing(t *testing.T) {
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	source := &sourceNode{}
 	unchanged := preflightCast(t, "SELECT $1::text FROM t")
-	project := &projectNode{child: source, expressions: []expr.Expr{unchanged}}
+	project := &projectNode{Child: source, Expressions: []expr.Expr{unchanged}}
 	root, err := preflightQuery(&evaluation, project)
 	if err != nil || root != project {
 		t.Fatal(root, err)
 	}
 	constant := preflightCast(t, "SELECT int4('42'::text) FROM t")
-	filter := &filterNode{child: source, predicate: comparisonExpression{left: unchanged, right: constant}}
-	sort := &sortNode{child: filter, keys: []sortKey{{expression: unchanged, slot: 3, cache: -1, desc: true}}}
-	project.child = sort
+	filter := &filterNode{Child: source, Predicate: comparisonExpression{Left: unchanged, Right: constant}}
+	sort := &sortNode{Child: filter, Keys: []sortKey{{Expression: unchanged, Slot: 3, Cache: -1, Desc: true}}}
+	project.Child = sort
 	for range 2 {
 		root, err = preflightQuery(&evaluation, project)
 		if err != nil || root == project {
 			t.Fatal(root, err)
 		}
 		private := root.(*projectNode)
-		privateSort := private.child.(*sortNode)
-		privateFilter := privateSort.child.(*filterNode)
-		if privateSort == sort || privateFilter == filter || privateFilter.child != source || privateSort.keys[0].slot != sort.keys[0].slot || privateSort.keys[0].desc != sort.keys[0].desc || &private.expressions[0] != &project.expressions[0] {
+		privateSort := private.Child.(*sortNode)
+		privateFilter := privateSort.Child.(*filterNode)
+		if privateSort == sort || privateFilter == filter || privateFilter.Child != source || privateSort.Keys[0].Slot != sort.Keys[0].Slot || privateSort.Keys[0].Desc != sort.Keys[0].Desc || &private.Expressions[0] != &project.Expressions[0] {
 			t.Fatal("changed path not private or unchanged path not shared")
 		}
-		if _, ok := privateFilter.predicate.(comparisonExpression).right.(literalExpression); !ok {
-			t.Fatal(privateFilter.predicate)
+		if _, ok := privateFilter.Predicate.(comparisonExpression).Right.(literalExpression); !ok {
+			t.Fatal(privateFilter.Predicate)
 		}
-		if _, ok := filter.predicate.(comparisonExpression).right.(coercionExpression); !ok {
+		if _, ok := filter.Predicate.(comparisonExpression).Right.(coercionExpression); !ok {
 			t.Fatal("original query mutated")
 		}
 	}
-	project.expressions = []expr.Expr{constant, unchanged}
+	project.Expressions = []expr.Expr{constant, unchanged}
 	root, err = preflightQuery(&evaluation, project)
-	if err != nil || &root.(*projectNode).expressions[0] == &project.expressions[0] {
+	if err != nil || &root.(*projectNode).Expressions[0] == &project.Expressions[0] {
 		t.Fatal("changed expressions not copied", err)
 	}
 }
@@ -165,8 +165,8 @@ func TestCastCoercionPreflightImportedFrames(t *testing.T) {
 	} {
 		t.Run(query, func(t *testing.T) {
 			original := preflightCast(t, query).(coercionExpression)
-			source := original.child.ResultUsage().Type
-			identity := original.child
+			source := original.Child.ResultUsage().Type
+			identity := original.Child
 			var wg sync.WaitGroup
 			for _, input := range []string{"42", "", "oops", "17", "-2147483648", "2147483647", "2147483648"} {
 				// Build typed imported frames before concurrent evaluation.
@@ -223,7 +223,7 @@ func TestCastCoercionPreflightImportedFrames(t *testing.T) {
 				}(input, value)
 			}
 			wg.Wait()
-			if !reflect.DeepEqual(original.child, identity) {
+			if !reflect.DeepEqual(original.Child, identity) {
 				t.Fatal("analysis mutated")
 			}
 			wrong := sqltype.Null(original.ResultUsage().Type)
@@ -237,23 +237,23 @@ func TestCastCoercionPreflightImportedFrames(t *testing.T) {
 
 func TestCastCoercionPreflightFoldedChildReuse(t *testing.T) {
 	original := preflightCast(t, "SELECT CAST(int4('42'::text) AS text) FROM t").(coercionExpression)
-	inner := original.child.(coercionExpression)
+	inner := original.Child.(coercionExpression)
 	calls := 0
-	inner.child = queryProbe(inner.child.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	inner.Child = queryProbe(inner.Child.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		calls++
 		if calls != 1 {
 			return sqltype.Value{}, errors.New("folded child evaluated again")
 		}
-		return inner.child.ResultUsage().Type.Input(c.Context, "42", -1)
+		return inner.Child.ResultUsage().Type.Input(c.Context, "42", -1)
 	})
-	original.child = inner
+	original.Child = inner
 	_, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
 	if err != nil || !changed || calls != 1 {
 		t.Fatal(changed, calls, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	inner.child = queryProbe(inner.child.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
-		value, err := inner.child.ResultUsage().Type.Input(c.Context, "42", -1)
+	inner.Child = queryProbe(inner.Child.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		value, err := inner.Child.ResultUsage().Type.Input(c.Context, "42", -1)
 		cancel()
 		return value, err
 	})
@@ -265,7 +265,7 @@ func TestCastCoercionPreflightFoldedChildReuse(t *testing.T) {
 
 func TestCastCoercionPreflightProviderCompletionCancellation(t *testing.T) {
 	original := preflightCast(t, "SELECT $1::int8::int4 FROM t").(coercionExpression)
-	value, err := sqltype.Integer(original.child.ResultUsage().Type, 42)
+	value, err := sqltype.Integer(original.Child.ResultUsage().Type, 42)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,22 +281,22 @@ func TestCastCoercionPreflightProviderCompletionCancellation(t *testing.T) {
 func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT int4($1::text) FROM t")
 	project := query.Root.(*projectNode)
-	original := project.expressions[0].(coercionExpression)
+	original := project.Expressions[0].(coercionExpression)
 	schema := []catalog.Column{{Name: "int4", Usage: sqltype.Usage{Type: testUsage(e, sqltype.Int4).Type, Typmod: -1}, Nullable: false, NullabilityKnown: false, OriginTable: 0, OriginAttribute: 0}}
 	if !reflect.DeepEqual(project.Schema(), schema) || uint32(schema[0].Usage.Type.ID()) != 23 {
 		t.Fatalf("analyzed schema %#v want %#v", project.Schema(), schema)
 	}
 	for _, input := range []string{"42", "", "oops", "17"} {
-		value := sqltype.Null(original.child.ResultUsage().Type)
+		value := sqltype.Null(original.Child.ResultUsage().Type)
 		if input != "" {
 			var err error
-			value, err = original.child.ResultUsage().Type.Input(context.Background(), input, -1)
+			value, err = original.Child.ResultUsage().Type.Input(context.Background(), input, -1)
 			if err != nil {
 				t.Fatal(err)
 			}
 		}
 		root, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}, project)
-		if !reflect.DeepEqual(project.expressions[0], original) || !reflect.DeepEqual(project.Schema(), schema) {
+		if !reflect.DeepEqual(project.Expressions[0], original) || !reflect.DeepEqual(project.Schema(), schema) {
 			t.Fatal("analyzed query mutated")
 		}
 		if input == "oops" {
@@ -306,10 +306,10 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 			}
 			continue
 		}
-		if err != nil || root == project || root.(*projectNode).child != project.child || !reflect.DeepEqual(root.Schema(), schema) {
+		if err != nil || root == project || root.(*projectNode).Child != project.Child || !reflect.DeepEqual(root.Schema(), schema) {
 			t.Fatal("private frame changed source/schema", root, err)
 		}
-		literal, ok := root.(*projectNode).expressions[0].(literalExpression)
+		literal, ok := root.(*projectNode).Expressions[0].(literalExpression)
 		if !ok {
 			t.Fatal("eligible conversion was not privately replaced")
 		}
@@ -330,11 +330,11 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 	// finalization must consume the preflighted root, not materialize again.
 	calls := 0
 	private := *project
-	original.child = queryProbe(original.child.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	original.Child = queryProbe(original.Child.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		calls++
-		return original.child.ResultUsage().Type.Input(c.Context, "42", -1)
+		return original.Child.ResultUsage().Type.Input(c.Context, "42", -1)
 	})
-	private.expressions = []expr.Expr{original}
+	private.Expressions = []expr.Expr{original}
 	root, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &private)
 	if err != nil {
 		t.Fatal(err)

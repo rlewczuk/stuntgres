@@ -70,7 +70,7 @@ func (r pgRenderer) renderingWithReturning(ctx context.Context, node expr.Expr, 
 				if !ok {
 					return "", fmt.Errorf("stuntgres: invalid deparse syntax keyword")
 				}
-				word, err := literal.value.Text()
+				word, err := literal.Value.Text()
 				if err != nil {
 					return "", err
 				}

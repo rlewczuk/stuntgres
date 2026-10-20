@@ -149,7 +149,7 @@ func TestRowLockOrderedCacheRefreshCounts(t *testing.T) {
 	volatile := probe(0, expr.Properties{Volatility: expr.Volatile})
 	hidden := probe(1, expr.Properties{Volatility: expr.Volatile})
 	immutable := probe(2, expr.Properties{})
-	sorted := &sortNode{keys: []sortKey{{expression: volatile, cache: 0, output: true}, {expression: volatile, cache: 0, output: true}, {expression: hidden, cache: 1}, {expression: immutable, cache: 2, output: true}}}
+	sorted := &sortNode{Keys: []sortKey{{Expression: volatile, Cache: 0, Output: true}, {Expression: volatile, Cache: 0, Output: true}, {Expression: hidden, Cache: 1}, {Expression: immutable, Cache: 2, Output: true}}}
 	evaluation := &EvalContext{evalFrame: evalFrame{orderValues: []sqltype.Value{value, value, value}}}
 	if err := refreshLockedOrder(sorted, nil, evaluation); err != nil {
 		t.Fatal(err)

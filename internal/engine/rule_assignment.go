@@ -12,29 +12,29 @@ func mapRuleAssignmentTargets(targets []*arrayAssignmentTarget, expression func(
 		if old == nil {
 			return nil, nil
 		}
-		node, changed, err := mapSubscript(old.node, expression)
+		node, changed, err := mapSubscript(old.Node, expression)
 		if err != nil {
 			return nil, err
 		}
-		container, err := usage(old.container)
+		container, err := usage(old.Container)
 		if err != nil {
 			return nil, err
 		}
-		destination, err := usage(old.destination)
+		destination, err := usage(old.Destination)
 		if err != nil {
 			return nil, err
 		}
-		child, err := target(old.next)
+		child, err := target(old.Next)
 		if err != nil {
 			return nil, err
 		}
-		if !changed && container == old.container && destination == old.destination && child == old.next {
+		if !changed && container == old.Container && destination == old.Destination && child == old.Next {
 			return old, nil
 		}
 		next := *old
-		next.node, next.container, next.destination, next.next = node, container, destination, child
-		if container != old.container {
-			next.reapply, err = sqltype.PlanCoercion(container.BaseUsage(), container, sqltype.Assignment)
+		next.Node, next.Container, next.Destination, next.Next = node, container, destination, child
+		if container != old.Container {
+			next.Reapply, err = sqltype.PlanCoercion(container.BaseUsage(), container, sqltype.Assignment)
 			if err != nil {
 				return nil, err
 			}

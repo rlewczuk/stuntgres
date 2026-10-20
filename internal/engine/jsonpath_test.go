@@ -87,7 +87,7 @@ func TestJSONPathSharedSourceErrorAndPersistenceLiteral(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		text, err := literalSQL(ctx, literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v})
+		text, err := literalSQL(ctx, literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v})
 		if err != nil || text != tc.want {
 			t.Fatal(text, err)
 		}

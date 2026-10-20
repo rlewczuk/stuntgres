@@ -141,7 +141,7 @@ func (b *expressionBinder) probeLegacySQLCallable(raw parser.FunctionExpr, opera
 			targets[0] = sqltype.Usage{}
 			return true
 		}
-		input, result := unnestInputTypes(operands[0].Usage)
+		input, result := UnnestInputTypes(operands[0].Usage)
 		if result == nil || input.IsArray() != (declared[0].Type.ID() == 2277) {
 			return false
 		}

@@ -12,18 +12,18 @@ func (e unnestExpression) SourceAdmission() (bool, bool) { return true, true }
 
 func (e unnestExpression) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(unnestExpression)
-	return ok && sameIntaggIdentity(e.procedure, e.ref, o.procedure, o.ref) && e.ResultUsage() == o.ResultUsage()
+	return ok && SameIntaggIdentity(e.Procedure, e.Ref, o.Procedure, o.Ref) && e.ResultUsage() == o.ResultUsage()
 }
 
 func (e unnestExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}
-	value, err := e.args[0].Eval(ctx)
+	value, err := e.Args[0].Eval(ctx)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}
-	if input := e.args[0].ResultUsage().Type; input.BaseType().IsArray() {
+	if input := e.Args[0].ResultUsage().Type; input.BaseType().IsArray() {
 		if value.Type() != input || input.BaseType().Element() != e.Usage.Type {
 			return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid array unnest generation")
 		}
@@ -32,7 +32,7 @@ func (e unnestExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error
 			Exhausted: value.IsNull() || value.ArrayLen() == 0, Advance: nextArraySource,
 		}), nil
 	}
-	cursor, err := sqltype.OpenMultirange(ctx.FunctionContext(), e.args[0].ResultUsage(), e.ResultUsage(), value)
+	cursor, err := sqltype.OpenMultirange(ctx.FunctionContext(), e.Args[0].ResultUsage(), e.ResultUsage(), value)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}

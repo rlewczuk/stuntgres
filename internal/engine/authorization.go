@@ -334,12 +334,12 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 				return err
 			}
 		}
-		if effectiveQueryRowMark(source.relation, source.mark).mode != 0 {
+		if effectiveQueryRowMark(source.relation, source.mark).Mode != 0 {
 			if err := sourceAuth.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}
-		if source.relation.RelationKind == catalog.ViewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.Catalog)) {
+		if source.relation.RelationKind == catalog.ViewRelation && (source.mark.Mode != 0 || viewHasStoredRowMarks(source.relation, v.Catalog)) {
 			if err := sourceAuth.checkViewRowMarks(source.relation, source.mark, sourceAuth.State.CurrentUser); err != nil {
 				return err
 			}

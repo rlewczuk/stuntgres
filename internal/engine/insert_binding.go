@@ -140,7 +140,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					return sequence.IdentityInsertError(c.Name)
 				}
 				if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-					b.expressions[rowIndex][j] = unknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, raw: v}
+					b.expressions[rowIndex][j] = unknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, Raw: v}
 					continue
 				}
 				context := assignmentContext
@@ -166,7 +166,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			if len(b.arrayTargets) != 0 {
 				partial = b.arrayTargets[j]
 				if partial != nil {
-					c = partial.column(c)
+					c = partial.Column(c)
 				}
 			}
 			if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[b.targets[j]]]; generated {

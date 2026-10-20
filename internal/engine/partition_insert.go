@@ -229,7 +229,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 				renderer.path = path
 			}
 			cast, coercion := entry.Derived.Definition.(coercionExpression)
-			regTSCast := coercion && cast.mode == sqltype.Explicit && sqltype.IsRegTS(entry.Usage.Type.BaseType().ID())
+			regTSCast := coercion && cast.Mode == sqltype.Explicit && sqltype.IsRegTS(entry.Usage.Type.BaseType().ID())
 			keyRenderer := renderer
 			if regTSCast {
 				// Partition diagnostics group the whole pretty cast expression,

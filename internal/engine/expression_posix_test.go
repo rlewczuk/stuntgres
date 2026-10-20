@@ -12,15 +12,15 @@ import (
 
 func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 	text, boolean := similarUnitTypes()
-	source := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 0}
-	pattern := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 1}
+	source := columnExpression{Info: expr.Info{Usage: text.Usage()}, Slot: 0}
+	pattern := columnExpression{Info: expr.Info{Usage: text.Usage()}, Slot: 1}
 	predicate := functions.Posix{Info: expr.Info{Usage: boolean.Usage()}, Left: source, Right: pattern, Operator: "~"}
 	extraction := functions.PosixSubstring{Info: expr.Info{Usage: text.Usage()}, Args: [2]expr.Expr{source, pattern}}
 	for _, node := range []expr.Expr{predicate, extraction} {
 		var slots []int
 		walkBoundExpression(node, func(n expr.Expr) {
 			if c, ok := n.(columnExpression); ok {
-				slots = append(slots, c.slot)
+				slots = append(slots, c.Slot)
 			}
 		})
 		if !reflect.DeepEqual(slots, []int{0, 1}) {
@@ -48,7 +48,7 @@ func TestPosixCommonStatementOwner(t *testing.T) {
 	text, boolean := similarUnitTypes()
 	info := expr.Info{Usage: text.Usage()}
 	literal := func(s string) expr.Expr {
-		return literalExpression{Info: info, value: sqltype.String(text, s)}
+		return literalExpression{Info: info, Value: sqltype.String(text, s)}
 	}
 	pp, err := sqltype.BindPosix("~*", text.Usage(), text.Usage(), boolean.Usage(), text.Usage().Collation, false)
 	if err != nil {

@@ -34,7 +34,7 @@ type recursiveUnionStage struct {
 
 func recursiveCTEOwner(state *queryState, d *cteDefinition) *cteInvocation {
 	for owner := state.ctes; owner != nil; owner = owner.parent {
-		if owner.frame == d.owner {
+		if owner.frame == d.Owner {
 			return owner
 		}
 	}
@@ -45,13 +45,13 @@ func openRecursiveUnion(ctx context.Context, state *queryState, n *recursiveUnio
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
-	owner := recursiveCTEOwner(state, n.definition)
-	if owner == nil || owner.closed || owner.producers[n.definition] == nil {
+	owner := recursiveCTEOwner(state, n.Definition)
+	if owner == nil || owner.closed || owner.producers[n.Definition] == nil {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing recursive CTE producer")
 	}
-	producer := owner.producers[n.definition]
+	producer := owner.producers[n.Definition]
 	stage := &recursiveUnionStage{state: *state, node: n, source: producer.source}
-	if !n.all && len(n.Schema()) > 0 {
+	if !n.All && len(n.Schema()) > 0 {
 		stage.seen = make(map[uint64][]int)
 	}
 	producer.recursion = stage
@@ -78,9 +78,9 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 			return false, err
 		}
 		if !s.opened {
-			project, expressions := s.node.left, s.node.leftExpressions
+			project, expressions := s.node.Left, s.node.LeftExpressions
 			if s.phase == 1 {
-				project, expressions = s.node.right, s.node.rightExpressions
+				project, expressions = s.node.Right, s.node.RightExpressions
 			}
 			arm, err := openSetArmScratch(ctx, &s.state, project, expressions, s.node.Schema(), s.scratch)
 			if err != nil {
@@ -88,14 +88,14 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 			}
 			s.arm, s.opened = arm, true
 			s.scratch = arm.row
-			if c := s.node.cycle; c != nil && !s.marksReady {
+			if c := s.node.Cycle; c != nil && !s.marksReady {
 				evaluation := &s.arm.inner.evaluation
 				evaluation.setContext(ctx)
-				s.mark, err = c.mark.Eval(evaluation)
+				s.mark, err = c.Mark.Eval(evaluation)
 				if err != nil {
 					return false, err
 				}
-				s.fallback, err = c.fallback.Eval(evaluation)
+				s.fallback, err = c.Fallback.Eval(evaluation)
 				if err != nil {
 					return false, err
 				}
@@ -122,33 +122,33 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 			}
 			continue
 		}
-		cycle, search := s.node.cycle, s.node.search
+		cycle, search := s.node.Cycle, s.node.Search
 		var parentSearch, parentCycle sqltype.Value
 		if s.phase == 1 {
 			if search != nil {
-				parentSearch = row[search.slot]
+				parentSearch = row[search.Slot]
 			}
 			if cycle != nil {
-				parentCycle = row[cycle.markSlot+1]
+				parentCycle = row[cycle.MarkSlot+1]
 			}
 		}
 		if search != nil {
-			value, failure := search.value(ctx, row, parentSearch)
+			value, failure := search.Value(ctx, row, parentSearch)
 			if failure != nil {
 				return false, failure
 			}
-			row[search.slot] = value
+			row[search.Slot] = value
 		}
 		if cycle != nil {
-			row, err = cycle.augment(ctx, row, parentCycle, s.mark, s.fallback)
+			row, err = cycle.Augment(ctx, row, parentCycle, s.mark, s.fallback)
 			if err != nil {
 				return false, err
 			}
 		}
 		hash := uint64(14695981039346656037)
 		if s.seen != nil {
-			for i, family := range s.node.grouping {
-				slot := s.node.groupingSlot(i)
+			for i, family := range s.node.Grouping {
+				slot := s.node.GroupingSlot(i)
 				value, err := family.PrepareKey(ctx, row[slot])
 				if err != nil {
 					return false, err
@@ -161,14 +161,14 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 				hash = (hash ^ part) * 1099511628211
 			}
 			if search != nil {
-				part, err := search.hash(ctx, row[search.slot])
+				part, err := search.Hash(ctx, row[search.Slot])
 				if err != nil {
 					return false, err
 				}
 				hash = (hash ^ part) * 1099511628211
 			}
 			if cycle != nil {
-				part, err := cycle.hashPath(ctx, row[cycle.markSlot+1])
+				part, err := cycle.HashPath(ctx, row[cycle.MarkSlot+1])
 				if err != nil {
 					return false, err
 				}
@@ -193,7 +193,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 		}
 		expand := true
 		if cycle != nil {
-			value, err := cycle.inequality.Evaluate(ctx, row[cycle.markSlot], s.mark, s.state.input)
+			value, err := cycle.Inequality.Evaluate(ctx, row[cycle.MarkSlot], s.mark, s.state.input)
 			if err != nil {
 				return false, err
 			}
@@ -222,35 +222,35 @@ func openWorktableScan(ctx context.Context, state *queryState, n *worktableScanN
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
-	owner := recursiveCTEOwner(state, n.cte)
+	owner := recursiveCTEOwner(state, n.CTE)
 	if owner == nil || owner.closed {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing recursive worktable owner")
 	}
-	producer := owner.producers[n.cte]
+	producer := owner.producers[n.CTE]
 	if producer == nil || producer.recursion == nil {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing current recursive generation")
 	}
 	stage := producer.recursion
 	source := stage.source
-	if n.presenceSlot != 0 {
+	if n.PresenceSlot != 0 {
 		borrowed := *source
 		source = &borrowed
-		establishSourcePresence(source, n.presenceSlot)
+		establishSourcePresence(source, n.PresenceSlot)
 	}
 	return indexedStage{source: source, schema: n.Schema(), selection: stage.current}, nil
 }
 
 func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value, candidates []int) (int, error) {
-	c, search := s.node.cycle, s.node.search
+	c, search := s.node.Cycle, s.node.Search
 	if c == nil && search == nil {
-		return findDistinctTuple(ctx, s.node.grouping, row, s.source.flat, candidates)
+		return findDistinctTuple(ctx, s.node.Grouping, row, s.source.flat, candidates)
 	}
 	width := len(s.node.Schema())
 	for _, index := range candidates {
 		other := s.source.flat[index*width : (index+1)*width]
 		equal := true
-		for i, g := range s.node.grouping {
-			slot := s.node.groupingSlot(i)
+		for i, g := range s.node.Grouping {
+			slot := s.node.GroupingSlot(i)
 			same, err := g.Equal(ctx, row[slot], other[slot])
 			if err != nil {
 				return -1, err
@@ -261,14 +261,14 @@ func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value
 			}
 		}
 		if equal && search != nil {
-			same, err := search.equal(ctx, row[search.slot], other[search.slot])
+			same, err := search.Equal(ctx, row[search.Slot], other[search.Slot])
 			if err != nil {
 				return -1, err
 			}
 			equal = same
 		}
 		if equal && c != nil {
-			same, err := c.equalPath(ctx, row[c.markSlot+1], other[c.markSlot+1])
+			same, err := c.EqualPath(ctx, row[c.MarkSlot+1], other[c.MarkSlot+1])
 			if err != nil {
 				return -1, err
 			}

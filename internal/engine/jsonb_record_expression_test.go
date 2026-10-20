@@ -37,10 +37,10 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	source, ok := node.(*functionFromNode)
-	if !ok || len(source.calls) != 1 || len(ns.columns) != 2 || ns.columns[0].descriptor.Usage.Type.ID() != sqltype.Int4 || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Text {
+	if !ok || len(source.Calls) != 1 || len(ns.columns) != 2 || ns.columns[0].descriptor.Usage.Type.ID() != sqltype.Int4 || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Text {
 		t.Fatal("lost definition usage", node, ns)
 	}
-	call := source.calls[0].(functions.JSONBRecord)
+	call := source.Calls[0].(functions.JSONBRecord)
 	if sourceReturnsSet(call) || !sourceAdmitted(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != expr.Stable {
 		t.Fatal("invalid scalar properties", call)
 	}
@@ -88,7 +88,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	set := node.(*functionFromNode).calls[0]
+	set := node.(*functionFromNode).Calls[0]
 	if !sourceReturnsSet(set) || functionFromCallWidth(set) != 2 || !set.Properties().StageDependent {
 		t.Fatal("recordset placement/width", set)
 	}
@@ -286,7 +286,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	ordinal := column("n", 8, first.Usage)
 	currentColumns := []queryColumn{left, currentSource[0], currentSource[1], currentSource[2], ordinal}
 	call := callFor(current)
-	node := &functionFromNode{calls: []expr.Expr{call}, ordinality: true, frame: 3}
+	node := &functionFromNode{Calls: []expr.Expr{call}, Ordinality: true, Frame: 3}
 	qualifier := queryQualifier{sourceRoot: node, columns: append(append([]queryColumn(nil), currentSource...), ordinal)}
 	out, err = b.jsonbRecordStarColumns(currentColumns, 3, star, &qualifier)
 	if err != nil || len(out) != 4 {
@@ -300,7 +300,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 			t.Fatal("unrelated slot, alias, or ordinal changed", out)
 		}
 	}
-	if call.ResultUsage().Type != current || functionFromCallWidth(node.calls[0]) != 3 || len(currentColumns) != 5 {
+	if call.ResultUsage().Type != current || functionFromCallWidth(node.Calls[0]) != 3 || len(currentColumns) != 5 {
 		t.Fatal("projection truncated current source authority")
 	}
 	// A second lexical star has its own analyzed target list.
@@ -482,7 +482,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.query, err)
 		}
-		call := root.(*functionFromNode).calls[0].(functions.JSONBRecord)
+		call := root.(*functionFromNode).Calls[0].(functions.JSONBRecord)
 		if !call.Definitions || call.Unresolved || len(namespace.columns) != 2 || call.RecordUsage().Type.CompositeMember(0).Name != "a" {
 			t.Fatal("lost caller layout", call, namespace)
 		}

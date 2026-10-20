@@ -161,7 +161,7 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
+			node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 			for _, pretty := range []bool{false, true} {
 				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
 				want := tc.compact
@@ -171,13 +171,13 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}
-				node.value = sqltype.Null(typ)
+				node.Value = sqltype.Null(typ)
 				got, err = (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
 				declaration, err2 := pgType(typ.Usage())
 				if err != nil || err2 != nil || got != "NULL::"+declaration {
 					t.Fatal(got, err, err2)
 				}
-				node.value = value
+				node.Value = value
 			}
 		})
 	}
@@ -264,7 +264,7 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	treeType, _ := view.LookupType(sqltype.PgNodeTree)
 	boolType, _ := view.LookupType(sqltype.Bool)
 	literal := func(v sqltype.Value) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: v.Type().Usage()}, value: v}
+		return literalExpression{Info: expr.Info{Usage: v.Type().Usage()}, Value: v}
 	}
 	zero, _ := sqltype.OIDValue(oidType, 0)
 	tree, err := catalogTree(treeType, literal(zero))
@@ -356,7 +356,7 @@ func TestDeparseConstraintsTypmodsAndLiteralVariants(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := literalExpression{Info: expr.Info{Usage: u}, value: value}
+			node := literalExpression{Info: expr.Info{Usage: u}, Value: value}
 			for _, pretty := range []bool{false, true} {
 				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
 				if err != nil || got != tc.expected {

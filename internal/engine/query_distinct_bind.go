@@ -70,18 +70,18 @@ func (b *expressionBinder) bindDistinctGrouping(expression expr.Expr) (queryGrou
 		if signature.Left != usage.Type.BaseType().ID() {
 			target := b.typ(signature.Left).Usage()
 			target.Collation = usage.Collation
-			group.conversion, err = sqltype.PlanCoercion(usage, target, sqltype.Implicit)
+			group.Conversion, err = sqltype.PlanCoercion(usage, target, sqltype.Implicit)
 			if err != nil {
 				return queryGrouping{}, err
 			}
-			group.converted, err = sqltype.BindGrouping(target)
+			group.Converted, err = sqltype.BindGrouping(target)
 			if err != nil {
 				return queryGrouping{}, err
 			}
-			group.convert = true
+			group.Convert = true
 			usage = target
 		}
 	}
-	group.routine, group.privateTree, err = b.groupingRoutineReference(usage)
+	group.Routine, group.PrivateTree, err = b.groupingRoutineReference(usage)
 	return group, err
 }

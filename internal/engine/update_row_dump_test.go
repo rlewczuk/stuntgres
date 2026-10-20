@@ -35,7 +35,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			stored := rulesOf(before.MustRelation(input.Address))[0]
 			action := stored.actions[0]
 			owner := action.presentation.frames[1]
-			child := owner.child
+			child := owner.Child
 			columns := make(map[viewLiteralPath]viewColumn, len(action.presentation.columns))
 			for key, column := range action.presentation.columns {
 				columns[key] = column
@@ -47,7 +47,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if owner.child != child || action.presentation.frames[1] != owner || !reflect.DeepEqual(columns, action.presentation.columns) {
+			if owner.Child != child || action.presentation.frames[1] != owner || !reflect.DeepEqual(columns, action.presentation.columns) {
 				t.Fatal("render mutated frozen namespace ownership")
 			}
 			syntax, err := parser.Parse(text)
@@ -98,7 +98,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					find := func(recipe expr.Expr) {
 						walkBoundExpression(recipe, func(node expr.Expr) {
 							if query, ok := node.(subqueryExpression); ok && executable == nil {
-								executable = query.queryPlan.Root.(*projectNode)
+								executable = query.QueryPlan.Root.(*projectNode)
 							}
 						})
 					}
@@ -109,7 +109,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					} else {
 						find(mapped.binding.predicate)
 					}
-					if executable == nil || mapped.presentation.queries[executable.syntax] == executable {
+					if executable == nil || mapped.presentation.queries[executable.Syntax] == executable {
 						t.Fatal("fixture did not establish independently remapped executable and presentation graphs")
 					}
 					actual, err := ruleActionSQL(context.Background(), current, mapped)

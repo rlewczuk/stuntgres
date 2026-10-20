@@ -27,8 +27,8 @@ func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := root.(*projectNode).child.(*distinctNode)
-	for i, family := range node.grouping {
+	node := root.(*projectNode).Child.(*distinctNode)
+	for i, family := range node.Grouping {
 		value, _ := sqltype.Integer(fresh[sqltype.Int4], 1)
 		if _, err := family.Hash(context.Background(), value); err != nil {
 			t.Fatal("remapped family retained obsolete generation", i, err)
@@ -44,13 +44,13 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 	for _, suffix := range []string{"y", "2"} {
 		e, query, source := queryCoreFixture(t, "SELECT DISTINCT random() AS x,random() AS y FROM t ORDER BY "+suffix)
 		project := query.Root.(*projectNode)
-		sorted := project.child.(*sortNode)
-		node := sorted.child.(*distinctNode)
-		if len(node.expressions) != 2 || len(node.grouping) != 2 || sorted.keys[0].slot != 1 || sorted.keys[0].outputOrdinal != 2 {
-			t.Fatal("second output occurrence lost", suffix, sorted.keys, node)
+		sorted := project.Child.(*sortNode)
+		node := sorted.Child.(*distinctNode)
+		if len(node.Expressions) != 2 || len(node.Grouping) != 2 || sorted.Keys[0].Slot != 1 || sorted.Keys[0].OutputOrdinal != 2 {
+			t.Fatal("second output occurrence lost", suffix, sorted.Keys, node)
 		}
-		column, ok := sorted.keys[0].expression.(columnExpression)
-		if !ok || column.slot != 1 {
+		column, ok := sorted.Keys[0].Expression.(columnExpression)
+		if !ok || column.Slot != 1 {
 			t.Fatal("ORDER did not retain second projected datum", column, ok)
 		}
 		ast := statement(t, "CREATE VIEW occurrence_view AS SELECT DISTINCT random() AS x,random() AS y FROM t ORDER BY "+suffix)
@@ -71,9 +71,9 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sorted := b.query.Root.(*projectNode).child.(*sortNode)
-			if sorted.keys[0].slot != 1 || sorted.keys[0].outputOrdinal != 2 {
-				t.Fatal("view output occurrence lost", sorted.keys)
+			sorted := b.query.Root.(*projectNode).Child.(*sortNode)
+			if sorted.Keys[0].Slot != 1 || sorted.Keys[0].OutputOrdinal != 2 {
+				t.Fatal("view output occurrence lost", sorted.Keys)
 			}
 			view := ast.(*parser.CreateView)
 			frozen, ok := view.Query.Order.Keys[0].Expr.(parser.LiteralExpr)
@@ -140,20 +140,20 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				source.borrowAuthority(scope)
 				defer source.close()
 				project := b.query.Root.(*projectNode)
-				node := project.child
+				node := project.Child
 				var expressions []expr.Expr
 				switch n := node.(type) {
 				case *distinctNode:
-					expressions = n.expressions
+					expressions = n.Expressions
 				case *distinctOnNode:
-					expressions = n.expressions
+					expressions = n.Expressions
 				default:
 					t.Fatalf("unexpected DISTINCT producer %T", node)
 				}
 				if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 || node.Schema()[0].Usage.Type.ID() != sqltype.Numeric {
 					t.Fatal("destination assignment mutated DISTINCT source schema", project.Schema(), node.Schema())
 				}
-				if next, discard := pruneIdentityQueryProducer(node, project.expressions[0]); next != node || discard {
+				if next, discard := pruneIdentityQueryProducer(node, project.Expressions[0]); next != node || discard {
 					t.Fatal("identity pruning crossed DISTINCT boundary", next, discard)
 				}
 				original := expressions[0]

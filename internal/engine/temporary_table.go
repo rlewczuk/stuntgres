@@ -331,7 +331,7 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 			return false
 		}
 		for _, definition := range b.ctes {
-			if mutation, ok := mutationBinding(definition); ok && !temporaryDataTarget(auth, mutation, definition.statement) {
+			if mutation, ok := mutationBinding(definition); ok && !temporaryDataTarget(auth, mutation, definition.Statement) {
 				return false
 			}
 		}

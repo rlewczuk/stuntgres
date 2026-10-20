@@ -209,7 +209,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 						walkBoundExpression(expression, func(expression expr.Expr) {
 							retainBuiltin(expression.ResultUsage().Type)
 							if child, ok := expression.(subqueryExpression); ok {
-								retainQuery(child.queryPlan.Root)
+								retainQuery(child.QueryPlan.Root)
 							}
 						})
 					})

@@ -15,23 +15,23 @@ func ruleSourceColumnSQL(view catalog.Read, root LogicalNode, slot int, action r
 	}
 	switch node := root.(type) {
 	case *joinNode:
-		if slot >= node.leftWidth+node.rightWidth {
-			merged := slot - node.leftWidth - node.rightWidth
-			if merged >= len(node.merges) {
+		if slot >= node.LeftWidth+node.RightWidth {
+			merged := slot - node.LeftWidth - node.RightWidth
+			if merged >= len(node.Merges) {
 				return "", ids.ErrCatalogReplaced
 			}
-			return expression(node, node.merges[merged])
+			return expression(node, node.Merges[merged])
 		}
-		if slot < len(node.left.Schema()) {
-			return ruleSourceColumnSQL(view, node.left, slot, action, expression)
+		if slot < len(node.Left.Schema()) {
+			return ruleSourceColumnSQL(view, node.Left, slot, action, expression)
 		}
-		return ruleSourceColumnSQL(view, node.right, slot-len(node.left.Schema()), action, expression)
+		return ruleSourceColumnSQL(view, node.Right, slot-len(node.Left.Schema()), action, expression)
 	case *sourceNode:
-		d, ok := view.Relation(node.ref.Address)
+		d, ok := view.Relation(node.Ref.Address)
 		if !ok {
 			return "", ids.ErrCatalogReplaced
 		}
-		leaf := action.binding.querySources[node.occurrence]
+		leaf := action.binding.querySources[node.Occurrence]
 		attributes := leaf.frozenAttributes
 		if attributes == nil {
 			attributes = leaf.relation.Attributes
@@ -43,11 +43,11 @@ func ruleSourceColumnSQL(view catalog.Read, root LogicalNode, slot int, action r
 		if err != nil {
 			return "", err
 		}
-		return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(node.occurrence)) + "." + column, nil
+		return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(node.Occurrence)) + "." + column, nil
 	case *functionFromNode:
-		return catalog.QuoteIdentifier("_rule_function_"+strconv.Itoa(node.viewOrdinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
+		return catalog.QuoteIdentifier("_rule_function_"+strconv.Itoa(node.ViewOrdinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
 	case *derivedNode:
-		return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(node.ordinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
+		return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(node.Ordinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
 	case *valuesNode:
 		return catalog.QuoteIdentifier("_rule_values") + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
 	}

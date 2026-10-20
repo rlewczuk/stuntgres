@@ -31,36 +31,36 @@ func (s indexedStage) orderRow(i int) []sqltype.Value {
 func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContext) error {
 	next := 0
 	evaluation.Row = row
-	for _, key := range n.keys {
-		if key.cache != next {
+	for _, key := range n.Keys {
+		if key.Cache != next {
 			continue
 		}
 		next++
-		if !key.output && !key.peerDemand {
+		if !key.Output && !key.PeerDemand {
 			continue
 		}
-		properties := key.expression.Properties()
+		properties := key.Expression.Properties()
 		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != expr.Volatile {
 			continue
 		}
-		if key.cache >= len(evaluation.orderValues) {
+		if key.Cache >= len(evaluation.orderValues) {
 			return fmt.Errorf("stuntgres: missing replacement ordering cache")
 		}
-		value, err := key.expression.Eval(evaluation)
+		value, err := key.Expression.Eval(evaluation)
 		if err != nil {
 			return err
 		}
-		if value.Type() != key.expression.ResultUsage().Type {
+		if value.Type() != key.Expression.ResultUsage().Type {
 			return fmt.Errorf("stuntgres: invalid replacement ordering value")
 		}
-		evaluation.orderValues[key.cache] = value
+		evaluation.orderValues[key.Cache] = value
 	}
-	for i, bound := range n.outputs {
+	for i, bound := range n.Outputs {
 		properties := bound.Properties()
 		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != expr.Volatile {
 			continue
 		}
-		slot := n.cacheWidth - len(n.outputs) + i
+		slot := n.CacheWidth - len(n.Outputs) + i
 		if slot >= len(evaluation.orderValues) {
 			return fmt.Errorf("stuntgres: missing replacement output cache")
 		}

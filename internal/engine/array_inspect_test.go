@@ -38,7 +38,7 @@ func TestArrayInspectResolver(t *testing.T) {
 		}
 		for _, u := range []sqltype.Usage{b.typ(2277).Usage(), {Type: sqltype.LookupOnly(2277, "anyarray", 0), Typmod: -1}} {
 			// Exact catalog carrier is admissible; an identical-looking descriptor is not.
-			call.Args[0] = columnExpression{Info: b.info(u, parser.Position{}, expr.Properties{RowDependent: true}), slot: 0}
+			call.Args[0] = columnExpression{Info: b.info(u, parser.Position{}, expr.Properties{RowDependent: true}), Slot: 0}
 			if u.CatalogNullUsage() {
 				if err := call.Validate(); err != nil {
 					t.Fatal(err)

@@ -18,12 +18,12 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	operand := literalExpression{Info: b.info(array.Usage(), parser.Position{}, expr.Properties{}), value: value}
+	operand := literalExpression{Info: b.info(array.Usage(), parser.Position{}, expr.Properties{}), Value: value}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, array, array, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := comparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), left: operand, right: operand, predicate: predicate, operator: "="}
+	original := comparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: operand, Right: operand, Predicate: predicate, Operator: "="}
 	target := New()
 	fresh := map[sqltype.ID]*sqltype.Descriptor{
 		1007:         eType(t, target, 1007),
@@ -40,7 +40,7 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 		t.Fatal("comparison remap", changed, err)
 	}
 	rebound := mapped.(comparisonExpression)
-	if rebound.ResultUsage().Type != fresh[sqltype.Bool] || rebound.left.ResultUsage().Type != fresh[1007] || predicate.Equal(rebound.predicate) {
+	if rebound.ResultUsage().Type != fresh[sqltype.Bool] || rebound.Left.ResultUsage().Type != fresh[1007] || predicate.Equal(rebound.Predicate) {
 		t.Fatal("comparison retained old authority")
 	}
 	for _, entry := range []struct {
@@ -60,7 +60,7 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 			t.Fatal("independently rebound stored validation", err)
 		}
 	}
-	if original.left.ResultUsage().Type != array {
+	if original.Left.ResultUsage().Type != array {
 		t.Fatal("remap mutated source")
 	}
 }

@@ -20,23 +20,23 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := b.update.assignments[0].(subqueryExpression)
-	project := source.queryPlan.Root.(*projectNode)
+	project := source.QueryPlan.Root.(*projectNode)
 	var producer *projectNode
-	for _, analysis := range project.analysisExpressions {
+	for _, analysis := range project.AnalysisExpressions {
 		if edge, ok := analysis.(subqueryExpression); ok && edge.cteDefinition {
-			producer = edge.queryPlan.Root.(*projectNode)
+			producer = edge.QueryPlan.Root.(*projectNode)
 			break
 		}
 	}
-	if producer == nil || project.frame != 2 || producer.frame != 3 {
-		t.Fatal("missing nested query frames", project.frame, producer)
+	if producer == nil || project.Frame != 2 || producer.Frame != 3 {
+		t.Fatal("missing nested query frames", project.Frame, producer)
 	}
 	var target columnExpression
 	found := false
 	visitCTEQuery(producer, func(LogicalNode) {}, func(node expr.Expr) {
-		if column, ok := node.(columnExpression); ok && column.origin.Address.ObjectID == b.ref.Address.ObjectID {
-			if column.frame != 1 {
-				t.Fatal("CTE correlation impersonated an empty intermediate SELECT frame", column.frame)
+		if column, ok := node.(columnExpression); ok && column.Origin.Address.ObjectID == b.ref.Address.ObjectID {
+			if column.Frame != 1 {
+				t.Fatal("CTE correlation impersonated an empty intermediate SELECT frame", column.Frame)
 			}
 			target, found = column, true
 		}

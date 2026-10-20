@@ -100,14 +100,14 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 	t.Run("planning_and_live_demand", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id, 12/(2+1) FROM t ORDER BY id")
 		original := query.Root.(*projectNode)
-		variable := original.expressions[0]
+		variable := original.Expressions[0]
 		calls := 0
 		probe := queryProbe(variable.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 			calls++
 			return variable.Eval(c)
 		}).(queryProbeExpression)
 		probe.Property.Volatility = expr.Volatile
-		original.expressions[0] = probe
+		original.Expressions[0] = probe
 		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 		prepared, err := preflightQuery(&evaluation, original)
 		if err != nil {
@@ -141,7 +141,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 	})
 	t.Run("parameter_barrier", func(t *testing.T) {
 		original := preflightCast(t, "SELECT 1/$1::int4 FROM t").(arithmeticExpression)
-		typ := original.right.ResultUsage().Type
+		typ := original.Right.ResultUsage().Type
 		value, err := typ.Input(context.Background(), "0", -1)
 		if err != nil {
 			t.Fatal(err)

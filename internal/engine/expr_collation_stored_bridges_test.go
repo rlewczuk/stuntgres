@@ -68,7 +68,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 			if len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].uses, tc.uses) {
 				t.Fatal("ordinary source occurrence uses", bound.querySources, tc.uses)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*projectNode).frame}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*projectNode).Frame}}
 			err := validateQueryJoinExecution(&evaluation, bound.query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error
@@ -147,11 +147,11 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 				if !ok {
 					t.Fatal("missing demanded nested projection", i, child.nestedRoot)
 				}
-				if len(project.expressions) != 3 {
+				if len(project.Expressions) != 3 {
 					t.Fatal("nested output layout changed", project.Schema())
 				}
 				for slot, live := range tc.want[i] {
-					_, dead := project.expressions[slot].(literalExpression)
+					_, dead := project.Expressions[slot].(literalExpression)
 					if dead == live {
 						t.Fatal("nested executable occurrence demand", tc.name, i, slot, "dead", dead, "want live", live)
 					}
@@ -196,15 +196,15 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bound, _ := exprCollationStoredBinding(t, e, owner, tc.q)
-			comparison, ok := bound.query.Root.(*projectNode).expressions[0].(comparisonExpression)
+			comparison, ok := bound.query.Root.(*projectNode).Expressions[0].(comparisonExpression)
 			if !ok {
 				t.Fatal("missing real comparison")
 			}
-			ref, conflict := comparison.predicate.InputCollation()
+			ref, conflict := comparison.Predicate.InputCollation()
 			if (!tc.conflict && ref.ID != tc.ref) || !ref.Valid() || conflict != tc.conflict || comparison.ResultUsage().Collation.ID != 0 {
 				t.Fatal("consumer authority", ref, conflict, comparison.ResultUsage())
 			}
-			left := comparison.left
+			left := comparison.Left
 			if tc.top && left.ExplicitCollation().Character != strings.Index(tc.q, "COLLATE")+1 {
 				t.Fatal("top explicit diagnostic location lost", left.ExplicitCollation())
 			}
@@ -218,7 +218,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 					t.Fatal("domain reset discarded child properties/dependencies", left.Properties(), bound.querySources)
 				}
 			}
-			value, err := comparison.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*projectNode).frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
+			value, err := comparison.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*projectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
 			if tc.conflict {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}) {

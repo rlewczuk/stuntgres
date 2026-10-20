@@ -43,15 +43,15 @@ func TestUpdateRowBinding(t *testing.T) {
 		t.Fatal("normalization order", b.targets, u)
 	}
 	source, ok := u.assignments[1].(subqueryExpression)
-	if !ok || source.updateWidth != 2 || len(source.queryPlan.Root.Schema()) != 2 {
+	if !ok || source.UpdateWidth != 2 || len(source.QueryPlan.Root.Schema()) != 2 {
 		t.Fatal("missing shared source", u.assignments[1])
 	}
 	output, ok := u.assignments[2].(updateOutputExpression)
-	if !ok || output.index != 1 || output.group != 1 || output.ResultUsage() != source.queryPlan.Root.Schema()[1].Usage || output.SourcePosition() != u.origins[2] {
+	if !ok || output.Index != 1 || output.Group != 1 || output.ResultUsage() != source.QueryPlan.Root.Schema()[1].Usage || output.SourcePosition() != u.origins[2] {
 		t.Fatal("output provenance", output)
 	}
 	_, single := updateRowTestBinding(t, "UPDATE t SET (a)=(SELECT b)")
-	if single.update.assignments[0].(subqueryExpression).updateWidth != 1 || len(single.update.groups) != 1 {
+	if single.update.assignments[0].(subqueryExpression).UpdateWidth != 1 || len(single.update.groups) != 1 {
 		t.Fatal("singleton group lost assignment identity")
 	}
 	for _, q := range []string{"UPDATE t SET a=1,b=2", "UPDATE t SET (a,b)=(SELECT 1,2)"} {
@@ -100,7 +100,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 	}
 	original := u.assignments[0].(subqueryExpression)
 	mapped, _, err := mapBoundExpression(e.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) { return node, false, nil })
-	if err != nil || mapped.(subqueryExpression).updateWidth != 2 || original.queryPlan != u.assignments[0].(subqueryExpression).queryPlan {
+	if err != nil || mapped.(subqueryExpression).UpdateWidth != 2 || original.QueryPlan != u.assignments[0].(subqueryExpression).QueryPlan {
 		t.Fatal("lost marker or mutated template", err)
 	}
 	ctx := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
@@ -113,7 +113,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 func TestUpdateRowRuleRestriction(t *testing.T) {
 	e, b := updateRowTestBinding(t, "UPDATE t SET (a,b)=(SELECT b,a)")
 	for _, recipe := range b.update.assignments {
-		wrapped := collationExpression{Info: expr.InfoOf(recipe), child: recipe}
+		wrapped := collationExpression{Info: expr.InfoOf(recipe), Child: recipe}
 		state(t, validateRuleNewUpdateOutput(wrapped), "0A000")
 	}
 	_, one := updateRowTestBinding(t, "UPDATE t SET (a)=(SELECT b)")

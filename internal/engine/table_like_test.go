@@ -66,25 +66,25 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	in.rowRef, in.slots = in.rowMapper(destination, e.CatalogRead())
 	columnRef := ref
 	columnRef.Address.SubID = 3
-	column := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, origin: columnRef, scope: 1, frame: 1, slot: 1}
+	column := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 1}
 	mapped, err := in.remap(column, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := mapped.(columnExpression)
-	if got.origin.Domain() != e.catalog.Domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.Address().ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
+	if got.Origin.Domain() != e.catalog.Domain || got.Origin.Epoch != current.Epoch || got.Origin.Address.ObjectID != destination.Address().ObjectID || got.Origin.Address.SubID != 3 || got.Slot != 2 || column.Origin != columnRef || column.Slot != 1 {
 		t.Fatal(got, column)
 	}
-	owner := tableOIDExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, owner: ref}
+	owner := tableOIDExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, Owner: ref}
 	mapped, err = in.remap(owner, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(tableOIDExpression).owner.Domain() != e.catalog.Domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.Address() || owner.owner != ref {
+	if mapped.(tableOIDExpression).Owner.Domain() != e.catalog.Domain || mapped.(tableOIDExpression).Owner.Epoch != current.Epoch || mapped.(tableOIDExpression).Owner.Address != destination.Address() || owner.Owner != ref {
 		t.Fatal(mapped, owner)
 	}
 	usage := testUsage(e, sqltype.Regclass)
-	literal := literalExpression{Info: expr.Info{Usage: usage, RegclassRef: ref}, value: sqltype.Null(usage.Type)}
+	literal := literalExpression{Info: expr.Info{Usage: usage, RegclassRef: ref}, Value: sqltype.Null(usage.Type)}
 	mapped, err = in.remap(literal, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)

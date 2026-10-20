@@ -5,20 +5,20 @@ import "stuntgres/internal/engine/expr"
 func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boundWindowSpec, calls []windowCall, companions [][]expr.Expr) (LogicalNode, error) {
 	var requests []expr.Expr
 	for _, spec := range specs {
-		requests = append(requests, spec.partition...)
-		for _, key := range spec.order {
-			requests = append(requests, key.expression)
+		requests = append(requests, spec.Partition...)
+		for _, key := range spec.Order {
+			requests = append(requests, key.Expression)
 		}
 	}
 	for _, call := range calls {
-		if call.argument != nil {
-			requests = append(requests, call.argument)
+		if call.Argument != nil {
+			requests = append(requests, call.Argument)
 		}
-		if call.ordinal != nil {
-			requests = append(requests, call.ordinal)
+		if call.Ordinal != nil {
+			requests = append(requests, call.Ordinal)
 		}
-		if call.defaultValue != nil {
-			requests = append(requests, call.defaultValue)
+		if call.DefaultValue != nil {
+			requests = append(requests, call.DefaultValue)
 		}
 	}
 	originalWidth := len(requests)
@@ -30,25 +30,25 @@ func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boun
 	}
 	offset := 0
 	for i := range specs {
-		specs[i].partition = append([]expr.Expr(nil), requests[offset:offset+len(specs[i].partition)]...)
-		offset += len(specs[i].partition)
-		specs[i].order = append([]sortKey(nil), specs[i].order...)
-		for j := range specs[i].order {
-			specs[i].order[j].expression = requests[offset]
+		specs[i].Partition = append([]expr.Expr(nil), requests[offset:offset+len(specs[i].Partition)]...)
+		offset += len(specs[i].Partition)
+		specs[i].Order = append([]sortKey(nil), specs[i].Order...)
+		for j := range specs[i].Order {
+			specs[i].Order[j].Expression = requests[offset]
 			offset++
 		}
 	}
 	for i := range calls {
-		if calls[i].argument != nil {
-			calls[i].argument = requests[offset]
+		if calls[i].Argument != nil {
+			calls[i].Argument = requests[offset]
 			offset++
 		}
-		if calls[i].ordinal != nil {
-			calls[i].ordinal = requests[offset]
+		if calls[i].Ordinal != nil {
+			calls[i].Ordinal = requests[offset]
 			offset++
 		}
-		if calls[i].defaultValue != nil {
-			calls[i].defaultValue = requests[offset]
+		if calls[i].DefaultValue != nil {
+			calls[i].DefaultValue = requests[offset]
 			offset++
 		}
 	}

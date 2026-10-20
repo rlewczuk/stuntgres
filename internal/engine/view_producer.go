@@ -10,34 +10,34 @@ import (
 func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []int {
 	switch n := node.(type) {
 	case *sourceNode:
-		return appendQueryOccurrences(dst, querySourceAt(inputs, n.occurrence))
+		return appendQueryOccurrences(dst, querySourceAt(inputs, n.Occurrence))
 	case *singletonNode, *valuesNode, *functionFromNode, *worktableScanNode:
 		return dst
 	case *joinNode:
-		return queryTreeOccurrences(n.right, inputs, queryTreeOccurrences(n.left, inputs, dst))
+		return queryTreeOccurrences(n.Right, inputs, queryTreeOccurrences(n.Left, inputs, dst))
 	case *derivedNode:
-		if n.cte != nil {
+		if n.CTE != nil {
 			return dst
 		}
-		return queryTreeOccurrences(n.query.Root, inputs, dst)
+		return queryTreeOccurrences(n.Query.Root, inputs, dst)
 	case *projectNode:
-		return queryTreeOccurrences(n.child, inputs, dst)
+		return queryTreeOccurrences(n.Child, inputs, dst)
 	case *setProjectNode:
-		return queryTreeOccurrences(n.child, inputs, dst)
+		return queryTreeOccurrences(n.Child, inputs, dst)
 	case *filterNode:
-		return queryTreeOccurrences(n.child, inputs, dst)
+		return queryTreeOccurrences(n.Child, inputs, dst)
 	case *sortNode:
-		return queryTreeOccurrences(n.child, inputs, dst)
+		return queryTreeOccurrences(n.Child, inputs, dst)
 	case *windowNode:
 		return dst // Windows consume their input and cannot carry row marks.
 	case *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode:
 		return dst
 	case *rowLockNode:
-		return queryTreeOccurrences(n.child, inputs, dst)
+		return queryTreeOccurrences(n.Child, inputs, dst)
 	case *evaluationNode:
-		return queryTreeOccurrences(n.child, inputs, dst)
+		return queryTreeOccurrences(n.Child, inputs, dst)
 	case *limitNode:
-		return queryTreeOccurrences(n.child, inputs, dst)
+		return queryTreeOccurrences(n.Child, inputs, dst)
 	}
 	panic("invalid view producer tree")
 }

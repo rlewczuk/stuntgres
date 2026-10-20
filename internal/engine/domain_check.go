@@ -339,8 +339,8 @@ func domainNullInputExpression(target sqltype.Usage) expr.Expr {
 	if err != nil {
 		panic(err)
 	}
-	child := literalExpression{Info: expr.Info{Usage: base}, value: sqltype.Null(base.Type)}
-	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
+	child := literalExpression{Info: expr.Info{Usage: base}, Value: sqltype.Null(base.Type)}
+	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(child, plan)}, Child: child, Plan: plan, Mode: sqltype.Assignment}
 }
 
 func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) error {

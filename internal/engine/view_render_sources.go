@@ -18,27 +18,27 @@ func viewFromRoot(node LogicalNode) LogicalNode {
 	for {
 		switch n := node.(type) {
 		case *setProjectNode:
-			node = n.child
+			node = n.Child
 		case *limitNode:
-			node = n.child
+			node = n.Child
 		case *evaluationNode:
-			node = n.child
+			node = n.Child
 		case *rowLockNode:
-			node = n.child
+			node = n.Child
 		case *projectNode:
-			node = n.child
+			node = n.Child
 		case *filterNode:
-			node = n.child
+			node = n.Child
 		case *sortNode:
-			node = n.child
+			node = n.Child
 		case *aggregateNode:
-			node = n.child
+			node = n.Child
 		case *windowNode:
-			node = n.child
+			node = n.Child
 		case *distinctNode:
-			node = n.child
+			node = n.Child
 		case *distinctOnNode:
-			node = n.child
+			node = n.Child
 		default:
 			return node
 		}
@@ -52,13 +52,13 @@ func viewJoinAt(root LogicalNode, ordinal int) *joinNode {
 		if !ok {
 			return nil
 		}
-		if ordinal == n.viewOrdinal {
+		if ordinal == n.ViewOrdinal {
 			return n
 		}
-		if found := visit(n.left); found != nil {
+		if found := visit(n.Left); found != nil {
 			return found
 		}
-		return visit(n.right)
+		return visit(n.Right)
 	}
 	return visit(root)
 }
@@ -71,11 +71,11 @@ func viewJoinOffset(root LogicalNode, target *joinNode) (int, bool) {
 	if !ok {
 		return 0, false
 	}
-	if offset, found := viewJoinOffset(join.left, target); found {
+	if offset, found := viewJoinOffset(join.Left, target); found {
 		return offset, true
 	}
-	if offset, found := viewJoinOffset(join.right, target); found {
-		return join.leftWidth + offset, true
+	if offset, found := viewJoinOffset(join.Right, target); found {
+		return join.LeftWidth + offset, true
 	}
 	return 0, false
 }
@@ -139,7 +139,7 @@ func newViewRenderer(v *viewDefinition) *viewRenderer {
 		r.rowTargets = make(map[string]string)
 	}
 	for _, captured := range v.composites {
-		if captured.source.namespace == 0 {
+		if captured.source.Namespace == 0 {
 			continue
 		}
 		if r.wholeRows == nil {
@@ -254,12 +254,12 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 	aliasWidth := len(from.columns)
 	switch scan := from.root.(type) {
 	case *worktableScanNode:
-		if scan.cte.search != nil || scan.cte.cycle != nil {
-			aliasWidth = scan.cte.userWidth
+		if scan.CTE.Search != nil || scan.CTE.Cycle != nil {
+			aliasWidth = scan.CTE.UserWidth
 		}
 	case *derivedNode:
-		if scan.cte != nil && (scan.cte.search != nil || scan.cte.cycle != nil) {
-			aliasWidth = scan.cte.userWidth
+		if scan.CTE != nil && (scan.CTE.Search != nil || scan.CTE.Cycle != nil) {
+			aliasWidth = scan.CTE.UserWidth
 		}
 	}
 	// SEARCH/CYCLE references accept aliases only for original columns.
@@ -364,7 +364,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item p
 	if err == nil && v.wholeRows != nil && from.wholeSQL != "" {
 		namespace := v.namespaces[from.namespace-1]
 		for position, qualifier := range namespace.qualifiers {
-			key := wholeRowSource{namespace: from.namespace, qualifier: position, frame: namespace.frame}
+			key := wholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.frame}
 			if _, demanded := v.wholeRows[key]; !demanded {
 				continue
 			}
@@ -382,7 +382,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item p
 					return viewRenderFrom{}, fmt.Errorf("stuntgres: missing rendered whole-row field")
 				}
 			}
-			v.wholeRows[wholeRowSource{namespace: from.namespace, qualifier: position, frame: namespace.frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", names: names}
+			v.wholeRows[wholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", names: names}
 		}
 	}
 	return from, err
@@ -589,7 +589,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			usingAlias = n.UsingAlias.Text
 		} else {
 			for i := range ns.keys {
-				if ns.columns[i].slot >= bound.leftWidth+bound.rightWidth {
+				if ns.columns[i].slot >= bound.LeftWidth+bound.RightWidth {
 					// Reserve before rendering descendants. This qualifies the
 					// exact merged usage without hiding either physical input.
 					usingAlias = v.namespaceAlias(ns)
@@ -620,21 +620,21 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
-		from := viewRenderFrom{root: bound, slots: make(map[int]string, len(left.slots)+len(right.slots)+len(bound.merges))}
+		from := viewRenderFrom{root: bound, slots: make(map[int]string, len(left.slots)+len(right.slots)+len(bound.Merges))}
 		for slot, text := range left.slots {
 			from.slots[slot] = text
 		}
 		for slot, text := range right.slots {
-			from.slots[slot+bound.leftWidth] = text
+			from.slots[slot+bound.LeftWidth] = text
 		}
 		for i := range right.columns {
 			if right.columns[i].slot >= 0 {
-				right.columns[i].slot += bound.leftWidth
+				right.columns[i].slot += bound.LeftWidth
 			}
 		}
 		v.slots[bound] = from.slots
 		joinText := " JOIN "
-		switch bound.kind {
+		switch bound.Kind {
 		case parser.JoinLeft:
 			joinText = " LEFT JOIN "
 		case parser.JoinRight:
@@ -670,7 +670,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 				from.columns = append(from.columns, viewRenderColumn{name: key, slot: c.slot})
 				// A synthetic merged value is recreated by USING's implicit
 				// common-type binder, never an unsupported explicit cast.
-				if c.slot >= bound.leftWidth+bound.rightWidth {
+				if c.slot >= bound.LeftWidth+bound.RightWidth {
 					from.slots[c.slot] = catalog.QuoteIdentifier(usingAlias) + "." + catalog.QuoteIdentifier(key)
 				}
 			}
@@ -680,7 +680,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			}
 			from.text += ")"
 		} else {
-			if bound.kind == parser.JoinInner {
+			if bound.Kind == parser.JoinInner {
 				separator := " CROSS JOIN "
 				if v.functionSources {
 					separator = "\n     CROSS JOIN "
@@ -722,14 +722,14 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 func viewSourceAt(node LogicalNode, occurrence int) *sourceNode {
 	switch n := node.(type) {
 	case *sourceNode:
-		if n.occurrence == occurrence {
+		if n.Occurrence == occurrence {
 			return n
 		}
 	case *joinNode:
-		if found := viewSourceAt(n.left, occurrence); found != nil {
+		if found := viewSourceAt(n.Left, occurrence); found != nil {
 			return found
 		}
-		return viewSourceAt(n.right, occurrence)
+		return viewSourceAt(n.Right, occurrence)
 	}
 	return nil
 }
@@ -739,7 +739,7 @@ func viewDerivedAt(node LogicalNode, syntax *parser.Select) *derivedNode {
 		return nil
 	}
 	if derived, ok := node.(*derivedNode); ok {
-		if project, ok := derived.query.Root.(*projectNode); ok && project.syntax == syntax {
+		if project, ok := derived.Query.Root.(*projectNode); ok && project.Syntax == syntax {
 			return derived
 		}
 	}

@@ -306,7 +306,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	if scope.owner.readOnly {
 		if selecting {
 			for _, leaf := range b.querySources {
-				if leaf.mark.mode != 0 && leaf.relation.RelationKind == catalog.ViewRelation {
+				if leaf.mark.Mode != 0 && leaf.relation.RelationKind == catalog.ViewRelation {
 					tag = "SELECT"
 					break
 				}
@@ -349,7 +349,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.visibilitySnapshot
 	if b.query != nil {
-		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.query.visibilitySnapshot
+		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.query.VisibilitySnapshot
 	}
 	if b.returning != nil {
 		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.returning.visibilitySnapshot
@@ -648,7 +648,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				c := b.relation.Columns[target]
 				var value sqltype.Value
 				if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-					value, err = b.arrayTargets[j].applyExpression(&evaluation, row[target], expressions[i][j])
+					value, err = b.arrayTargets[j].ApplyExpression(&evaluation, row[target], expressions[i][j])
 				} else {
 					value, err = expressions[i][j].Eval(&evaluation)
 				}
@@ -756,7 +756,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if queryErr != nil {
 			return Result{}, queryErr
 		}
-		if b.query.regclassOutput && count != 0 {
+		if b.query.RegclassOutput && count != 0 {
 			if err := e.captureRegclassOutput(op, rows.(*finalRows)); err != nil {
 				rows.Close()
 				return Result{}, err

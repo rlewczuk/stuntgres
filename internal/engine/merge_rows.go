@@ -396,7 +396,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 			var value sqltype.Value
 			var err error
 			if len(arm.input.update.arrayTargets) != 0 && arm.input.update.arrayTargets[i] != nil {
-				value, err = arm.input.update.arrayTargets[i].applyExpression(evaluation, row[target], expression)
+				value, err = arm.input.update.arrayTargets[i].ApplyExpression(evaluation, row[target], expression)
 			} else {
 				value, err = expression.Eval(evaluation)
 			}

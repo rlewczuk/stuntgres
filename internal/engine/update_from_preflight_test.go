@@ -27,7 +27,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 	join := original.from.(*joinNode)
 	predicate := original.predicate
 	for _, input := range []string{"7", "bad", "17", "bad", "42"} {
-		value, err := cast.child.ResultUsage().Type.Input(context.Background(), input, -1)
+		value, err := cast.Child.ResultUsage().Type.Input(context.Background(), input, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,10 +43,10 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 				t.Fatal("preflight failed copy-on-change", private, err)
 			}
 			foldedJoin := private.from.(*joinNode)
-			if foldedJoin.left != join.left || foldedJoin.right != join.right || !reflect.DeepEqual(foldedJoin.querySchema, join.querySchema) || reflect.DeepEqual(foldedJoin.predicate, join.predicate) {
+			if foldedJoin.Left != join.Left || foldedJoin.Right != join.Right || !reflect.DeepEqual(foldedJoin.querySchema, join.querySchema) || reflect.DeepEqual(foldedJoin.Predicate, join.Predicate) {
 				t.Fatal("source preflight rebuilt unchanged providers", foldedJoin, join)
 			}
-			if _, ok := foldedJoin.predicate.(comparisonExpression).right.(literalExpression); !ok {
+			if _, ok := foldedJoin.Predicate.(comparisonExpression).Right.(literalExpression); !ok {
 				t.Fatal("ON coercion was not eagerly traversed")
 			}
 			folded, err := preflightReturning(&eval, output)
@@ -61,14 +61,14 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 		if _, ok := original.assignments[0].(coercionExpression); !ok {
 			t.Fatal("analyzed SET mutated")
 		}
-		if _, ok := join.predicate.(comparisonExpression).right.(coercionExpression); !ok {
+		if _, ok := join.Predicate.(comparisonExpression).Right.(coercionExpression); !ok {
 			t.Fatal("analyzed ON mutated")
 		}
 		if _, ok := output.expressions[0].(coercionExpression); !ok {
 			t.Fatal("analyzed output mutated")
 		}
 	}
-	unchanged := &boundUpdate{assignments: []expr.Expr{output.expressions[1]}, from: join.left}
+	unchanged := &boundUpdate{assignments: []expr.Expr{output.expressions[1]}, from: join.Left}
 	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	same, err := preflightUpdate(&eval, unchanged)
 	if err != nil || same != unchanged {

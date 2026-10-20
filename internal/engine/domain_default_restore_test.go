@@ -44,7 +44,7 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 	identity := []string{"public", "replay_required"}
 	valid := typedef.DomainReplayRecord{Schema: "public", Table: "replay_domain", Cells: []typedef.DomainReplayCell{{Column: "v", Value: &typedef.DomainReplayNode{Kind: "domain_null", Type: &identity}}}}
 	capture, err := e.captureDomainReplay(scope, source, valid, auth, relation)
-	if err != nil || capture == nil || len(capture.cells) != 1 || !capture.cells[0].value.IsNull() || capture.cells[0].value.Type() != relation.Columns[0].Usage.Type {
+	if err != nil || capture == nil || len(capture.cells) != 1 || !capture.cells[0].Value.IsNull() || capture.cells[0].Value.Type() != relation.Columns[0].Usage.Type {
 		t.Fatal("exact domain NULL admission", capture, err)
 	}
 	for _, query := range []string{
@@ -116,7 +116,7 @@ func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal("deferred CHECK declaration lost existing domain NULL provenance", err)
 	}
-	if value := capture.cells[0].value; !value.IsNull() || value.Type() != table.Columns[0].Usage.Type {
+	if value := capture.cells[0].Value; !value.IsNull() || value.Type() != table.Columns[0].Usage.Type {
 		t.Fatal("lost authentic declared domain identity", value)
 	}
 }

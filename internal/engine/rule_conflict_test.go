@@ -46,9 +46,9 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	b := ruleUnitInsert(e, sink, 1, 10).binding
 	ref := b.ref
 	ref.Address.SubID = sink.Attributes[1]
-	target := columnExpression{Info: ruleColumnInfo(sink.Columns[1]), origin: ref, scope: 1, frame: 1, slot: 1}
+	target := columnExpression{Info: ruleColumnInfo(sink.Columns[1]), Origin: ref, Scope: 1, Frame: 1, Slot: 1}
 	excluded := target
-	excluded.slot = 3
+	excluded.Slot = 3
 	b.insert.conflict = &boundInsertConflict{targets: b.targets, reads: []int{0}, actionReads: []int{1}, updateTargets: []int{1}, width: 2, update: &boundUpdate{assignments: []expr.Expr{excluded}, predicate: target}}
 	current := *sink
 	current.Attributes = []int32{2, 1}
@@ -62,7 +62,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 		if !slices.Equal(next.targets, []int{1, 0}) || !slices.Equal(next.insert.conflict.targets, []int{1, 0}) || !slices.Equal(next.insert.conflict.updateTargets, []int{0}) || !slices.Equal(next.insert.conflict.reads, []int{1}) || !slices.Equal(next.insert.conflict.actionReads, []int{0}) {
 			t.Fatal("conflict manifests did not follow stable attributes")
 		}
-		if next.insert.conflict.update.assignments[0].(columnExpression).slot != 2 || next.insert.conflict.update.predicate.(columnExpression).slot != 0 || next.insert.conflict.width != 2 {
+		if next.insert.conflict.update.assignments[0].(columnExpression).Slot != 2 || next.insert.conflict.update.predicate.(columnExpression).Slot != 0 || next.insert.conflict.width != 2 {
 			t.Fatal("target/EXCLUDED namespaces lost their distinct halves")
 		}
 	}
@@ -76,7 +76,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(mapped)
-	if b.targets[0] != 0 || b.insert.conflict.updateTargets[0] != 1 || b.insert.conflict.update.assignments[0].(columnExpression).slot != 3 || b.relation != sink {
+	if b.targets[0] != 0 || b.insert.conflict.updateTargets[0] != 1 || b.insert.conflict.update.assignments[0].(columnExpression).Slot != 3 || b.relation != sink {
 		t.Fatal("refresh/remap mutated the stored template")
 	}
 }
@@ -94,13 +94,13 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			join := composed.query.Root.(*projectNode).child.(*joinNode)
-			if _, ok := join.left.(*singletonNode); !ok || len(composed.querySources) != 0 {
+			join := composed.query.Root.(*projectNode).Child.(*joinNode)
+			if _, ok := join.Left.(*singletonNode); !ok || len(composed.querySources) != 0 {
 				t.Fatal("independent action still depends on event rows")
 			}
 			ref := original.ref
 			ref.Address.SubID = src.Attributes[0]
-			action.binding.expressions = [][]expr.Expr{{columnExpression{Info: ruleColumnInfo(src.Columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}, ruleUnitInt(sink, 8)}}
+			action.binding.expressions = [][]expr.Expr{{columnExpression{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
 			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
@@ -108,7 +108,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			if len(dependent.querySources) == 0 {
 				t.Fatal("OLD demand lost event-row authority")
 			}
-			if action.binding.expressions[0][0].(columnExpression).scope != rulePseudoScope {
+			if action.binding.expressions[0][0].(columnExpression).Scope != rulePseudoScope {
 				t.Fatal("composition mutated stored action")
 			}
 		})

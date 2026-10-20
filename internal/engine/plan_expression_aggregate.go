@@ -11,39 +11,39 @@ import (
 )
 
 type aggregateCall struct {
-	provider     functions.AggregateProvider
-	routine      ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
-	argument     expr.Expr
-	separator    expr.Expr
-	direct       []expr.Expr
-	order        []sortKey
-	filter       expr.Expr
-	distinct     []queryGrouping // Multi-key tuple equality is caller checked; single-key support is not.
-	stageWidth   int             // Value, separator, then unique local targets; keys address cache slots.
-	operation    functions.AggregateOperation
-	includeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
-	procedure    *catalog.Procedure
-	ref          ids.ObjectRef
+	Provider     functions.AggregateProvider
+	Routine      ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
+	Argument     expr.Expr
+	Separator    expr.Expr
+	Direct       []expr.Expr
+	Order        []sortKey
+	Filter       expr.Expr
+	Distinct     []queryGrouping // Multi-key tuple equality is caller checked; single-key support is not.
+	StageWidth   int             // Value, separator, then unique local targets; keys address cache slots.
+	Operation    functions.AggregateOperation
+	IncludeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
+	Procedure    *catalog.Procedure
+	Ref          ids.ObjectRef
 }
 
 // Every analyzed aggregate expression participates in ownership, dependence,
 // preflight and immutable query rewrites, not just the first value argument.
-func (call aggregateCall) expressions(visit func(expr.Expr)) {
-	visit(call.argument)
-	visit(call.separator)
-	for _, direct := range call.direct {
+func (call aggregateCall) Expressions(visit func(expr.Expr)) {
+	visit(call.Argument)
+	visit(call.Separator)
+	for _, direct := range call.Direct {
 		visit(direct)
 	}
-	for _, key := range call.order {
-		visit(key.expression)
+	for _, key := range call.Order {
+		visit(key.Expression)
 	}
-	visit(call.filter)
+	visit(call.Filter)
 }
 
 type aggregateExpression struct {
 	expr.Info
-	slot  int
-	frame uint32
+	Slot  int
+	Frame uint32
 }
 
 func (e aggregateExpression) Eval(expr.Context) (sqltype.Value, error) {
@@ -54,8 +54,8 @@ func (e aggregateExpression) Eval(expr.Context) (sqltype.Value, error) {
 // by bindSelect, never inferred from this private row layout.
 type groupExpression struct {
 	expr.Info
-	slot  int
-	frame uint32
+	Slot  int
+	Frame uint32
 }
 
 func (e groupExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -70,11 +70,11 @@ func (e groupExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // The immutable masks address the execution-local occurrence suffix in its owner.
 type groupingExpression struct {
 	expr.Info
-	args      []expr.Expr
-	positions []parser.Position
-	frame     uint32
-	slot      int
-	masks     []int32
+	Args      []expr.Expr
+	Positions []parser.Position
+	Frame     uint32
+	Slot      int
+	Masks     []int32
 }
 
 func (e groupingExpression) Eval(ctx expr.Context) (sqltype.Value, error) {

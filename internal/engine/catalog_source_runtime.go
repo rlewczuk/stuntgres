@@ -139,8 +139,8 @@ func (r engineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *c
 			return
 		}
 		column, ok := node.(columnExpression)
-		if ok && column.origin.Address.ClassID == ids.RelationClassID && column.origin.Address.ObjectID == table.Address().ObjectID {
-			failure = visit(column.origin.Address.SubID)
+		if ok && column.Origin.Address.ClassID == ids.RelationClassID && column.Origin.Address.ObjectID == table.Address().ObjectID {
+			failure = visit(column.Origin.Address.SubID)
 		}
 	})
 	return failure
@@ -155,8 +155,8 @@ func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key
 	if key.Derived == nil {
 		return key.Attribute, true
 	}
-	if column, ok := key.Derived.Definition.(columnExpression); ok && column.origin.Address.ClassID == parent.ClassID && column.origin.Address.ObjectID == parent.ObjectID {
-		return column.origin.Address.SubID, true
+	if column, ok := key.Derived.Definition.(columnExpression); ok && column.Origin.Address.ClassID == parent.ClassID && column.Origin.Address.ObjectID == parent.ObjectID {
+		return column.Origin.Address.SubID, true
 	}
 	return 0, false
 }

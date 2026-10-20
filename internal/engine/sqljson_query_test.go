@@ -24,18 +24,18 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	}
 	// A real lazy view producer exposes its actual nested stage. Both levels
 	// are ordinary query machinery, not a stand-in cursor or canned result.
-	base := inner.child.(*sourceNode)
-	outer := &projectNode{querySchema: inner.querySchema, frame: inner.frame + 1}
-	outer.child = &sourceNode{querySchema: inner.querySchema, ref: base.ref, occurrence: 0, presenceSlot: base.presenceSlot}
-	column := columnExpression{Info: expr.Info{Usage: inputUsage}, scope: 1, frame: outer.frame, slot: 0}
-	outer.expressions = []expr.Expr{column}
+	base := inner.Child.(*sourceNode)
+	outer := &projectNode{querySchema: inner.querySchema, Frame: inner.Frame + 1}
+	outer.Child = &sourceNode{querySchema: inner.querySchema, Ref: base.Ref, Occurrence: 0, PresenceSlot: base.PresenceSlot}
+	column := columnExpression{Info: expr.Info{Usage: inputUsage}, Scope: 1, Frame: outer.Frame, Slot: 0}
+	outer.Expressions = []expr.Expr{column}
 	bound := *query
 	bound.Root = outer
 	expr := subqueryTestExpression(t, e, &bound, parser.SubqueryScalar)
 	expr.Usage = jsonType.Usage()
-	expr.jsonArray = &sqlJSONArrayQuery{plan: plan, input: column}
+	expr.JSONArray = &sqlJSONArrayQuery{Plan: plan, Input: column}
 	newCapture := func() *querySource {
-		return &querySource{ref: base.ref, authority: captured.authority, nestedRoot: inner, nestedInputs: captured, flatWidth: 1, materialized: true}
+		return &querySource{ref: base.Ref, authority: captured.authority, nestedRoot: inner, nestedInputs: captured, flatWidth: 1, materialized: true}
 	}
 	bridge := newCapture()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -44,7 +44,7 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	calls, closes := 0, 0
 	secondary := errors.New("nested stage cleanup")
 	var reached *indexedStage
-	expr.jsonArray.input = queryProbe(inputUsage, func(c *EvalContext) (sqltype.Value, error) {
+	expr.JSONArray.Input = queryProbe(inputUsage, func(c *EvalContext) (sqltype.Value, error) {
 		calls++
 		value, err := column.Eval(c)
 		if err != nil {
@@ -102,7 +102,7 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 			primary := errors.New("per-row input")
 			inputs, finished := 0, 0
 			var nested *indexedStage
-			expr.jsonArray.input = queryProbe(inputUsage, func(c *EvalContext) (sqltype.Value, error) {
+			expr.JSONArray.Input = queryProbe(inputUsage, func(c *EvalContext) (sqltype.Value, error) {
 				inputs++
 				if inputs == 1 {
 					nested = execution.nestedStage

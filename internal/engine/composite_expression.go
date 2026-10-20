@@ -93,7 +93,7 @@ func (b *expressionBinder) bindRow(raw parser.RowExpr, target sqltype.Usage, mod
 	for _, field := range fields {
 		props = expr.MergeProperties(props, field.Properties())
 	}
-	return rowExpression{Info: b.info(target, pos, props), fields: fields, raw: &raw, sources: list.sources, expansions: list.expansions}, nil
+	return rowExpression{Info: b.info(target, pos, props), Fields: fields, Raw: &raw, Sources: list.sources, Expansions: list.expansions}, nil
 }
 func (b *expressionBinder) rowCoercionError(target sqltype.Usage, pos parser.Position, detail string) error {
 	d := expr.ErrorAt("42846", "cannot cast type record to "+b.diagnosticTypeName(target.Type), pos).(*sqlstate.Error)
@@ -107,19 +107,19 @@ func (b *expressionBinder) assignCompositeMember(node expr.Expr, target sqltype.
 	// Structural conversion is an anonymous RECORD authority, not permission
 	// to reinterpret a named constructor or a domain's underlying members.
 	if row, ok := node.(rowExpression); ok && row.Usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
-		if row.raw != nil {
-			return b.bindRow(*row.raw, target, mode, pos)
+		if row.Raw != nil {
+			return b.bindRow(*row.Raw, target, mode, pos)
 		}
-		if len(row.fields) != target.Type.BaseType().CompositeLen() {
+		if len(row.Fields) != target.Type.BaseType().CompositeLen() {
 			detail := "Input has too many columns."
-			if len(row.fields) < target.Type.BaseType().CompositeLen() {
+			if len(row.Fields) < target.Type.BaseType().CompositeLen() {
 				detail = "Input has too few columns."
 			}
 			return nil, b.rowCoercionError(target, pos, detail)
 		}
-		fields := make([]expr.Expr, len(row.fields))
+		fields := make([]expr.Expr, len(row.Fields))
 		props := expr.Properties{}
-		for i, child := range row.fields {
+		for i, child := range row.Fields {
 			var err error
 			fields[i], err = b.assignCompositeMember(child, target.Type.BaseType().CompositeMember(i).Usage, mode, pos)
 			if err != nil {
@@ -130,7 +130,7 @@ func (b *expressionBinder) assignCompositeMember(node expr.Expr, target sqltype.
 			}
 			props = expr.MergeProperties(props, fields[i].Properties())
 		}
-		return rowExpression{Info: b.info(target, row.Pos, props), fields: fields}, nil
+		return rowExpression{Info: b.info(target, row.Pos, props), Fields: fields}, nil
 	}
 	plan, err := sqltype.PlanCoercion(node.ResultUsage(), target, mode)
 	if err != nil {
@@ -158,8 +158,8 @@ func (b *expressionBinder) selectCompositeField(base expr.Expr, name string, pos
 	if shape.ID() == 2249 {
 		message = fmt.Sprintf("could not identify column %q in record data type", name)
 	}
-	if row, ok := base.(rowExpression); ok && row.wholeNames != nil {
-		message = fmt.Sprintf("column %s.%s does not exist", row.wholeName, name)
+	if row, ok := base.(rowExpression); ok && row.WholeNames != nil {
+		message = fmt.Sprintf("column %s.%s does not exist", row.WholeName, name)
 	}
 	return nil, expr.ErrorAt("42703", message, pos)
 }
@@ -168,23 +168,23 @@ func (b *expressionBinder) compositeFieldAt(base expr.Expr, index int, pos parse
 	var field expr.Expr
 	switch row := base.(type) {
 	case rowExpression:
-		index = row.fieldSourceIndex(index)
-		if row.returningWhole {
-			field = row.fields[index]
+		index = row.FieldSourceIndex(index)
+		if row.ReturningWhole {
+			field = row.Fields[index]
 		}
 	case returningWholeRowExpression:
-		field = row.members[index]
+		field = row.Members[index]
 	}
 	if field != nil {
 		var column columnExpression
 		switch value := field.(type) {
 		case returningColumnExpression:
-			if value.merge {
+			if value.Merge {
 				value.Pos = pos
 				return value
 			}
-			if value.value != nil {
-				value.old, value.absent = false, false
+			if value.Value != nil {
+				value.Old, value.Absent = false, false
 				value.Pos = pos
 				return value
 			}
@@ -230,7 +230,7 @@ func (b *expressionBinder) bindField(raw parser.FieldExpr) (expr.Expr, error) {
 		return b.bindDotBuiltin(raw, key)
 	}
 	if field, ok := node.(fieldExpression); err == nil && ok {
-		b.prepared.captureComposite(key, base.ResultUsage(), []int32{field.attribute})
+		b.prepared.captureComposite(key, base.ResultUsage(), []int32{field.Attribute})
 	}
 	return node, err
 }
@@ -269,23 +269,23 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (compositeExpan
 	} else {
 		b.prepared.captureComposite(key, base.ResultUsage(), attributes)
 	}
-	result := compositeExpansionBinding{base: base, fields: make([]expr.Expr, len(attributes)), names: make([]string, len(attributes)), attributes: attributes}
+	result := compositeExpansionBinding{Base: base, Fields: make([]expr.Expr, len(attributes)), Names: make([]string, len(attributes)), Attributes: attributes}
 	for i, attribute := range attributes {
 		index, exists := shape.CompositeAttributeIndex(attribute)
 		if found {
 			oldIndex, _ := captured.base.Type.BaseType().CompositeAttributeIndex(attribute)
 			member := captured.base.Type.BaseType().CompositeMember(oldIndex)
-			result.names[i] = member.Name
+			result.Names[i] = member.Name
 			if !exists {
-				result.fields[i] = literalExpression{b.info(member.Usage, raw.Pos, expr.Properties{}), sqltype.Null(member.Usage.Type)}
+				result.Fields[i] = literalExpression{b.info(member.Usage, raw.Pos, expr.Properties{}), sqltype.Null(member.Usage.Type)}
 				continue
 			}
 		} else {
-			result.names[i] = shape.CompositeMember(index).Name
+			result.Names[i] = shape.CompositeMember(index).Name
 		}
-		result.fields[i] = b.compositeFieldAt(base, index, raw.Pos)
-		if row, ok := base.(rowExpression); ok && row.wholeNames != nil {
-			result.names[i] = row.wholeNames[index]
+		result.Fields[i] = b.compositeFieldAt(base, index, raw.Pos)
+		if row, ok := base.(rowExpression); ok && row.WholeNames != nil {
+			result.Names[i] = row.WholeNames[index]
 		}
 	}
 	return result, nil
@@ -319,7 +319,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 				props = expr.MergeProperties(props, fields[i].Properties())
 			}
 			typ, _ := b.definitionType(b.target.relation.RowType)
-			return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: b.target.returningAliases.mode == returningDelete && newValues}, nil
+			return rowExpression{Info: b.info(typ.Usage(), pos, props), Fields: fields, ReturningWhole: true, ReturningNull: b.target.returningAliases.mode == returningDelete && newValues}, nil
 		}
 	}
 	if scope, newValues := b.outerReturningScope(name); scope != nil {
@@ -369,19 +369,19 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	// A mutation target has no FROM producer; actual source qualifiers retain
 	// their producer even with zero members or the same name in another schema.
 	mergeSource := b.mergeReturningFrame(frame) && q.sourceRoot != nil
-	return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, wholeNames: names, wholeName: q.name, wholeSource: source, presenceSlot: slot, presenceFrame: frame, mergeSource: mergeSource}, nil
+	return rowExpression{Info: b.info(typ.Usage(), pos, props), Fields: fields, WholeNames: names, WholeName: q.name, WholeSource: source, PresenceSlot: slot, PresenceFrame: frame, MergeSource: mergeSource}, nil
 }
 
 func mapRow(row rowExpression, child func(expr.Expr) (expr.Expr, bool, error)) (rowExpression, bool, error) {
 	var fields []expr.Expr
-	for i, old := range row.fields {
+	for i, old := range row.Fields {
 		next, changed, err := child(old)
 		if err != nil {
 			return row, false, err
 		}
 		if changed {
 			if fields == nil {
-				fields = append([]expr.Expr(nil), row.fields...)
+				fields = append([]expr.Expr(nil), row.Fields...)
 			}
 			fields[i] = next
 		}
@@ -389,7 +389,7 @@ func mapRow(row rowExpression, child func(expr.Expr) (expr.Expr, bool, error)) (
 	if fields == nil {
 		return row, false, nil
 	}
-	row.fields = fields
+	row.Fields = fields
 	return row, true, nil
 }
 
@@ -402,20 +402,20 @@ func mapRowAnalysis(row rowExpression, child func(expr.Expr) (expr.Expr, bool, e
 		return row, false, err
 	}
 	var expansions map[int]compositeExpansionBinding
-	for source, expansion := range row.expansions {
-		base, replaced, err := child(expansion.base)
+	for source, expansion := range row.Expansions {
+		base, replaced, err := child(expansion.Base)
 		if err != nil {
 			return row, false, err
 		}
 		var fields []expr.Expr
-		for i, old := range expansion.fields {
+		for i, old := range expansion.Fields {
 			field, mapped, err := child(old)
 			if err != nil {
 				return row, false, err
 			}
 			if mapped {
 				if fields == nil {
-					fields = append([]expr.Expr(nil), expansion.fields...)
+					fields = append([]expr.Expr(nil), expansion.Fields...)
 				}
 				fields[i] = field
 			}
@@ -424,19 +424,19 @@ func mapRowAnalysis(row rowExpression, child func(expr.Expr) (expr.Expr, bool, e
 			continue
 		}
 		if expansions == nil {
-			expansions = make(map[int]compositeExpansionBinding, len(row.expansions))
-			for key, value := range row.expansions {
+			expansions = make(map[int]compositeExpansionBinding, len(row.Expansions))
+			for key, value := range row.Expansions {
 				expansions[key] = value
 			}
 		}
-		expansion.base = base
+		expansion.Base = base
 		if fields != nil {
-			expansion.fields = fields
+			expansion.Fields = fields
 		}
 		expansions[source] = expansion
 	}
 	if expansions != nil {
-		next.expansions = expansions
+		next.Expansions = expansions
 		changed = true
 	}
 	return next, changed, nil
@@ -460,18 +460,18 @@ func (b *expressionBinder) expandRawList(raw []parser.Expr) (expandedExpressionL
 			expansion, err = b.expandComposite(field)
 			base = field.Base
 		} else if star, ok := expression.(parser.StarExpr); ok {
-			expansion.base, err = b.wholeRow(star.Qualifier, star.Pos, false)
+			expansion.Base, err = b.wholeRow(star.Qualifier, star.Pos, false)
 			base = star
 			if err == nil {
-				row := expansion.base.(rowExpression)
-				expansion.fields = row.fields
+				row := expansion.Base.(rowExpression)
+				expansion.Fields = row.Fields
 				shape := row.Usage.Type.BaseType()
-				expansion.names = make([]string, len(row.fields))
-				expansion.attributes = make([]int32, len(row.fields))
-				for j := range row.fields {
+				expansion.Names = make([]string, len(row.Fields))
+				expansion.Attributes = make([]int32, len(row.Fields))
+				for j := range row.Fields {
 					member := shape.CompositeMember(j)
-					expansion.names[j] = member.Name
-					expansion.attributes[j] = member.Attribute
+					expansion.Names[j] = member.Name
+					expansion.Attributes[j] = member.Attribute
 				}
 			}
 		} else {
@@ -486,7 +486,7 @@ func (b *expressionBinder) expandRawList(raw []parser.Expr) (expandedExpressionL
 			return expandedExpressionList{}, err
 		}
 		if result.expansions == nil {
-			result.raw = make([]parser.Expr, i, len(raw)+len(expansion.fields))
+			result.raw = make([]parser.Expr, i, len(raw)+len(expansion.Fields))
 			copy(result.raw, raw[:i])
 			result.nodes = make([]expr.Expr, i, cap(result.raw))
 			result.sources = make([]int, i, cap(result.raw))
@@ -496,8 +496,8 @@ func (b *expressionBinder) expandRawList(raw []parser.Expr) (expandedExpressionL
 			result.expansions = make(map[int]compositeExpansionBinding)
 		}
 		result.expansions[i] = expansion
-		for j, node := range expansion.fields {
-			result.raw = append(result.raw, parser.FieldExpr{Base: base, Field: parser.Identifier{Text: expansion.names[j]}, Pos: expression.SourcePosition()})
+		for j, node := range expansion.Fields {
+			result.raw = append(result.raw, parser.FieldExpr{Base: base, Field: parser.Identifier{Text: expansion.Names[j]}, Pos: expression.SourcePosition()})
 			result.nodes = append(result.nodes, node)
 			result.sources = append(result.sources, i)
 		}
@@ -634,9 +634,9 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 
 func compositeFieldIndex(base expr.Expr, name string, pos parser.Position) (int, bool, error) {
 	shape := base.ResultUsage().Type.BaseType()
-	if row, ok := base.(rowExpression); ok && row.wholeNames != nil {
+	if row, ok := base.(rowExpression); ok && row.WholeNames != nil {
 		index := -1
-		for i, label := range row.wholeNames {
+		for i, label := range row.WholeNames {
 			if label != name {
 				continue
 			}
@@ -674,16 +674,16 @@ func (b *expressionBinder) bindCompositeBase(raw parser.Expr) (expr.Expr, error)
 func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error) {
 	next, _, err := mapBoundExpressionReader(b.bindingCatalog(), b.definitionReader(), node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, false, func(child expr.Expr) (expr.Expr, bool, error) {
 		row, ok := child.(rowExpression)
-		if !ok || row.wholeNames == nil || row.presenceSlot != 0 {
+		if !ok || row.WholeNames == nil || row.PresenceSlot != 0 {
 			return child, false, nil
 		}
 		var namespace *queryNamespace
-		if row.presenceFrame == b.frameID() {
+		if row.PresenceFrame == b.frameID() {
 			namespace = b.query.namespace
 		}
 		if namespace == nil {
 			for _, scope := range b.query.scopes {
-				if scope.frame == row.presenceFrame && scope.namespace != nil {
+				if scope.frame == row.PresenceFrame && scope.namespace != nil {
 					namespace = scope.namespace
 					break
 				}
@@ -694,17 +694,17 @@ func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error
 		}
 		for i := range namespace.qualifiers {
 			qualifier := &namespace.qualifiers[i]
-			if qualifier.name != row.wholeName {
+			if qualifier.name != row.WholeName {
 				continue
 			}
-			slot, err := b.wholeRowPresence(qualifier, row.presenceFrame)
+			slot, err := b.wholeRowPresence(qualifier, row.PresenceFrame)
 			if err != nil {
 				return child, false, err
 			}
 			if slot == 0 {
 				return child, false, nil
 			}
-			row.presenceSlot = slot
+			row.PresenceSlot = slot
 			return row, true, nil
 		}
 		return child, false, fmt.Errorf("stuntgres: missing whole-row demand occurrence")

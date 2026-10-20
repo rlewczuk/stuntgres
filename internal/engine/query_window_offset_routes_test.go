@@ -16,7 +16,7 @@ func TestQueryWindowOffsetNestedComparison(t *testing.T) {
 			different := "(SELECT " + fn + "(0,1,-t.id) OVER()" + tail + ")"
 			_, query, source := queryCoreFixture(t, "SELECT "+left+","+different+","+left+" FROM t")
 			project := query.Root.(*projectNode)
-			a, b, equal := project.expressions[0], project.expressions[1], project.expressions[2]
+			a, b, equal := project.Expressions[0], project.Expressions[1], project.Expressions[2]
 			// Independently bound child frames may pair, but their window defaults
 			// remain semantic inputs. The child window is the only differing node.
 			if (*expressionBinder)(nil).sameSubqueryTarget(a, b) || (*expressionBinder)(nil).sameQueryTarget(a, b) {
@@ -44,13 +44,13 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordinal := literalExpression{Info: expr.Info{Usage: b.typ(sqltype.Int4).Usage()}, value: offset}
+	ordinal := literalExpression{Info: expr.Info{Usage: b.typ(sqltype.Int4).Usage()}, Value: offset}
 	tail := stringSplitLiteral(b, "tail")
 	retainedCalls := []windowCall{
-		{operation: windowLead, argument: argument, ordinal: ordinal, defaultValue: marker},
-		{operation: windowLag, argument: argument, ordinal: ordinal, defaultValue: tail},
+		{Operation: WindowLead, Argument: argument, Ordinal: ordinal, DefaultValue: marker},
+		{Operation: WindowLag, Argument: argument, Ordinal: ordinal, DefaultValue: tail},
 	}
-	retainedSpecs := []boundWindowSpec{{partition: []expr.Expr{stringSplitLiteral(b, "partition")}, order: []sortKey{{expression: stringSplitLiteral(b, "order")}}}}
+	retainedSpecs := []boundWindowSpec{{Partition: []expr.Expr{stringSplitLiteral(b, "partition")}, Order: []sortKey{{Expression: stringSplitLiteral(b, "order")}}}}
 	retainedCompanion := []expr.Expr{marker, peer}
 	calls := append([]windowCall(nil), retainedCalls...)
 	specs := append([]boundWindowSpec(nil), retainedSpecs...)
@@ -62,22 +62,22 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected, ok := calls[0].defaultValue.(columnExpression)
+	selected, ok := calls[0].DefaultValue.(columnExpression)
 	if !ok {
-		t.Fatalf("third child not written back after lowering: %T", calls[0].defaultValue)
+		t.Fatalf("third child not written back after lowering: %T", calls[0].DefaultValue)
 	}
 	shared, ok := companion[0].(columnExpression)
-	if !ok || selected.slot != shared.slot || selected.frame != 7 || shared.frame != 7 {
+	if !ok || selected.Slot != shared.Slot || selected.Frame != 7 || shared.Frame != 7 {
 		t.Fatal("default/companion lost owned stage datum", selected, companion[0])
 	}
 	independent, ok := companion[1].(columnExpression)
-	if !ok || independent.slot == selected.slot || independent.frame != 7 {
+	if !ok || independent.Slot == selected.Slot || independent.Frame != 7 {
 		t.Fatal("independent companion occurrence collapsed", companion[1])
 	}
-	if !reflect.DeepEqual(calls[0].argument, argument) || !reflect.DeepEqual(calls[0].ordinal, ordinal) || !reflect.DeepEqual(calls[1], retainedCalls[1]) {
+	if !reflect.DeepEqual(calls[0].Argument, argument) || !reflect.DeepEqual(calls[0].Ordinal, ordinal) || !reflect.DeepEqual(calls[1], retainedCalls[1]) {
 		t.Fatal("ordered default writeback displaced another child", calls)
 	}
-	if !reflect.DeepEqual(expr.Expr(marker).(expr.Composite).Children(), markerArgs) || !reflect.DeepEqual(expr.Expr(peer).(expr.Composite).Children(), peerArgs) || !reflect.DeepEqual(retainedCalls[0].defaultValue, marker) || !reflect.DeepEqual(retainedCompanion, []expr.Expr{marker, peer}) || !reflect.DeepEqual(retainedSpecs[0].partition, []expr.Expr{stringSplitLiteral(b, "partition")}) || !reflect.DeepEqual(retainedSpecs[0].order, []sortKey{{expression: stringSplitLiteral(b, "order")}}) {
+	if !reflect.DeepEqual(expr.Expr(marker).(expr.Composite).Children(), markerArgs) || !reflect.DeepEqual(expr.Expr(peer).(expr.Composite).Children(), peerArgs) || !reflect.DeepEqual(retainedCalls[0].DefaultValue, marker) || !reflect.DeepEqual(retainedCompanion, []expr.Expr{marker, peer}) || !reflect.DeepEqual(retainedSpecs[0].Partition, []expr.Expr{stringSplitLiteral(b, "partition")}) || !reflect.DeepEqual(retainedSpecs[0].Order, []sortKey{{Expression: stringSplitLiteral(b, "order")}}) {
 		t.Fatal("lowering mutated retained input ownership")
 	}
 	node, ok := root.(*setProjectNode)
@@ -101,7 +101,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 		}
 		evaluation.Row = stage.source.row(stage.index(occurrence))
 		row := make([]any, 4)
-		for i, expr := range []expr.Expr{calls[0].defaultValue, companion[0], companion[1], calls[1].defaultValue} {
+		for i, expr := range []expr.Expr{calls[0].DefaultValue, companion[0], companion[1], calls[1].DefaultValue} {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {
 				t.Fatal(err)

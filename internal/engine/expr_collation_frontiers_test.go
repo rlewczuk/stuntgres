@@ -59,9 +59,9 @@ func TestExprCollationRowOperandDemand(t *testing.T) {
 			probe := func(id int, value sqltype.Value, err error) expr.Expr {
 				return rowOperandEffect{expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, value, &order, id, err}
 			}
-			row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, operator: "<", ordering: []sqltype.Comparison{comparison, comparison}, comparisons: []comparisonExpression{
-				{Info: expr.Info{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "<"},
-				{Info: expr.Info{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, two, errors.New("later right operand")), predicate: predicate, operator: "<"},
+			row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Operator: "<", Ordering: []sqltype.Comparison{comparison, comparison}, Comparisons: []comparisonExpression{
+				{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(0, tc.left, nil), Right: probe(1, tc.right, nil), Predicate: predicate, Operator: "<"},
+				{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(2, one, failure), Right: probe(3, two, errors.New("later right operand")), Predicate: predicate, Operator: "<"},
 			}}
 			value, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if !reflect.DeepEqual(order, tc.want) {
@@ -95,11 +95,11 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		view := e.CatalogRead()
 		ref := catalogRef(t, e, view, tc.name)
 		project := viewOf(view.MustRelation(ref.Address)).query.Root.(*projectNode)
-		unused, ok := project.expressions[1].(cachedOrderExpression)
+		unused, ok := project.Expressions[1].(cachedOrderExpression)
 		if !ok {
-			t.Fatal("fixture has no real scheduled producer", tc.name, project.expressions[1])
+			t.Fatal("fixture has no real scheduled producer", tc.name, project.Expressions[1])
 		}
-		selected, ok := project.expressions[2].(cachedOrderExpression)
+		selected, ok := project.Expressions[2].(cachedOrderExpression)
 		if !ok {
 			t.Fatal("selected payload was not scheduled", tc.name)
 		}
@@ -107,13 +107,13 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 			for root != nil {
 				switch n := root.(type) {
 				case *sortNode:
-					base := n.cacheWidth - len(n.outputs)
-					if slot >= base && slot < base+len(n.outputs) {
-						return n.outputs[slot-base]
+					base := n.CacheWidth - len(n.Outputs)
+					if slot >= base && slot < base+len(n.Outputs) {
+						return n.Outputs[slot-base]
 					}
 				case *evaluationNode:
-					if slot >= n.base && slot < n.base+len(n.expressions) {
-						return n.expressions[slot-n.base]
+					if slot >= n.Base && slot < n.Base+len(n.Expressions) {
+						return n.Expressions[slot-n.Base]
 					}
 				}
 				root, _ = queryInputs(root)
@@ -121,11 +121,11 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 			t.Fatal("missing actual cache-slot producer", tc.name, slot)
 			return nil
 		}
-		original := producer(project.child, unused.slot)
+		original := producer(project.Child, unused.Slot)
 		id, _ := view.LookupType(sqltype.Int4)
 		text, _ := view.LookupType(sqltype.Text)
 		one, _ := sqltype.Integer(id, 1)
-		ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: project.frame, Row: []sqltype.Value{one, sqltype.String(text, "A"), sqltype.String(text, "A")}}}
+		ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: project.Frame, Row: []sqltype.Value{one, sqltype.String(text, "A"), sqltype.String(text, "A")}}}
 		_, err := original.Eval(ctx)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
@@ -135,11 +135,11 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		value, err := producer(demanded.child, unused.slot).Eval(ctx)
+		value, err := producer(demanded.Child, unused.Slot).Eval(ctx)
 		if err != nil || !value.IsNull() {
 			t.Fatal("unused scheduled payload still demands provider", tc.name, value, err)
 		}
-		value, err = producer(demanded.child, selected.slot).Eval(ctx)
+		value, err = producer(demanded.Child, selected.Slot).Eval(ctx)
 		truth, boolErr := value.Boolean()
 		if err != nil || boolErr != nil || !truth {
 			t.Fatal("scheduled selected provider lost", tc.name, value, err, boolErr)
@@ -151,13 +151,13 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		// A retained alias of the same real cache slot keeps its provider,
 		// even when the first output spelling of that slot is unreferenced.
 		shared := *project
-		shared.expressions = append([]expr.Expr(nil), project.expressions...)
-		shared.expressions[2] = unused
+		shared.Expressions = append([]expr.Expr(nil), project.Expressions...)
+		shared.Expressions[2] = unused
 		demanded, err = storedProjectionDemand(&shared, []int{0, 2})
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = producer(demanded.child, unused.slot).Eval(ctx)
+		_, err = producer(demanded.Child, unused.Slot).Eval(ctx)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 			t.Fatal("shared live cache provider was pruned", tc.name, err)
 		}
@@ -165,21 +165,21 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		// consume an earlier slot. This exercises transitive cache authority,
 		// not only directly referenced final projection slots.
 		identity := func(expression expr.Expr) (expr.Expr, bool, error) { return expression, false, nil }
-		chained, err := rewriteQueryExpressions(project.child, identity, func(node LogicalNode) (LogicalNode, error) {
+		chained, err := rewriteQueryExpressions(project.Child, identity, func(node LogicalNode) (LogicalNode, error) {
 			switch n := node.(type) {
 			case *sortNode:
-				base := n.cacheWidth - len(n.outputs)
-				if selected.slot >= base && selected.slot < base+len(n.outputs) {
+				base := n.CacheWidth - len(n.Outputs)
+				if selected.Slot >= base && selected.Slot < base+len(n.Outputs) {
 					copy := *n
-					copy.outputs = append([]expr.Expr(nil), n.outputs...)
-					copy.outputs[selected.slot-base] = unused
+					copy.Outputs = append([]expr.Expr(nil), n.Outputs...)
+					copy.Outputs[selected.Slot-base] = unused
 					return &copy, nil
 				}
 			case *evaluationNode:
-				if selected.slot >= n.base && selected.slot < n.base+len(n.expressions) {
+				if selected.Slot >= n.Base && selected.Slot < n.Base+len(n.Expressions) {
 					copy := *n
-					copy.expressions = append([]expr.Expr(nil), n.expressions...)
-					copy.expressions[selected.slot-n.base] = unused
+					copy.Expressions = append([]expr.Expr(nil), n.Expressions...)
+					copy.Expressions[selected.Slot-n.Base] = unused
 					return &copy, nil
 				}
 			}
@@ -189,12 +189,12 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 			t.Fatal(err)
 		}
 		transitive := *project
-		transitive.child = chained
+		transitive.Child = chained
 		demanded, err = storedProjectionDemand(&transitive, []int{0, 2})
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = producer(demanded.child, unused.slot).Eval(ctx)
+		_, err = producer(demanded.Child, unused.Slot).Eval(ctx)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 			t.Fatal("transitively live provider was pruned", tc.name, err)
 		}

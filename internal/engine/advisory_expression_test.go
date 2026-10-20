@@ -150,7 +150,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		child := literalExpression{Info: b.info(textUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.String(textUsage.Type, "bad")}
+		child := literalExpression{Info: b.info(textUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(textUsage.Type, "bad")}
 		deferred.Args = append([]expr.Expr(nil), deferred.Args...)
 		deferred.Args[1] = coercionExpression{b.info(integerUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), child, plan, sqltype.Explicit, false}
 		bound = deferred
@@ -170,7 +170,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(functions.Advisory)
-		column := columnExpression{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
+		column := columnExpression{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.frameID(), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
 		node.Args = []expr.Expr{node.Args[0], column}
 		node.Property.RowDependent = true
 		visits := 0
@@ -201,7 +201,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		mappedColumn := remapped.(functions.Advisory).Args[1].(columnExpression)
-		if mappedColumn.origin.Address.ObjectID != 1000 || mappedColumn.slot != 7 || node.Args[1].(columnExpression).origin.Address.ObjectID != 999 {
+		if mappedColumn.Origin.Address.ObjectID != 1000 || mappedColumn.Slot != 7 || node.Args[1].(columnExpression).Origin.Address.ObjectID != 999 {
 			t.Fatal("view child identity/slot remap", mappedColumn)
 		}
 		types := formatUnitTypes()
@@ -213,9 +213,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if fresh.ResultUsage().Type != types[sqltype.Bool] || fresh.Args[1].ResultUsage().Type != types[sqltype.Int4] || fresh.Mode != node.Mode || fresh.Action != node.Action || node.ResultUsage().Type == fresh.ResultUsage().Type {
 			t.Fatal("retained generation/compiled action")
 		}
-		aggregate := aggregateExpression{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Property: expr.Properties{StageDependent: true}}, slot: 7}
+		aggregate := aggregateExpression{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Property: expr.Properties{StageDependent: true}}, Slot: 7}
 		node.Args = []expr.Expr{node.Args[0], aggregate}
-		if found := aggregateOccurrence(node); found == nil || found.slot != 7 {
+		if found := aggregateOccurrence(node); found == nil || found.Slot != 7 {
 			t.Fatal("aggregate descendant lost")
 		}
 	})
@@ -304,7 +304,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	column := columnExpression{Info: expr.Info{Usage: trueNode.ResultUsage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}
+	column := columnExpression{Info: expr.Info{Usage: trueNode.ResultUsage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
 	stored := bind("pg_try_advisory_lock(NULL::integer,CASE WHEN pg_try_advisory_lock(3201) THEN 2 ELSE 3 END)")
 	var before strings.Builder
 	if err := appendBoundTree(ctx, &before, stored); err != nil {

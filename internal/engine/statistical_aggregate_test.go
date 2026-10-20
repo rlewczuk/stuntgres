@@ -11,9 +11,9 @@ import (
 func TestStatisticalAggregateSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT var_pop(1),var_pop(1),var_samp(1),stddev_pop(1),stddev_samp(1),variance(1),stddev(1),regr_slope(2,1),regr_sxx(2,1),regr_sxy(2,1),regr_syy(2,1) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 8 {
-		t.Fatal("final-operation sharing", len(node.calls))
+	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 8 {
+		t.Fatal("final-operation sharing", len(node.Calls))
 	}
 	for i, c := range q.Root.Schema() {
 		want := sqltype.Numeric
@@ -55,7 +55,7 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 			result, _ = source.CatalogRead().LookupType(sqltype.Int8)
 			provider = functions.NewRegressionCountAggregate(input, result.Usage())
 		}
-		node := &aggregateNode{child: &singletonNode{}, calls: []aggregateCall{{provider: provider}}}
+		node := &aggregateNode{Child: &singletonNode{}, Calls: []aggregateCall{{Provider: provider}}}
 		mapped, err := remapViewQuery(destination.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			d, _ := destination.CatalogRead().LookupType(old.ID())
 			return d
@@ -63,7 +63,7 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := mapped.(*aggregateNode).calls[0].provider
+		next := mapped.(*aggregateNode).Calls[0].Provider
 		if next.ResultUsage().Type == provider.ResultUsage().Type {
 			t.Fatal("foreign result retained")
 		}
@@ -108,25 +108,25 @@ func TestStatisticalAggregateEagerCancellation(t *testing.T) {
 		for _, phase := range []string{"advance", "finalize", "prepublication"} {
 			_, q, source := queryCoreFixture(t, "SELECT "+call+" FROM t")
 			project := q.Root.(*projectNode)
-			node := project.child.(*aggregateNode)
+			node := project.Child.(*aggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
-			original := node.calls[0].provider
+			original := node.Calls[0].Provider
 			switch phase {
 			case "advance":
-				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, x sqltype.Value) error {
+				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, x sqltype.Value) error {
 					err := original.Advance(ctx, s, v, x)
 					cancel()
 					return err
 				}}
 			case "finalize":
-				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					v, err := original.Finalize(ctx, s)
 					cancel()
 					return v, err
 				}}
 			case "prepublication":
-				expr := project.expressions[0]
-				project.expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
+				expr := project.Expressions[0]
+				project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
 			}
 			rows, count, err := finalizeQuery(ctx, q.Root, source, nil)
 			cancel()

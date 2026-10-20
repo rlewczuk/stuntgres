@@ -65,36 +65,36 @@ func TestQueryWindowValueMemberSelection(t *testing.T) {
 func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT first_value(v) OVER w,nth_value(v,id) OVER w,nth_value(v,id+1) OVER w FROM t WINDOW w AS(ORDER BY id ROWS CURRENT ROW)")
 	defer source.close()
-	node := query.Root.(*projectNode).child.(*windowNode)
+	node := query.Root.(*projectNode).Child.(*windowNode)
 	for _, column := range query.Root.Schema() {
 		if !column.Nullable || !column.NullabilityKnown || column.OriginTable != 0 || column.OriginAttribute != 0 || column.Usage.Typmod != -1 || column.Usage.Type.ID() != sqltype.Int4 {
 			t.Fatal(column)
 		}
 	}
-	if len(node.calls) != 3 || node.calls[1].ordinal == nil || node.calls[2].ordinal == nil {
-		t.Fatal("value/ordinal identity", node.calls)
+	if len(node.Calls) != 3 || node.Calls[1].Ordinal == nil || node.Calls[2].Ordinal == nil {
+		t.Fatal("value/ordinal identity", node.Calls)
 	}
 	binder := &expressionBinder{}
-	if binder.sameWindowCall(node.calls[1], node.calls[2]) {
+	if binder.sameWindowCall(node.Calls[1], node.Calls[2]) {
 		t.Fatal("different ordinals collapsed")
 	}
-	call := node.calls[1]
+	call := node.Calls[1]
 	foundValue, foundOrdinal := false, false
 	queryExpressions(node, func(expr expr.Expr) {
-		foundValue = foundValue || expr == call.argument
-		foundOrdinal = foundOrdinal || expr == call.ordinal
+		foundValue = foundValue || expr == call.Argument
+		foundOrdinal = foundOrdinal || expr == call.Ordinal
 	})
 	if !foundValue || !foundOrdinal {
 		t.Fatal("child missing from graph", foundValue, foundOrdinal)
 	}
-	replacement := node.calls[2].ordinal
+	replacement := node.Calls[2].Ordinal
 	next, err := rewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
-		if expr == call.ordinal {
+		if expr == call.Ordinal {
 			return replacement, true, nil
 		}
 		return expr, false, nil
 	})
-	if err != nil || next == node || next.(*windowNode).calls[1].ordinal != replacement || node.calls[1].ordinal != call.ordinal {
+	if err != nil || next == node || next.(*windowNode).Calls[1].Ordinal != replacement || node.Calls[1].Ordinal != call.Ordinal {
 		t.Fatal("immutable ordinal rewrite", next, err)
 	}
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
@@ -105,8 +105,8 @@ func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := mapped.(*projectNode).child.(*windowNode).calls[1]
-	if remapped.ordinal == call.ordinal || remapped.argument == call.argument || remapped.expression == call.expression || remapped.ordinal.ResultUsage().Type != types[sqltype.Int4] || remapped.expression.ResultUsage().Type != types[sqltype.Int4] {
+	remapped := mapped.(*projectNode).Child.(*windowNode).Calls[1]
+	if remapped.Ordinal == call.Ordinal || remapped.Argument == call.Argument || remapped.Expression == call.Expression || remapped.Ordinal.ResultUsage().Type != types[sqltype.Int4] || remapped.Expression.ResultUsage().Type != types[sqltype.Int4] {
 		t.Fatal("child/result descriptor ownership", remapped)
 	}
 }
@@ -144,13 +144,13 @@ func TestQueryWindowValueEvaluationCancellation(t *testing.T) {
 	for _, phase := range []string{"ordinal", "value"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT nth_value(v,id) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t")
-			node := query.Root.(*projectNode).child.(*windowNode)
+			node := query.Root.(*projectNode).Child.(*windowNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			call := &node.calls[0]
-			original := call.ordinal
+			call := &node.Calls[0]
+			original := call.Ordinal
 			if phase == "value" {
-				original = call.argument
+				original = call.Argument
 			}
 			entered := false
 			probe := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
@@ -160,9 +160,9 @@ func TestQueryWindowValueEvaluationCancellation(t *testing.T) {
 				return value, err
 			})
 			if phase == "value" {
-				call.argument = probe
+				call.Argument = probe
 			} else {
-				call.ordinal = probe
+				call.Ordinal = probe
 			}
 			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
 			if rows != nil {
@@ -196,9 +196,9 @@ func TestQueryWindowValueDomainRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := description.query.Root
-	original := root.(*projectNode).child.(*windowNode).calls[0]
-	domain := original.argument.ResultUsage().Type
-	if !domain.IsDomain() || original.expression.ResultUsage().Type != domain {
+	original := root.(*projectNode).Child.(*windowNode).Calls[0]
+	domain := original.Argument.ResultUsage().Type
+	if !domain.IsDomain() || original.Expression.ResultUsage().Type != domain {
 		t.Fatal("polymorphic domain lost", original)
 	}
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
@@ -214,31 +214,31 @@ func TestQueryWindowValueDomainRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := mapped.(*projectNode).child.(*windowNode)
-	next := node.calls[0]
+	node := mapped.(*projectNode).Child.(*windowNode)
+	next := node.Calls[0]
 	var ordinalDomain *sqltype.Descriptor
-	walkBoundExpression(next.ordinal, func(expr expr.Expr) {
+	walkBoundExpression(next.Ordinal, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			ordinalDomain = expr.ResultUsage().Type
 		}
 	})
-	if next.expression.ResultUsage().Type != types[domain.ID()] || next.argument.ResultUsage().Type != types[domain.ID()] || ordinalDomain != types[domain.ID()] || ordinalDomain == domain || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) || node.specs[0].frame.exclusion != parser.ExcludeTies {
+	if next.Expression.ResultUsage().Type != types[domain.ID()] || next.Argument.ResultUsage().Type != types[domain.ID()] || ordinalDomain != types[domain.ID()] || ordinalDomain == domain || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) || node.Specs[0].Frame.Exclusion != parser.ExcludeTies {
 		t.Fatal("value/ordinal/result ownership", next, ordinalDomain)
 	}
 }
 
 func TestQueryWindowValueCurrentOrdinalAndSelectedEvaluation(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT nth_value(v,CASE WHEN id%2=1 THEN 1 ELSE 2 END) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t")
-	node := query.Root.(*projectNode).child.(*windowNode)
-	call := &node.calls[0]
-	argument, ordinal := call.argument, call.ordinal
+	node := query.Root.(*projectNode).Child.(*windowNode)
+	call := &node.Calls[0]
+	argument, ordinal := call.Argument, call.Ordinal
 	var current, selected []int64
-	call.ordinal = queryProbe(ordinal.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	call.Ordinal = queryProbe(ordinal.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		current = append(current, id)
 		return ordinal.Eval(c)
 	})
-	call.argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	call.Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		selected = append(selected, id)
 		return argument.Eval(c)
@@ -280,23 +280,23 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w AS a,first_value(nextval($1)) OVER w AS b FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)"+tc.order)
 			defer source.close()
 			project := query.Root.(*projectNode)
-			child := project.child
+			child := project.Child
 			if sorted, ok := child.(*sortNode); ok {
-				child = sorted.child
-				if tc.order == " ORDER BY a,b" && (sorted.keys[0].cache == sorted.keys[1].cache || sorted.keys[0].targetIdentity == sorted.keys[1].targetIdentity) {
-					t.Fatal("required target caches collapsed", sorted.keys)
+				child = sorted.Child
+				if tc.order == " ORDER BY a,b" && (sorted.Keys[0].Cache == sorted.Keys[1].Cache || sorted.Keys[0].TargetIdentity == sorted.Keys[1].TargetIdentity) {
+					t.Fatal("required target caches collapsed", sorted.Keys)
 				}
 			}
 			node := child.(*windowNode)
-			if len(node.calls) != tc.calls {
-				t.Fatal("executing target owners", len(node.calls), tc.calls)
+			if len(node.Calls) != tc.calls {
+				t.Fatal("executing target owners", len(node.Calls), tc.calls)
 			}
-			if tc.order == " ORDER BY b" && node.calls[0].expression.call != 1 {
-				t.Fatal("later demanded ordinal did not retain its own executing slot", node.calls[0].expression)
+			if tc.order == " ORDER BY b" && node.Calls[0].Expression.Call != 1 {
+				t.Fatal("later demanded ordinal did not retain its own executing slot", node.Calls[0].Expression)
 			}
-			first, second := windowOccurrence(project.expressions[0]), windowOccurrence(project.expressions[1])
+			first, second := windowOccurrence(project.Expressions[0]), windowOccurrence(project.Expressions[1])
 			// Demanded projections may read ORDER caches instead of a leaf.
-			if first != nil && second != nil && (first.slot == second.slot) != tc.same {
+			if first != nil && second != nil && (first.Slot == second.Slot) != tc.same {
 				t.Fatal("slot ownership", first, second)
 			}
 		})
@@ -304,9 +304,9 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 	t.Run("retained-wrapper-is-not-a-leaf-owner", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w+1 AS a,first_value(nextval($1)) OVER w AS b FROM t WINDOW w AS(ORDER BY id) ORDER BY a")
 		defer source.close()
-		node := query.Root.(*projectNode).child.(*sortNode).child.(*windowNode)
-		if len(node.calls) != 2 || node.calls[0].expression.slot == node.calls[1].expression.slot {
-			t.Fatal("retained wrapper donated nested leaf", node.calls)
+		node := query.Root.(*projectNode).Child.(*sortNode).Child.(*windowNode)
+		if len(node.Calls) != 2 || node.Calls[0].Expression.Slot == node.Calls[1].Expression.Slot {
+			t.Fatal("retained wrapper donated nested leaf", node.Calls)
 		}
 	})
 }
@@ -344,8 +344,8 @@ func TestQueryWindowValueHiddenSortOwner(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w+1 AS a FROM t WINDOW w AS(ORDER BY id) ORDER BY first_value(nextval($1)) OVER w")
 	defer source.close()
 	project := query.Root.(*projectNode)
-	node := project.child.(*sortNode).child.(*windowNode)
-	if len(project.Schema()) != 1 || len(node.calls) != 1 || node.calls[0].expression.call != 1 {
-		t.Fatal("hidden whole owner lost or leaked into public schema", project.Schema(), node.calls)
+	node := project.Child.(*sortNode).Child.(*windowNode)
+	if len(project.Schema()) != 1 || len(node.Calls) != 1 || node.Calls[0].Expression.Call != 1 {
+		t.Fatal("hidden whole owner lost or leaked into public schema", project.Schema(), node.Calls)
 	}
 }

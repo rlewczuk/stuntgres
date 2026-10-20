@@ -16,7 +16,7 @@ func viewFunctionFromAt(root LogicalNode, ordinal int, selected bool) *functionF
 	if root == nil {
 		return nil
 	}
-	if node, ok := root.(*functionFromNode); ok && node.viewOrdinal == ordinal && node.regexpNamespace == selected {
+	if node, ok := root.(*functionFromNode); ok && node.ViewOrdinal == ordinal && node.RegexpNamespace == selected {
 		return node
 	}
 	left, right := queryInputs(root)
@@ -34,16 +34,16 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 	texts := make([]string, len(calls))
 	hasDefinitions := false
 	for i, call := range calls {
-		path := viewLiteralPath{clause: viewFunctionLiteral, target: root.viewOrdinal + i}
-		if root.regexpNamespace {
-			path.source, path.target = root.viewOrdinal, i
+		path := viewLiteralPath{clause: viewFunctionLiteral, target: root.ViewOrdinal + i}
+		if root.RegexpNamespace {
+			path.source, path.target = root.ViewOrdinal, i
 		}
 		text, err := v.expressionSQL(ctx, catalog, call, path)
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
 		var shape *sqltype.Descriptor
-		switch record := root.calls[i].(type) {
+		switch record := root.Calls[i].(type) {
 		case functions.JSONRecord:
 			if record.Defined {
 				shape = record.ResultUsage().Type
@@ -82,14 +82,14 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 	if raw.Ordinality {
 		text += " WITH ORDINALITY"
 	}
-	if raw.Lateral || root.regexpNamespace && v.presentation.deparse && root.correlated {
+	if raw.Lateral || root.RegexpNamespace && v.presentation.deparse && root.Correlated {
 		text = "LATERAL " + text
 	}
 	from := viewRenderFrom{text: text, relation: text, root: root}
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 	}
-	if root.regexpNamespace && v.functionSources {
+	if root.RegexpNamespace && v.functionSources {
 		from.slots = make(map[int]string, len(from.columns))
 		qualifier := v.presentation.identifier(v.namespaceAlias(ns))
 		for _, column := range from.columns {

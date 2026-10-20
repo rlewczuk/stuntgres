@@ -33,7 +33,7 @@ func validateViewReadGraph(view catalog.Read, leaves []queryLeaf) (bool, error) 
 			return sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.Name()))
 		}
 		active[d.Address()] = true
-		visibilityDemand = visibilityDemand || viewOf(d).query.visibilitySnapshot
+		visibilityDemand = visibilityDemand || viewOf(d).query.VisibilitySnapshot
 		for _, leaf := range viewOf(d).sources {
 			child, ok := view.Relation(leaf.ref.Address)
 			if !ok || !storedViewReferenceValid(view, d, leaf.ref) {

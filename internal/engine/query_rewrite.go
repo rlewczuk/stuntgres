@@ -84,59 +84,59 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 	var out LogicalNode
 	switch n := node.(type) {
 	case *functionFromNode:
-		calls := stringCalls(n.calls)
+		calls := stringCalls(n.Calls)
 		if changed && err == nil {
 			copy := *n
-			copy.calls = calls
+			copy.Calls = calls
 			out = &copy
 		}
 	case *setProjectNode:
-		input := child(n.child)
-		calls := stringCalls(n.calls)
-		scalars := args(n.scalars)
-		template := n.template
+		input := child(n.Child)
+		calls := stringCalls(n.Calls)
+		scalars := args(n.Scalars)
+		template := n.Template
 		if template != nil {
-			expressions, origins, scalars := args(template.expressions), args(template.origins), args(template.scalars)
-			if len(expressions) != 0 && &expressions[0] != &template.expressions[0] ||
-				len(origins) != 0 && &origins[0] != &template.origins[0] ||
-				len(scalars) != 0 && &scalars[0] != &template.scalars[0] {
+			expressions, origins, scalars := args(template.Expressions), args(template.Origins), args(template.Scalars)
+			if len(expressions) != 0 && &expressions[0] != &template.Expressions[0] ||
+				len(origins) != 0 && &origins[0] != &template.Origins[0] ||
+				len(scalars) != 0 && &scalars[0] != &template.Scalars[0] {
 				copy := *template
-				copy.expressions, copy.origins, copy.scalars = expressions, origins, scalars
+				copy.Expressions, copy.Origins, copy.Scalars = expressions, origins, scalars
 				template = &copy
 			}
 		}
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.calls, copy.scalars = input, calls, scalars
-			copy.template = template
+			copy.Child, copy.Calls, copy.Scalars = input, calls, scalars
+			copy.Template = template
 			out = &copy
 		}
 	case *setNode:
-		left, right := child(n.left), child(n.right)
-		leftExpressions, rightExpressions := args(n.leftExpressions), args(n.rightExpressions)
+		left, right := child(n.Left), child(n.Right)
+		leftExpressions, rightExpressions := args(n.LeftExpressions), args(n.RightExpressions)
 		if changed && err == nil {
 			copy := *n
-			copy.left, copy.right = left.(*projectNode), right.(*projectNode)
-			copy.leftExpressions, copy.rightExpressions = leftExpressions, rightExpressions
+			copy.Left, copy.Right = left.(*projectNode), right.(*projectNode)
+			copy.LeftExpressions, copy.RightExpressions = leftExpressions, rightExpressions
 			out = &copy
 		}
 	case *recursiveUnionNode:
-		left, right := child(n.left), child(n.right)
-		leftExpressions, rightExpressions := args(n.leftExpressions), args(n.rightExpressions)
-		cycle := n.cycle
+		left, right := child(n.Left), child(n.Right)
+		leftExpressions, rightExpressions := args(n.LeftExpressions), args(n.RightExpressions)
+		cycle := n.Cycle
 		if cycle != nil {
-			marks := args([]expr.Expr{cycle.mark, cycle.fallback})
-			if marks[0] != cycle.mark || marks[1] != cycle.fallback {
+			marks := args([]expr.Expr{cycle.Mark, cycle.Fallback})
+			if marks[0] != cycle.Mark || marks[1] != cycle.Fallback {
 				copy := *cycle
-				copy.mark, copy.fallback = marks[0], marks[1]
+				copy.Mark, copy.Fallback = marks[0], marks[1]
 				cycle = &copy
 			}
 		}
 		if changed && err == nil {
 			copy := *n
-			copy.left, copy.right = left.(*projectNode), right.(*projectNode)
-			copy.leftExpressions, copy.rightExpressions = leftExpressions, rightExpressions
-			copy.cycle = cycle
+			copy.Left, copy.Right = left.(*projectNode), right.(*projectNode)
+			copy.LeftExpressions, copy.RightExpressions = leftExpressions, rightExpressions
+			copy.Cycle = cycle
 			out = &copy
 		}
 	case *worktableScanNode:
@@ -144,109 +144,109 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 	case *sourceNode, *singletonNode:
 		return node, nil
 	case *projectNode:
-		input, expressions := child(n.child), args(n.expressions)
-		analysis := args(n.analysisExpressions)
+		input, expressions := child(n.Child), args(n.Expressions)
+		analysis := args(n.AnalysisExpressions)
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.expressions, copy.analysisExpressions = input, expressions, analysis
+			copy.Child, copy.Expressions, copy.AnalysisExpressions = input, expressions, analysis
 			out = &copy
 		}
 	case *distinctNode:
-		input, expressions := child(n.child), args(n.expressions)
+		input, expressions := child(n.Child), args(n.Expressions)
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.expressions = input, expressions
+			copy.Child, copy.Expressions = input, expressions
 			out = &copy
 		}
 	case *distinctOnNode:
-		input, expressions := child(n.child), args(n.expressions)
+		input, expressions := child(n.Child), args(n.Expressions)
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.expressions = input, expressions
+			copy.Child, copy.Expressions = input, expressions
 			out = &copy
 		}
 	case *filterNode:
-		input, predicate := child(n.child), expression(n.predicate)
+		input, predicate := child(n.Child), expression(n.Predicate)
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.predicate = input, predicate
+			copy.Child, copy.Predicate = input, predicate
 			out = &copy
 		}
 	case *rowLockNode:
-		input := child(n.child)
+		input := child(n.Child)
 		if changed && err == nil {
 			copy := *n
-			copy.child = input
+			copy.Child = input
 			out = &copy
 		}
 	case *limitNode:
-		input := child(n.child)
-		offset, count := expression(n.offset), expression(n.count)
+		input := child(n.Child)
+		offset, count := expression(n.Offset), expression(n.Count)
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.offset, copy.count = input, offset, count
+			copy.Child, copy.Offset, copy.Count = input, offset, count
 			out = &copy
 		}
 	case *evaluationNode:
-		input, expressions := child(n.child), args(n.expressions)
+		input, expressions := child(n.Child), args(n.Expressions)
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.expressions = input, expressions
+			copy.Child, copy.Expressions = input, expressions
 			out = &copy
 		}
 	case *joinNode:
-		left, right := child(n.left), child(n.right)
-		predicate, merges := expression(n.predicate), args(n.merges)
+		left, right := child(n.Left), child(n.Right)
+		predicate, merges := expression(n.Predicate), args(n.Merges)
 		if changed && err == nil {
 			copy := *n
-			copy.left, copy.right, copy.predicate, copy.merges = left, right, predicate, merges
+			copy.Left, copy.Right, copy.Predicate, copy.Merges = left, right, predicate, merges
 			out = &copy
 		}
 	case *derivedNode:
-		if n.query == nil {
+		if n.Query == nil {
 			break
 		}
-		root := child(n.query.Root)
-		if root != n.query.Root && err == nil {
+		root := child(n.Query.Root)
+		if root != n.Query.Root && err == nil {
 			copy := *n
-			query := *n.query
+			query := *n.Query
 			query.Root = root
-			copy.query = &query
+			copy.Query = &query
 			out = &copy
 		}
 	case *sortNode:
-		input, outputs := child(n.child), args(n.outputs)
+		input, outputs := child(n.Child), args(n.Outputs)
 		var keys []sortKey
-		for i, key := range n.keys {
+		for i, key := range n.Keys {
 			if err != nil {
 				break
 			}
-			next, different, failure := rewrite(key.expression)
+			next, different, failure := rewrite(key.Expression)
 			err = failure
 			if different {
 				if keys == nil {
-					keys = append([]sortKey(nil), n.keys...)
+					keys = append([]sortKey(nil), n.Keys...)
 				}
-				keys[i].expression = next
+				keys[i].Expression = next
 				changed = true
 			}
 		}
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.outputs = input, outputs
+			copy.Child, copy.Outputs = input, outputs
 			if keys != nil {
-				copy.keys = keys
+				copy.Keys = keys
 			}
 			out = &copy
 		}
 	case *windowNode:
-		input := child(n.child)
+		input := child(n.Child)
 		var calls []windowCall
-		for i, call := range n.calls {
-			if call.analysisOnly {
+		for i, call := range n.Calls {
+			if call.AnalysisOnly {
 				continue
 			}
-			for j, expression := range [3]expr.Expr{call.argument, call.ordinal, call.defaultValue} {
+			for j, expression := range [3]expr.Expr{call.Argument, call.Ordinal, call.DefaultValue} {
 				if expression == nil || err != nil {
 					continue
 				}
@@ -254,87 +254,87 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 				err = failure
 				if different {
 					if calls == nil {
-						calls = append([]windowCall(nil), n.calls...)
+						calls = append([]windowCall(nil), n.Calls...)
 					}
 					if j == 0 {
-						calls[i].argument = next
+						calls[i].Argument = next
 					} else if j == 1 {
-						calls[i].ordinal = next
+						calls[i].Ordinal = next
 					} else {
-						calls[i].defaultValue = next
+						calls[i].DefaultValue = next
 					}
 					changed = true
 				}
 			}
 		}
 		var specs []boundWindowSpec
-		for i, spec := range n.specs {
-			if !n.specActive(i) {
+		for i, spec := range n.Specs {
+			if !n.SpecActive(i) {
 				continue
 			}
-			partition := args(spec.partition)
-			specChanged := len(partition) > 0 && &partition[0] != &spec.partition[0]
+			partition := args(spec.Partition)
+			specChanged := len(partition) > 0 && &partition[0] != &spec.Partition[0]
 			var order []sortKey
-			for j, key := range spec.order {
+			for j, key := range spec.Order {
 				if err != nil {
 					break
 				}
-				next, different, failure := rewrite(key.expression)
+				next, different, failure := rewrite(key.Expression)
 				err = failure
 				if different {
 					if order == nil {
-						order = append([]sortKey(nil), spec.order...)
+						order = append([]sortKey(nil), spec.Order...)
 					}
-					order[j].expression = next
+					order[j].Expression = next
 					specChanged = true
 					changed = true
 				}
 			}
-			frame := spec.frame
-			for _, bound := range []*boundWindowBound{&frame.start, &frame.end} {
-				if bound.offset == nil || err != nil {
+			frame := spec.Frame
+			for _, bound := range []*boundWindowBound{&frame.Start, &frame.End} {
+				if bound.Offset == nil || err != nil {
 					continue
 				}
-				next, different, failure := rewrite(bound.offset)
+				next, different, failure := rewrite(bound.Offset)
 				err = failure
 				if different {
-					bound.offset = next
+					bound.Offset = next
 					specChanged = true
 					changed = true
 				}
 			}
 			if specChanged {
 				if specs == nil {
-					specs = append([]boundWindowSpec(nil), n.specs...)
+					specs = append([]boundWindowSpec(nil), n.Specs...)
 				}
-				specs[i].partition = partition
-				specs[i].frame = frame
+				specs[i].Partition = partition
+				specs[i].Frame = frame
 				if order != nil {
-					specs[i].order = order
+					specs[i].Order = order
 				}
 			}
 		}
 		if changed && err == nil {
 			copy := *n
-			copy.child = input
+			copy.Child = input
 			if calls != nil {
-				copy.calls = calls
+				copy.Calls = calls
 			}
 			if specs != nil {
-				copy.specs = specs
+				copy.Specs = specs
 			}
 			out = &copy
 		}
 	case *aggregateNode:
-		input, keys := child(n.child), args(n.keys)
+		input, keys := child(n.Child), args(n.Keys)
 		var calls []aggregateCall
-		for i, call := range n.calls {
+		for i, call := range n.Calls {
 			if err != nil {
 				break
 			}
 			nextCall := call
 			callChanged := false
-			for j, expr := range [3]expr.Expr{call.argument, call.separator, call.filter} {
+			for j, expr := range [3]expr.Expr{call.Argument, call.Separator, call.Filter} {
 				if expr == nil || err != nil {
 					continue
 				}
@@ -343,16 +343,16 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 				if different {
 					callChanged = true
 					if j == 0 {
-						nextCall.argument = next
+						nextCall.Argument = next
 					} else if j == 1 {
-						nextCall.separator = next
+						nextCall.Separator = next
 					} else {
-						nextCall.filter = next
+						nextCall.Filter = next
 					}
 				}
 			}
 			var direct []expr.Expr
-			for j, operand := range call.direct {
+			for j, operand := range call.Direct {
 				if err != nil {
 					break
 				}
@@ -360,36 +360,36 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 				err = failure
 				if different {
 					if direct == nil {
-						direct = append([]expr.Expr(nil), call.direct...)
+						direct = append([]expr.Expr(nil), call.Direct...)
 					}
 					direct[j] = next
 					callChanged = true
 				}
 			}
 			if direct != nil {
-				nextCall.direct = direct
+				nextCall.Direct = direct
 			}
 			var order []sortKey
-			for k, key := range call.order {
+			for k, key := range call.Order {
 				if err != nil {
 					break
 				}
-				next, different, failure := rewrite(key.expression)
+				next, different, failure := rewrite(key.Expression)
 				err = failure
 				if different {
 					if order == nil {
-						order = append([]sortKey(nil), call.order...)
+						order = append([]sortKey(nil), call.Order...)
 					}
-					order[k].expression = next
+					order[k].Expression = next
 					callChanged = true
 				}
 			}
 			if callChanged {
 				if order != nil {
-					nextCall.order = order
+					nextCall.Order = order
 				}
 				if calls == nil {
-					calls = append([]aggregateCall(nil), n.calls...)
+					calls = append([]aggregateCall(nil), n.Calls...)
 				}
 				calls[i] = nextCall
 				changed = true
@@ -397,18 +397,18 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 		}
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.keys = input, keys
+			copy.Child, copy.Keys = input, keys
 			if calls != nil {
-				copy.calls = calls
+				copy.Calls = calls
 			}
 			out = &copy
 		}
 	case *valuesNode:
 		var rows [][]expr.Expr
-		for i, row := range n.rows {
+		for i, row := range n.Rows {
 			next := args(row)
 			if changed && rows == nil {
-				rows = append([][]expr.Expr(nil), n.rows...)
+				rows = append([][]expr.Expr(nil), n.Rows...)
 			}
 			if rows != nil {
 				rows[i] = next
@@ -416,7 +416,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 		}
 		if rows != nil {
 			copy := *n
-			copy.rows = rows
+			copy.Rows = rows
 			out = &copy
 		}
 	default:
@@ -452,21 +452,21 @@ func expressionUsesFrame(bound expr.Expr, frame uint32) bool {
 	walkBoundExpression(bound, func(expr expr.Expr) {
 		switch e := expr.(type) {
 		case columnExpression:
-			found = found || e.frame == frame
+			found = found || e.Frame == frame
 		case returningWholeRowExpression:
-			found = found || e.frame == frame
+			found = found || e.Frame == frame
 		case mergeActionExpression:
-			found = found || e.frame == frame
+			found = found || e.Frame == frame
 		case aggregateExpression:
-			found = found || e.frame == frame
+			found = found || e.Frame == frame
 		case groupingExpression:
-			found = found || e.frame == frame
+			found = found || e.Frame == frame
 		case *windowExpression:
-			found = found || e.frame == frame
+			found = found || e.Frame == frame
 		case groupExpression:
-			found = found || e.frame == frame
+			found = found || e.Frame == frame
 		case subqueryExpression:
-			found = found || queryUsesFrame(e.queryPlan.Root, frame)
+			found = found || queryUsesFrame(e.QueryPlan.Root, frame)
 		}
 	})
 	return found

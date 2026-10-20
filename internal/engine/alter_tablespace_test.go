@@ -200,8 +200,8 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		walkBoundExpression(captured.transformation.expression, func(expression expr.Expr) {
 			if column, ok := expression.(columnExpression); ok {
 				columns++
-				if column.origin != rootColumn || column.slot != 0 || column.ResultUsage().Type.ID() != sqltype.Int4 {
-					t.Fatalf("root USING lost original column binding: origin %v want %v, slot %d, usage %v", column.origin, rootColumn, column.slot, column.ResultUsage())
+				if column.Origin != rootColumn || column.Slot != 0 || column.ResultUsage().Type.ID() != sqltype.Int4 {
+					t.Fatalf("root USING lost original column binding: origin %v want %v, slot %d, usage %v", column.Origin, rootColumn, column.Slot, column.ResultUsage())
 				}
 			}
 		})

@@ -12,11 +12,11 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 	t.Run("reuse-fresh-owner-source-immutable", func(t *testing.T) {
 		_, q, source := queryJoinsFixture(t, `SELECT k = ANY(SELECT q FROM b WHERE k=3) AS v FROM a`)
 		project := q.Root.(*projectNode)
-		node := project.expressions[0].(subqueryExpression)
-		if len(node.membership) != 1 {
+		node := project.Expressions[0].(subqueryExpression)
+		if len(node.Membership) != 1 {
 			t.Fatal("fixture did not bind real hashed membership")
 		}
-		rhs := node.queryPlan.Root.(*projectNode)
+		rhs := node.QueryPlan.Root.(*projectNode)
 		usage := rhs.Schema()[0].Usage
 		calls := 0
 		probe := queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
@@ -25,8 +25,8 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		}).(queryProbeExpression)
 		probe.Property.Volatility = expr.Volatile
 		subqueryTestTarget(t, rhs, probe)
-		leftUsage, rightUsage := node.comparisons[0].left.ResultUsage(), node.comparisons[0].right.ResultUsage()
-		ref, conflict := node.comparisons[0].predicate.InputCollation()
+		leftUsage, rightUsage := node.Comparisons[0].Left.ResultUsage(), node.Comparisons[0].Right.ResultUsage()
+		ref, conflict := node.Comparisons[0].Predicate.InputCollation()
 		properties := node.Properties()
 		for execution, want := range [][]any{{true, true, nil, false}, {false, false, nil, true}} {
 			state := queryState{source: source}
@@ -60,15 +60,15 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			if stage.source != nil || stage.evaluation.query != nil || stage.expressions != nil {
 				t.Fatal("closed stage retained execution references")
 			}
-			captured := project.expressions[0].(subqueryExpression)
-			actualRef, actualConflict := captured.comparisons[0].predicate.InputCollation()
-			if captured.queryPlan.Root != rhs || captured.Properties() != properties || captured.comparisons[0].left.ResultUsage() != leftUsage || captured.comparisons[0].right.ResultUsage() != rightUsage || actualRef != ref || actualConflict != conflict {
+			captured := project.Expressions[0].(subqueryExpression)
+			actualRef, actualConflict := captured.Comparisons[0].Predicate.InputCollation()
+			if captured.QueryPlan.Root != rhs || captured.Properties() != properties || captured.Comparisons[0].Left.ResultUsage() != leftUsage || captured.Comparisons[0].Right.ResultUsage() != rightUsage || actualRef != ref || actualConflict != conflict {
 				t.Fatal("execution mutated captured operand/provider authority")
 			}
 			if len(state.memberships) != 1 {
 				t.Fatal("borrowed stage close erased retained membership", len(state.memberships))
 			}
-			retained := state.memberships[subqueryMembershipKey{node.queryPlan, source}]
+			retained := state.memberships[subqueryMembershipKey{node.QueryPlan, source}]
 			if retained == nil || len(retained.flat) != 1 {
 				t.Fatal("owner lost the successfully built tuple")
 			}
@@ -81,8 +81,8 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 	t.Run("repeated-null-evidence", func(t *testing.T) {
 		_, q, source := queryJoinsFixture(t, `SELECT k = ANY(SELECT q FROM b WHERE k=3) AS v FROM a`)
 		project := q.Root.(*projectNode)
-		expr := project.expressions[0].(subqueryExpression)
-		rhs := expr.queryPlan.Root.(*projectNode)
+		expr := project.Expressions[0].(subqueryExpression)
+		rhs := expr.QueryPlan.Root.(*projectNode)
 		usage := rhs.Schema()[0].Usage
 		calls := 0
 		subqueryTestTarget(t, rhs, queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
@@ -111,18 +111,18 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			}
 			_, q, source := queryJoinsFixture(t, sql)
 			project := q.Root.(*projectNode)
-			expr := project.expressions[0].(subqueryExpression)
-			rhs := expr.queryPlan.Root.(*projectNode)
+			expr := project.Expressions[0].(subqueryExpression)
+			rhs := expr.QueryPlan.Root.(*projectNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			primary := errors.New("demanded RHS target")
 			leftCalls, rightCalls := 0, 0
-			leftUsage := expr.comparisons[0].left.ResultUsage()
-			expr.comparisons[0].left = queryProbe(leftUsage, func(*EvalContext) (sqltype.Value, error) {
+			leftUsage := expr.Comparisons[0].Left.ResultUsage()
+			expr.Comparisons[0].Left = queryProbe(leftUsage, func(*EvalContext) (sqltype.Value, error) {
 				leftCalls++
 				return sqltype.Integer(leftUsage.Type, 1)
 			})
-			project.expressions[0] = expr
+			project.Expressions[0] = expr
 			usage := rhs.Schema()[0].Usage
 			subqueryTestTarget(t, rhs, queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 				rightCalls++

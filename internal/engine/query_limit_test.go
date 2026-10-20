@@ -26,18 +26,18 @@ func TestQueryLimitDemand(t *testing.T) {
 		t.Run(string(rune('0'+count)), func(t *testing.T) {
 			e, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f")
 			project := query.Root.(*projectNode)
-			filter := project.child.(*filterNode)
+			filter := project.Child.(*filterNode)
 			boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
 			calls := 0
 			sentinel := errors.New("unneeded predicate")
-			filter.predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+			filter.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 				calls++
 				if calls > 1 {
 					return sqltype.Value{}, sentinel
 				}
 				return sqltype.Boolean(boolType, true), nil
 			})
-			project.child = &limitNode{querySchema: filter.Schema(), child: filter, count: queryLimitBound(t, e, count)}
+			project.Child = &limitNode{querySchema: filter.Schema(), Child: filter, Count: queryLimitBound(t, e, count)}
 			rows, n, err := finalizeQuery(context.Background(), project, source, nil)
 			if err != nil || n != int(count) || calls != int(count) || rows == nil {
 				t.Fatal(rows, n, err, calls)
@@ -51,19 +51,19 @@ func TestQueryLimitDemand(t *testing.T) {
 	t.Run("nested-loop stops after first accepted pair", func(t *testing.T) {
 		e, query, source := queryCoreFixture(t, "SELECT id FROM t")
 		project := query.Root.(*projectNode)
-		left := project.child
-		right := &sourceNode{occurrence: 1}
+		left := project.Child
+		right := &sourceNode{Occurrence: 1}
 		inputs := &querySource{sources: []*querySource{source, {anonymous: [][]sqltype.Value{{}}}}}
 		boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
 		calls := 0
-		join := &joinNode{querySchema: left.Schema(), left: left, right: right, leftWidth: len(left.Schema()), predicate: queryProbe(boolType.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		join := &joinNode{querySchema: left.Schema(), Left: left, Right: right, LeftWidth: len(left.Schema()), Predicate: queryProbe(boolType.Usage(), func(*EvalContext) (sqltype.Value, error) {
 			calls++
 			if calls > 1 {
 				return sqltype.Value{}, errors.New("tail pair evaluated")
 			}
 			return sqltype.Boolean(boolType, true), nil
 		})}
-		project.child = &limitNode{querySchema: join.Schema(), child: join, count: queryLimitBound(t, e, 1)}
+		project.Child = &limitNode{querySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
 		rows, n, err := finalizeQuery(context.Background(), project, inputs, nil)
 		if err != nil || n != 1 || calls != 1 {
 			t.Fatal(n, err, calls)
@@ -81,7 +81,7 @@ func TestQueryLimitBoundsOnce(t *testing.T) {
 		v, _ := sqltype.Integer(typ, n)
 		return queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, name); return v, nil })
 	}
-	project.child = &limitNode{querySchema: project.child.Schema(), child: project.child, offset: probe("offset", 1), count: probe("limit", 2)}
+	project.Child = &limitNode{querySchema: project.Child.Schema(), Child: project.Child, Offset: probe("offset", 1), Count: probe("limit", 2)}
 	rows, n, err := finalizeQuery(context.Background(), project, source, nil)
 	if err != nil || n != 2 || !reflect.DeepEqual(calls, []string{"offset", "limit"}) {
 		t.Fatal(n, err, calls)
@@ -107,17 +107,17 @@ func TestQueryLimitCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			project := query.Root.(*projectNode)
-			filter := project.child.(*filterNode)
-			limit := &limitNode{querySchema: filter.Schema(), child: filter, count: queryLimitBound(t, e, 1)}
-			project.child = limit
+			filter := project.Child.(*filterNode)
+			limit := &limitNode{querySchema: filter.Schema(), Child: filter, Count: queryLimitBound(t, e, 1)}
+			project.Child = limit
 			calls := 0
 			if phase == "bound" {
-				limit.count = queryProbe(limit.count.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { cancel(); return sqltype.Value{}, context.Canceled })
+				limit.Count = queryProbe(limit.Count.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { cancel(); return sqltype.Value{}, context.Canceled })
 			} else if phase == "rejected filter" {
 				bt, _ := e.CatalogRead().LookupType(sqltype.Bool)
-				filter.predicate = queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
+				filter.Predicate = queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
 			} else {
-				original := project.expressions[0]
+				original := project.Expressions[0]
 				bound := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if phase != "prepublication" || calls == 2 {
@@ -126,13 +126,13 @@ func TestQueryLimitCancellation(t *testing.T) {
 					return c.Row[0], nil
 				})
 				if phase == "offset" {
-					limit.offset = queryLimitBound(t, e, 1)
-					limit.child = &evaluationNode{querySchema: filter.Schema(), child: filter, expressions: []expr.Expr{bound}}
+					limit.Offset = queryLimitBound(t, e, 1)
+					limit.Child = &evaluationNode{querySchema: filter.Schema(), Child: filter, Expressions: []expr.Expr{bound}}
 				} else {
 					if phase == "prepublication" {
-						limit.count = queryLimitBound(t, e, 2)
+						limit.Count = queryLimitBound(t, e, 2)
 					}
-					project.expressions[0] = bound
+					project.Expressions[0] = bound
 				}
 			}
 			rows, n, err := finalizeQuery(ctx, project, source, nil)

@@ -15,8 +15,8 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	info := expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
 	columnInfo := expr.Info{Usage: integer.Usage(), Property: info.Property}
-	left := columnExpression{Info: columnInfo, slot: 0}
-	right := columnExpression{Info: columnInfo, slot: 1}
+	left := columnExpression{Info: columnInfo, Slot: 0}
+	right := columnExpression{Info: columnInfo, Slot: 1}
 	comparison := func(op string, a, b expr.Expr) comparisonExpression {
 		t.Helper()
 		operator := map[string]sqltype.ComparisonOperator{
@@ -28,18 +28,18 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return comparisonExpression{Info: info, left: a, right: b, operator: op, predicate: provider}
+		return comparisonExpression{Info: info, Left: a, Right: b, Operator: op, Predicate: provider}
 	}
 	logical := func(op parser.LogicalOperator, a, b expr.Expr) logicalExpression {
-		return logicalExpression{Info: info, op: op, left: a, right: b}
+		return logicalExpression{Info: info, Op: op, Left: a, Right: b}
 	}
 	not := func(a expr.Expr) expr.Expr { return logical(parser.LogicalNot, a, nil) }
 	equal := comparison("=", left, right)
 	unequal := comparison("<>", left, right)
-	unknown := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Null(boolean)}
+	unknown := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Null(boolean)}
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
-	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: one}
+	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: one}
 	volatile := left
 	volatile.Property.Volatility = expr.Volatile
 	stable := left
@@ -69,14 +69,14 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			join := &joinNode{kind: parser.JoinFull, leftWidth: 1, rightWidth: 1, predicate: tc.expr}
-			before := join.predicate
+			join := &joinNode{Kind: parser.JoinFull, LeftWidth: 1, RightWidth: 1, Predicate: tc.expr}
+			before := join.Predicate
 			ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
-			facts, err := fullJoinCondition(ctx, join, join.predicate, false)
+			facts, err := fullJoinCondition(ctx, join, join.Predicate, false)
 			if err != nil || facts.constant || len(facts.keys) != tc.keys {
 				t.Fatalf("facts=%+v error=%v; want %d keys", facts, err, tc.keys)
 			}
-			if !reflect.DeepEqual(join.predicate, before) || join.predicate.Properties() != info.Property {
+			if !reflect.DeepEqual(join.Predicate, before) || join.Predicate.Properties() != info.Property {
 				t.Fatal("planning changed the runtime predicate or analyzed dependencies")
 			}
 			// Planning facts must not replace runtime FALSE/UNKNOWN results,
@@ -84,7 +84,7 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 			for _, row := range [][]sqltype.Value{{one, one}, {one, two}, {sqltype.Null(integer), one}, {one, sqltype.Null(integer)}} {
 				ctx.Row = row
 				want, wantErr := before.Eval(ctx)
-				got, gotErr := join.predicate.Eval(ctx)
+				got, gotErr := join.Predicate.Eval(ctx)
 				if wantErr != nil || gotErr != nil || !sqltype.SameDatum(want, got) {
 					t.Fatalf("runtime predicate changed: want=%v/%v got=%v/%v", want, wantErr, got, gotErr)
 				}

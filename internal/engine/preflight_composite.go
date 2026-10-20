@@ -33,7 +33,7 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 	case expr.PreflightNullBare:
 		if literalNullChild(next) {
 			u := next.ResultUsage()
-			return literalExpression{Info: expr.Info{Usage: u, Pos: next.SourcePosition()}, value: sqltype.Null(u.Type)}, true, nil
+			return literalExpression{Info: expr.Info{Usage: u, Pos: next.SourcePosition()}, Value: sqltype.Null(u.Type)}, true, nil
 		}
 		return next, changed, nil
 	case expr.PreflightNullOrEvaluate, expr.PreflightRegexNullOrEvaluate:
@@ -63,7 +63,7 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 	if template, ok := next.(expr.ConstantTemplate); ok {
 		specialized, did, err := template.SpecializeTemplate(c.Context, func(child expr.Expr) (sqltype.Value, bool) {
 			literal, ok := child.(literalExpression)
-			return literal.value, ok
+			return literal.Value, ok
 		})
 		if err != nil {
 			return nil, false, err

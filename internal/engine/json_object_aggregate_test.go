@@ -90,7 +90,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 		t.Fatal("incompatible object calls share slots", len(b.grouping.aggregates))
 	}
 	for _, call := range b.grouping.aggregates {
-		if !call.includeNulls || call.argument.ResultUsage().Type != text || call.separator.ResultUsage().Type != integer {
+		if !call.IncludeNulls || call.Argument.ResultUsage().Type != text || call.Separator.ResultUsage().Type != integer {
 			t.Fatal("two inputs/presence lost", call)
 		}
 	}
@@ -129,7 +129,7 @@ func TestJSONObjectAggregateProviderRemap(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.JSON, sqltype.JSONB} {
 		result, _ := source.CatalogRead().LookupType(id)
 		p := jsonObjectProviderUnit(t, key.Usage(), input.Usage(), result.Usage(), true)
-		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: functions.AggregateJSONObjectStrict, includeNulls: true}}}
+		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: functions.AggregateJSONObjectStrict, IncludeNulls: true}}}
 		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
@@ -137,12 +137,12 @@ func TestJSONObjectAggregateProviderRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := mapped.(*aggregateNode).calls[0]
+		call := mapped.(*aggregateNode).Calls[0]
 		newKey, _ := destination.CatalogRead().LookupType(sqltype.Text)
 		newInput, _ := destination.CatalogRead().LookupType(sqltype.Int4)
 		newResult, _ := destination.CatalogRead().LookupType(id)
-		provider := call.provider.(functions.JSONObjectAggregate)
-		if provider.KeyUsage().Type != newKey || provider.InputUsage().Type != newInput || provider.ResultUsage().Type != newResult || mapped.Schema()[0].Usage.Type != newResult || p.KeyUsage().Type != key || p.InputUsage().Type != input || !call.includeNulls {
+		provider := call.Provider.(functions.JSONObjectAggregate)
+		if provider.KeyUsage().Type != newKey || provider.InputUsage().Type != newInput || provider.ResultUsage().Type != newResult || mapped.Schema()[0].Usage.Type != newResult || p.KeyUsage().Type != key || p.InputUsage().Type != input || !call.IncludeNulls {
 			t.Fatal("incomplete immutable remap")
 		}
 		state, err := provider.Init(ctx)
@@ -188,17 +188,17 @@ func TestJSONObjectAggregateRunnerNullPresence(t *testing.T) {
 			}
 			qtext += " FROM t"
 			_, q, source := queryCoreFixture(t, qtext)
-			node := q.Root.(*projectNode).child.(*aggregateNode)
-			keyUsage, valueUsage := node.calls[0].argument.ResultUsage(), node.calls[0].separator.ResultUsage()
+			node := q.Root.(*projectNode).Child.(*aggregateNode)
+			keyUsage, valueUsage := node.Calls[0].Argument.ResultUsage(), node.Calls[0].Separator.ResultUsage()
 			keys, values := 0, 0
-			node.calls[0].argument = queryProbe(keyUsage, func(*EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Argument = queryProbe(keyUsage, func(*EvalContext) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated key")
 				}
 				keys++
 				return sqltype.Integer(keyUsage.Type, 1)
 			})
-			node.calls[0].separator = queryProbe(valueUsage, func(*EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Separator = queryProbe(valueUsage, func(*EvalContext) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated value")
 				}
@@ -235,12 +235,12 @@ func TestJSONObjectAggregateRunnerNullPresence(t *testing.T) {
 func TestJSONObjectAggregateReachedEagerCancellation(t *testing.T) {
 	for _, tc := range []struct{ name, target string }{{"json_object_agg", ".writeJSONBString"}, {"jsonb_object_agg_strict", ".sortJSONBFields"}, {"jsonb_object_agg", ".jsonbOutput"}} {
 		e, q, source := queryCoreFixture(t, "SELECT "+tc.name+"(id,v) FROM t")
-		node := q.Root.(*projectNode).child.(*aggregateNode)
+		node := q.Root.(*projectNode).Child.(*aggregateNode)
 		input, _ := e.CatalogRead().LookupType(sqltype.Text)
-		result := node.calls[0].provider.ResultUsage()
-		node.calls[0].provider = jsonObjectProviderUnit(t, input.Usage(), input.Usage(), result, tc.name == "jsonb_object_agg_strict")
-		node.calls[0].argument = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
-		node.calls[0].separator = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "value"), nil })
+		result := node.Calls[0].Provider.ResultUsage()
+		node.Calls[0].Provider = jsonObjectProviderUnit(t, input.Usage(), input.Usage(), result, tc.name == "jsonb_object_agg_strict")
+		node.Calls[0].Argument = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
+		node.Calls[0].Separator = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "value"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
 		rows, n, err := finalizeQuery(probe, q.Root, source, nil)

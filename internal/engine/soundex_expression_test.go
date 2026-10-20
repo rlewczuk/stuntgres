@@ -60,7 +60,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			}
 			changed := n
 			changed.Args = append([]expr.Expr(nil), n.Args...)
-			changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
+			changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), Value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
 			if sameGroupExpression(n, changed) {
 				t.Fatal("argument identity collapsed")
 			}
@@ -196,7 +196,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 		} {
 			modified := n
 			modified.Args = append([]expr.Expr(nil), n.Args...)
-			modified.Args[0] = parameterExpression{Info: expr.Info{Usage: n.Args[0].ResultUsage(), Property: property}, number: 1}
+			modified.Args[0] = parameterExpression{Info: expr.Info{Usage: n.Args[0].ResultUsage(), Property: property}, Number: 1}
 			modified.Property = property
 			if plannedVolatility(modified) != property.Volatility {
 				t.Fatal("child volatility lost", property)

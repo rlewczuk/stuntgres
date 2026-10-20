@@ -81,7 +81,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	}
 	numericMask := domainUnitType(t, view, "numeric_mask")
 	walkBoundExpression(numericMask.DomainDefault.Expression, func(node expr.Expr) {
-		if leaf, ok := node.(literalExpression); ok && leaf.value.IsNull() && leaf.Usage.Typmod != -1 {
+		if leaf, ok := node.(literalExpression); ok && leaf.Value.IsNull() && leaf.Usage.Typmod != -1 {
 			t.Fatal("NULL leaf pre-applied inherited typmod")
 		}
 	})
@@ -91,7 +91,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	}
 	plain := domainUnitType(t, view, "no_default")
 	integer, _ := view.LookupType(sqltype.Int4)
-	null := literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: sqltype.Null(integer)}
+	null := literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
 	if !omitColumnDefault(view, null, integer.Usage()) || omitColumnDefault(view, null, parent.SQLType.Usage()) || !omitColumnDefault(view, null, plain.SQLType.Usage()) {
 		t.Fatal("plain NULL omission/domain mask distinction")
 	}
@@ -119,7 +119,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Int4)
 	definition = *parent.DomainDefault
-	definition.Expression = literalExpression{Info: expr.Info{Usage: foreign.Usage()}, value: sqltype.Null(foreign)}
+	definition.Expression = literalExpression{Info: expr.Info{Usage: foreign.Usage()}, Value: sqltype.Null(foreign)}
 	bad.DomainDefault = &definition
 	if err := validateDomainDefault(view, &bad); err == nil {
 		t.Fatal("foreign recipe type accepted")

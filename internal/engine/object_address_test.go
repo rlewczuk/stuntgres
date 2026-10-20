@@ -156,7 +156,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 	defer done()
 	for _, name := range []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"} {
 		q := domainUnitBindSelect(t, e, op, "SELECT "+name+"(NULL,NULL,NULL)")
-		n, ok := q.Root.(*projectNode).expressions[0].(functions.ObjectAddress)
+		n, ok := q.Root.(*projectNode).Expressions[0].(functions.ObjectAddress)
 		if !ok || n.Validate() != nil || n.Properties().Volatility != expr.Stable || generationImmutable(n) {
 			t.Fatal("typed stable carrier", name, n)
 		}

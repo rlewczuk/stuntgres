@@ -7,84 +7,84 @@ import (
 
 type bitwiseExpression struct {
 	expr.Info
-	left, right expr.Expr
-	provider    sqltype.Bitwise
-	bits        sqltype.BitStringBitwise
-	network     sqltype.NetworkBitwise
-	operator    sqltype.BitwiseOperator
-	namespace   string
+	Left, Right expr.Expr
+	Provider    sqltype.Bitwise
+	Bits        sqltype.BitStringBitwise
+	Network     sqltype.NetworkBitwise
+	Operator    sqltype.BitwiseOperator
+	Namespace   string
 }
 
 func (e bitwiseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	a, err := e.left.Eval(ctx)
+	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.right == nil {
+	if e.Right == nil {
 		if e.Usage.Type.ID() == sqltype.Inet {
-			return e.network.Unary(ctx.FunctionContext(), a)
+			return e.Network.Unary(ctx.FunctionContext(), a)
 		}
 		if e.Usage.Type.ID() == sqltype.Bit {
-			return e.bits.Unary(ctx.FunctionContext(), a)
+			return e.Bits.Unary(ctx.FunctionContext(), a)
 		}
-		return e.provider.Unary(ctx.FunctionContext(), a)
+		return e.Provider.Unary(ctx.FunctionContext(), a)
 	}
-	b, err := e.right.Eval(ctx)
+	b, err := e.Right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if e.Usage.Type.ID() == sqltype.Inet {
-		return e.network.Binary(ctx.FunctionContext(), a, b)
+		return e.Network.Binary(ctx.FunctionContext(), a, b)
 	}
 	if e.Usage.Type.ID() == sqltype.Bit {
-		return e.bits.Binary(ctx.FunctionContext(), a, b)
+		return e.Bits.Binary(ctx.FunctionContext(), a, b)
 	}
-	return e.provider.Binary(ctx.FunctionContext(), a, b)
+	return e.Provider.Binary(ctx.FunctionContext(), a, b)
 }
 
 type likeExpression struct {
 	expr.Info
-	left, right         expr.Expr
-	provider            sqltype.LikePlan
-	operator, namespace string
+	Left, Right         expr.Expr
+	Provider            sqltype.LikePlan
+	Operator, Namespace string
 }
 
 func (e likeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	a, err := e.left.Eval(ctx)
+	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	b, err := e.right.Eval(ctx)
+	b, err := e.Right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.provider.Evaluate(ctx.FunctionContext(), a, b)
+	return e.Provider.Evaluate(ctx.FunctionContext(), a, b)
 }
 
 type nullTestExpression struct {
 	expr.Info
-	child expr.Expr
-	not   bool
+	Child expr.Expr
+	Not   bool
 	// DISTINCT FROM an undecorated NULL tests the whole value, even for rows.
-	whole bool
+	Whole bool
 }
 
 func (e nullTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	v, err := e.child.Eval(ctx)
+	v, err := e.Child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	result := v.IsNull()
-	if !e.whole && !v.IsNull() && v.Type().BaseType().IsComposite() {
+	if !e.Whole && !v.IsNull() && v.Type().BaseType().IsComposite() {
 		result = true
 		for i := range v.CompositeLen() {
 			null := v.CompositeField(i).IsNull()
-			if null == e.not {
+			if null == e.Not {
 				result = false
 				break
 			}
 		}
-	} else if e.not {
+	} else if e.Not {
 		result = !result
 	}
 	return sqltype.Boolean(e.Usage.Type, result), nil
@@ -92,13 +92,13 @@ func (e nullTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type truthTestExpression struct {
 	expr.Info
-	child expr.Expr
-	truth Truth
-	not   bool
+	Child expr.Expr
+	Truth Truth
+	Not   bool
 }
 
 func (e truthTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	v, err := e.child.Eval(ctx)
+	v, err := e.Child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -106,8 +106,8 @@ func (e truthTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	result := truth == e.truth
-	if e.not {
+	result := truth == e.Truth
+	if e.Not {
 		result = !result
 	}
 	return sqltype.Boolean(e.Usage.Type, result), nil
@@ -115,23 +115,23 @@ func (e truthTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type distinctExpression struct {
 	expr.Info
-	left, right expr.Expr
-	equality    sqltype.ComparisonPredicate
-	not         bool
+	Left, Right expr.Expr
+	Equality    sqltype.ComparisonPredicate
+	Not         bool
 }
 
 func (e distinctExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	a, err := e.left.Eval(ctx)
+	a, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	b, err := e.right.Eval(ctx)
+	b, err := e.Right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	distinct := a.IsNull() != b.IsNull()
 	if !a.IsNull() && !b.IsNull() {
-		equal, err := e.equality.Evaluate(ctx.FunctionContext(), a, b, ctx.FunctionInput())
+		equal, err := e.Equality.Evaluate(ctx.FunctionContext(), a, b, ctx.FunctionInput())
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -141,7 +141,7 @@ func (e distinctExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 		distinct = truth != True
 	}
-	if e.not {
+	if e.Not {
 		distinct = !distinct
 	}
 	return sqltype.Boolean(e.Usage.Type, distinct), nil
@@ -151,28 +151,28 @@ func (e distinctExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // The lexical evaluator is shared with existing row/subquery predicates.
 type rowComparisonExpression struct {
 	expr.Info
-	comparisons []comparisonExpression
-	ordering    []sqltype.Comparison
-	operator    string
+	Comparisons []comparisonExpression
+	Ordering    []sqltype.Comparison
+	Operator    string
 	// Analysis-only associations retain original expanded source occurrences.
-	expansions [2]map[int]compositeExpansionBinding
+	Expansions [2]map[int]compositeExpansionBinding
 	// Frozen erased constructor casts retain their analyzed member usages.
-	memberCasts [2]bool
+	MemberCasts [2]bool
 }
 
 func (e rowComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	return e.compare(ctx, nil)
 }
 
-func (e rowComparisonExpression) distinct() bool {
-	return e.operator == "IS DISTINCT FROM" || e.operator == "IS NOT DISTINCT FROM"
+func (e rowComparisonExpression) Distinct() bool {
+	return e.Operator == "IS DISTINCT FROM" || e.Operator == "IS NOT DISTINCT FROM"
 }
 
-func (e subqueryExpression) compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
-	pairs := rowComparisonExpression{Info: e.Info, comparisons: e.comparisons, ordering: e.ordering, operator: e.operator}
+func (e subqueryExpression) Compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
+	pairs := rowComparisonExpression{Info: e.Info, Comparisons: e.Comparisons, Ordering: e.Ordering, Operator: e.Operator}
 	return pairs.compare(ctx, left)
 }
 
@@ -180,25 +180,25 @@ func (e subqueryExpression) compare(ctx expr.Context, left []sqltype.Value) (sql
 // reached pair evaluates left then right before deciding whether to continue.
 func (e rowComparisonExpression) compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
 	unknown := false
-	for i, comparison := range e.comparisons {
+	for i, comparison := range e.Comparisons {
 		var valueLeft sqltype.Value
 		if left == nil {
 			var err error
-			valueLeft, err = comparison.left.Eval(ctx)
+			valueLeft, err = comparison.Left.Eval(ctx)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
 		} else {
 			valueLeft = left[i]
 		}
-		right, err := comparison.right.Eval(ctx)
+		right, err := comparison.Right.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if e.distinct() {
+		if e.Distinct() {
 			distinct := valueLeft.IsNull() != right.IsNull()
 			if !valueLeft.IsNull() && !right.IsNull() {
-				value, err := comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
+				value, err := comparison.Predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -209,18 +209,18 @@ func (e rowComparisonExpression) compare(ctx expr.Context, left []sqltype.Value)
 				distinct = !equal
 			}
 			if distinct {
-				return sqltype.Boolean(e.Usage.Type, e.operator == "IS DISTINCT FROM"), nil
+				return sqltype.Boolean(e.Usage.Type, e.Operator == "IS DISTINCT FROM"), nil
 			}
 			continue
 		}
-		if len(e.comparisons) == 1 {
-			return comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
+		if len(e.Comparisons) == 1 {
+			return comparison.Predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
 		}
-		if len(e.ordering) != 0 {
+		if len(e.Ordering) != 0 {
 			if valueLeft.IsNull() || right.IsNull() {
 				return sqltype.Null(e.Usage.Type), nil
 			}
-			sign, err := e.ordering[i].Compare(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
+			sign, err := e.Ordering[i].Compare(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -228,12 +228,12 @@ func (e rowComparisonExpression) compare(ctx expr.Context, left []sqltype.Value)
 				continue
 			}
 			truth := sign < 0
-			if e.operator == ">" || e.operator == ">=" {
+			if e.Operator == ">" || e.Operator == ">=" {
 				truth = sign > 0
 			}
 			return sqltype.Boolean(e.Usage.Type, truth), nil
 		}
-		value, err := comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
+		value, err := comparison.Predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -245,7 +245,7 @@ func (e rowComparisonExpression) compare(ctx expr.Context, left []sqltype.Value)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if e.operator == "<>" {
+		if e.Operator == "<>" {
 			if truth {
 				return sqltype.Boolean(e.Usage.Type, true), nil
 			}
@@ -256,6 +256,6 @@ func (e rowComparisonExpression) compare(ctx expr.Context, left []sqltype.Value)
 	if unknown {
 		return sqltype.Null(e.Usage.Type), nil
 	}
-	truth := e.operator == "=" || e.operator == "<=" || e.operator == ">=" || e.operator == "IS NOT DISTINCT FROM"
+	truth := e.Operator == "=" || e.Operator == "<=" || e.Operator == ">=" || e.Operator == "IS NOT DISTINCT FROM"
 	return sqltype.Boolean(e.Usage.Type, truth), nil
 }

@@ -28,5 +28,5 @@ func (c *EvalContext) CatalogUserName(oid uint32, result *sqltype.Descriptor) (s
 
 func bareInquiryLiteralNull(node expr.Expr) bool {
 	value, ok := node.(literalExpression)
-	return ok && value.value.IsNull()
+	return ok && value.Value.IsNull()
 }

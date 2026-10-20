@@ -28,9 +28,9 @@ func TestCatalogInquiryRetainedVolatility(t *testing.T) {
 	if !ok {
 		t.Fatalf("decisive CASE did not simplify: %T", child)
 	}
-	value, err := literal.value.Boolean()
+	value, err := literal.Value.Boolean()
 	if err != nil || value {
-		t.Fatal(literal.value, err)
+		t.Fatal(literal.Value, err)
 	}
 	if plannedVolatility(simplified) != expr.Volatile || plannedIntrinsicVolatility(simplified) != expr.Volatile {
 		t.Fatal("physical/intrinsic inquiry inspection changed the historical analyzed fallback")

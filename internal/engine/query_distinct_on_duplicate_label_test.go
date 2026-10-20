@@ -7,17 +7,17 @@ func TestQueryDistinctOnDuplicateSubqueryLabelFirstOccurrence(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(x) (SELECT max(v) FROM t) AS x,(SELECT max(t.v) FROM t) AS x FROM t"+suffix)
 		defer source.close()
 		project := query.Root.(*projectNode)
-		on := project.child.(*distinctOnNode)
-		first := project.expressions[0].(cachedOrderExpression)
-		second := project.expressions[1].(cachedOrderExpression)
-		key := on.expressions[0].(cachedOrderExpression)
-		if first.slot != key.slot || second.slot == key.slot {
+		on := project.Child.(*distinctOnNode)
+		first := project.Expressions[0].(cachedOrderExpression)
+		second := project.Expressions[1].(cachedOrderExpression)
+		key := on.Expressions[0].(cachedOrderExpression)
+		if first.Slot != key.Slot || second.Slot == key.Slot {
 			t.Fatal("duplicate label did not retain first output occurrence", suffix, first, second, key)
 		}
 		if suffix != "" {
-			sorted := on.child.(*sortNode)
-			if sorted.keys[0].outputOrdinal != 1 || sorted.keys[0].targetIdentity != 1 {
-				t.Fatal("ORDER duplicate label changed analyzed target occurrence", sorted.keys)
+			sorted := on.Child.(*sortNode)
+			if sorted.Keys[0].OutputOrdinal != 1 || sorted.Keys[0].TargetIdentity != 1 {
+				t.Fatal("ORDER duplicate label changed analyzed target occurrence", sorted.Keys)
 			}
 		}
 	}
@@ -27,11 +27,11 @@ func TestQueryOrderDuplicateSubqueryLabelFirstOccurrence(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT (SELECT max(v) FROM t) AS x,(SELECT max(t.v) FROM t) AS x FROM t ORDER BY x")
 	defer source.close()
 	project := query.Root.(*projectNode)
-	sorted := project.child.(*sortNode)
-	first := project.expressions[0].(cachedOrderExpression)
-	second := project.expressions[1].(cachedOrderExpression)
-	if sorted.keys[0].outputOrdinal != 1 || sorted.keys[0].cache != first.slot || sorted.keys[0].cache == second.slot {
-		t.Fatal("ordinary ORDER duplicate label changed first output/cache occurrence", sorted.keys, first, second)
+	sorted := project.Child.(*sortNode)
+	first := project.Expressions[0].(cachedOrderExpression)
+	second := project.Expressions[1].(cachedOrderExpression)
+	if sorted.Keys[0].OutputOrdinal != 1 || sorted.Keys[0].Cache != first.Slot || sorted.Keys[0].Cache == second.Slot {
+		t.Fatal("ordinary ORDER duplicate label changed first output/cache occurrence", sorted.Keys, first, second)
 	}
 	if len(project.Schema()) != 2 || project.Schema()[0].Name != "x" || project.Schema()[1].Name != "x" {
 		t.Fatal("ordinary ORDER changed visible duplicate output metadata", project.Schema())

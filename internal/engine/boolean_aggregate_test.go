@@ -10,9 +10,9 @@ import (
 func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT count(f),bool_and(f),bool_or(f),every(f),bool_and(f) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 3 {
-		t.Fatal("operation identity or alias sharing", len(node.calls))
+	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 3 {
+		t.Fatal("operation identity or alias sharing", len(node.Calls))
 	}
 	for i, c := range q.Root.Schema() {
 		if !c.NullabilityKnown || c.Nullable != (i != 0) || c.OriginTable != 0 || c.OriginAttribute != 0 || c.Usage.Typmod != -1 {
@@ -46,7 +46,7 @@ func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 	// scalar-call path to check volatility without executing the fixture.
 	_, volatile, owner := queryCoreFixture(t, "SELECT bool_and(nextval($1)>0),every(nextval($1)>0),bool_or(nextval($1)>0) FROM t")
 	defer owner.close()
-	if len(volatile.Root.(*projectNode).child.(*aggregateNode).calls) != 3 {
+	if len(volatile.Root.(*projectNode).Child.(*aggregateNode).Calls) != 3 {
 		t.Fatal("volatile arguments shared")
 	}
 }
@@ -56,13 +56,13 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 		for _, phase := range []string{"success", "argument", "advance", "finalize", "late error"} {
 			t.Run(name+"/"+phase, func(t *testing.T) {
 				_, q, source := queryCoreFixture(t, "SELECT "+name+"(f) FROM t")
-				node := q.Root.(*projectNode).child.(*aggregateNode)
-				usage := node.calls[0].argument.ResultUsage()
+				node := q.Root.(*projectNode).Child.(*aggregateNode)
+				usage := node.Calls[0].Argument.ResultUsage()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				calls, advances := 0, 0
 				sentinel := errors.New("late Boolean argument error")
-				node.calls[0].argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+				node.Calls[0].Argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if phase == "argument" {
 						cancel()
@@ -75,8 +75,8 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 					}
 					return sqltype.Boolean(usage.Type, name == "bool_or"), nil
 				})
-				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
+				original := node.Calls[0].Provider
+				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
 					advances++
 					got, err := v.Boolean()
 					if err != nil || got != (name == "bool_or") {

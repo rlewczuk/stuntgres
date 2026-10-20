@@ -50,7 +50,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	if unresolved, ok := node.(unknownOutput); ok {
 		// Retained contextual literal analysis owns no descriptor or value.
 		// Executable query validation still rejects unresolved output nodes.
-		literal, ok := unresolved.raw.(parser.LiteralExpr)
+		literal, ok := unresolved.Raw.(parser.LiteralExpr)
 		if !ok || unresolved.ResultUsage() != (sqltype.Usage{}) || literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue {
 			return nil, false, fmt.Errorf("stuntgres: invalid contextual view output")
 		}
@@ -83,7 +83,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			address := captured.Address()
 			switch installed := node.(type) {
 			case sqlRoutineExpression:
-				address = installed.ref.Address
+				address = installed.Ref.Address
 			case installedFunctionExpression:
 				address = installed.ref.Address
 			case installedCryptoFunctionExpression:
@@ -97,8 +97,8 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			case installedSoundexFunctionExpression:
 				address = installed.ref.Address
 			case unnestExpression:
-				if installed.procedure != nil {
-					address = installed.ref.Address
+				if installed.Procedure != nil {
+					address = installed.Ref.Address
 				}
 			}
 			descriptor, _ := definitionDescriptorAt(view, reader, address)
@@ -181,8 +181,8 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	var rebound expr.Expr
 	switch n := node.(type) {
 	case assignmentValueExpression:
-		n.base, n.value = child(n.base), child(n.value)
-		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.target}, mapChild, func(usage sqltype.Usage) (sqltype.Usage, error) {
+		n.Base, n.Value = child(n.Base), child(n.Value)
+		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.Target}, mapChild, func(usage sqltype.Usage) (sqltype.Usage, error) {
 			usage.Type = retainedType(usage.Type)
 			usage.Collation = comparisonCollation(usage.Collation)
 			return usage, err
@@ -190,22 +190,22 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		if failure != nil {
 			return nil, false, failure
 		}
-		changed = changed || targets[0] != n.target
-		n.target = targets[0]
+		changed = changed || targets[0] != n.Target
+		n.Target = targets[0]
 		n.Info = info
 		rebound = n
 	case unnestExpression:
-		n.args = children(n.args)
+		n.Args = children(n.Args)
 		n.Info = info
-		if n.procedure != nil {
-			descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		if n.Procedure != nil {
+			descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 			proc, ok := descriptor.(*catalog.Procedure)
 			if !ok || intaggProviderOf(proc) != stockIntagg {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped intagg enumerator")
 			}
-			changed = changed || n.procedure != proc
-			n.procedure = proc
-			if err := validateIntaggIdentity(view, proc, n.ref, "int_array_enum"); err != nil {
+			changed = changed || n.Procedure != proc
+			n.Procedure = proc
+			if err := validateIntaggIdentity(view, proc, n.Ref, "int_array_enum"); err != nil {
 				return nil, false, err
 			}
 		}
@@ -332,33 +332,33 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		changed = changed || replaced
 		if err == nil {
 			var projected bool
-			n, projected, err = n.retagFieldProjection(info.Usage.Type.BaseType())
+			n, projected, err = n.RetagFieldProjection(info.Usage.Type.BaseType())
 			changed = changed || projected
 		}
 		n.Info = info
 		rebound = n
 	case fieldExpression:
-		n.base = child(n.base)
+		n.Base = child(n.Base)
 		if err != nil {
 			return nil, false, err
 		}
-		index, ok := n.base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.attribute)
+		index, ok := n.Base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.Attribute)
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: retired remapped field")
 		}
-		if row, constructor := n.base.(rowExpression); constructor {
-			index = row.fieldSourceIndex(index)
+		if row, constructor := n.Base.(rowExpression); constructor {
+			index = row.FieldSourceIndex(index)
 			if index < 0 {
 				return nil, false, fmt.Errorf("stuntgres: missing retained row field")
 			}
 		}
-		changed = changed || index != n.index
-		n.index = index
+		changed = changed || index != n.Index
+		n.Index = index
 		n.Info = info
 		rebound = n
 	case arrayExpression:
 		var elements []expr.Expr
-		for i, old := range n.elements {
+		for i, old := range n.Elements {
 			next, replaced, failure := mapChild(old)
 			if failure != nil {
 				return nil, false, failure
@@ -366,7 +366,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			if replaced {
 				changed = true
 				if elements == nil {
-					elements = append([]expr.Expr(nil), n.elements...)
+					elements = append([]expr.Expr(nil), n.Elements...)
 				}
 				elements[i] = next
 			}
@@ -375,7 +375,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			return node, false, err
 		}
 		if elements != nil {
-			n.elements = elements
+			n.Elements = elements
 		}
 		n.Info = info
 		rebound = n
@@ -393,14 +393,14 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		rebound = n
 	case subqueryExpression:
 		if queryMapper != nil {
-			root, failure := queryMapper(n.queryPlan.Root)
+			root, failure := queryMapper(n.QueryPlan.Root)
 			if failure != nil {
 				return nil, false, failure
 			}
-			if root != n.queryPlan.Root {
-				copy := *n.queryPlan
+			if root != n.QueryPlan.Root {
+				copy := *n.QueryPlan
 				copy.Root = root
-				n.queryPlan = &copy
+				n.QueryPlan = &copy
 				changed = true
 				if leaf != nil {
 					visitCTEQuery(root, func(LogicalNode) {}, func(expr expr.Expr) {
@@ -414,62 +414,62 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			}
 		}
 		var comparisons []comparisonExpression
-		for i, old := range n.comparisons {
+		for i, old := range n.Comparisons {
 			next := child(old)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed && comparisons == nil {
-				comparisons = append([]comparisonExpression(nil), n.comparisons...)
+				comparisons = append([]comparisonExpression(nil), n.Comparisons...)
 			}
 			if comparisons != nil {
 				comparisons[i] = next.(comparisonExpression)
 			}
 		}
 		var expansionChanged bool
-		n.leftExpansions, expansionChanged, err = mapRowComparisonExpansions(n.leftExpansions, mapChild)
+		n.LeftExpansions, expansionChanged, err = mapRowComparisonExpansions(n.LeftExpansions, mapChild)
 		if err != nil {
 			return nil, false, err
 		}
 		changed = changed || expansionChanged
-		if n.leftConstructor != nil {
-			n.leftConstructor = child(n.leftConstructor)
+		if n.LeftConstructor != nil {
+			n.LeftConstructor = child(n.LeftConstructor)
 			if err != nil {
 				return nil, false, err
 			}
 		}
-		if n.jsonArray != nil {
-			copy := *n.jsonArray
-			copy.input = child(copy.input)
+		if n.JSONArray != nil {
+			copy := *n.JSONArray
+			copy.Input = child(copy.Input)
 			if err != nil {
 				return nil, false, err
 			}
-			copy.plan, err = sqltype.BindJSONArrayAggregate(copy.input.ResultUsage(), info.Usage, true)
+			copy.Plan, err = sqltype.BindJSONArrayAggregate(copy.Input.ResultUsage(), info.Usage, true)
 			if err != nil {
 				return nil, false, err
 			}
-			n.jsonArray = &copy
+			n.JSONArray = &copy
 		}
 		if !changed {
 			return node, false, nil
 		}
 		if comparisons != nil {
-			n.comparisons = comparisons
+			n.Comparisons = comparisons
 		}
-		if len(n.ordering) != 0 {
-			n.ordering = make([]sqltype.Comparison, len(n.comparisons))
-			for i, c := range n.comparisons {
-				ref, conflict := c.predicate.InputCollation()
-				n.ordering[i], err = sqltype.BindComparison(c.left.ResultUsage().Type, c.right.ResultUsage().Type, ref, conflict)
+		if len(n.Ordering) != 0 {
+			n.Ordering = make([]sqltype.Comparison, len(n.Comparisons))
+			for i, c := range n.Comparisons {
+				ref, conflict := c.Predicate.InputCollation()
+				n.Ordering[i], err = sqltype.BindComparison(c.Left.ResultUsage().Type, c.Right.ResultUsage().Type, ref, conflict)
 				if err != nil {
 					return nil, false, err
 				}
 			}
 		}
-		if len(n.membership) != 0 {
-			n.membership = make([]sqltype.Grouping, len(n.comparisons))
-			for i, pair := range n.comparisons {
-				n.membership[i], err = pair.predicate.EqualityGrouping()
+		if len(n.Membership) != 0 {
+			n.Membership = make([]sqltype.Grouping, len(n.Comparisons))
+			for i, pair := range n.Comparisons {
+				n.Membership[i], err = pair.Predicate.EqualityGrouping()
 				if err != nil {
 					return nil, false, err
 				}
@@ -487,12 +487,12 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		n.Info = info
 		rebound = n
 	case columnExpression:
-		n.virtual = child(n.virtual)
+		n.Virtual = child(n.Virtual)
 		n.Info = info
 		rebound = n
 	case returningColumnExpression:
-		if n.value != nil {
-			n.value = child(n.value)
+		if n.Value != nil {
+			n.Value = child(n.Value)
 			n.Info = info
 			rebound = n
 			break
@@ -506,17 +506,17 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		rebound = n
 	case returningWholeRowExpression:
 		var members []expr.Expr
-		for i, member := range n.members {
+		for i, member := range n.Members {
 			next := child(member)
 			if changed && members == nil {
-				members = append([]expr.Expr(nil), n.members...)
+				members = append([]expr.Expr(nil), n.Members...)
 			}
 			if members != nil {
 				members[i] = next
 			}
 		}
 		if members != nil {
-			n.members = members
+			n.Members = members
 		}
 		n.Info = info
 		rebound = n
@@ -531,7 +531,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		rebound = n
 	case groupingExpression:
 		var args []expr.Expr
-		for i, arg := range n.args {
+		for i, arg := range n.Args {
 			next, replaced, failure := mapChild(arg)
 			if failure != nil {
 				return nil, false, failure
@@ -539,13 +539,13 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			if replaced {
 				changed = true
 				if args == nil {
-					args = append([]expr.Expr(nil), n.args...)
+					args = append([]expr.Expr(nil), n.Args...)
 				}
 				args[i] = next
 			}
 		}
 		if args != nil {
-			n.args = args
+			n.Args = args
 		}
 		n.Info = info
 		rebound = n
@@ -573,36 +573,36 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		}
 		rebound = n
 	case caseExpression:
-		n.test, n.otherwise = child(n.test), child(n.otherwise)
+		n.Test, n.Otherwise = child(n.Test), child(n.Otherwise)
 		var arms []caseBranch
-		for i, old := range n.arms {
+		for i, old := range n.Arms {
 			arm := old
-			arm.condition, arm.result = child(arm.condition), child(arm.result)
-			if arm.routine != nil && view.State() != nil {
-				current, ok := view.Procedure(arm.routine.Address())
-				if !ok || !routine.SameRoutineDeclaration(current, arm.routine) {
+			arm.Condition, arm.Result = child(arm.Condition), child(arm.Result)
+			if arm.Routine != nil && view.State() != nil {
+				current, ok := view.Procedure(arm.Routine.Address())
+				if !ok || !routine.SameRoutineDeclaration(current, arm.Routine) {
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
 				}
-				changed = changed || arm.routine != current
-				arm.routine = current
+				changed = changed || arm.Routine != current
+				arm.Routine = current
 			}
-			ref, conflict := arm.equality.InputCollation()
+			ref, conflict := arm.Equality.InputCollation()
 			ref = comparisonCollation(ref)
-			if n.test != nil && err == nil {
-				arm.testUsage.Type = retainedType(arm.testUsage.Type)
+			if n.Test != nil && err == nil {
+				arm.TestUsage.Type = retainedType(arm.TestUsage.Type)
 				if len(collations) != 0 && collations[0] != nil {
-					arm.testUsage.Collation, err = collations[0](arm.testUsage.Collation)
+					arm.TestUsage.Collation, err = collations[0](arm.TestUsage.Collation)
 					if err != nil {
 						return nil, false, err
 					}
 				}
-				arm.testPlan, err = sqltype.PlanCoercion(n.test.ResultUsage(), arm.testUsage, sqltype.Implicit)
+				arm.TestPlan, err = sqltype.PlanCoercion(n.Test.ResultUsage(), arm.TestUsage, sqltype.Implicit)
 				if err == nil {
-					arm.equality, err = sqltype.BindComparison(arm.testUsage.Type, arm.condition.ResultUsage().Type, ref, conflict)
+					arm.Equality, err = sqltype.BindComparison(arm.TestUsage.Type, arm.Condition.ResultUsage().Type, ref, conflict)
 				}
 			}
 			if changed && arms == nil {
-				arms = append([]caseBranch(nil), n.arms...)
+				arms = append([]caseBranch(nil), n.Arms...)
 			}
 			if arms != nil {
 				arms[i] = arm
@@ -612,18 +612,18 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			return node, false, err
 		}
 		if arms != nil {
-			n.arms = arms
+			n.Arms = arms
 		}
 		n.Info = info
 		rebound = n
 	case conditionalExpression:
-		ref, conflict := n.comparison.InputCollation()
+		ref, conflict := n.Comparison.InputCollation()
 		ref = comparisonCollation(ref)
 		var args []expr.Expr
-		for i, old := range n.args {
+		for i, old := range n.Args {
 			next := child(old)
 			if changed && args == nil {
-				args = append([]expr.Expr(nil), n.args...)
+				args = append([]expr.Expr(nil), n.Args...)
 			}
 			if args != nil {
 				args[i] = next
@@ -633,17 +633,17 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			return node, false, err
 		}
 		if args != nil {
-			n.args = args
+			n.Args = args
 		}
-		if err == nil && n.kind != parser.Coalesce {
+		if err == nil && n.Kind != parser.Coalesce {
 			left, right := typ, typ
-			if n.kind == parser.NullIf {
-				left, right = n.args[0].ResultUsage().Type, n.args[1].ResultUsage().Type
+			if n.Kind == parser.NullIf {
+				left, right = n.Args[0].ResultUsage().Type, n.Args[1].ResultUsage().Type
 			}
-			if n.kind == parser.Greatest || n.kind == parser.Least {
-				n.comparison, n.missingOrdering, err = bindExtremaComparison(info.Usage, conflict)
+			if n.Kind == parser.Greatest || n.Kind == parser.Least {
+				n.Comparison, n.MissingOrdering, err = bindExtremaComparison(info.Usage, conflict)
 			} else {
-				n.comparison, err = sqltype.BindComparison(left, right, ref, conflict)
+				n.Comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}
 		}
 		n.Info = info
@@ -657,33 +657,33 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	case literalExpression:
 		info.UnknownNull = n.UnknownNull
 		info.RegclassRef = n.RegclassRef
-		if !changed && (view.State() == nil || view.State().ACLItemImport() == nil || !n.value.Type().ContainsACLItem()) {
+		if !changed && (view.State() == nil || view.State().ACLItemImport() == nil || !n.Value.Type().ContainsACLItem()) {
 			return node, false, nil
 		}
 		var collation typedef.CollationRemapper
 		if len(collations) != 0 {
 			collation = collations[0]
 		}
-		previous := n.value
-		n.value, err = typedef.ReownDomainDatum(n.value, typ, collation, view.State().ScalarImports(), view.State().ACLItemImport())
+		previous := n.Value
+		n.Value, err = typedef.ReownDomainDatum(n.Value, typ, collation, view.State().ScalarImports(), view.State().ACLItemImport())
 		if err != nil {
 			return nil, false, err
 		}
-		changed = changed || n.value != previous
+		changed = changed || n.Value != previous
 		if !changed {
 			return node, false, nil
 		}
 		n.Info = info
 		rebound = n
 	case collationExpression:
-		n.child = child(n.child)
+		n.Child = child(n.Child)
 		if !changed {
 			return node, false, err
 		}
 		n.Info = info
 		rebound = n
 	case coercionExpression:
-		n.child = child(n.child)
+		n.Child = child(n.Child)
 		if !changed {
 			return node, false, err
 		}
@@ -691,37 +691,37 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		// storage/formal destinations. Map that captured Usage and structure;
 		// rederiving from the child would erase the destination contract.
 		if changed && err == nil {
-			n.plan, err = n.plan.Rebind(n.child.ResultUsage(), info.Usage, n.mode)
+			n.Plan, err = n.Plan.Rebind(n.Child.ResultUsage(), info.Usage, n.Mode)
 		}
 		n.Info = info
 		rebound = n
 	case bitwiseExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
 		}
 		if err == nil {
 			var rt *sqltype.Descriptor
-			if n.right != nil {
-				rt = n.right.ResultUsage().Type
+			if n.Right != nil {
+				rt = n.Right.ResultUsage().Type
 			}
-			n.provider, n.bits, n.network = sqltype.Bitwise{}, sqltype.BitStringBitwise{}, sqltype.NetworkBitwise{}
+			n.Provider, n.Bits, n.Network = sqltype.Bitwise{}, sqltype.BitStringBitwise{}, sqltype.NetworkBitwise{}
 			if info.Usage.Type.ID() == sqltype.Inet {
-				n.network, err = sqltype.BindNetworkBitwise(n.operator, n.left.ResultUsage().Type, rt)
+				n.Network, err = sqltype.BindNetworkBitwise(n.Operator, n.Left.ResultUsage().Type, rt)
 			} else if info.Usage.Type.ID() == sqltype.Bit {
-				n.bits, err = sqltype.BindBitStringBitwise(n.operator, n.left.ResultUsage().Type, rt)
+				n.Bits, err = sqltype.BindBitStringBitwise(n.Operator, n.Left.ResultUsage().Type, rt)
 			} else {
-				n.provider, err = sqltype.BindBitwise(n.operator, n.left.ResultUsage().Type, rt)
+				n.Provider, err = sqltype.BindBitwise(n.Operator, n.Left.ResultUsage().Type, rt)
 			}
 		}
 		n.Info = info
 		rebound = n
 	case selectedOperatorExpression:
-		n.provider = child(n.provider)
+		n.Provider = child(n.Provider)
 		if view.State() != nil {
-			if current, ok := view.Operator(n.ref.Address); ok {
-				changed = changed || current != n.operator
-				n.operator = current
+			if current, ok := view.Operator(n.Ref.Address); ok {
+				changed = changed || current != n.Operator
+				n.Operator = current
 			}
 		}
 		if !changed {
@@ -730,50 +730,50 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		n.Info = info
 		rebound = n
 	case arithmeticExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
 		}
 		if err == nil {
 			var rightType *sqltype.Descriptor
-			if n.right != nil {
-				rightType = n.right.ResultUsage().Type
+			if n.Right != nil {
+				rightType = n.Right.ResultUsage().Type
 			}
-			n.provider, err = sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType, info.Usage.Type)
+			n.Provider, err = sqltype.BindArithmetic(n.Operator, n.Left.ResultUsage().Type, rightType, info.Usage.Type)
 		}
 		n.Info = info
 		rebound = n
 	case likeExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
 		}
 		if err == nil {
 			var collation expr.Info
-			collation, err = collatedInfo(view, expr.Info{Usage: n.left.ResultUsage(), Pos: info.Pos}, n.left, n.right)
+			collation, err = collatedInfo(view, expr.Info{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
 			if err == nil {
-				n.provider, err = sqltype.BindLike(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.Usage, collation.CollationConflict)
+				n.Provider, err = sqltype.BindLike(n.Operator, n.Left.ResultUsage(), n.Right.ResultUsage(), info.Usage, collation.CollationConflict)
 			}
 		}
 		n.Info = info
 		rebound = n
 	case rowComparisonExpression:
 		var pairs []comparisonExpression
-		for i, pair := range n.comparisons {
+		for i, pair := range n.Comparisons {
 			next := child(pair)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed && pairs == nil {
-				pairs = append([]comparisonExpression(nil), n.comparisons...)
+				pairs = append([]comparisonExpression(nil), n.Comparisons...)
 			}
 			if pairs != nil {
 				pairs[i] = next.(comparisonExpression)
 			}
 		}
-		for side, expansions := range n.expansions {
+		for side, expansions := range n.Expansions {
 			var replaced bool
-			n.expansions[side], replaced, err = mapRowComparisonExpansions(expansions, mapChild)
+			n.Expansions[side], replaced, err = mapRowComparisonExpansions(expansions, mapChild)
 			if err != nil {
 				return nil, false, err
 			}
@@ -783,13 +783,13 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			return node, false, nil
 		}
 		if pairs != nil {
-			n.comparisons = pairs
+			n.Comparisons = pairs
 		}
-		if len(n.ordering) != 0 {
-			n.ordering = make([]sqltype.Comparison, len(n.comparisons))
-			for i, pair := range n.comparisons {
-				ref, conflict := pair.predicate.InputCollation()
-				n.ordering[i], err = sqltype.BindComparison(pair.left.ResultUsage().Type, pair.right.ResultUsage().Type, ref, conflict)
+		if len(n.Ordering) != 0 {
+			n.Ordering = make([]sqltype.Comparison, len(n.Comparisons))
+			for i, pair := range n.Comparisons {
+				ref, conflict := pair.Predicate.InputCollation()
+				n.Ordering[i], err = sqltype.BindComparison(pair.Left.ResultUsage().Type, pair.Right.ResultUsage().Type, ref, conflict)
 				if err != nil {
 					return nil, false, err
 				}
@@ -798,7 +798,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		n.Info = info
 		rebound = n
 	case scalarArrayComparisonExpression:
-		ref, conflict := n.predicate.InputCollation()
+		ref, conflict := n.Predicate.InputCollation()
 		ref = comparisonCollation(ref)
 		var replaced bool
 		n, replaced, err = mapScalarArrayChildren(n, mapChild)
@@ -807,24 +807,24 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			return node, false, err
 		}
 		if err == nil {
-			operator, ok := comparisonOperator(n.operator)
+			operator, ok := comparisonOperator(n.Operator)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: invalid array comparison operator")
 			}
-			n.predicate, err = sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.elementType(), typ, ref, conflict)
+			n.Predicate, err = sqltype.BindComparisonPredicate(operator, n.Left.ResultUsage().Type, n.ElementType(), typ, ref, conflict)
 		}
 		n.Info = info
 		rebound = n
 	case comparisonExpression:
-		ref, conflict := n.predicate.InputCollation()
+		ref, conflict := n.Predicate.InputCollation()
 		ref = comparisonCollation(ref)
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
 		}
 		if changed && err == nil {
 			var operator sqltype.ComparisonOperator
-			switch n.operator {
+			switch n.Operator {
 			case "=":
 				operator = sqltype.CompareEqual
 			case "<>":
@@ -840,38 +840,38 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			default:
 				return nil, false, fmt.Errorf("stuntgres: invalid default comparison")
 			}
-			n.predicate, err = sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.right.ResultUsage().Type, typ, ref, conflict)
+			n.Predicate, err = sqltype.BindComparisonPredicate(operator, n.Left.ResultUsage().Type, n.Right.ResultUsage().Type, typ, ref, conflict)
 		}
 		n.Info = info
 		rebound = n
 	case nullTestExpression:
-		n.child = child(n.child)
+		n.Child = child(n.Child)
 		if !changed {
 			return node, false, err
 		}
 		n.Info = info
 		rebound = n
 	case truthTestExpression:
-		n.child = child(n.child)
+		n.Child = child(n.Child)
 		if !changed {
 			return node, false, err
 		}
 		n.Info = info
 		rebound = n
 	case distinctExpression:
-		ref, conflict := n.equality.InputCollation()
+		ref, conflict := n.Equality.InputCollation()
 		ref = comparisonCollation(ref)
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
 		}
 		if changed && err == nil {
-			n.equality, err = sqltype.BindComparisonPredicate(sqltype.CompareEqual, n.left.ResultUsage().Type, n.right.ResultUsage().Type, typ, ref, conflict)
+			n.Equality, err = sqltype.BindComparisonPredicate(sqltype.CompareEqual, n.Left.ResultUsage().Type, n.Right.ResultUsage().Type, typ, ref, conflict)
 		}
 		n.Info = info
 		rebound = n
 	case logicalExpression:
-		n.left, n.right = child(n.left), child(n.right)
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
 		}

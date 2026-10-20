@@ -70,7 +70,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || definition.query.visibilitySnapshot
+		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || definition.query.VisibilitySnapshot
 		locks = scope.queryLocks
 	}
 	source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, queryRowMark{}, locks)
@@ -157,12 +157,12 @@ func prepareStoredExecutionRoot(c *EvalContext, definition *viewDefinition, outp
 	}
 	reads := queryExecutionSourceReads(root, nil)
 	if source, ok := root.(*sourceNode); ok {
-		if source.occurrence < 0 || source.occurrence >= len(definition.sources) {
+		if source.Occurrence < 0 || source.Occurrence >= len(definition.sources) {
 			return nil, nil, fmt.Errorf("stuntgres: invalid stored source occurrence")
 		}
-		attributes := definition.sources[source.occurrence].attributes
+		attributes := definition.sources[source.Occurrence].attributes
 		if outputUses == nil {
-			reads[source.occurrence] = attributes
+			reads[source.Occurrence] = attributes
 		} else {
 			items := make([]int32, 0, len(outputUses))
 			for _, slot := range outputUses {
@@ -177,7 +177,7 @@ func prepareStoredExecutionRoot(c *EvalContext, definition *viewDefinition, outp
 					items = append(items, attributes[slot])
 				}
 			}
-			reads[source.occurrence] = items
+			reads[source.Occurrence] = items
 		}
 	}
 	return root, reads, nil
@@ -192,24 +192,24 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 		return project, nil
 	}
 	for _, slot := range uses {
-		if slot < 0 || slot >= len(project.expressions) {
+		if slot < 0 || slot >= len(project.Expressions) {
 			return nil, fmt.Errorf("stuntgres: invalid stored projection use")
 		}
 	}
 	var expressions []expr.Expr
-	for slot, expression := range project.expressions {
+	for slot, expression := range project.Expressions {
 		if storedProjectionOutputDemand(expression, slot, uses) {
 			continue
 		}
 		if expressions == nil {
-			expressions = append([]expr.Expr(nil), project.expressions...)
+			expressions = append([]expr.Expr(nil), project.Expressions...)
 		}
 		expressions[slot] = literalExpression{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
 	}
 	if expressions == nil {
 		return project, nil
 	}
-	child, err := storedScheduledPayloadDemand(project.child, func(visit func(expr.Expr)) {
+	child, err := storedScheduledPayloadDemand(project.Child, func(visit func(expr.Expr)) {
 		for _, expression := range expressions {
 			visit(expression)
 		}
@@ -218,8 +218,8 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 		return nil, err
 	}
 	copy := *project
-	copy.expressions = expressions
-	copy.child = child
+	copy.Expressions = expressions
+	copy.Child = child
 	return &copy, nil
 }
 
@@ -240,19 +240,19 @@ func storedProjectionOutputDemand(expression expr.Expr, slot int, uses []int) bo
 // copy-on-change projection pruning pass.
 func storedProjectionDemandExpressions(project *projectNode, uses []int, inspect func(expr.Expr), boundary func(LogicalNode)) error {
 	for _, slot := range uses {
-		if slot < 0 || slot >= len(project.expressions) {
+		if slot < 0 || slot >= len(project.Expressions) {
 			return fmt.Errorf("stuntgres: invalid stored projection use")
 		}
 	}
 	retained := func(visit func(expr.Expr)) {
-		for slot, expression := range project.expressions {
+		for slot, expression := range project.Expressions {
 			if storedProjectionOutputDemand(expression, slot, uses) {
 				visit(expression)
 			}
 		}
 	}
 	retained(inspect)
-	_, err := storedScheduledPayloadDemand(project.child, retained, inspect, boundary)
+	_, err := storedScheduledPayloadDemand(project.Child, retained, inspect, boundary)
 	return err
 }
 
@@ -278,9 +278,9 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 		var base int
 		switch n := node.(type) {
 		case *sortNode:
-			expressions, base = n.outputs, n.cacheWidth-len(n.outputs)
+			expressions, base = n.Outputs, n.CacheWidth-len(n.Outputs)
 		case *evaluationNode:
-			expressions, base = n.expressions, n.base
+			expressions, base = n.Expressions, n.Base
 		}
 		if len(expressions) == 0 {
 			continue
@@ -308,11 +308,11 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 		}
 		walkBoundExpression(expression, func(node expr.Expr) {
 			cache, ok := node.(cachedOrderExpression)
-			if !ok || live[cache.slot] {
+			if !ok || live[cache.Slot] {
 				return
 			}
-			live[cache.slot] = true
-			if producer := producers[cache.slot]; producer != nil {
+			live[cache.Slot] = true
+			if producer := producers[cache.Slot]; producer != nil {
 				demand(producer)
 			}
 		})
@@ -328,8 +328,8 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 		for node := root; node != nil; node = input(node) {
 			switch n := node.(type) {
 			case *sortNode:
-				for _, key := range n.keys {
-					visit(key.expression)
+				for _, key := range n.Keys {
+					visit(key.Expression)
 				}
 			case *evaluationNode:
 				// Payload reads are demanded through live owner slots only.
@@ -365,9 +365,9 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 		var child LogicalNode
 		switch n := node.(type) {
 		case *sortNode:
-			expressions, child = n.outputs, n.child
+			expressions, child = n.Outputs, n.Child
 		case *evaluationNode:
-			expressions, child = n.expressions, n.child
+			expressions, child = n.Expressions, n.Child
 		}
 		var replacement []expr.Expr
 		for i, expression := range expressions {
@@ -389,11 +389,11 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 		switch n := node.(type) {
 		case *sortNode:
 			copy := *n
-			copy.child, copy.outputs = next, replacement
+			copy.Child, copy.Outputs = next, replacement
 			return &copy, nil
 		case *evaluationNode:
 			copy := *n
-			copy.child, copy.expressions = next, replacement
+			copy.Child, copy.Expressions = next, replacement
 			return &copy, nil
 		}
 		return node, nil

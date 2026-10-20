@@ -152,10 +152,10 @@ func TestSQLCursorNoLookaheadAndFailedBatch(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT i FROM unit_rows ORDER BY i")
 	cursor := s.cursors.entries["c"]
-	original := cursor.root.expressions[0]
+	original := cursor.root.Expressions[0]
 	draws := 0
 	sentinel := errors.New("cursor projected failure")
-	cursor.root.expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	cursor.root.Expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		draws++
 		if draws == 3 {
 			return sqltype.Value{}, sentinel
@@ -209,9 +209,9 @@ func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 			// arms use their common-type expressions, not the project targets.
 			var expressions []expr.Expr
 			if route == "union" {
-				expressions = cursor.root.child.(*setNode).rightExpressions
+				expressions = cursor.root.Child.(*setNode).RightExpressions
 			} else {
-				expressions = cursor.source.nestedRoot.(*projectNode).expressions
+				expressions = cursor.source.nestedRoot.(*projectNode).Expressions
 			}
 			original := expressions[1]
 			expected, calls := "first", 0

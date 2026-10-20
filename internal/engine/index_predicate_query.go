@@ -36,7 +36,7 @@ func (q *queryScopeState) partialIndexCandidate(parent ids.ObjectRef, query expr
 // Historical, private and rewritten views always use the ordinary scan.
 func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf, view *visibility.View, mark queryRowMark) *storage.IndexRoot {
 	candidate := leaf.partialCandidate
-	if candidate == nil || view == nil || scope.owner.catalog != nil || stableIsolation(scope.owner.isolation) || scope.queryLocks != nil || mark.mode != 0 {
+	if candidate == nil || view == nil || scope.owner.catalog != nil || stableIsolation(scope.owner.isolation) || scope.queryLocks != nil || mark.Mode != 0 {
 		return nil
 	}
 	data := view.Data()

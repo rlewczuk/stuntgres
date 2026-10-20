@@ -25,7 +25,7 @@ func remapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 				return nil, err
 			}
 			expression.presentation = frozen
-			expression.expression = frozen.query.Root.(*projectNode).expressions[0]
+			expression.expression = frozen.query.Root.(*projectNode).Expressions[0]
 			*slot = &expression
 		}
 	}

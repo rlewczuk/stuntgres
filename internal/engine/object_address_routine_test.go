@@ -192,7 +192,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			if tc.parameter {
 				evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
 			}
-			originalCalls := append([]expr.Expr(nil), source.calls...)
+			originalCalls := append([]expr.Expr(nil), source.Calls...)
 			originalSchema := append(querySchema(nil), source.querySchema...)
 			originalManifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			planned, err := preflightFunctionFrom(&evaluation, source)
@@ -200,8 +200,8 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				t.Fatal("source preflight", err)
 			}
 			execution := planned.(*functionFromNode)
-			pruned := execution.scalarNull != nil && execution.scalarNull[0]
-			if pruned != tc.pruned || source.scalarNull != nil || !reflect.DeepEqual(source.calls, originalCalls) || !reflect.DeepEqual(source.querySchema, originalSchema) || !reflect.DeepEqual(binder.dependencies, originalManifest) {
+			pruned := execution.ScalarNull != nil && execution.ScalarNull[0]
+			if pruned != tc.pruned || source.ScalarNull != nil || !reflect.DeepEqual(source.Calls, originalCalls) || !reflect.DeepEqual(source.querySchema, originalSchema) || !reflect.DeepEqual(binder.dependencies, originalManifest) {
 				t.Fatal("preflight lost source immutability or scalar/RECORD distinction")
 			}
 			if !reflect.DeepEqual(execution.querySchema, originalSchema) {
@@ -231,7 +231,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				// Both admission passes must consult the preflight-derived state.
 				// Removing it on a private copy exposes the original missing refs.
 				unpruned := *execution
-				unpruned.scalarNull = nil
+				unpruned.ScalarNull = nil
 				if err := validateMarkedQueryJoin(&probe, &unpruned, evaluation.catalog, nil, queryRowMark{}, false, nil, nil); err == nil {
 					t.Fatal("nonpruned original graph did not demand its manifest")
 				}
@@ -252,7 +252,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 						t.Fatal(err)
 					}
 					fresh := replanned.(*functionFromNode)
-					if fresh.scalarNull != nil && fresh.scalarNull[0] {
+					if fresh.ScalarNull != nil && fresh.ScalarNull[0] {
 						t.Fatal("original source retained a prior NULL frame")
 					}
 					again.routineChecks = []catalog.ExpressionDependency{}
@@ -278,7 +278,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			if _, err := preflightFunctionFrom(&canceled, source); !errors.Is(err, context.Canceled) {
 				t.Fatal("cancellation before source pruning", err)
 			}
-			if !reflect.DeepEqual(source.calls, originalCalls) || !reflect.DeepEqual(source.querySchema, originalSchema) || !reflect.DeepEqual(binder.dependencies, originalManifest) {
+			if !reflect.DeepEqual(source.Calls, originalCalls) || !reflect.DeepEqual(source.querySchema, originalSchema) || !reflect.DeepEqual(binder.dependencies, originalManifest) {
 				t.Fatal("admission/replanning mutated analyzed source provenance")
 			}
 		})
@@ -368,8 +368,8 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if bindErr != nil {
 			t.Fatal("literal-sibling source binding", bindErr)
 		}
-		source := query.Root.(*projectNode).child.(*functionFromNode)
-		sourceInfo := expr.InfoOf(source.calls[0])
+		source := query.Root.(*projectNode).Child.(*functionFromNode)
+		sourceInfo := expr.InfoOf(source.Calls[0])
 		sourceSchema := append(querySchema(nil), source.querySchema...)
 		sourceManifest := append([]catalog.ExpressionDependency(nil), sourceBinder.dependencies...)
 		sourceEvaluation := evaluation
@@ -379,15 +379,15 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			t.Fatal("literal sibling source pruning", err)
 		}
 		execution := planned.(*functionFromNode)
-		if execution.scalarNull == nil || !execution.scalarNull[0] {
+		if execution.ScalarNull == nil || !execution.ScalarNull[0] {
 			t.Fatal("known NULL source was not pruned")
 		}
 		cursor, err := openFunctionCall(&sourceEvaluation, execution, 0)
-		if err != nil || !cursor.Value.IsNull() || cursor.Value.Type() != source.calls[0].ResultUsage().Type {
+		if err != nil || !cursor.Value.IsNull() || cursor.Value.Type() != source.Calls[0].ResultUsage().Type {
 			t.Fatal("literal sibling source typed NULL", cursor, err)
 		}
 		cursor.Close()
-		if source.scalarNull != nil || !reflect.DeepEqual(sourceInfo, expr.InfoOf(source.calls[0])) || !reflect.DeepEqual(sourceSchema, execution.querySchema) || !reflect.DeepEqual(sourceManifest, sourceBinder.dependencies) {
+		if source.ScalarNull != nil || !reflect.DeepEqual(sourceInfo, expr.InfoOf(source.Calls[0])) || !reflect.DeepEqual(sourceSchema, execution.querySchema) || !reflect.DeepEqual(sourceManifest, sourceBinder.dependencies) {
 			t.Fatal("literal sibling pruning changed original Info/schema/manifest")
 		}
 	}

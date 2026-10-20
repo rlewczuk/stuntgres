@@ -25,9 +25,9 @@ func TestQueryOuterJoinsMergedOriginsAndNullableFrames(t *testing.T) {
 			if direct && (schema[0].OriginTable != schema[2].OriginTable || schema[0].OriginAttribute != schema[2].OriginAttribute) {
 				t.Fatal("lost preserved origin", schema)
 			}
-			join := query.Root.(*projectNode).child.(*joinNode)
-			beforeLeft := append([]catalog.Column(nil), join.left.Schema()...)
-			beforeRight := append([]catalog.Column(nil), join.right.Schema()...)
+			join := query.Root.(*projectNode).Child.(*joinNode)
+			beforeLeft := append([]catalog.Column(nil), join.Left.Schema()...)
+			beforeRight := append([]catalog.Column(nil), join.Right.Schema()...)
 			if schema[1].OriginTable == 0 || schema[2].OriginTable == 0 {
 				t.Fatal("lost qualified originals", schema)
 			}
@@ -43,7 +43,7 @@ func TestQueryOuterJoinsMergedOriginsAndNullableFrames(t *testing.T) {
 				t.Fatal(count, want, err)
 			}
 			result.Close()
-			if !reflect.DeepEqual(beforeLeft, join.left.Schema()) || !reflect.DeepEqual(beforeRight, join.right.Schema()) {
+			if !reflect.DeepEqual(beforeLeft, join.Left.Schema()) || !reflect.DeepEqual(beforeRight, join.Right.Schema()) {
 				t.Fatal("child schema mutated")
 			}
 		}
@@ -55,18 +55,18 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 		for _, limit := range []int64{0, 1} {
 			e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON a.k=b.k")
 			project := query.Root.(*projectNode)
-			join := project.child.(*joinNode)
-			join.kind = kind
+			join := project.Child.(*joinNode)
+			join.Kind = kind
 			typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
 			calls := 0
-			join.predicate = queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			join.Predicate = queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				if calls > 1 {
 					return sqltype.Value{}, errors.New("undemanded pair")
 				}
 				return sqltype.Boolean(typ, true), nil
 			})
-			project.child = &limitNode{querySchema: join.Schema(), child: join, count: queryLimitBound(t, e, limit)}
+			project.Child = &limitNode{querySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, limit)}
 			result, count, err := finalizeQuery(context.Background(), project, source, nil)
 			if err != nil || count != int(limit) || calls != int(limit) {
 				t.Fatal(kind, limit, count, calls, err)
@@ -75,13 +75,13 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 		}
 		e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON a.k=b.k")
 		project := query.Root.(*projectNode)
-		join := project.child.(*joinNode)
-		join.kind = kind
+		join := project.Child.(*joinNode)
+		join.Kind = kind
 		typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		calls := 0
-		join.predicate = queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		join.Predicate = queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
 			calls++
 			if calls == 3 {
 				cancel()
@@ -201,9 +201,9 @@ func TestQueryOuterJoinsLocalMarkFrontierManifest(t *testing.T) {
 		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
-	left := &rowLockNode{child: &sourceNode{occurrence: 0}, marks: []queryRowMark{{mode: lock.ForUpdate}}, firstMode: lock.ForUpdate}
+	left := &rowLockNode{Child: &sourceNode{Occurrence: 0}, Marks: []queryRowMark{{Mode: lock.ForUpdate}}, FirstMode: lock.ForUpdate}
 	for _, kind := range []parser.JoinKind{parser.JoinInner, parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
-		join := &joinNode{kind: kind, left: left, right: &sourceNode{occurrence: 1}}
+		join := &joinNode{Kind: kind, Left: left, Right: &sourceNode{Occurrence: 1}}
 		marks := pendingQueryMarks(join, inputs, nil)
 		want := 0
 		if kind == parser.JoinInner {

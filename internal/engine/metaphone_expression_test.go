@@ -80,7 +80,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	}
 	changed := n
 	changed.Args = append([]expr.Expr(nil), n.Args...)
-	changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), value: sqltype.String(n.Args[0].ResultUsage().Type, "Smith")}
+	changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), Value: sqltype.String(n.Args[0].ResultUsage().Type, "Smith")}
 	if sameGroupExpression(n, changed) {
 		t.Fatal("argument identity collapsed")
 	}

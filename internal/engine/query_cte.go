@@ -124,7 +124,7 @@ func (p *cteProducer) ensure(ctx context.Context, index int) (bool, error) {
 
 func openCTEScan(ctx context.Context, state *queryState, n *derivedNode) (indexedStage, error) {
 	owner := state.ctes
-	for owner != nil && owner.frame != n.cte.owner {
+	for owner != nil && owner.frame != n.CTE.Owner {
 		owner = owner.parent
 	}
 	if owner == nil || owner.closed {
@@ -133,12 +133,12 @@ func openCTEScan(ctx context.Context, state *queryState, n *derivedNode) (indexe
 	if owner.producers == nil {
 		owner.producers = make(map[*cteDefinition]*cteProducer)
 	}
-	producer := owner.producers[n.cte]
+	producer := owner.producers[n.CTE]
 	if producer == nil {
-		if n.cte.mutation != nil {
+		if n.CTE.Mutation != nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: modifying CTE has not completed")
 		}
-		project, ok := n.query.Root.(*projectNode)
+		project, ok := n.Query.Root.(*projectNode)
 		if !ok {
 			return indexedStage{}, fmt.Errorf("stuntgres: CTE lacks projection")
 		}
@@ -146,15 +146,15 @@ func openCTEScan(ctx context.Context, state *queryState, n *derivedNode) (indexe
 		innerState.ctes = owner
 		innerState.derived = nil
 		producer = &cteProducer{state: innerState, project: project, source: &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}}
-		owner.producers[n.cte] = producer
+		owner.producers[n.CTE] = producer
 		owner.order = append(owner.order, producer)
 	}
 	source := producer.source
-	if n.presenceSlot != 0 {
+	if n.PresenceSlot != 0 {
 		// Presence belongs to this reader occurrence, not the shared producer.
 		// Borrow immutable admitted tuples; no row values are copied.
 		source = &querySource{flat: producer.source.flat, flatWidth: producer.source.flatWidth, flatCount: producer.source.flatCount, materialized: true, authority: producer.source.authority, scope: producer.source.scope, locks: producer.source.locks}
-		establishSourcePresence(source, n.presenceSlot)
+		establishSourcePresence(source, n.PresenceSlot)
 	}
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}, onFailure: producer.fail}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {

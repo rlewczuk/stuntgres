@@ -24,12 +24,12 @@ func TestQueryWindowRankDescriptors(t *testing.T) {
 			t.Fatal("ranking descriptor", i, column)
 		}
 	}
-	node := query.Root.(*projectNode).child.(*windowNode)
-	if len(node.calls) != 4 {
-		t.Fatal("execution calls", len(node.calls))
+	node := query.Root.(*projectNode).Child.(*windowNode)
+	if len(node.Calls) != 4 {
+		t.Fatal("execution calls", len(node.Calls))
 	}
-	for _, call := range node.calls {
-		if !call.operation.ranking() || call.operation.frameDependent() || call.operation.evaluatesArgument() || call.argument != nil || call.ordinal != nil || call.defaultValue != nil {
+	for _, call := range node.Calls {
+		if !call.Operation.Ranking() || call.Operation.FrameDependent() || call.Operation.EvaluatesArgument() || call.Argument != nil || call.Ordinal != nil || call.DefaultValue != nil {
 			t.Fatal("ranking demand", call)
 		}
 	}

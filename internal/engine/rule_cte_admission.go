@@ -39,13 +39,13 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		walkBoundExpression(bound, func(node expr.Expr) {
 			switch node := node.(type) {
 			case columnExpression:
-				if node.scope == rulePseudoScope {
-					old = old || node.frame == 1
-					new = new || node.frame == 2
+				if node.Scope == rulePseudoScope {
+					old = old || node.Frame == 1
+					new = new || node.Frame == 2
 				}
 			case rowExpression:
-				old = old || node.ruleSide == 1
-				new = new || node.ruleSide == 2
+				old = old || node.RuleSide == 1
+				new = new || node.RuleSide == 2
 			}
 		})
 	}
@@ -57,14 +57,14 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		sides(bound)
 		walkBoundExpression(bound, func(node expr.Expr) {
 			if query, ok := node.(subqueryExpression); ok {
-				inspectQuery(query.queryPlan.Root)
+				inspectQuery(query.QueryPlan.Root)
 			}
 		})
 	}
 	inspectTargets := func(targets []*arrayAssignmentTarget) {
 		for _, target := range targets {
-			for current := target; current != nil; current = current.next {
-				inspectExpression(current.node)
+			for current := target; current != nil; current = current.Next {
+				inspectExpression(current.Node)
 			}
 		}
 	}
@@ -116,11 +116,11 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		}
 	}
 	for _, definition := range b.ctes {
-		if !owned(definition.position) {
+		if !owned(definition.Position) {
 			continue
 		}
-		if definition.query != nil {
-			inspectQuery(definition.query.Root)
+		if definition.Query != nil {
+			inspectQuery(definition.Query.Root)
 		}
 		if mutation, ok := mutationBinding(definition); ok {
 			inspectBinding(mutation)
@@ -131,11 +131,11 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 			walkBoundExpression(bound, func(node expr.Expr) {
 				if query, ok := node.(subqueryExpression); ok && query.cteDefinition && owned(query.Pos) {
 					for _, definition := range b.ctes {
-						if definition.query == query.queryPlan && owned(definition.position) {
+						if definition.Query == query.QueryPlan && owned(definition.Position) {
 							return
 						}
 					}
-					inspectQuery(query.queryPlan.Root)
+					inspectQuery(query.QueryPlan.Root)
 				}
 			})
 		}, true)

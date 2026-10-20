@@ -82,17 +82,17 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 					t.Fatal("captured layout", derived.Attributes, wantLayout)
 				}
 				for _, expression := range []expr.Expr{derived.Definition, derived.Execution} {
-					node := expression.(arithmeticExpression).left
+					node := expression.(arithmeticExpression).Left
 					for {
 						cast, ok := node.(coercionExpression)
 						if !ok {
 							break
 						}
-						node = cast.child
+						node = cast.Child
 					}
 					column := node.(columnExpression)
-					if column.slot != wantSlot || column.origin.Address.SubID != 4 {
-						t.Fatal("derived slot/attribute", column.slot, column.origin.Address)
+					if column.Slot != wantSlot || column.Origin.Address.SubID != 4 {
+						t.Fatal("derived slot/attribute", column.Slot, column.Origin.Address)
 					}
 				}
 				if candidate.Name() != index.Name() || candidate.Owner != index.Owner || candidate.Namespace() != index.Namespace() || candidate.SQLIndex.Ready != index.SQLIndex.Ready || candidate.SQLIndex.Valid != index.SQLIndex.Valid || candidate.SQLIndex.Live != index.SQLIndex.Live {
@@ -137,16 +137,16 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			}{{index, 3}, {intermediate, 2}} {
 				derived := retained.candidate.SQLIndex.Keys[0].Derived
 				for _, expression := range []expr.Expr{derived.Definition, derived.Execution} {
-					node := expression.(arithmeticExpression).left
+					node := expression.(arithmeticExpression).Left
 					for {
 						cast, ok := node.(coercionExpression)
 						if !ok {
 							break
 						}
-						node = cast.child
+						node = cast.Child
 					}
-					if column := node.(columnExpression); column.slot != retained.slot || column.origin.Address.SubID != 4 {
-						t.Fatal("retained derived tree mutated", column.slot, retained.slot)
+					if column := node.(columnExpression); column.Slot != retained.slot || column.Origin.Address.SubID != 4 {
+						t.Fatal("retained derived tree mutated", column.Slot, retained.slot)
 					}
 				}
 			}

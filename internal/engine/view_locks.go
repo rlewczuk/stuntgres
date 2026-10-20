@@ -57,7 +57,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		for _, leaf := range s.querySources {
 			if leaf.ref == ref {
 				admitted = true
-				admittedMode = strongerQueryRowMode(admittedMode, leaf.mark.mode)
+				admittedMode = strongerQueryRowMode(admittedMode, leaf.mark.Mode)
 			}
 		}
 		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
@@ -77,7 +77,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				if err != nil {
 					return err
 				}
-				if err := visit(use, viewLeafRowMark(viewOf(d), i, queryRowMark{mode: mode}).mode); err != nil {
+				if err := visit(use, viewLeafRowMark(viewOf(d), i, queryRowMark{Mode: mode}).Mode); err != nil {
 					return err
 				}
 			}
@@ -101,7 +101,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if err != nil {
 			break
 		}
-		err = visit(leaf.ref, leaf.mark.mode)
+		err = visit(leaf.ref, leaf.mark.Mode)
 	}
 	if err == nil && s.materializedOrZero().refresh && hasMaterializedSource {
 		var leaves []queryLeaf

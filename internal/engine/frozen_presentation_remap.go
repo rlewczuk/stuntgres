@@ -109,8 +109,8 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 	query.Root = root
 	definition.query = &query
 	definition.frames, definition.queries = collectQueryFrames(root)
-	if project, ok := root.(*projectNode); ok && project.syntax == nil && project.frame != 0 {
-		definition.frames[project.frame] = project
+	if project, ok := root.(*projectNode); ok && project.Syntax == nil && project.Frame != 0 {
+		definition.frames[project.Frame] = project
 	}
 	return &definition, nil
 }

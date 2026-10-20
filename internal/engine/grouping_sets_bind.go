@@ -105,24 +105,24 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			return out, err
 		}
 		if unknown, ok := key.(unknownOutput); ok {
-			key, err = b.bind(unknown.raw, expressionPolicy{context: projectionContext})
+			key, err = b.bind(unknown.Raw, expressionPolicy{context: projectionContext})
 			if err != nil {
 				return out, err
 			}
 		}
 		var operation *groupingExpression
 		walkBoundExpression(key, func(node expr.Expr) {
-			if n, ok := node.(groupingExpression); ok && n.frame == b.frameID() && operation == nil {
+			if n, ok := node.(groupingExpression); ok && n.Frame == b.frameID() && operation == nil {
 				operation = &n
 			}
 		})
 		if operation != nil {
 			return out, expr.ErrorAt("42803", "grouping operations are not allowed in GROUP BY", operation.Pos)
 		}
-		if call := aggregateOccurrence(key); call != nil && (call.frame == 0 || call.frame == b.frameID()) {
+		if call := aggregateOccurrence(key); call != nil && (call.Frame == 0 || call.Frame == b.frameID()) {
 			return out, expr.ErrorAt("42803", "aggregate functions are not allowed in GROUP BY", call.Pos)
 		}
-		if call := windowOccurrence(key); call != nil && call.frame == b.frameID() {
+		if call := windowOccurrence(key); call != nil && call.Frame == b.frameID() {
 			return out, expr.ErrorAt("42P20", "window functions are not allowed in GROUP BY", call.Pos)
 		}
 		key, err = b.finalizeProjection(key)
@@ -309,24 +309,24 @@ func (c *EvalContext) EvalGrouping(e groupingExpression) (sqltype.Value, error) 
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	frame := e.frame
+	frame := e.Frame
 	if frame == 0 {
 		frame = 1
 	}
 	for c != nil && (c.Scope != 1 || c.Frame != frame) {
 		c = c.Outer
 	}
-	if c == nil || e.slot < 0 || e.slot >= len(c.Row) {
+	if c == nil || e.Slot < 0 || e.Slot >= len(c.Row) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid grouping frame")
 	}
-	occurrence, err := c.Row[e.slot].Integer()
+	occurrence, err := c.Row[e.Slot].Integer()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if occurrence < 0 || occurrence >= int64(len(e.masks)) {
+	if occurrence < 0 || occurrence >= int64(len(e.Masks)) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid grouping occurrence")
 	}
-	return sqltype.Integer(e.Usage.Type, int64(e.masks[occurrence]))
+	return sqltype.Integer(e.Usage.Type, int64(e.Masks[occurrence]))
 }
 
 func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, error) {
@@ -372,11 +372,11 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 		walkQueryArgumentExpression(arg, func(node expr.Expr) {
 			switch n := node.(type) {
 			case aggregateExpression:
-				if n.frame == owner && nested == nil {
+				if n.Frame == owner && nested == nil {
 					nested = n
 				}
 			case groupingExpression:
-				if n.frame == owner && nested == nil {
+				if n.Frame == owner && nested == nil {
 					nested = n
 				}
 			}
@@ -403,15 +403,15 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 		b.grouping.active = true
 	}
 	usage := b.typ(sqltype.Int4).Usage()
-	return groupingExpression{Info: expr.Info{Usage: usage, Pos: raw.Pos, Property: expr.Properties{StageDependent: true}}, args: args, positions: positions, frame: owner, slot: -1}, nil
+	return groupingExpression{Info: expr.Info{Usage: usage, Pos: raw.Pos, Property: expr.Properties{StageDependent: true}}, Args: args, Positions: positions, Frame: owner, Slot: -1}, nil
 }
 
 func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []expr.Expr) (expr.Expr, error) {
-	if e.frame != b.frameID() {
+	if e.Frame != b.frameID() {
 		return e, nil
 	}
-	refs := make([]int, len(e.args))
-	for i, arg := range e.args {
+	refs := make([]int, len(e.Args))
+	for i, arg := range e.Args {
 		refs[i] = -1
 		_, variable := arg.(columnExpression)
 		if !b.grouping.groupSubquery || variable {
@@ -424,22 +424,22 @@ func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []expr.Exp
 		}
 		if refs[i] < 0 {
 			pos := arg.SourcePosition()
-			if i < len(e.positions) {
-				pos = e.positions[i]
+			if i < len(e.Positions) {
+				pos = e.Positions[i]
 			}
 			return nil, expr.ErrorAt("42803", "arguments to GROUPING must be grouping expressions of the associated query level", pos)
 		}
 	}
-	e.slot = len(keys) + len(b.grouping.aggregates)
-	e.masks = make([]int32, len(b.grouping.groupSets))
+	e.Slot = len(keys) + len(b.grouping.aggregates)
+	e.Masks = make([]int32, len(b.grouping.groupSets))
 	for i, set := range b.grouping.groupSets {
 		if err := b.ctx.Err(); err != nil {
 			return nil, err
 		}
 		for _, ref := range refs {
-			e.masks[i] <<= 1
+			e.Masks[i] <<= 1
 			if !slices.Contains(set, ref) {
-				e.masks[i] |= 1
+				e.Masks[i] |= 1
 			}
 		}
 	}

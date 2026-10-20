@@ -22,11 +22,11 @@ func TestInstalledFunctionRebuildKeepsWrapper(t *testing.T) {
 		}
 	}
 	textOf := func(node expr.Expr) string {
-		s, _ := node.(literalExpression).value.Text()
+		s, _ := node.(literalExpression).Value.Text()
 		return s
 	}
 	literal := func(s string) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, s)}
+		return literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, s)}
 	}
 	info := expr.Info{Usage: text.Usage()}
 	call, err := functions.NewSoundex(info, "soundex", []expr.Expr{literal("a")})
@@ -62,7 +62,7 @@ func TestWalkBoundExpressionVisitsCompositeChildren(t *testing.T) {
 		}
 	}
 	info := expr.Info{Usage: text.Usage()}
-	leaf := literalExpression{Info: info, value: sqltype.String(text, "x")}
+	leaf := literalExpression{Info: info, Value: sqltype.String(text, "x")}
 	inner, err := functions.NewSoundex(info, "soundex", []expr.Expr{leaf})
 	if err != nil {
 		t.Fatal(err)

@@ -23,13 +23,13 @@ func queryHasMandatoryPhysicalFrontier(node LogicalNode, inputs *querySource) bo
 func queryHasPhysicalFrontier(node LogicalNode, inputs *querySource, consuming bool) bool {
 	switch n := node.(type) {
 	case *derivedNode:
-		if n.cte != nil {
+		if n.CTE != nil {
 			return false
 		}
 	case *worktableScanNode:
 		return false
 	case *sourceNode:
-		return sourceHasPhysicalFrontier(querySourceAt(inputs, n.occurrence), consuming)
+		return sourceHasPhysicalFrontier(querySourceAt(inputs, n.Occurrence), consuming)
 	case *sortNode, *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *limitNode, *windowNode:
 		consuming = true
 	}
@@ -50,18 +50,18 @@ func sourceHasPhysicalFrontier(source *querySource, consuming bool) bool {
 	}
 	// Capture already merged the occurrence's local and inherited marks.
 	// An unrelated marked leaf in the same context is not this branch's demand.
-	if source.inherited.mode != 0 {
+	if source.inherited.Mode != 0 {
 		return true
 	}
 	if source.materialized {
 		for _, occurrence := range source.occurrences {
-			if source.locks.leaves[occurrence].mark.mode != 0 {
+			if source.locks.leaves[occurrence].mark.Mode != 0 {
 				return true
 			}
 		}
 		return false
 	}
-	return source.locks.leaves[source.occurrence].mark.mode != 0
+	return source.locks.leaves[source.occurrence].mark.Mode != 0
 }
 
 func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPendingMark) []queryPendingMark {
@@ -70,24 +70,24 @@ func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPending
 		// The derived projection frontier consumes its own child marks.
 		return dst
 	case *projectNode:
-		return pendingQueryMarks(n.child, inputs, dst)
+		return pendingQueryMarks(n.Child, inputs, dst)
 	case *filterNode:
-		return pendingQueryMarks(n.child, inputs, dst)
+		return pendingQueryMarks(n.Child, inputs, dst)
 	case *evaluationNode:
-		return pendingQueryMarks(n.child, inputs, dst)
+		return pendingQueryMarks(n.Child, inputs, dst)
 	case *rowLockNode:
-		dst = pendingQueryMarks(n.child, inputs, dst)
-		return appendPendingRowMarks(dst, n.marks, inputs)
+		dst = pendingQueryMarks(n.Child, inputs, dst)
+		return appendPendingRowMarks(dst, n.Marks, inputs)
 	case *sourceNode:
-		return pendingSourceMarks(querySourceAt(inputs, n.occurrence), dst)
+		return pendingSourceMarks(querySourceAt(inputs, n.Occurrence), dst)
 	case *joinNode:
-		if n.kind != parser.JoinInner {
+		if n.Kind != parser.JoinInner {
 			// Outer joins consume each local input mark before ON matching.
 			// Do not lift it back onto matched or NULL-extended output.
 			return dst
 		}
-		dst = pendingQueryMarks(n.left, inputs, dst)
-		return pendingQueryMarks(n.right, inputs, dst)
+		dst = pendingQueryMarks(n.Left, inputs, dst)
+		return pendingQueryMarks(n.Right, inputs, dst)
 	case *sortNode, *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *limitNode:
 		// These owners consume descendant pending marks. Own marks sit above
 		// their Sort and therefore are discovered separately by rowLockNode.

@@ -13,7 +13,7 @@ import (
 func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, distinct bool) (*expressionBinder, *cteDefinition) {
 	t.Helper()
 	b := &expressionBinder{engine: New(), ctx: context.Background()}
-	d := &cteDefinition{userWidth: 1, schema: querySchema{{Name: "n", Usage: usage}}, search: &searchRecipe{syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
+	d := &cteDefinition{UserWidth: 1, Schema: querySchema{{Name: "n", Usage: usage}}, Search: &searchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
 	if err := b.bindSearchShape(d); err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, disti
 }
 func searchUnitValue(t *testing.T, s *searchRecipe, parent sqltype.Value, key sqltype.Value) sqltype.Value {
 	t.Helper()
-	value, err := s.value(context.Background(), []sqltype.Value{key}, parent)
+	value, err := s.Value(context.Background(), []sqltype.Value{key}, parent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,21 +39,21 @@ func TestQuerySearchShape(t *testing.T) {
 	typ := cteUnitType(t)
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, typ.Usage(), false)
-		s := d.search
-		if s.slot != 1 || len(d.schema) != 2 || s.record.ID() != 2249 || s.record.Usage().Typmod != -1 || s.result.Usage().Collation.ID != 0 {
-			t.Fatal("shape", s, d.schema)
+		s := d.Search
+		if s.Slot != 1 || len(d.Schema) != 2 || s.Record.ID() != 2249 || s.Record.Usage().Typmod != -1 || s.Result.Usage().Collation.ID != 0 {
+			t.Fatal("shape", s, d.Schema)
 		}
 		offset := 0
 		if breadth {
 			offset = 1
-			member := s.record.CompositeMember(0)
-			if member.Name != "*DEPTH*" || member.Usage.Type.ID() != sqltype.Int8 || s.result != s.record {
+			member := s.Record.CompositeMember(0)
+			if member.Name != "*DEPTH*" || member.Usage.Type.ID() != sqltype.Int8 || s.Result != s.Record {
 				t.Fatal(member)
 			}
-		} else if s.result.ID() != 2287 || s.result.Element() != s.record {
+		} else if s.Result.ID() != 2287 || s.Result.Element() != s.Record {
 			t.Fatal("not record array")
 		}
-		if member := s.record.CompositeMember(offset); member.Name != "n" || member.Usage != typ.Usage() {
+		if member := s.Record.CompositeMember(offset); member.Name != "n" || member.Usage != typ.Usage() {
 			t.Fatal(member)
 		}
 		value := searchUnitValue(t, s, sqltype.Value{}, sqltype.Null(typ))
@@ -74,16 +74,16 @@ func TestQuerySearchShape(t *testing.T) {
 	// JSON shape construction must never demand grouping or comparison.
 	json, _ := New().CatalogRead().LookupType(sqltype.JSON)
 	_, d := searchUnitDefinition(t, true, json.Usage(), false)
-	if len(d.search.grouping) != 0 {
+	if len(d.Search.Grouping) != 0 {
 		t.Fatal("ALL acquired equality")
 	}
-	searchUnitValue(t, d.search, sqltype.Value{}, sqltype.Null(json))
+	searchUnitValue(t, d.Search, sqltype.Value{}, sqltype.Null(json))
 	varchar, _ := New().CatalogRead().LookupType(sqltype.VarChar)
 	usage := varchar.Usage()
 	usage.Typmod = 11
 	for _, breadth := range []bool{true, false} {
 		_, typed := searchUnitDefinition(t, breadth, usage, false)
-		member := typed.search.record.CompositeMember(typed.search.record.CompositeLen() - 1)
+		member := typed.Search.Record.CompositeMember(typed.Search.Record.CompositeLen() - 1)
 		if member.Usage != usage {
 			t.Fatal("key typmod/collation erased", member)
 		}
@@ -94,7 +94,7 @@ func TestQuerySearchParent(t *testing.T) {
 	one, two := cteUnitValue(t, typ, 1), cteUnitValue(t, typ, 2)
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, typ.Usage(), false)
-		s := d.search
+		s := d.Search
 		a := searchUnitValue(t, s, sqltype.Value{}, one)
 		b := searchUnitValue(t, s, sqltype.Value{}, two)
 		child := searchUnitValue(t, s, b, one)
@@ -111,12 +111,12 @@ func TestQuerySearchParent(t *testing.T) {
 				t.Fatal("wrong/mutated parent")
 			}
 		}
-		self := &worktableScanNode{derivedNode: derivedNode{cte: d, demand: []bool{false, true}}}
+		self := &worktableScanNode{derivedNode: derivedNode{CTE: d, Demand: []bool{false, true}}}
 		physical := &singletonNode{querySchema: make(querySchema, 4)}
 		for _, tc := range []struct {
 			node   LogicalNode
 			offset int
-		}{{&joinNode{left: physical, right: self, leftWidth: 4}, 4}, {&joinNode{left: self, right: physical, leftWidth: 2}, 0}} {
+		}{{&joinNode{Left: physical, Right: self, LeftWidth: 4}, 4}, {&joinNode{Left: self, Right: physical, LeftWidth: 2}, 0}} {
 			if scan, offset := recursiveParentSlot(tc.node, d, 0); scan != self || offset != tc.offset {
 				t.Fatal(scan, offset)
 			}
@@ -129,36 +129,36 @@ func TestQuerySearchIdentity(t *testing.T) {
 	ctx := context.Background()
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, typ.Usage(), true)
-		s := d.search
+		s := d.Search
 		anchor := searchUnitValue(t, s, sqltype.Value{}, one)
 		child := searchUnitValue(t, s, anchor, one)
-		if same, err := s.equal(ctx, anchor, child); err != nil || same {
+		if same, err := s.Equal(ctx, anchor, child); err != nil || same {
 			t.Fatal("generated identity omitted", same, err)
 		}
 		copy := searchUnitValue(t, s, sqltype.Value{}, one)
-		ha, err := s.hash(ctx, anchor)
+		ha, err := s.Hash(ctx, anchor)
 		if err != nil {
 			t.Fatal(err)
 		}
-		hb, err := s.hash(ctx, copy)
+		hb, err := s.Hash(ctx, copy)
 		if err != nil || ha != hb {
 			t.Fatal("equal hashes", ha, hb, err)
 		}
 		grouping := make([]queryGrouping, 1)
 		grouping[0].Grouping, _ = sqltype.BindGrouping(typ.Usage())
-		stage := recursiveUnionStage{node: &recursiveUnionNode{setNode: setNode{querySchema: d.schema, grouping: grouping}, definition: d, search: s}, source: &querySource{flat: []sqltype.Value{one, child, one, anchor}}}
+		stage := recursiveUnionStage{node: &recursiveUnionNode{setNode: setNode{querySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, source: &querySource{flat: []sqltype.Value{one, child, one, anchor}}}
 		if index, err := stage.findTuple(ctx, []sqltype.Value{one, anchor}, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored sequence", index, err)
 		}
 		cycle := cycleUnitRecipe(t, typ.Usage())
-		cycle.markSlot = 2
+		cycle.MarkSlot = 2
 		first := cycleUnitAugment(t, cycle, sqltype.Value{}, one, anchor)
 		second := cycleUnitAugment(t, cycle, first[3], one, anchor)
 		grouping = append(grouping, queryGrouping{})
-		grouping[1].Grouping, _ = sqltype.BindGrouping(cycle.mark.ResultUsage())
-		d.cycle = cycle
-		d.schema = append(d.schema, catalog.Column{Usage: cycle.mark.ResultUsage()}, catalog.Column{Usage: cycle.path.Usage()})
-		stage.node = &recursiveUnionNode{setNode: setNode{querySchema: d.schema, grouping: grouping}, definition: d, search: s, cycle: cycle}
+		grouping[1].Grouping, _ = sqltype.BindGrouping(cycle.Mark.ResultUsage())
+		d.Cycle = cycle
+		d.Schema = append(d.Schema, catalog.Column{Usage: cycle.Mark.ResultUsage()}, catalog.Column{Usage: cycle.Path.Usage()})
+		stage.node = &recursiveUnionNode{setNode: setNode{querySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s, Cycle: cycle}
 		stage.source.flat = append(append([]sqltype.Value(nil), second...), first...)
 		if index, err := stage.findTuple(ctx, first, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored CYCLE", index, err)
@@ -190,31 +190,31 @@ func TestQuerySearchRemap(t *testing.T) {
 		if err != nil || again != copy {
 			t.Fatal("CTE memo", err)
 		}
-		if copy == d || copy.search == d.search || copy.search.record == d.search.record || copy.schema[1].Usage.Type != copy.search.result || copy.search.record.CompositeMember(copy.search.record.CompositeLen()-1).Usage.Type != mapper(small) {
+		if copy == d || copy.Search == d.Search || copy.Search.Record == d.Search.Record || copy.Schema[1].Usage.Type != copy.Search.Result || copy.Search.Record.CompositeMember(copy.Search.Record.CompositeLen()-1).Usage.Type != mapper(small) {
 			t.Fatal("foreign authority retained")
 		}
-		if d.schema[1].Usage.Type != d.search.result || d.search.record.CompositeMember(d.search.record.CompositeLen()-1).Usage.Type != small {
+		if d.Schema[1].Usage.Type != d.Search.Result || d.Search.Record.CompositeMember(d.Search.Record.CompositeLen()-1).Usage.Type != small {
 			t.Fatal("source mutated")
 		}
-		if sqltype.SameRecordUsage(d.search.result.Usage(), copy.search.result.Usage()) {
+		if sqltype.SameRecordUsage(d.Search.Result.Usage(), copy.Search.Result.Usage()) {
 			t.Fatal("same-OID shapes merged")
 		}
-		bound := literalExpression{Info: expr.Info{Usage: small.Usage()}, value: sqltype.Null(small)}
-		left := &projectNode{querySchema: d.schema[:1]}
-		right := &projectNode{querySchema: d.schema}
-		seq := columnExpression{Info: expr.Info{Usage: d.search.result.Usage()}}
-		n := setNode{querySchema: d.schema, left: left, right: right, operation: "union", leftExpressions: []expr.Expr{bound}, rightExpressions: []expr.Expr{bound, seq}, grouping: make([]queryGrouping, 1)}
-		if err := validateStoredSetNode(&n, nil, d.search); err != nil {
+		bound := literalExpression{Info: expr.Info{Usage: small.Usage()}, Value: sqltype.Null(small)}
+		left := &projectNode{querySchema: d.Schema[:1]}
+		right := &projectNode{querySchema: d.Schema}
+		seq := columnExpression{Info: expr.Info{Usage: d.Search.Result.Usage()}}
+		n := setNode{querySchema: d.Schema, Left: left, Right: right, Operation: "union", LeftExpressions: []expr.Expr{bound}, RightExpressions: []expr.Expr{bound, seq}, Grouping: make([]queryGrouping, 1)}
+		if err := validateStoredSetNode(&n, nil, d.Search); err != nil {
 			t.Fatal(err)
 		}
 		bad := n
-		bad.leftExpressions = []expr.Expr{bound, seq}
-		if err := validateStoredSetNode(&bad, nil, d.search); err == nil {
+		bad.LeftExpressions = []expr.Expr{bound, seq}
+		if err := validateStoredSetNode(&bad, nil, d.Search); err == nil {
 			t.Fatal("accepted generated anchor target")
 		}
 		bad = n
-		bad.rightExpressions = []expr.Expr{bound, bound}
-		if err := validateStoredSetNode(&bad, nil, d.search); err == nil {
+		bad.RightExpressions = []expr.Expr{bound, bound}
+		if err := validateStoredSetNode(&bad, nil, d.Search); err == nil {
 			t.Fatal("accepted malformed parent")
 		}
 	}
@@ -223,15 +223,15 @@ func TestQuerySearchCancellation(t *testing.T) {
 	typ := cteUnitType(t)
 	one := cteUnitValue(t, typ, 1)
 	_, d := searchUnitDefinition(t, false, typ.Usage(), true)
-	s := d.search
+	s := d.Search
 	value := searchUnitValue(t, s, sqltype.Value{}, one)
 	for range 12 {
 		value = searchUnitValue(t, s, value, one)
 	}
 	for _, operation := range []func(context.Context) error{
-		func(ctx context.Context) error { _, err := s.value(ctx, []sqltype.Value{one}, value); return err },
-		func(ctx context.Context) error { _, err := s.hash(ctx, value); return err },
-		func(ctx context.Context) error { _, err := s.equal(ctx, value, value); return err },
+		func(ctx context.Context) error { _, err := s.Value(ctx, []sqltype.Value{one}, value); return err },
+		func(ctx context.Context) error { _, err := s.Hash(ctx, value); return err },
+		func(ctx context.Context) error { _, err := s.Equal(ctx, value, value); return err },
 	} {
 		ctx := &cycleUnitCancelContext{Context: context.Background(), remaining: 4}
 		if err := operation(ctx); !errors.Is(err, context.Canceled) {
@@ -244,14 +244,14 @@ func TestQuerySearchSignature(t *testing.T) {
 	small := binder.typ(sqltype.Int4)
 	big := binder.typ(sqltype.Int8)
 	for _, breadth := range []bool{true, false} {
-		a := &cteDefinition{userWidth: 1, schema: querySchema{{Name: "n", Usage: small.Usage()}}, search: &searchRecipe{syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
-		b := &cteDefinition{userWidth: 1, schema: querySchema{{Name: "n", Usage: big.Usage()}}, search: &searchRecipe{syntax: a.search.syntax}}
+		a := &cteDefinition{UserWidth: 1, Schema: querySchema{{Name: "n", Usage: small.Usage()}}, Search: &searchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
+		b := &cteDefinition{UserWidth: 1, Schema: querySchema{{Name: "n", Usage: big.Usage()}}, Search: &searchRecipe{Syntax: a.Search.Syntax}}
 		for _, definition := range []*cteDefinition{a, b} {
 			if err := binder.bindSearchShape(definition); err != nil {
 				t.Fatal(err)
 			}
 		}
-		left, right := a.search.result.Usage(), b.search.result.Usage()
+		left, right := a.Search.Result.Usage(), b.Search.Result.Usage()
 		if !sameStatementResultUsage(left, right) || sameStatementUsage(left, right) || sqltype.SameRecordUsage(left, right) {
 			t.Fatal("public/internal/parameter signatures conflated")
 		}
@@ -277,7 +277,7 @@ func TestQuerySearchSignature(t *testing.T) {
 	}
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, named.Usage(), false)
-		expected := StatementDescription{catalogOwner: New().catalog.owner(), Results: []catalog.Column{{Name: "seq", Usage: d.search.result.Usage()}}}
+		expected := StatementDescription{catalogOwner: New().catalog.owner(), Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}}
 		actual := expected
 		actual.catalogOwner = New().catalog.owner()
 		if err := checkStatementSignature(expected, actual); err == nil {

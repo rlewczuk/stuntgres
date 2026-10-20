@@ -36,7 +36,7 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			}
 			// Local child units own runtime order/error propagation; retain
 			// real owner remap and exact payload comparison here.
-			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}}}
+			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}}}
 			got, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)

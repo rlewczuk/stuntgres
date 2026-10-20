@@ -11,19 +11,19 @@ func (e subscriptsExpression) SourceAdmission() (bool, bool) { return true, true
 
 func (e subscriptsExpression) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(subscriptsExpression)
-	return ok && e.ResultUsage() == o.ResultUsage() && len(e.args) == len(o.args)
+	return ok && e.ResultUsage() == o.ResultUsage() && len(e.Args) == len(o.Args)
 }
 
 func (e subscriptsExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}
-	if len(e.args) != 2 && len(e.args) != 3 {
+	if len(e.Args) != 2 && len(e.Args) != 3 {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid subscripts arguments")
 	}
 	var values [3]sqltype.Value
 	null := false
-	for i, arg := range e.args {
+	for i, arg := range e.Args {
 		value, err := arg.Eval(ctx)
 		if err != nil {
 			return expr.SourceCursor{}, err
@@ -45,7 +45,7 @@ func (e subscriptsExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, e
 		return cursor, nil
 	}
 	reverse := false
-	if len(e.args) == 3 {
+	if len(e.Args) == 3 {
 		reverse, err = values[2].Boolean()
 		if err != nil {
 			return expr.SourceCursor{}, err

@@ -52,7 +52,7 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 	properties := arg.Properties()
 	properties.StageDependent = true
 	info := b.info(array.Usage(), raw.Pos, properties)
-	call := aggregateCall{provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), argument: arg, operation: functions.AggregateArrayScalar, includeNulls: true, procedure: proc, ref: ref, routine: ref}
+	call := aggregateCall{Provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), Argument: arg, Operation: functions.AggregateArrayScalar, IncludeNulls: true, Procedure: proc, Ref: ref, Routine: ref}
 	return b.finishAggregate(raw, call, filter, info)
 }
 
@@ -86,5 +86,5 @@ func (r installedExtensionRoutine) attachIntaggEnumeration(call functions.Intagg
 		return nil, err
 	}
 	call.RoutineReference = proc
-	return unnestExpression{Info: call.Info, args: []expr.Expr{call.Arg}, procedure: proc, ref: ref}, nil
+	return unnestExpression{Info: call.Info, Args: []expr.Expr{call.Arg}, Procedure: proc, Ref: ref}, nil
 }

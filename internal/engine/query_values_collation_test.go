@@ -17,13 +17,13 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	operand := func(id uint32, position int) expr.Expr {
 		u := usage
 		u.Collation = sqltype.CollationRef{ID: id, Derivation: sqltype.Default}
-		return literalExpression{Info: b.info(u, parser.Position{Character: position}, expr.Properties{}), value: sqltype.Null(text)}
+		return literalExpression{Info: b.info(u, parser.Position{Character: position}, expr.Properties{}), Value: sqltype.Null(text)}
 	}
 	info, err := b.collatedInfo(b.info(usage, parser.Position{Character: 40}, expr.Properties{}), operand(950, 59), operand(951, 64))
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := literalExpression{Info: info, value: sqltype.Null(text)}
+	base := literalExpression{Info: info, Value: sqltype.Null(text)}
 	assert := func(name string, expression expr.Expr) {
 		t.Helper()
 		left, right, position := expression.ImplicitCollationConflict()
@@ -53,7 +53,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	}
 	assert("retained descriptor", retagged)
 	projection := []expr.Expr{coerced}
-	_, err = b.finishOrder(&valuesNode{querySchema: querySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []sortKey{{expression: coerced, cache: -1, slot: -1}}, projection)
+	_, err = b.finishOrder(&valuesNode{querySchema: querySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []sortKey{{Expression: coerced, Cache: -1, Slot: -1}}, projection)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(overridden, err)
 	}
 	b.query.namespace = &queryNamespace{}
-	if _, err := b.bindOrder(order, []expr.Expr{literalExpression{Info: overridden, value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
+	if _, err := b.bindOrder(order, []expr.Expr{literalExpression{Info: overridden, Value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
 		t.Fatal("explicit override did not restore ordinary ordering", err)
 	}
 }

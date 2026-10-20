@@ -13,7 +13,7 @@ func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax pa
 	local := len(action.ctes) != 0
 	visit := func(root LogicalNode) {
 		visitCTEQuery(root, func(node LogicalNode) {
-			if project, ok := node.(*projectNode); ok && project.cteOwner {
+			if project, ok := node.(*projectNode); ok && project.CTEOwner {
 				local = true
 			}
 		}, func(expr.Expr) {}, true)
@@ -23,32 +23,32 @@ func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax pa
 	}
 	if action.update != nil {
 		visit(action.update.from)
-		visit(&projectNode{expressions: action.update.assignments})
+		visit(&projectNode{Expressions: action.update.assignments})
 		if action.update.predicate != nil {
-			visit(&projectNode{expressions: []expr.Expr{action.update.predicate}})
+			visit(&projectNode{Expressions: []expr.Expr{action.update.predicate}})
 		}
 	}
 	visit(action.delete.using)
 	for _, row := range action.expressions {
 		for _, bound := range row {
-			visit(&projectNode{expressions: []expr.Expr{bound}})
+			visit(&projectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
 	for _, bound := range action.insert.defaults {
-		visit(&projectNode{expressions: []expr.Expr{bound}})
+		visit(&projectNode{Expressions: []expr.Expr{bound}})
 	}
 	if action.returning != nil {
-		visit(&projectNode{expressions: action.returning.expressions})
+		visit(&projectNode{Expressions: action.returning.expressions})
 	}
 	if action.predicate != nil {
-		visit(&projectNode{expressions: []expr.Expr{action.predicate}})
+		visit(&projectNode{Expressions: []expr.Expr{action.predicate}})
 	}
 	if action.insert.conflict != nil {
 		if action.insert.conflict.predicate != nil {
-			visit(&projectNode{expressions: []expr.Expr{action.insert.conflict.predicate}})
+			visit(&projectNode{Expressions: []expr.Expr{action.insert.conflict.predicate}})
 		}
 		if action.insert.conflict.update != nil {
-			visit(&projectNode{expressions: action.insert.conflict.update.assignments})
+			visit(&projectNode{Expressions: action.insert.conflict.update.assignments})
 		}
 	}
 	if !local {

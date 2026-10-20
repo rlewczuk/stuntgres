@@ -40,7 +40,7 @@ func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier b
 		b := r.actions[0].binding
 		if modifier {
 			for _, definition := range b.ctes {
-				if definition.mutation != nil && cteMutationOf(definition).insert.conflict != nil {
+				if definition.Mutation != nil && cteMutationOf(definition).insert.conflict != nil {
 					return r, cteMutationOf(definition).insert.conflict
 				}
 			}
@@ -273,7 +273,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 				body := mappedRule.actions[0].binding
 				var definition *cteDefinition
 				for _, candidate := range body.ctes {
-					if candidate.mutation != nil && cteMutationOf(candidate).insert.conflict == mappedConflict {
+					if candidate.Mutation != nil && cteMutationOf(candidate).insert.conflict == mappedConflict {
 						definition = candidate
 					}
 				}
@@ -286,9 +286,9 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 					if node == nil {
 						return
 					}
-					if derived, ok := node.(*derivedNode); ok && derived.cte != nil && derived.cte.name == definition.name {
+					if derived, ok := node.(*derivedNode); ok && derived.CTE != nil && derived.CTE.Name == definition.Name {
 						foundScan = true
-						if derived.cte != definition || derived.query != definition.query {
+						if derived.CTE != definition || derived.Query != definition.Query {
 							t.Fatal("constraint remint forked modifier definition/consumer spool")
 						}
 					}

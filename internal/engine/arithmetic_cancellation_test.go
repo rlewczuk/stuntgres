@@ -12,7 +12,7 @@ import (
 func TestExpressionArithmeticCancellationBeforePublication(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT (v::smallint+1::smallint)*2::smallint FROM t WHERE id=1")
 	project := query.Root.(*projectNode)
-	real := project.expressions[0]
+	real := project.Expressions[0]
 	schema := project.Schema()[0]
 	if schema.Name != "?column?" || schema.Usage.Type.ID() != sqltype.Int2 || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {
 		t.Fatal(schema)
@@ -20,7 +20,7 @@ func TestExpressionArithmeticCancellationBeforePublication(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	evaluated := false
-	project.expressions[0] = queryProbe(real.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	project.Expressions[0] = queryProbe(real.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		v, err := real.Eval(c)
 		if err != nil {
 			return v, err

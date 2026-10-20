@@ -72,9 +72,9 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 					if parameters.Types[0].Type != wantType || len(b.params.anyParameters) != 0 {
 						t.Fatal("incorrect parameter completion", parameters, b.params.anyParameters)
 					}
-					call := b.grouping.aggregates[node.(aggregateExpression).slot]
-					provider := call.provider.(functions.JSONObjectAggregate)
-					if provider.KeyUsage() != call.argument.ResultUsage() || provider.InputUsage() != call.separator.ResultUsage() {
+					call := b.grouping.aggregates[node.(aggregateExpression).Slot]
+					provider := call.Provider.(functions.JSONObjectAggregate)
+					if provider.KeyUsage() != call.Argument.ResultUsage() || provider.InputUsage() != call.Separator.ResultUsage() {
 						t.Fatal("provider captured provisional inputs")
 					}
 					if provider.Unique() != strings.Contains(name, "_unique") || provider.Strict() != strings.HasSuffix(name, "_strict") {
@@ -124,13 +124,13 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 					if err != nil || got != want {
 						t.Fatal("completed provider output", got, want, err)
 					}
-					if len(call.order) > 0 {
+					if len(call.Order) > 0 {
 						wantSlot := 0
 						if slot == "value" || slot == "typed-first" {
 							wantSlot = 1
 						}
-						if call.order[0].slot != wantSlot {
-							t.Fatal("matching order lost input slot", call.order[0].slot, wantSlot)
+						if call.Order[0].Slot != wantSlot {
+							t.Fatal("matching order lost input slot", call.Order[0].Slot, wantSlot)
 						}
 					}
 					if slot == "both" && parameters.Types[1].Type != text {
@@ -195,11 +195,11 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 		if _, err = b.finish(); err != nil || len(b.params.anyParameters) != 0 {
 			t.Fatal("DISTINCT did not complete both occurrences", b.params.anyParameters, err)
 		}
-		call := b.grouping.aggregates[node.(aggregateExpression).slot]
-		p := call.provider.(functions.JSONObjectAggregate)
+		call := b.grouping.aggregates[node.(aggregateExpression).Slot]
+		p := call.Provider.(functions.JSONObjectAggregate)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		if p.KeyUsage().Type != text || p.InputUsage().Type != text || len(call.distinct) != 2 {
-			t.Fatal("same-number inputs lost distinct tuple", p.KeyUsage(), p.InputUsage(), len(call.distinct))
+		if p.KeyUsage().Type != text || p.InputUsage().Type != text || len(call.Distinct) != 2 {
+			t.Fatal("same-number inputs lost distinct tuple", p.KeyUsage(), p.InputUsage(), len(call.Distinct))
 		}
 		state, err := p.Init(ctx)
 		if err != nil {
@@ -217,7 +217,7 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 		if err != nil || got != `{ "x" : "x" }` {
 			t.Fatal("repeated completed input output", got, err)
 		}
-		if len(call.order) > 0 && call.order[0].slot != 0 {
+		if len(call.Order) > 0 && call.Order[0].Slot != 0 {
 			t.Fatal("ORDER did not keep first equal target")
 		}
 	}

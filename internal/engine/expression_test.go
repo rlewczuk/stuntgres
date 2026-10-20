@@ -46,15 +46,15 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		t.Fatal(b.parameters)
 	}
 	project := b.query.Root.(*projectNode)
-	filter := project.child.(*sortNode).child.(*filterNode)
-	if len(project.expressions) != 3 || project.expressions[0].ResultUsage().Type.ID() != sqltype.Text || project.expressions[2].ResultUsage().Type.ID() != sqltype.Text {
+	filter := project.Child.(*sortNode).Child.(*filterNode)
+	if len(project.Expressions) != 3 || project.Expressions[0].ResultUsage().Type.ID() != sqltype.Text || project.Expressions[2].ResultUsage().Type.ID() != sqltype.Text {
 		t.Fatal(project.Schema())
 	}
-	column := project.expressions[1].(columnExpression)
-	if column.origin.Domain() != e.catalog.Domain || column.origin.Address.SubID != 2 || column.slot != 1 || column.scope == 0 || column.frame == 0 || column.SourcePosition().Character != 11 {
+	column := project.Expressions[1].(columnExpression)
+	if column.Origin.Domain() != e.catalog.Domain || column.Origin.Address.SubID != 2 || column.Slot != 1 || column.Scope == 0 || column.Frame == 0 || column.SourcePosition().Character != 11 {
 		t.Fatal(column)
 	}
-	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != expr.Immutable || !project.expressions[0].Properties().ParameterDependent {
+	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != expr.Immutable || !project.Expressions[0].Properties().ParameterDependent {
 		t.Fatal("dependence metadata")
 	}
 	refs := map[ids.ObjectRef]bool{}
@@ -64,7 +64,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		}
 		refs[d.Ref] = true
 	}
-	if !refs[column.origin] || len(refs) < 4 {
+	if !refs[column.Origin] || len(refs) < 4 {
 		t.Fatal(b.dependencies)
 	}
 	typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
@@ -86,7 +86,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	frame := []sqltype.Value{sqltype.Null(text), sqltype.Null(integer)}
-	value, err := filter.predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: frame}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(integer), sqltype.Null(integer), sqltype.Null(typ)}}})
+	value, err := filter.Predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: frame}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(integer), sqltype.Null(integer), sqltype.Null(typ)}}})
 	if err != nil || value.Type() != typ || !value.IsNull() {
 		t.Fatal(value, err)
 	}
@@ -97,7 +97,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	for n := range 16 {
 		wg.Go(func() {
 			v := sqltype.String(text, strconv.Itoa(n))
-			got, err := project.expressions[0].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{v}}})
+			got, err := project.Expressions[0].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{v}}})
 			actual, _ := got.Text()
 			if err != nil || actual != strconv.Itoa(n) {
 				t.Error(actual, err)
@@ -110,7 +110,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := project.expressions[0].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: frame}}); !errors.Is(err, context.Canceled) {
+	if _, err := project.Expressions[0].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: frame}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -229,8 +229,8 @@ func TestExpressionInvalidValuesRemainInvariantErrors(t *testing.T) {
 	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{{}}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}
 	for _, expression := range []expr.Expr{
 		literalExpression{},
-		columnExpression{scope: 1, frame: 1, slot: 0},
-		parameterExpression{number: 1},
+		columnExpression{Scope: 1, Frame: 1, Slot: 0},
+		parameterExpression{Number: 1},
 	} {
 		value, err := expression.Eval(ctx)
 		if err == nil || value.Type() != nil {

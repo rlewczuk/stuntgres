@@ -54,8 +54,8 @@ func TestViewCheckDeclaration(t *testing.T) {
 	project := *viewOf(f.view).query.Root.(*projectNode)
 	definition := *viewOf(f.view)
 	definition.query = &BoundQuery{Root: &project}
-	for _, expressions := range [][]expr.Expr{nil, {literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}} {
-		project.expressions = expressions
+	for _, expressions := range [][]expr.Expr{nil, {literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}} {
+		project.Expressions = expressions
 		var d *sqlstate.Error
 		if err := validateViewCheckDeclaration(&definition); !errors.As(err, &d) || d.Code != "0A000" || d.Hint != "Views that have no updatable columns are not automatically updatable." {
 			t.Fatal(err)
@@ -70,7 +70,7 @@ func TestViewCheckDeclaration(t *testing.T) {
 
 func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScope, op *Operation) binding {
 	t.Helper()
-	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
@@ -79,9 +79,9 @@ func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScop
 
 func TestViewCheckStack(t *testing.T) {
 	f := viewWriteMechanics(t)
-	guard := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
+	guard := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
 	project := viewOf(f.view).query.Root.(*projectNode)
-	project.child = &filterNode{querySchema: querySchema(f.base.Columns), child: project.child, predicate: guard}
+	project.Child = &filterNode{querySchema: querySchema(f.base.Columns), Child: project.Child, Predicate: guard}
 	layers := []*catalog.Relation{f.view}
 	refs := []ids.ObjectRef{f.viewRef}
 	for depth := range 2 {
@@ -91,14 +91,14 @@ func TestViewCheckStack(t *testing.T) {
 		view.ObjectAddress.ObjectID = ids.OID(20002 + depth)
 		view.ObjectName = fmt.Sprintf("layer%d", depth)
 		syntax := &parser.Select{From: &parser.TableReference{}}
-		sourceNode := &sourceNode{querySchema: querySchema(source.Columns), ref: ref, occurrence: 0}
+		sourceNode := &sourceNode{querySchema: querySchema(source.Columns), Ref: ref, Occurrence: 0}
 		expressions := make([]expr.Expr, len(source.Columns))
 		for i, column := range source.Columns {
 			origin := ref
 			origin.Address.SubID = source.Attributes[i]
-			expressions[i] = columnExpression{Info: expr.Info{Usage: column.Usage}, origin: origin, scope: 1, frame: 1, slot: i}
+			expressions[i] = columnExpression{Info: expr.Info{Usage: column.Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: i}
 		}
-		view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(view.Columns), syntax: syntax, frame: 1, expressions: expressions, child: &filterNode{querySchema: querySchema(source.Columns), child: sourceNode, predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.Attributes}}}
+		view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &filterNode{querySchema: querySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.Attributes}}}
 		f.e.catalog.state.SetDescriptor(view.Address(), &view)
 		layers = append(layers, &view)
 		refs = append(refs, f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), view.Address()))
@@ -138,16 +138,16 @@ func TestViewCheckStack(t *testing.T) {
 func TestViewCheckMapping(t *testing.T) {
 	f := viewWriteMechanics(t)
 	project := viewOf(f.view).query.Root.(*projectNode)
-	column := project.expressions[0]
+	column := project.Expressions[0]
 	// Reorder live physical columns while preserving frozen attribute identities.
 	f.base.Attributes = []int32{11, 7, 19}
 	f.base.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[0], f.base.Columns[2]}
 	viewOf(f.view).checkOption = viewCheckLocal
-	project.child = &filterNode{querySchema: querySchema(f.base.Columns), child: project.child, predicate: column}
+	project.Child = &filterNode{querySchema: querySchema(f.base.Columns), Child: project.Child, Predicate: column}
 	scope, op := f.scope(t)
 	b := viewCheckUnitBinding(t, f, scope, op)
 	mapped, ok := viewDirectColumn(b.viewWrite.checks[0].predicates[0])
-	if !ok || mapped.slot != 0 || !sameViewRelation(mapped.origin, f.baseRef) {
+	if !ok || mapped.Slot != 0 || !sameViewRelation(mapped.Origin, f.baseRef) {
 		t.Fatal(mapped, ok)
 	}
 	old := f.e.storage.Relations[f.base.Address()].Versions[0].Values
@@ -172,7 +172,7 @@ func TestViewCheckPredicate(t *testing.T) {
 		return sqltype.Boolean(f.boolean, true), nil
 	})
 	for _, value := range []sqltype.Value{sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)} {
-		b := binding{relation: f.base, ref: f.baseRef, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: &catalog.Relation{ObjectName: "outer"}, predicates: []expr.Expr{pass}}, {relation: f.view, predicates: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: value}}}}}}
+		b := binding{relation: f.base, ref: f.baseRef, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: &catalog.Relation{ObjectName: "outer"}, predicates: []expr.Expr{pass}}, {relation: f.view, predicates: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: value}}}}}}
 		eval := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: old}}
 		err := f.e.checkViewRow(scope, &b, row, &eval)
 		var d *sqlstate.Error
@@ -281,7 +281,7 @@ func TestViewCheckFinish(t *testing.T) {
 	originals := f.e.storage.Relations[f.base.Address()].Versions
 	row := append([]sqltype.Value(nil), originals[0].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	w.checks = []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}}}}
+	w.checks = []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}}}}
 	b := binding{relation: f.base, ref: f.baseRef, viewWrite: w}
 	eval := EvalContext{evalStatement: evalStatement{Context: op.Context(), Output: scope.output}}
 	if err := f.e.checkViewRow(scope, &b, row, &eval); err != nil {

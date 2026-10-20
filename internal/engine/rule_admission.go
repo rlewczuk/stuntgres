@@ -26,7 +26,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			seen[definition] = true
 			mutation, _ := mutationBinding(definition)
-			if err := rewrite.caller.checkBinding(*mutation, definition.statement); err != nil {
+			if err := rewrite.caller.checkBinding(*mutation, definition.Statement); err != nil {
 				e.mu.Unlock()
 				return nil, err
 			}

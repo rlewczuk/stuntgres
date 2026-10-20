@@ -104,7 +104,7 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 		return root
 	}
 	if sorting {
-		base = ordered.cacheWidth
+		base = ordered.CacheWidth
 	}
 	var late []expr.Expr
 	for i, bound := range projection {
@@ -119,35 +119,35 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 			continue
 		}
 		if sorting && bound.Properties().Volatility != expr.Volatile {
-			slot := ordered.cacheWidth
-			ordered.outputs = append(ordered.outputs, bound)
-			ordered.cacheWidth++
-			projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), slot: slot}
+			slot := ordered.CacheWidth
+			ordered.Outputs = append(ordered.Outputs, bound)
+			ordered.CacheWidth++
+			projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), Slot: slot}
 		} else if bounded {
 			late = append(late, bound)
 			lateSlots = append(lateSlots, i)
 		}
 	}
 	if sorting {
-		base = ordered.cacheWidth
+		base = ordered.CacheWidth
 	}
 	if len(late) == 0 {
 		return root
 	}
 	for j, i := range lateSlots {
 		bound := projection[i]
-		projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), slot: base + j}
+		projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), Slot: base + j}
 	}
-	return &evaluationNode{querySchema: root.Schema(), child: root, expressions: late, base: base}
+	return &evaluationNode{querySchema: root.Schema(), Child: root, Expressions: late, Base: base}
 }
 
 func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNode) (indexedStage, error) {
-	child, err := openQueryNode(ctx, state, n.child)
+	child, err := openQueryNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
 	out := producingStage(&child, n.Schema())
-	out.cacheWidth = n.base + len(n.expressions)
+	out.cacheWidth = n.Base + len(n.Expressions)
 	evaluation := state.evaluation(nil)
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		i, present, err := child.nextOccurrence(ctx)
@@ -161,12 +161,12 @@ func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNod
 		evaluation.setContext(ctx)
 		evaluation.bindQueryRow(child.source, child.index(i))
 		evaluation.orderValues = values
-		for j, expr := range n.expressions {
+		for j, expr := range n.Expressions {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {
 				return false, err
 			}
-			values[n.base+j] = value
+			values[n.Base+j] = value
 		}
 		out.source = child.source
 		out.selection = append(out.selection, child.index(i))
@@ -176,33 +176,33 @@ func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNod
 }
 
 func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexedStage, error) {
-	if n.presenceOnly {
-		return openQueryNode(ctx, state, n.child)
+	if n.PresenceOnly {
+		return openQueryNode(ctx, state, n.Child)
 	}
-	offset, _, err := queryBoundValue(ctx, state, n.offset, "OFFSET")
+	offset, _, err := queryBoundValue(ctx, state, n.Offset, "OFFSET")
 	if err != nil {
 		return indexedStage{}, err
 	}
-	count, finite, err := queryBoundValue(ctx, state, n.count, "LIMIT")
+	count, finite, err := queryBoundValue(ctx, state, n.Count, "LIMIT")
 	if err != nil {
 		return indexedStage{}, err
 	}
 	if finite && count == 0 {
 		return indexedStage{source: state.source, schema: n.Schema(), selection: []int{}}, nil
 	}
-	child, err := openQueryNode(ctx, state, n.child)
+	child, err := openQueryNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
 	// A bounded view cannot defer inherited rowmarks past its own survivor
 	// count. Plain scalar views still defer until enclosing qualification.
-	if state.inherited.mode != 0 && state.source.locks != nil {
-		occurrences := queryTreeOccurrences(n.child, state.source, nil)
+	if state.inherited.Mode != 0 && state.source.locks != nil {
+		occurrences := queryTreeOccurrences(n.Child, state.source, nil)
 		if len(occurrences) != 0 {
 			child.pending = append(child.pending, queryPendingMark{occurrences: occurrences, mark: state.inherited})
 		}
 	}
-	child, err = settlePendingQueryMarks(ctx, state, n.child, child)
+	child, err = settlePendingQueryMarks(ctx, state, n.Child, child)
 	if err != nil {
 		return indexedStage{}, err
 	}
@@ -221,11 +221,11 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 		return true, nil
 	}
 	var boundary []sqltype.Value
-	if finite && n.withTies {
-		boundary = make([]sqltype.Value, len(n.peerKeys))
+	if finite && n.WithTies {
+		boundary = make([]sqltype.Value, len(n.PeerKeys))
 	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		if finite && count == 0 && !n.withTies {
+		if finite && count == 0 && !n.WithTies {
 			if state.retain {
 				return false, nil
 			}
@@ -241,7 +241,7 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 				continue
 			}
 			if finite && count == 0 {
-				peer, err := queryTiesPeer(ctx, &child, i, n.peerKeys, boundary, state.input)
+				peer, err := queryTiesPeer(ctx, &child, i, n.PeerKeys, boundary, state.input)
 				if err != nil {
 					return false, err
 				}
@@ -255,8 +255,8 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 			retainOccurrence(out, &child, i)
 			if finite && count > 0 {
 				count--
-				if count == 0 && n.withTies {
-					captureQueryTiesBoundary(&child, i, n.peerKeys, boundary)
+				if count == 0 && n.WithTies {
+					captureQueryTiesBoundary(&child, i, n.PeerKeys, boundary)
 				}
 			}
 			return true, ctx.Err()

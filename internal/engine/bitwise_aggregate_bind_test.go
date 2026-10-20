@@ -61,7 +61,7 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 			t.Fatal("operation dedup identity", len(b.grouping.aggregates))
 		}
 		for i, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
-			if b.grouping.aggregates[i].operation != op || b.grouping.aggregates[i].includeNulls {
+			if b.grouping.aggregates[i].Operation != op || b.grouping.aggregates[i].IncludeNulls {
 				t.Fatal("operation/strict identity", b.grouping.aggregates[i])
 			}
 		}
@@ -107,7 +107,7 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 		newType, _ := destination.CatalogRead().LookupType(id)
 		for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 			provider := bitwiseAggregateUnitProvider(t, oldType, op)
-			root := &aggregateNode{querySchema: querySchema{{Name: "fold", Usage: provider.ResultUsage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: provider, operation: op}}}
+			root := &aggregateNode{querySchema: querySchema{{Name: "fold", Usage: provider.ResultUsage(), Nullable: true, NullabilityKnown: true}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: provider, Operation: op}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				d, _ := destination.CatalogRead().LookupType(old.ID())
 				return d
@@ -115,11 +115,11 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := mapped.(*aggregateNode).calls[0]
-			if call.operation != op || call.provider.ResultUsage().Type != newType || mapped.Schema()[0].Usage.Type != newType || provider.ResultUsage().Type != oldType {
+			call := mapped.(*aggregateNode).Calls[0]
+			if call.Operation != op || call.Provider.ResultUsage().Type != newType || mapped.Schema()[0].Usage.Type != newType || provider.ResultUsage().Type != oldType {
 				t.Fatal("incomplete provider remap or original mutated")
 			}
-			s, err := call.provider.Init(ctx)
+			s, err := call.Provider.Init(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -131,10 +131,10 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 				oldValue, _ = sqltype.Integer(oldType, 12)
 				newValue, _ = sqltype.Integer(newType, 12)
 			}
-			if err = call.provider.Advance(ctx, s, oldValue, sqltype.Value{}); err == nil {
+			if err = call.Provider.Advance(ctx, s, oldValue, sqltype.Value{}); err == nil {
 				t.Fatal("remapped provider accepted old-generation datum")
 			}
-			if err = call.provider.Advance(ctx, s, newValue, sqltype.Value{}); err != nil {
+			if err = call.Provider.Advance(ctx, s, newValue, sqltype.Value{}); err != nil {
 				t.Fatal(err)
 			}
 			if id == sqltype.Bit {
@@ -142,10 +142,10 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 			} else {
 				newValue, _ = sqltype.Integer(newType, 10)
 			}
-			if err = call.provider.Advance(ctx, s, newValue, sqltype.Value{}); err != nil {
+			if err = call.Provider.Advance(ctx, s, newValue, sqltype.Value{}); err != nil {
 				t.Fatal("integral bound signature not rebuilt", err)
 			}
-			v, err := call.provider.Finalize(ctx, s)
+			v, err := call.Provider.Finalize(ctx, s)
 			if err != nil || v.Type() != newType || v.IsNull() {
 				t.Fatal(v, err)
 			}

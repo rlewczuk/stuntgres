@@ -149,14 +149,14 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 			sentinel := errors.New("late source evaluation")
 			calls := 0
 			if phase == "rejected scan" {
-				filter := project.child.(*sortNode).child.(*filterNode)
-				filter.predicate = queryProbe(filter.predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				filter := project.Child.(*sortNode).Child.(*filterNode)
+				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					cancel()
-					return sqltype.Boolean(filter.predicate.ResultUsage().Type, false), nil
+					return sqltype.Boolean(filter.Predicate.ResultUsage().Type, false), nil
 				})
 			} else if phase != "sorting" {
-				project.expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if phase == "late source" && calls == 2 {
 						return sqltype.Value{}, sentinel

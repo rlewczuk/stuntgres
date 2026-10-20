@@ -70,13 +70,13 @@ func queryRootRowMode(node LogicalNode) lock.Mode {
 	for {
 		switch n := node.(type) {
 		case *projectNode:
-			node = n.child
+			node = n.Child
 		case *limitNode:
-			node = n.child
+			node = n.Child
 		case *evaluationNode:
-			node = n.child
+			node = n.Child
 		case *rowLockNode:
-			return n.firstMode
+			return n.FirstMode
 		case *distinctNode, *distinctOnNode, *aggregateNode:
 			return 0 // Descendant marks are consumed at materialization.
 		default:
@@ -95,15 +95,15 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	var visit func(*catalog.Relation, queryRowMark, lock.Mode) (lock.Mode, error)
 	visit = func(d *catalog.Relation, inherited queryRowMark, diagnostic lock.Mode) (lock.Mode, error) {
 		if d.RelationKind != catalog.ViewRelation {
-			if inherited.mode == 0 {
+			if inherited.Mode == 0 {
 				return 0, nil
 			}
 			if diagnostic != 0 {
 				return diagnostic, nil
 			}
-			return inherited.mode, nil
+			return inherited.Mode, nil
 		}
-		if inherited.mode != 0 {
+		if inherited.Mode != 0 {
 			return queryRowDiagnostic(inherited), nil
 		}
 		if diagnostic == 0 {
@@ -141,7 +141,7 @@ func viewHasStoredRowMarks(d *catalog.Relation, view catalog.Read) bool {
 			return true
 		}
 		for _, leaf := range viewOf(d).sources {
-			if leaf.mark.mode != 0 {
+			if leaf.mark.Mode != 0 {
 				return true
 			}
 			if child, ok := view.Relation(leaf.ref.Address); ok && visit(child) {
@@ -166,15 +166,15 @@ func queryHasSetOutput(node LogicalNode) bool {
 	for {
 		switch n := node.(type) {
 		case *projectNode:
-			node = n.child
+			node = n.Child
 		case *sortNode:
-			node = n.child
+			node = n.Child
 		case *limitNode:
-			node = n.child
+			node = n.Child
 		case *evaluationNode:
-			node = n.child
+			node = n.Child
 		case *filterNode:
-			node = n.child
+			node = n.Child
 		case *setNode, *recursiveUnionNode:
 			return true
 		default:
@@ -188,36 +188,36 @@ func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
 		return nil
 	}
 	project, ok := root.(*projectNode)
-	if !ok || project.syntax == nil {
+	if !ok || project.Syntax == nil {
 		return fmt.Errorf("stuntgres: missing rowmark query syntax")
 	}
 	suffix := ""
 	switch {
-	case project.syntax.Set != nil:
+	case project.Syntax.Set != nil:
 		suffix = "UNION/INTERSECT/EXCEPT"
-	case project.syntax.Distinct != nil:
+	case project.Syntax.Distinct != nil:
 		suffix = "DISTINCT clause"
-	case project.syntax.GroupBy != nil:
+	case project.Syntax.GroupBy != nil:
 		suffix = "GROUP BY clause"
-	case project.syntax.Having != nil:
+	case project.Syntax.Having != nil:
 		suffix = "HAVING clause"
 	default:
-		for node := project.child; node != nil; {
+		for node := project.Child; node != nil; {
 			switch n := node.(type) {
 			case *projectNode:
-				node = n.child
+				node = n.Child
 			case *setProjectNode:
-				node = n.child
+				node = n.Child
 			case *limitNode:
-				node = n.child
+				node = n.Child
 			case *evaluationNode:
-				node = n.child
+				node = n.Child
 			case *sortNode:
-				node = n.child
+				node = n.Child
 			case *filterNode:
-				node = n.child
+				node = n.Child
 			case *rowLockNode:
-				node = n.child
+				node = n.Child
 			case *aggregateNode:
 				suffix = "aggregate functions"
 				node = nil
@@ -232,7 +232,7 @@ func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
 			}
 		}
 	}
-	if suffix == "" && project.hasTargetSet && stringInheritedRowMark(viewFromRoot(project)) {
+	if suffix == "" && project.HasTargetSet && stringInheritedRowMark(viewFromRoot(project)) {
 		suffix = "set-returning functions in the target list"
 	}
 	if suffix != "" {
@@ -242,18 +242,18 @@ func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
 	from = func(node LogicalNode) error {
 		switch n := node.(type) {
 		case *derivedNode:
-			if n.cte != nil && n.cte.mutation != nil {
+			if n.CTE != nil && n.CTE.Mutation != nil {
 				return nil
 			}
-			if n.cte != nil {
-				return queryRowLockLegality(n.query.Root, queryRootRowMode(n.query.Root))
+			if n.CTE != nil {
+				return queryRowLockLegality(n.Query.Root, queryRootRowMode(n.Query.Root))
 			}
-			return queryRowLockLegality(n.query.Root, strongerQueryRowMode(mode, queryRootRowMode(n.query.Root)))
+			return queryRowLockLegality(n.Query.Root, strongerQueryRowMode(mode, queryRootRowMode(n.Query.Root)))
 		case *joinNode:
-			if err := from(n.left); err != nil {
+			if err := from(n.Left); err != nil {
 				return err
 			}
-			return from(n.right)
+			return from(n.Right)
 		}
 		return nil
 	}
@@ -266,9 +266,9 @@ func stringInheritedRowMark(node LogicalNode) bool {
 	case *sourceNode:
 		return true
 	case *derivedNode:
-		return n.cte == nil
+		return n.CTE == nil
 	case *joinNode:
-		return stringInheritedRowMark(n.left) || stringInheritedRowMark(n.right)
+		return stringInheritedRowMark(n.Left) || stringInheritedRowMark(n.Right)
 	}
 	return false
 }
@@ -308,7 +308,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 		if isPGSequencesRelation(d) {
 			return nil // Expanded catalog view: no represented physical tuple input.
 		}
-		if (referenceMarked || inherited.mode != 0) && d.RelationKind == catalog.MaterializedViewRelation {
+		if (referenceMarked || inherited.Mode != 0) && d.RelationKind == catalog.MaterializedViewRelation {
 			return sqlError("42809", fmt.Sprintf("cannot lock rows in materialized view %q", d.Name()))
 		}
 		// PostgreSQL validates reference rowmark kinds even for an unselected
@@ -316,7 +316,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 		if referenceMarked && d.RelationKind == catalog.SequenceRelation {
 			return sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", d.Name()))
 		}
-		if inherited.mode == 0 {
+		if inherited.Mode == 0 {
 			return nil
 		}
 		marked = true
@@ -382,7 +382,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 		if err := v.checkColumns(binding{ref: use, relation: child}, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
-		if effectiveQueryRowMark(child, mark).mode != 0 {
+		if effectiveQueryRowMark(child, mark).Mode != 0 {
 			if err := v.checkColumns(binding{ref: use, relation: child}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
@@ -407,33 +407,33 @@ func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	case *setProjectNode:
 		return 0 // Legal nonphysical inherited paths need no substitution scratch.
 	case *limitNode:
-		return queryLockRecheckWidth(n.child, inputs)
+		return queryLockRecheckWidth(n.Child, inputs)
 	case *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *worktableScanNode:
 		return 0 // Its input marks/provenance have already been consumed.
 	case *evaluationNode:
-		return queryLockRecheckWidth(n.child, inputs)
+		return queryLockRecheckWidth(n.Child, inputs)
 	case *derivedNode:
-		if n.cte != nil {
+		if n.CTE != nil {
 			return 0
 		}
-		return queryLockRecheckWidth(n.query.Root, inputs)
+		return queryLockRecheckWidth(n.Query.Root, inputs)
 	case *sourceNode:
-		return queryLockSourceWidth(querySourceAt(inputs, n.occurrence))
+		return queryLockSourceWidth(querySourceAt(inputs, n.Occurrence))
 	case *singletonNode, *valuesNode:
 		return 0
 	case *rowLockNode:
-		return queryLockRecheckWidth(n.child, inputs)
+		return queryLockRecheckWidth(n.Child, inputs)
 	case *projectNode:
-		if n.frozenValues {
+		if n.FrozenValues {
 			return 0
 		}
-		return len(n.Schema()) + queryLockRecheckWidth(n.child, inputs)
+		return len(n.Schema()) + queryLockRecheckWidth(n.Child, inputs)
 	case *joinNode:
-		return len(n.Schema()) + queryLockRecheckWidth(n.left, inputs) + queryLockRecheckWidth(n.right, inputs)
+		return len(n.Schema()) + queryLockRecheckWidth(n.Left, inputs) + queryLockRecheckWidth(n.Right, inputs)
 	case *filterNode:
-		return queryLockRecheckWidth(n.child, inputs)
+		return queryLockRecheckWidth(n.Child, inputs)
 	case *sortNode:
-		return queryLockRecheckWidth(n.child, inputs)
+		return queryLockRecheckWidth(n.Child, inputs)
 	}
 	panic("invalid marked view recheck tree")
 }
@@ -495,7 +495,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	}
 	switch n := node.(type) {
 	case *derivedNode:
-		if n.cte != nil {
+		if n.CTE != nil {
 			return frozen, true, nil
 		}
 		if evaluation.query == nil || evaluation.query.derived[n] == nil {
@@ -511,29 +511,29 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	case *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *worktableScanNode:
 		return frozen, true, nil // Its source marks were settled during materialization.
 	case *limitNode:
-		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
+		return recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 	case *evaluationNode:
-		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
+		row, ok, err := recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
 		evaluation.Row = row
-		for i, expr := range n.expressions {
+		for i, expr := range n.Expressions {
 			value, err := expr.Eval(evaluation)
 			if err != nil {
 				return nil, false, err
 			}
-			evaluation.orderValues[n.base+i] = value
+			evaluation.orderValues[n.Base+i] = value
 		}
 		return row, true, nil
 	case *sourceNode:
-		return recheckLockedSource(querySourceAt(inputs, n.occurrence), rows, evaluation, scratch, offset)
+		return recheckLockedSource(querySourceAt(inputs, n.Occurrence), rows, evaluation, scratch, offset)
 	case *singletonNode:
 		return nil, true, nil
 	case *rowLockNode:
-		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
+		return recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 	case *sortNode:
-		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
+		row, ok, err := recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -542,25 +542,25 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		}
 		return row, true, nil
 	case *filterNode:
-		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
+		row, ok, err := recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
 		evaluation.Row = row
-		matches, err := updateMatches(evaluation, n.predicate)
+		matches, err := updateMatches(evaluation, n.Predicate)
 		return row, matches, err
 	case *projectNode:
-		if n.frozenValues {
+		if n.FrozenValues {
 			return frozen, true, nil
 		}
-		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
+		row, ok, err := recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
 		frame := scratch[*offset : *offset+len(n.Schema())]
 		*offset += len(frame)
 		evaluation.Row = row
-		for i, expr := range n.expressions {
+		for i, expr := range n.Expressions {
 			value, err := expr.Eval(evaluation)
 			if err != nil {
 				return nil, false, err
@@ -569,45 +569,45 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		}
 		return frame, true, nil
 	case *joinNode:
-		left, ok, err := recheckLockedQuery(n.left, inputs, rows, evaluation, scratch, offset, frozen[:n.leftWidth])
+		left, ok, err := recheckLockedQuery(n.Left, inputs, rows, evaluation, scratch, offset, frozen[:n.LeftWidth])
 		if err != nil || !ok {
 			return nil, ok, err
 		}
-		right, ok, err := recheckLockedQuery(n.right, inputs, rows, evaluation, scratch, offset, frozen[n.leftWidth:n.leftWidth+n.rightWidth])
+		right, ok, err := recheckLockedQuery(n.Right, inputs, rows, evaluation, scratch, offset, frozen[n.LeftWidth:n.LeftWidth+n.RightWidth])
 		if err != nil || !ok {
 			return nil, ok, err
 		}
 		frame := scratch[*offset : *offset+len(n.Schema())]
 		*offset += len(frame)
-		leftAbsent := absentLockedQuery(n.left, inputs, evaluation.liveScope().queryLocks)
-		rightAbsent := absentLockedQuery(n.right, inputs, evaluation.liveScope().queryLocks)
+		leftAbsent := absentLockedQuery(n.Left, inputs, evaluation.liveScope().queryLocks)
+		rightAbsent := absentLockedQuery(n.Right, inputs, evaluation.liveScope().queryLocks)
 		if leftAbsent {
-			for i := range n.leftWidth {
+			for i := range n.LeftWidth {
 				frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
 			}
 		} else {
 			copy(frame, left)
 		}
 		if rightAbsent {
-			for i := n.leftWidth; i < n.leftWidth+n.rightWidth; i++ {
+			for i := n.LeftWidth; i < n.LeftWidth+n.RightWidth; i++ {
 				frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
 			}
 		} else {
-			copy(frame[n.leftWidth:], right)
+			copy(frame[n.LeftWidth:], right)
 		}
 		evaluation.Row = frame
 		if !leftAbsent && !rightAbsent {
-			matches, err := updateMatches(evaluation, n.predicate)
+			matches, err := updateMatches(evaluation, n.Predicate)
 			if err != nil || !matches {
 				return nil, matches, err
 			}
 		}
-		for i, expr := range n.merges {
+		for i, expr := range n.Merges {
 			value, err := expr.Eval(evaluation)
 			if err != nil {
 				return nil, false, err
 			}
-			frame[n.leftWidth+n.rightWidth+i] = value
+			frame[n.LeftWidth+n.RightWidth+i] = value
 		}
 		return frame, true, nil
 	}
@@ -626,7 +626,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 		}
 	}
 	for i, mark := range due {
-		if mark.mode != 0 {
+		if mark.Mode != 0 {
 			due[i] = mergeQueryRowMark(mark, locks.leaves[i].mark)
 		}
 	}
@@ -679,7 +679,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 				}
 				mark := due[occurrence]
 				locator := entry.source.physicalRow(visible, entry.leaf, versions[j])
-				if mark.mode == 0 {
+				if mark.Mode == 0 {
 					currentRows[occurrence] = locator.values(versions[j])
 					locks.leaves[occurrence].changed = false
 					continue
@@ -693,7 +693,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 					live = false
 					break
 				}
-				current, present, err := scope.latestQueryRow(locator.leaf, candidate, locator.hint, mark.mode)
+				current, present, err := scope.latestQueryRow(locator.leaf, candidate, locator.hint, mark.Mode)
 				if err != nil {
 					return false, err
 				}
@@ -782,7 +782,7 @@ func queryRowMarkReachesSource(node LogicalNode, occurrence int) bool {
 		return false
 	}
 	if source, ok := node.(*sourceNode); ok {
-		return source.occurrence == occurrence
+		return source.Occurrence == occurrence
 	}
 	left, right := queryInputs(node)
 	return queryRowMarkReachesSource(left, occurrence) || queryRowMarkReachesSource(right, occurrence)
@@ -790,7 +790,7 @@ func queryRowMarkReachesSource(node LogicalNode, occurrence int) bool {
 
 func viewLeafRowMark(view *viewDefinition, occurrence int, inherited queryRowMark) queryRowMark {
 	mark := view.sources[occurrence].mark
-	if inherited.mode != 0 && queryRowMarkReachesSource(view.query.Root, occurrence) {
+	if inherited.Mode != 0 && queryRowMarkReachesSource(view.query.Root, occurrence) {
 		mark = mergeQueryRowMark(inherited, mark)
 	}
 	return mark

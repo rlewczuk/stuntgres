@@ -9,7 +9,7 @@ import (
 )
 
 func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKey, unit parser.FrameUnit) (boundWindowBound, error) {
-	bound := boundWindowBound{kind: raw.Kind}
+	bound := boundWindowBound{Kind: raw.Kind}
 	if raw.Offset == nil {
 		return bound, nil
 	}
@@ -24,14 +24,14 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKe
 		}
 		b.clause.aggregateClause = "window " + label
 		var err error
-		bound.offset, err = b.bindQueryBound(raw.Offset, label, viewWindowLiteral, false)
+		bound.Offset, err = b.bindQueryBound(raw.Offset, label, viewWindowLiteral, false)
 		return bound, err
 	}
 	operand, err := b.comparisonOperand(raw.Offset)
 	if err != nil {
 		return bound, err
 	}
-	support, usage, err := sqltype.BindRange(order[0].expression.ResultUsage(), operand.descriptor(), b.typ, b.diagnosticTypeName)
+	support, usage, err := sqltype.BindRange(order[0].Expression.ResultUsage(), operand.descriptor(), b.typ, b.diagnosticTypeName)
 	if err != nil {
 		if d, ok := err.(*sqlstate.Error); ok {
 			copy := *d
@@ -54,6 +54,6 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKe
 	if expressionUsesFrame(node, b.frameID()) {
 		return bound, expr.ErrorAt("42P10", "argument of RANGE must not contain variables", firstQueryBoundFrameVariable(node, b.frameID()))
 	}
-	bound.offset, bound.support = node, support
+	bound.Offset, bound.Support = node, support
 	return bound, nil
 }

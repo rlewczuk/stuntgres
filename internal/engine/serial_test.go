@@ -14,7 +14,7 @@ import (
 func serialLeaf(node expr.Expr) functions.SequenceCall {
 	for {
 		if wrapper, ok := node.(coercionExpression); ok {
-			node = wrapper.child
+			node = wrapper.Child
 			continue
 		}
 		return node.(functions.SequenceCall)
@@ -52,7 +52,7 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 			func(n functions.SequenceCall) functions.SequenceCall { n.Property.Volatility = expr.Stable; return n },
 			func(n functions.SequenceCall) functions.SequenceCall {
 				arg := n.Args[0].(literalExpression)
-				arg.value = sqltype.String(arg.Usage.Type, "999")
+				arg.Value = sqltype.String(arg.Usage.Type, "999")
 				n.Args = []expr.Expr{arg}
 				return n
 			},

@@ -82,11 +82,11 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		if tc.name != "||" {
 			original := node.(bitwiseExpression)
 			next := rebound.(bitwiseExpression)
-			if original.bits == (sqltype.BitStringBitwise{}) || original.provider != (sqltype.Bitwise{}) || original.bits == next.bits {
+			if original.Bits == (sqltype.BitStringBitwise{}) || original.Provider != (sqltype.Bitwise{}) || original.Bits == next.Bits {
 				t.Fatal("wrong bit provider ownership")
 			}
 			corrupt := original
-			corrupt.bits = next.bits
+			corrupt.Bits = next.Bits
 			if b.sameGroupExpression(original, corrupt) {
 				t.Fatal("structural equality ignored bit provider")
 			}
@@ -113,17 +113,17 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(bitwiseExpression) bitwiseExpression{
-		func(n bitwiseExpression) bitwiseExpression { n.bits = sqltype.BitStringBitwise{}; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.provider = integral; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.left = nil; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.right = nil; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.operator = sqltype.BitwiseOperator(255); return n },
+		func(n bitwiseExpression) bitwiseExpression { n.Bits = sqltype.BitStringBitwise{}; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.Provider = integral; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.Left = nil; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.Right = nil; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.Operator = sqltype.BitwiseOperator(255); return n },
 		func(n bitwiseExpression) bitwiseExpression { n.Usage.Typmod = 3; return n },
 		func(n bitwiseExpression) bitwiseExpression {
-			n.right = n.left.(literalExpression)
-			r := n.right.(literalExpression)
+			n.Right = n.Left.(literalExpression)
+			r := n.Right.(literalExpression)
 			r.Usage.Typmod = 3
-			n.right = r
+			n.Right = r
 			return n
 		},
 	} {
@@ -157,9 +157,9 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	// An imported parameter literal must not acquire immutable-constant demand.
 	dependent := root
 	dependent.Property.ParameterDependent = true
-	left := dependent.left.(literalExpression)
+	left := dependent.Left.(literalExpression)
 	left.Property.ParameterDependent = true
-	dependent.left = left
+	dependent.Left = left
 	if _, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, dependent); err != nil || changed {
 		t.Fatal("parameter-dependent bit expression folded", changed, err)
 	}
@@ -183,9 +183,9 @@ func TestBitStringOperatorsOperandEvaluation(t *testing.T) {
 			calls = append(calls, "error")
 			return sqltype.Value{}, &sqlstate.Error{Code: "22026", Message: "cannot AND bit strings of different sizes"}
 		})
-		root := bitwiseExpression{Info: expr.Info{Usage: bit.Usage()}, left: null, right: failure, bits: provider, operator: sqltype.BitwiseAnd}
+		root := bitwiseExpression{Info: expr.Info{Usage: bit.Usage()}, Left: null, Right: failure, Bits: provider, Operator: sqltype.BitwiseAnd}
 		if reverse {
-			root.left, root.right = root.right, root.left
+			root.Left, root.Right = root.Right, root.Left
 		}
 		_, err := root.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		var d *sqlstate.Error
@@ -207,7 +207,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := literalExpression{Info: expr.Info{Usage: usage}, value: value}
+		source := literalExpression{Info: expr.Info{Usage: usage}, Value: value}
 		operands := []functions.Argument{{Expression: source, Usage: usage}, {Expression: source, Usage: usage}}
 		var types functions.BinaryTypes
 		node, err := functions.FinishBinary(b, "||", sqltype.VarBit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

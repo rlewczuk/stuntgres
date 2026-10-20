@@ -26,7 +26,7 @@ type RowResult interface {
 }
 
 func queryPredicateRejectsAll(c *EvalContext, expr expr.Expr) (bool, error) {
-	value, known, err := queryPredicateProofValue(c, expr)
+	value, known, err := QueryPredicateProofValue(c, expr)
 	if err != nil || !known {
 		return false, err
 	}
@@ -61,17 +61,17 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		}
 		copy := *n
 		copy.setNode = *bound.(*setNode)
-		if n.cycle != nil {
-			recipe := *n.cycle
-			recipe.mark, _, err = preflightCoercions(c, recipe.mark)
+		if n.Cycle != nil {
+			recipe := *n.Cycle
+			recipe.Mark, _, err = preflightCoercions(c, recipe.Mark)
 			if err != nil {
 				return nil, err
 			}
-			recipe.fallback, _, err = preflightCoercions(c, recipe.fallback)
+			recipe.Fallback, _, err = preflightCoercions(c, recipe.Fallback)
 			if err != nil {
 				return nil, err
 			}
-			copy.cycle = &recipe
+			copy.Cycle = &recipe
 		}
 		return &copy, nil
 	case *worktableScanNode:
@@ -83,40 +83,40 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	case *derivedNode:
 		// Ordinary queries retain their runtime projection frontier. Rule
 		// programs prepare only the child payload retained by producer demand.
-		if !c.planStaticOperators || n.query == nil {
+		if !c.planStaticOperators || n.Query == nil {
 			return n, nil
 		}
-		root, err := preflightQuery(c, n.query.Root)
+		root, err := preflightQuery(c, n.Query.Root)
 		if err != nil {
 			return nil, err
 		}
-		if root == n.query.Root {
+		if root == n.Query.Root {
 			return n, nil
 		}
-		copy, query := *n, *n.query
+		copy, query := *n, *n.Query
 		query.Root = root
-		copy.query = &query
+		copy.Query = &query
 		return &copy, nil
 	case *limitNode:
-		child, err := preflightQuery(c, n.child)
+		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
 		// Bounds retain their ordered runtime coercion and value-check frontier.
 		// Folding COUNT here could overtake a failing OFFSET.
-		if child != n.child {
+		if child != n.Child {
 			copy := *n
-			copy.child = child
+			copy.Child = child
 			return &copy, nil
 		}
 		return n, nil
 	case *evaluationNode:
-		child, err := preflightQuery(c, n.child)
+		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
 		var expressions []expr.Expr
-		for i, operand := range n.expressions {
+		for i, operand := range n.Expressions {
 			folded, changed, err := preflightCoercions(c, operand)
 			if err != nil {
 				return nil, err
@@ -126,28 +126,28 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			if changed {
 				if expressions == nil {
-					expressions = append([]expr.Expr(nil), n.expressions...)
+					expressions = append([]expr.Expr(nil), n.Expressions...)
 				}
 				expressions[i] = folded
 			}
 		}
-		if child != n.child || expressions != nil {
+		if child != n.Child || expressions != nil {
 			copy := *n
-			copy.child = child
+			copy.Child = child
 			if expressions != nil {
-				copy.expressions = expressions
+				copy.Expressions = expressions
 			}
 			return &copy, nil
 		}
 		return n, nil
 	case *rowLockNode:
-		child, err := preflightQuery(c, n.child)
+		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
-		if child != n.child {
+		if child != n.Child {
 			copy := *n
-			copy.child = child
+			copy.Child = child
 			return &copy, nil
 		}
 		return n, nil
@@ -157,7 +157,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return n, nil
 	case *valuesNode:
 		var rows [][]expr.Expr
-		for i, row := range n.rows {
+		for i, row := range n.Rows {
 			var expressions []expr.Expr
 			for j, expression := range row {
 				folded, changed, err := preflightCoercions(c, expression)
@@ -173,47 +173,47 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			if expressions != nil {
 				if rows == nil {
-					rows = append([][]expr.Expr(nil), n.rows...)
+					rows = append([][]expr.Expr(nil), n.Rows...)
 				}
 				rows[i] = expressions
 			}
 		}
 		if rows != nil {
 			copy := *n
-			copy.rows = rows
+			copy.Rows = rows
 			return &copy, nil
 		}
 	case *aggregateNode:
-		if n.presenceOnly {
-			child, err := preflightQuery(c, n.child)
+		if n.PresenceOnly {
+			child, err := preflightQuery(c, n.Child)
 			if err != nil {
 				return nil, err
 			}
-			if child == n.child {
+			if child == n.Child {
 				return n, nil
 			}
 			copy := *n
-			copy.child = child
+			copy.Child = child
 			return &copy, nil
 		}
 		var keys []expr.Expr
-		for i, key := range n.keys {
+		for i, key := range n.Keys {
 			folded, replacement, err := preflightCoercions(c, key)
 			if err != nil {
 				return nil, err
 			}
 			if replacement {
 				if keys == nil {
-					keys = append([]expr.Expr(nil), n.keys...)
+					keys = append([]expr.Expr(nil), n.Keys...)
 				}
 				keys[i] = folded
 			}
 		}
 		var calls []aggregateCall
-		for i, call := range n.calls {
+		for i, call := range n.Calls {
 			// Ordered-set direct expressions remain group-finalization owned:
 			// preflight must not evaluate them for absent keyed groups.
-			for j, expression := range [3]expr.Expr{call.argument, call.separator, call.filter} {
+			for j, expression := range [3]expr.Expr{call.Argument, call.Separator, call.Filter} {
 				if expression == nil {
 					continue
 				}
@@ -223,120 +223,120 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				}
 				if replacement {
 					if calls == nil {
-						calls = append([]aggregateCall(nil), n.calls...)
+						calls = append([]aggregateCall(nil), n.Calls...)
 					}
 					if j == 0 {
-						calls[i].argument = folded
+						calls[i].Argument = folded
 					} else if j == 1 {
-						calls[i].separator = folded
+						calls[i].Separator = folded
 					} else {
-						calls[i].filter = folded
+						calls[i].Filter = folded
 					}
 				}
 			}
 			var order []sortKey
-			for k, key := range call.order {
-				folded, replacement, err := preflightCoercions(c, key.expression)
+			for k, key := range call.Order {
+				folded, replacement, err := preflightCoercions(c, key.Expression)
 				if err != nil {
 					return nil, err
 				}
 				if replacement {
 					if order == nil {
-						order = append([]sortKey(nil), call.order...)
+						order = append([]sortKey(nil), call.Order...)
 					}
-					order[k].expression = folded
+					order[k].Expression = folded
 				}
 			}
 			if order != nil {
 				if calls == nil {
-					calls = append([]aggregateCall(nil), n.calls...)
+					calls = append([]aggregateCall(nil), n.Calls...)
 				}
-				calls[i].order = order
+				calls[i].Order = order
 			}
 		}
-		child, err := preflightQuery(c, n.child)
+		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
-		if keys != nil || calls != nil || child != n.child {
+		if keys != nil || calls != nil || child != n.Child {
 			copy := *n
-			copy.child = child
+			copy.Child = child
 			if keys != nil {
-				copy.keys = keys
+				copy.Keys = keys
 			}
 			if calls != nil {
-				copy.calls = calls
+				copy.Calls = calls
 			}
 			return &copy, nil
 		}
 	case *filterNode:
-		predicate, changed, err := preflightCoercions(c, n.predicate)
+		predicate, changed, err := preflightCoercions(c, n.Predicate)
 		if err != nil {
 			return nil, err
 		}
-		child, err := preflightQuery(c, n.child)
+		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
-		if changed || child != n.child {
+		if changed || child != n.Child {
 			copy := *n
-			copy.child, copy.predicate = child, predicate
+			copy.Child, copy.Predicate = child, predicate
 			return &copy, nil
 		}
 	case *sortNode:
-		if n.presenceOnly {
-			child, err := preflightQuery(c, n.child)
+		if n.PresenceOnly {
+			child, err := preflightQuery(c, n.Child)
 			if err != nil {
 				return nil, err
 			}
-			if child == n.child {
+			if child == n.Child {
 				return n, nil
 			}
 			copy := *n
-			copy.child = child
+			copy.Child = child
 			return &copy, nil
 		}
 		var keys []sortKey
-		for i, key := range n.keys {
-			if key.expression.CollationIndeterminate() {
+		for i, key := range n.Keys {
+			if key.Expression.CollationIndeterminate() {
 				return nil, setOrderCollationError()
 			}
-			folded, changed, err := preflightCoercions(c, key.expression)
+			folded, changed, err := preflightCoercions(c, key.Expression)
 			if err != nil {
 				return nil, err
 			}
 			if changed {
 				if keys == nil {
-					keys = append([]sortKey(nil), n.keys...)
+					keys = append([]sortKey(nil), n.Keys...)
 				}
-				keys[i].expression = folded
+				keys[i].Expression = folded
 			}
 		}
 		var outputs []expr.Expr
-		for i, operand := range n.outputs {
+		for i, operand := range n.Outputs {
 			folded, changed, err := preflightCoercions(c, operand)
 			if err != nil {
 				return nil, err
 			}
 			if changed {
 				if outputs == nil {
-					outputs = append([]expr.Expr(nil), n.outputs...)
+					outputs = append([]expr.Expr(nil), n.Outputs...)
 				}
 				outputs[i] = folded
 			}
 		}
-		child, err := preflightQuery(c, n.child)
+		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
-		if child != n.child || keys != nil || outputs != nil {
+		if child != n.Child || keys != nil || outputs != nil {
 			copy := *n
-			copy.child = child
+			copy.Child = child
 			if keys != nil {
-				copy.keys = keys
+				copy.Keys = keys
 			}
 			if outputs != nil {
-				copy.outputs = outputs
+				copy.Outputs = outputs
 			}
 			return &copy, nil
 		}
@@ -344,21 +344,21 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		// Projection initialization precedes opening its child. CHECK recipes
 		// may fail here, but checked conversion truth stays in each runtime row.
 		var expressions []expr.Expr
-		for i, expression := range n.expressions {
+		for i, expression := range n.Expressions {
 			folded, changed, err := preflightCoercions(c, expression)
 			if err != nil {
 				return nil, err
 			}
 			if changed {
 				if expressions == nil {
-					expressions = append([]expr.Expr(nil), n.expressions...)
+					expressions = append([]expr.Expr(nil), n.Expressions...)
 				}
 				expressions[i] = folded
 			}
 		}
 		if expressions != nil {
 			copy := *n
-			copy.expressions = expressions
+			copy.Expressions = expressions
 			n, node = &copy, &copy
 			expressions = nil
 		}
@@ -377,26 +377,26 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			n, node = demanded.(*projectNode), demanded
 		}
-		child, err := preflightQuery(c, n.child)
+		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
-		for i, expression := range n.expressions {
+		for i, expression := range n.Expressions {
 			if expressions != nil {
 				expression = expressions[i]
 			}
 			if owned, changed := queryScalarOwner(child, expression); changed {
 				if expressions == nil {
-					expressions = append([]expr.Expr(nil), n.expressions...)
+					expressions = append([]expr.Expr(nil), n.Expressions...)
 				}
 				expressions[i] = owned
 			}
 		}
-		if expressions != nil || child != n.child {
+		if expressions != nil || child != n.Child {
 			copy := *n
-			copy.child = child
+			copy.Child = child
 			if expressions != nil {
-				copy.expressions = expressions
+				copy.Expressions = expressions
 			}
 			return &copy, nil
 		}
@@ -918,7 +918,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
 		source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority}
-		establishSourcePresence(source, n.presenceSlot)
+		establishSourcePresence(source, n.PresenceSlot)
 		out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 		evaluation := state.evaluation(nil)
 		out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
@@ -928,11 +928,11 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		}
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			i := source.flatCount
-			if i == len(n.rows) {
+			if i == len(n.Rows) {
 				return false, nil
 			}
 			evaluation.setContext(ctx)
-			for j, expr := range n.rows[i] {
+			for j, expr := range n.Rows[i] {
 				value, err := expr.Eval(&evaluation)
 				if err != nil {
 					return false, err
@@ -956,15 +956,15 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 	case *sourceNode:
 		source := state.source
 		if source != nil && source.sources != nil {
-			if n.occurrence < 0 || n.occurrence >= len(source.sources) {
+			if n.Occurrence < 0 || n.Occurrence >= len(source.sources) {
 				return indexedStage{}, fmt.Errorf("stuntgres: invalid query occurrence")
 			}
-			source = source.sources[n.occurrence]
+			source = source.sources[n.Occurrence]
 		}
-		if source == nil || source.ref != n.ref && (source.storedRef == (ids.ObjectRef{}) || source.storedRef != n.ref) {
+		if source == nil || source.ref != n.Ref && (source.storedRef == (ids.ObjectRef{}) || source.storedRef != n.Ref) {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
-		establishSourcePresence(source, n.presenceSlot)
+		establishSourcePresence(source, n.PresenceSlot)
 		if source.foreign != nil {
 			return openForeignStage(ctx, state, source, n)
 		}
@@ -986,7 +986,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		return indexedStage{source: source, schema: n.Schema(), scanRange: state.scanRange, scanStart: state.scanStart, scanEnd: state.scanEnd}, nil
 	case *filterNode:
 		evaluation := state.evaluation(ctx)
-		rejects, err := queryPredicateRejectsAll(&evaluation, n.predicate)
+		rejects, err := queryPredicateRejectsAll(&evaluation, n.Predicate)
 		if err != nil {
 			return indexedStage{}, err
 		}
@@ -994,26 +994,26 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		// side effects/errors on empty global input. This is a local aggregate
 		// frontier, not a reason to force unrelated derived/WHERE producers.
 		finalizesOrderedSet := false
-		if aggregate, ok := n.child.(*aggregateNode); ok {
-			for _, call := range aggregate.calls {
-				if _, ordered := call.provider.(functions.OrderedAggregate); ordered {
+		if aggregate, ok := n.Child.(*aggregateNode); ok {
+			for _, call := range aggregate.Calls {
+				if _, ordered := call.Provider.(functions.OrderedAggregate); ordered {
 					finalizesOrderedSet = true
 					break
 				}
 			}
 		}
-		if rejects && !finalizesOrderedSet && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
+		if rejects && !finalizesOrderedSet && !queryHasMandatoryPhysicalFrontier(n.Child, state.source) {
 			// Only child-reachable consumed physical marks require the eager
 			// input frontier. Unrelated semantic context, identity-only manifests
 			// and unopened opaque CTE bodies do not demand this child.
 			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 			return indexedStage{source: source, schema: n.Schema()}, nil
 		}
-		if join, ok := n.child.(*joinNode); ok && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
-			if partitioned := functionFromConjuncts(join, n.predicate); partitioned != nil {
+		if join, ok := n.Child.(*joinNode); ok && !queryHasMandatoryPhysicalFrontier(n.Child, state.source) {
+			if partitioned := functionFromConjuncts(join, n.Predicate); partitioned != nil {
 				return openQueryNode(ctx, state, partitioned)
 			}
-			if join := functionFromWhere(n.child, n.predicate); join != nil {
+			if join := functionFromWhere(n.Child, n.Predicate); join != nil {
 				// Keep canonical/view literal paths intact. Only this execution
 				// filters predecessor rows before opening their correlated RHS.
 				// EPQ instead retains its captured, identity-keyed topology even
@@ -1021,8 +1021,8 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 				return openQueryNode(ctx, state, join)
 			}
 		}
-		admitPGSequencesPredicate(n.child, state.source, n.predicate, 0, evaluation.Frame)
-		child, err := openQueryNode(ctx, state, n.child)
+		admitPGSequencesPredicate(n.Child, state.source, n.Predicate, 0, evaluation.Frame)
+		child, err := openQueryNode(ctx, state, n.Child)
 		if err != nil {
 			return indexedStage{}, err
 		}
@@ -1039,7 +1039,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			if err != nil {
 				return false, err
 			}
-			if n.predicate.Properties().Volatility == expr.Volatile {
+			if n.Predicate.Properties().Volatility == expr.Volatile {
 				if !changed {
 					if _, err := child.rewind(ctx); err != nil {
 						return false, err
@@ -1078,7 +1078,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 				}
 				evaluation.setContext(ctx)
 				evaluation.bindQueryRow(child.source, child.index(i))
-				value, err := n.predicate.Eval(&evaluation)
+				value, err := n.Predicate.Eval(&evaluation)
 				if err != nil {
 					return false, err
 				}
@@ -1094,14 +1094,14 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		}
 		return out, nil
 	case *sortNode:
-		if n.presenceOnly {
-			return openQueryNode(ctx, state, n.child)
+		if n.PresenceOnly {
+			return openQueryNode(ctx, state, n.Child)
 		}
-		child, err := openQueryNode(ctx, state, n.child)
+		child, err := openQueryNode(ctx, state, n.Child)
 		if err != nil {
 			return indexedStage{}, err
 		}
-		child, err = settlePendingQueryMarks(ctx, state, n.child, child)
+		child, err = settlePendingQueryMarks(ctx, state, n.Child, child)
 		if err != nil {
 			return indexedStage{}, err
 		}
@@ -1123,30 +1123,30 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 				}
 			}
 		}
-		if n.cacheWidth != 0 {
-			child.cacheWidth = n.cacheWidth
+		if n.CacheWidth != 0 {
+			child.cacheWidth = n.CacheWidth
 			child.cacheOccurrences = nil
-			child.orderValues = make([]sqltype.Value, child.count()*n.cacheWidth)
+			child.orderValues = make([]sqltype.Value, child.count()*n.CacheWidth)
 			child.permutation = make([]int, child.count())
 			evaluation := state.evaluation(ctx)
 			for i := range child.count() {
 				child.permutation[i] = i
 				evaluation.bindQueryRow(child.source, child.selection[i])
-				for _, key := range n.keys {
+				for _, key := range n.Keys {
 					if err := ctx.Err(); err != nil {
 						return indexedStage{}, err
 					}
-					if key.cache < 0 || child.orderValues[i*n.cacheWidth+key.cache].Type() != nil {
+					if key.Cache < 0 || child.orderValues[i*n.CacheWidth+key.Cache].Type() != nil {
 						continue
 					}
-					value, err := key.expression.Eval(&evaluation)
+					value, err := key.Expression.Eval(&evaluation)
 					if err != nil {
 						return indexedStage{}, err
 					}
-					if value.Type() != key.expression.ResultUsage().Type {
+					if value.Type() != key.Expression.ResultUsage().Type {
 						return indexedStage{}, fmt.Errorf("stuntgres: invalid ordering value")
 					}
-					child.orderValues[i*n.cacheWidth+key.cache] = value
+					child.orderValues[i*n.CacheWidth+key.Cache] = value
 					if err := ctx.Err(); err != nil {
 						return indexedStage{}, err
 					}
@@ -1154,12 +1154,12 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			}
 			for i := range child.count() {
 				evaluation.bindQueryRow(child.source, child.selection[i])
-				for j, expr := range n.outputs {
+				for j, expr := range n.Outputs {
 					value, err := expr.Eval(&evaluation)
 					if err != nil {
 						return indexedStage{}, err
 					}
-					child.orderValues[i*n.cacheWidth+n.cacheWidth-len(n.outputs)+j] = value
+					child.orderValues[i*n.CacheWidth+n.CacheWidth-len(n.Outputs)+j] = value
 				}
 			}
 		}
@@ -1172,10 +1172,10 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			var leftValues, rightValues []sqltype.Value
 			if child.permutation != nil {
 				leftIndex, rightIndex = child.selection[a], child.selection[b]
-				leftValues = child.orderValues[a*n.cacheWidth : (a+1)*n.cacheWidth]
-				rightValues = child.orderValues[b*n.cacheWidth : (b+1)*n.cacheWidth]
+				leftValues = child.orderValues[a*n.CacheWidth : (a+1)*n.CacheWidth]
+				rightValues = child.orderValues[b*n.CacheWidth : (b+1)*n.CacheWidth]
 			}
-			return compareQueryOrder(ctx, n.keys, state.input,
+			return compareQueryOrder(ctx, n.Keys, state.input,
 				querySortRow{source: child.source, index: leftIndex, values: leftValues},
 				querySortRow{source: child.source, index: rightIndex, values: rightValues})
 		})
@@ -1183,7 +1183,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		child.reset = nil
 		return child, err
 	case *projectNode:
-		if n.ruleInvocation {
+		if n.RuleInvocation {
 			local := *state
 			local.outer = state.invocation
 			state = &local
@@ -1192,15 +1192,15 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			state.virtualReads = queryHasVirtualReads(n)
 		}
 		var owner *cteInvocation
-		if n.cteOwner {
+		if n.CTEOwner {
 			state.membershipOwner()
-			owner = &cteInvocation{frame: n.frame, parent: state.ctes, state: *state}
+			owner = &cteInvocation{frame: n.Frame, parent: state.ctes, state: *state}
 			state.ctes = owner
 		}
-		if n.frame != 0 {
-			state.frame = n.frame
+		if n.Frame != 0 {
+			state.frame = n.Frame
 		}
-		child, err := openQueryNode(ctx, state, n.child)
+		child, err := openQueryNode(ctx, state, n.Child)
 		if err != nil {
 			if owner != nil {
 				_ = owner.close()
@@ -1208,7 +1208,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			return indexedStage{}, err
 		}
 		child.schema = n.Schema()
-		child.expressions = n.expressions
+		child.expressions = n.Expressions
 		child.evaluation = state.evaluation(nil)
 		if owner != nil {
 			finish := child.finish
@@ -1463,7 +1463,7 @@ func openQueryProjectStage(ctx context.Context, state *queryState, project *proj
 	if err != nil {
 		return indexedStage{}, err
 	}
-	settled, err := settlePendingQueryMarks(ctx, state, project.child, child)
+	settled, err := settlePendingQueryMarks(ctx, state, project.Child, child)
 	if err != nil {
 		_ = child.Close()
 		return indexedStage{}, err
@@ -1500,31 +1500,31 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	r.output = state.output
 	var slots []int
 	direct := true
-	frame := project.frame
+	frame := project.Frame
 	if frame == 0 {
 		frame = 1
 	}
-	for _, expr := range project.expressions {
+	for _, expr := range project.Expressions {
 		column, ok := expr.(columnExpression)
-		if !ok || column.virtual != nil {
+		if !ok || column.Virtual != nil {
 			direct = false
 			break
 		}
-		if column.scope != 1 || column.frame != frame || column.slot < 0 || column.slot >= len(project.child.Schema()) {
+		if column.Scope != 1 || column.Frame != frame || column.Slot < 0 || column.Slot >= len(project.Child.Schema()) {
 			return nil, 0, fmt.Errorf("stuntgres: invalid query projection frame")
 		}
 	}
 	width := len(project.Schema())
-	if width != len(project.expressions) {
+	if width != len(project.Expressions) {
 		return nil, 0, fmt.Errorf("stuntgres: invalid query projection width")
 	}
 	if !direct {
 		r.values = make([]sqltype.Value, r.count*width)
 	}
 	if direct {
-		slots = make([]int, len(project.expressions))
-		for i, expr := range project.expressions {
-			slots[i] = expr.(columnExpression).slot
+		slots = make([]int, len(project.Expressions))
+		for i, expr := range project.Expressions {
+			slots[i] = expr.(columnExpression).Slot
 		}
 		evaluation := state.evaluation(ctx)
 		for i := range r.count {
@@ -1532,7 +1532,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 				return nil, 0, err
 			}
 			evaluation.bindQueryRow(stage.source, stage.index(i))
-			for j, expr := range project.expressions {
+			for j, expr := range project.Expressions {
 				value, err := expr.Eval(&evaluation)
 				if err != nil {
 					return nil, 0, err

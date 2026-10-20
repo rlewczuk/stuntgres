@@ -57,8 +57,8 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 	boolean, _ := view.LookupType(sqltype.Bool)
 	array, _ := view.LookupType(sqltype.ACLItemArray)
 	contains := functions.ACLValue{Kind: functions.ACLContains, Info: expr.Info{Usage: boolean.Usage()}}
-	contains.Args[0] = literalExpression{Info: expr.Info{Usage: array.Usage()}, value: mustACLValuesArray(t, view, value)}
-	contains.Args[1] = literalExpression{Info: expr.Info{Usage: d.Usage()}, value: mapped}
+	contains.Args[0] = literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: mustACLValuesArray(t, view, value)}
+	contains.Args[1] = literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: mapped}
 	if _, err := contains.Eval(c); err == nil {
 		t.Fatal("foreign authority accepted")
 	}
@@ -80,8 +80,8 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 	oid, _ := view.LookupType(sqltype.Oid)
 	zero, _ := sqltype.OIDValue(oid, 0)
 	n := functions.ACLValue{Kind: functions.ACLDefault, Info: expr.Info{Usage: array.Usage()}}
-	n.Args[0] = literalExpression{Info: expr.Info{Usage: char.Usage()}, value: sqltype.String(char, "c")}
-	n.Args[1] = literalExpression{Info: expr.Info{Usage: oid.Usage()}, value: zero}
+	n.Args[0] = literalExpression{Info: expr.Info{Usage: char.Usage()}, Value: sqltype.String(char, "c")}
+	n.Args[1] = literalExpression{Info: expr.Info{Usage: oid.Usage()}, Value: zero}
 	if err := n.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 		t.Fatal("remapped recipe lost behavior", err)
 	}
 	empty, _ := sqltype.EmptyACLArrayValue(array)
-	text, err := catalogLiteralSQL(context.Background(), view, literalExpression{Info: expr.Info{Usage: array.Usage()}, value: empty})
+	text, err := catalogLiteralSQL(context.Background(), view, literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: empty})
 	if err != nil || text != `pg_catalog.acldefault('c'::"char",0::oid)` {
 		t.Fatal("lossless empty literal", text, err)
 	}

@@ -66,18 +66,18 @@ func TestExtremaActualComparatorCancellationOwnership(t *testing.T) {
 
 func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT min(v),min(v),max(v) FROM t")
-	node := query.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 2 || node.calls[0].operation != functions.AggregateMin || node.calls[1].operation != functions.AggregateMax {
-		t.Fatal(node.calls)
+	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 2 || node.Calls[0].Operation != functions.AggregateMin || node.Calls[1].Operation != functions.AggregateMax {
+		t.Fatal(node.Calls)
 	}
 	for _, c := range query.Root.Schema() {
 		if !c.NullabilityKnown || !c.Nullable || c.Usage.Typmod != -1 || c.OriginTable != 0 || c.OriginAttribute != 0 {
 			t.Fatal(c)
 		}
 	}
-	original := node.calls[0].argument
+	original := node.Calls[0].Argument
 	calls := 0
-	node.calls[0].argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
+	node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
 	rows, _, err := finalizeQuery(context.Background(), query.Root, source, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -93,15 +93,15 @@ func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 	}
 	_, volatile, owner := queryCoreFixture(t, "SELECT min(nextval($1)),min(nextval($1)),max(nextval($1)) FROM t")
 	defer owner.close()
-	if len(volatile.Root.(*projectNode).child.(*aggregateNode).calls) != 3 {
+	if len(volatile.Root.(*projectNode).Child.(*aggregateNode).Calls) != 3 {
 		t.Fatal("volatile calls shared")
 	}
 	_, failed, failedSource := queryCoreFixture(t, "SELECT min(v) FROM t")
-	failedNode := failed.Root.(*projectNode).child.(*aggregateNode)
-	argument := failedNode.calls[0].argument
+	failedNode := failed.Root.(*projectNode).Child.(*aggregateNode)
+	argument := failedNode.Calls[0].Argument
 	sentinel := errors.New("late extrema argument")
 	calls = 0
-	failedNode.calls[0].argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	failedNode.Calls[0].Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		calls++
 		if calls == 4 {
 			return sqltype.Value{}, sentinel

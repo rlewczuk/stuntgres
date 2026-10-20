@@ -17,8 +17,8 @@ func validateViewCheckDeclaration(definition *viewDefinition) error {
 	project, source, _, reason := viewWriteShape(&catalog.Relation{View: viewPayloadOf(definition)})
 	if reason == "" {
 		reason = "Views that have no updatable columns are not automatically updatable."
-		for _, expr := range project.expressions {
-			if column, ok := viewDirectColumn(expr); ok && sameViewRelation(column.origin, source.ref) {
+		for _, expr := range project.Expressions {
+			if column, ok := viewDirectColumn(expr); ok && sameViewRelation(column.Origin, source.Ref) {
 				return nil
 			}
 		}

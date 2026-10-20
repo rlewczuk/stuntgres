@@ -15,10 +15,10 @@ func (c *EvalContext) EvalWindow(e *windowExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.slot < 0 || e.slot >= len(c.Row) {
+	if e.Slot < 0 || e.Slot >= len(c.Row) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing window output")
 	}
-	return c.Row[e.slot], nil
+	return c.Row[e.Slot], nil
 }
 
 // A same-query call owns only its own argument occurrences. Evidence is checked
@@ -124,7 +124,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		}
 		// Analysis-only occurrence: the completed parent must either reject its
 		// signature or report nesting. It cannot enter an executable window plan.
-		return &windowExpression{Info: b.info(resultUsage, raw.Pos, expr.Properties{StageDependent: true}), slot: -1, call: -1, frame: b.frameID()}, nil
+		return &windowExpression{Info: b.info(resultUsage, raw.Pos, expr.Properties{StageDependent: true}), Slot: -1, Call: -1, Frame: b.frameID()}, nil
 	}
 	if raw.Filter != nil {
 		return nil, expr.ErrorAt("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
@@ -132,32 +132,32 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if !windowFunction && raw.Name != "sum" && (raw.Name != "count" || !raw.Star) {
 		return nil, expr.ErrorAt("0A000", "window function provider is unsupported", raw.Pos)
 	}
-	call := windowCall{raw: raw.Window, argument: argument, ordinal: ordinal, defaultValue: defaultValue}
+	call := windowCall{Raw: raw.Window, Argument: argument, Ordinal: ordinal, DefaultValue: defaultValue}
 	switch raw.Name {
 	case "row_number":
-		call.operation = windowNumber
+		call.Operation = WindowNumber
 	case "rank":
-		call.operation = windowRank
+		call.Operation = WindowRank
 	case "dense_rank":
-		call.operation = windowDenseRank
+		call.Operation = WindowDenseRank
 	case "percent_rank":
-		call.operation = windowPercentRank
+		call.Operation = WindowPercentRank
 	case "cume_dist":
-		call.operation = windowCumeDist
+		call.Operation = WindowCumeDist
 	case "ntile":
-		call.operation = windowNtile
+		call.Operation = WindowNtile
 	case "lead":
-		call.operation = windowLead
+		call.Operation = WindowLead
 	case "lag":
-		call.operation = windowLag
+		call.Operation = WindowLag
 	case "first_value":
-		call.operation = windowFirst
+		call.Operation = WindowFirst
 	case "last_value":
-		call.operation = windowLast
+		call.Operation = WindowLast
 	case "nth_value":
-		call.operation = windowNth
+		call.Operation = WindowNth
 	case "sum":
-		call.operation = windowSum
+		call.Operation = WindowSum
 		// Ordinary SUM has additional providers; windows remain numeric-only.
 		switch argument.ResultUsage().Type.ID() {
 		case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
@@ -165,7 +165,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, expr.ErrorAt("0A000", "window function provider is unsupported", raw.Pos)
 		}
 		var err error
-		call.provider, _, err = functions.SumProvider(b, argument.ResultUsage().Type)
+		call.Provider, _, err = functions.SumProvider(b, argument.ResultUsage().Type)
 		if err != nil {
 			return nil, err
 		}
@@ -191,7 +191,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		}
 	}
 	var err error
-	call.routine, err = b.builtinRoutineReference(functions.WindowRoutineProvider, raw.Name, formal[:formalCount]...)
+	call.Routine, err = b.builtinRoutineReference(functions.WindowRoutineProvider, raw.Name, formal[:formalCount]...)
 	if err != nil {
 		return nil, err
 	}
@@ -215,9 +215,9 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, err
 		}
 	}
-	expr := &windowExpression{Info: info, slot: -1, frame: b.frameID(), call: len(b.grouping.windowCalls)}
-	call.expression = expr
-	expr.nullable = call.operation == windowSum || call.operation == windowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
+	expr := &windowExpression{Info: info, Slot: -1, Frame: b.frameID(), Call: len(b.grouping.windowCalls)}
+	call.Expression = expr
+	expr.Nullable = call.Operation == WindowSum || call.Operation == WindowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
 	b.grouping.windowCalls = append(b.grouping.windowCalls, call)
 	return expr, nil
 }
@@ -250,29 +250,29 @@ func (b *expressionBinder) resolveWindows() error {
 		return err
 	}
 	for i := range b.grouping.windowCalls {
-		spec, err := b.bindWindowSpec(*b.grouping.windowCalls[i].raw, b.grouping.windowDefinitions, true)
+		spec, err := b.bindWindowSpec(*b.grouping.windowCalls[i].Raw, b.grouping.windowDefinitions, true)
 		if err != nil {
 			return err
 		}
-		b.grouping.windowCalls[i].spec = spec
-		b.grouping.windowCalls[i].raw = nil
+		b.grouping.windowCalls[i].Spec = spec
+		b.grouping.windowCalls[i].Raw = nil
 	}
 	return nil
 }
 
 func (b *expressionBinder) sameWindowCall(a, c windowCall) bool {
-	if a.operation != c.operation {
+	if a.Operation != c.Operation {
 		return false
 	}
 	// Arguments can own child queries hidden by the window leaf. This is
 	// semantic target equality, not permission to merge volatile executions.
-	if (a.operation == windowSum || a.operation.evaluatesArgument()) && (!sqltype.SameRecordUsage(a.expression.ResultUsage(), c.expression.ResultUsage()) || !b.sameQueryTarget(a.argument, c.argument) || !b.sameQueryTarget(a.ordinal, c.ordinal) || !b.sameQueryTarget(a.defaultValue, c.defaultValue)) {
+	if (a.Operation == WindowSum || a.Operation.EvaluatesArgument()) && (!sqltype.SameRecordUsage(a.Expression.ResultUsage(), c.Expression.ResultUsage()) || !b.sameQueryTarget(a.Argument, c.Argument) || !b.sameQueryTarget(a.Ordinal, c.Ordinal) || !b.sameQueryTarget(a.DefaultValue, c.DefaultValue)) {
 		return false
 	}
-	if a.raw != nil || c.raw != nil {
-		return sameRawWindow(reflect.ValueOf(a.raw), reflect.ValueOf(c.raw))
+	if a.Raw != nil || c.Raw != nil {
+		return sameRawWindow(reflect.ValueOf(a.Raw), reflect.ValueOf(c.Raw))
 	}
-	return b.sameWindowSpec(a.spec, c.spec)
+	return b.sameWindowSpec(a.Spec, c.Spec)
 }
 
 // PostgreSQL assigns raw window references before transforming their keys.
@@ -340,25 +340,25 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 		if err != nil {
 			return err
 		}
-		spec.definition = definitionIndex + 1
+		spec.Definition = definitionIndex + 1
 		if b.params.noParameters || b.consumer.materializedDefinition {
 			ordinal := 0
 			path := viewLiteralPath{query: b.frameID(), clause: viewWindowLiteral, target: definitionIndex}
 			for i, key := range definition.Spec.Partition {
-				if err := b.captureViewLiteralTree(key, spec.partition[i], path, &ordinal); err != nil {
+				if err := b.captureViewLiteralTree(key, spec.Partition[i], path, &ordinal); err != nil {
 					return err
 				}
 			}
 			for i, key := range definition.Spec.Order {
-				if err := b.captureViewLiteralTree(key.Expr, spec.order[spec.orderMap[i]].expression, path, &ordinal); err != nil {
+				if err := b.captureViewLiteralTree(key.Expr, spec.Order[spec.OrderMap[i]].Expression, path, &ordinal); err != nil {
 					return err
 				}
 			}
 			if definition.Spec.Frame != nil {
-				if err := b.captureViewLiteralTree(definition.Spec.Frame.Start.Offset, spec.frame.start.offset, path, &ordinal); err != nil {
+				if err := b.captureViewLiteralTree(definition.Spec.Frame.Start.Offset, spec.Frame.Start.Offset, path, &ordinal); err != nil {
 					return err
 				}
-				if err := b.captureViewLiteralTree(definition.Spec.Frame.End.Offset, spec.frame.end.offset, path, &ordinal); err != nil {
+				if err := b.captureViewLiteralTree(definition.Spec.Frame.End.Offset, spec.Frame.End.Offset, path, &ordinal); err != nil {
 					return err
 				}
 			}
@@ -382,8 +382,8 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 	old := b.clause.aggregateClause
 	b.clause.aggregateClause = "window definitions"
 	defer func() { b.clause.aggregateClause = old }()
-	spec := boundWindowSpec{order: make([]sortKey, 0, len(raw.Order)), orderMap: make([]int, len(raw.Order)), partition: make([]expr.Expr, len(raw.Partition)), grouping: make([]queryGrouping, len(raw.Partition)), explicit: raw.Frame != nil}
-	spec.frame.start.kind, spec.frame.end.kind = parser.FrameUnboundedPreceding, parser.FrameCurrentRow
+	spec := boundWindowSpec{Order: make([]sortKey, 0, len(raw.Order)), OrderMap: make([]int, len(raw.Order)), Partition: make([]expr.Expr, len(raw.Partition)), Grouping: make([]queryGrouping, len(raw.Partition)), Explicit: raw.Frame != nil}
+	spec.Frame.Start.Kind, spec.Frame.End.Kind = parser.FrameUnboundedPreceding, parser.FrameCurrentRow
 	for i, key := range raw.Order {
 		expr, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -407,8 +407,8 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 			return spec, err
 		}
 		index := -1
-		for j, previous := range spec.order {
-			if b.sameGroupExpression(previous.expression, expr) {
+		for j, previous := range spec.Order {
+			if b.sameGroupExpression(previous.Expression, expr) {
 				index = j
 				break
 			}
@@ -427,10 +427,10 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 			if err != nil {
 				return spec, err
 			}
-			index = len(spec.order)
-			spec.order = append(spec.order, sortKey{expression: expr, comparison: comparison, equalityRoutine: routine, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
+			index = len(spec.Order)
+			spec.Order = append(spec.Order, sortKey{Expression: expr, Comparison: comparison, EqualityRoutine: routine, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
 		}
-		spec.orderMap[i] = index
+		spec.OrderMap[i] = index
 	}
 	for i, key := range raw.Partition {
 		expr, err := b.bind(key, expressionPolicy{context: projectionContext})
@@ -445,42 +445,42 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 		if err != nil {
 			return spec, err
 		}
-		spec.partition[i], spec.grouping[i] = expr, grouping
+		spec.Partition[i], spec.Grouping[i] = expr, grouping
 	}
 	if raw.Name != nil {
 		if len(raw.Partition) > 0 {
 			return spec, expr.ErrorAt("42P20", fmt.Sprintf(`cannot override PARTITION BY clause of window "%s"`, raw.Name.Text), raw.Pos)
 		}
-		if len(parent.order) > 0 && len(raw.Order) > 0 {
+		if len(parent.Order) > 0 && len(raw.Order) > 0 {
 			return spec, expr.ErrorAt("42P20", fmt.Sprintf(`cannot override ORDER BY clause of window "%s"`, raw.Name.Text), raw.Pos)
 		}
-		if parent.explicit {
+		if parent.Explicit {
 			d := expr.ErrorAt("42P20", fmt.Sprintf(`cannot copy window "%s" because it has a frame clause`, raw.Name.Text), raw.Pos).(*sqlstate.Error)
 			if overClause && len(raw.Partition) == 0 && len(raw.Order) == 0 && raw.Frame == nil {
 				d.Hint = "Omit the parentheses in this OVER clause."
 			}
 			return spec, d
 		}
-		spec.partition, spec.grouping = parent.partition, parent.grouping
-		if len(spec.order) == 0 {
-			spec.order = parent.order
+		spec.Partition, spec.Grouping = parent.Partition, parent.Grouping
+		if len(spec.Order) == 0 {
+			spec.Order = parent.Order
 		}
 	}
 	if raw.Frame != nil {
-		spec.frame.unit = raw.Frame.Unit
-		spec.frame.exclusion = raw.Frame.Exclusion
-		if raw.Frame.Unit == parser.FrameGroups && len(spec.order) == 0 {
+		spec.Frame.Unit = raw.Frame.Unit
+		spec.Frame.Exclusion = raw.Frame.Exclusion
+		if raw.Frame.Unit == parser.FrameGroups && len(spec.Order) == 0 {
 			return spec, expr.ErrorAt("42P20", "GROUPS mode requires an ORDER BY clause", raw.Pos)
 		}
-		if raw.Frame.Unit == parser.FrameRange && (raw.Frame.Start.Offset != nil || raw.Frame.End.Offset != nil) && len(spec.order) != 1 {
+		if raw.Frame.Unit == parser.FrameRange && (raw.Frame.Start.Offset != nil || raw.Frame.End.Offset != nil) && len(spec.Order) != 1 {
 			return spec, expr.ErrorAt("42P20", "RANGE with offset PRECEDING/FOLLOWING requires exactly one ORDER BY column", raw.Pos)
 		}
 		var err error
-		spec.frame.start, err = b.bindWindowBound(raw.Frame.Start, spec.order, raw.Frame.Unit)
+		spec.Frame.Start, err = b.bindWindowBound(raw.Frame.Start, spec.Order, raw.Frame.Unit)
 		if err != nil {
 			return spec, err
 		}
-		spec.frame.end, err = b.bindWindowBound(raw.Frame.End, spec.order, raw.Frame.Unit)
+		spec.Frame.End, err = b.bindWindowBound(raw.Frame.End, spec.Order, raw.Frame.Unit)
 		if err != nil {
 			return spec, err
 		}
@@ -488,35 +488,35 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 	return spec, nil
 }
 func (b *expressionBinder) sameWindowSpec(a, c boundWindowSpec) bool {
-	if a.definition != c.definition || a.frame.unit != c.frame.unit || a.frame.exclusion != c.frame.exclusion || !b.sameWindowSort(a, c) || a.explicit != c.explicit {
+	if a.Definition != c.Definition || a.Frame.Unit != c.Frame.Unit || a.Frame.Exclusion != c.Frame.Exclusion || !b.sameWindowSort(a, c) || a.Explicit != c.Explicit {
 		return false
 	}
-	for _, pair := range [2][2]boundWindowBound{{a.frame.start, c.frame.start}, {a.frame.end, c.frame.end}} {
-		if pair[0].kind != pair[1].kind || pair[0].support != pair[1].support {
+	for _, pair := range [2][2]boundWindowBound{{a.Frame.Start, c.Frame.Start}, {a.Frame.End, c.Frame.End}} {
+		if pair[0].Kind != pair[1].Kind || pair[0].Support != pair[1].Support {
 			return false
 		}
-		if pair[0].offset == nil || pair[1].offset == nil {
-			if pair[0].offset != nil || pair[1].offset != nil {
+		if pair[0].Offset == nil || pair[1].Offset == nil {
+			if pair[0].Offset != nil || pair[1].Offset != nil {
 				return false
 			}
-		} else if !b.sameGroupExpression(pair[0].offset, pair[1].offset) {
+		} else if !b.sameGroupExpression(pair[0].Offset, pair[1].Offset) {
 			return false
 		}
 	}
 	return true
 }
 func (b *expressionBinder) sameWindowSort(a, c boundWindowSpec) bool {
-	if len(a.partition) != len(c.partition) || len(a.order) != len(c.order) {
+	if len(a.Partition) != len(c.Partition) || len(a.Order) != len(c.Order) {
 		return false
 	}
-	for i, expr := range a.partition {
-		if !b.sameGroupExpression(expr, c.partition[i]) {
+	for i, expr := range a.Partition {
+		if !b.sameGroupExpression(expr, c.Partition[i]) {
 			return false
 		}
 	}
-	for i, key := range a.order {
-		other := c.order[i]
-		if key.desc != other.desc || key.nullsFirst != other.nullsFirst || !b.sameGroupExpression(key.expression, other.expression) {
+	for i, key := range a.Order {
+		other := c.Order[i]
+		if key.Desc != other.Desc || key.NullsFirst != other.NullsFirst || !b.sameGroupExpression(key.Expression, other.Expression) {
 			return false
 		}
 	}
@@ -526,19 +526,19 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 	if grouped {
 		for _, definition := range b.grouping.windowRaw {
 			spec := b.grouping.windowDefinitions[definition.Name.Text]
-			for _, key := range spec.partition {
+			for _, key := range spec.Partition {
 				if _, err := b.rewriteGroup(key, keys); err != nil {
 					return nil, err
 				}
 			}
-			for _, key := range spec.order {
-				if _, err := b.rewriteGroup(key.expression, keys); err != nil {
+			for _, key := range spec.Order {
+				if _, err := b.rewriteGroup(key.Expression, keys); err != nil {
 					return nil, err
 				}
 			}
-			for _, bound := range [2]boundWindowBound{spec.frame.start, spec.frame.end} {
-				if bound.offset != nil {
-					if _, err := b.rewriteGroup(bound.offset, keys); err != nil {
+			for _, bound := range [2]boundWindowBound{spec.Frame.Start, spec.Frame.End} {
+				if bound.Offset != nil {
+					if _, err := b.rewriteGroup(bound.Offset, keys); err != nil {
 						return nil, err
 					}
 				}
@@ -550,60 +550,60 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 	}
 	preparedCalls := append([]windowCall(nil), b.grouping.windowCalls...)
 	for i, call := range preparedCalls {
-		spec := call.spec
-		spec.partition = append([]expr.Expr(nil), spec.partition...)
-		spec.order = append([]sortKey(nil), spec.order...)
+		spec := call.Spec
+		spec.Partition = append([]expr.Expr(nil), spec.Partition...)
+		spec.Order = append([]sortKey(nil), spec.Order...)
 		if grouped {
-			if call.argument != nil {
-				next, err := b.rewriteGroup(call.argument, keys)
+			if call.Argument != nil {
+				next, err := b.rewriteGroup(call.Argument, keys)
 				if err != nil {
 					return nil, err
 				}
-				preparedCalls[i].argument = next
+				preparedCalls[i].Argument = next
 			}
-			if call.ordinal != nil {
-				next, err := b.rewriteGroup(call.ordinal, keys)
+			if call.Ordinal != nil {
+				next, err := b.rewriteGroup(call.Ordinal, keys)
 				if err != nil {
 					return nil, err
 				}
-				preparedCalls[i].ordinal = next
+				preparedCalls[i].Ordinal = next
 			}
-			if call.defaultValue != nil {
-				next, err := b.rewriteGroup(call.defaultValue, keys)
+			if call.DefaultValue != nil {
+				next, err := b.rewriteGroup(call.DefaultValue, keys)
 				if err != nil {
 					return nil, err
 				}
-				preparedCalls[i].defaultValue = next
+				preparedCalls[i].DefaultValue = next
 			}
-			for j, key := range spec.partition {
+			for j, key := range spec.Partition {
 				next, err := b.rewriteGroup(key, keys)
 				if err != nil {
 					return nil, err
 				}
-				spec.partition[j] = next
+				spec.Partition[j] = next
 			}
-			for j, key := range spec.order {
-				next, err := b.rewriteGroup(key.expression, keys)
+			for j, key := range spec.Order {
+				next, err := b.rewriteGroup(key.Expression, keys)
 				if err != nil {
 					return nil, err
 				}
-				spec.order[j].expression = next
+				spec.Order[j].Expression = next
 			}
 			var err error
-			if spec.frame.start.offset != nil {
-				spec.frame.start.offset, err = b.rewriteGroup(spec.frame.start.offset, keys)
+			if spec.Frame.Start.Offset != nil {
+				spec.Frame.Start.Offset, err = b.rewriteGroup(spec.Frame.Start.Offset, keys)
 				if err != nil {
 					return nil, err
 				}
 			}
-			if spec.frame.end.offset != nil {
-				spec.frame.end.offset, err = b.rewriteGroup(spec.frame.end.offset, keys)
+			if spec.Frame.End.Offset != nil {
+				spec.Frame.End.Offset, err = b.rewriteGroup(spec.Frame.End.Offset, keys)
 				if err != nil {
 					return nil, err
 				}
 			}
 		}
-		preparedCalls[i].spec = spec
+		preparedCalls[i].Spec = spec
 	}
 	aliases := b.windowValueAliases(preparedCalls, projection, order, on)
 	var err error
@@ -612,10 +612,10 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 	indices := make([]int, 0, len(b.grouping.windowCalls))
 	schema := append([]catalog.Column(nil), root.Schema()...)
 	for i, call := range preparedCalls {
-		if call.analysisOnly || aliases != nil && aliases[i] >= 0 {
+		if call.AnalysisOnly || aliases != nil && aliases[i] >= 0 {
 			continue
 		}
-		spec := call.spec
+		spec := call.Spec
 		index := -1
 		for j, other := range specs {
 			if b.sameWindowSpec(spec, other) {
@@ -629,25 +629,25 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 		}
 		shared := -1
 		for j, previous := range calls {
-			if indices[j] == index && (call.operation == windowNumber || call.operation == windowCount) && previous.operation == call.operation {
+			if indices[j] == index && (call.Operation == WindowNumber || call.Operation == WindowCount) && previous.Operation == call.Operation {
 				shared = j
 				break
 			}
 		}
 		if shared >= 0 {
-			call.expression.slot = calls[shared].expression.slot
+			call.Expression.Slot = calls[shared].Expression.Slot
 			continue
 		}
-		call.expression.slot = len(schema)
-		call.spec = boundWindowSpec{}
+		call.Expression.Slot = len(schema)
+		call.Spec = boundWindowSpec{}
 		calls = append(calls, call)
 		indices = append(indices, index)
-		schema = append(schema, catalog.Column{Usage: call.expression.ResultUsage(), Nullable: call.expression.nullable, NullabilityKnown: true})
+		schema = append(schema, catalog.Column{Usage: call.Expression.ResultUsage(), Nullable: call.Expression.Nullable, NullabilityKnown: true})
 	}
 	for i, owner := range aliases {
 		if owner >= 0 {
-			b.grouping.windowCalls[i].expression.slot = preparedCalls[owner].expression.slot
-			b.grouping.windowCalls[i].analysisOnly = true
+			b.grouping.windowCalls[i].Expression.Slot = preparedCalls[owner].Expression.Slot
+			b.grouping.windowCalls[i].AnalysisOnly = true
 		}
 	}
 	originalWidth := len(root.Schema())
@@ -658,7 +658,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 	if added := len(root.Schema()) - originalWidth; added != 0 {
 		schema = append(append([]catalog.Column(nil), root.Schema()...), schema[originalWidth:]...)
 		for _, call := range b.grouping.windowCalls {
-			call.expression.slot += added
+			call.Expression.Slot += added
 		}
 	}
 	sortIndices := make([]int, len(specs))
@@ -671,7 +671,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 			}
 		}
 	}
-	return &windowNode{querySchema: schema, child: root, specs: specs, calls: calls, specIndices: indices, sortIndices: sortIndices}, nil
+	return &windowNode{querySchema: schema, Child: root, Specs: specs, Calls: calls, SpecIndices: indices, SortIndices: sortIndices}, nil
 }
 
 func windowOccurrence(bound expr.Expr) *windowExpression {

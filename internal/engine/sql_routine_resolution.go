@@ -375,7 +375,7 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 			}
 			b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = frozen
 		}
-		return sqlRoutineExpression{Info: info, procedure: d, ref: ref, args: selected.args}, nil
+		return sqlRoutineExpression{Info: info, Procedure: d, Ref: ref, Args: selected.args}, nil
 	}
 	previous, previousSyntax, previousArguments := b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax, b.clause.selectedCallArguments
 	previousReentry, previousCallee := b.clause.selectedCallReentry, b.clause.selectedWindowCallee

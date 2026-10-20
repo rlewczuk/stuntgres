@@ -265,7 +265,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++
-		frozen := &viewDefinition{sources: []viewLeaf{{ref: old, only: only}}, query: &BoundQuery{Root: &sourceNode{ref: old}}}
+		frozen := &viewDefinition{sources: []viewLeaf{{ref: old, only: only}}, query: &BoundQuery{Root: &sourceNode{Ref: old}}}
 		mapped, err := remapFrozenPresentation(e.CatalogRead(), frozen, nil, func(source ids.ObjectRef) ids.ObjectRef {
 			if source == old {
 				return ref
@@ -276,7 +276,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 			t.Fatal(err)
 		}
 		remapped := mapped.sources[0]
-		if remapped.ref != ref || remapped.only != only || frozen.sources[0].ref != old || mapped.query.Root.(*sourceNode).ref != ref {
+		if remapped.ref != ref || remapped.only != only || frozen.sources[0].ref != old || mapped.query.Root.(*sourceNode).Ref != ref {
 			t.Fatal("replacement lost source mode or mutated frozen authority")
 		}
 		var got []ids.ObjectAddress

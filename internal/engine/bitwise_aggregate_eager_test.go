@@ -16,8 +16,8 @@ func TestBitwiseAggregateEagerEvaluation(t *testing.T) {
 		for _, phase := range []string{"success", "late error", "late cancellation"} {
 			t.Run(name+"/"+phase, func(t *testing.T) {
 				_, q, source := queryCoreFixture(t, "SELECT "+name+"(v) FROM t")
-				node := q.Root.(*projectNode).child.(*aggregateNode)
-				usage := node.calls[0].argument.ResultUsage()
+				node := q.Root.(*projectNode).Child.(*aggregateNode)
+				usage := node.Calls[0].Argument.ResultUsage()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				calls, advances := 0, 0
@@ -29,7 +29,7 @@ func TestBitwiseAggregateEagerEvaluation(t *testing.T) {
 				if name == "bit_xor" {
 					want = 7
 				}
-				node.calls[0].argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+				node.Calls[0].Argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 4 {
 						if phase == "late error" {
@@ -44,8 +44,8 @@ func TestBitwiseAggregateEagerEvaluation(t *testing.T) {
 					}
 					return sqltype.Integer(usage.Type, want)
 				})
-				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, value, separator sqltype.Value) error {
+				original := node.Calls[0].Provider
+				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, value, separator sqltype.Value) error {
 					advances++
 					if value.IsNull() {
 						t.Fatal("strict runner delivered NULL")
@@ -131,12 +131,12 @@ func TestBitwiseAggregateActualBitLoopCancellation(t *testing.T) {
 	for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 		e, q, source := queryCoreFixture(t, "SELECT bit_xor(v) FROM t")
 		d, _ := e.CatalogRead().LookupType(sqltype.Bit)
-		node := q.Root.(*projectNode).child.(*aggregateNode)
+		node := q.Root.(*projectNode).Child.(*aggregateNode)
 		operator, err := bitwiseAggregateOperator(op)
 		if err != nil {
 			t.Fatal(err)
 		}
-		node.calls[0].provider = functions.NewBitStringAggregateProvider(d.Usage(), operator)
+		node.Calls[0].Provider = functions.NewBitStringAggregateProvider(d.Usage(), operator)
 		// Three polling blocks suffice; the witness is the actual fold frame,
 		// not elapsed time, a giant query, or an Err-call count across the pipeline.
 		digit := "1"
@@ -144,7 +144,7 @@ func TestBitwiseAggregateActualBitLoopCancellation(t *testing.T) {
 			digit = "0"
 		}
 		input, _ := sqltype.BitString(d, strings.Repeat(digit, 8193))
-		node.calls[0].argument = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return input, nil })
+		node.Calls[0].Argument = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return input, nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: ".BitStringAggregateProvider.fold"}
 		rows, n, err := finalizeQuery(probe, q.Root, source, nil)
@@ -162,14 +162,14 @@ func TestBitwiseAggregateEagerWidthFailure(t *testing.T) {
 	for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 		e, q, source := queryCoreFixture(t, "SELECT bit_xor(v) FROM t")
 		d, _ := e.CatalogRead().LookupType(sqltype.Bit)
-		node := q.Root.(*projectNode).child.(*aggregateNode)
+		node := q.Root.(*projectNode).Child.(*aggregateNode)
 		operator, err := bitwiseAggregateOperator(op)
 		if err != nil {
 			t.Fatal(err)
 		}
-		node.calls[0].provider = functions.NewBitStringAggregateProvider(d.Usage(), operator)
+		node.Calls[0].Provider = functions.NewBitStringAggregateProvider(d.Usage(), operator)
 		calls := 0
-		node.calls[0].argument = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		node.Calls[0].Argument = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
 			calls++
 			text := "0"
 			if calls == 2 {

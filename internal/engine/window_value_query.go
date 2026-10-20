@@ -49,15 +49,15 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	usage := call.expression.ResultUsage()
+	usage := call.Expression.ResultUsage()
 	ordinal := int64(0)
-	if call.operation == windowNth {
+	if call.Operation == WindowNth {
 		evaluation.bindQueryRow(child.source, child.index(rows[current]))
-		value, err := call.ordinal.Eval(evaluation)
+		value, err := call.Ordinal.Eval(evaluation)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := validateProducedValue(value, call.ordinal.ResultUsage()); err != nil {
+		if err := validateProducedValue(value, call.Ordinal.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
 		if err := ctx.Err(); err != nil {
@@ -75,7 +75,7 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 		}
 		ordinal--
 	}
-	member, present := windowValueMember(frame.exclusion, head, tail, current, peerStart, peerEnd, ordinal, call.operation == windowLast)
+	member, present := windowValueMember(frame.Exclusion, head, tail, current, peerStart, peerEnd, ordinal, call.Operation == WindowLast)
 	if !present {
 		return sqltype.Null(usage.Type), nil
 	}
@@ -83,7 +83,7 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 		return sqltype.Value{}, err
 	}
 	evaluation.bindQueryRow(child.source, child.index(rows[member]))
-	value, err := call.argument.Eval(evaluation)
+	value, err := call.Argument.Eval(evaluation)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -104,7 +104,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 	}
 	hasValues := false
 	for _, call := range calls {
-		hasValues = hasValues || call.operation.evaluatesArgument()
+		hasValues = hasValues || call.Operation.EvaluatesArgument()
 	}
 	if !hasValues {
 		return nil
@@ -112,7 +112,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 	demanded := func(output int) bool {
 		for _, keys := range [2][]sortKey{order, on} {
 			for _, key := range keys {
-				if key.outputOrdinal == output+1 || key.targetIdentity == output+1 {
+				if key.OutputOrdinal == output+1 || key.TargetIdentity == output+1 {
 					return true
 				}
 			}
@@ -122,11 +122,11 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 	owners := make([]*windowExpression, 0, len(calls))
 	retain := func(expression expr.Expr) {
 		leaf, ok := expression.(*windowExpression)
-		if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || !calls[leaf.call].operation.evaluatesArgument() {
+		if !ok || leaf.Frame != b.frameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
 			return
 		}
 		for _, owner := range owners {
-			if owner.call == leaf.call {
+			if owner.Call == leaf.Call {
 				return
 			}
 		}
@@ -139,7 +139,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 	}
 	for _, keys := range [2][]sortKey{order, on} {
 		for _, key := range keys {
-			retain(key.expression)
+			retain(key.Expression)
 		}
 	}
 	var aliases []int
@@ -149,21 +149,21 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 		}
 		walkBoundExpression(expression, func(child expr.Expr) {
 			leaf, ok := child.(*windowExpression)
-			if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || !calls[leaf.call].operation.evaluatesArgument() {
+			if !ok || leaf.Frame != b.frameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
 				return
 			}
 			for _, owner := range owners {
-				if !b.sameWindowCall(calls[leaf.call], calls[owner.call]) {
+				if !b.sameWindowCall(calls[leaf.Call], calls[owner.Call]) {
 					continue
 				}
-				if leaf.call != owner.call {
+				if leaf.Call != owner.Call {
 					if aliases == nil {
 						aliases = make([]int, len(calls))
 						for j := range aliases {
 							aliases[j] = -1
 						}
 					}
-					aliases[leaf.call] = owner.call
+					aliases[leaf.Call] = owner.Call
 				}
 				return
 			}

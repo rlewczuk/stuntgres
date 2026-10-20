@@ -34,9 +34,9 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	// Its consuming statement must supply input authority without rebinding it.
 	node := coercionExpression{
 		Info:  expr.Info{Usage: pair.Usage()},
-		child: literalExpression{Info: expr.Info{Usage: text.Usage()}, value: value},
-		plan:  plan,
-		mode:  sqltype.Explicit,
+		Child: literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: value},
+		Plan:  plan,
+		Mode:  sqltype.Explicit,
 	}
 	for _, route := range []string{"default", "generation", "check"} {
 		for _, named := range []bool{false, true} {

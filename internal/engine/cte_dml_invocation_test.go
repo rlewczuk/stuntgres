@@ -28,8 +28,8 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 				rows.schema = schema
 				rows.values = []sqltype.Value{value(1), value(10), value(2), sqltype.Null(integer), value(2), sqltype.Null(integer)}
 			}
-			definition := &cteDefinition{owner: 1, mutation: &binding{returning: &boundReturning{schema: schema}}, schema: schema, hint: hint, references: 2}
-			if definition.folded() {
+			definition := &cteDefinition{Owner: 1, Mutation: &binding{returning: &boundReturning{schema: schema}}, Schema: schema, Hint: hint, References: 2}
+			if definition.Folded() {
 				t.Fatal("modifier folded")
 			}
 			owner := &cteInvocation{frame: 1, state: queryState{source: &querySource{materialized: true}}}
@@ -47,7 +47,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if width != 0 && &producer.source.flat[0] != first {
 				t.Fatal("typed output buffer copied")
 			}
-			scan := &derivedNode{querySchema: schema, cte: definition}
+			scan := &derivedNode{querySchema: schema, CTE: definition}
 			state := &queryState{source: owner.state.source, ctes: owner}
 			left, err := openCTEScan(context.Background(), state, scan)
 			if err != nil {
@@ -91,7 +91,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			}
 		}
 	}
-	noReturning := &cteDefinition{owner: 1, mutation: &binding{}}
+	noReturning := &cteDefinition{Owner: 1, Mutation: &binding{}}
 	completion := &cteInvocation{frame: 1}
 	if err := completion.completeMutation(noReturning, Result{Count: 2}); err != nil {
 		t.Fatal(err)

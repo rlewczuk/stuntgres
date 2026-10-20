@@ -28,7 +28,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 		t.Fatal(err)
 	}
 	conversion, ok := node.(coercionExpression)
-	if !ok || conversion.child.ResultUsage().Type != integer.Type {
+	if !ok || conversion.Child.ResultUsage().Type != integer.Type {
 		t.Fatalf("formal source replaced by destination: %T", node)
 	}
 	info, err := b.finish()

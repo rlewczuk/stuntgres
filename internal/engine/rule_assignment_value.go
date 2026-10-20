@@ -9,17 +9,17 @@ import (
 // ordinary mutation executor; it does not execute a physical row callback.
 type assignmentValueExpression struct {
 	expr.Info
-	base, value expr.Expr
-	target      *arrayAssignmentTarget
+	Base, Value expr.Expr
+	Target      *arrayAssignmentTarget
 }
 
 func (e assignmentValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	base, err := e.base.Eval(ctx)
+	base, err := e.Base.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.target.applyExpression(ctx, base, e.value)
+	return e.Target.ApplyExpression(ctx, base, e.Value)
 }

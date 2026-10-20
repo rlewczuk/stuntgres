@@ -29,12 +29,12 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 	}
 	targets := func(items []*arrayAssignmentTarget) error {
 		for _, target := range items {
-			for ; target != nil; target = target.next {
-				for _, sub := range target.node.subscripts {
-					if err := expr(sub.lower); err != nil {
+			for ; target != nil; target = target.Next {
+				for _, sub := range target.Node.Subscripts {
+					if err := expr(sub.Lower); err != nil {
 						return err
 					}
-					if err := expr(sub.upper); err != nil {
+					if err := expr(sub.Upper); err != nil {
 						return err
 					}
 				}

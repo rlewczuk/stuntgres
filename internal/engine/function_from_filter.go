@@ -11,17 +11,17 @@ import (
 // paths, outer joins, merged columns or expression boundaries. Nil declines.
 func functionFromWhere(root LogicalNode, predicate expr.Expr) *joinNode {
 	join, ok := root.(*joinNode)
-	if !ok || join.kind != parser.JoinInner || !join.correlatedRight || len(join.merges) != 0 {
+	if !ok || join.Kind != parser.JoinInner || !join.CorrelatedRight || len(join.Merges) != 0 {
 		return nil
 	}
-	if _, ok := join.right.(*functionFromNode); !ok {
+	if _, ok := join.Right.(*functionFromNode); !ok {
 		return nil
 	}
 	if !functionFromRestriction(join, predicate) {
 		return nil
 	}
 	copy := *join
-	copy.left = &filterNode{querySchema: join.left.Schema(), child: join.left, predicate: predicate}
+	copy.Left = &filterNode{querySchema: join.Left.Schema(), Child: join.Left, Predicate: predicate}
 	return &copy
 }
 
@@ -34,14 +34,14 @@ func functionFromRestriction(join *joinNode, predicate expr.Expr) bool {
 	}
 	currentFrame := true
 	walkBoundExpression(predicate, func(expr expr.Expr) {
-		if column, ok := expr.(columnExpression); ok && (column.frame != join.frame || column.virtual != nil) {
+		if column, ok := expr.(columnExpression); ok && (column.Frame != join.Frame || column.Virtual != nil) {
 			currentFrame = false
 		}
 	})
 	if !currentFrame {
 		return false
 	}
-	sides, err := joinExpressionSides(predicate, join.leftWidth, join.rightWidth)
+	sides, err := joinExpressionSides(predicate, join.LeftWidth, join.RightWidth)
 	if err != nil || sides != 1 {
 		// An unsupported dependency form is not a SQL failure or permission
 		// to reorder it; the original post-join filter remains authoritative.
@@ -55,14 +55,14 @@ func functionFromRestriction(join *joinNode, predicate expr.Expr) bool {
 // evaluation and the canonical tree remain unchanged. Nil declines.
 func functionFromConjuncts(root LogicalNode, predicate expr.Expr) LogicalNode {
 	join, ok := root.(*joinNode)
-	if !ok || join.kind != parser.JoinInner || len(join.merges) != 0 {
+	if !ok || join.Kind != parser.JoinInner || len(join.Merges) != 0 {
 		return nil
 	}
-	if _, ok := join.right.(*functionFromNode); !ok {
+	if _, ok := join.Right.(*functionFromNode); !ok {
 		return nil
 	}
 	conjunction, ok := predicate.(logicalExpression)
-	if !ok || conjunction.op != parser.LogicalAnd || conjunction.queryRight {
+	if !ok || conjunction.Op != parser.LogicalAnd || conjunction.QueryRight {
 		return nil
 	}
 	before, after := partitionFunctionConjuncts(join, predicate)
@@ -70,20 +70,20 @@ func functionFromConjuncts(root LogicalNode, predicate expr.Expr) LogicalNode {
 		return nil
 	}
 	copy := *join
-	copy.left = &filterNode{querySchema: join.left.Schema(), child: join.left, predicate: before}
+	copy.Left = &filterNode{querySchema: join.Left.Schema(), Child: join.Left, Predicate: before}
 	if after == nil {
 		return &copy
 	}
-	return &filterNode{querySchema: join.Schema(), child: &copy, predicate: after}
+	return &filterNode{querySchema: join.Schema(), Child: &copy, Predicate: after}
 }
 
 func partitionFunctionConjuncts(join *joinNode, predicate expr.Expr) (before, after expr.Expr) {
 	if logical, ok := predicate.(logicalExpression); ok {
-		if logical.op != parser.LogicalAnd || logical.queryRight {
+		if logical.Op != parser.LogicalAnd || logical.QueryRight {
 			return nil, predicate
 		}
-		leftBefore, leftAfter := partitionFunctionConjuncts(join, logical.left)
-		rightBefore, rightAfter := partitionFunctionConjuncts(join, logical.right)
+		leftBefore, leftAfter := partitionFunctionConjuncts(join, logical.Left)
+		rightBefore, rightAfter := partitionFunctionConjuncts(join, logical.Right)
 		combine := func(left, right expr.Expr) expr.Expr {
 			if left == nil {
 				return right
@@ -92,7 +92,7 @@ func partitionFunctionConjuncts(join *joinNode, predicate expr.Expr) (before, af
 				return left
 			}
 			copy := logical
-			copy.left, copy.right = left, right
+			copy.Left, copy.Right = left, right
 			copy.Property = expr.MergeProperties(left.Properties(), right.Properties())
 			return copy
 		}

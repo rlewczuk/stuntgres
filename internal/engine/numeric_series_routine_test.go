@@ -32,7 +32,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
 			carrier, ok := node.(seriesExpression)
-			if !ok || len(carrier.args) != tc.arity || !sourceAdmitted(carrier) || !binder.clause.queryHasTargetSet {
+			if !ok || len(carrier.Args) != tc.arity || !sourceAdmitted(carrier) || !binder.clause.queryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
 			captured, err := routine.ExpressionRoutineDescriptor(node)
@@ -70,7 +70,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("selected declaration absent from original manifest")
 			}
 			before := carrier
-			before.args = append([]expr.Expr(nil), carrier.args...)
+			before.Args = append([]expr.Expr(nil), carrier.Args...)
 			// false is the real source/project admission mode. Scalar planning
 			// intentionally skips SRFs and cannot prove any negative below.
 			if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
@@ -122,7 +122,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual numeric carrier retag", err)
 			}
-			if len(remapped.(seriesExpression).args) != tc.arity {
+			if len(remapped.(seriesExpression).Args) != tc.arity {
 				t.Fatal("retag expanded omitted step into a third formal")
 			}
 			if err := admitRoutineCall(&probe, remapped, false, false); err == nil {
@@ -146,7 +146,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			rebound, _, reboundEvaluation := strictNullUnitBind(t, e, op, scope, text)
 			reboundDescriptor, err := routine.ExpressionRoutineDescriptor(rebound)
-			if err != nil || reboundDescriptor != captured || len(rebound.(seriesExpression).args) != tc.arity {
+			if err != nil || reboundDescriptor != captured || len(rebound.(seriesExpression).Args) != tc.arity {
 				t.Fatal("render/rebind lost original full-IN declaration", reboundDescriptor, err)
 			}
 			if err := admitRoutineCall(&reboundEvaluation, rebound, false, false); err != nil {

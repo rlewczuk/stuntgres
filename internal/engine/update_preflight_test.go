@@ -42,7 +42,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	}()
 	cast := original.assignments[0].(coercionExpression)
 	column := original.assignments[1]
-	source := cast.child.ResultUsage().Type
+	source := cast.Child.ResultUsage().Type
 	for _, input := range []string{"7", "oops", "", "17", "oops", "42"} {
 		value := sqltype.Null(source)
 		var err error
@@ -101,7 +101,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 		if _, ok := original.assignments[0].(coercionExpression); !ok {
 			t.Fatal("analyzed assignment replaced")
 		}
-		if _, ok := original.predicate.(comparisonExpression).right.(coercionExpression); !ok {
+		if _, ok := original.predicate.(comparisonExpression).Right.(coercionExpression); !ok {
 			t.Fatal("analyzed predicate replaced")
 		}
 	}

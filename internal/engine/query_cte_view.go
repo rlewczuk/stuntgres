@@ -13,7 +13,7 @@ import (
 func viewCTEScan(root LogicalNode, match func(*derivedNode) bool) LogicalNode {
 	switch n := viewFromRoot(root).(type) {
 	case *derivedNode:
-		if n.cte != nil && match(n) {
+		if n.CTE != nil && match(n) {
 			return n
 		}
 	case *worktableScanNode:
@@ -21,18 +21,18 @@ func viewCTEScan(root LogicalNode, match func(*derivedNode) bool) LogicalNode {
 			return n
 		}
 	case *joinNode:
-		if found := viewCTEScan(n.left, match); found != nil {
+		if found := viewCTEScan(n.Left, match); found != nil {
 			return found
 		}
-		return viewCTEScan(n.right, match)
+		return viewCTEScan(n.Right, match)
 	}
 	return nil
 }
 func viewCTETable(root LogicalNode, table *parser.TableReference) LogicalNode {
-	return viewCTEScan(root, func(n *derivedNode) bool { return n.table == table })
+	return viewCTEScan(root, func(n *derivedNode) bool { return n.Table == table })
 }
 func viewCTEOrdinal(root LogicalNode, ordinal int) LogicalNode {
-	return viewCTEScan(root, func(n *derivedNode) bool { return n.ordinal == ordinal })
+	return viewCTEScan(root, func(n *derivedNode) bool { return n.Ordinal == ordinal })
 }
 
 func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *projectNode, columns []catalog.Column, setOperand bool) (string, error) {
@@ -104,14 +104,14 @@ func (r *viewRenderer) withClauseSQL(ctx context.Context, catalogView catalog.Re
 			if cycle.Value != nil {
 				project := r.queries[definition.Query.(*parser.Select)]
 				union, ok := viewFromRoot(project).(*recursiveUnionNode)
-				if !ok || union.cycle == nil {
+				if !ok || union.Cycle == nil {
 					return "", fmt.Errorf("stuntgres: missing stored cycle recipe")
 				}
-				value, err := cycleConstantSQL(catalogView, cycle.Value, union.cycle.typedConstants[0])
+				value, err := cycleConstantSQL(catalogView, cycle.Value, union.Cycle.TypedConstants[0])
 				if err != nil {
 					return "", err
 				}
-				fallback, err := cycleConstantSQL(catalogView, cycle.Default, union.cycle.typedConstants[1])
+				fallback, err := cycleConstantSQL(catalogView, cycle.Default, union.Cycle.TypedConstants[1])
 				if err != nil {
 					return "", err
 				}

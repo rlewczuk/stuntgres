@@ -16,7 +16,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 			// VALUES binding owns a project without SELECT syntax. Retain its
 			// complete envelope under the presentation's synthetic SELECT key.
 			project := *b.query.Root.(*projectNode)
-			project.syntax = query
+			project.Syntax = query
 			producer := *b.query
 			producer.Root = &project
 			b.query = &producer
@@ -55,7 +55,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 	if from == nil {
 		from = &singletonNode{}
 	}
-	metadata.query = &BoundQuery{Root: &projectNode{child: from, expressions: expressions, syntax: query, frame: 1}}
+	metadata.query = &BoundQuery{Root: &projectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
 	metadata = retainRuleCTEPresentation(auth.Catalog, metadata)
 	presentation, err := e.freezeQueryPresentationLocked(auth, query, metadata, false, false, 0, "", false)
 	if err != nil {
@@ -71,7 +71,7 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 	collect = func(body binding) error {
 		for _, definition := range body.ctes {
 			mutation, ok := mutationBinding(definition)
-			if !ok || presentations[definition.statement] != nil {
+			if !ok || presentations[definition.Statement] != nil {
 				continue
 			}
 			// Auxiliary bindings share the outer statement binder's capture
@@ -89,14 +89,14 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 			metadata.capture.columns, metadata.capture.stars = b.capture.columns, b.capture.stars
 			metadata.capture.namespaces = b.capture.namespaces
 			metadata.prepared.sequenceConstants, metadata.prepared.regtypeConstants = b.prepared.sequenceConstants, b.prepared.regtypeConstants
-			presentation, err := e.freezeRuleActionPresentationLocked(auth, definition.statement, metadata)
+			presentation, err := e.freezeRuleActionPresentationLocked(auth, definition.Statement, metadata)
 			if err != nil {
 				return err
 			}
 			if presentations == nil {
 				presentations = make(map[parser.Statement]*viewDefinition)
 			}
-			presentations[definition.statement] = presentation
+			presentations[definition.Statement] = presentation
 			if err := collect(*mutation); err != nil {
 				return err
 			}

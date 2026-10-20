@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func sameIntaggIdentity(a *catalog.Procedure, ar ids.ObjectRef, b *catalog.Procedure, br ids.ObjectRef) bool {
+func SameIntaggIdentity(a *catalog.Procedure, ar ids.ObjectRef, b *catalog.Procedure, br ids.ObjectRef) bool {
 	if ar != br || (a == nil) != (b == nil) {
 		return false
 	}
@@ -17,20 +17,20 @@ func sameIntaggIdentity(a *catalog.Procedure, ar ids.ObjectRef, b *catalog.Proce
 
 type unnestExpression struct {
 	expr.Info
-	args      []expr.Expr
-	procedure *catalog.Procedure
-	ref       ids.ObjectRef
+	Args      []expr.Expr
+	Procedure *catalog.Procedure
+	Ref       ids.ObjectRef
 }
 
 func (e unnestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted unnest call")
 }
 
 // unnestInputTypes is shared by applicability and the selected provider.
-func unnestInputTypes(usage sqltype.Usage) (input, result *sqltype.Descriptor) {
+func UnnestInputTypes(usage sqltype.Usage) (input, result *sqltype.Descriptor) {
 	if usage.Type == nil {
 		return nil, nil
 	}
@@ -47,11 +47,11 @@ func unnestInputTypes(usage sqltype.Usage) (input, result *sqltype.Descriptor) {
 // Invocation-private arithmetic lives in the owner's source cursor.
 type seriesExpression struct {
 	expr.Info
-	args []expr.Expr
+	Args []expr.Expr
 }
 
 func (e seriesExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_series set call")
@@ -61,11 +61,11 @@ func (e seriesExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // fresh bounds-only state in the shared arithmetic function cursor.
 type subscriptsExpression struct {
 	expr.Info
-	args []expr.Expr
+	Args []expr.Expr
 }
 
 func (e subscriptsExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_subscripts set call")

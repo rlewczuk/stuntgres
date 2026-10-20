@@ -105,8 +105,8 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 	for i, table := range tables {
 		mark := admission.tableMark(table)
 		selection := &parser.Select{From: table}
-		if mark.mode != 0 {
-			selection.Locking = []parser.RowLockClause{{Mode: queryRowClause(mark.mode), Wait: mark.wait}}
+		if mark.Mode != 0 {
+			selection.Locking = []parser.RowLockClause{{Mode: queryRowClause(mark.Mode), Wait: mark.Wait}}
 		}
 		if s.prepared.reuse != nil {
 			prior, ok := s.prepared.reuse.sources[table]
@@ -362,10 +362,10 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		mark := effectiveQueryRowMark(leaf.relation, mergeQueryRowMark(inherited, leaf.mark))
 		var source *querySource
 		command := catalog.PolicySelect
-		if mark.mode != 0 {
+		if mark.Mode != 0 {
 			command = catalog.PolicyUpdate
 		}
-		denied, securityErr := e.rowSecurityInputLocked(scope, leaf.relation, leaf.principal, command, mark.mode != 0)
+		denied, securityErr := e.rowSecurityInputLocked(scope, leaf.relation, leaf.principal, command, mark.Mode != 0)
 		if securityErr != nil {
 			err = securityErr
 		}
@@ -387,7 +387,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 					source, err = captureQueryPrefix(view, leaf.ref)
 				}
 			case catalog.PartitionedRelation:
-				if mark.mode != 0 {
+				if mark.Mode != 0 {
 					source = nil
 					err = sqlError("0A000", "row locking partition hierarchies is unsupported")
 				} else if leaf.only {

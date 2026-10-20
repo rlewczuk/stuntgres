@@ -27,7 +27,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 		base := literalExpression{expr.Info{Usage: current.Usage()}, sqltype.Null(current)}
 		node := binder.retainedCompositeField(base, key, capture, parser.Position{})
 		literal, ok := node.(literalExpression)
-		if !ok || !literal.value.IsNull() || node.ResultUsage() != original.CompositeMember(1).Usage {
+		if !ok || !literal.Value.IsNull() || node.ResultUsage() != original.CompositeMember(1).Usage {
 			t.Fatal("retired field retargeted", node)
 		}
 		capture = binder.prepared.composites[key]
@@ -37,7 +37,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 	}
 	binder := expressionBinder{engine: e}
 	base := literalExpression{expr.Info{Usage: original.Usage()}, sqltype.Null(original)}
-	if field, ok := binder.retainedCompositeField(base, key, capture, parser.Position{}).(fieldExpression); !ok || field.attribute != source.Attributes[1] {
+	if field, ok := binder.retainedCompositeField(base, key, capture, parser.Position{}).(fieldExpression); !ok || field.Attribute != source.Attributes[1] {
 		t.Fatal("live identity lost")
 	}
 }

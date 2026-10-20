@@ -31,14 +31,14 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 			coercion, ok := node.(coercionExpression)
-			if !ok || coercion.mode != sqltype.Explicit || coercion.Usage.Typmod != 3 {
+			if !ok || coercion.Mode != sqltype.Explicit || coercion.Usage.Typmod != 3 {
 				t.Fatal(node)
 			}
-			literal := coercion.child.(literalExpression)
+			literal := coercion.Child.(literalExpression)
 			if literal.Usage.Typmod != -1 {
 				t.Fatal(literal.Usage)
 			}
-			unrounded, err := literal.value.Type().Output(context.Background(), literal.value)
+			unrounded, err := literal.Value.Type().Output(context.Background(), literal.Value)
 			if err != nil || !strings.Contains(unrounded, ".1234") {
 				t.Fatal(unrounded, err)
 			}
@@ -79,7 +79,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 			t.Fatal(expression, err)
 		}
 		leaf := node.(functions.NullCount).Args[0].(literalExpression)
-		if !leaf.UnknownNull || !leaf.value.IsNull() || leaf.Usage.Type.ID() != sqltype.Text {
+		if !leaf.UnknownNull || !leaf.Value.IsNull() || leaf.Usage.Type.ID() != sqltype.Text {
 			t.Fatal(leaf)
 		}
 		if text, err := literalSQL(context.Background(), leaf); err != nil || text != "NULL::unknown" {
@@ -116,7 +116,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 			t.Fatal(serialized, err)
 		}
 		bad := leaf
-		bad.value = sqltype.String(leaf.Usage.Type, "not null")
+		bad.Value = sqltype.String(leaf.Usage.Type, "not null")
 		if _, err := literalSQL(context.Background(), bad); err == nil {
 			t.Fatal("invalid provenance accepted")
 		}
@@ -126,7 +126,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.String(typ, "a'b\\c")}
+	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.String(typ, "a'b\\c")}
 	for _, tc := range []struct {
 		off  bool
 		want string
@@ -227,7 +227,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 		t.Fatal(err)
 	}
 	leaf := node.(functions.NullCount).Args[0].(literalExpression)
-	if leaf.UnknownNull || leaf.Usage.Type.ID() != sqltype.Int4 || !leaf.value.IsNull() {
+	if leaf.UnknownNull || leaf.Usage.Type.ID() != sqltype.Int4 || !leaf.Value.IsNull() {
 		t.Fatal(leaf)
 	}
 	text, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, pgRenderParent{})
@@ -274,19 +274,19 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
 	view := viewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
-	literal, ok := view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).frame, clause: viewTargetLiteral, target: 0, node: 0}]
+	literal, ok := view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).Frame, clause: viewTargetLiteral, target: 0, node: 0}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.literals)
 	}
-	raw, err := literal.value.Time()
+	raw, err := literal.Value.Time()
 	if err != nil || raw != 14706123500 {
 		t.Fatal(raw, err)
 	}
-	literal, ok = view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).frame, clause: viewTargetLiteral, target: 1, node: 1}]
+	literal, ok = view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).Frame, clause: viewTargetLiteral, target: 1, node: 1}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(view.literals)
 	}
-	number, err := literal.value.Integer()
+	number, err := literal.Value.Integer()
 	if err != nil || number != 2147483648 {
 		t.Fatal(number, err)
 	}
@@ -415,7 +415,7 @@ func TestDeparseConstraintsReviewPrinterContexts(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT,b INT,c INT,CONSTRAINT ck CHECK(("+tc.input+")>0))")
 			view := e.CatalogRead()
 			d := view.MustRelation(roleTableRef(t, e, "t").Address)
-			node := d.Constraints.Check[0].Expression.(comparisonExpression).left
+			node := d.Constraints.Check[0].Expression.(comparisonExpression).Left
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact
 				if pretty {

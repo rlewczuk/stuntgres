@@ -15,11 +15,11 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text, bigint := b.typ(sqltype.Text), b.typ(sqltype.Int8)
 	var evaluations []int
-	dependent := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	dependent := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	independent := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "x,y"), order: &evaluations, index: 0}
 	call := stringSplitMarker(t, b, 1, dependent, stringSplitLiteral(b, ","), stringSplitLiteral(b, "replacement"))
 	peer := stringSplitMarker(t, b, 2, independent, stringSplitLiteral(b, ","))
-	node := &functionFromNode{calls: []expr.Expr{call, peer}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	node := &functionFromNode{Calls: []expr.Expr{call, peer}, Ordinality: true, Frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	ordinal, err := sqltype.Integer(bigint, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -45,14 +45,14 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	// Quals are requalified against that tuple.
 	filteredCall := stringSplitMarker(t, b, 3, dependent, stringSplitLiteral(b, ","))
-	filteredNode := &functionFromNode{calls: []expr.Expr{filteredCall}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
-	field := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	filteredNode := &functionFromNode{Calls: []expr.Expr{filteredCall}, Ordinality: true, Frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	field := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	raw := statement(t, "SELECT 'x'='b'").(*parser.Select).Targets[0].(parser.OperatorExpr)
 	predicate, err := b.bindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{node: field}, comparisonOperand{node: stringSplitLiteral(b, "b")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	filter := &filterNode{querySchema: filteredNode.querySchema, child: filteredNode, predicate: predicate}
+	filter := &filterNode{querySchema: filteredNode.querySchema, Child: filteredNode, Predicate: predicate}
 	for _, tc := range []struct {
 		field string
 		match bool
@@ -65,7 +65,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 			t.Fatal("requalification", tc.field, got, present, err)
 		}
 	}
-	set := &setProjectNode{child: &singletonNode{}}
+	set := &setProjectNode{Child: &singletonNode{}}
 	if physical := queryTreeOccurrences(set, inputs, nil); len(physical) != 0 {
 		t.Fatal(physical)
 	}
@@ -97,14 +97,14 @@ func TestStringSplitRowMarks(t *testing.T) {
 		marked bool
 	}{
 		{"relation", &sourceNode{}, true},
-		{"derived_function", &derivedNode{query: &BoundQuery{Root: &projectNode{syntax: raw, child: function}}}, true},
+		{"derived_function", &derivedNode{Query: &BoundQuery{Root: &projectNode{Syntax: raw, Child: function}}}, true},
 		{"function", function, false},
 		{"source_free", &singletonNode{}, false},
 		{"values", &valuesNode{}, false},
-		{"function_expansion", &setProjectNode{child: function}, false},
+		{"function_expansion", &setProjectNode{Child: function}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			project := &projectNode{syntax: raw, child: tc.node, hasTargetSet: true}
+			project := &projectNode{Syntax: raw, Child: tc.node, HasTargetSet: true}
 			err := queryRowLockLegality(project, lock.ForUpdate)
 			if tc.marked != (err != nil) || err != nil && !strings.Contains(err.Error(), "set-returning functions in the target list") {
 				t.Fatal(tc.name, err)

@@ -29,15 +29,15 @@ func evaluateWindowOffset(ctx context.Context, evaluation *EvalContext, child *i
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	usage := call.expression.ResultUsage()
+	usage := call.Expression.ResultUsage()
 	evaluation.bindQueryRow(child.source, child.index(rows[current]))
 	offset := int64(1)
-	if call.ordinal != nil {
-		value, err := call.ordinal.Eval(evaluation)
+	if call.Ordinal != nil {
+		value, err := call.Ordinal.Eval(evaluation)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := validateProducedValue(value, call.ordinal.ResultUsage()); err != nil {
+		if err := validateProducedValue(value, call.Ordinal.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
 		if err := ctx.Err(); err != nil {
@@ -51,11 +51,11 @@ func evaluateWindowOffset(ctx context.Context, evaluation *EvalContext, child *i
 			return sqltype.Value{}, err
 		}
 	}
-	member, present := windowOffsetTarget(len(rows), current, int32(offset), call.operation == windowLag)
-	expression := call.defaultValue
+	member, present := windowOffsetTarget(len(rows), current, int32(offset), call.Operation == WindowLag)
+	expression := call.DefaultValue
 	if present {
 		evaluation.bindQueryRow(child.source, child.index(rows[member]))
-		expression = call.argument
+		expression = call.Argument
 	}
 	if expression == nil {
 		return sqltype.Null(usage.Type), nil

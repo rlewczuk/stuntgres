@@ -85,7 +85,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 				continue // The next write layer owns main-source expansion.
 			}
 			mark := viewLeafRowMark(viewOf(current), occurrence, queryRowMark{})
-			if mark.mode != 0 {
+			if mark.Mode != 0 {
 				if err := authority.checkColumns(sourceBinding, authorization.UpdatePrivilege, nil); err != nil {
 					return err
 				}

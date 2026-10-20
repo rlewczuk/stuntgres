@@ -157,7 +157,7 @@ func protocolLiterals(t *testing.T, b *expressionBinder, want map[viewLiteralPat
 		if !ok {
 			t.Fatalf("missing literal at %+v", key)
 		}
-		text, err := got.value.Type().Output(context.Background(), got.value)
+		text, err := got.Value.Type().Output(context.Background(), got.Value)
 		if err != nil || got.ResultUsage().Type.ID() != expected.id || text != expected.text {
 			t.Fatalf("literal at %+v: usage=%v text=%q err=%v, want %+v", key, got.ResultUsage(), text, err, expected)
 		}
@@ -336,9 +336,9 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		b := protocolBinder(t)
 		raw, node := protocolBind(t, b, `SELECT JSON_ARRAY(k FORMAT JSON RETURNING text)`)
 		conversion := node.(coercionExpression)
-		n := conversion.child.(functions.SQLJSON)
+		n := conversion.Child.(functions.SQLJSON)
 		before := append([]expr.Expr(nil), n.Args...)
-		conversion.child = captureSQLJSON{n}
+		conversion.Child = captureSQLJSON{n}
 		if err := b.captureViewLiterals(raw, conversion, viewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}

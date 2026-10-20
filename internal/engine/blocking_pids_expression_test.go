@@ -77,7 +77,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if n.Validate() != nil {
 			t.Fatal("retag mutated original")
 		}
-		column := columnExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
+		column := columnExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
 		n.Arg = column
 		n.Property.RowDependent = true
 		visited := 0
@@ -101,7 +101,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			t.Fatal(err)
 		}
 		child := remapped.(functions.BlockingInquiry).Arg.(columnExpression)
-		if child.origin.Address.ObjectID != 456 || child.slot != 2 || remapped.Properties().Volatility != expr.Volatile {
+		if child.Origin.Address.ObjectID != 456 || child.Slot != 2 || remapped.Properties().Volatility != expr.Volatile {
 			t.Fatal("view slot/reference remap", child)
 		}
 		bad := n

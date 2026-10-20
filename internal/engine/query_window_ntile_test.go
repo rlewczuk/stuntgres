@@ -80,11 +80,11 @@ func TestQueryWindowNtileState(t *testing.T) {
 func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 	for _, prefix := range []int64{0, 1, 2} {
 		_, query, source := queryCoreFixture(t, "SELECT ntile(2) OVER(ORDER BY id) FROM t")
-		node := query.Root.(*projectNode).child.(*windowNode)
-		call := &node.calls[0]
-		argument := call.argument
+		node := query.Root.(*projectNode).Child.(*windowNode)
+		call := &node.Calls[0]
+		argument := call.Argument
 		var evaluated []int64
-		call.argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		call.Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 			id, _ := c.Row[0].Integer()
 			evaluated = append(evaluated, id)
 			if id <= prefix {
@@ -131,11 +131,11 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 	}
 	t.Run("partition-reset-and-separate-calls", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT ntile(1) OVER(PARTITION BY f ORDER BY id),ntile(2) OVER(PARTITION BY f ORDER BY id) FROM t")
-		node := query.Root.(*projectNode).child.(*windowNode)
+		node := query.Root.(*projectNode).Child.(*windowNode)
 		var evaluated [2][]int64
-		for i := range node.calls {
-			original := node.calls[i].argument
-			node.calls[i].argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		for i := range node.Calls {
+			original := node.Calls[i].Argument
+			node.Calls[i].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 				id, _ := c.Row[0].Integer()
 				evaluated[i] = append(evaluated[i], id)
 				return original.Eval(c)
@@ -177,7 +177,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT id,ntile(id) OVER w,ntile(id+1) OVER w,ntile((SELECT 2)) OVER w FROM t WINDOW w AS(ORDER BY id)")
 	defer source.close()
-	node := query.Root.(*projectNode).child.(*windowNode)
+	node := query.Root.(*projectNode).Child.(*windowNode)
 	for i, column := range query.Root.Schema() {
 		if i == 0 {
 			if column.OriginTable == 0 || column.OriginAttribute == 0 {
@@ -189,27 +189,27 @@ func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
 			t.Fatal("computed INT4/OID23", column)
 		}
 	}
-	if len(node.calls) != 3 {
-		t.Fatal(node.calls)
+	if len(node.Calls) != 3 {
+		t.Fatal(node.Calls)
 	}
 	binder := &expressionBinder{}
-	if binder.sameWindowCall(node.calls[0], node.calls[1]) || binder.sameWindowCall(node.calls[1], node.calls[2]) {
+	if binder.sameWindowCall(node.Calls[0], node.Calls[1]) || binder.sameWindowCall(node.Calls[1], node.Calls[2]) {
 		t.Fatal("different bucket arguments collapsed")
 	}
-	call := node.calls[0]
+	call := node.Calls[0]
 	found := false
-	queryExpressions(node, func(expr expr.Expr) { found = found || expr == call.argument })
+	queryExpressions(node, func(expr expr.Expr) { found = found || expr == call.Argument })
 	if !found {
 		t.Fatal("bucket missing from graph")
 	}
-	replacement := node.calls[1].argument
+	replacement := node.Calls[1].Argument
 	next, err := rewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
-		if expr == call.argument {
+		if expr == call.Argument {
 			return replacement, true, nil
 		}
 		return expr, false, nil
 	})
-	if err != nil || next == node || next.(*windowNode).calls[0].argument != replacement || node.calls[0].argument != call.argument {
+	if err != nil || next == node || next.(*windowNode).Calls[0].Argument != replacement || node.Calls[0].Argument != call.Argument {
 		t.Fatal("immutable bucket rewrite", next, err)
 	}
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
@@ -220,8 +220,8 @@ func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := mapped.(*projectNode).child.(*windowNode).calls[0]
-	if remapped.argument == call.argument || remapped.expression == call.expression || remapped.argument.ResultUsage().Type != types[sqltype.Int4] || remapped.expression.ResultUsage().Type != types[sqltype.Int4] {
+	remapped := mapped.(*projectNode).Child.(*windowNode).Calls[0]
+	if remapped.Argument == call.Argument || remapped.Expression == call.Expression || remapped.Argument.ResultUsage().Type != types[sqltype.Int4] || remapped.Expression.ResultUsage().Type != types[sqltype.Int4] {
 		t.Fatal("bucket/result remap ownership", remapped)
 	}
 }
@@ -285,13 +285,13 @@ func TestQueryWindowNtileEvaluationCancellation(t *testing.T) {
 	for _, phase := range []string{"argument", "initialized-output"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT ntile(2) OVER(ORDER BY id) FROM t")
-			node := query.Root.(*projectNode).child.(*windowNode)
+			node := query.Root.(*projectNode).Child.(*windowNode)
 			base, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			ctx := &ntileOutputCancellation{Context: base, cancel: cancel}
-			original := node.calls[0].argument
+			original := node.Calls[0].Argument
 			entered := 0
-			node.calls[0].argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 				value, err := original.Eval(c)
 				entered++
 				if phase == "argument" {

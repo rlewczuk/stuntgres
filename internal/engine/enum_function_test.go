@@ -36,7 +36,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal := func(value sqltype.Value) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, value: value}
+		return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	}
 	bound := functions.Enum{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: plan, Args: []expr.Expr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
 	old, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})

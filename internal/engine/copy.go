@@ -213,7 +213,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			return 0, planErr
 		}
 		b.insert.defaults[i] = folded
-		if constant, ok := folded.(literalExpression); ok && constant.value.IsNull() && b.defaultOriginAt(i).definition.Expression == nil {
+		if constant, ok := folded.(literalExpression); ok && constant.Value.IsNull() && b.defaultOriginAt(i).definition.Expression == nil {
 			b.insert.defaults[i] = nil
 		}
 	}

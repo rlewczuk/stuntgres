@@ -119,7 +119,7 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 				}
 				bound := node.(functions.String)
 				input := bound.Args[0].(collationExpression)
-				if b.params.parameters[1] != text.Usage() || input.child.ResultUsage() != text.Usage() ||
+				if b.params.parameters[1] != text.Usage() || input.Child.ResultUsage() != text.Usage() ||
 					input.ResultUsage().Collation.ID != collation.id || bound.ResultUsage().Collation.ID != collation.id ||
 					!bound.Properties().ParameterDependent {
 					t.Fatal("lost parameter type or occurrence collation", b.params.parameters, input, bound)

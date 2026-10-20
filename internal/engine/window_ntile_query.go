@@ -49,14 +49,14 @@ func (s *windowNtileState) evaluate(ctx context.Context, evaluation *EvalContext
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	usage := call.expression.ResultUsage()
+	usage := call.Expression.ResultUsage()
 	if s.bucket == 0 {
 		evaluation.bindQueryRow(child.source, child.index(rows[current]))
-		value, err := call.argument.Eval(evaluation)
+		value, err := call.Argument.Eval(evaluation)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := validateProducedValue(value, call.argument.ResultUsage()); err != nil {
+		if err := validateProducedValue(value, call.Argument.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
 		if err := ctx.Err(); err != nil {

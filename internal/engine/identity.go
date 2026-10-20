@@ -184,7 +184,7 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 			}
 			if len(b.insert.identityDiscard) == 0 || !b.insert.identityDiscard[target] {
 				if len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil {
-					value, err = b.arrayTargets[i].apply(evaluation, row[target], value)
+					value, err = b.arrayTargets[i].Apply(evaluation, row[target], value)
 					if err != nil {
 						return err
 					}
@@ -202,7 +202,7 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 						if slot != target || supplied[i] == nil {
 							continue
 						}
-						value, err := b.arrayTargets[i].applyExpression(evaluation, row[target], supplied[i])
+						value, err := b.arrayTargets[i].ApplyExpression(evaluation, row[target], supplied[i])
 						if err != nil {
 							return err
 						}

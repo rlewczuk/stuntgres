@@ -29,14 +29,14 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 				qtext = "SELECT v,any_value(id) FROM t GROUP BY v"
 			}
 			_, q, source := queryCoreFixture(t, qtext)
-			node := q.Root.(*projectNode).child.(*aggregateNode)
-			usage := node.calls[0].argument.ResultUsage()
+			node := q.Root.(*projectNode).Child.(*aggregateNode)
+			usage := node.Calls[0].Argument.ResultUsage()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls, advances, finalizations := 0, 0, 0
 			sentinel := errors.New("late any_value argument")
 			first, _ := sqltype.Integer(usage.Type, 41)
-			node.calls[0].argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			node.Calls[0].Argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 				calls++
 				if phase == "argument" {
 					cancel()
@@ -52,8 +52,8 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 				}
 				return sqltype.Integer(usage.Type, 73)
 			})
-			original := node.calls[0].provider
-			node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
+			original := node.Calls[0].Provider
+			node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
 				advances++
 				if v.IsNull() || v.Type() != usage.Type {
 					t.Fatal("transition datum contract", v)
@@ -72,7 +72,7 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 				return value, err
 			}}
 			if phase == "init" {
-				node.calls[0].provider = anyValueInitProbeProvider{node.calls[0].provider, cancel}
+				node.Calls[0].Provider = anyValueInitProbeProvider{node.Calls[0].Provider, cancel}
 			}
 			rows, count, err := finalizeQuery(ctx, q.Root, source, nil)
 			if phase == "success" {
@@ -111,12 +111,12 @@ func TestAnyValueResultUsage(t *testing.T) {
 		if err != nil {
 			t.Fatal(q, err)
 		}
-		argument := b.grouping.aggregates[0].argument.ResultUsage()
+		argument := b.grouping.aggregates[0].Argument.ResultUsage()
 		usage := result.ResultUsage()
 		if usage.Type != argument.Type || usage.Typmod != -1 || usage.Collation != argument.Collation || !result.Properties().StageDependent {
 			t.Fatal("result descriptor/typmod/collation", usage, argument, result.Properties())
 		}
-		input := b.grouping.aggregates[0].argument
+		input := b.grouping.aggregates[0].Argument
 		if result.CollationIndeterminate() != input.CollationIndeterminate() || result.ExplicitCollation() != input.ExplicitCollation() {
 			t.Fatal("lost operand collation provenance", result, input)
 		}

@@ -14,8 +14,8 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		calls := 0
-		join := &joinNode{querySchema: project.child.Schema(), left: project.child, right: &sourceNode{occurrence: 1}, leftWidth: len(project.child.Schema()), predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
-		project.child = &limitNode{querySchema: join.Schema(), child: join, count: queryLimitBound(t, e, 1)}
+		join := &joinNode{querySchema: project.Child.Schema(), Left: project.Child, Right: &sourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
+		project.Child = &limitNode{querySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
 		inputs := &querySource{sources: []*querySource{source, {anonymous: [][]sqltype.Value{{}}}}}
 		rows, n, err := finalizeQuery(ctx, project, inputs, nil)
 		if rows != nil || n != 0 || err != context.Canceled || calls != 1 || source.view != nil {
@@ -26,7 +26,7 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 		t.Run("sort comparator "+mode, func(t *testing.T) {
 			e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY v")
 			project := query.Root.(*projectNode)
-			sort := project.child.(*sortNode)
+			sort := project.Child.(*sortNode)
 			typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 			value := sqltype.Null(typ)
 			if mode == "tie" {
@@ -34,16 +34,16 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 			}
 			ctx := &queryCountingContext{Context: context.Background(), remaining: 1000}
 			calls := 0
-			sort.cacheWidth = 1
-			sort.keys[0].cache = 0
-			sort.keys[0].expression = queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			sort.CacheWidth = 1
+			sort.Keys[0].Cache = 0
+			sort.Keys[0].Expression = queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				if calls == len(source.committed) {
 					ctx.remaining = 8
 				}
 				return value, nil
 			})
-			project.child = &limitNode{querySchema: sort.Schema(), child: sort, count: queryLimitBound(t, e, 1)}
+			project.Child = &limitNode{querySchema: sort.Schema(), Child: sort, Count: queryLimitBound(t, e, 1)}
 			// Cancel sorting NULL/tie keys without pinning an incidental
 			// expression invocation count. No prefix may be published.
 			rows, n, err := finalizeQuery(ctx, project, source, nil)

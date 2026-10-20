@@ -102,7 +102,7 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	return subscriptsExpression{Info: info, args: args}, nil
+	return subscriptsExpression{Info: info, Args: args}, nil
 }
 
 func subscriptInputTarget(input *sqltype.Descriptor) (sqltype.Usage, bool) {

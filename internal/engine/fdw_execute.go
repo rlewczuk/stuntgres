@@ -126,7 +126,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 						}
 						target := b.targets[j]
 						if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-							row[target], err = b.arrayTargets[j].applyExpression(&evaluation, row[target], execution.expressions[i][j])
+							row[target], err = b.arrayTargets[j].ApplyExpression(&evaluation, row[target], execution.expressions[i][j])
 						} else {
 							row[target], err = execution.expressions[i][j].Eval(&evaluation)
 						}

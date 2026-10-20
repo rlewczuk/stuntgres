@@ -65,16 +65,16 @@ func TestInsertSelectIntegratedExpressions(t *testing.T) {
 func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 	expression := preflightCast(t, "SELECT int4('42'::text) FROM t")
 	schema := []catalog.Column{{Name: "column1", Usage: expression.ResultUsage()}}
-	original := &valuesNode{querySchema: schema, rows: [][]expr.Expr{{expression}, {expression}}}
+	original := &valuesNode{querySchema: schema, Rows: [][]expr.Expr{{expression}, {expression}}}
 	for range 2 {
 		root, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
 		if err != nil || root == original {
 			t.Fatal(root, err)
 		}
 		folded := root.(*valuesNode)
-		for i, row := range folded.rows {
+		for i, row := range folded.Rows {
 			literal, ok := row[0].(literalExpression)
-			if !ok || &row[0] == &original.rows[i][0] {
+			if !ok || &row[0] == &original.Rows[i][0] {
 				t.Fatal("preflight did not produce a private folded occurrence", i)
 			}
 			value, err := literal.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -84,12 +84,12 @@ func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 			if got, err := value.Integer(); err != nil || got != 42 {
 				t.Fatal(got, err)
 			}
-			if _, ok := original.rows[i][0].(coercionExpression); !ok {
+			if _, ok := original.Rows[i][0].(coercionExpression); !ok {
 				t.Fatal("analysis expression mutated")
 			}
 		}
 	}
-	bad := &valuesNode{rows: [][]expr.Expr{{preflightCast(t, "SELECT int4('bad'::text) FROM t")}}}
+	bad := &valuesNode{Rows: [][]expr.Expr{{preflightCast(t, "SELECT int4('bad'::text) FROM t")}}}
 	_, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, bad)
 	state(t, err, "22P02")
 }

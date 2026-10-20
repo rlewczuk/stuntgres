@@ -47,14 +47,14 @@ func TestLogicalLongBindingPositions(t *testing.T) {
 				break
 			}
 			pos := logical.SourcePosition()
-			if logical.op == parser.LogicalNot {
-				if pos.Character < tc.character || pos.Character >= logical.left.SourcePosition().Character {
-					t.Fatal("NOT earliest position", pos, logical.left.SourcePosition())
+			if logical.Op == parser.LogicalNot {
+				if pos.Character < tc.character || pos.Character >= logical.Left.SourcePosition().Character {
+					t.Fatal("NOT earliest position", pos, logical.Left.SourcePosition())
 				}
 			} else if pos != want {
 				t.Fatal("chain earliest position", pos, want)
 			}
-			current = logical.left
+			current = logical.Left
 		}
 	}
 }

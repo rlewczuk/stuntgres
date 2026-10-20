@@ -33,8 +33,8 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 	}
 	root := &aggregateNode{
 		querySchema: querySchema{{Name: "sum", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
-		child:       &valuesNode{},
-		calls:       []aggregateCall{{provider: p, operation: operation}},
+		Child:       &valuesNode{},
+		Calls:       []aggregateCall{{Provider: p, Operation: operation}},
 	}
 	mapped, err := remapViewQuery(destination.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == old {
@@ -45,9 +45,9 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := mapped.(*aggregateNode).calls[0]
-	provider := call.provider
-	if provider.ResultUsage() != owned.Usage() || mapped.Schema()[0].Usage != owned.Usage() || call.operation != operation {
+	call := mapped.(*aggregateNode).Calls[0]
+	provider := call.Provider
+	if provider.ResultUsage() != owned.Usage() || mapped.Schema()[0].Usage != owned.Usage() || call.Operation != operation {
 		t.Fatal("wrong remapped provider", provider.ResultUsage(), mapped.Schema())
 	}
 	if p.ResultUsage() != old.Usage() || root.Schema()[0].Usage != old.Usage() {

@@ -17,7 +17,7 @@ func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUI
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
+	arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
 	node, err := functions.NewUUIDExtract(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), kind, expr.Expr(arg))
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestUUIDExtractIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other.Arg = literalExpression{Info: expr.Info{Usage: b.typ(sqltype.UUID).Usage()}, value: v}
+	other.Arg = literalExpression{Info: expr.Info{Usage: b.typ(sqltype.UUID).Usage()}, Value: v}
 	if sameGroupExpression(version, other) {
 		t.Fatal("child identity lost")
 	}

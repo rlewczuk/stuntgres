@@ -201,7 +201,7 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 	old := functions.ArrayTransform{
 		Info: b.info(usage, parser.Position{}, expr.Properties{}),
 		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: plan,
-		Args: []expr.Expr{literalExpression{Info: b.info(usage, parser.Position{}, expr.Properties{}), value: value}},
+		Args: []expr.Expr{literalExpression{Info: b.info(usage, parser.Position{}, expr.Properties{}), Value: value}},
 	}
 	originalSQL, err := defaultSQL(ctx, source.CatalogRead(), old)
 	if err != nil {

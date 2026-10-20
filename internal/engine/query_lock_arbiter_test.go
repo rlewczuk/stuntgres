@@ -53,8 +53,8 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 		t.Fatal(err)
 	}
 	leaves := scope.querySources
-	join := &joinNode{querySchema: append(append(querySchema(nil), leaves[0].relation.Columns...), leaves[1].relation.Columns...), left: &sourceNode{querySchema: leaves[0].relation.Columns, ref: tRef, occurrence: 0}, right: &sourceNode{querySchema: leaves[1].relation.Columns, ref: uRef, occurrence: 1}, leftWidth: len(leaves[0].relation.Columns), rightWidth: len(leaves[1].relation.Columns)}
-	root := &rowLockNode{querySchema: join.Schema(), child: join, marks: marks, firstMode: lock.ForUpdate}
+	join := &joinNode{querySchema: append(append(querySchema(nil), leaves[0].relation.Columns...), leaves[1].relation.Columns...), Left: &sourceNode{querySchema: leaves[0].relation.Columns, Ref: tRef, Occurrence: 0}, Right: &sourceNode{querySchema: leaves[1].relation.Columns, Ref: uRef, Occurrence: 1}, LeftWidth: len(leaves[0].relation.Columns), RightWidth: len(leaves[1].relation.Columns)}
+	root := &rowLockNode{querySchema: join.Schema(), Child: join, Marks: marks, FirstMode: lock.ForUpdate}
 	e.mu.Lock()
 	err = e.initializeQueryLocksLocked(scope, root, leaves)
 	var inputs *querySource

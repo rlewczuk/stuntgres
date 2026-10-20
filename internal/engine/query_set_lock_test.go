@@ -15,12 +15,12 @@ import (
 )
 
 func TestQuerySetStoredInheritedMarks(t *testing.T) {
-	left, right := &sourceNode{occurrence: 0}, &sourceNode{occurrence: 1}
-	set := &setNode{left: &projectNode{child: left}, right: &projectNode{child: right}}
-	wrapped := &projectNode{child: &limitNode{child: &sortNode{child: &evaluationNode{child: set}}}}
-	local := queryRowMark{mode: lock.ForKeyShare, wait: parser.RowLockNowait, diagnosticMode: lock.ForShare, order: 2}
+	left, right := &sourceNode{Occurrence: 0}, &sourceNode{Occurrence: 1}
+	set := &setNode{Left: &projectNode{Child: left}, Right: &projectNode{Child: right}}
+	wrapped := &projectNode{Child: &limitNode{Child: &sortNode{Child: &evaluationNode{Child: set}}}}
+	local := queryRowMark{Mode: lock.ForKeyShare, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForShare, Order: 2}
 	view := &viewDefinition{query: &BoundQuery{Root: wrapped}, sources: []viewLeaf{{}, {mark: local}}}
-	outer := queryRowMark{mode: lock.ForUpdate, wait: parser.RowLockSkip, diagnosticMode: lock.ForNoKeyUpdate, order: 1}
+	outer := queryRowMark{Mode: lock.ForUpdate, Wait: parser.RowLockSkip, DiagnosticMode: lock.ForNoKeyUpdate, Order: 1}
 	for i, want := range []queryRowMark{{}, local} {
 		if got := viewLeafRowMark(view, i, outer); got != want {
 			t.Fatalf("set source %d inherited mark: got %+v want %+v", i, got, want)
@@ -32,11 +32,11 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 	// General input/dependency traversal must retain both children; only the
 	// mark-specific traversal has a boundary. Admission still sees all sources.
 	l, r := queryInputs(set)
-	if l != set.left || r != set.right || !queryHasPhysicalInput(wrapped) {
+	if l != set.Left || r != set.Right || !queryHasPhysicalInput(wrapped) {
 		t.Fatal("set barrier pruned general source traversal")
 	}
 	ordinary := *view
-	ordinary.query = &BoundQuery{Root: &projectNode{child: &joinNode{left: left, right: right}}}
+	ordinary.query = &BoundQuery{Root: &projectNode{Child: &joinNode{Left: left, Right: right}}}
 	for i, want := range []queryRowMark{outer, mergeQueryRowMark(outer, local)} {
 		if got := viewLeafRowMark(&ordinary, i, outer); got != want {
 			t.Fatalf("ordinary source %d inherited mark: got %+v want %+v", i, got, want)
@@ -46,7 +46,7 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 	// without clearing marks on the independent physical contributor.
 	mixed := *view
 	mixed.sources = []viewLeaf{{}, {}, {}}
-	mixed.query = &BoundQuery{Root: &projectNode{child: &joinNode{left: set, right: &sourceNode{occurrence: 2}}}}
+	mixed.query = &BoundQuery{Root: &projectNode{Child: &joinNode{Left: set, Right: &sourceNode{Occurrence: 2}}}}
 	for i, want := range []queryRowMark{{}, {}, outer} {
 		if got := viewLeafRowMark(&mixed, i, outer); got != want {
 			t.Fatalf("mixed source %d got %+v want %+v", i, got, want)
@@ -87,26 +87,26 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		refs[name] = ref
 		return ref
 	}
-	arm := func(i int) LogicalNode { return &sourceNode{occurrence: i} }
+	arm := func(i int) LogicalNode { return &sourceNode{Occurrence: i} }
 	setRoot := func() *projectNode {
-		return &projectNode{syntax: &parser.Select{Set: &parser.SetQuery{}}, child: &setNode{left: &projectNode{child: arm(0)}, right: &projectNode{child: arm(1)}}}
+		return &projectNode{Syntax: &parser.Select{Set: &parser.SetQuery{}}, Child: &setNode{Left: &projectNode{Child: arm(0)}, Right: &projectNode{Child: arm(1)}}}
 	}
 	leaves := []viewLeaf{{ref: base, reads: []int32{2}}, {ref: right, reads: []int32{2}}}
 	add("owned", false, setRoot(), leaves)
 	add("invoker", true, setRoot(), leaves)
 	for _, name := range []string{"owned", "invoker"} {
-		add(name+"_nested", false, &projectNode{syntax: &parser.Select{}, child: arm(0)}, []viewLeaf{{ref: refs[name], reads: []int32{1}}})
+		add(name+"_nested", false, &projectNode{Syntax: &parser.Select{}, Child: arm(0)}, []viewLeaf{{ref: refs[name], reads: []int32{1}}})
 	}
-	add("ordinary", true, &projectNode{syntax: &parser.Select{}, child: arm(0)}, leaves[:1])
-	localMark := queryRowMark{mode: lock.ForUpdate, diagnosticMode: lock.ForUpdate, order: 1}
-	local := add("local", true, &projectNode{syntax: &parser.Select{}, child: &rowLockNode{child: arm(0), firstMode: lock.ForUpdate, marks: []queryRowMark{localMark}}}, []viewLeaf{{ref: base, reads: []int32{2}, mark: localMark}})
+	add("ordinary", true, &projectNode{Syntax: &parser.Select{}, Child: arm(0)}, leaves[:1])
+	localMark := queryRowMark{Mode: lock.ForUpdate, DiagnosticMode: lock.ForUpdate, Order: 1}
+	local := add("local", true, &projectNode{Syntax: &parser.Select{}, Child: &rowLockNode{Child: arm(0), FirstMode: lock.ForUpdate, Marks: []queryRowMark{localMark}}}, []viewLeaf{{ref: base, reads: []int32{2}, mark: localMark}})
 	add("local_set", true, setRoot(), []viewLeaf{{ref: local, reads: []int32{1}}, {ref: right, reads: []int32{2}}})
 	zero, err := sqltype.Integer(query.Root.Schema()[0].Usage.Type, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	limited := setRoot()
-	limited.child = &limitNode{child: limited.child, count: literalExpression{Info: expr.InfoOf(query.Root.(*projectNode).expressions[0]), value: zero}}
+	limited.Child = &limitNode{Child: limited.Child, Count: literalExpression{Info: expr.InfoOf(query.Root.(*projectNode).Expressions[0]), Value: zero}}
 	add("invoker_zero", true, limited, leaves)
 	grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()
@@ -146,7 +146,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 		}
 	}
 	for _, mode := range []lock.Mode{lock.ForKeyShare, lock.ForShare, lock.ForNoKeyUpdate, lock.ForUpdate} {
-		outer := queryRowMark{mode: mode}
+		outer := queryRowMark{Mode: mode}
 		for _, name := range []string{"owned", "invoker", "owned_nested", "invoker_nested", "invoker_zero"} {
 			check(name, outer, "")
 		}
@@ -165,7 +165,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, name := range []string{"invoker", "invoker_nested", "invoker_zero"} {
-			check(name, queryRowMark{mode: lock.ForUpdate}, tc.name)
+			check(name, queryRowMark{Mode: lock.ForUpdate}, tc.name)
 		}
 		// Restore this arm before checking the other arm's independent denial.
 		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}); err != nil {
@@ -189,17 +189,17 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	sequence := add("kind_sequence", nil, catalog.SequenceRelation)
 	catalogKindRef := add("kind_catalog", nil, catalog.CatalogRelation)
 	plainRoot := func() *projectNode {
-		return &projectNode{syntax: &parser.Select{}, child: &sourceNode{occurrence: 0}}
+		return &projectNode{Syntax: &parser.Select{}, Child: &sourceNode{Occurrence: 0}}
 	}
 	setRoot := func() *projectNode {
-		return &projectNode{syntax: &parser.Select{Set: &parser.SetQuery{}}, child: &limitNode{child: &sortNode{child: &evaluationNode{child: &filterNode{child: &setNode{left: plainRoot(), right: &projectNode{child: &sourceNode{occurrence: 1}}}}}}}}
+		return &projectNode{Syntax: &parser.Select{Set: &parser.SetQuery{}}, Child: &limitNode{Child: &sortNode{Child: &evaluationNode{Child: &filterNode{Child: &setNode{Left: plainRoot(), Right: &projectNode{Child: &sourceNode{Occurrence: 1}}}}}}}}
 	}
 	set := add("kind_set", &viewDefinition{query: &BoundQuery{Root: setRoot()}, sources: []viewLeaf{{ref: sequence}, {ref: catalogKindRef}}}, catalog.ViewRelation)
 	nested := add("kind_nested", &viewDefinition{query: &BoundQuery{Root: plainRoot()}, sources: []viewLeaf{{ref: set}}}, catalog.ViewRelation)
 	ordinary := add("kind_ordinary", &viewDefinition{query: &BoundQuery{Root: plainRoot()}, sources: []viewLeaf{{ref: sequence}}}, catalog.ViewRelation)
-	localMark := queryRowMark{mode: lock.ForUpdate}
+	localMark := queryRowMark{Mode: lock.ForUpdate}
 	localRoot := plainRoot()
-	localRoot.child = &rowLockNode{child: &joinNode{left: &sourceNode{occurrence: 0}, right: &sourceNode{occurrence: 1}}, firstMode: lock.ForUpdate}
+	localRoot.Child = &rowLockNode{Child: &joinNode{Left: &sourceNode{Occurrence: 0}, Right: &sourceNode{Occurrence: 1}}, FirstMode: lock.ForUpdate}
 	// The sequence is unselected: only the local reference-kind context, not a
 	// physical source mark, must reject this sibling beneath a nested set.
 	local := add("kind_local", &viewDefinition{query: &BoundQuery{Root: localRoot}, sources: []viewLeaf{{ref: base, mark: localMark}, {ref: sequence}}}, catalog.ViewRelation)
@@ -239,10 +239,10 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	}
 	// This predicate is about stored set output, not any encountered descendant.
 	for _, root := range []LogicalNode{
-		&projectNode{child: &joinNode{left: setRoot(), right: &sourceNode{}}},
-		&projectNode{child: &derivedNode{query: &BoundQuery{Root: setRoot()}}},
-		&projectNode{child: &distinctNode{child: setRoot()}},
-		&projectNode{child: &aggregateNode{child: setRoot()}},
+		&projectNode{Child: &joinNode{Left: setRoot(), Right: &sourceNode{}}},
+		&projectNode{Child: &derivedNode{Query: &BoundQuery{Root: setRoot()}}},
+		&projectNode{Child: &distinctNode{Child: setRoot()}},
+		&projectNode{Child: &aggregateNode{Child: setRoot()}},
 	} {
 		if queryHasSetOutput(root) {
 			t.Fatal("ordinary output acquired a set-entry kind exemption")
@@ -297,7 +297,7 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 		}
 		ref := refs[tc.name]
 		scope.lockedRef = ref
-		scope.querySources = []queryLeaf{{ref: ref, relation: e.catalog.state.MustRelation(ref.Address), mark: queryRowMark{mode: lock.ForUpdate}}}
+		scope.querySources = []queryLeaf{{ref: ref, relation: e.catalog.state.MustRelation(ref.Address), mark: queryRowMark{Mode: lock.ForUpdate}}}
 		err = scope.acquireViewSources()
 		if err == nil {
 			for _, want := range []struct {

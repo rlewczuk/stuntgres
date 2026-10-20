@@ -29,7 +29,7 @@ func jsonFunctionUnitMarker(t *testing.T, d, result *sqltype.Descriptor, input s
 	if err != nil {
 		t.Fatal(err)
 	}
-	return functions.JSONKeys{Info: expr.Info{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: expr.Properties{StageDependent: true}}, Plan: plan, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v}}}
+	return functions.JSONKeys{Info: expr.Info{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: expr.Properties{StageDependent: true}}, Plan: plan, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v}}}
 }
 
 func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
@@ -174,7 +174,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if err != nil || !strings.Contains(text, "json_object_keys(") || !strings.Contains(text, "::json") {
 		t.Fatal("symbolic rendering", text, err)
 	}
-	root := &functionFromNode{calls: []expr.Expr{original}, querySchema: querySchema{{Usage: original.ResultUsage()}}, frame: 1}
+	root := &functionFromNode{Calls: []expr.Expr{original}, querySchema: querySchema{{Usage: original.ResultUsage()}}, Frame: 1}
 	other := jsonFunctionUnitMarker(t, b.typ(sqltype.JSON), b.typ(sqltype.Text), `{"x":1}`, 21)
 	rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		if n == original.Args[0] {
@@ -185,7 +185,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rewritten.(*functionFromNode).calls[0].(functions.JSONKeys).Args[0] != other.Args[0] || root.calls[0].(functions.JSONKeys).Args[0] != original.Args[0] {
+	if rewritten.(*functionFromNode).Calls[0].(functions.JSONKeys).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONKeys).Args[0] != original.Args[0] {
 		t.Fatal("mutated retained query")
 	}
 }
@@ -198,9 +198,9 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 	a := jsonFunctionUnitMarker(t, json, text, `{"b":1,"a":2}`, 10)
 	b := jsonFunctionUnitMarker(t, jsonb, text, `{"x":1}`, 20)
 	draws := 0
-	input := a.Args[0].(literalExpression).value
+	input := a.Args[0].(literalExpression).Value
 	a.Args = []expr.Expr{queryProbe(json.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return input, nil })}
-	n := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, child: &singletonNode{}, calls: []expr.Expr{a, b}, frame: 1})
+	n := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{a, b}, Frame: 1})
 	stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{materialized: true}, frame: 1}, n)
 	if err != nil {
 		t.Fatal(err)
@@ -209,8 +209,8 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 		t.Fatal(got, draws)
 	}
 	empty := jsonFunctionUnitMarker(t, json, text, `{}`, 30)
-	empty.Args = []expr.Expr{literalExpression{Info: expr.Info{Usage: json.Usage()}, value: sqltype.Null(json)}}
-	n = regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: text.Usage()}}, child: &singletonNode{}, calls: []expr.Expr{empty}, frame: 1})
+	empty.Args = []expr.Expr{literalExpression{Info: expr.Info{Usage: json.Usage()}, Value: sqltype.Null(json)}}
+	n = regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: text.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{empty}, Frame: 1})
 	stage, err = openSetProjectNode(context.Background(), &queryState{source: &querySource{materialized: true}, frame: 1}, n)
 	if err != nil {
 		t.Fatal(err)

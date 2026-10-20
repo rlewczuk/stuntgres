@@ -20,7 +20,7 @@ func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) seri
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.args = append(e.args, literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v})
+		e.Args = append(e.Args, literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v})
 	}
 	return e
 }
@@ -70,20 +70,20 @@ func TestNumericSeriesInvocation(t *testing.T) {
 	d := seriesUnitType(t, sqltype.Numeric)
 	e := numericSeriesUnit(t, d, "0.1", "0.3", "0.1")
 	var calls []int
-	for i, arg := range e.args {
-		v := arg.(literalExpression).value
-		e.args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, i); return v, nil })
+	for i, arg := range e.Args {
+		v := arg.(literalExpression).Value
+		e.Args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, i); return v, nil })
 	}
 	if got := numericSeriesUnitRead(t, e); len(got) != 3 || !reflect.DeepEqual(calls, []int{0, 1, 2}) {
 		t.Fatal(got, calls)
 	}
 	calls = nil
-	e.args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, 0); return sqltype.Null(d), nil })
+	e.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, 0); return sqltype.Null(d), nil })
 	if got := numericSeriesUnitRead(t, e); len(got) != 0 || !reflect.DeepEqual(calls, []int{0, 1, 2}) {
 		t.Fatal(got, calls)
 	}
 	sentinel := errors.New("sibling evaluation")
-	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
+	e.Args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
 	if _, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
 		t.Fatal(err)
 	}
@@ -145,8 +145,8 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 		}
 	}
 	rewritten, changed, err := mapBoundExpression(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
-		if n == original.args[0] {
-			return numericSeriesUnit(t, d, "0.20", "0.3", "0.10").args[0], true, nil
+		if n == original.Args[0] {
+			return numericSeriesUnit(t, d, "0.20", "0.3", "0.10").Args[0], true, nil
 		}
 		return n, false, nil
 	})
@@ -172,7 +172,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 			t.Fatal("fold", got)
 		}
 	}
-	if got := numericSeriesUnitRead(t, original); !reflect.DeepEqual(got, want) || original.ResultUsage().Type != d || original.args[0].ResultUsage().Type != d {
+	if got := numericSeriesUnitRead(t, original); !reflect.DeepEqual(got, want) || original.ResultUsage().Type != d || original.Args[0].ResultUsage().Type != d {
 		t.Fatal("original mutated")
 	}
 }

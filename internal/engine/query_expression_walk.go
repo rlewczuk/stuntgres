@@ -20,86 +20,86 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	}
 	switch e := node.(type) {
 	case selectedOperatorExpression:
-		walk(e.provider)
+		walk(e.Provider)
 	case updateOutputExpression:
 		// The first assignment owns the query; later tuple outputs are leaves.
 	case domainValueExpression:
 		// Conversion-local VALUE is a lexical leaf, never a query column.
 	case assignmentValueExpression:
-		walk(e.base)
-		walk(e.value)
-		for target := e.target; target != nil; target = target.next {
-			for _, sub := range target.node.subscripts {
-				walk(sub.lower)
-				walk(sub.upper)
+		walk(e.Base)
+		walk(e.Value)
+		for target := e.Target; target != nil; target = target.Next {
+			for _, sub := range target.Node.Subscripts {
+				walk(sub.Lower)
+				walk(sub.Upper)
 			}
 		}
 	case viewQualificationExpression:
-		args(e.predicates)
-		walk(e.user)
+		args(e.Predicates)
+		walk(e.User)
 	case groupingExpression:
-		args(e.args)
+		args(e.Args)
 	case rowExpression:
-		args(e.fields)
+		args(e.Fields)
 	case fieldExpression:
-		walk(e.base)
+		walk(e.Base)
 	case arrayExpression:
-		args(e.elements)
+		args(e.Elements)
 	case subscriptExpression:
-		walk(e.base)
-		for _, s := range e.subscripts {
-			walk(s.lower)
-			walk(s.upper)
+		walk(e.Base)
+		for _, s := range e.Subscripts {
+			walk(s.Lower)
+			walk(s.Upper)
 		}
 	case returningColumnExpression:
-		if e.value != nil {
-			walk(e.value)
+		if e.Value != nil {
+			walk(e.Value)
 		} else {
 			walk(e.columnExpression)
 		}
 	case returningWholeRowExpression:
-		args(e.members)
+		args(e.Members)
 	case mergeActionExpression:
 		// A lexical owner leaf has no expression children.
 	case coercionExpression:
-		walk(e.child)
+		walk(e.Child)
 	case collationExpression:
-		walk(e.child)
+		walk(e.Child)
 	case arithmeticExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case bitwiseExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case rowComparisonExpression:
-		for _, pair := range e.comparisons {
-			walk(pair.left)
-			walk(pair.right)
+		for _, pair := range e.Comparisons {
+			walk(pair.Left)
+			walk(pair.Right)
 		}
 	case scalarArrayComparisonExpression:
-		walk(e.left)
-		if e.array != nil {
-			walk(e.array)
+		walk(e.Left)
+		if e.Array != nil {
+			walk(e.Array)
 		}
-		args(e.items)
+		args(e.Items)
 	case comparisonExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case likeExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case logicalExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case distinctExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case nullTestExpression:
-		walk(e.child)
+		walk(e.Child)
 	case truthTestExpression:
-		walk(e.child)
+		walk(e.Child)
 	case conditionalExpression:
-		args(e.args)
+		args(e.Args)
 	case installedUUIDOsspFunctionExpression:
 		// No argument children.
 	case installedFunctionExpression:
@@ -107,15 +107,15 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	case extensionPathsExpression:
 		walk(e.arg)
 	case caseExpression:
-		walk(e.test)
-		for _, arm := range e.arms {
-			walk(arm.condition)
-			walk(arm.result)
+		walk(e.Test)
+		for _, arm := range e.Arms {
+			walk(arm.Condition)
+			walk(arm.Result)
 		}
-		walk(e.otherwise)
+		walk(e.Otherwise)
 	case subqueryExpression:
-		for _, comparison := range e.comparisons {
-			walk(comparison.left)
+		for _, comparison := range e.Comparisons {
+			walk(comparison.Left)
 		}
 	case functions.Timezone:
 		// Known divergence kept from before the node protocol: PostgreSQL walks
@@ -133,12 +133,12 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 
 func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	e := node.(aggregateExpression)
-	call := b.grouping.aggregates[e.slot]
+	call := b.grouping.aggregates[e.Slot]
 	walkArguments := func(visit func(expr.Expr)) {
 		// Ordered-set direct args do not select the aggregate's owner.
 		ownerCall := call
-		ownerCall.direct = nil
-		ownerCall.expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
+		ownerCall.Direct = nil
+		ownerCall.Expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
 	}
 	owner, index := b.argumentQueryOwner(walkArguments)
 	clause := b.clause.aggregateClause
@@ -149,11 +149,11 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	walkArguments(func(node expr.Expr) {
 		switch n := node.(type) {
 		case aggregateExpression:
-			if n.frame == owner && nested == nil {
+			if n.Frame == owner && nested == nil {
 				nested = n
 			}
 		case groupingExpression:
-			if n.frame == owner && nested == nil {
+			if n.Frame == owner && nested == nil {
 				nested = n
 			}
 		}
@@ -161,7 +161,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	if nested != nil {
 		return nil, expr.ErrorAt("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
 	}
-	for _, direct := range call.direct {
+	for _, direct := range call.Direct {
 		level := func(frame uint32) int {
 			if frame == b.frameID() {
 				return len(b.query.scopes)
@@ -181,15 +181,15 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 			}
 			switch n := node.(type) {
 			case columnExpression:
-				if level(n.frame) > ownerLevel {
+				if level(n.Frame) > ownerLevel {
 					directError = expr.ErrorAt("42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", n.SourcePosition())
 				}
 			case aggregateExpression:
-				if l := level(n.frame); l >= 0 && l <= ownerLevel {
+				if l := level(n.Frame); l >= 0 && l <= ownerLevel {
 					directError = expr.ErrorAt("42803", "aggregate function calls cannot be nested", n.SourcePosition())
 				}
 			case groupingExpression:
-				if l := level(n.frame); l >= 0 && l <= ownerLevel {
+				if l := level(n.Frame); l >= 0 && l <= ownerLevel {
 					directError = expr.ErrorAt("42803", "aggregate function calls cannot be nested", n.SourcePosition())
 				}
 			}
@@ -201,7 +201,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	// Selected providers resolve children, FILTER and signatures before INSERT
 	// VALUES rejection; this includes the installed scalar-array wrapper.
 	if clause == "INSERT VALUES" {
-		switch call.operation {
+		switch call.Operation {
 		case functions.AggregateIntegralSum, functions.AggregateNumericSum, functions.AggregateFloatSum, functions.AggregateMoneySum, functions.AggregateIntervalSum,
 			functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor, functions.AggregateArrayScalar,
 			functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict,
@@ -222,13 +222,13 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	if index >= 0 {
 		// This call was registered locally by the existing provider binder.
 		// Removing its last registration transfers execution to its lexical owner.
-		if e.slot == len(b.grouping.aggregates)-1 {
-			b.grouping.aggregates = b.grouping.aggregates[:e.slot]
+		if e.Slot == len(b.grouping.aggregates)-1 {
+			b.grouping.aggregates = b.grouping.aggregates[:e.Slot]
 		}
 		s := &b.query.scopes[index]
-		e.slot = len(s.aggregates)
+		e.Slot = len(s.aggregates)
 		immutable := true
-		call.expressions(func(bound expr.Expr) {
+		call.Expressions(func(bound expr.Expr) {
 			if bound != nil && bound.Properties().Volatility != expr.Immutable {
 				immutable = false
 			}
@@ -236,16 +236,16 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 		if immutable {
 			for i, existing := range s.aggregates {
 				if b.sameAggregateCall(call, existing) {
-					e.slot = i
+					e.Slot = i
 					break
 				}
 			}
 		}
-		if e.slot == len(s.aggregates) {
+		if e.Slot == len(s.aggregates) {
 			s.aggregates = append(s.aggregates, call)
 		}
 	}
-	e.frame = owner
+	e.Frame = owner
 	return e, nil
 }
 
@@ -256,17 +256,17 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 		var frame uint32
 		switch n := node.(type) {
 		case columnExpression:
-			frame = n.frame
+			frame = n.Frame
 		case returningWholeRowExpression:
-			frame = n.frame
+			frame = n.Frame
 		case mergeActionExpression:
-			frame = n.frame
+			frame = n.Frame
 		case aggregateExpression:
-			frame = n.frame
+			frame = n.Frame
 		case groupingExpression:
-			frame = n.frame
+			frame = n.Frame
 		case groupExpression:
-			frame = n.frame
+			frame = n.Frame
 		}
 		if frame == 0 {
 			return
@@ -295,16 +295,16 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 }
 
 func (b *expressionBinder) aggregateCallAt(e aggregateExpression) (aggregateCall, bool) {
-	if e.frame == 0 || e.frame == b.frameID() {
-		if e.slot >= 0 && e.slot < len(b.grouping.aggregates) {
-			return b.grouping.aggregates[e.slot], true
+	if e.Frame == 0 || e.Frame == b.frameID() {
+		if e.Slot >= 0 && e.Slot < len(b.grouping.aggregates) {
+			return b.grouping.aggregates[e.Slot], true
 		}
 		return aggregateCall{}, false
 	}
 	for i := len(b.query.scopes) - 1; i >= 0; i-- {
 		scope := &b.query.scopes[i]
-		if scope.frame == e.frame && e.slot >= 0 && e.slot < len(scope.aggregates) {
-			return scope.aggregates[e.slot], true
+		if scope.frame == e.Frame && e.Slot >= 0 && e.Slot < len(scope.aggregates) {
+			return scope.aggregates[e.Slot], true
 		}
 	}
 	return aggregateCall{}, false
@@ -317,7 +317,7 @@ func walkQueryArgumentExpression(bound expr.Expr, visit func(expr.Expr)) {
 	walkBoundExpression(bound, func(node expr.Expr) {
 		visit(node)
 		if child, ok := node.(subqueryExpression); ok {
-			walkQueryArgumentNode(child.queryPlan.Root, visit)
+			walkQueryArgumentNode(child.QueryPlan.Root, visit)
 		}
 	})
 }

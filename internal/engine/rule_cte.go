@@ -43,7 +43,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 	}
 	needed := b.rule.template || matched(bindingRuleRelation(*b), statement)
 	for _, definition := range b.ctes {
-		if mutation, ok := mutationBinding(definition); ok && matched(bindingRuleRelation(*mutation), definition.statement) {
+		if mutation, ok := mutationBinding(definition); ok && matched(bindingRuleRelation(*mutation), definition.Statement) {
 			needed = true
 			break
 		}
@@ -60,7 +60,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 		original.parameters = b.parameters
 		original.ctes = b.ctes
 		program := ruleProgram{count: -1, returning: -1}
-		if _, err := e.expandRulesLocked(scope, auth, definition.statement, original, nil, &program); err != nil {
+		if _, err := e.expandRulesLocked(scope, auth, definition.Statement, original, nil, &program); err != nil {
 			return err
 		}
 		if err := ruleCTEProgramError(program); err != nil {
@@ -105,7 +105,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			continue
 		}
 		mutation, _ := mutationBinding(definition)
-		if err := rewrite.caller.checkBinding(*mutation, definition.statement); err != nil {
+		if err := rewrite.caller.checkBinding(*mutation, definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		caller := fresh
 		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
 		mutation, _ := mutationBinding(rewrite.definition)
-		if err := caller.checkBinding(*mutation, rewrite.definition.statement); err != nil {
+		if err := caller.checkBinding(*mutation, rewrite.definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -153,7 +153,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 	}
 	for i, rewrite := range normalized {
 		rewrite.command = program.commands[i]
-		if index := scope.mutationIndex(rewrite.definition.statement); rewrite.command.syntax == rewrite.definition.statement && index >= 0 {
+		if index := scope.mutationIndex(rewrite.definition.Statement); rewrite.command.syntax == rewrite.definition.Statement && index >= 0 {
 			rewrite.mutation = index
 			continue
 		}

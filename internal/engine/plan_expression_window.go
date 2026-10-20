@@ -11,10 +11,10 @@ import (
 // Window occurrences reference immutable appended stage slots, never aggregate state.
 type windowExpression struct {
 	expr.Info
-	slot     int
-	frame    uint32
-	call     int
-	nullable bool
+	Slot     int
+	Frame    uint32
+	Call     int
+	Nullable bool
 }
 
 func (e *windowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -26,66 +26,66 @@ func (e *windowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 }
 
 type boundWindowSpec struct {
-	partition  []expr.Expr
-	grouping   []queryGrouping
-	order      []sortKey
-	orderMap   []int // Raw-to-effective mapping, for literal capture only.
-	frame      boundWindowFrame
-	explicit   bool
-	definition int // Query-local named ordinal+1; zero retains inline spec identity.
+	Partition  []expr.Expr
+	Grouping   []queryGrouping
+	Order      []sortKey
+	OrderMap   []int // Raw-to-effective mapping, for literal capture only.
+	Frame      boundWindowFrame
+	Explicit   bool
+	Definition int // Query-local named ordinal+1; zero retains inline spec identity.
 }
 
 type windowOperation uint8
 
 const (
-	windowCount windowOperation = iota
-	windowNumber
-	windowSum
-	windowFirst
-	windowLast
-	windowNth
-	windowNtile
-	windowLead
-	windowLag
-	windowRank
-	windowDenseRank
-	windowPercentRank
-	windowCumeDist
+	WindowCount windowOperation = iota
+	WindowNumber
+	WindowSum
+	WindowFirst
+	WindowLast
+	WindowNth
+	WindowNtile
+	WindowLead
+	WindowLag
+	WindowRank
+	WindowDenseRank
+	WindowPercentRank
+	WindowCumeDist
 )
 
-func (operation windowOperation) frameDependent() bool {
-	return operation != windowNumber && operation != windowNtile && operation != windowLead && operation != windowLag && !operation.ranking()
+func (operation windowOperation) FrameDependent() bool {
+	return operation != WindowNumber && operation != WindowNtile && operation != WindowLead && operation != WindowLag && !operation.Ranking()
 }
 
-func (operation windowOperation) evaluatesArgument() bool {
-	return operation == windowFirst || operation == windowLast || operation == windowNth || operation == windowNtile || operation == windowLead || operation == windowLag
+func (operation windowOperation) EvaluatesArgument() bool {
+	return operation == WindowFirst || operation == WindowLast || operation == WindowNth || operation == WindowNtile || operation == WindowLead || operation == WindowLag
 }
 
-func (operation windowOperation) ranking() bool {
-	return operation >= windowRank && operation <= windowCumeDist
+func (operation windowOperation) Ranking() bool {
+	return operation >= WindowRank && operation <= WindowCumeDist
 }
 
 type windowCall struct {
-	expression   *windowExpression
-	spec         boundWindowSpec
-	operation    windowOperation
-	routine      ids.ObjectRef // Selected callable, independently of peer/partition equality.
-	argument     expr.Expr
-	ordinal      expr.Expr
-	defaultValue expr.Expr
-	provider     functions.AggregateProvider
-	raw          *parser.WindowSpec
-	analysisOnly bool // Retained binding/slot ownership without executable demand.
+	Expression   *windowExpression
+	Spec         boundWindowSpec
+	Operation    windowOperation
+	Routine      ids.ObjectRef // Selected callable, independently of peer/partition equality.
+	Argument     expr.Expr
+	Ordinal      expr.Expr
+	DefaultValue expr.Expr
+	Provider     functions.AggregateProvider
+	Raw          *parser.WindowSpec
+	AnalysisOnly bool // Retained binding/slot ownership without executable demand.
 }
 
 type boundWindowBound struct {
-	kind    parser.FrameBoundKind
-	offset  expr.Expr
-	support sqltype.RangeSupport
+	Kind    parser.FrameBoundKind
+	Offset  expr.Expr
+	Support sqltype.RangeSupport
 }
 
 type boundWindowFrame struct {
-	unit       parser.FrameUnit
-	exclusion  parser.FrameExclusion
-	start, end boundWindowBound
+	Unit       parser.FrameUnit
+	Exclusion  parser.FrameExclusion
+	Start, End boundWindowBound
 }

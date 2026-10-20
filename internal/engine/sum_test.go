@@ -31,7 +31,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range []sqltype.ID{sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8} {
 		provider, input := sumUnitProvider(source, id)
-		node := &aggregateNode{child: &singletonNode{}, calls: []aggregateCall{{provider: provider}}}
+		node := &aggregateNode{Child: &singletonNode{}, Calls: []aggregateCall{{Provider: provider}}}
 		mapped, err := remapViewQuery(restored.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, _ := restored.CatalogRead().LookupType(old.ID())
 			return typ
@@ -39,7 +39,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := mapped.(*aggregateNode).calls[0].provider
+		next := mapped.(*aggregateNode).Calls[0].Provider
 		want, restoredInput := sumUnitProvider(restored, id)
 		if next.ResultUsage() != want.ResultUsage() || provider.ResultUsage().Type == next.ResultUsage().Type {
 			t.Fatal("result descriptor not remapped")
@@ -86,13 +86,13 @@ func TestSumViewProviderRemapping(t *testing.T) {
 func TestSumSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT sum(1),sum(1),sum(1::smallint),sum(1::bigint),sum(1::numeric),sum(1::real),sum(1::double precision),avg(1),count(*) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 8 {
-		t.Fatal("input-aware immutable sharing", len(node.calls))
+	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 8 {
+		t.Fatal("input-aware immutable sharing", len(node.Calls))
 	}
 	for i, operation := range []functions.AggregateOperation{functions.AggregateIntegralSum, functions.AggregateIntegralSum, functions.AggregateNumericSum, functions.AggregateNumericSum, functions.AggregateFloatSum, functions.AggregateFloatSum, functions.AggregateNumericAvg, functions.AggregateCount} {
-		if node.calls[i].operation != operation {
-			t.Fatal(i, node.calls[i].operation)
+		if node.Calls[i].Operation != operation {
+			t.Fatal(i, node.Calls[i].Operation)
 		}
 	}
 	for i, c := range q.Root.Schema()[:7] {
@@ -116,25 +116,25 @@ func TestSumEagerCancellation(t *testing.T) {
 		for _, phase := range []string{"advance", "finalize", "prepublication"} {
 			_, q, source := queryCoreFixture(t, "SELECT sum(1::"+cast+") FROM t")
 			project := q.Root.(*projectNode)
-			node := project.child.(*aggregateNode)
+			node := project.Child.(*aggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
-			original := node.calls[0].provider
+			original := node.Calls[0].Provider
 			switch phase {
 			case "advance":
-				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
+				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
 					err := original.Advance(ctx, s, v, separator)
 					cancel()
 					return err
 				}}
 			case "finalize":
-				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					v, err := original.Finalize(ctx, s)
 					cancel()
 					return v, err
 				}}
 			case "prepublication":
-				expr := project.expressions[0]
-				project.expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
+				expr := project.Expressions[0]
+				project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
 			}
 			rows, count, err := finalizeQuery(ctx, q.Root, source, nil)
 			cancel()

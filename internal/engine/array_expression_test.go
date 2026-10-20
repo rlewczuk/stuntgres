@@ -67,7 +67,7 @@ func TestArrayExpressionParameterManifestAndTraversal(t *testing.T) {
 	var numbers []int
 	walkBoundExpression(node, func(child expr.Expr) {
 		if p, ok := child.(parameterExpression); ok {
-			numbers = append(numbers, p.number)
+			numbers = append(numbers, p.Number)
 		}
 	})
 	if !reflect.DeepEqual(numbers, []int{1, 2, 3}) {
@@ -101,15 +101,15 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := original.(subscriptExpression)
-	saved := node.subscripts[0].upper
-	replacement := literalExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{}), value: sqltype.Null(b.typ(sqltype.Int4))}
+	saved := node.Subscripts[0].Upper
+	replacement := literalExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(b.typ(sqltype.Int4))}
 	mapped, changed, err := mapSubscript(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == saved {
 			return replacement, true, nil
 		}
 		return child, false, nil
 	})
-	if err != nil || !changed || node.subscripts[0].upper != saved || mapped.subscripts[0].upper != replacement {
+	if err != nil || !changed || node.Subscripts[0].Upper != saved || mapped.Subscripts[0].Upper != replacement {
 		t.Fatal("rewrite modified original/omitted bound", changed, err)
 	}
 	other := New()
@@ -163,7 +163,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	child := func(label string, value sqltype.Value) expr.Expr {
 		return arrayDemandExpression{b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, label); return value, nil }}
 	}
-	node := subscriptExpression{Info: b.info(arr.Usage(), parser.Position{}, expr.Properties{}), base: child("base", input), slice: true, subscripts: []boundArraySubscript{{lower: child("l1", one), upper: child("u1", one), slice: true}, {lower: child("l2", one), upper: child("u2", one), slice: true}}}
+	node := subscriptExpression{Info: b.info(arr.Usage(), parser.Position{}, expr.Properties{}), Base: child("base", input), Slice: true, Subscripts: []boundArraySubscript{{Lower: child("l1", one), Upper: child("u1", one), Slice: true}, {Lower: child("l2", one), Upper: child("u2", one), Slice: true}}}
 	if _, err := node.Eval(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 		t.Fatal(order)
 	}
 	order = nil
-	node.base = child("base", sqltype.Null(arr))
+	node.Base = child("base", sqltype.Null(arr))
 	if value, err := node.Eval(ctx); err != nil || !value.IsNull() || !reflect.DeepEqual(order, []string{"base"}) {
 		t.Fatal(value, order, err)
 	}
@@ -179,25 +179,25 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := arrayAssignmentTarget{node: node, reapply: plan}
+	target := arrayAssignmentTarget{Node: node, Reapply: plan}
 	order = nil
-	if _, err := target.applyExpression(ctx, input, child("rhs", input)); err != nil {
+	if _, err := target.ApplyExpression(ctx, input, child("rhs", input)); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(order, []string{"u1", "u2", "l1", "l2", "rhs"}) {
 		t.Fatal(order)
 	}
 	order = nil
-	target.node.subscripts[0].upper = child("u1", sqltype.Null(typ))
-	_, err = target.applyExpression(ctx, input, child("rhs", input))
+	target.Node.Subscripts[0].Upper = child("u1", sqltype.Null(typ))
+	_, err = target.ApplyExpression(ctx, input, child("rhs", input))
 	var state interface{ SQLState() string }
 	if !errors.As(err, &state) || state.SQLState() != "22004" || !reflect.DeepEqual(order, []string{"u1", "u2", "l1", "l2"}) {
 		t.Fatal(order, err)
 	}
 	order = nil
 	stop := errors.New("lower evaluation failed")
-	target.node.subscripts[1].lower = arrayDemandExpression{b.info(typ.Usage(), parser.Position{}, expr.Properties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, "l2"); return sqltype.Value{}, stop }}
-	_, err = target.applyExpression(ctx, input, child("rhs", input))
+	target.Node.Subscripts[1].Lower = arrayDemandExpression{b.info(typ.Usage(), parser.Position{}, expr.Properties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, "l2"); return sqltype.Value{}, stop }}
+	_, err = target.ApplyExpression(ctx, input, child("rhs", input))
 	if !errors.Is(err, stop) || !reflect.DeepEqual(order, []string{"u1", "u2", "l1", "l2"}) {
 		t.Fatal("bound error must precede NULL check and RHS", order, err)
 	}
@@ -232,9 +232,9 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	}
 	var slots []int
 	var storage [13]expr.Expr
-	for _, child := range subscriptChildren(target.node, &storage) {
+	for _, child := range subscriptChildren(target.Node, &storage) {
 		if col, ok := child.(columnExpression); ok {
-			slots = append(slots, col.slot)
+			slots = append(slots, col.Slot)
 		}
 	}
 	if !reflect.DeepEqual(slots, []int{1}) {

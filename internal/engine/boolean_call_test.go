@@ -47,7 +47,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 				t.Fatal(name, null, err)
 			}
 			literal, ok := null.(literalExpression)
-			if !ok || !literal.value.IsNull() {
+			if !ok || !literal.Value.IsNull() {
 				t.Fatal("strict NULL did not retain typed BOOL", name, null)
 			}
 		}

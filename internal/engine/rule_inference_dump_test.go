@@ -50,24 +50,24 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					}
 					action := r.actions[0]
 					body := action.binding.ctes[0]
-					presentation := action.modifierPresentations[body.statement]
+					presentation := action.modifierPresentations[body.Statement]
 					project := cteMutationOf(body).query.Root.(*projectNode)
 					outer := action.binding.query.Root.(*projectNode)
-					if project.frame == outer.frame {
+					if project.Frame == outer.Frame {
 						t.Fatal("modifier and consumer share a SELECT capture frame")
 					}
-					source, ok := project.expressions[0].(columnExpression)
-					if !ok || source.scope == rulePseudoScope || source.frame != project.frame ||
-						source.origin.Address.ClassID != inputRef.Address.ClassID ||
-						source.origin.Address.ObjectID != inputRef.Address.ObjectID || source.origin.Address.SubID != 1 {
+					source, ok := project.Expressions[0].(columnExpression)
+					if !ok || source.Scope == rulePseudoScope || source.Frame != project.Frame ||
+						source.Origin.Address.ClassID != inputRef.Address.ClassID ||
+						source.Origin.Address.ObjectID != inputRef.Address.ObjectID || source.Origin.Address.SubID != 1 {
 						t.Fatal("modifier's analyzed projection no longer belongs to input.v")
 					}
-					path := viewLiteralPath{query: project.frame, clause: viewTargetLiteral}
+					path := viewLiteralPath{query: project.Frame, clause: viewTargetLiteral}
 					column, ok := presentation.columns[path]
-					if !ok || column.ruleSide != 0 || column.frame != project.frame {
+					if !ok || column.ruleSide != 0 || column.frame != project.Frame {
 						t.Fatal("modifier input column was replaced by the consumer's NEW recipe")
 					}
-					path.query = outer.frame
+					path.query = outer.Frame
 					if action.presentation.columns[path].ruleSide != 2 {
 						t.Fatal("consumer lost its independent NEW recipe")
 					}
@@ -77,7 +77,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					t.Helper()
 					b := r.actions[0].binding
 					if cte {
-						if len(b.ctes) != 1 || b.ctes[0].mutation == nil {
+						if len(b.ctes) != 1 || b.ctes[0].Mutation == nil {
 							t.Fatal("analyzed action lost its modifying CTE")
 						}
 						b = *cteMutationOf(b.ctes[0])

@@ -15,7 +15,7 @@ import (
 
 func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *functionFromNode {
 	t.Helper()
-	n := &functionFromNode{calls: calls, frame: 1, ordinality: true}
+	n := &functionFromNode{Calls: calls, Frame: 1, Ordinality: true}
 	for _, call := range calls {
 		n.querySchema = append(n.querySchema, catalog.Column{Usage: call.ResultUsage()})
 	}
@@ -78,7 +78,7 @@ func TestSRFFromBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	source, ok := node.(*functionFromNode)
-	if !ok || !source.regexpNamespace || b.clause.queryHasTargetSet || len(ns.columns) != 2 || ns.columns[0].descriptor.Name != "generate_series" || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Int8 {
+	if !ok || !source.RegexpNamespace || b.clause.queryHasTargetSet || len(ns.columns) != 2 || ns.columns[0].descriptor.Name != "generate_series" || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(node, ns)
 	}
 	if got := srfFromUnitRows(t, source); !reflect.DeepEqual(got, [][]any{{int64(2), int64(1)}, {int64(3), int64(2)}, {int64(4), int64(3)}}) {
@@ -163,9 +163,9 @@ func TestSRFFromInvocation(t *testing.T) {
 	// Once per invocation, in written order, never once per emitted row.
 	call := seriesUnit(t, d, 1, 3, 1)
 	var order []int
-	for i, arg := range call.args {
-		index, value := i, arg.(literalExpression).value
-		call.args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { order = append(order, index); return value, nil })
+	for i, arg := range call.Args {
+		index, value := i, arg.(literalExpression).Value
+		call.Args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { order = append(order, index); return value, nil })
 	}
 	probed := srfFromUnitNode(t, call)
 	for range 2 {
@@ -177,8 +177,8 @@ func TestSRFFromInvocation(t *testing.T) {
 		t.Fatal("argument evaluation", order)
 	}
 	order = nil
-	zero := seriesUnit(t, big, 0, 0).args[0]
-	limit := &limitNode{querySchema: probed.querySchema, child: probed, count: zero}
+	zero := seriesUnit(t, big, 0, 0).Args[0]
+	limit := &limitNode{querySchema: probed.querySchema, Child: probed, Count: zero}
 	if got := srfFromUnitRows(t, limit); len(got) != 0 || len(order) != 0 {
 		t.Fatal("LIMIT0 opened provider", got, order)
 	}
@@ -210,13 +210,13 @@ func TestSRFFromOwnership(t *testing.T) {
 	}
 	failure := errors.New("second source argument failed")
 	bad := seriesUnit(t, d, 1, 2)
-	bad.args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
+	bad.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	// First member opens successfully; failed partial open must close the group.
-	invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &functionFromNode{calls: []expr.Expr{n.calls[0], bad}})
+	invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &functionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
 	if !errors.Is(err, failure) || len(invocation.cursors) != 0 {
 		t.Fatal(invocation, err)
 	}
-	failed := srfFromUnitNode(t, n.calls[0], bad)
+	failed := srfFromUnitNode(t, n.Calls[0], bad)
 	stage, err = openFunctionFromNode(context.Background(), srfFromUnitState(), failed)
 	if err != nil {
 		t.Fatal(err)
@@ -292,11 +292,11 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 		if !ok {
 			return expr, false, nil
 		}
-		value, err := literal.value.Integer()
+		value, err := literal.Value.Integer()
 		if err != nil || value != 2 {
 			return expr, false, err
 		}
-		literal.value, err = sqltype.Integer(d, 3)
+		literal.Value, err = sqltype.Integer(d, 3)
 		return literal, true, err
 	})
 	if err != nil {

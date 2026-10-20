@@ -97,17 +97,17 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := bound.query.Root.(*projectNode)
-	original := project.expressions[0].(columnExpression)
+	original := project.Expressions[0].(columnExpression)
 	for _, index := range []int{1, 2} {
-		reduced, ok := project.expressions[index].(columnExpression)
-		if !ok || reduced.origin != original.origin || reduced.slot != original.slot || project.Schema()[index].Nullable {
-			t.Fatal(index, project.expressions[index], project.Schema()[index])
+		reduced, ok := project.Expressions[index].(columnExpression)
+		if !ok || reduced.Origin != original.Origin || reduced.Slot != original.Slot || project.Schema()[index].Nullable {
+			t.Fatal(index, project.Expressions[index], project.Schema()[index])
 		}
 	}
 	for _, index := range []int{3, 4} {
-		conversion, ok := project.expressions[index].(coercionExpression)
+		conversion, ok := project.Expressions[index].(coercionExpression)
 		if !ok || !conversion.Properties().RowDependent || conversion.Properties().ParameterDependent {
-			t.Fatal(index, project.expressions[index])
+			t.Fatal(index, project.Expressions[index])
 		}
 	}
 	for i, name := range []string{"i", "i", "int4", "i", "int8"} {
@@ -117,7 +117,7 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 	}
 	foundColumn, foundText := false, false
 	for _, dep := range bound.dependencies {
-		if dep.Ref == original.origin {
+		if dep.Ref == original.Origin {
 			foundColumn = true
 		}
 		if dep.Ref.Address.ClassID == ids.TypeClassID && dep.Ref.Address.ObjectID == ids.OID(sqltype.Text) {

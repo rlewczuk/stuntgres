@@ -218,7 +218,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	}
 	ref := e.catalog.Domain.Ref(view.Epoch(), sequence.Address())
 	typeRef := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.Address().ObjectID), 10))}
+	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, Value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.Address().ObjectID), 10))}
 	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
@@ -375,13 +375,13 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	}
 	// This is a real captured row origin, not a provider-kind substitute. Exact
 	// concrete Usage and stable attribute/slot/frame checks remain mandatory.
-	columnNode := consumer.ColumnMeta.Generations[5].Expression.(arithmeticExpression).left
+	columnNode := consumer.ColumnMeta.Generations[5].Expression.(arithmeticExpression).Left
 	for {
 		cast, ok := columnNode.(coercionExpression)
 		if !ok {
 			break
 		}
-		columnNode = cast.child
+		columnNode = cast.Child
 	}
 	column := columnNode.(columnExpression)
 	int8, ok := retained.LookupType(sqltype.Int8)
@@ -390,9 +390,9 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	}
 	for _, change := range []func(*columnExpression){
 		func(n *columnExpression) { n.Usage = int8.Usage() },
-		func(n *columnExpression) { n.origin.Address.SubID = 99 },
-		func(n *columnExpression) { n.slot = 0 },
-		func(n *columnExpression) { n.frame = 2 },
+		func(n *columnExpression) { n.Origin.Address.SubID = 99 },
+		func(n *columnExpression) { n.Slot = 0 },
+		func(n *columnExpression) { n.Frame = 2 },
 	} {
 		bad := column
 		change(&bad)

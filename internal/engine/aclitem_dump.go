@@ -62,7 +62,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 	expression := func(node expr.Expr) {
 		walkBoundExpression(node, func(child expr.Expr) {
 			if literal, ok := child.(literalExpression); ok {
-				check(literal.value)
+				check(literal.Value)
 			}
 		})
 	}
@@ -104,7 +104,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 		}
 		if relation.View != nil {
 			for _, literal := range viewOf(relation).literals {
-				check(literal.value)
+				check(literal.Value)
 			}
 		}
 		if relation.SQLIndex != nil {

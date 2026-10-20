@@ -10,7 +10,7 @@ import (
 )
 
 func compositeExprUnitLiteral(value sqltype.Value) expr.Expr {
-	return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, value: value}
+	return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 }
 func compositeExprUnitInteger(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype.Value {
 	t.Helper()
@@ -29,31 +29,31 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row := rowExpression{Info: expr.Info{Usage: shape.Usage()}, fields: []expr.Expr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
+	row := rowExpression{Info: expr.Info{Usage: shape.Usage()}, Fields: []expr.Expr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	value, err := row.Eval(c)
 	if err != nil || value.IsNull() || !value.CompositeField(1).IsNull() {
 		t.Fatal("present partially NULL constructor", err)
 	}
-	selected := fieldExpression{Info: expr.Info{Usage: integer.Usage()}, base: row, attribute: 1, index: 0}
+	selected := fieldExpression{Info: expr.Info{Usage: integer.Usage()}, Base: row, Attribute: 1, Index: 0}
 	value, err = selected.Eval(c)
 	number, nerr := value.Integer()
 	if err != nil || nerr != nil || number != 7 {
 		t.Fatal(number, err, nerr)
 	}
 	// A selected constructor child does not evaluate an unused invalid child.
-	row.fields = []expr.Expr{row.fields[0], literalExpression{}}
-	selected.base = row
+	row.Fields = []expr.Expr{row.Fields[0], literalExpression{}}
+	selected.Base = row
 	if _, err := selected.Eval(c); err != nil {
 		t.Fatal("selected field evaluated sibling", err)
 	}
 	if _, err := row.Eval(c); err == nil {
 		t.Fatal("full constructor omitted sibling")
 	}
-	row.fields = []expr.Expr{compositeExprUnitLiteral(sqltype.Null(integer)), compositeExprUnitLiteral(sqltype.Null(integer))}
-	row.wholeNames = []string{"f1", "f2"}
-	row.presenceSlot = 1
-	row.presenceFrame = 1
+	row.Fields = []expr.Expr{compositeExprUnitLiteral(sqltype.Null(integer)), compositeExprUnitLiteral(sqltype.Null(integer))}
+	row.WholeNames = []string{"f1", "f2"}
+	row.PresenceSlot = 1
+	row.PresenceFrame = 1
 	c.presenceSlots = []int{1}
 	c.presence = []bool{true}
 	if value, err := row.Eval(c); err != nil || value.IsNull() {
@@ -63,7 +63,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if value, err := row.Eval(c); err != nil || !value.IsNull() {
 		t.Fatal("null-extended tuple became present", err)
 	}
-	selected.base = row
+	selected.Base = row
 	if value, err := selected.Eval(c); err != nil || !value.IsNull() {
 		t.Fatal("direct field ignored occurrence absence", err)
 	}
@@ -79,7 +79,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zero := rowExpression{Info: expr.Info{Usage: empty.Usage()}, wholeNames: []string{}, presenceSlot: 1, presenceFrame: 1}
+	zero := rowExpression{Info: expr.Info{Usage: empty.Usage()}, WholeNames: []string{}, PresenceSlot: 1, PresenceFrame: 1}
 	c.presenceSlots = []int{1}
 	c.presence = []bool{true}
 	if value, err := zero.Eval(c); err != nil || value.IsNull() || value.CompositeLen() != 0 {
@@ -105,9 +105,9 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	t.Run("transparent VALUES occurrence", func(t *testing.T) {
 		values := &valuesNode{}
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		q := queryQualifier{nullExtended: true, sourceRoot: &projectNode{child: values}}
+		q := queryQualifier{nullExtended: true, sourceRoot: &projectNode{Child: values}}
 		slot, err := b.wholeRowPresence(&q, 1)
-		if err != nil || slot != 1 || values.presenceSlot != slot {
+		if err != nil || slot != 1 || values.PresenceSlot != slot {
 			t.Fatal("presence did not belong to emitted VALUES occurrence", slot, err)
 		}
 	})
@@ -147,13 +147,13 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if target.destination.Type != integer || target.attribute != 3 || target.next.attribute != 1 {
+	if target.Destination.Type != integer || target.Attribute != 3 || target.Next.Attribute != 1 {
 		t.Fatal("wrong nested leaf")
 	}
 	original := sqltype.Null(outer)
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{compositeExprUnitInteger(t, integer, 9)}}}
-	rhs := columnExpression{Info: expr.Info{Usage: integer.Usage()}, scope: 1, frame: 1, slot: 0}
-	first, err := target.applyExpression(c, original, rhs)
+	rhs := columnExpression{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 1, Slot: 0}
+	first, err := target.ApplyExpression(c, original, rhs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := secondTarget.applyExpression(c, first, rhs)
+	second, err := secondTarget.ApplyExpression(c, first, rhs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	row := bound.(rowExpression)
-	row.expansions = map[int]compositeExpansionBinding{0: {base: row.fields[1], fields: []expr.Expr{row.fields[1]}}}
+	row.Expansions = map[int]compositeExpansionBinding{0: {Base: row.Fields[1], Fields: []expr.Expr{row.Fields[1]}}}
 	selected, err := b.selectCompositeField(row, "f2", parser.Position{})
 	if err != nil {
 		t.Fatal(err)
@@ -222,8 +222,8 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("record closure reownership", changed, err)
 	}
-	mappedRow := remapped.(fieldExpression).base.(rowExpression)
-	if mappedRow.Usage.Type == row.Usage.Type || mappedRow.fields[1].ResultUsage().Type == row.fields[1].ResultUsage().Type || mappedRow.expansions[0].base.ResultUsage().Type == row.expansions[0].base.ResultUsage().Type {
+	mappedRow := remapped.(fieldExpression).Base.(rowExpression)
+	if mappedRow.Usage.Type == row.Usage.Type || mappedRow.Fields[1].ResultUsage().Type == row.Fields[1].ResultUsage().Type || mappedRow.Expansions[0].Base.ResultUsage().Type == row.Expansions[0].Base.ResultUsage().Type {
 		t.Fatal("runtime or retained analysis shape borrowed old owner")
 	}
 	if err := validateGenerationPlan(view, nil, remapped); err != nil {
@@ -238,12 +238,12 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 		t.Fatal(number, err)
 	}
 	broken := mappedRow
-	broken.fields = nil
+	broken.Fields = nil
 	if err := validateGenerationPlan(view, nil, broken); err == nil {
 		t.Fatal("malformed row width admitted")
 	}
 	badField := remapped.(fieldExpression)
-	badField.attribute = 99
+	badField.Attribute = 99
 	if err := validateGenerationPlan(view, nil, badField); err == nil {
 		t.Fatal("retired field plan admitted")
 	}
@@ -251,9 +251,9 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	left := rowExpression{Info: expr.Info{Usage: empty.Usage(), Property: expr.Properties{RowDependent: true}}, wholeNames: []string{}, wholeName: "a", presenceFrame: 1}
+	left := rowExpression{Info: expr.Info{Usage: empty.Usage(), Property: expr.Properties{RowDependent: true}}, WholeNames: []string{}, WholeName: "a", PresenceFrame: 1}
 	right := left
-	right.wholeName = "b"
+	right.WholeName = "b"
 	if b.sameGroupExpression(left, right) {
 		t.Fatal("zero-width source occurrences conflated")
 	}
@@ -265,7 +265,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := zero.validate(view); err == nil {
 		t.Fatal("missing capture kind admitted")
 	}
-	whole := compositeOccurrence{kind: compositeWholeRow, base: mappedRow.Usage, source: wholeRowSource{namespace: 1, frame: 1}}
+	whole := compositeOccurrence{kind: compositeWholeRow, base: mappedRow.Usage, source: wholeRowSource{Namespace: 1, Frame: 1}}
 	if err := (&viewDefinition{}).validateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}

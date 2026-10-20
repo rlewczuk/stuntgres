@@ -97,8 +97,8 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				switch phase {
 				case "source_rejected":
 					join := b.delete.using.(*joinNode)
-					usage := join.predicate.ResultUsage()
-					join.predicate = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+					usage := join.Predicate.ResultUsage()
+					join.Predicate = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()

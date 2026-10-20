@@ -26,7 +26,7 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(i, err)
 		}
-		if result.(aggregateExpression).slot != tc.slot {
+		if result.(aggregateExpression).Slot != tc.slot {
 			t.Fatal("incomplete aggregate identity", i, result, b.grouping.aggregates)
 		}
 		u := result.ResultUsage()
@@ -60,15 +60,15 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				qtext = "SELECT string_agg(id::text,',' ORDER BY id DESC) FROM t GROUP BY v"
 			}
 			_, q, source := queryCoreFixture(t, qtext)
-			node := q.Root.(*projectNode).child.(*aggregateNode)
-			call := &node.calls[0]
-			usage := call.argument.ResultUsage()
+			node := q.Root.(*projectNode).Child.(*aggregateNode)
+			call := &node.Calls[0]
+			usage := call.Argument.ResultUsage()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			values, separators, keys, advances, finalizes := 0, 0, 0, 0, 0
 			sentinel := errors.New("late string aggregate delimiter")
-			originalValue := call.argument
-			call.argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			originalValue := call.Argument
+			call.Argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 				values++
 				if phase == "value" {
 					cancel()
@@ -78,7 +78,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				}
 				return originalValue.Eval(c)
 			})
-			call.separator = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			call.Separator = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 				separators++
 				if phase == "separator" {
 					cancel()
@@ -88,8 +88,8 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				}
 				return sqltype.String(usage.Type, ","), nil
 			})
-			originalKey := call.order[0].expression
-			call.order[0].expression = queryProbe(originalKey.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+			originalKey := call.Order[0].Expression
+			call.Order[0].Expression = queryProbe(originalKey.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 				keys++
 				if phase == "key" {
 					cancel()
@@ -97,10 +97,10 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				return originalKey.Eval(c)
 			})
 			if phase == "comparison" {
-				call.order[0].comparison, _ = sqltype.BindOrdering(usage)
+				call.Order[0].Comparison, _ = sqltype.BindOrdering(usage)
 			}
-			original := call.provider
-			call.provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, d sqltype.Value) error {
+			original := call.Provider
+			call.Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, d sqltype.Value) error {
 				advances++
 				err := original.Advance(ctx, state, v, d)
 				if phase == "replay" {

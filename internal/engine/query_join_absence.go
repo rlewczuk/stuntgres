@@ -19,28 +19,28 @@ func absentLockedQuery(node LogicalNode, inputs *querySource, locks *queryLockCo
 	case *distinctNode, *aggregateNode, *setNode, *recursiveUnionNode, *worktableScanNode:
 		return false // Materialized tuples no longer carry physical absence.
 	case *derivedNode:
-		if n.cte != nil {
+		if n.CTE != nil {
 			return false
 		}
-		return absentLockedQuery(n.query.Root, inputs, locks)
+		return absentLockedQuery(n.Query.Root, inputs, locks)
 	case *sourceNode:
-		return absentLockedSource(querySourceAt(inputs, n.occurrence), locks)
+		return absentLockedSource(querySourceAt(inputs, n.Occurrence), locks)
 	case *joinNode:
-		return absentLockedQuery(n.left, inputs, locks) && absentLockedQuery(n.right, inputs, locks)
+		return absentLockedQuery(n.Left, inputs, locks) && absentLockedQuery(n.Right, inputs, locks)
 	case *projectNode:
-		return absentLockedQuery(n.child, inputs, locks)
+		return absentLockedQuery(n.Child, inputs, locks)
 	case *filterNode:
-		return absentLockedQuery(n.child, inputs, locks)
+		return absentLockedQuery(n.Child, inputs, locks)
 	case *evaluationNode:
-		return absentLockedQuery(n.child, inputs, locks)
+		return absentLockedQuery(n.Child, inputs, locks)
 	case *sortNode:
-		return absentLockedQuery(n.child, inputs, locks)
+		return absentLockedQuery(n.Child, inputs, locks)
 	case *distinctOnNode:
-		return absentLockedQuery(n.child, inputs, locks)
+		return absentLockedQuery(n.Child, inputs, locks)
 	case *limitNode:
-		return absentLockedQuery(n.child, inputs, locks)
+		return absentLockedQuery(n.Child, inputs, locks)
 	case *rowLockNode:
-		return absentLockedQuery(n.child, inputs, locks)
+		return absentLockedQuery(n.Child, inputs, locks)
 	}
 	return false
 }

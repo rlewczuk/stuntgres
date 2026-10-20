@@ -90,11 +90,11 @@ func (b *expressionBinder) jsonbRecordStarColumns(columns []queryColumn, frame u
 
 func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame uint32, star parser.StarExpr, qualifier queryQualifier) ([]queryColumn, error) {
 	source, ok := qualifier.sourceRoot.(*functionFromNode)
-	if !ok || source.frame != frame {
+	if !ok || source.Frame != frame {
 		return columns, nil
 	}
 	offset := 0
-	for _, expression := range source.calls {
+	for _, expression := range source.Calls {
 		width := functionFromCallWidth(expression)
 		if call, selected := expression.(functions.JSONBRecord); selected && call.ResultUsage().Type.BaseType().IsComposite() {
 			if offset+width > len(qualifier.columns) {

@@ -16,7 +16,7 @@ func TestQueryOrderCacheAndCancellation(t *testing.T) {
 		t.Run(failure, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
 			project := query.Root.(*projectNode)
-			sorted := project.child.(*sortNode)
+			sorted := project.Child.(*sortNode)
 			usage := project.Schema()[0].Usage
 			calls := 0
 			ctx, cancel := context.WithCancel(context.Background())
@@ -36,9 +36,9 @@ func TestQueryOrderCacheAndCancellation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sorted.keys = []sortKey{{expression: key, comparison: provider, slot: -1, cache: 0, desc: true}}
-			sorted.cacheWidth = 1
-			project.expressions = []expr.Expr{cachedOrderExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, slot: 0}}
+			sorted.Keys = []sortKey{{Expression: key, Comparison: provider, Slot: -1, Cache: 0, Desc: true}}
+			sorted.CacheWidth = 1
+			project.Expressions = []expr.Expr{cachedOrderExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, Slot: 0}}
 			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
 			if failure != "none" {
 				want := error(sentinel)

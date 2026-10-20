@@ -92,7 +92,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 			if i == 0 {
 				typ = text
 			}
-			args[i] = columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, slot: i}
+			args[i] = columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Slot: i}
 		}
 		node, err := b.stringNode(name, text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 		if err != nil {
@@ -101,7 +101,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 		var slots []int
 		walkBoundExpression(node, func(child expr.Expr) {
 			if col, ok := child.(columnExpression); ok {
-				slots = append(slots, col.slot)
+				slots = append(slots, col.Slot)
 			}
 		})
 		want := []int{0, 1}

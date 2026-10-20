@@ -37,20 +37,20 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := b.query.Root.(*projectNode)
-	filter := project.child.(*filterNode)
-	properties := filter.predicate.Properties()
+	filter := project.Child.(*filterNode)
+	properties := filter.Predicate.Properties()
 	if !properties.RowDependent || properties.ParameterDependent || properties.Volatility != expr.Immutable {
 		t.Fatal("right-column dependence was lost", properties)
 	}
-	if !project.expressions[0].Properties().RowDependent || project.expressions[0].ResultUsage().Typmod != 6 || project.expressions[0].ResultUsage().Type.ID() != sqltype.VarChar {
-		t.Fatal(project.expressions[0].ResultUsage(), project.expressions[0].Properties())
+	if !project.Expressions[0].Properties().RowDependent || project.Expressions[0].ResultUsage().Typmod != 6 || project.Expressions[0].ResultUsage().Type.ID() != sqltype.VarChar {
+		t.Fatal(project.Expressions[0].ResultUsage(), project.Expressions[0].Properties())
 	}
 	bpchar, _ := e.CatalogRead().LookupType(sqltype.BPChar)
 	for _, tc := range []struct {
 		text string
 		want Truth
 	}{{"a  ", True}, {"b  ", False}} {
-		value, err := filter.predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(bpchar, tc.text)}}})
+		value, err := filter.Predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(bpchar, tc.text)}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +72,7 @@ func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	cast, ok := node.(coercionExpression)
-	if !ok || cast.child.ResultUsage() != source || cast.ResultUsage().Type.ID() != sqltype.Text || b.params.parameters[1] != source {
+	if !ok || cast.Child.ResultUsage() != source || cast.ResultUsage().Type.ID() != sqltype.Text || b.params.parameters[1] != source {
 		t.Fatal("cast retargeted known parameter", node, b.params.parameters[1])
 	}
 	if !cast.Properties().ParameterDependent || cast.Properties().RowDependent || cast.Properties().Volatility != expr.Immutable {

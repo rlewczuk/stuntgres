@@ -86,7 +86,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 					t.Fatal("strict NULL simplification", preflight, decisive, changed, err)
 				}
 				literal, ok := planned.(literalExpression)
-				if !ok || !literal.value.IsNull() || literal.ResultUsage() != analyzed.ResultUsage() || !generationImmutable(planned) || plannedVolatility(planned) != expr.Immutable {
+				if !ok || !literal.Value.IsNull() || literal.ResultUsage() != analyzed.ResultUsage() || !generationImmutable(planned) || plannedVolatility(planned) != expr.Immutable {
 					t.Fatal("strict NULL physical tree", planned)
 				}
 				value, err := planned.Eval(evaluation)

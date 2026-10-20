@@ -125,7 +125,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			scope.lockedRef = viewRef
-			scope.querySources = []queryLeaf{{ref: viewRef, relation: view, mark: queryRowMark{mode: tc.mark}}}
+			scope.querySources = []queryLeaf{{ref: viewRef, relation: view, mark: queryRowMark{Mode: tc.mark}}}
 			mode := lock.AccessShare
 			if tc.mark != 0 {
 				mode = lock.RowShare

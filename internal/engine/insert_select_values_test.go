@@ -35,14 +35,14 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 			})}
 		}
 		schema := []catalog.Column{{Name: "column1", Usage: usage}}
-		values := &valuesNode{querySchema: schema, rows: expressions}
+		values := &valuesNode{querySchema: schema, Rows: expressions}
 		comparison, err := sqltype.BindComparison(typ, typ, typ.Usage().Collation, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		projection := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-		sorted := &sortNode{querySchema: schema, child: values, keys: []sortKey{{expression: projection, slot: 0, cache: -1, comparison: comparison}}}
-		query := &BoundQuery{Root: &projectNode{querySchema: schema, child: sorted, expressions: []expr.Expr{projection}}}
+		projection := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
+		sorted := &sortNode{querySchema: schema, Child: values, Keys: []sortKey{{Expression: projection, Slot: 0, Cache: -1, Comparison: comparison}}}
+		query := &BoundQuery{Root: &projectNode{querySchema: schema, Child: sorted, Expressions: []expr.Expr{projection}}}
 		source := &querySource{}
 		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 		if err != nil || len(rows.values) != count || source.anonymous != nil {

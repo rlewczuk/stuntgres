@@ -42,28 +42,28 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 			t.Fatal(bound.parameters)
 		}
 		project := bound.query.Root.(*projectNode)
-		for i, n := range project.expressions {
+		for i, n := range project.Expressions {
 			if n.ResultUsage().Type.ID() != tc.results[i] || !n.Properties().ParameterDependent || n.Properties().Volatility != expr.Immutable {
 				t.Fatal(n)
 			}
 			if tc.q == "SELECT s+$1,i+$1 FROM t" && i == 1 {
 				a := n.(arithmeticExpression)
-				if a.left.ResultUsage().Type.ID() != sqltype.Int4 || a.right.ResultUsage().Type.ID() != sqltype.Int2 {
+				if a.Left.ResultUsage().Type.ID() != sqltype.Int4 || a.Right.ResultUsage().Type.ID() != sqltype.Int2 {
 					t.Fatal("mixed addition lost actual operand widths", a)
 				}
 			}
 			if tc.q == "SELECT s%$1,b%$1 FROM t" && i == 1 {
 				a := n.(arithmeticExpression)
-				if a.left.ResultUsage().Type.ID() != sqltype.Int8 || a.right.ResultUsage().Type.ID() != sqltype.Int8 {
+				if a.Left.ResultUsage().Type.ID() != sqltype.Int8 || a.Right.ResultUsage().Type.ID() != sqltype.Int8 {
 					t.Fatal("mixed modulo lost homogeneous signature", a)
 				}
-				if _, ok := a.right.(coercionExpression); !ok {
-					t.Fatal("mixed modulo omitted implicit widening", a.right)
+				if _, ok := a.Right.(coercionExpression); !ok {
+					t.Fatal("mixed modulo omitted implicit widening", a.Right)
 				}
 			}
 		}
 		if tc.q != "SELECT $1+7,$1+2147483648 FROM t" {
-			for _, n := range project.expressions {
+			for _, n := range project.Expressions {
 				if !n.Properties().RowDependent {
 					t.Fatal("lost recursive row dependence")
 				}

@@ -17,9 +17,9 @@ func (c *EvalContext) EvalSQLRoutine(n sqlRoutineExpression) (value sqltype.Valu
 	if err = evaluationContext(c); err != nil {
 		return value, err
 	}
-	frame := proc.NewFrame(n.procedure.SQL.Inputs)
+	frame := proc.NewFrame(n.Procedure.SQL.Inputs)
 	defer frame.Close()
-	for i, arg := range n.args {
+	for i, arg := range n.Args {
 		v, err := arg.Eval(c)
 		if err != nil {
 			return value, err
@@ -35,9 +35,9 @@ func (c *EvalContext) EvalSQLRoutine(n sqlRoutineExpression) (value sqltype.Valu
 	if scope == nil {
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
 	}
-	value, err = scope.invokeSQLRoutine(n.procedure, frame, n.Usage)
+	value, err = scope.invokeSQLRoutine(n.Procedure, frame, n.Usage)
 	if err != nil {
-		return value, sqlRoutineContext(err, n.procedure.Name(), true)
+		return value, sqlRoutineContext(err, n.Procedure.Name(), true)
 	}
 	return frame.Result(value, n.Usage)
 }

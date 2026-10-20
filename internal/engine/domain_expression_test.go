@@ -89,15 +89,15 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 	if !ok {
 		t.Fatal("aggregate query lacks projection", query.Root)
 	}
-	aggregate, ok := project.child.(*aggregateNode)
-	if !ok || len(aggregate.calls) != 1 || query.Root.Schema()[0].Usage.Type.ID() != sqltype.Bool || aggregate.calls[0].argument.ResultUsage().Type.ID() != sqltype.Bool {
-		t.Fatal("aggregate did not downcast signature", project.child, query.Root.Schema())
+	aggregate, ok := project.Child.(*aggregateNode)
+	if !ok || len(aggregate.Calls) != 1 || query.Root.Schema()[0].Usage.Type.ID() != sqltype.Bool || aggregate.Calls[0].Argument.ResultUsage().Type.ID() != sqltype.Bool {
+		t.Fatal("aggregate did not downcast signature", project.Child, query.Root.Schema())
 	}
-	argument, err := aggregate.calls[0].argument.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	argument, err := aggregate.Calls[0].Argument.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider := aggregate.calls[0].provider
+	provider := aggregate.Calls[0].Provider
 	state, err := provider.Init(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -168,7 +168,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 		t.Fatal("assignment typmod evaluated while binding", err)
 	}
 	coercion, ok := node.(coercionExpression)
-	if !ok || coercion.child.ResultUsage().Type.ID() != sqltype.VarChar || node.ResultUsage() != target {
+	if !ok || coercion.Child.ResultUsage().Type.ID() != sqltype.VarChar || node.ResultUsage() != target {
 		t.Fatal("literal did not preserve base-to-domain coercion", node)
 	}
 	_, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -211,7 +211,7 @@ func TestDomainRegclassQueryOutputCapturesFormatter(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.relation_name AS regclass"))
 	domainUnitTable(t, e, op, "CREATE TABLE public.t(v public.relation_name)")
 	query := domainUnitBindSelect(t, e, op, "SELECT v FROM public.t")
-	if !query.regclassOutput {
+	if !query.RegclassOutput {
 		t.Fatal("domain output lacks captured REGCLASS presentation demand", query)
 	}
 }
@@ -312,7 +312,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 				t.Fatal(expression, err)
 			}
 			coercion, ok := node.(coercionExpression)
-			if !ok || node.ResultUsage() != target || coercion.child.ResultUsage() != target.BaseUsage() {
+			if !ok || node.ResultUsage() != target || coercion.Child.ResultUsage() != target.BaseUsage() {
 				t.Fatal("lost effective input usage or logical cast identity", expression, node)
 			}
 			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})

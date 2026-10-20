@@ -24,7 +24,7 @@ func TestSQLRoutineKnownArgumentWindowOwner(t *testing.T) {
 		{"first occurrence", argumentWindowOwner{active: true, found: true, first: prior}, 1, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			node := &windowExpression{Info: expr.Info{Pos: position}, frame: tc.frame, slot: -1, call: -1}
+			node := &windowExpression{Info: expr.Info{Pos: position}, Frame: tc.frame, Slot: -1, Call: -1}
 			b := &expressionBinder{
 				ctx:      context.Background(),
 				query:    queryScopeState{frame: 1},

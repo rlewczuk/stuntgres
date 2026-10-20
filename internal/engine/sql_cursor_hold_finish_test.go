@@ -24,9 +24,9 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		sessionSQL(t, s, "DECLARE ordinary CURSOR FOR SELECT i FROM unit_rows")
 		good, bad := s.cursors.entries["good"], s.cursors.entries["bad"]
 		goodPin, badPin, badCell := good.source.view, bad.source.view, bad.authority
-		original, calls := bad.root.expressions[0], 0
+		original, calls := bad.root.Expressions[0], 0
 		sentinel := errors.New("remaining projection failed")
-		bad.root.expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
+		bad.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
 			calls++
 			if calls == 2 {
 				return sqltype.Value{}, sentinel
@@ -58,8 +58,8 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		sessionSQL(t, peer, "INSERT INTO hold_ssi VALUES(1,40)")
 		sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT nextval('hold_ssi_draw') AS n")
 		c := s.cursors.entries["h"]
-		original, calls := c.root.expressions[0], 0
-		c.root.expressions[0] = queryProbe(original.ResultUsage(), func(eval *EvalContext) (sqltype.Value, error) {
+		original, calls := c.root.Expressions[0], 0
+		c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(eval *EvalContext) (sqltype.Value, error) {
 			calls++
 			return original.Eval(eval)
 		})
@@ -165,8 +165,8 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 				sessionSQL(t, holder, "ALTER SEQUENCE hold_draw RESTART 20")
 				defer transactionEnd(t, holder, holderRef, false)
 			} else {
-				original, calls := c.root.expressions[0], 0
-				c.root.expressions[0] = queryProbe(original.ResultUsage(), func(eval *EvalContext) (sqltype.Value, error) {
+				original, calls := c.root.Expressions[0], 0
+				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(eval *EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						close(entered)

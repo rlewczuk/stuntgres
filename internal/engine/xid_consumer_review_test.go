@@ -25,7 +25,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 				t.Fatal("describable extrema rejected at analysis", err)
 			}
 			node := bound.(conditionalExpression)
-			if !node.missingOrdering || node.comparison != (sqltype.Comparison{}) {
+			if !node.MissingOrdering || node.Comparison != (sqltype.Comparison{}) {
 				t.Fatal("missing ordering acquired executable comparator", node)
 			}
 			if _, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), node); err != nil {
@@ -33,7 +33,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			}
 			calls := 0
 			node.Info.Property.RowDependent = true
-			node.args = []expr.Expr{conditionalSpy{Info: expr.Info{Usage: node.Usage, Property: expr.Properties{RowDependent: true}}, value: sqltype.Null(node.Usage.Type), calls: &calls, failure: errors.New("argument demanded")}, node.args[1]}
+			node.Args = []expr.Expr{conditionalSpy{Info: expr.Info{Usage: node.Usage, Property: expr.Properties{RowDependent: true}}, value: sqltype.Null(node.Usage.Type), calls: &calls, failure: errors.New("argument demanded")}, node.Args[1]}
 			evaluation := &EvalContext{evalStatement: evalStatement{Context: ctx}}
 			assert := func(err error) {
 				t.Helper()
@@ -68,7 +68,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
+		node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		for _, pretty := range []bool{false, true} {
 			renderer := pgRenderer{view: view, pretty: pretty}
 			got, err := renderer.literal(ctx, node)
@@ -76,7 +76,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 				t.Fatal(got, err)
 			}
 			null := node
-			null.value = sqltype.Null(typ)
+			null.Value = sqltype.Null(typ)
 			got, err = renderer.literal(ctx, null)
 			if err != nil || got != "NULL::"+tc.name {
 				t.Fatal(got, err)

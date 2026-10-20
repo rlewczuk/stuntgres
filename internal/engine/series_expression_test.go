@@ -23,7 +23,7 @@ func seriesUnit(t *testing.T, d *sqltype.Descriptor, values ...int64) seriesExpr
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.args = append(e.args, literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v})
+		e.Args = append(e.Args, literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v})
 	}
 	return e
 }
@@ -114,13 +114,13 @@ func TestSeriesCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	e.args[0] = literalExpression{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d)}
-	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(d, 3) })
+	e.Args[0] = literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: sqltype.Null(d)}
+	e.Args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(d, 3) })
 	if got := seriesUnitRead(t, e); len(got) != 0 || calls != 1 {
 		t.Fatal(got, calls)
 	}
 	sentinel := errors.New("sibling error")
-	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
+	e.Args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
 	if _, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
 		t.Fatal(err)
 	}
@@ -154,8 +154,8 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		null := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d)}
-		wrapper := arithmeticExpression{Info: original.Info, left: original, right: null, provider: plan, operator: sqltype.ArithmeticAdd}
+		null := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: sqltype.Null(d)}
+		wrapper := arithmeticExpression{Info: original.Info, Left: original, Right: null, Provider: plan, Operator: sqltype.ArithmeticAdd}
 		ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
 		for _, fold := range []func() (expr.Expr, bool, error){
 			func() (expr.Expr, bool, error) { return preflightCoercions(ctx, wrapper) },
@@ -163,7 +163,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		} {
 			node, changed, err := fold()
 			value, ok := node.(literalExpression)
-			if err != nil || !changed || !ok || !value.value.IsNull() || value.ResultUsage() != wrapper.ResultUsage() || querySetDepth(node) != 0 {
+			if err != nil || !changed || !ok || !value.Value.IsNull() || value.ResultUsage() != wrapper.ResultUsage() || querySetDepth(node) != 0 {
 				t.Fatal("strict set wrapper retained cardinality", node, changed, err)
 			}
 		}
@@ -173,7 +173,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		parameter := null
 		parameter.Property.ParameterDependent = true
 		retained := wrapper
-		retained.right = parameter
+		retained.Right = parameter
 		if arithmeticSetConstantNull(retained, retained) {
 			t.Fatal("imported parameter became a physical NULL proof")
 		}
@@ -188,8 +188,8 @@ func TestSeriesExpressionHooks(t *testing.T) {
 			t.Fatal(err)
 		}
 		live := lowered.(*setProjectNode)
-		if len(live.calls) != 1 || live.callSlots[0] != 1 || !sameQuerySetOccurrence(live.calls[0], peer) {
-			t.Fatal("strict erasure lost live peer or retained erased marker", live.calls, live.callSlots)
+		if len(live.Calls) != 1 || live.CallSlots[0] != 1 || !sameQuerySetOccurrence(live.Calls[0], peer) {
+			t.Fatal("strict erasure lost live peer or retained erased marker", live.Calls, live.CallSlots)
 		}
 	})
 	fresh := seriesUnitType(t, sqltype.Int4)
@@ -203,7 +203,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	next := mapped.(seriesExpression)
-	if next.ResultUsage().Type != fresh || next.args[0].ResultUsage().Type != fresh || original.args[0].ResultUsage().Type != d || next.Properties() != original.Properties() || next.SourcePosition() != original.SourcePosition() {
+	if next.ResultUsage().Type != fresh || next.Args[0].ResultUsage().Type != fresh || original.Args[0].ResultUsage().Type != d || next.Properties() != original.Properties() || next.SourcePosition() != original.SourcePosition() {
 		t.Fatal("retag mutation")
 	}
 	if got := seriesUnitRead(t, next); !reflect.DeepEqual(got, []int64{1, 2, 3}) {
@@ -247,18 +247,18 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		t.Fatal(tree, err)
 	}
 	volatile := original
-	volatile.args = append([]expr.Expr(nil), original.args...)
+	volatile.Args = append([]expr.Expr(nil), original.Args...)
 	probe := queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(d, 1) }).(queryProbeExpression)
 	probe.Property.Volatility = expr.Volatile
-	volatile.args[0] = probe
+	volatile.Args[0] = probe
 	if plannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("erased volatile child")
 	}
-	root := &setProjectNode{querySchema: querySchema{{Usage: d.Usage()}}, child: &singletonNode{}, calls: []expr.Expr{original}}
+	root := &setProjectNode{querySchema: querySchema{{Usage: d.Usage()}}, Child: &singletonNode{}, Calls: []expr.Expr{original}}
 	rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		return mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
-			if n == original.args[0] {
-				return seriesUnit(t, d, 2, 3).args[0], true, nil
+			if n == original.Args[0] {
+				return seriesUnit(t, d, 2, 3).Args[0], true, nil
 			}
 			return n, false, nil
 		})
@@ -266,8 +266,8 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n, _ := rewritten.(*setProjectNode).calls[0].(seriesExpression).args[0].(literalExpression).value.Integer()
-	old, _ := original.args[0].(literalExpression).value.Integer()
+	n, _ := rewritten.(*setProjectNode).Calls[0].(seriesExpression).Args[0].(literalExpression).Value.Integer()
+	old, _ := original.Args[0].(literalExpression).Value.Integer()
 	if n != 2 || old != 1 {
 		t.Fatal("rewritten retained args", n, old)
 	}
@@ -279,7 +279,7 @@ func seriesUnitProject(t *testing.T, engine *Engine, bound seriesExpression) *pr
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &projectNode{querySchema: querySchema{{Name: "v", Usage: bound.ResultUsage()}}, child: root, expressions: outputs, frame: 1, hasTargetSet: true}
+	return &projectNode{querySchema: querySchema{{Name: "v", Usage: bound.ResultUsage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
 }
 func TestSeriesLowering(t *testing.T) {
 	engine := New()
@@ -290,9 +290,9 @@ func TestSeriesLowering(t *testing.T) {
 		e := seriesUnit(t, wide, 1, math.MaxInt64)
 		opens := 0
 		q := seriesUnitProject(t, engine, e)
-		functionSetUnitArgument(t, q.child.(*setProjectNode).calls, 0, 0,
+		functionSetUnitArgument(t, q.Child.(*setProjectNode).Calls, 0, 0,
 			queryProbe(wide.Usage(), func(*EvalContext) (sqltype.Value, error) { opens++; return sqltype.Integer(wide, 1) }))
-		q.child = &limitNode{querySchema: q.child.Schema(), child: q.child, count: seriesUnit(t, wide, 3, 3).args[0]}
+		q.Child = &limitNode{querySchema: q.Child.Schema(), Child: q.Child, Count: seriesUnit(t, wide, 3, 3).Args[0]}
 		r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 		if err != nil || count != 3 || opens != 1 {
 			t.Fatal(count, opens, err)
@@ -313,7 +313,7 @@ func TestSeriesLowering(t *testing.T) {
 	inner := seriesUnit(t, d, 1, 3)
 	outer := seriesUnit(t, d, 1, 3)
 	outer.Pos = parser.Position{Character: 5, Offset: 4}
-	outer.args[1] = inner
+	outer.Args[1] = inner
 	q := seriesUnitProject(t, engine, outer)
 	r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 	if err != nil || count != 6 {
@@ -394,13 +394,13 @@ func TestSeriesFinalization(t *testing.T) {
 			}
 			return sqltype.Integer(d, 1)
 		})
-		input := &valuesNode{rows: [][]expr.Expr{{}, {}}}
+		input := &valuesNode{Rows: [][]expr.Expr{{}, {}}}
 		root, outputs, err := regexpSetUnitLower(engine, input, []expr.Expr{e}, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		functionSetUnitArgument(t, root.(*setProjectNode).calls, 0, 0, probe)
-		q := &projectNode{querySchema: querySchema{{Usage: d.Usage()}}, child: root, expressions: outputs, frame: 1, hasTargetSet: true}
+		functionSetUnitArgument(t, root.(*setProjectNode).Calls, 0, 0, probe)
+		q := &projectNode{querySchema: querySchema{{Usage: d.Usage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
 		r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 		if r != nil || count != 0 || err != sentinel || calls != 2 {
 			t.Fatal(r, count, err, calls)
@@ -417,7 +417,7 @@ func TestSeriesFinalization(t *testing.T) {
 			defer cancel()
 			calls := 0
 			sentinel := errors.New("late projection error")
-			q.expressions = []expr.Expr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			q.Expressions = []expr.Expr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				if calls == 2 {
 					if phase == "cancel" {

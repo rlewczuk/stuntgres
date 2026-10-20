@@ -9,11 +9,11 @@ import (
 // The statement's captured source, frames, CTEs, locks and hash owner are borrowed
 // exactly as for scalar subqueries; no output is admitted before cardinality.
 func (c *EvalContext) subqueryUpdateOutputs(e subqueryExpression) (value sqltype.Value, err error) {
-	if len(c.updateOutputs) != e.updateWidth {
+	if len(c.updateOutputs) != e.UpdateWidth {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing UPDATE tuple output owner")
 	}
 	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
-	stage, err := openQueryProjectStage(c.Context, &state, e.queryPlan.Root.(*projectNode))
+	stage, err := openQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*projectNode))
 	if err != nil {
 		return sqltype.Value{}, err
 	}

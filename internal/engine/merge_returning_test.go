@@ -51,8 +51,8 @@ func TestMergeReturningFrames(t *testing.T) {
 	owner.OldRow = old
 	whole := b.returning.expressions[4].(returningWholeRowExpression)
 	calls := 0
-	member := whole.members[0]
-	whole.members[0] = queryProbe(member.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return member.Eval(c) })
+	member := whole.Members[0]
+	whole.Members[0] = queryProbe(member.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return member.Eval(c) })
 	owner.mergeAction = parser.MergeInsertAction
 	owner.OldRow = nil
 	v, err := whole.Eval(&child)

@@ -86,24 +86,24 @@ func viewWriteShape(d *catalog.Relation) (*projectNode, *sourceNode, []expr.Expr
 		return nil, nil, nil, "Views that do not select from a single table or view are not automatically updatable."
 	}
 	var predicates []expr.Expr
-	hasTargetSet := p.hasTargetSet
-	node := p.child
+	hasTargetSet := p.HasTargetSet
+	node := p.Child
 	for {
 		switch n := node.(type) {
 		case *setProjectNode:
 			hasTargetSet = true
-			node = n.child
+			node = n.Child
 		case *aggregateNode:
 			return nil, nil, nil, "Views that return aggregate functions are not automatically updatable."
 		case *windowNode:
 			return nil, nil, nil, "Views that return window functions are not automatically updatable."
 		case *sortNode:
-			node = n.child
+			node = n.Child
 		case *rowLockNode:
-			node = n.child
+			node = n.Child
 		case *filterNode:
-			predicates = append(predicates, n.predicate)
-			node = n.child
+			predicates = append(predicates, n.Predicate)
+			node = n.Child
 		case *sourceNode:
 			if hasTargetSet {
 				return nil, nil, nil, "Views that return set-returning functions are not automatically updatable."
@@ -134,8 +134,8 @@ func viewDirectColumn(expr expr.Expr) (columnExpression, bool) {
 	if c, ok := expr.(columnExpression); ok {
 		return c, true
 	}
-	if c, ok := expr.(coercionExpression); ok && c.ResultUsage() == c.child.ResultUsage() {
-		return viewDirectColumn(c.child)
+	if c, ok := expr.(coercionExpression); ok && c.ResultUsage() == c.Child.ResultUsage() {
+		return viewDirectColumn(c.Child)
 	}
 	return columnExpression{}, false
 }
@@ -179,7 +179,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	// outputs start in the logical target's canonical mutation frame.
 	outputs := make([]expr.Expr, len(d.Columns))
 	for i, c := range d.Columns {
-		outputs[i] = columnExpression{Info: expr.Info{Usage: c.Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, slot: i}
+		outputs[i] = columnExpression{Info: expr.Info{Usage: c.Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Slot: i}
 	}
 	cascaded := false
 	for d.RelationKind == catalog.ViewRelation {
@@ -206,10 +206,10 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		if reason != "" {
 			return viewWriteError(d, operation, reason)
 		}
-		if sourceNode.occurrence < 0 || sourceNode.occurrence >= len(viewOf(d).sources) {
+		if sourceNode.Occurrence < 0 || sourceNode.Occurrence >= len(viewOf(d).sources) {
 			return ids.ErrCatalogReplaced
 		}
-		leaf := viewOf(d).sources[sourceNode.occurrence]
+		leaf := viewOf(d).sources[sourceNode.Occurrence]
 		source, ok := auth.Catalog.Relation(leaf.ref.Address)
 		if !ok {
 			return ids.ErrCatalogReplaced
@@ -221,12 +221,12 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ViewRelation && source.RelationKind != catalog.ForeignRelation {
 			return viewWriteError(d, operation, "Views that do not select from a single table or view are not automatically updatable.")
 		}
-		direct := make([]int, len(project.expressions))
+		direct := make([]int, len(project.Expressions))
 		writable := false
-		for i, expr := range project.expressions {
+		for i, expr := range project.Expressions {
 			direct[i] = -1
-			if c, ok := viewDirectColumn(expr); ok && sameViewRelation(c.origin, leaf.ref) {
-				slot, err := stableViewSlot(source, leaf, c.slot)
+			if c, ok := viewDirectColumn(expr); ok && sameViewRelation(c.Origin, leaf.ref) {
+				slot, err := stableViewSlot(source, leaf, c.Slot)
 				if err != nil {
 					return err
 				}
@@ -263,7 +263,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 				}
 			}
 		}
-		w.layers = append(w.layers, viewWriteLayer{relation: d, ref: ref, targets: mapped, source: source, sourceRef: use, mainOccurrence: sourceNode.occurrence})
+		w.layers = append(w.layers, viewWriteLayer{relation: d, ref: ref, targets: mapped, source: source, sourceRef: use, mainOccurrence: sourceNode.Occurrence})
 		var lowerStored func(expr.Expr, bool) (expr.Expr, bool, error)
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
 			return rewriteViewExpression(auth.Catalog, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
@@ -297,37 +297,37 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 					return n, false, nil
 				}
 				c, ok := n.(columnExpression)
-				if !ok || !sameViewRelation(c.origin, leaf.ref) || c.frame != project.frame {
+				if !ok || !sameViewRelation(c.Origin, leaf.ref) || c.Frame != project.Frame {
 					return n, false, nil
 				}
-				slot, err := stableViewSlot(source, leaf, c.slot)
+				slot, err := stableViewSlot(source, leaf, c.Slot)
 				if err != nil {
 					return nil, false, err
 				}
-				c.slot = slot
-				c.origin = use
-				c.scope = 1
-				c.frame = 1
+				c.Slot = slot
+				c.Origin = use
+				c.Scope = 1
+				c.Frame = 1
 				// Main-source expressions now consume the physical destination row,
 				// not a SELECT occurrence/window. Refresh virtual recipes against
 				// its live attributes; independent subquery occurrences stay intact.
-				c.virtual = nil
-				c.rowStart, c.rowWidth, c.queryOccurrence = 0, 0, 0
-				c = c.withGeneration(source, slot, 0)
+				c.Virtual = nil
+				c.RowStart, c.RowWidth, c.QueryOccurrence = 0, 0, 0
+				c = c.WithGeneration(source, slot, 0)
 				c.RoutineRecipeReference = d
-				if c.virtual != nil {
-					virtual, _, err := lowerStored(c.virtual, false)
+				if c.Virtual != nil {
+					virtual, _, err := lowerStored(c.Virtual, false)
 					if err != nil {
 						return nil, false, err
 					}
-					c.virtual = virtual
+					c.Virtual = virtual
 				}
 				return c, true, nil
 			})
 		}
-		expanded := make([]expr.Expr, len(project.expressions))
+		expanded := make([]expr.Expr, len(project.Expressions))
 		// Lower lazily: merely visiting unused expressions cannot run conversions.
-		for i, expr := range project.expressions {
+		for i, expr := range project.Expressions {
 			next, _, err := lowerStored(expr, true)
 			if err != nil {
 				return err
@@ -336,13 +336,13 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		}
 		replace := func(n expr.Expr) (expr.Expr, bool, error) {
 			c, ok := n.(columnExpression)
-			if !ok || !sameViewRelation(c.origin, ref) || c.frame > 1 {
+			if !ok || !sameViewRelation(c.Origin, ref) || c.Frame > 1 {
 				return n, false, nil
 			}
-			if c.slot < 0 || c.slot >= len(expanded) {
+			if c.Slot < 0 || c.Slot >= len(expanded) {
 				return nil, false, ids.ErrCatalogReplaced
 			}
-			return expanded[c.slot], true, nil
+			return expanded[c.Slot], true, nil
 		}
 		for i, expr := range outputs {
 			next, _, err := rewriteViewExpression(auth.Catalog, expr, nil, replace)
@@ -451,31 +451,31 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				c = x
 			case returningColumnExpression:
 				c = x.columnExpression
-				old, absent = x.old, x.absent
+				old, absent = x.Old, x.Absent
 			default:
 				return n, false, nil
 			}
-			if sameViewRelation(c.origin, w.logical.ref) && c.frame == 1 {
-				if c.slot < 0 || c.slot >= len(w.outputs) {
+			if sameViewRelation(c.Origin, w.logical.ref) && c.Frame == 1 {
+				if c.Slot < 0 || c.Slot >= len(w.outputs) {
 					return nil, false, ids.ErrCatalogReplaced
 				}
-				output := w.outputs[c.slot]
+				output := w.outputs[c.Slot]
 				output, _, err := rewriteViewExpression(auth.Catalog, output, nil, func(child expr.Expr) (expr.Expr, bool, error) {
 					column, ok := child.(columnExpression)
-					if !ok || !sameViewRelation(column.origin, w.ref) || column.frame != 1 {
+					if !ok || !sameViewRelation(column.Origin, w.ref) || column.Frame != 1 {
 						return child, false, nil
 					}
-					column.scope = c.scope
-					column.frame = c.frame
+					column.Scope = c.Scope
+					column.Frame = c.Frame
 					return column, true, nil
 				}, graft)
 				if old || absent {
-					return returningColumnExpression{columnExpression: c, old: old, absent: absent, value: output}, true, err
+					return returningColumnExpression{columnExpression: c, Old: old, Absent: absent, Value: output}, true, err
 				}
 				return output, true, err
 			}
-			if c.scope == 1 && c.frame == 1 && c.slot >= logicalWidth {
-				c.slot += physicalWidth - logicalWidth
+			if c.Scope == 1 && c.Frame == 1 && c.Slot >= logicalWidth {
+				c.Slot += physicalWidth - logicalWidth
 				return c, true, nil
 			}
 			return n, false, nil
@@ -492,19 +492,19 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		if target == nil {
 			return nil, nil
 		}
-		node, changed, err := mapSubscript(target.node, lowerMapped)
+		node, changed, err := mapSubscript(target.Node, lowerMapped)
 		if err != nil {
 			return nil, err
 		}
-		next, err := lowerTarget(target.next)
+		next, err := lowerTarget(target.Next)
 		if err != nil {
 			return nil, err
 		}
-		if !changed && next == target.next {
+		if !changed && next == target.Next {
 			return target, nil
 		}
 		copy := *target
-		copy.node, copy.next = node, next
+		copy.Node, copy.Next = node, next
 		return &copy, nil
 	}
 	var err error
@@ -597,7 +597,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				if !ok {
 					return sqlError("42P10", "there is no unique or exclusion constraint matching the ON CONFLICT specification")
 				}
-				conflict.keys[i].attribute = w.base.Attributes[output.slot]
+				conflict.keys[i].attribute = w.base.Attributes[output.Slot]
 			} else if key.expression != nil {
 				conflict.keys[i].expression, err = lower(key.expression)
 				if err != nil {
@@ -649,5 +649,5 @@ func viewWritePredicate(predicates []expr.Expr, user expr.Expr) expr.Expr {
 	if len(predicates) == 0 {
 		return user
 	}
-	return viewQualificationExpression{Info: expr.InfoOf(predicates[0]), predicates: predicates, user: user}
+	return viewQualificationExpression{Info: expr.InfoOf(predicates[0]), Predicates: predicates, User: user}
 }

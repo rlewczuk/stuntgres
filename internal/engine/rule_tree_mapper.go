@@ -39,7 +39,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 	var definitions map[*cteDefinition]*cteDefinition
 	var nodes map[LogicalNode]LogicalNode
 	protected := func(definition *cteDefinition) bool {
-		return definition != nil && (slices.Contains(retained, definition) || definition.mutation != nil && mapping.mutation == nil)
+		return definition != nil && (slices.Contains(retained, definition) || definition.Mutation != nil && mapping.mutation == nil)
 	}
 	mapper.definition = func(original *cteDefinition) (*cteDefinition, error) {
 		if original == nil || protected(original) {
@@ -49,23 +49,23 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			return mapped, nil
 		}
 		copy := *original
-		copy.owner = ownerFrame(original.owner)
+		copy.Owner = ownerFrame(original.Owner)
 		if definitions == nil {
 			definitions = make(map[*cteDefinition]*cteDefinition)
 		}
 		definitions[original] = &copy
-		if original.query != nil {
-			root, err := mapper.query(original.query.Root)
+		if original.Query != nil {
+			root, err := mapper.query(original.Query.Root)
 			if err != nil {
 				return nil, err
 			}
-			if root != original.query.Root {
-				query := *original.query
+			if root != original.Query.Root {
+				query := *original.Query
 				query.Root = root
-				copy.query = &query
+				copy.Query = &query
 			}
 		}
-		if original.mutation != nil {
+		if original.Mutation != nil {
 			body, err := mapping.mutation(original)
 			if err != nil {
 				return nil, err
@@ -74,9 +74,9 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			if err != nil {
 				return nil, err
 			}
-			copy.mutation = &body
+			copy.Mutation = &body
 		}
-		if copy.owner == original.owner && copy.query == original.query && copy.mutation == original.mutation {
+		if copy.Owner == original.Owner && copy.Query == original.Query && copy.Mutation == original.Mutation {
 			definitions[original] = original
 			return original, nil
 		}
@@ -92,49 +92,49 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			}
 			switch node := expr.(type) {
 			case columnExpression:
-				if node.scope == rulePseudoScope {
+				if node.Scope == rulePseudoScope {
 					return expr, false, nil
 				}
 				changed := false
-				if node.frame != 0 {
-					next := frame(node.frame)
-					changed = next != node.frame
-					node.frame = next
+				if node.Frame != 0 {
+					next := frame(node.Frame)
+					changed = next != node.Frame
+					node.Frame = next
 				}
-				if offset != 0 && node.queryOccurrence != 0 {
-					node.queryOccurrence += offset
+				if offset != 0 && node.QueryOccurrence != 0 {
+					node.QueryOccurrence += offset
 					changed = true
 				}
 				return node, changed, nil
 			case aggregateExpression:
-				next := frame(node.frame)
-				if next != node.frame {
-					node.frame = next
+				next := frame(node.Frame)
+				if next != node.Frame {
+					node.Frame = next
 					return node, true, nil
 				}
 			case groupExpression:
-				next := frame(node.frame)
-				if next != node.frame {
-					node.frame = next
+				next := frame(node.Frame)
+				if next != node.Frame {
+					node.Frame = next
 					return node, true, nil
 				}
 			case groupingExpression:
-				next := frame(node.frame)
-				if next != node.frame {
-					node.frame = next
+				next := frame(node.Frame)
+				if next != node.Frame {
+					node.Frame = next
 					return node, true, nil
 				}
 			case returningWholeRowExpression:
-				next := frame(node.frame)
-				if next != node.frame {
-					node.frame = next
+				next := frame(node.Frame)
+				if next != node.Frame {
+					node.Frame = next
 					return node, true, nil
 				}
 			case *windowExpression:
-				next := frame(node.frame)
-				if next != node.frame {
+				next := frame(node.Frame)
+				if next != node.Frame {
 					copy := *node
-					copy.frame = next
+					copy.Frame = next
 					return &copy, true, nil
 				}
 			}
@@ -164,32 +164,32 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		case *sourceNode:
 			if offset != 0 {
 				copy := *node
-				copy.occurrence += offset
+				copy.Occurrence += offset
 				mapped = &copy
 			}
 		case *projectNode:
-			next := frame(node.frame)
-			if node.cteOwner {
-				next = ownerFrame(node.frame)
+			next := frame(node.Frame)
+			if node.CTEOwner {
+				next = ownerFrame(node.Frame)
 			}
-			if next != node.frame {
+			if next != node.Frame {
 				copy := *node
-				copy.frame = next
+				copy.Frame = next
 				mapped = &copy
 			}
 		case *joinNode:
 			copy := *node
 			changed := false
-			if next := frame(node.frame); next != node.frame {
-				copy.frame = next
+			if next := frame(node.Frame); next != node.Frame {
+				copy.Frame = next
 				changed = true
 			}
-			for i, capture := range node.captures {
-				if next := frame(capture.frame); next != capture.frame {
-					if len(copy.captures) != 0 && &copy.captures[0] == &node.captures[0] {
-						copy.captures = slices.Clone(node.captures)
+			for i, capture := range node.Captures {
+				if next := frame(capture.Frame); next != capture.Frame {
+					if len(copy.Captures) != 0 && &copy.Captures[0] == &node.Captures[0] {
+						copy.Captures = slices.Clone(node.Captures)
 					}
-					copy.captures[i].frame = next
+					copy.Captures[i].Frame = next
 					changed = true
 				}
 			}
@@ -199,16 +199,16 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		case *functionFromNode:
 			copy := *node
 			changed := false
-			if next := frame(node.frame); next != node.frame {
-				copy.frame = next
+			if next := frame(node.Frame); next != node.Frame {
+				copy.Frame = next
 				changed = true
 			}
-			for i, capture := range node.captures {
-				if next := frame(capture.frame); next != capture.frame {
-					if len(copy.captures) != 0 && &copy.captures[0] == &node.captures[0] {
-						copy.captures = slices.Clone(node.captures)
+			for i, capture := range node.Captures {
+				if next := frame(capture.Frame); next != capture.Frame {
+					if len(copy.Captures) != 0 && &copy.Captures[0] == &node.Captures[0] {
+						copy.Captures = slices.Clone(node.Captures)
 					}
-					copy.captures[i].frame = next
+					copy.Captures[i].Frame = next
 					changed = true
 				}
 			}
@@ -216,42 +216,42 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				mapped = &copy
 			}
 		case *setProjectNode:
-			if next := frame(node.frame); next != node.frame {
+			if next := frame(node.Frame); next != node.Frame {
 				copy := *node
-				copy.frame = next
+				copy.Frame = next
 				mapped = &copy
 			}
 		case *derivedNode:
 			copy := *node
-			copy.scanFrame = frame(node.scanFrame)
-			if protected(node.cte) {
-				if copy.scanFrame == node.scanFrame && node.query == nil {
+			copy.ScanFrame = frame(node.ScanFrame)
+			if protected(node.CTE) {
+				if copy.ScanFrame == node.ScanFrame && node.Query == nil {
 					return node, nil
 				}
 				return &copy, nil
 			}
-			if node.cte != nil {
+			if node.CTE != nil {
 				var err error
-				copy.cte, err = mapper.definition(node.cte)
+				copy.CTE, err = mapper.definition(node.CTE)
 				if err != nil {
 					return nil, err
 				}
-				if node.query == node.cte.query {
-					copy.query = copy.cte.query
+				if node.Query == node.CTE.Query {
+					copy.Query = copy.CTE.Query
 				}
 			}
-			if node.query != nil && (node.cte == nil || node.query != node.cte.query) {
-				root, err := mapper.query(node.query.Root)
+			if node.Query != nil && (node.CTE == nil || node.Query != node.CTE.Query) {
+				root, err := mapper.query(node.Query.Root)
 				if err != nil {
 					return nil, err
 				}
-				if root != node.query.Root {
-					query := *node.query
+				if root != node.Query.Root {
+					query := *node.Query
 					query.Root = root
-					copy.query = &query
+					copy.Query = &query
 				}
 			}
-			if copy.scanFrame == node.scanFrame && copy.cte == node.cte && copy.query == node.query && node.query == nil {
+			if copy.ScanFrame == node.ScanFrame && copy.CTE == node.CTE && copy.Query == node.Query && node.Query == nil {
 				return node, nil
 			}
 			if nodes == nil {
@@ -261,9 +261,9 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			return &copy, nil
 		case *worktableScanNode:
 			copy := *node
-			copy.scanFrame = frame(node.scanFrame)
+			copy.ScanFrame = frame(node.ScanFrame)
 			var err error
-			copy.cte, err = mapper.definition(node.cte)
+			copy.CTE, err = mapper.definition(node.CTE)
 			if err != nil {
 				return nil, err
 			}
@@ -271,7 +271,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		case *recursiveUnionNode:
 			copy := *node
 			var err error
-			copy.definition, err = mapper.definition(node.definition)
+			copy.Definition, err = mapper.definition(node.Definition)
 			if err != nil {
 				return nil, err
 			}

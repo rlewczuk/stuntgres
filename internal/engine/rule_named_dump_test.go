@@ -51,7 +51,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						t.Helper()
 						b := r.actions[0].binding
 						if cte {
-							if len(b.ctes) != 1 || b.ctes[0].mutation == nil {
+							if len(b.ctes) != 1 || b.ctes[0].Mutation == nil {
 								t.Fatal("analyzed action lost its modifying CTE")
 							}
 							b = *cteMutationOf(b.ctes[0])
@@ -74,26 +74,26 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						}
 						action := r.actions[0]
 						body := action.binding.ctes[0]
-						presentation := action.modifierPresentations[body.statement]
+						presentation := action.modifierPresentations[body.Statement]
 						project := cteMutationOf(body).query.Root.(*projectNode)
 						outer := action.binding.query.Root.(*projectNode)
-						if project.frame == outer.frame {
+						if project.Frame == outer.Frame {
 							t.Fatal("modifier and consumer share a capture frame")
 						}
-						for i, expr := range project.expressions {
+						for i, expr := range project.Expressions {
 							column, ok := expr.(columnExpression)
-							if !ok || column.scope == rulePseudoScope || column.frame != project.frame ||
-								column.origin.Address.ClassID != inputRef.Address.ClassID ||
-								column.origin.Address.ObjectID != inputRef.Address.ObjectID || column.origin.Address.SubID != int32(i+1) {
+							if !ok || column.Scope == rulePseudoScope || column.Frame != project.Frame ||
+								column.Origin.Address.ClassID != inputRef.Address.ClassID ||
+								column.Origin.Address.ObjectID != inputRef.Address.ObjectID || column.Origin.Address.SubID != int32(i+1) {
 								t.Fatal("modifier projection lost its own input attribute")
 							}
-							path := viewLiteralPath{query: project.frame, clause: viewTargetLiteral, target: i}
+							path := viewLiteralPath{query: project.Frame, clause: viewTargetLiteral, target: i}
 							captured, ok := presentation.columns[path]
-							if !ok || captured.ruleSide != 0 || captured.frame != project.frame {
+							if !ok || captured.ruleSide != 0 || captured.frame != project.Frame {
 								t.Fatal("modifier source presentation lost its own capture")
 							}
 						}
-						path := viewLiteralPath{query: outer.frame, clause: viewTargetLiteral}
+						path := viewLiteralPath{query: outer.Frame, clause: viewTargetLiteral}
 						if action.presentation.columns[path].ruleSide != 2 {
 							t.Fatal("consumer lost its separate NEW recipe")
 						}

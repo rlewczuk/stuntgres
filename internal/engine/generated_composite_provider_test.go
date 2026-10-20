@@ -114,8 +114,8 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 	}
 	address := foreign.Address()
 	address.SubID = foreign.Attributes[0]
-	ownColumn.origin = view.Owner().Domain.Ref(view.Epoch(), address)
-	ownColumn.slot = 0
+	ownColumn.Origin = view.Owner().Domain.Ref(view.Epoch(), address)
+	ownColumn.Slot = 0
 	if err := validateGenerationPlan(view, holder, ownColumn); err == nil {
 		t.Fatal("provider metadata admitted a cross-table data read")
 	}

@@ -16,10 +16,10 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 	_, query, source := queryCoreFixture(t, "SELECT v FROM t")
 	arm := query.Root.(*projectNode)
 	copy := *arm
-	copy.expressions = append([]expr.Expr(nil), arm.expressions...)
+	copy.Expressions = append([]expr.Expr(nil), arm.Expressions...)
 	copy.querySchema = append(querySchema(nil), arm.querySchema...)
 	if zeroWidth {
-		copy.expressions = []expr.Expr{}
+		copy.Expressions = []expr.Expr{}
 		copy.querySchema = querySchema{}
 	}
 	schema := append(querySchema(nil), copy.Schema()...)
@@ -29,12 +29,12 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 		schema[i].Nullable = false
 		schema[i].NullabilityKnown = false
 	}
-	n := &setNode{querySchema: schema, left: &copy, right: &copy, operation: operation, all: all, leftExpressions: append([]expr.Expr(nil), copy.expressions...), rightExpressions: append([]expr.Expr(nil), copy.expressions...)}
+	n := &setNode{querySchema: schema, Left: &copy, Right: &copy, Operation: operation, All: all, LeftExpressions: append([]expr.Expr(nil), copy.Expressions...), RightExpressions: append([]expr.Expr(nil), copy.Expressions...)}
 	if operation != "union" || !all {
-		n.grouping = make([]queryGrouping, len(schema))
+		n.Grouping = make([]queryGrouping, len(schema))
 		for i := range schema {
 			var err error
-			n.grouping[i].Grouping, err = sqltype.BindGrouping(schema[i].Usage)
+			n.Grouping[i].Grouping, err = sqltype.BindGrouping(schema[i].Usage)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -42,9 +42,9 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 	}
 	projection := make([]expr.Expr, len(schema))
 	for i := range schema {
-		projection[i] = columnExpression{Info: expr.InfoOf(copy.expressions[i]), scope: 1, frame: copy.frame, slot: i}
+		projection[i] = columnExpression{Info: expr.InfoOf(copy.Expressions[i]), Scope: 1, Frame: copy.Frame, Slot: i}
 	}
-	return n, &projectNode{querySchema: schema, child: n, expressions: projection, frame: copy.frame}, source
+	return n, &projectNode{querySchema: schema, Child: n, Expressions: projection, Frame: copy.Frame}, source
 }
 
 func TestQuerySetCounts(t *testing.T) {
@@ -81,14 +81,14 @@ func TestQuerySetCollisionAndZeroWidth(t *testing.T) {
 			{"union", true, 8, 8}, {"union", false, 3, 1}, {"intersect", true, 4, 4}, {"intersect", false, 3, 1}, {"except", true, 0, 0}, {"except", false, 0, 0},
 		} {
 			n, project, source := querySetUnitFixture(t, tc.op, tc.all, zero)
-			if !zero && n.grouping != nil {
+			if !zero && n.Grouping != nil {
 				d := n.Schema()[0].Usage.Type
 				one, _ := sqltype.Integer(d, 1)
 				two, _ := sqltype.Integer(d, 2)
-				if i, err := findDistinctTuple(context.Background(), n.grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); err != nil || i != -1 {
+				if i, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); err != nil || i != -1 {
 					t.Fatal("unequal collision", i, err)
 				}
-				if i, err := findDistinctTuple(context.Background(), n.grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); err != nil || i != 1 {
+				if i, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); err != nil || i != 1 {
 					t.Fatal("equal collision", i, err)
 				}
 			}
@@ -126,16 +126,16 @@ func TestQuerySetUnionAllDemand(t *testing.T) {
 	n, _, source := querySetUnitFixture(t, "union", true, false)
 	defer source.close()
 	left, right := 0, 0
-	l, r := n.leftExpressions[0], n.rightExpressions[0]
-	n.leftExpressions[0] = queryProbe(l.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { left++; return l.Eval(c) })
-	n.rightExpressions[0] = queryProbe(r.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { right++; return r.Eval(c) })
+	l, r := n.LeftExpressions[0], n.RightExpressions[0]
+	n.LeftExpressions[0] = queryProbe(l.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { left++; return l.Eval(c) })
+	n.RightExpressions[0] = queryProbe(r.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { right++; return r.Eval(c) })
 	state := &queryState{source: source}
 	stage, err := openSetNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if left != 0 || right != 0 || n.grouping != nil {
-		t.Fatal("UNION ALL opened/demanded before pull", left, right, n.grouping)
+	if left != 0 || right != 0 || n.Grouping != nil {
+		t.Fatal("UNION ALL opened/demanded before pull", left, right, n.Grouping)
 	}
 	if _, present, err := stage.nextOccurrence(context.Background()); err != nil || !present {
 		t.Fatal(present, err)
@@ -156,9 +156,9 @@ func TestQuerySetCancellationAndCleanup(t *testing.T) {
 			defer cancel()
 			sentinel := errors.New("late set arm failure")
 			calls := 0
-			expressions := n.leftExpressions
+			expressions := n.LeftExpressions
 			if phase == "right" {
-				expressions = n.rightExpressions
+				expressions = n.RightExpressions
 			}
 			original := expressions[0]
 			expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
@@ -172,8 +172,8 @@ func TestQuerySetCancellationAndCleanup(t *testing.T) {
 				return original.Eval(c)
 			})
 			if phase == "publication" {
-				original := project.expressions[0]
-				project.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })
+				original := project.Expressions[0]
+				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })
 			}
 			rows, count, err := finalizeQuery(ctx, project, source, nil)
 			want := error(context.Canceled)
@@ -207,28 +207,28 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := b.query.Root.(*projectNode)
-	n := project.child.(*setNode)
-	if n.left.frame == n.right.frame || n.left.frame == project.frame || n.right.frame == project.frame {
-		t.Fatal("set arms share frame", project.frame, n.left.frame, n.right.frame)
+	n := project.Child.(*setNode)
+	if n.Left.Frame == n.Right.Frame || n.Left.Frame == project.Frame || n.Right.Frame == project.Frame {
+		t.Fatal("set arms share frame", project.Frame, n.Left.Frame, n.Right.Frame)
 	}
 	frames, queries := collectQueryFrames(project)
 	if len(frames) != 5 || len(queries) != 5 {
 		t.Fatal("nested arm frame registration", len(frames), len(queries))
 	}
-	for _, schema := range []querySchema{project.querySchema, n.querySchema, n.left.querySchema, n.right.querySchema} {
+	for _, schema := range []querySchema{project.querySchema, n.querySchema, n.Left.querySchema, n.Right.querySchema} {
 		for _, column := range schema {
 			if column.Usage.Type.ID() != sqltype.Int4 || column.OriginTable != 0 || column.OriginAttribute != 0 || column.NullabilityKnown {
 				t.Fatal(column)
 			}
 		}
 	}
-	if n.left.expressions[0].ResultUsage().Type == nil {
+	if n.Left.Expressions[0].ResultUsage().Type == nil {
 		t.Fatal("unknown output escaped parent resolution")
 	}
 	if canSimplifyExists(b.query) {
 		t.Fatal("set presence discarded key demand")
 	}
-	if _, discard := pruneIdentityQueryProducer(n, project.expressions[0]); discard {
+	if _, discard := pruneIdentityQueryProducer(n, project.Expressions[0]); discard {
 		t.Fatal("identity pruning discarded set key")
 	}
 }
@@ -236,7 +236,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	n, project, source := querySetUnitFixture(t, "intersect", true, false)
 	defer source.close()
-	original := n.leftExpressions[0]
+	original := n.LeftExpressions[0]
 	replacement := &queryProbeExpression{Info: expr.InfoOf(original), eval: func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) }}
 	rewritten, err := rewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
@@ -247,11 +247,11 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	if err != nil || rewritten == project {
 		t.Fatal(rewritten, err)
 	}
-	copy := rewritten.(*projectNode).child.(*setNode)
-	if copy == n || n.leftExpressions[0] != original || copy.leftExpressions[0] != replacement {
+	copy := rewritten.(*projectNode).Child.(*setNode)
+	if copy == n || n.LeftExpressions[0] != original || copy.LeftExpressions[0] != replacement {
 		t.Fatal("rewrite mutated held binary plan")
 	}
-	if copy.operation != n.operation || copy.all != n.all || len(copy.grouping) != len(n.grouping) {
+	if copy.Operation != n.Operation || copy.All != n.All || len(copy.Grouping) != len(n.Grouping) {
 		t.Fatal("rewrite lost set contract")
 	}
 	typ := n.Schema()[0].Usage.Type
@@ -265,11 +265,11 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reminted := mapped.(*projectNode).child.(*setNode)
-	if reminted == n || reminted.left == n.left || reminted.right == n.right || n.Schema()[0].Usage.Type != typ {
+	reminted := mapped.(*projectNode).Child.(*setNode)
+	if reminted == n || reminted.Left == n.Left || reminted.Right == n.Right || n.Schema()[0].Usage.Type != typ {
 		t.Fatal("remap mutated held set")
 	}
-	for _, expression := range []expr.Expr{reminted.leftExpressions[0], reminted.rightExpressions[0]} {
+	for _, expression := range []expr.Expr{reminted.LeftExpressions[0], reminted.RightExpressions[0]} {
 		if expression.ResultUsage().Type != &destination {
 			t.Fatal("side recipe kept source-owner type")
 		}
@@ -278,11 +278,11 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, err := reminted.grouping[0].PrepareKey(context.Background(), value)
+	key, err := reminted.Grouping[0].PrepareKey(context.Background(), value)
 	if err != nil || key.Type() != &destination {
 		t.Fatal("grouping kept source-owner type", key, err)
 	}
-	equal, err := reminted.grouping[0].Equal(context.Background(), key, value)
+	equal, err := reminted.Grouping[0].Equal(context.Background(), key, value)
 	if err != nil || !equal {
 		t.Fatal(equal, err)
 	}
@@ -300,12 +300,12 @@ func TestQuerySetHashCollisionCancellation(t *testing.T) {
 	usage := text.Usage()
 	n.querySchema[0].Usage = usage
 	var err error
-	n.grouping[0].Grouping, err = sqltype.BindGrouping(usage)
+	n.Grouping[0].Grouping, err = sqltype.BindGrouping(usage)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := &aggregateCancelContext{Context: context.Background(), at: 4}
-	n.leftExpressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+	n.LeftExpressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 		ctx.armed = true
 		return sqltype.String(text, "set cancellation payload"), nil
 	})
@@ -345,22 +345,22 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
 	project := b.query.Root.(*projectNode)
 	arm := *project
-	arm.expressions = append([]expr.Expr(nil), project.expressions...)
+	arm.Expressions = append([]expr.Expr(nil), project.Expressions...)
 	arm.querySchema = append(querySchema(nil), project.querySchema...)
-	n := &setNode{querySchema: arm.querySchema, left: &arm, right: &arm, operation: "union", all: true, leftExpressions: append([]expr.Expr(nil), arm.expressions...), rightExpressions: append([]expr.Expr(nil), arm.expressions...)}
-	original := n.rightExpressions[0]
+	n := &setNode{querySchema: arm.querySchema, Left: &arm, Right: &arm, Operation: "union", All: true, LeftExpressions: append([]expr.Expr(nil), arm.Expressions...), RightExpressions: append([]expr.Expr(nil), arm.Expressions...)}
+	original := n.RightExpressions[0]
 	sentinel := errors.New("late INSERT set arm")
 	calls := 0
-	n.rightExpressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	n.RightExpressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		calls++
 		if calls == 3 {
 			return sqltype.Value{}, sentinel
 		}
 		return original.Eval(c)
 	})
-	project.child = n
-	for i, expression := range project.expressions {
-		project.expressions[i] = columnExpression{Info: expr.InfoOf(expression), scope: 1, frame: project.frame, slot: i}
+	project.Child = n
+	for i, expression := range project.Expressions {
+		project.Expressions[i] = columnExpression{Info: expr.InfoOf(expression), Scope: 1, Frame: project.Frame, Slot: i}
 	}
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	if rows.values != nil || err != sentinel || source.view != nil || source.anonymous != nil {
@@ -403,10 +403,10 @@ func TestQuerySetAssignmentSchemaOwnership(t *testing.T) {
 				t.Fatal(err)
 			}
 			project := bound.query.Root.(*projectNode)
-			if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 || project.expressions[0].ResultUsage().Type.ID() != sqltype.Int4 {
+			if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 || project.Expressions[0].ResultUsage().Type.ID() != sqltype.Int4 {
 				t.Fatal("destination projection is not assigned INT4", project.Schema())
 			}
-			node := project.child
+			node := project.Child
 			for {
 				if node.Schema()[0].Usage.Type.ID() != tc.source {
 					t.Fatal("assignment changed source schema", node.Schema(), tc.source)

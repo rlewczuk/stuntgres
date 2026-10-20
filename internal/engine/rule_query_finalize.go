@@ -42,12 +42,12 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 		}
 	}
 	visitCTEQuery(root, func(node LogicalNode) {
-		if scan, ok := node.(*derivedNode); ok && scan.cte != nil && scan.cte.query != nil {
-			retain(scan.cte.query.Root)
+		if scan, ok := node.(*derivedNode); ok && scan.CTE != nil && scan.CTE.Query != nil {
+			retain(scan.CTE.Query.Root)
 		}
 	}, func(expr expr.Expr) {
 		if subquery, ok := expr.(subqueryExpression); ok && subquery.cteDefinition {
-			retain(subquery.queryPlan.Root)
+			retain(subquery.QueryPlan.Root)
 		}
 	}, true)
 	var query func(LogicalNode) (LogicalNode, error)
@@ -66,7 +66,7 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 					return &copy, nil
 				}
 			}
-			if scan, ok := node.(*derivedNode); ok && scan.cte != nil {
+			if scan, ok := node.(*derivedNode); ok && scan.CTE != nil {
 				copy := *scan
 				return &copy, nil
 			}
@@ -74,7 +74,7 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 			if !ok {
 				return node, nil
 			}
-			child, err := query(project.child)
+			child, err := query(project.Child)
 			if err != nil {
 				return nil, err
 			}
@@ -87,17 +87,17 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 				switch n := current.(type) {
 				case *limitNode:
 					bounded = true
-					current = n.child
+					current = n.Child
 				case *rowLockNode:
-					current = n.child
+					current = n.Child
 				case *evaluationNode:
 					evaluation = n
-					current = n.child
+					current = n.Child
 				case *distinctOnNode:
 					distinct = n
-					current = n.child
+					current = n.Child
 				case *setProjectNode:
-					current = n.child
+					current = n.Child
 				case *sortNode:
 					ordered = n
 					current = nil
@@ -108,22 +108,22 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 			}
 			if ordered == nil && evaluation == nil && !bounded {
 				copy := *project
-				copy.child = child
+				copy.Child = child
 				return rewriteQueryExpressions(&copy, expression)
 			}
 			recipe := func(slot int) (expr.Expr, error) {
-				if evaluation != nil && slot >= evaluation.base && slot < evaluation.base+len(evaluation.expressions) {
-					return evaluation.expressions[slot-evaluation.base], nil
+				if evaluation != nil && slot >= evaluation.Base && slot < evaluation.Base+len(evaluation.Expressions) {
+					return evaluation.Expressions[slot-evaluation.Base], nil
 				}
 				if ordered != nil {
-					for _, key := range ordered.keys {
-						if key.cache == slot {
-							return key.expression, nil
+					for _, key := range ordered.Keys {
+						if key.Cache == slot {
+							return key.Expression, nil
 						}
 					}
-					base := ordered.cacheWidth - len(ordered.outputs)
-					if slot >= base && slot < ordered.cacheWidth {
-						return ordered.outputs[slot-base], nil
+					base := ordered.CacheWidth - len(ordered.Outputs)
+					if slot >= base && slot < ordered.CacheWidth {
+						return ordered.Outputs[slot-base], nil
 					}
 				}
 				return nil, fmt.Errorf("stuntgres: invalid retained rule query cache")
@@ -131,13 +131,13 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 			recover := func(bound expr.Expr) (expr.Expr, bool, error) {
 				return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, query, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if cached, ok := expr.(cachedOrderExpression); ok {
-						next, err := recipe(cached.slot)
+						next, err := recipe(cached.Slot)
 						return next, true, err
 					}
 					return expr, false, nil
 				})
 			}
-			projection := slices.Clone(project.expressions)
+			projection := slices.Clone(project.Expressions)
 			for i, expr := range projection {
 				projection[i], _, err = recover(expr)
 				if err != nil {
@@ -146,24 +146,24 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 			}
 			var order []sortKey
 			if ordered != nil {
-				order = slices.Clone(ordered.keys)
+				order = slices.Clone(ordered.Keys)
 				for i := range order {
-					order[i].slot, order[i].cache = -1, -1
-					order[i].output = false
+					order[i].Slot, order[i].Cache = -1, -1
+					order[i].Output = false
 				}
 			}
 			var on []sortKey
 			if distinct != nil {
-				on = make([]sortKey, len(distinct.expressions))
-				for i, expr := range distinct.expressions {
+				on = make([]sortKey, len(distinct.Expressions))
+				for i, expr := range distinct.Expressions {
 					next, _, failure := recover(expr)
 					if failure != nil {
 						return nil, failure
 					}
-					on[i] = sortKey{expression: next, slot: -1, cache: -1, targetIdentity: len(projection) + i + 1}
+					on[i] = sortKey{Expression: next, Slot: -1, Cache: -1, TargetIdentity: len(projection) + i + 1}
 					for _, key := range order {
-						if sameGroupExpression(next, key.expression) {
-							on[i].targetIdentity = key.targetIdentity
+						if sameGroupExpression(next, key.Expression) {
+							on[i].TargetIdentity = key.TargetIdentity
 							break
 						}
 					}
@@ -172,21 +172,21 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 			var rebuild func(LogicalNode) (LogicalNode, error)
 			rebuild = func(node LogicalNode) (LogicalNode, error) {
 				if node == evaluation {
-					return rebuild(evaluation.child)
+					return rebuild(evaluation.Child)
 				}
 				if node == distinct {
-					return rebuild(distinct.child)
+					return rebuild(distinct.Child)
 				}
 				if node == ordered || ordered == nil && node == stage {
 					base := node
 					if ordered != nil {
-						base = ordered.child
+						base = ordered.Child
 					}
 					var result LogicalNode
 					var failure error
 					binder := (*expressionBinder)(nil)
 					if distinct != nil {
-						result, failure = binder.finishDistinctOn(base, order, on, distinct.grouping, projection)
+						result, failure = binder.finishDistinctOn(base, order, on, distinct.Grouping, projection)
 					} else {
 						result, failure = binder.finishOrder(base, order, projection)
 					}
@@ -201,24 +201,24 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 				switch n := node.(type) {
 				case *limitNode:
 					copy := *n
-					copy.child, err = rebuild(n.child)
+					copy.Child, err = rebuild(n.Child)
 					if err != nil {
 						return nil, err
 					}
-					copy.querySchema = querySchema(copy.child.Schema())
-					copy.finishTies(copy.child)
+					copy.querySchema = querySchema(copy.Child.Schema())
+					copy.FinishTies(copy.Child)
 					return &copy, nil
 				case *rowLockNode:
 					copy := *n
-					copy.child, err = rebuild(n.child)
+					copy.Child, err = rebuild(n.Child)
 					if err != nil {
 						return nil, err
 					}
-					copy.querySchema = querySchema(copy.child.Schema())
+					copy.querySchema = querySchema(copy.Child.Schema())
 					return &copy, nil
 				case *setProjectNode:
 					copy := *n
-					copy.child, err = rebuild(n.child)
+					copy.Child, err = rebuild(n.Child)
 					if err != nil {
 						return nil, err
 					}
@@ -231,7 +231,7 @@ func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...
 				return nil, err
 			}
 			copy := *project
-			copy.child, copy.expressions = finished, projection
+			copy.Child, copy.Expressions = finished, projection
 			return &copy, nil
 		})
 	}

@@ -5,14 +5,14 @@ package engine
 func recursiveParentSlot(node LogicalNode, d *cteDefinition, offset int) (*worktableScanNode, int) {
 	switch n := node.(type) {
 	case *worktableScanNode:
-		if n.cte == d {
+		if n.CTE == d {
 			return n, offset
 		}
 	case *joinNode:
-		if scan, slot := recursiveParentSlot(n.left, d, offset); scan != nil {
+		if scan, slot := recursiveParentSlot(n.Left, d, offset); scan != nil {
 			return scan, slot
 		}
-		return recursiveParentSlot(n.right, d, offset+n.leftWidth)
+		return recursiveParentSlot(n.Right, d, offset+n.LeftWidth)
 	default:
 		left, _ := queryInputs(node)
 		if left != nil {

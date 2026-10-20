@@ -63,72 +63,72 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*cycleRecipe
 	if err != nil {
 		return nil, err
 	}
-	return &cycleRecipe{syntax: raw, mark: mark, fallback: otherwise, typedConstants: typedConstants, inequality: predicate}, nil
+	return &cycleRecipe{Syntax: raw, Mark: mark, Fallback: otherwise, TypedConstants: typedConstants, Inequality: predicate}, nil
 }
 func (b *expressionBinder) recursiveTypeName(t *sqltype.Descriptor) string {
 	return b.recursiveUsageName(t.Usage())
 }
 
 func (b *expressionBinder) bindCycleShape(d *cteDefinition) error {
-	c := d.cycle
-	c.markSlot = len(d.schema)
-	c.keys = make([]int, len(c.syntax.Keys))
-	c.grouping = make([]sqltype.Grouping, len(c.keys))
-	members := make([]sqltype.CompositeMember, len(c.keys))
-	for i, key := range c.syntax.Keys {
+	c := d.Cycle
+	c.MarkSlot = len(d.Schema)
+	c.Keys = make([]int, len(c.Syntax.Keys))
+	c.Grouping = make([]sqltype.Grouping, len(c.Keys))
+	members := make([]sqltype.CompositeMember, len(c.Keys))
+	for i, key := range c.Syntax.Keys {
 		slot := -1
-		for j, column := range d.schema[:d.userWidth] {
+		for j, column := range d.Schema[:d.UserWidth] {
 			if column.Name == key.Text {
 				slot = j
 				break
 			}
 		}
-		if slot < 0 && c.shapeError == nil {
-			c.shapeError = expr.ErrorAt("42601", fmt.Sprintf(`cycle column "%s" not in WITH query column list`, key.Text), c.syntax.Pos)
+		if slot < 0 && c.ShapeError == nil {
+			c.ShapeError = expr.ErrorAt("42601", fmt.Sprintf(`cycle column "%s" not in WITH query column list`, key.Text), c.Syntax.Pos)
 		}
-		for _, prior := range c.keys[:i] {
-			if slot >= 0 && prior == slot && c.shapeError == nil {
-				c.shapeError = expr.ErrorAt("42701", fmt.Sprintf(`cycle column "%s" specified more than once`, key.Text), c.syntax.Pos)
+		for _, prior := range c.Keys[:i] {
+			if slot >= 0 && prior == slot && c.ShapeError == nil {
+				c.ShapeError = expr.ErrorAt("42701", fmt.Sprintf(`cycle column "%s" specified more than once`, key.Text), c.Syntax.Pos)
 			}
 		}
-		c.keys[i] = slot
+		c.Keys[i] = slot
 		usage := b.typ(sqltype.Text).Usage()
 		if slot >= 0 {
-			usage = d.schema[slot].Usage
+			usage = d.Schema[slot].Usage
 		}
 		var err error
-		c.grouping[i], err = sqltype.BindGrouping(usage)
-		if err != nil && c.shapeError == nil {
-			c.shapeError = err
+		c.Grouping[i], err = sqltype.BindGrouping(usage)
+		if err != nil && c.ShapeError == nil {
+			c.ShapeError = err
 		}
 		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: key.Text, Usage: usage}
 	}
 	var err error
-	c.record, err = sqltype.RecordShape(members)
+	c.Record, err = sqltype.RecordShape(members)
 	if err != nil {
 		return err
 	}
-	c.path, err = sqltype.Array(2287, "_record", c.record)
+	c.Path, err = sqltype.Array(2287, "_record", c.Record)
 	if err != nil {
 		return err
 	}
-	d.schema = append(d.schema, catalog.Column{Name: c.syntax.Mark.Text, Usage: c.mark.ResultUsage()}, catalog.Column{Name: c.syntax.Path.Text, Usage: c.path.Usage()})
+	d.Schema = append(d.Schema, catalog.Column{Name: c.Syntax.Mark.Text, Usage: c.Mark.ResultUsage()}, catalog.Column{Name: c.Syntax.Path.Text, Usage: c.Path.Usage()})
 	return nil
 }
 func cycleNameError(d *cteDefinition) error {
-	c := d.cycle
-	for _, column := range d.schema[:d.userWidth] {
-		if column.Name == c.syntax.Mark.Text {
-			return expr.ErrorAt("42601", fmt.Sprintf(`cycle mark column name "%s" already used in WITH query column list`, column.Name), c.syntax.Pos)
+	c := d.Cycle
+	for _, column := range d.Schema[:d.UserWidth] {
+		if column.Name == c.Syntax.Mark.Text {
+			return expr.ErrorAt("42601", fmt.Sprintf(`cycle mark column name "%s" already used in WITH query column list`, column.Name), c.Syntax.Pos)
 		}
 	}
-	for _, column := range d.schema[:d.userWidth] {
-		if column.Name == c.syntax.Path.Text {
-			return expr.ErrorAt("42601", fmt.Sprintf(`cycle path column name "%s" already used in WITH query column list`, column.Name), c.syntax.Pos)
+	for _, column := range d.Schema[:d.UserWidth] {
+		if column.Name == c.Syntax.Path.Text {
+			return expr.ErrorAt("42601", fmt.Sprintf(`cycle path column name "%s" already used in WITH query column list`, column.Name), c.Syntax.Pos)
 		}
 	}
-	if c.syntax.Mark.Text == c.syntax.Path.Text {
-		return expr.ErrorAt("42601", "cycle mark column name and cycle path column name are the same", c.syntax.Pos)
+	if c.Syntax.Mark.Text == c.Syntax.Path.Text {
+		return expr.ErrorAt("42601", "cycle mark column name and cycle path column name are the same", c.Syntax.Pos)
 	}
 	return nil
 }

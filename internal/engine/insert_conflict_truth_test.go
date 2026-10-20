@@ -8,16 +8,16 @@ import (
 )
 
 func insertConflictTruthSubject(f insertConflictProofFixture) columnExpression {
-	return columnExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}
+	return columnExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
 }
 func insertConflictTruthTest(f insertConflictProofFixture, child expr.Expr, truth Truth, not bool) truthTestExpression {
-	return truthTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, child: child, truth: truth, not: not}
+	return truthTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, Child: child, Truth: truth, Not: not}
 }
 func insertConflictNullTest(f insertConflictProofFixture, child expr.Expr, not bool) nullTestExpression {
-	return nullTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, child: child, not: not}
+	return nullTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, Child: child, Not: not}
 }
 func insertConflictNot(f insertConflictProofFixture, child expr.Expr) logicalExpression {
-	return logicalExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, op: parser.LogicalNot, left: child}
+	return logicalExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, Op: parser.LogicalNot, Left: child}
 }
 func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 	f := insertConflictProofTypes(t)
@@ -42,7 +42,7 @@ func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 		{"TRUE qualification", isTrue, subject, false},
 		{"FALSE qualification", isFalse, insertConflictNot(f, subject), false},
 		{"nested identity", insertConflictNot(f, isTrue), insertConflictNot(f, isTrue), true},
-		{"different subjects", isTrue, insertConflictTruthTest(f, columnExpression{Info: subject.Info, scope: 2, frame: 1}, True, false), false},
+		{"different subjects", isTrue, insertConflictTruthTest(f, columnExpression{Info: subject.Info, Scope: 2, Frame: 1}, True, false), false},
 		{"proof-only negated comparison", insertConflictNot(f, f.comparison(t, "<=", f.column, f.integerLiteral(t, 0))), f.comparison(t, ">", f.column, f.integerLiteral(t, 0)), true},
 	} {
 		got, err := conflictPredicateImpliedBy(&f.ctx, c.a, c.b)
@@ -56,7 +56,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 	subject := insertConflictTruthSubject(f)
 	isTrue := insertConflictTruthTest(f, subject, True, false)
 	isFalse := insertConflictTruthTest(f, subject, False, false)
-	falseLiteral := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
+	falseLiteral := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, false)}
 	ctx := f.ctx
 	ctx.Scope, ctx.Frame = 1, 1
 	inputs := [3]sqltype.Value{sqltype.Boolean(f.boolean, true), sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)}
@@ -101,7 +101,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	integerInputs := [3]sqltype.Value{f.integerLiteral(t, -1).value, f.integerLiteral(t, 1).value, sqltype.Null(f.integer)}
+	integerInputs := [3]sqltype.Value{f.integerLiteral(t, -1).Value, f.integerLiteral(t, 1).Value, sqltype.Null(f.integer)}
 	want := [3]Truth{True, False, False}
 	for i, input := range integerInputs {
 		ctx.Row = []sqltype.Value{input}

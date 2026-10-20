@@ -29,8 +29,8 @@ func queryParallelWorkers(ceiling, count int) int {
 
 func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *sortNode, bool) {
 	project, ok := root.(*projectNode)
-	if !ok || source == nil || source.view == nil || project.cteOwner || project.hasTargetSet || project.frozenValues || source.sources != nil || source.storedRef != (ids.ObjectRef{}) ||
-		source.locks != nil || source.lineage != nil || source.inherited.mode != 0 || source.hashIndexes != nil || source.partialMask != nil || source.inheritance != nil ||
+	if !ok || source == nil || source.view == nil || project.CTEOwner || project.HasTargetSet || project.FrozenValues || source.sources != nil || source.storedRef != (ids.ObjectRef{}) ||
+		source.locks != nil || source.lineage != nil || source.inherited.Mode != 0 || source.hashIndexes != nil || source.partialMask != nil || source.inheritance != nil ||
 		source.singleton || source.rlsDenied || source.anonymous != nil || source.pgSequences != nil || source.materialized || source.final != nil || source.input != nil ||
 		source.nestedRoot != nil || source.nestedInputs != nil || source.nestedStage != nil || source.window || source.joinLeft != nil || source.joinRight != nil ||
 		source.scratch != nil || source.layout != nil || source.versions != nil || source.invocationLineage != nil {
@@ -47,47 +47,47 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 	if !ok || !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return nil, nil, false
 	}
-	frame := project.frame
+	frame := project.Frame
 	if frame == 0 {
 		frame = 1
 	}
-	safe := func(expr expr.Expr) bool { return parallelQueryExpression(expr, frame, len(project.child.Schema())) }
-	for _, expr := range project.expressions {
+	safe := func(expr expr.Expr) bool { return parallelQueryExpression(expr, frame, len(project.Child.Schema())) }
+	for _, expr := range project.Expressions {
 		if !safe(expr) {
 			return nil, nil, false
 		}
 	}
-	for _, expr := range project.analysisExpressions {
+	for _, expr := range project.AnalysisExpressions {
 		if !safe(expr) {
 			return nil, nil, false
 		}
 	}
-	node := project.child
+	node := project.Child
 	var ordered *sortNode
 	if sort, ok := node.(*sortNode); ok {
-		if sort.presenceOnly {
+		if sort.PresenceOnly {
 			return nil, nil, false
 		}
-		ordered, node = sort, sort.child
-		for _, key := range sort.keys {
-			if !safe(key.expression) {
+		ordered, node = sort, sort.Child
+		for _, key := range sort.Keys {
+			if !safe(key.Expression) {
 				return nil, nil, false
 			}
 		}
-		for _, expr := range sort.outputs {
+		for _, expr := range sort.Outputs {
 			if !safe(expr) {
 				return nil, nil, false
 			}
 		}
 	}
 	if filter, ok := node.(*filterNode); ok {
-		if !safe(filter.predicate) {
+		if !safe(filter.Predicate) {
 			return nil, nil, false
 		}
-		node = filter.child
+		node = filter.Child
 	}
 	leaf, ok := node.(*sourceNode)
-	if !ok || leaf.ref != source.ref || leaf.occurrence != source.occurrence {
+	if !ok || leaf.Ref != source.ref || leaf.Occurrence != source.occurrence {
 		return nil, nil, false
 	}
 	return project, ordered, true
@@ -104,9 +104,9 @@ func parallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
 	case literalExpression, parameterExpression, cachedOrderExpression:
 		return true
 	case columnExpression:
-		return e.virtual == nil && !e.mergeSource && e.scope == 1 && e.frame == frame && e.slot >= 0 && e.slot < width
+		return e.Virtual == nil && !e.MergeSource && e.Scope == 1 && e.Frame == frame && e.Slot >= 0 && e.Slot < width
 	case coercionExpression:
-		if !parallelScalarType(e.ResultUsage().Type) || !parallelScalarType(e.child.ResultUsage().Type) {
+		if !parallelScalarType(e.ResultUsage().Type) || !parallelScalarType(e.Child.ResultUsage().Type) {
 			return false
 		}
 	case selectedOperatorExpression, arithmeticExpression, comparisonExpression, logicalExpression, distinctExpression, nullTestExpression, truthTestExpression, caseExpression, collationExpression:
@@ -178,15 +178,15 @@ func (r *queryParallelRun) sortRow(source *querySource, ordinal int) querySortRo
 }
 
 func parallelProjectionSlots(project *projectNode) ([]int, bool) {
-	for _, expr := range project.expressions {
+	for _, expr := range project.Expressions {
 		column, ok := expr.(columnExpression)
-		if !ok || column.virtual != nil {
+		if !ok || column.Virtual != nil {
 			return nil, false
 		}
 	}
-	slots := make([]int, len(project.expressions))
-	for i, expr := range project.expressions {
-		slots[i] = expr.(columnExpression).slot
+	slots := make([]int, len(project.Expressions))
+	for i, expr := range project.Expressions {
+		slots[i] = expr.(columnExpression).Slot
 	}
 	return slots, true
 }
@@ -349,7 +349,7 @@ func gatherQueryRuns(ctx context.Context, project *projectNode, ordered *sortNod
 					best = j
 					continue
 				}
-				sign, err := compareQueryOrder(ctx, ordered.keys, input, runs[j].sortRow(source, positions[j]), runs[best].sortRow(source, positions[best]))
+				sign, err := compareQueryOrder(ctx, ordered.Keys, input, runs[j].sortRow(source, positions[j]), runs[best].sortRow(source, positions[best]))
 				if err != nil {
 					return nil, err
 				}
@@ -385,10 +385,10 @@ type querySortRow struct {
 }
 
 func (r querySortRow) value(key sortKey) sqltype.Value {
-	if key.cache >= 0 {
-		return r.values[key.cache]
+	if key.Cache >= 0 {
+		return r.values[key.Cache]
 	}
-	return r.source.row(r.index)[key.slot]
+	return r.source.row(r.index)[key.Slot]
 }
 
 func compareQueryOrder(ctx context.Context, keys []sortKey, input sqltype.InputEnvironment, a, b querySortRow) (int, error) {
@@ -405,12 +405,12 @@ func compareQueryOrder(ctx context.Context, keys []sortKey, input sqltype.InputE
 			if err := ctx.Err(); err != nil {
 				return 0, err
 			}
-			if left.IsNull() == key.nullsFirst {
+			if left.IsNull() == key.NullsFirst {
 				return -1, nil
 			}
 			return 1, nil
 		}
-		sign, err := key.comparison.Compare(ctx, left, right, input)
+		sign, err := key.Comparison.Compare(ctx, left, right, input)
 		if err != nil {
 			return 0, err
 		}
@@ -418,7 +418,7 @@ func compareQueryOrder(ctx context.Context, keys []sortKey, input sqltype.InputE
 			return 0, err
 		}
 		if sign != 0 {
-			if key.desc {
+			if key.Desc {
 				sign = -sign
 			}
 			return sign, nil

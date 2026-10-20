@@ -105,9 +105,9 @@ func TestPGExtensionCapture(t *testing.T) {
 	if old.ref != ref || old.anonymous == nil || old.count() != 0 || !maps.Equal(before, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("empty immutable capture", old)
 	}
-	root := &projectNode{querySchema: querySchema(d.Columns), child: &sourceNode{querySchema: querySchema(d.Columns), ref: ref}}
+	root := &projectNode{querySchema: querySchema(d.Columns), Child: &sourceNode{querySchema: querySchema(d.Columns), Ref: ref}}
 	for i, c := range d.Columns {
-		root.expressions = append(root.expressions, columnExpression{Info: expr.Info{Usage: c.Usage}, origin: ref, scope: 1, frame: 1, slot: i})
+		root.Expressions = append(root.Expressions, columnExpression{Info: expr.Info{Usage: c.Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: i})
 	}
 	executable, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog)
 	if err != nil {

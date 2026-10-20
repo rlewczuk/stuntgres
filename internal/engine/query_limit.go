@@ -12,17 +12,17 @@ func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiter
 	if raw == nil {
 		return nil, nil
 	}
-	n := &limitNode{withTies: raw.WithTies}
+	n := &limitNode{WithTies: raw.WithTies}
 	var err error
 	old := b.clause.aggregateClause
 	defer func() { b.clause.aggregateClause = old }()
 	b.clause.aggregateClause = "OFFSET"
-	n.offset, err = b.bindQueryBound(raw.Offset, "OFFSET", viewOffsetLiteral, captureLiterals)
+	n.Offset, err = b.bindQueryBound(raw.Offset, "OFFSET", viewOffsetLiteral, captureLiterals)
 	if err != nil {
 		return nil, err
 	}
 	b.clause.aggregateClause = "LIMIT"
-	n.count, err = b.bindQueryBound(raw.Count, "LIMIT", viewLimitLiteral, captureLiterals)
+	n.Count, err = b.bindQueryBound(raw.Count, "LIMIT", viewLimitLiteral, captureLiterals)
 	if err == nil && raw.WithTies {
 		if literal, ok := raw.Count.(parser.LiteralExpr); ok && literal.Value.Kind == parser.NullValue {
 			return nil, sqlError("2201W", "row count cannot be null in FETCH FIRST ... WITH TIES clause")
@@ -80,21 +80,21 @@ func firstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position
 			matched := false
 			switch e := expr.(type) {
 			case columnExpression:
-				matched = e.frame == frame
+				matched = e.Frame == frame
 			case returningWholeRowExpression:
-				matched = e.frame == frame
+				matched = e.Frame == frame
 			case mergeActionExpression:
-				matched = e.frame == frame
+				matched = e.Frame == frame
 			case groupExpression:
-				matched = e.frame == frame
+				matched = e.Frame == frame
 			case aggregateExpression:
-				matched = e.frame == frame
+				matched = e.Frame == frame
 			case groupingExpression:
-				matched = e.frame == frame
+				matched = e.Frame == frame
 			case *windowExpression:
-				matched = e.frame == frame
+				matched = e.Frame == frame
 			case subqueryExpression:
-				query(e.queryPlan.Root)
+				query(e.QueryPlan.Root)
 			}
 			if matched {
 				p := expr.SourcePosition()

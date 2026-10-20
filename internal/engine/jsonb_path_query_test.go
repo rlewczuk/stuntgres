@@ -167,7 +167,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	if failed, err := openFunctionSource(c, bad); err == nil || failed.Values != nil {
 		t.Fatal("late failure exposed prefix", failed, err)
 	}
-	invocation, err := openFunctionInvocation(c, &functionFromNode{calls: []expr.Expr{call, bad}})
+	invocation, err := openFunctionInvocation(c, &functionFromNode{Calls: []expr.Expr{call, bad}})
 	if err == nil || invocation.cursors != nil {
 		t.Fatal("partial sibling open published invocation", invocation, err)
 	}

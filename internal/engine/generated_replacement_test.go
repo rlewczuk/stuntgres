@@ -81,10 +81,10 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	}
 	columnRef := ref
 	columnRef.Address.SubID = 2
-	repairedCell := columnExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, origin: columnRef, scope: 1, frame: 1, slot: 1}
-	equal := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: repairedCell, right: literalExpression{expr.Info{Usage: oid.Usage()}, expectedOID}, predicate: predicate, operator: "="}
-	scoped := nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, child: probe, not: true}
-	d.Constraints.Check = []catalog.CheckConstraint{{Name: "scoped_gate", Expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
+	repairedCell := columnExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 1}
+	equal := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Left: repairedCell, Right: literalExpression{expr.Info{Usage: oid.Usage()}, expectedOID}, Predicate: predicate, Operator: "="}
+	scoped := nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, Child: probe, Not: true}
+	d.Constraints.Check = []catalog.CheckConstraint{{Name: "scoped_gate", Expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, Op: parser.LogicalAnd, Left: equal, Right: scoped}}}
 	base, err := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)

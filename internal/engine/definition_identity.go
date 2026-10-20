@@ -15,11 +15,11 @@ func structuralNull(node expr.Expr) bool {
 	for {
 		switch n := node.(type) {
 		case literalExpression:
-			return n.value.IsNull()
+			return n.Value.IsNull()
 		case collationExpression:
-			node = n.child
+			node = n.Child
 		case coercionExpression:
-			node = n.child
+			node = n.Child
 		default:
 			return false
 		}

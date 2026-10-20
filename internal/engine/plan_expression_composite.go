@@ -8,41 +8,41 @@ import (
 )
 
 type wholeRowSource struct {
-	namespace, qualifier int
-	frame                uint32
+	Namespace, Qualifier int
+	Frame                uint32
 }
 
 // A retained named ROW keeps written children for metadata and dependencies.
 // Only a real shape change installs this immutable stable-attribute projection.
 type rowFieldProjection struct {
-	attribute int32
-	slot      int // Current live member, or -1 when that original attribute retired.
+	Attribute int32
+	Slot      int // Current live member, or -1 when that original attribute retired.
 }
 
 type rowExpression struct {
 	expr.Info
-	fields          []expr.Expr
-	fieldProjection []rowFieldProjection
-	raw             *parser.RowExpr
-	sources         []int
-	wholeNames      []string
-	wholeName       string
-	wholeSource     wholeRowSource
-	presenceSlot    int
-	presenceFrame   uint32
-	mergeSource     bool
-	returningWhole  bool   // Direct whole-row member projection uses the RETURNING output frame.
-	returningNull   bool   // DELETE's scalar NEW whole row is NULL, independently of projection.
-	ruleSide        uint32 // Resolved OLD/NEW whole-row identity, including zero members.
-	expansions      map[int]compositeExpansionBinding
+	Fields          []expr.Expr
+	FieldProjection []rowFieldProjection
+	Raw             *parser.RowExpr
+	Sources         []int
+	WholeNames      []string
+	WholeName       string
+	WholeSource     wholeRowSource
+	PresenceSlot    int
+	PresenceFrame   uint32
+	MergeSource     bool
+	ReturningWhole  bool   // Direct whole-row member projection uses the RETURNING output frame.
+	ReturningNull   bool   // DELETE's scalar NEW whole row is NULL, independently of projection.
+	RuleSide        uint32 // Resolved OLD/NEW whole-row identity, including zero members.
+	Expansions      map[int]compositeExpansionBinding
 }
 
 func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := beginEvaluation(ctx)
+	runtime, err := BeginEvaluation(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if n.returningNull {
+	if n.ReturningNull {
 		return sqltype.Null(n.Usage.Type), nil
 	}
 	absent, err := runtime.RowAbsent(n)
@@ -52,15 +52,15 @@ func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if absent {
 		return sqltype.Null(n.Usage.Type), nil
 	}
-	size := len(n.fields)
-	if n.fieldProjection != nil {
+	size := len(n.Fields)
+	if n.FieldProjection != nil {
 		size = n.Usage.Type.BaseType().CompositeLen()
 	}
 	values := make([]sqltype.Value, size)
-	for i, child := range n.fields {
+	for i, child := range n.Fields {
 		slot := i
-		if n.fieldProjection != nil {
-			slot = n.fieldProjection[i].slot
+		if n.FieldProjection != nil {
+			slot = n.FieldProjection[i].Slot
 			if slot < 0 {
 				continue
 			}
@@ -75,72 +75,72 @@ func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 }
 
 // Planning-only lookup; field evaluation retains its already resolved child.
-func (n rowExpression) fieldSourceIndex(live int) int {
-	if n.fieldProjection == nil {
+func (n rowExpression) FieldSourceIndex(live int) int {
+	if n.FieldProjection == nil {
 		return live
 	}
-	for source, projection := range n.fieldProjection {
-		if projection.slot == live {
+	for source, projection := range n.FieldProjection {
+		if projection.Slot == live {
 			return source
 		}
 	}
 	return -1
 }
 
-func (n rowExpression) retagFieldProjection(shape *sqltype.Descriptor) (rowExpression, bool, error) {
+func (n rowExpression) RetagFieldProjection(shape *sqltype.Descriptor) (rowExpression, bool, error) {
 	old := n.Usage.Type.BaseType()
-	if n.raw == nil || old.ID() == 2249 || !old.IsComposite() || !shape.IsComposite() {
+	if n.Raw == nil || old.ID() == 2249 || !old.IsComposite() || !shape.IsComposite() {
 		return n, false, nil
 	}
-	if n.fieldProjection == nil && shape.CompositeLen() >= old.CompositeLen() {
+	if n.FieldProjection == nil && shape.CompositeLen() >= old.CompositeLen() {
 		return n, false, nil
 	}
-	projection := n.fieldProjection
+	projection := n.FieldProjection
 	changed := false
 	if projection == nil {
-		if len(n.fields) != old.CompositeLen() {
+		if len(n.Fields) != old.CompositeLen() {
 			return n, false, fmt.Errorf("stuntgres: invalid retained row source shape")
 		}
-		projection = make([]rowFieldProjection, len(n.fields))
+		projection = make([]rowFieldProjection, len(n.Fields))
 		changed = true
 		for i := range projection {
-			projection[i].attribute = old.CompositeMember(i).Attribute
+			projection[i].Attribute = old.CompositeMember(i).Attribute
 		}
 	}
 	live := 0
 	for i, original := range projection {
-		slot, present := shape.CompositeAttributeIndex(original.attribute)
+		slot, present := shape.CompositeAttributeIndex(original.Attribute)
 		if !present {
 			slot = -1
 		} else {
 			live++
 		}
-		if !changed && original.slot != slot {
+		if !changed && original.Slot != slot {
 			projection = append([]rowFieldProjection(nil), projection...)
 			changed = true
 		}
 		if changed {
-			projection[i].slot = slot
+			projection[i].Slot = slot
 		}
 	}
 	if live != shape.CompositeLen() {
 		return n, false, fmt.Errorf("stuntgres: incompatible retained row shape")
 	}
-	n.fieldProjection = projection
+	n.FieldProjection = projection
 	return n, changed, nil
 }
 
 type fieldExpression struct {
 	expr.Info
-	base      expr.Expr
-	attribute int32
-	index     int
+	Base      expr.Expr
+	Attribute int32
+	Index     int
 }
 
 func (n fieldExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	// Analysis/preflight still visits every constructor child. Runtime demand
 	// may bypass its allocation and unused volatile children.
-	if row, ok := n.base.(rowExpression); ok {
+	if row, ok := n.Base.(rowExpression); ok {
 		runtime, err := nodeRuntimeOf(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -152,16 +152,16 @@ func (n fieldExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if absent {
 			return sqltype.Null(n.Usage.Type), nil
 		}
-		return row.fields[n.index].Eval(ctx)
+		return row.Fields[n.Index].Eval(ctx)
 	}
-	value, err := n.base.Eval(ctx)
+	value, err := n.Base.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
 		return sqltype.Null(n.Usage.Type), nil
 	}
-	index, ok := value.Type().BaseType().CompositeAttributeIndex(n.attribute)
+	index, ok := value.Type().BaseType().CompositeAttributeIndex(n.Attribute)
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: retired composite attribute")
 	}
@@ -169,8 +169,8 @@ func (n fieldExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 }
 
 type compositeExpansionBinding struct {
-	base       expr.Expr
-	fields     []expr.Expr
-	names      []string
-	attributes []int32
+	Base       expr.Expr
+	Fields     []expr.Expr
+	Names      []string
+	Attributes []int32
 }

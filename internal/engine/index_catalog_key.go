@@ -24,10 +24,10 @@ func indexCatalogKey(parent *catalog.Relation, key catalog.IndexKey) (int32, exp
 		if !ok {
 			break
 		}
-		node = collated.child
+		node = collated.Child
 	}
 	if column, ok := node.(columnExpression); ok {
-		a := column.origin.Address
+		a := column.Origin.Address
 		if a.ClassID != parent.Address().ClassID || a.ObjectID != parent.Address().ObjectID || !parent.HasAttribute(a.SubID) {
 			return 0, nil, fmt.Errorf("stuntgres: index catalog column has a foreign origin")
 		}

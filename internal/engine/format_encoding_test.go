@@ -143,7 +143,7 @@ func TestFormatEncodingCanonicalDeparse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
+		node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		for _, precision := range []int32{0, -1, -15} {
 			renderer := pgRenderer{view: view, output: sqltype.OutputEnvironment{FloatPrecisionSet: true, ExtraFloatDigits: precision}}
 			got, err := renderer.literal(ctx, node)
@@ -158,7 +158,7 @@ func TestFormatEncodingCanonicalDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := literalExpression{Info: expr.Info{Usage: array.Usage()}, value: values}
+			node := literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: values}
 			want := "'{1.2345679}'::real[]"
 			if tc.id == sqltype.Float8 {
 				want = "'{1.2345678901234567}'::double precision[]"

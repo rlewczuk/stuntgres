@@ -13,9 +13,9 @@ func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id AS shown FROM t ORDER BY v,id DESC")
 	defer source.close()
 	project := query.Root.(*projectNode)
-	node := project.child.(*distinctOnNode)
-	sorted := node.child.(*sortNode)
-	if len(project.Schema()) != 1 || project.Schema()[0].OriginAttribute != 1 || project.Schema()[0].OriginTable == 0 || !project.Schema()[0].NullabilityKnown || project.Schema()[0].Nullable || len(node.expressions) != 1 || len(sorted.keys) != 2 {
+	node := project.Child.(*distinctOnNode)
+	sorted := node.Child.(*sortNode)
+	if len(project.Schema()) != 1 || project.Schema()[0].OriginAttribute != 1 || project.Schema()[0].OriginTable == 0 || !project.Schema()[0].NullabilityKnown || project.Schema()[0].Nullable || len(node.Expressions) != 1 || len(sorted.Keys) != 2 {
 		t.Fatal(project.Schema(), node, sorted)
 	}
 	fresh := map[sqltype.ID]*sqltype.Descriptor{}
@@ -26,13 +26,13 @@ func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := root.(*projectNode).child.(*distinctOnNode)
+	remapped := root.(*projectNode).Child.(*distinctOnNode)
 	v, _ := sqltype.Integer(fresh[sqltype.Int4], 1)
-	if _, err := remapped.grouping[0].Hash(context.Background(), v); err != nil {
+	if _, err := remapped.Grouping[0].Hash(context.Background(), v); err != nil {
 		t.Fatal(err)
 	}
-	old, _ := sqltype.Integer(node.expressions[0].ResultUsage().Type, 1)
-	if _, err := remapped.grouping[0].Hash(context.Background(), old); err == nil {
+	old, _ := sqltype.Integer(node.Expressions[0].ResultUsage().Type, 1)
+	if _, err := remapped.Grouping[0].Hash(context.Background(), old); err == nil {
 		t.Fatal("obsolete key generation retained")
 	}
 }
@@ -42,15 +42,15 @@ func TestQueryDistinctOnRequiredOutputIdentity(t *testing.T) {
 		_, query, source := queryCoreFixture(t, q)
 		defer source.close()
 		p := query.Root.(*projectNode)
-		n := p.child.(*distinctOnNode)
-		sorted := n.child.(*sortNode)
-		x, y := p.expressions[0].(cachedOrderExpression), p.expressions[1].(cachedOrderExpression)
-		if len(n.expressions) == 1 {
-			if x.slot != y.slot || sorted.keys[0].outputOrdinal != 2 {
-				t.Fatal("undemanded sharing lost", x, y, sorted.keys)
+		n := p.Child.(*distinctOnNode)
+		sorted := n.Child.(*sortNode)
+		x, y := p.Expressions[0].(cachedOrderExpression), p.Expressions[1].(cachedOrderExpression)
+		if len(n.Expressions) == 1 {
+			if x.Slot != y.Slot || sorted.Keys[0].OutputOrdinal != 2 {
+				t.Fatal("undemanded sharing lost", x, y, sorted.Keys)
 			}
-		} else if x.slot == y.slot || sorted.keys[0].targetIdentity == sorted.keys[1].targetIdentity {
-			t.Fatal("required output IDs collapsed", x, y, sorted.keys)
+		} else if x.Slot == y.Slot || sorted.Keys[0].TargetIdentity == sorted.Keys[1].TargetIdentity {
+			t.Fatal("required output IDs collapsed", x, y, sorted.Keys)
 		}
 	}
 }
@@ -58,19 +58,19 @@ func TestQueryDistinctOnRequiredOutputIdentity(t *testing.T) {
 func TestQueryDistinctOnCollisionCandidates(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
 	defer source.close()
-	node := query.Root.(*projectNode).child.(*distinctOnNode)
-	typ := node.expressions[0].ResultUsage().Type
+	node := query.Root.(*projectNode).Child.(*distinctOnNode)
+	typ := node.Expressions[0].ResultUsage().Type
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
 	flat := []sqltype.Value{one, two}
-	if index, err := findDistinctTuple(context.Background(), node.grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
+	if index, err := findDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
 		t.Fatal("hash collision suppressed unequal ON key", index, err)
 	}
-	if index, err := findDistinctTuple(context.Background(), node.grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
+	if index, err := findDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := findDistinctTuple(ctx, node.grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := findDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -80,10 +80,10 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
 			project := query.Root.(*projectNode)
-			node := project.child.(*distinctOnNode)
+			node := project.Child.(*distinctOnNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			original := node.expressions[0]
+			original := node.Expressions[0]
 			calls := 0
 			sentinel := errors.New("DISTINCT ON key failure")
 			var execution context.Context = ctx
@@ -95,15 +95,15 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 					}
 				}
 				usage := text.Usage()
-				node.grouping[0].Grouping, _ = sqltype.BindGrouping(usage)
+				node.Grouping[0].Grouping, _ = sqltype.BindGrouping(usage)
 				armed := &aggregateCancelContext{Context: ctx, at: 4}
 				execution = armed
-				node.expressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+				node.Expressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 					armed.armed = true
 					return sqltype.String(text, strings.Repeat("x", 4096)), nil
 				})
 			} else {
-				node.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if phase == "key" {
 						cancel()
@@ -114,9 +114,9 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 					return original.Eval(c)
 				})
 				if phase == "prepublication" {
-					expr := project.expressions[0]
+					expr := project.Expressions[0]
 					published := 0
-					project.expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+					project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 						published++
 						if published == 3 {
 							cancel()
@@ -139,11 +139,11 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 
 func TestQueryDistinctOnInsertKeyFailureNoBatch(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT DISTINCT ON(v) id FROM t")
-	node := b.query.Root.(*projectNode).child.(*distinctOnNode)
-	original := node.expressions[0]
+	node := b.query.Root.(*projectNode).Child.(*distinctOnNode)
+	original := node.Expressions[0]
 	calls := 0
 	sentinel := errors.New("late ON INSERT key")
-	node.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		calls++
 		if calls == 3 {
 			return sqltype.Value{}, sentinel
@@ -158,13 +158,13 @@ func TestQueryDistinctOnInsertKeyFailureNoBatch(t *testing.T) {
 
 func TestQueryDistinctOnLaterComponentDemand(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v,id) id FROM t")
-	node := query.Root.(*projectNode).child.(*distinctOnNode)
-	first := node.expressions[0]
-	node.expressions[0] = queryProbe(first.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(first.ResultUsage().Type, 1) })
-	second := node.expressions[1]
+	node := query.Root.(*projectNode).Child.(*distinctOnNode)
+	first := node.Expressions[0]
+	node.Expressions[0] = queryProbe(first.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(first.ResultUsage().Type, 1) })
+	second := node.Expressions[1]
 	calls := 0
 	sentinel := errors.New("later ON component")
-	node.expressions[1] = queryProbe(second.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	node.Expressions[1] = queryProbe(second.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		calls++
 		if calls == 4 {
 			return sqltype.Value{}, sentinel

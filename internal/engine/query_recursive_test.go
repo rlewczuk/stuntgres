@@ -18,16 +18,16 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 	typ := cteUnitType(t)
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	schema := querySchema{{Name: "n", Usage: typ.Usage()}}
-	d := &cteDefinition{owner: 1, recursive: true, name: "r", schema: schema}
+	d := &cteDefinition{Owner: 1, Recursive: true, Name: "r", Schema: schema}
 	column := func(frame uint32) columnExpression {
-		return columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: frame, slot: 0}
+		return columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: frame, Slot: 0}
 	}
 	rows := make([][]expr.Expr, len(seeds))
 	for i, n := range seeds {
-		rows[i] = []expr.Expr{literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: cteUnitValue(t, typ, n)}}
+		rows[i] = []expr.Expr{literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: cteUnitValue(t, typ, n)}}
 	}
-	left := &projectNode{querySchema: schema, child: &valuesNode{querySchema: schema, rows: rows}, expressions: []expr.Expr{column(2)}, frame: 2}
-	self := &worktableScanNode{derivedNode: derivedNode{querySchema: schema, cte: d, scanFrame: 3}}
+	left := &projectNode{querySchema: schema, Child: &valuesNode{querySchema: schema, Rows: rows}, Expressions: []expr.Expr{column(2)}, Frame: 2}
+	self := &worktableScanNode{derivedNode: derivedNode{querySchema: schema, CTE: d, ScanFrame: 3}}
 	read := column(3)
 	predicate := queryProbe(boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 		value, err := read.Eval(c)
@@ -48,21 +48,21 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		}
 		return sqltype.Integer(typ, n+1)
 	})
-	right := &projectNode{querySchema: schema, child: &filterNode{querySchema: schema, child: self, predicate: predicate}, expressions: []expr.Expr{successor}, frame: 3}
-	n := &recursiveUnionNode{setNode: setNode{querySchema: schema, left: left, right: right, operation: "union", all: all, leftExpressions: left.expressions, rightExpressions: right.expressions}, definition: d}
+	right := &projectNode{querySchema: schema, Child: &filterNode{querySchema: schema, Child: self, Predicate: predicate}, Expressions: []expr.Expr{successor}, Frame: 3}
+	n := &recursiveUnionNode{setNode: setNode{querySchema: schema, Left: left, Right: right, Operation: "union", All: all, LeftExpressions: left.Expressions, RightExpressions: right.Expressions}, Definition: d}
 	if !all {
 		grouping, err := sqltype.BindGrouping(typ.Usage())
 		if err != nil {
 			t.Fatal(err)
 		}
-		n.grouping = []queryGrouping{{Grouping: grouping}}
+		n.Grouping = []queryGrouping{{Grouping: grouping}}
 	}
-	project := &projectNode{querySchema: schema, child: n, expressions: []expr.Expr{column(4)}, frame: 4}
-	d.query = &BoundQuery{Root: project}
+	project := &projectNode{querySchema: schema, Child: n, Expressions: []expr.Expr{column(4)}, Frame: 4}
+	d.Query = &BoundQuery{Root: project}
 	state := &queryState{source: &querySource{materialized: true}}
 	owner := &cteInvocation{frame: 1, state: *state}
 	state.ctes = owner
-	return owner, state, &derivedNode{querySchema: schema, query: d.query, cte: d}
+	return owner, state, &derivedNode{querySchema: schema, Query: d.Query, CTE: d}
 }
 
 func recursiveUnitGeneration(t *testing.T, s *recursiveUnionStage, indexes []int) []int64 {
@@ -89,7 +89,7 @@ func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if owner.producers[node.cte].opened {
+	if owner.producers[node.CTE].opened {
 		t.Fatal("eager recursive open")
 	}
 	var got []int64
@@ -100,7 +100,7 @@ func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 			t.Fatal(n, want, err)
 		}
 		got = append(got, n)
-		stage := owner.producers[node.cte].recursion
+		stage := owner.producers[node.CTE].recursion
 		if stage.seen != nil {
 			t.Fatal("ALL allocated deduplication state")
 		}
@@ -125,7 +125,7 @@ func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 	if !reflect.DeepEqual(got, []int64{1, 2, 2, 3, 3}) {
 		t.Fatal(got)
 	}
-	if node.query.Root != node.cte.query.Root {
+	if node.Query.Root != node.CTE.Query.Root {
 		t.Fatal("mutated canonical query")
 	}
 }
@@ -147,12 +147,12 @@ func TestQueryRecursiveCTEDistinctAnchorPassAndCollision(t *testing.T) {
 	if _, present, err := stage.nextOccurrence(context.Background()); present || err != nil {
 		t.Fatal(present, err)
 	}
-	n := node.query.Root.(*projectNode).child.(*recursiveUnionNode)
+	n := node.Query.Root.(*projectNode).Child.(*recursiveUnionNode)
 	one, two := cteUnitValue(t, n.Schema()[0].Usage.Type, 1), cteUnitValue(t, n.Schema()[0].Usage.Type, 2)
-	if index, err := findDistinctTuple(context.Background(), n.grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); index != -1 || err != nil {
+	if index, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); index != -1 || err != nil {
 		t.Fatal("unequal forced collision", index, err)
 	}
-	if index, err := findDistinctTuple(context.Background(), n.grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); index != 1 || err != nil {
+	if index, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); index != 1 || err != nil {
 		t.Fatal("equal forced collision", index, err)
 	}
 }
@@ -165,7 +165,7 @@ func TestQueryRecursiveCTEDemandCancellationAndClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	cteUnitNext(t, &stage)
-	producer := owner.producers[node.cte]
+	producer := owner.producers[node.CTE]
 	if producer.recursion.phase != 0 || producer.recursion.source.flatCount != 1 {
 		t.Fatal("seed demand opened a recursive pass")
 	}
@@ -211,28 +211,28 @@ func TestQueryRecursiveCTEDemandCancellationAndClose(t *testing.T) {
 func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 	for _, zero := range []bool{false, true} {
 		owner, state, node := recursiveUnitFixture(t, false, []int64{1, 1}, 2)
-		n := node.query.Root.(*projectNode).child.(*recursiveUnionNode)
+		n := node.Query.Root.(*projectNode).Child.(*recursiveUnionNode)
 		if zero {
 			n.querySchema = querySchema{}
-			n.left.querySchema = querySchema{}
-			n.left.child.(*valuesNode).querySchema = querySchema{}
-			n.left.child.(*valuesNode).rows = [][]expr.Expr{{}, {}}
-			n.left.expressions = nil
-			n.leftExpressions = nil
-			n.grouping = nil
-			n.right.querySchema = querySchema{}
-			n.right.expressions = nil
-			n.rightExpressions = nil
-			n.right.child = &worktableScanNode{derivedNode: derivedNode{cte: node.cte, querySchema: querySchema{}}}
+			n.Left.querySchema = querySchema{}
+			n.Left.Child.(*valuesNode).querySchema = querySchema{}
+			n.Left.Child.(*valuesNode).Rows = [][]expr.Expr{{}, {}}
+			n.Left.Expressions = nil
+			n.LeftExpressions = nil
+			n.Grouping = nil
+			n.Right.querySchema = querySchema{}
+			n.Right.Expressions = nil
+			n.RightExpressions = nil
+			n.Right.Child = &worktableScanNode{derivedNode: derivedNode{CTE: node.CTE, querySchema: querySchema{}}}
 			node.querySchema = querySchema{}
-			node.query.Root.(*projectNode).querySchema = querySchema{}
-			node.query.Root.(*projectNode).expressions = nil
+			node.Query.Root.(*projectNode).querySchema = querySchema{}
+			node.Query.Root.(*projectNode).Expressions = nil
 		} else {
 			typ := n.Schema()[0].Usage.Type
-			n.left.child.(*valuesNode).rows = [][]expr.Expr{{literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}}, {literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
-			n.right.child = &worktableScanNode{derivedNode: derivedNode{cte: node.cte, querySchema: n.Schema()}}
-			n.right.expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 3, slot: 0}}
-			n.rightExpressions = n.right.expressions
+			n.Left.Child.(*valuesNode).Rows = [][]expr.Expr{{literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}, {literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}}
+			n.Right.Child = &worktableScanNode{derivedNode: derivedNode{CTE: node.CTE, querySchema: n.Schema()}}
+			n.Right.Expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 3, Slot: 0}}
+			n.RightExpressions = n.Right.Expressions
 		}
 		stage, err := openCTEScan(context.Background(), state, node)
 		if err != nil {
@@ -244,7 +244,7 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 					t.Fatal(row)
 				}
 			}
-			if owner.producers[node.cte].recursion.seen != nil {
+			if owner.producers[node.CTE].recursion.seen != nil {
 				t.Fatal("zero-key recursion allocated seen set")
 			}
 		} else {
@@ -306,7 +306,7 @@ func TestQueryRecursiveCTEBindingUsageAndIdentity(t *testing.T) {
 			self = n
 		}
 	}, func(expr.Expr) {}, true)
-	if union == nil || self == nil || self.query != nil || self.cte != union.definition || self.cte.folded() {
+	if union == nil || self == nil || self.Query != nil || self.CTE != union.Definition || self.CTE.Folded() {
 		t.Fatal("self edge/folding contract", union, self)
 	}
 	if left, right := queryInputs(self); left != nil || right != nil {
@@ -331,8 +331,8 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	if n == nil {
 		t.Fatal("missing recursive node")
 	}
-	project := n.definition.query.Root.(*projectNode)
-	original := n.leftExpressions[0]
+	project := n.Definition.Query.Root.(*projectNode)
+	original := n.LeftExpressions[0]
 	replacement := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) })
 	rewritten, err := rewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
@@ -340,7 +340,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 		}
 		return e, false, nil
 	})
-	if err != nil || rewritten == project || n.leftExpressions[0] != original {
+	if err != nil || rewritten == project || n.LeftExpressions[0] != original {
 		t.Fatal("immutable recursive rewrite", err)
 	}
 	destination := New()
@@ -354,17 +354,17 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	copy := mapped.(*projectNode).child.(*recursiveUnionNode)
+	copy := mapped.(*projectNode).Child.(*recursiveUnionNode)
 	var self *worktableScanNode
-	visitCTEQuery(copy.right, func(node LogicalNode) {
+	visitCTEQuery(copy.Right, func(node LogicalNode) {
 		if scan, ok := node.(*worktableScanNode); ok {
 			self = scan
 		}
 	}, func(expr.Expr) {}, true)
-	if copy.definition == n.definition || self.cte != copy.definition || self.query != nil || copy.definition.query.Root != mapped {
+	if copy.Definition == n.Definition || self.CTE != copy.Definition || self.Query != nil || copy.Definition.Query.Root != mapped {
 		t.Fatal("remapped recursive identities disagree")
 	}
-	if copy.Schema()[0].Usage.Type == n.Schema()[0].Usage.Type || n.definition.query.Root != project {
+	if copy.Schema()[0].Usage.Type == n.Schema()[0].Usage.Type || n.Definition.Query.Root != project {
 		t.Fatal("foreign remap retained/mutated source owner")
 	}
 }
@@ -372,9 +372,9 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 func TestQueryRecursiveCTEStoredNamespaceIdentity(t *testing.T) {
 	typ := cteUnitType(t)
 	table := &parser.TableReference{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "r"}}}}
-	definition := &cteDefinition{recursive: true}
-	self := &worktableScanNode{derivedNode: derivedNode{querySchema: querySchema{{Name: "n", Usage: typ.Usage()}}, table: table, cte: definition, ordinal: -1}}
-	project := &projectNode{child: &filterNode{child: self}}
+	definition := &cteDefinition{Recursive: true}
+	self := &worktableScanNode{derivedNode: derivedNode{querySchema: querySchema{{Name: "n", Usage: typ.Usage()}}, Table: table, CTE: definition, Ordinal: -1}}
+	project := &projectNode{Child: &filterNode{Child: self}}
 	if viewCTETable(project, table) != self || viewCTEOrdinal(project, -1) != self {
 		t.Fatal("stored self scan lost opaque node identity")
 	}

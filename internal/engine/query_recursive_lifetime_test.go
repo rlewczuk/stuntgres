@@ -16,7 +16,7 @@ func TestQueryRecursiveCTELimitZeroAndEmptyAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	limit := &limitNode{querySchema: node.Schema(), child: node, count: literalExpression{Info: expr.Info{Usage: int8.Usage()}, value: zero}}
+	limit := &limitNode{querySchema: node.Schema(), Child: node, Count: literalExpression{Info: expr.Info{Usage: int8.Usage()}, Value: zero}}
 	stage, err := openLimitNode(context.Background(), state, limit)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestQueryRecursiveCTELimitZeroAndEmptyAnchor(t *testing.T) {
 	if _, present, err := empty.nextOccurrence(context.Background()); present || err != nil {
 		t.Fatal(present, err)
 	}
-	runtime := emptyOwner.producers[emptyNode.cte].recursion
+	runtime := emptyOwner.producers[emptyNode.CTE].recursion
 	if runtime.phase != 2 || runtime.source.flatCount != 0 || runtime.opened {
 		t.Fatal("empty anchor opened a recursive generation")
 	}
@@ -50,13 +50,13 @@ func TestQueryRecursiveCTEPrimaryErrorAndRequiredClose(t *testing.T) {
 			t.Fatal(err)
 		}
 		cteUnitNext(t, &stage)
-		producer := owner.producers[node.cte]
+		producer := owner.producers[node.CTE]
 		cleanup := errors.New("required recursive child close failed")
 		primary := errors.New("recursive term failed")
 		closes := 0
 		if primaryFailure {
-			n := node.query.Root.(*projectNode).child.(*recursiveUnionNode)
-			n.rightExpressions = []expr.Expr{queryProbe(n.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) {
+			n := node.Query.Root.(*projectNode).Child.(*recursiveUnionNode)
+			n.RightExpressions = []expr.Expr{queryProbe(n.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) {
 				producer.recursion.arm.inner.finish = func() error { closes++; return cleanup }
 				return sqltype.Value{}, primary
 			})}
@@ -104,7 +104,7 @@ func TestQueryRecursiveCTELongIterationAndFreshInvocation(t *testing.T) {
 		if err := owner.close(); err != nil {
 			t.Fatal(err)
 		}
-		if owner.producers[node.cte].recursion.seen != nil {
+		if owner.producers[node.CTE].recursion.seen != nil {
 			t.Fatal("ALL retained seen state")
 		}
 	}

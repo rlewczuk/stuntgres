@@ -59,7 +59,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	ref := roleTableRef(t, source, "tz_at")
 	definition := viewOf(source.catalog.state.MustRelation(ref.Address))
 	project := definition.query.Root.(*projectNode)
-	for _, expression := range project.expressions {
+	for _, expression := range project.Expressions {
 		original := expression.(functions.Timezone)
 		before := original
 		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef {
@@ -78,10 +78,10 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 		if !reflect.DeepEqual(original, before) {
 			t.Fatal("remap mutated original expression")
 		}
-		if next.Value.(columnExpression).origin == original.Value.(columnExpression).origin {
+		if next.Value.(columnExpression).Origin == original.Value.(columnExpression).Origin {
 			t.Fatal("value identity was not remapped")
 		}
-		if !original.Local && next.Zone.(columnExpression).origin == original.Zone.(columnExpression).origin {
+		if !original.Local && next.Zone.(columnExpression).Origin == original.Zone.(columnExpression).Origin {
 			t.Fatal("zone identity was not remapped")
 		}
 	}

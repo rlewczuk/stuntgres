@@ -102,7 +102,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			for _, node := range []expr.Expr{p.Definition, p.Execution} {
 				column := node.(columnExpression)
-				if column.ResultUsage() != newUsage || column.origin != f.predicate.origin || column.scope != f.predicate.scope || column.frame != f.predicate.frame || column.slot != f.predicate.slot {
+				if column.ResultUsage() != newUsage || column.Origin != f.predicate.Origin || column.Scope != f.predicate.Scope || column.Frame != f.predicate.Frame || column.Slot != f.predicate.Slot {
 					t.Error("predicate tree retained a stale usage or changed its reference/frame", column)
 				}
 				for i, row := range stores[f.parent.Address()].Versions {

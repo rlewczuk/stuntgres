@@ -50,9 +50,9 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT sum(v) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t")
 			defer source.close()
 			project := query.Root.(*projectNode)
-			node := project.child.(*windowNode)
-			state := &queryState{source: source, frame: project.frame}
-			child, err := openQueryNode(context.Background(), state, node.child)
+			node := project.Child.(*windowNode)
+			state := &queryState{source: source, frame: project.Frame}
+			child, err := openQueryNode(context.Background(), state, node.Child)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,12 +60,12 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 			if err := child.drain(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			calls := append([]windowCall(nil), node.calls...)
+			calls := append([]windowCall(nil), node.Calls...)
 			var sequence int64
 			visits := []int{}
-			calls[0].argument = windowSumArgumentProbe{calls[0].argument, &sequence, &visits, 0}
-			frame := node.specs[0].frame
-			frame.exclusion = tc.mode
+			calls[0].Argument = windowSumArgumentProbe{calls[0].Argument, &sequence, &visits, 0}
+			frame := node.Specs[0].Frame
+			frame.Exclusion = tc.mode
 			sums := windowSums{states: []windowSumState{{callIndex: 0}}}
 			for output, bounds := range tc.endpoints {
 				previous := sums.states[0].aggregate
@@ -116,9 +116,9 @@ func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT sum(v) OVER w,sum(v::bigint) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)")
 	defer source.close()
 	project := query.Root.(*projectNode)
-	node := project.child.(*windowNode)
-	state := &queryState{source: source, frame: project.frame}
-	child, err := openQueryNode(context.Background(), state, node.child)
+	node := project.Child.(*windowNode)
+	state := &queryState{source: source, frame: project.Frame}
+	child, err := openQueryNode(context.Background(), state, node.Child)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,22 +126,22 @@ func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
 	if err := child.drain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	calls := append([]windowCall(nil), node.calls...)
+	calls := append([]windowCall(nil), node.Calls...)
 	var sequence int64
 	visits := []int{}
 	for i := range calls {
-		calls[i].argument = windowSumArgumentProbe{calls[i].argument, &sequence, &visits, i}
+		calls[i].Argument = windowSumArgumentProbe{calls[i].Argument, &sequence, &visits, i}
 	}
 	for execution := range 2 {
 		sums := windowSums{states: []windowSumState{{callIndex: 0}, {callIndex: 1}}}
 		for output := range 3 {
-			if err := sums.evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, node.specs[0].frame, 0, 3, output, output, output+1); err != nil {
+			if err := sums.evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, node.Specs[0].Frame, 0, 3, output, output, output+1); err != nil {
 				t.Fatal(err)
 			}
 			for i, entry := range sums.states {
 				want := int64(9 + i*3 + output*18 + execution*54)
 				text, err := entry.result.Type().Output(context.Background(), entry.result)
-				if err != nil || text != strconv.FormatInt(want, 10) || entry.result.Type() != calls[i].expression.ResultUsage().Type {
+				if err != nil || text != strconv.FormatInt(want, 10) || entry.result.Type() != calls[i].Expression.ResultUsage().Type {
 					t.Fatal(execution, output, i, text, want, err)
 				}
 			}

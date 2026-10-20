@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 )
 
-func (e unnestExpression) Children() []expr.Expr { return e.args }
+func (e unnestExpression) Children() []expr.Expr { return e.Args }
 
 func (e unnestExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	next, err := e.Substitute(info, children)
@@ -16,7 +16,7 @@ func (e unnestExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Ex
 	if len(children) != 1 {
 		return nil, fmt.Errorf("stuntgres: invalid unnest arity")
 	}
-	_, result := unnestInputTypes(children[0].ResultUsage())
+	_, result := UnnestInputTypes(children[0].ResultUsage())
 	if result == nil || result != info.Usage.Type {
 		return nil, fmt.Errorf("stuntgres: invalid unnest generation")
 	}
@@ -24,7 +24,7 @@ func (e unnestExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Ex
 }
 
 func (e unnestExpression) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if len(children) != len(e.args) {
+	if len(children) != len(e.Args) {
 		return nil, fmt.Errorf("stuntgres: invalid unnest arguments")
 	}
 	for _, child := range children {
@@ -32,7 +32,7 @@ func (e unnestExpression) Substitute(info expr.Info, children []expr.Expr) (expr
 			return nil, fmt.Errorf("stuntgres: nil unnest argument")
 		}
 	}
-	e.Info, e.args = info, children
+	e.Info, e.Args = info, children
 	return e, nil
 }
 
@@ -42,14 +42,14 @@ func (e unnestExpression) PreflightFold() expr.Preflight        { return expr.Pr
 
 func (e unnestExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(unnestExpression)
-	if !ok || e.Usage != o.Usage || len(e.args) != len(o.args) {
+	if !ok || e.Usage != o.Usage || len(e.Args) != len(o.Args) {
 		return false
 	}
-	if !sameIntaggIdentity(e.procedure, e.ref, o.procedure, o.ref) {
+	if !SameIntaggIdentity(e.Procedure, e.Ref, o.Procedure, o.Ref) {
 		return false
 	}
-	for i, arg := range e.args {
-		if !same(arg, o.args[i]) {
+	for i, arg := range e.Args {
+		if !same(arg, o.Args[i]) {
 			return false
 		}
 	}
@@ -58,15 +58,15 @@ func (e unnestExpression) SameGroup(other expr.Expr, same func(expr.Expr, expr.E
 
 func (e unnestExpression) Render() (expr.Rendering, error) {
 	tree, name := "Unnest", "unnest"
-	if e.procedure != nil {
-		tree, name = "Intagg "+e.procedure.Name(), e.procedure.Name()
+	if e.Procedure != nil {
+		tree, name = "Intagg "+e.Procedure.Name(), e.Procedure.Name()
 	}
-	args := make([]expr.RenderArg, len(e.args))
-	for i, arg := range e.args {
+	args := make([]expr.RenderArg, len(e.Args))
+	for i, arg := range e.Args {
 		args[i] = expr.RenderArg{Expr: arg}
 	}
 	return expr.Rendering{
-		Tree: tree, Inputs: e.args, Form: expr.FormCall,
+		Tree: tree, Inputs: e.Args, Form: expr.FormCall,
 		Name: name, Quote: expr.QuoteWhenNeeded, Args: args,
 		Replay: expr.Replay{Validate: func() error {
 			return fmt.Errorf("stuntgres: stored scalar contains set call")

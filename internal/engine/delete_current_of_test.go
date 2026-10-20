@@ -81,13 +81,13 @@ func TestDeleteCurrentOfEligibility(t *testing.T) {
 	if got := cursorOccurrenceVersion(c.currentSource, c.currentIndex, scan.occurrence, c.locks); got.Row == 0 {
 		t.Fatal("unlocked derived lineage lost identity")
 	}
-	for _, node := range []LogicalNode{&sortNode{child: c.root}, &aggregateNode{child: c.root}, &joinNode{}, &setNode{}, &distinctNode{}, &singletonNode{}} {
+	for _, node := range []LogicalNode{&sortNode{Child: c.root}, &aggregateNode{Child: c.root}, &joinNode{}, &setNode{}, &distinctNode{}, &singletonNode{}} {
 		if cursorSimpleScan(node, c.source) != nil {
 			t.Fatalf("identity-losing %T accepted", node)
 		}
 	}
 	for _, entry := range c.locks.leaves {
-		if entry.mark.mode != 0 {
+		if entry.mark.Mode != 0 {
 			t.Fatal("unlocked lineage acquired rowmark authority")
 		}
 	}
@@ -276,7 +276,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 			occurrence := -1
 			if tc.marked {
 				for i, leaf := range c.locks.leaves {
-					if leaf.mark.mode != 0 {
+					if leaf.mark.Mode != 0 {
 						if occurrence != -1 {
 							t.Fatal("fixture has ambiguous physical rowmarks")
 						}

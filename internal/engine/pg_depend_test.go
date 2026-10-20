@@ -83,7 +83,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	column := tableAddress
 	column.SubID = 2
 	ref := e.catalog.Domain.Ref(view.State().Epoch(), column)
-	variable := columnExpression{Info: expr.Info{Usage: integer.Usage()}, origin: ref}
+	variable := columnExpression{Info: expr.Info{Usage: integer.Usage()}, Origin: ref}
 	repeated := functions.Binary{Info: expr.Info{Usage: integer.Usage()}, Args: []expr.Expr{variable, variable}}
 	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}}
 	uq := catalog.UniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}

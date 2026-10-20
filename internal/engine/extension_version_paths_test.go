@@ -53,10 +53,10 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage, ok := root.(*setProjectNode)
-	if !ok || len(stage.calls) != 1 || !sameQuerySetOccurrence(call, stage.calls[0]) {
+	if !ok || len(stage.Calls) != 1 || !sameQuerySetOccurrence(call, stage.Calls[0]) {
 		t.Fatal("record set lowering lost occurrence")
 	}
-	if err := validateQuerySetSteps(stage.steps, len(stage.calls), len(stage.scalars)); err != nil {
+	if err := validateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {
 		t.Fatal(err)
 	}
 	fresh := New()

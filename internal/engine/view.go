@@ -243,7 +243,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if !ok {
 		return fmt.Errorf("stuntgres: view lacks final projection")
 	}
-	for i, expression := range projection.expressions {
+	for i, expression := range projection.Expressions {
 		if expression.CollationIndeterminate() {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`could not determine which collation to use for view column "%s"`, projection.Schema()[i].Name), Hint: "Use the COLLATE clause to set the collation explicitly."}
 		}
@@ -553,8 +553,8 @@ func (v *viewDefinition) validateNamespaces() error {
 		}
 	}
 	for _, project := range v.frames {
-		if project.syntax != nil {
-			countFrom(project.syntax.From)
+		if project.Syntax != nil {
+			countFrom(project.Syntax.From)
 		}
 	}
 	if expected != len(v.namespaces) {
@@ -626,23 +626,23 @@ const (
 func frozenNamespaceNode(root LogicalNode) (uint8, int) {
 	switch node := viewFromRoot(root).(type) {
 	case *functionFromNode:
-		if node.regexpNamespace {
-			return viewRegexpNamespace, node.viewOrdinal
+		if node.RegexpNamespace {
+			return viewRegexpNamespace, node.ViewOrdinal
 		}
-		return viewFunctionNamespace, node.viewOrdinal
+		return viewFunctionNamespace, node.ViewOrdinal
 	case *sourceNode:
-		return viewSourceNamespace, node.occurrence
+		return viewSourceNamespace, node.Occurrence
 	case *joinNode:
-		return viewJoinNamespace, node.viewOrdinal
+		return viewJoinNamespace, node.ViewOrdinal
 	case *valuesNode:
-		return viewValuesNamespace, node.viewOrdinal
+		return viewValuesNamespace, node.ViewOrdinal
 	case *derivedNode:
-		if node.cte != nil {
-			return viewDerivedNamespace, node.ordinal
+		if node.CTE != nil {
+			return viewDerivedNamespace, node.Ordinal
 		}
-		return viewDerivedNamespace, int(node.query.Root.(*projectNode).frame)
+		return viewDerivedNamespace, int(node.Query.Root.(*projectNode).Frame)
 	case *worktableScanNode:
-		return viewDerivedNamespace, node.ordinal
+		return viewDerivedNamespace, node.Ordinal
 	}
 	return 0, 0
 }
@@ -669,7 +669,7 @@ func (v *viewDefinition) namespaceRoot(ns viewNamespace) LogicalNode {
 			return viewCTEOrdinal(from, ns.ordinal)
 		}
 		if child := v.frames[uint32(ns.ordinal)]; child != nil {
-			return viewDerivedAt(from, child.syntax)
+			return viewDerivedAt(from, child.Syntax)
 		}
 	}
 	return nil

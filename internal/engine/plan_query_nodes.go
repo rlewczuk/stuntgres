@@ -8,99 +8,99 @@ import (
 
 type aggregateNode struct {
 	querySchema
-	child          LogicalNode
-	keys           []expr.Expr
-	grouping       []queryGrouping
-	calls          []aggregateCall
-	sets           [][]int // Canonical key IDs; each occurrence has isolated state.
-	groupingActive bool
-	presenceOnly   bool // Retain analyzed grouping while discarding eligible EXISTS demand.
+	Child          LogicalNode
+	Keys           []expr.Expr
+	Grouping       []queryGrouping
+	Calls          []aggregateCall
+	Sets           [][]int // Canonical key IDs; each occurrence has isolated state.
+	GroupingActive bool
+	PresenceOnly   bool // Retain analyzed grouping while discarding eligible EXISTS demand.
 }
 
-func (n *aggregateNode) discardableGrouping() bool {
-	if len(n.calls) != 0 || n.groupingActive {
+func (n *aggregateNode) DiscardableGrouping() bool {
+	if len(n.Calls) != 0 || n.GroupingActive {
 		return false
 	}
-	if n.sets == nil {
-		return len(n.keys) > 0
+	if n.Sets == nil {
+		return len(n.Keys) > 0
 	}
-	return len(n.sets) == 1 && len(n.sets[0]) > 0
+	return len(n.Sets) == 1 && len(n.Sets[0]) > 0
 }
 
 // A derived source adapts projected child rows to the ordinary FROM frame.
 // Its output is execution-private; it never owns captured relation pins.
 type derivedNode struct {
 	querySchema
-	query        *BoundQuery
-	cte          *cteDefinition
-	table        *parser.TableReference
-	ordinal      int
-	scanFrame    uint32
-	demand       []bool
-	presenceSlot int
+	Query        *BoundQuery
+	CTE          *cteDefinition
+	Table        *parser.TableReference
+	Ordinal      int
+	ScanFrame    uint32
+	Demand       []bool
+	PresenceSlot int
 }
 
 // distinctNode owns source-typed projected tuples. Its parent projection reads
 // slots, so ordering and INSERT assignment never reevaluate key expressions.
 type distinctNode struct {
 	querySchema
-	child        LogicalNode
-	expressions  []expr.Expr
-	grouping     []queryGrouping
-	presenceOnly bool // Retain analyzed targets while discarding eligible EXISTS demand.
+	Child        LogicalNode
+	Expressions  []expr.Expr
+	Grouping     []queryGrouping
+	PresenceOnly bool // Retain analyzed targets while discarding eligible EXISTS demand.
 }
 
 // Unlike DISTINCT, ON retains input occurrences and never demands payload
 // equality. The existing cache and source own retained rows and key datums.
 type distinctOnNode struct {
 	querySchema
-	child        LogicalNode
-	expressions  []expr.Expr
-	grouping     []queryGrouping
-	presenceOnly bool
+	Child        LogicalNode
+	Expressions  []expr.Expr
+	Grouping     []queryGrouping
+	PresenceOnly bool
 }
 
 type joinNode struct {
-	viewOrdinal  int
-	presenceSlot int
+	ViewOrdinal  int
+	PresenceSlot int
 	querySchema
-	kind                  parser.JoinKind
-	left, right           LogicalNode
-	predicate             expr.Expr
-	leftWidth, rightWidth int
-	merges                []expr.Expr
-	correlatedRight       bool
-	frame                 uint32
-	correlationPrefix     int
-	captures              []functionCorrelation
+	Kind                  parser.JoinKind
+	Left, Right           LogicalNode
+	Predicate             expr.Expr
+	LeftWidth, RightWidth int
+	Merges                []expr.Expr
+	CorrelatedRight       bool
+	Frame                 uint32
+	CorrelationPrefix     int
+	Captures              []functionCorrelation
 }
 
 // Captures retain their binding namespace and written origin while an enclosing
 // join consumes locally satisfied references. Slots are relative to that join's
 // inherited correlation frame, not to its output row.
 type functionCorrelation struct {
-	frame uint32
-	slot  int
-	name  string
-	pos   parser.Position
+	Frame uint32
+	Slot  int
+	Name  string
+	Pos   parser.Position
 }
 
 type limitNode struct {
 	querySchema
-	child         LogicalNode
-	offset, count expr.Expr
-	withTies      bool
-	peerKeys      []sortKey
-	presenceOnly  bool // Eligible EXISTS retains analysis, not bounds/peer production.
+	Child         LogicalNode
+	Offset, Count expr.Expr
+	WithTies      bool
+	PeerKeys      []sortKey
+	PresenceOnly  bool // Eligible EXISTS retains analysis, not bounds/peer production.
 }
 
 // Evaluation keeps the input frame/provenance intact and shares the existing
 // ORDER cache authority. Final projection reads these slots, never reevaluates.
 type evaluationNode struct {
 	querySchema
-	child       LogicalNode
-	expressions []expr.Expr
-	base        int
+	Child       LogicalNode
+	Expressions []expr.Expr
+	Base        int
 }
 
 // The self edge is an opaque identity, never a child pointing at its own query.
@@ -108,65 +108,65 @@ type worktableScanNode struct{ derivedNode }
 
 type recursiveUnionNode struct {
 	setNode
-	definition *cteDefinition
-	search     *searchRecipe
-	cycle      *cycleRecipe
+	Definition *cteDefinition
+	Search     *searchRecipe
+	Cycle      *cycleRecipe
 }
 
 // Ordinary groupings cover original columns and then the optional CYCLE mark;
 // generated record/path slots retain their recipe-owned equality authority.
-func (n *recursiveUnionNode) groupingSlot(i int) int {
-	if n.cycle != nil && i == n.definition.userWidth {
-		return n.cycle.markSlot
+func (n *recursiveUnionNode) GroupingSlot(i int) int {
+	if n.Cycle != nil && i == n.Definition.UserWidth {
+		return n.Cycle.MarkSlot
 	}
 	return i
 }
 
 type rowLockNode struct {
 	querySchema
-	child     LogicalNode
-	marks     []queryRowMark
-	firstMode lock.Mode
+	Child     LogicalNode
+	Marks     []queryRowMark
+	FirstMode lock.Mode
 }
 
 // setNode describes common-typed projected arms. No execution state or physical
 // lineage is retained here. UNION ALL intentionally has no equivalence provider.
 type setNode struct {
 	querySchema
-	left, right                       *projectNode
-	operation                         string
-	all                               bool
-	leftExpressions, rightExpressions []expr.Expr
-	grouping                          []queryGrouping
+	Left, Right                       *projectNode
+	Operation                         string
+	All                               bool
+	LeftExpressions, RightExpressions []expr.Expr
+	Grouping                          []queryGrouping
 }
 
-func (n *limitNode) finishTies(root LogicalNode) {
-	if !n.withTies {
+func (n *limitNode) FinishTies(root LogicalNode) {
+	if !n.WithTies {
 		return
 	}
 	for {
 		switch node := root.(type) {
 		case *sortNode:
-			for i := range node.keys {
-				node.keys[i].peerDemand = true
+			for i := range node.Keys {
+				node.Keys[i].PeerDemand = true
 			}
-			n.peerKeys = node.keys
+			n.PeerKeys = node.Keys
 			return
 		case *evaluationNode:
-			root = node.child
+			root = node.Child
 		case *distinctOnNode:
-			root = node.child
+			root = node.Child
 		case *rowLockNode:
-			root = node.child
+			root = node.Child
 		default:
 			panic("stuntgres: WITH TIES without finished ORDER")
 		}
 	}
 }
 
-func (n *windowNode) specActive(index int) bool {
-	for i, call := range n.calls {
-		if !call.analysisOnly && n.specIndices[i] == index {
+func (n *windowNode) SpecActive(index int) bool {
+	for i, call := range n.Calls {
+		if !call.AnalysisOnly && n.SpecIndices[i] == index {
 			return true
 		}
 	}
@@ -176,8 +176,8 @@ func (n *windowNode) specActive(index int) bool {
 // Every execution owns its dense occurrences and result overlay; the plan has no caches.
 type windowNode struct {
 	querySchema
-	child                    LogicalNode
-	specs                    []boundWindowSpec
-	calls                    []windowCall
-	specIndices, sortIndices []int
+	Child                    LogicalNode
+	Specs                    []boundWindowSpec
+	Calls                    []windowCall
+	SpecIndices, SortIndices []int
 }

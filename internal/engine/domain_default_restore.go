@@ -82,7 +82,7 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		}
 		return typedef.DomainReplayNode{Kind: "composite", Members: &members}, nil
 	}
-	literal, err := catalogLiteralSQL(ctx, view, literalExpression{Info: expr.Info{Usage: u}, value: v})
+	literal, err := catalogLiteralSQL(ctx, view, literalExpression{Info: expr.Info{Usage: u}, Value: v})
 	if err != nil {
 		return n, err
 	}
@@ -316,7 +316,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 		if count == 0 || value.Type() != usage.Type {
 			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted domain NULL")
 		}
-		capture.cells[position] = literalExpression{Info: expr.Info{Usage: usage, Pos: raw.SourcePosition()}, value: value}
+		capture.cells[position] = literalExpression{Info: expr.Info{Usage: usage, Pos: raw.SourcePosition()}, Value: value}
 	}
 	return capture, nil
 }

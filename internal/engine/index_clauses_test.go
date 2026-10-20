@@ -393,7 +393,7 @@ func TestIndexClausesDerivedProviders(t *testing.T) {
 	parent, _, _, types := indexClausesFixture(t)
 	typ := types[sqltype.Text]
 	usage := typ.Usage()
-	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 2}
+	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 2}
 	plan, err := sqltype.BindString("lower", usage, usage, []sqltype.Usage{usage}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)

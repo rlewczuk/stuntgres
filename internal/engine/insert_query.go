@@ -58,10 +58,10 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		return err
 	}
 	project := query.Root.(*projectNode)
-	width := len(project.expressions)
+	width := len(project.Expressions)
 	if len(s.Targets) == 0 {
 		if width > len(out.relation.Columns) {
-			return insertError("42601", "INSERT has more expressions than target columns", project.expressions[len(out.relation.Columns)].SourcePosition())
+			return insertError("42601", "INSERT has more expressions than target columns", project.Expressions[len(out.relation.Columns)].SourcePosition())
 		}
 		out.targets = make([]int, width)
 		for i := range width {
@@ -69,20 +69,20 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		}
 	} else {
 		if width > len(out.targets) {
-			return insertError("42601", "INSERT has more expressions than target columns", project.expressions[len(out.targets)].SourcePosition())
+			return insertError("42601", "INSERT has more expressions than target columns", project.Expressions[len(out.targets)].SourcePosition())
 		}
 		if width < len(out.targets) {
 			return insertError("42601", "INSERT has more target columns than expressions", s.Targets[width].Pos)
 		}
 	}
 	schemaDetached := false
-	for i, expr := range project.expressions {
+	for i, expr := range project.Expressions {
 		target := out.relation.Columns[out.targets[i]]
 		var partial *arrayAssignmentTarget
 		if len(out.arrayTargets) != 0 {
 			partial = out.arrayTargets[i]
 			if partial != nil {
-				target = partial.column(target)
+				target = partial.Column(target)
 			}
 		}
 		if _, generated := out.relation.ColumnMeta.Generations[out.relation.Attributes[out.targets[i]]]; generated {
@@ -110,7 +110,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			}
 			return err
 		}
-		project.expressions[i] = assigned
+		project.Expressions[i] = assigned
 		if usage := assigned.ResultUsage(); usage != project.querySchema[i].Usage {
 			// The output schema may share backing with source nodes. Assignment
 			// owns only the final projection, never source validation or set keys.
@@ -125,14 +125,14 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	// USER identity projections lose runtime demand, before coercion preflight.
 	if len(out.insert.identityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Values.Rows) == 1) {
 		for i, target := range out.targets {
-			expression := project.expressions[i]
+			expression := project.Expressions[i]
 			if !out.insert.identityDiscard[target] || expression.Properties().Volatility == expr.Volatile {
 				continue
 			}
 			var discard bool
-			project.child, discard = pruneIdentityQueryProducer(project.child, expression)
+			project.Child, discard = pruneIdentityQueryProducer(project.Child, expression)
 			if discard {
-				project.expressions[i] = identityUnusedOutput(expression)
+				project.Expressions[i] = identityUnusedOutput(expression)
 			}
 		}
 	}
@@ -251,7 +251,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 		common = info.Usage
 		schema[j] = catalog.Column{Name: fmt.Sprintf("column%d", j+1), Usage: common}
-		projection[j] = columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: j}
+		projection[j] = columnExpression{Info: info, Scope: 1, Frame: b.frameID(), Slot: j}
 	}
 	if lists != nil {
 		for i, written := range source.Rows {
@@ -263,7 +263,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 					if err := b.captureCompositeExpansion(raw, expansion, path, &ordinal); err != nil {
 						return nil, err
 					}
-					slot += len(expansion.fields)
+					slot += len(expansion.Fields)
 				} else {
 					if err := b.captureValuesViewLiteral(raw, nodes[i][slot], viewValuesCellLiteral, occurrence, i, target); err != nil {
 						return nil, err
@@ -273,12 +273,12 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			}
 		}
 	}
-	values := &valuesNode{querySchema: schema, rows: nodes, viewOrdinal: occurrence}
+	values := &valuesNode{querySchema: schema, Rows: nodes, ViewOrdinal: occurrence}
 	if identityDiscard && len(nodes) == 1 {
-		values.identityOrderDemand = make([]bool, width)
+		values.IdentityOrderDemand = make([]bool, width)
 	}
 	var root LogicalNode = values
-	namespace := queryNamespace{frame: schema, values: true, identityValuesOrderDemand: values.identityOrderDemand}
+	namespace := queryNamespace{frame: schema, values: true, identityValuesOrderDemand: values.IdentityOrderDemand}
 	names := make([]string, width)
 	for i, column := range schema {
 		names[i] = column.Name
@@ -296,16 +296,16 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	if b.params.noParameters || b.consumer.materializedDefinition {
 		if source.Order != nil {
 			for i, key := range source.Order.Keys {
-				if err := b.captureValuesViewLiteral(key.Expr, order[i].expression, viewValuesOrderLiteral, occurrence, 0, i); err != nil {
+				if err := b.captureValuesViewLiteral(key.Expr, order[i].Expression, viewValuesOrderLiteral, occurrence, 0, i); err != nil {
 					return nil, err
 				}
 			}
 		}
 		if source.Bounds != nil {
-			if err := b.captureValuesViewLiteral(source.Bounds.Offset, bounds.offset, viewValuesOffsetLiteral, occurrence, 0, 0); err != nil {
+			if err := b.captureValuesViewLiteral(source.Bounds.Offset, bounds.Offset, viewValuesOffsetLiteral, occurrence, 0, 0); err != nil {
 				return nil, err
 			}
-			if err := b.captureValuesViewLiteral(source.Bounds.Count, bounds.count, viewValuesLimitLiteral, occurrence, 0, 0); err != nil {
+			if err := b.captureValuesViewLiteral(source.Bounds.Count, bounds.Count, viewValuesLimitLiteral, occurrence, 0, 0); err != nil {
 				return nil, err
 			}
 		}
@@ -315,16 +315,16 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		return nil, err
 	}
 	if bounds != nil {
-		bounds.finishTies(root)
+		bounds.FinishTies(root)
 	}
 	if bounds != nil {
-		bounds.querySchema, bounds.child = root.Schema(), root
+		bounds.querySchema, bounds.Child = root.Schema(), root
 		root = bounds
 	}
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
 	results := append([]catalog.Column(nil), schema...)
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, frozenValues: true, frame: b.frameID()}}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, Child: root, Expressions: projection, FrozenValues: true, Frame: b.frameID()}}, nil
 }
 
 // VALUES exposes generated ASCII column names in one synthetic namespace.
@@ -468,7 +468,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		for j, target := range b.targets {
 			value := scratch[j]
 			if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-				value, err = b.arrayTargets[j].apply(&evaluation, row[target], value)
+				value, err = b.arrayTargets[j].Apply(&evaluation, row[target], value)
 				if err != nil {
 					return indexWriteBatch{}, err
 				}
@@ -595,7 +595,7 @@ func identityUnusedOutput(expression expr.Expr) expr.Expr {
 	info.Property = expr.Properties{}
 	return literalExpression{
 		Info:  info,
-		value: sqltype.Null(expression.ResultUsage().Type),
+		Value: sqltype.Null(expression.ResultUsage().Type),
 	}
 }
 
@@ -609,7 +609,7 @@ func pruneIdentityQueryProducer(node LogicalNode, expression expr.Expr) (Logical
 		if !ok {
 			break
 		}
-		expression = coercion.child
+		expression = coercion.Child
 	}
 	switch n := node.(type) {
 	case *setNode:
@@ -622,66 +622,66 @@ func pruneIdentityQueryProducer(node LogicalNode, expression expr.Expr) (Logical
 		return n, false // ON keys and ordering determine source winners.
 	case *limitNode:
 		var discard bool
-		n.child, discard = pruneIdentityQueryProducer(n.child, expression)
+		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
 	case *rowLockNode:
 		var discard bool
-		n.child, discard = pruneIdentityQueryProducer(n.child, expression)
+		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
 	case *evaluationNode:
-		if cached, ok := expression.(cachedOrderExpression); ok && cached.slot >= n.base && cached.slot < n.base+len(n.expressions) {
-			slot := cached.slot - n.base
-			if n.expressions[slot].Properties().Volatility == expr.Volatile {
+		if cached, ok := expression.(cachedOrderExpression); ok && cached.Slot >= n.Base && cached.Slot < n.Base+len(n.Expressions) {
+			slot := cached.Slot - n.Base
+			if n.Expressions[slot].Properties().Volatility == expr.Volatile {
 				return n, false
 			}
-			n.expressions[slot] = identityUnusedOutput(n.expressions[slot])
+			n.Expressions[slot] = identityUnusedOutput(n.Expressions[slot])
 			// A solely discarded projection no longer needs a per-row cache.
 			unused := true
-			for _, producer := range n.expressions {
+			for _, producer := range n.Expressions {
 				literal, ok := producer.(literalExpression)
-				if !ok || !literal.value.IsNull() {
+				if !ok || !literal.Value.IsNull() {
 					unused = false
 					break
 				}
 			}
 			if unused {
-				return n.child, true
+				return n.Child, true
 			}
 			return n, true
 		}
 		var discard bool
-		n.child, discard = pruneIdentityQueryProducer(n.child, expression)
+		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
 	case *sortNode:
 		if cached, ok := expression.(cachedOrderExpression); ok {
-			for _, key := range n.keys {
-				if key.cache == cached.slot {
+			for _, key := range n.Keys {
+				if key.Cache == cached.Slot {
 					return n, true
 				}
 			}
-			slot := cached.slot - (n.cacheWidth - len(n.outputs))
-			if slot >= 0 && slot < len(n.outputs) {
-				if n.outputs[slot].Properties().Volatility == expr.Volatile {
+			slot := cached.Slot - (n.CacheWidth - len(n.Outputs))
+			if slot >= 0 && slot < len(n.Outputs) {
+				if n.Outputs[slot].Properties().Volatility == expr.Volatile {
 					return n, false
 				}
-				n.outputs[slot] = identityUnusedOutput(n.outputs[slot])
+				n.Outputs[slot] = identityUnusedOutput(n.Outputs[slot])
 				return n, true
 			}
 		}
 		var discard bool
-		n.child, discard = pruneIdentityQueryProducer(n.child, expression)
+		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
 	case *valuesNode:
 		column, ok := expression.(columnExpression)
-		if !ok || len(n.rows) != 1 || len(n.identityOrderDemand) == 0 {
+		if !ok || len(n.Rows) != 1 || len(n.IdentityOrderDemand) == 0 {
 			return n, false
 		}
-		cell := n.rows[0][column.slot]
+		cell := n.Rows[0][column.Slot]
 		if cell.Properties().Volatility == expr.Volatile {
 			return n, false
 		}
-		if !n.identityOrderDemand[column.slot] {
-			n.rows[0][column.slot] = identityUnusedOutput(cell)
+		if !n.IdentityOrderDemand[column.Slot] {
+			n.Rows[0][column.Slot] = identityUnusedOutput(cell)
 		}
 		return n, true
 	}

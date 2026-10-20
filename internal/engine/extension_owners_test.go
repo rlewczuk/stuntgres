@@ -221,7 +221,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	project := &projectNode{
 		querySchema: querySchema{{Name: "hmac", Usage: call.ResultUsage()}},
-		child:       &valuesNode{}, expressions: []expr.Expr{call},
+		Child:       &valuesNode{}, Expressions: []expr.Expr{call},
 	}
 	ref := func(ref ids.ObjectRef) ids.ObjectRef {
 		if target, ok := mapping[ref.Address]; ok {
@@ -234,7 +234,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal("relocated query", err)
 	}
-	assertCall(query.(*projectNode).expressions[0])
+	assertCall(query.(*projectNode).Expressions[0])
 	if consumer.ColumnMeta.Defaults[1].Dependencies[0] != call.ref || call.procedure != before.Get(call.ref.Address) {
 		t.Fatal("source consumer mutated")
 	}
@@ -248,12 +248,12 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal(name, err)
 		}
 		original := node.(installedCryptoFunctionExpression)
-		project := &projectNode{querySchema: querySchema{{Name: "value", Usage: original.ResultUsage()}}, child: &valuesNode{}, expressions: []expr.Expr{original}}
+		project := &projectNode{querySchema: querySchema{{Name: "value", Usage: original.ResultUsage()}}, Child: &valuesNode{}, Expressions: []expr.Expr{original}}
 		query, err := remapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		actual := query.(*projectNode).expressions[0].(installedCryptoFunctionExpression)
+		actual := query.(*projectNode).Expressions[0].(installedCryptoFunctionExpression)
 		if actual.ref.Address != mapping[original.ref.Address] || actual.ref.Epoch != next.Epoch() || actual.procedure != next.Get(actual.ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("relocated random/FIPS recipe", name, actual)
 		}

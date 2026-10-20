@@ -156,7 +156,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 			binder.consumer.checkConsumer, binder.params.noParameters, binder.stored.checkLiterals = true, true, pending.literals
 			for i, literal := range pending.literals {
-				if literal.ResultUsage().Type.ID() != tc.id || literal.value.IsNull() != (i == 1) {
+				if literal.ResultUsage().Type.ID() != tc.id || literal.Value.IsNull() != (i == 1) {
 					t.Fatal("lost concrete/NULL usage", i, literal)
 				}
 				node, err := binder.bind(parser.ParameterExpr{Number: i + 1}, expressionPolicy{context: projectionContext, expected: binder.typ(sqltype.Text).Usage()})
@@ -200,7 +200,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 						t.Fatal(err)
 					}
 					special := literal
-					special.value = value
+					special.Value = value
 					before, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), special)
 					if err != nil {
 						t.Fatal(err)

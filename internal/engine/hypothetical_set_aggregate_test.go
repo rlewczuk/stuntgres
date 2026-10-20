@@ -45,7 +45,7 @@ func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ..
 	if err != nil {
 		t.Fatal(err)
 	}
-	in := hypotheticalUnit{width: 3, values: make([]sqltype.Value, 3*len(values)), indices: make([]int, len(values)), target: make([]sqltype.Value, 3), order: []sortKey{{comparison: comparison, cache: 2, slot: -1}}}
+	in := hypotheticalUnit{width: 3, values: make([]sqltype.Value, 3*len(values)), indices: make([]int, len(values)), target: make([]sqltype.Value, 3), order: []sortKey{{Comparison: comparison, Cache: 2, Slot: -1}}}
 	parse := func(text string) sqltype.Value {
 		if text == "NULL" {
 			return sqltype.Null(input)
@@ -86,7 +86,7 @@ func TestHypotheticalAggregateTupleEquality(t *testing.T) {
 	_, in := hypotheticalUnitInput(t, sqltype.Int4, "2", "1", "2", "NULL")
 	for _, desc := range []bool{false, true} {
 		for _, nullsFirst := range []bool{false, true} {
-			in.order[0].desc, in.order[0].nullsFirst = desc, nullsFirst
+			in.order[0].Desc, in.order[0].NullsFirst = desc, nullsFirst
 			a, err := compareOrderedAggregateTuple(context.Background(), in.order, in.tuple(0), in.target, sqltype.InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
@@ -176,21 +176,21 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := b.grouping.aggregates[node.(aggregateExpression).slot]
-			if len(call.direct) != 49 || len(call.order) != 49 || call.stageWidth != 51 || call.argument != nil || !call.includeNulls {
+			call := b.grouping.aggregates[node.(aggregateExpression).Slot]
+			if len(call.Direct) != 49 || len(call.Order) != 49 || call.StageWidth != 51 || call.Argument != nil || !call.IncludeNulls {
 				t.Fatal("full tuple layout", call)
 			}
-			for i, key := range call.order {
-				if key.slot != -1 || key.cache != i+2 {
+			for i, key := range call.Order {
+				if key.Slot != -1 || key.Cache != i+2 {
 					t.Fatal("independent key cache", i, key)
 				}
 			}
 			if node.ResultUsage() != b.typ(tc.id).Usage() || node.ResultUsage().Collation.ID != 0 {
 				t.Fatal("result authority", node.ResultUsage())
 			}
-			child := &valuesNode{rows: [][]expr.Expr{{}}}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: node.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: node.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
+			child := &valuesNode{Rows: [][]expr.Expr{{}}}
+			aggregate := &aggregateNode{querySchema: querySchema{{Usage: node.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
+			root := &projectNode{querySchema: aggregate.querySchema, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: node.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 			rows, count, err := finalizeQuery(context.Background(), root, &querySource{}, nil)
 			if err != nil || count != 1 {
 				t.Fatal("49-key private execution", count, err)
@@ -209,22 +209,22 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 				t.Fatal("49-key result", value, tc.want, err)
 			}
 			other := call
-			other.direct = append([]expr.Expr(nil), call.direct...)
-			other.direct[48] = call.direct[0]
+			other.Direct = append([]expr.Expr(nil), call.Direct...)
+			other.Direct[48] = call.Direct[0]
 			if b.sameAggregateCall(call, other) {
 				t.Fatal("later direct identity omitted")
 			}
 			// Copy-on-change must not alter the original direct slice.
 			rewritten, err := rewriteQueryExpressions(aggregate, func(expr expr.Expr) (expr.Expr, bool, error) {
-				if b.sameGroupExpression(expr, call.direct[48]) {
-					return call.direct[0], true, nil
+				if b.sameGroupExpression(expr, call.Direct[48]) {
+					return call.Direct[0], true, nil
 				}
 				return expr, false, nil
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !b.sameGroupExpression(rewritten.(*aggregateNode).calls[0].direct[48], call.direct[0]) || !b.sameGroupExpression(aggregate.calls[0].direct[48], call.direct[48]) {
+			if !b.sameGroupExpression(rewritten.(*aggregateNode).Calls[0].Direct[48], call.Direct[0]) || !b.sameGroupExpression(aggregate.Calls[0].Direct[48], call.Direct[48]) {
 				t.Fatal("rewrite aliased direct slice")
 			}
 			// Every direct/key/result descriptor must belong to the destination catalog.
@@ -242,10 +242,10 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			mapped := remapped.(*aggregateNode).calls[0]
-			expressions := append([]expr.Expr(nil), mapped.direct...)
-			for _, key := range mapped.order {
-				expressions = append(expressions, key.expression)
+			mapped := remapped.(*aggregateNode).Calls[0]
+			expressions := append([]expr.Expr(nil), mapped.Direct...)
+			for _, key := range mapped.Order {
+				expressions = append(expressions, key.Expression)
 			}
 			for _, expr := range expressions {
 				want, _ := destination.LookupType(expr.ResultUsage().Type.ID())
@@ -254,7 +254,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 				}
 			}
 			want, _ := destination.LookupType(tc.id)
-			if mapped.provider.ResultUsage().Type != want {
+			if mapped.Provider.ResultUsage().Type != want {
 				t.Fatal("source result descriptor retained")
 			}
 		})
@@ -332,16 +332,16 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 				}))
 			}
 			key := queryProbe(input.Usage(), func(c *EvalContext) (sqltype.Value, error) { keyCalls++; return c.Row[0], nil })
-			call := aggregateCall{provider: p, direct: direct, operation: p.Operation(), stageWidth: 4, includeNulls: true, order: []sortKey{{expression: key, comparison: in.order[0].comparison, slot: -1, cache: 2}, {expression: key, comparison: in.order[0].comparison, slot: -1, cache: 3}}}
+			call := aggregateCall{Provider: p, Direct: direct, Operation: p.Operation(), StageWidth: 4, IncludeNulls: true, Order: []sortKey{{Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 2}, {Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 3}}}
 			child := &valuesNode{querySchema: querySchema{{Usage: input.Usage()}}}
 			for i := range in.len() {
-				child.rows = append(child.rows, []expr.Expr{literalExpression{Info: expr.Info{Usage: input.Usage()}, value: in.tuple(i)[2]}})
+				child.Rows = append(child.Rows, []expr.Expr{literalExpression{Info: expr.Info{Usage: input.Usage()}, Value: in.tuple(i)[2]}})
 			}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: p.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
+			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
+			root := &projectNode{querySchema: aggregate.querySchema, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: p.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 			if phase == "prepublication" {
-				result := root.expressions[0]
-				root.expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })
+				result := root.Expressions[0]
+				root.Expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })
 			}
 			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(input)}}, flat: []sqltype.Value{sqltype.Null(input)}}
 			source := &querySource{sources: []*querySource{owned}}

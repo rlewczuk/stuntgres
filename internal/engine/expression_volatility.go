@@ -55,32 +55,32 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		}
 		return n.Properties().Volatility
 	case assignmentValueExpression:
-		v := children(n.base, n.value)
-		for target := n.target; target != nil; target = target.next {
-			for _, sub := range target.node.subscripts {
-				v = merge(v, children(sub.lower, sub.upper))
+		v := children(n.Base, n.Value)
+		for target := n.Target; target != nil; target = target.Next {
+			for _, sub := range target.Node.Subscripts {
+				v = merge(v, children(sub.Lower, sub.Upper))
 			}
-			v = session(v, target.reapply.SessionDependent())
+			v = session(v, target.Reapply.SessionDependent())
 		}
 		return v
 	case rowExpression:
-		return children(n.fields...)
+		return children(n.Fields...)
 	case fieldExpression:
-		return children(n.base)
+		return children(n.Base)
 	case arrayExpression:
-		return children(n.elements...)
+		return children(n.Elements...)
 	case subscriptExpression:
 		var storage [13]expr.Expr
 		return children(subscriptChildren(n, &storage)...)
 	case domainValueExpression, literalExpression, columnExpression:
 		return expr.Immutable
 	case collationExpression:
-		return children(n.child)
+		return children(n.Child)
 	case coercionExpression:
-		return session(children(n.child), n.plan.SessionDependent())
+		return session(children(n.Child), n.Plan.SessionDependent())
 	case rowComparisonExpression:
 		v := expr.Immutable
-		for _, pair := range n.comparisons {
+		for _, pair := range n.Comparisons {
 			if intrinsicOnly {
 				v = merge(v, plannedNodeVolatility(pair, false, true))
 			} else {
@@ -89,32 +89,32 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		}
 		return v
 	case scalarArrayComparisonExpression:
-		v := children(n.left)
-		if n.array != nil {
-			v = merge(v, children(n.array))
+		v := children(n.Left)
+		if n.Array != nil {
+			v = merge(v, children(n.Array))
 		}
-		v = merge(v, children(n.items...))
-		return session(v, n.predicate.SessionDependent())
+		v = merge(v, children(n.Items...))
+		return session(v, n.Predicate.SessionDependent())
 	case comparisonExpression:
-		return session(children(n.left, n.right), n.predicate.SessionDependent())
+		return session(children(n.Left, n.Right), n.Predicate.SessionDependent())
 	case selectedOperatorExpression:
-		return children(n.provider)
+		return children(n.Provider)
 	case arithmeticExpression:
-		return session(children(n.left, n.right), n.provider.SessionDependent())
+		return session(children(n.Left, n.Right), n.Provider.SessionDependent())
 	case bitwiseExpression:
-		return children(n.left, n.right)
+		return children(n.Left, n.Right)
 	case likeExpression:
-		return children(n.left, n.right)
+		return children(n.Left, n.Right)
 	case nullTestExpression:
-		return children(n.child)
+		return children(n.Child)
 	case truthTestExpression:
-		return children(n.child)
+		return children(n.Child)
 	case logicalExpression:
-		return children(n.left, n.right)
+		return children(n.Left, n.Right)
 	case distinctExpression:
-		return session(children(n.left, n.right), n.equality.SessionDependent())
+		return session(children(n.Left, n.Right), n.Equality.SessionDependent())
 	case conditionalExpression:
-		return session(children(n.args...), n.comparison.SessionDependent())
+		return session(children(n.Args...), n.Comparison.SessionDependent())
 	case extensionPathsExpression:
 		return merge(children(n.arg), expr.Stable)
 	case installedSoundexFunctionExpression:
@@ -130,11 +130,11 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case installedFunctionExpression:
 		return merge(n.procedure.Volatility, children(n.Arg))
 	case caseExpression:
-		v := children(n.test, n.otherwise)
-		for _, arm := range n.arms {
-			v = merge(v, children(arm.condition, arm.result))
-			if n.test != nil {
-				v = session(v, arm.testPlan.SessionDependent() || arm.equality.SessionDependent())
+		v := children(n.Test, n.Otherwise)
+		for _, arm := range n.Arms {
+			v = merge(v, children(arm.Condition, arm.Result))
+			if n.Test != nil {
+				v = session(v, arm.TestPlan.SessionDependent() || arm.Equality.SessionDependent())
 			}
 		}
 		return v

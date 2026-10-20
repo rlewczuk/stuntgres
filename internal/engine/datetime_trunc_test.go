@@ -78,7 +78,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	e := node.(functions.DatetimeTrunc)
 	for _, i := range []int{0, 1, 2} {
 		n := e
-		n.Args[i] = literalExpression{Info: b.info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.Null(n.Args[i].ResultUsage().Type)}
+		n.Args[i] = literalExpression{Info: b.info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(n.Args[i].ResultUsage().Type)}
 		simplified, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, n, false)
 		if err != nil || !changed || plannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)

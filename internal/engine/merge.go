@@ -337,7 +337,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) err
 				facts.constant = true
 			}
 		} else {
-			facts, err = fullJoinCondition(&owner, &joinNode{leftWidth: merge.targetWidth, rightWidth: merge.sourceWidth}, merge.on, false)
+			facts, err = fullJoinCondition(&owner, &joinNode{LeftWidth: merge.targetWidth, RightWidth: merge.sourceWidth}, merge.on, false)
 		}
 		if err != nil {
 			return err

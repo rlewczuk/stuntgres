@@ -17,7 +17,7 @@ import (
 
 // Field dependencies retain logical attribute identities, not field spellings.
 func expressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32) bool {
-	if field, ok := node.(fieldExpression); ok && field.base.ResultUsage().Type.BaseType().ID() == id && field.attribute == attribute {
+	if field, ok := node.(fieldExpression); ok && field.Base.ResultUsage().Type.BaseType().ID() == id && field.Attribute == attribute {
 		return true
 	}
 	found := false

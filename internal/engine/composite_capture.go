@@ -71,7 +71,7 @@ func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 }
 
 func (captured compositeOccurrence) validate(catalog catalog.Read) error {
-	if captured.kind != compositeSelection && captured.kind != compositeExpansion && captured.kind != compositeDotBuiltin && captured.kind != compositeWholeRow && captured.kind != compositeSourceExpansion && captured.kind != compositeRecordArgument || captured.kind == compositeSelection && len(captured.attributes) != 1 || captured.kind == compositeRecordArgument && len(captured.attributes) != 0 || captured.kind == compositeWholeRow && (len(captured.attributes) != 0 || captured.source.namespace == 0) || captured.kind == compositeDotBuiltin && (len(captured.attributes) != 0 || captured.function != functions.CountNulls && captured.function != functions.CountNonnulls) || captured.kind != compositeDotBuiltin && captured.function != 0 || !validExpressionUsage(catalog, captured.base) || captured.kind != compositeDotBuiltin && !captured.base.Type.BaseType().IsComposite() {
+	if captured.kind != compositeSelection && captured.kind != compositeExpansion && captured.kind != compositeDotBuiltin && captured.kind != compositeWholeRow && captured.kind != compositeSourceExpansion && captured.kind != compositeRecordArgument || captured.kind == compositeSelection && len(captured.attributes) != 1 || captured.kind == compositeRecordArgument && len(captured.attributes) != 0 || captured.kind == compositeWholeRow && (len(captured.attributes) != 0 || captured.source.Namespace == 0) || captured.kind == compositeDotBuiltin && (len(captured.attributes) != 0 || captured.function != functions.CountNulls && captured.function != functions.CountNonnulls) || captured.kind != compositeDotBuiltin && captured.function != 0 || !validExpressionUsage(catalog, captured.base) || captured.kind != compositeDotBuiltin && !captured.base.Type.BaseType().IsComposite() {
 		return fmt.Errorf("stuntgres: invalid frozen composite authority")
 	}
 	if captured.kind == compositeSourceExpansion && len(captured.names) != len(captured.attributes) || captured.kind != compositeSourceExpansion && len(captured.names) != 0 {
@@ -95,17 +95,17 @@ func (c *viewCapture) captureViewComposite(path viewLiteralPath, kind compositeO
 	}
 	source := wholeRowSource{}
 	if row, ok := base.(rowExpression); ok {
-		source = row.wholeSource
+		source = row.WholeSource
 	}
 	c.composites[path] = compositeOccurrence{kind: kind, base: base.ResultUsage(), attributes: attributes, source: source}
 }
 func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion compositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
 	path.node = *ordinal
 	(*ordinal)++
-	b.capture.captureViewComposite(path, compositeExpansion, expansion.base, expansion.attributes)
+	b.capture.captureViewComposite(path, compositeExpansion, expansion.Base, expansion.Attributes)
 	switch expression := raw.(type) {
 	case parser.FieldExpr:
-		return b.captureViewLiteralTree(expression.Base, expansion.base, path, ordinal)
+		return b.captureViewLiteralTree(expression.Base, expansion.Base, path, ordinal)
 	case parser.StarExpr:
 		return nil
 	default:
@@ -156,11 +156,11 @@ func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame 
 				}
 			}
 			if matches {
-				source = wholeRowSource{namespace: index + 1, qualifier: position, frame: frame}
+				source = wholeRowSource{Namespace: index + 1, Qualifier: position, Frame: frame}
 			}
 		}
 	}
-	if source.namespace == 0 {
+	if source.Namespace == 0 {
 		return source, fmt.Errorf("stuntgres: missing frozen whole-row namespace")
 	}
 	return source, nil
@@ -168,24 +168,24 @@ func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame 
 
 func (v *viewDefinition) validateCompositeSource(captured compositeOccurrence) error {
 	source := captured.source
-	if source.namespace == 0 {
-		if source.qualifier != 0 || source.frame != 0 || captured.kind == compositeWholeRow {
+	if source.Namespace == 0 {
+		if source.Qualifier != 0 || source.Frame != 0 || captured.kind == compositeWholeRow {
 			return fmt.Errorf("stuntgres: missing frozen whole-row source")
 		}
 		return nil
 	}
-	if source.namespace < 1 || source.namespace > len(v.namespaces) {
+	if source.Namespace < 1 || source.Namespace > len(v.namespaces) {
 		return fmt.Errorf("stuntgres: invalid frozen whole-row namespace")
 	}
-	namespace := v.namespaces[source.namespace-1]
-	if source.frame != namespace.frame || v.frames[source.frame] == nil || source.qualifier < 0 || source.qualifier >= len(namespace.qualifiers) {
+	namespace := v.namespaces[source.Namespace-1]
+	if source.Frame != namespace.frame || v.frames[source.Frame] == nil || source.Qualifier < 0 || source.Qualifier >= len(namespace.qualifiers) {
 		return fmt.Errorf("stuntgres: invalid frozen whole-row source frame")
 	}
 	root := v.namespaceRoot(namespace)
 	if root == nil {
 		return fmt.Errorf("stuntgres: missing frozen whole-row source node")
 	}
-	columns := namespace.qualifiers[source.qualifier].columns
+	columns := namespace.qualifiers[source.Qualifier].columns
 	shape := captured.base.Type.BaseType()
 	if !shape.IsComposite() || len(columns) != shape.CompositeLen() {
 		return fmt.Errorf("stuntgres: incompatible frozen whole-row shape")

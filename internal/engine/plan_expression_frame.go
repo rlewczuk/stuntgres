@@ -21,7 +21,7 @@ func (e domainValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type tableOIDExpression struct {
 	expr.Info
-	owner ids.ObjectRef
+	Owner ids.ObjectRef
 }
 
 func (n tableOIDExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -35,16 +35,16 @@ func (n tableOIDExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // The retained plan reads a physical leaf window, preserving the named column's
 // ACL identity and the caller's context. Definitions themselves contain plain
 // current-row references; no query-specific window enters the catalog.
-func (e columnExpression) withGeneration(d *catalog.Relation, physical, start int) columnExpression {
+func (e columnExpression) WithGeneration(d *catalog.Relation, physical, start int) columnExpression {
 	if d == nil {
 		return e
 	}
 	if definition, ok := d.ColumnMeta.Generations[d.Attributes[physical]]; ok && definition.Kind == catalog.GenerationVirtual {
-		e.virtual = definition.Planned
-		e.virtualOwner = d
-		e.virtualAttribute = d.Attributes[physical]
-		e.rowStart = start
-		e.rowWidth = len(d.Columns)
+		e.Virtual = definition.Planned
+		e.VirtualOwner = d
+		e.VirtualAttribute = d.Attributes[physical]
+		e.RowStart = start
+		e.RowWidth = len(d.Columns)
 	}
 	return e
 }
@@ -52,7 +52,7 @@ func (e columnExpression) withGeneration(d *catalog.Relation, physical, start in
 // The owner is lexical, not whichever query is currently evaluating a child.
 type mergeActionExpression struct {
 	expr.Info
-	scope, frame uint32
+	Scope, Frame uint32
 }
 
 func (e mergeActionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -69,20 +69,20 @@ type mergeReturningSide uint8
 // selected call's ordered, already-coerced operands for SQL rendering.
 type selectedOperatorExpression struct {
 	expr.Info
-	operator *catalog.Operator
-	ref      ids.ObjectRef
-	provider expr.Expr
+	Operator *catalog.Operator
+	Ref      ids.ObjectRef
+	Provider expr.Expr
 }
 
 func (e selectedOperatorExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	return e.provider.Eval(ctx)
+	return e.Provider.Eval(ctx)
 }
 
 // unknownOutput is an occurrence, not a SQL value. Assignment or ordinary
 // SELECT output finalization must eliminate it before the query can execute.
 type unknownOutput struct {
 	expr.Info
-	raw parser.Expr
+	Raw parser.Expr
 }
 
 func (unknownOutput) Eval(expr.Context) (sqltype.Value, error) {
@@ -91,7 +91,7 @@ func (unknownOutput) Eval(expr.Context) (sqltype.Value, error) {
 
 type cachedOrderExpression struct {
 	expr.Info
-	slot int
+	Slot int
 }
 
 func (e cachedOrderExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -105,11 +105,11 @@ func (e cachedOrderExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // Side-aware columns preserve dependencies even when their tuple is absent.
 type returningColumnExpression struct {
 	columnExpression
-	old, absent bool
-	merge       bool
-	side        mergeReturningSide
+	Old, Absent bool
+	Merge       bool
+	Side        mergeReturningSide
 	// A lowered logical view column can be an arbitrary physical expression.
-	value expr.Expr
+	Value expr.Expr
 }
 
 func (e returningColumnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -124,11 +124,11 @@ func (e returningColumnExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 // This does not introduce generic ROW or composite field syntax.
 type returningWholeRowExpression struct {
 	expr.Info
-	members      []expr.Expr
-	scope, frame uint32
-	old          bool
-	merge        bool
-	side         mergeReturningSide
+	Members      []expr.Expr
+	Scope, Frame uint32
+	Old          bool
+	Merge        bool
+	Side         mergeReturningSide
 }
 
 func (e returningWholeRowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -141,7 +141,7 @@ func (e returningWholeRowExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 
 type updateOutputExpression struct {
 	expr.Info
-	index, group int
+	Index, Group int
 }
 
 func (e updateOutputExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -156,15 +156,15 @@ func (e updateOutputExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // expression evaluation. Unsafe user work never sees a row hidden by any layer.
 type viewQualificationExpression struct {
 	expr.Info
-	predicates []expr.Expr // outer-to-inner storage; evaluated inner-to-outer
-	user       expr.Expr
+	Predicates []expr.Expr // outer-to-inner storage; evaluated inner-to-outer
+	User       expr.Expr
 }
 
 func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	value, known, err := queryPredicateProofValue(ctx, e.user)
+	value, known, err := QueryPredicateProofValue(ctx, e.User)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -179,8 +179,8 @@ func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 			return value, ctx.FunctionContext().Err()
 		}
 	}
-	for i := len(e.predicates) - 1; i >= 0; i-- {
-		value, err := e.predicates[i].Eval(ctx)
+	for i := len(e.Predicates) - 1; i >= 0; i-- {
+		value, err := e.Predicates[i].Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -195,8 +195,8 @@ func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 	if known {
 		return value, ctx.FunctionContext().Err()
 	}
-	if e.user == nil {
+	if e.User == nil {
 		return sqltype.Boolean(e.Usage.Type, true), ctx.FunctionContext().Err()
 	}
-	return e.user.Eval(ctx)
+	return e.User.Eval(ctx)
 }

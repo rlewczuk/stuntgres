@@ -37,8 +37,8 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
 		return nil, err
 	}
-	source := &sourceNode{querySchema: d.Columns, ref: ref, occurrence: 0}
-	root := &projectNode{child: source, expressions: []expr.Expr{node}, frame: 1, querySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
+	source := &sourceNode{querySchema: d.Columns, Ref: ref, Occurrence: 0}
+	root := &projectNode{Child: source, Expressions: []expr.Expr{node}, Frame: 1, querySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
 	capture := binding{
 		query:        &BoundQuery{Root: root},
 		dependencies: b.dependencies,

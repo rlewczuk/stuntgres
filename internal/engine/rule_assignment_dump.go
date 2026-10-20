@@ -10,20 +10,20 @@ import (
 func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, target *arrayAssignmentTarget, action ruleAction) (string, error) {
 	var sql strings.Builder
 	sql.WriteString(column)
-	for ; target != nil; target = target.next {
-		if target.attribute != 0 {
-			index, ok := target.container.Type.BaseType().CompositeAttributeIndex(target.attribute)
+	for ; target != nil; target = target.Next {
+		if target.Attribute != 0 {
+			index, ok := target.Container.Type.BaseType().CompositeAttributeIndex(target.Attribute)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: retired rule assignment attribute")
 			}
-			sql.WriteString("." + catalog.QuoteIdentifier(target.container.Type.BaseType().CompositeMember(index).Name))
+			sql.WriteString("." + catalog.QuoteIdentifier(target.Container.Type.BaseType().CompositeMember(index).Name))
 			continue
 		}
-		for _, sub := range target.node.subscripts {
+		for _, sub := range target.Node.Subscripts {
 			sql.WriteByte('[')
-			if target.node.slice {
-				if sub.lower != nil {
-					text, err := ruleExpressionSQL(ctx, view, sub.lower, action)
+			if target.Node.Slice {
+				if sub.Lower != nil {
+					text, err := ruleExpressionSQL(ctx, view, sub.Lower, action)
 					if err != nil {
 						return "", err
 					}
@@ -31,8 +31,8 @@ func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, ta
 				}
 				sql.WriteByte(':')
 			}
-			if sub.upper != nil {
-				text, err := ruleExpressionSQL(ctx, view, sub.upper, action)
+			if sub.Upper != nil {
+				text, err := ruleExpressionSQL(ctx, view, sub.Upper, action)
 				if err != nil {
 					return "", err
 				}

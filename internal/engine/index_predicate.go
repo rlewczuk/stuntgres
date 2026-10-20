@@ -142,8 +142,8 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	}
 	// Match the analyzed catalog shape, not the execution tree after folding.
 	// PostgreSQL removes only a standalone nonnull Boolean TRUE predicate.
-	if literal, ok := definition.(literalExpression); ok && literal.Usage.Type.ID() == sqltype.Bool && !literal.value.IsNull() {
-		truth, err := TruthOf(literal.value)
+	if literal, ok := definition.(literalExpression); ok && literal.Usage.Type.ID() == sqltype.Bool && !literal.Value.IsNull() {
+		truth, err := TruthOf(literal.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -214,8 +214,8 @@ func partialPredicateImpliedBy(query, predicate expr.Expr) bool {
 	if query == nil {
 		return false
 	}
-	if p, ok := predicate.(logicalExpression); ok && p.op == parser.LogicalAnd {
-		return partialPredicateImpliedBy(query, p.left) && partialPredicateImpliedBy(query, p.right)
+	if p, ok := predicate.(logicalExpression); ok && p.Op == parser.LogicalAnd {
+		return partialPredicateImpliedBy(query, p.Left) && partialPredicateImpliedBy(query, p.Right)
 	}
 	if predicate.Properties().ParameterDependent || plannedVolatility(predicate) != expr.Immutable {
 		return false
@@ -224,8 +224,8 @@ func partialPredicateImpliedBy(query, predicate expr.Expr) bool {
 }
 
 func partialPredicateAtom(query, predicate expr.Expr) bool {
-	if q, ok := query.(logicalExpression); ok && q.op == parser.LogicalAnd {
-		return partialPredicateAtom(q.left, predicate) || partialPredicateAtom(q.right, predicate)
+	if q, ok := query.(logicalExpression); ok && q.Op == parser.LogicalAnd {
+		return partialPredicateAtom(q.Left, predicate) || partialPredicateAtom(q.Right, predicate)
 	}
 	return !query.Properties().ParameterDependent && plannedVolatility(query) == expr.Immutable && sameGroupExpression(query, predicate)
 }

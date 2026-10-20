@@ -109,7 +109,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		rawArg, arg := analyzed.Raw, analyzed.Expression
 		if unknownNullSyntax(rawArg) {
 			literal, ok := arg.(literalExpression)
-			if !ok || !literal.value.IsNull() || literal.Usage.Type.ID() != sqltype.Text {
+			if !ok || !literal.Value.IsNull() || literal.Usage.Type.ID() != sqltype.Text {
 				return nil, fmt.Errorf("stuntgres: invalid unknown null-count argument")
 			}
 			literal.UnknownNull = true

@@ -53,31 +53,31 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := expr.Info{Usage: integer.Usage()}
-	searched := caseExpression{Info: info, arms: []caseBranch{{condition: spy(0, sqltype.Boolean(boolean, true)), result: spy(1, value)}, {condition: spy(2, sqltype.Boolean(boolean, true)), result: spy(3, other)}}, otherwise: spy(4, other)}
+	searched := caseExpression{Info: info, Arms: []caseBranch{{Condition: spy(0, sqltype.Boolean(boolean, true)), Result: spy(1, value)}, {Condition: spy(2, sqltype.Boolean(boolean, true)), Result: spy(3, other)}}, Otherwise: spy(4, other)}
 	got, err := searched.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 0, 0} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	simple := caseExpression{Info: info, test: spy(0, value), arms: []caseBranch{{condition: spy(1, other), result: spy(2, other), testPlan: plan, testUsage: integer.Usage(), equality: comparison}, {condition: spy(3, value), result: spy(4, value), testPlan: plan, testUsage: integer.Usage(), equality: comparison}}, otherwise: literalExpression{info, other}}
+	simple := caseExpression{Info: info, Test: spy(0, value), Arms: []caseBranch{{Condition: spy(1, other), Result: spy(2, other), TestPlan: plan, TestUsage: integer.Usage(), Equality: comparison}, {Condition: spy(3, value), Result: spy(4, value), TestPlan: plan, TestUsage: integer.Usage(), Equality: comparison}}, Otherwise: literalExpression{info, other}}
 	got, err = simple.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 1, 1} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	coalesce := conditionalExpression{Info: info, kind: parser.Coalesce, args: []expr.Expr{spy(0, sqltype.Null(integer)), spy(1, value), spy(2, other)}}
+	coalesce := conditionalExpression{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{spy(0, sqltype.Null(integer)), spy(1, value), spy(2, other)}}
 	got, err = coalesce.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 0, 0} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	nullif := conditionalExpression{Info: info, kind: parser.NullIf, args: []expr.Expr{spy(0, sqltype.Null(integer)), spy(1, value)}, comparison: comparison}
+	nullif := conditionalExpression{Info: info, Kind: parser.NullIf, Args: []expr.Expr{spy(0, sqltype.Null(integer)), spy(1, value)}, Comparison: comparison}
 	got, err = nullif.Eval(ctx)
 	if err != nil || !got.IsNull() || calls != [5]int{1, 1, 0, 0, 0} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	extrema := conditionalExpression{Info: info, kind: parser.Greatest, args: []expr.Expr{spy(0, other), spy(1, sqltype.Null(integer)), spy(2, value), spy(3, other)}, comparison: comparison}
+	extrema := conditionalExpression{Info: info, Kind: parser.Greatest, Args: []expr.Expr{spy(0, other), spy(1, sqltype.Null(integer)), spy(2, value), spy(3, other)}, Comparison: comparison}
 	got, err = extrema.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, other) || calls != [5]int{1, 1, 1, 1, 0} {
 		t.Fatal(got, calls, err)
@@ -285,7 +285,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, kind := range []parser.ConditionalKind{parser.Greatest, parser.Least} {
-		node := conditionalExpression{Info: info, kind: kind, args: []expr.Expr{literalExpression{info, negative}, literalExpression{info, positive}}, comparison: comparison}
+		node := conditionalExpression{Info: info, Kind: kind, Args: []expr.Expr{literalExpression{info, negative}, literalExpression{info, positive}}, Comparison: comparison}
 		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
@@ -508,21 +508,21 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 				t.Fatal(err)
 			}
 			newProvider, err := sqltype.BindOrdering(newDomain.Usage())
-			if err != nil || !original.comparison.Equal(oldProvider) || !reminted.comparison.Equal(newProvider) {
+			if err != nil || !original.Comparison.Equal(oldProvider) || !reminted.Comparison.Equal(newProvider) {
 				t.Fatal("stored extrema provider ownership", err)
 			}
-			if &original.args[0] == &reminted.args[0] {
+			if &original.Args[0] == &reminted.Args[0] {
 				t.Fatal("reownership retained mutable operand slice")
 			}
-			for i := range original.args {
-				if original.args[i].ResultUsage().Type != oldDomain || reminted.args[i].ResultUsage().Type != newDomain {
+			for i := range original.Args {
+				if original.Args[i].ResultUsage().Type != oldDomain || reminted.Args[i].ResultUsage().Type != newDomain {
 					t.Fatal("reownership mutated original operands")
 				}
-				oldValue, err := original.args[i].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+				oldValue, err := original.Args[i].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 				if err != nil || oldValue.Type() != oldDomain {
 					t.Fatal("original operand datum ownership", oldValue, err)
 				}
-				newValue, err := reminted.args[i].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+				newValue, err := reminted.Args[i].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 				if err != nil || newValue.Type() != newDomain || newValue.IsNull() != oldValue.IsNull() {
 					t.Fatal("reminted operand datum ownership", newValue, err)
 				}
@@ -540,11 +540,11 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 			if err != nil || changed {
 				t.Fatal("unchanged stored tree reminted", changed, err)
 			}
-			if &unchanged.(conditionalExpression).args[0] != &reminted.args[0] {
+			if &unchanged.(conditionalExpression).Args[0] != &reminted.Args[0] {
 				t.Fatal("unchanged stored tree copied operand slice")
 			}
 			invalid := reminted
-			invalid.comparison = oldProvider
+			invalid.Comparison = oldProvider
 			if _, err := defaultSQL(ctx, target.CatalogRead(), invalid); err == nil {
 				t.Fatal("renderer accepted foreign comparison ownership")
 			}

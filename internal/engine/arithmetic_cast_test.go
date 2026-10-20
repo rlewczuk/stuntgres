@@ -21,12 +21,12 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 		{"SELECT -CAST($1::text AS int4) FROM t", true, -2, ""},
 	} {
 		original := preflightCast(t, tc.query).(arithmeticExpression)
-		conversion := original.left
+		conversion := original.Left
 		if !tc.unary && tc.code == "" {
-			conversion = original.right
+			conversion = original.Right
 		}
 		cast := conversion.(coercionExpression)
-		source := cast.child.ResultUsage().Type
+		source := cast.Child.ResultUsage().Type
 		value, err := source.Input(context.Background(), "2", -1)
 		if err != nil {
 			t.Fatal(err)
@@ -40,9 +40,9 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 		if !ok || private.Info != original.Info || !private.Properties().ParameterDependent {
 			t.Fatal("arithmetic root folded or metadata changed", folded)
 		}
-		child := private.left
+		child := private.Left
 		if !tc.unary && tc.code == "" {
-			child = private.right
+			child = private.Right
 		}
 		if _, ok := child.(literalExpression); !ok {
 			t.Fatal("cast child not materialized", child)

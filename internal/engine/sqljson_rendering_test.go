@@ -20,7 +20,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 	e := New()
 	usage := func(id sqltype.ID) sqltype.Usage { return aclUnitType(t, e, id).Usage() }
 	literal := func(v sqltype.Value) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: v.Type().Usage()}, value: v}
+		return literalExpression{Info: expr.Info{Usage: v.Type().Usage()}, Value: v}
 	}
 	integer, err := sqltype.Integer(usage(sqltype.Int4).Type, 1)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return coercionExpression{Info: expr.Info{Usage: target}, child: child, mode: mode, plan: plan}
+		return coercionExpression{Info: expr.Info{Usage: target}, Child: child, Mode: mode, Plan: plan}
 	}
 	// Publish a genuine catalog domain; both interpreters must retain its identity
 	// and use their catalog-owned type spelling, not the raw RETURNING name.

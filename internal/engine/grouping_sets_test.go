@@ -74,17 +74,17 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	b.query.frame = 1
 	b.grouping.groupSets = [][]int{{0}, {}}
 	usage := b.typ(sqltype.Int4).Usage()
-	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	operation := groupingExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, frame: 1, args: []expr.Expr{key, key}}
+	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
+	operation := groupingExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, Frame: 1, Args: []expr.Expr{key, key}}
 	expression, err := b.rewriteGrouping(operation, []expr.Expr{key})
 	if err != nil {
 		t.Fatal(err)
 	}
 	grouping := expression.(groupingExpression)
-	if !reflect.DeepEqual(grouping.masks, []int32{0, 3}) || grouping.slot != 1 {
+	if !reflect.DeepEqual(grouping.Masks, []int32{0, 3}) || grouping.Slot != 1 {
 		t.Fatal(grouping)
 	}
-	grouping.args = []expr.Expr{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+	grouping.Args = []expr.Expr{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("GROUPING evaluated its argument")
 		return sqltype.Value{}, nil
 	})}
@@ -95,7 +95,7 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	if err != nil || mask != 3 || value.Type().ID() != sqltype.Int4 {
 		t.Fatal(mask, err)
 	}
-	if operation.masks != nil || operation.slot != 0 {
+	if operation.Masks != nil || operation.Slot != 0 {
 		t.Fatal("analysis mutated original operation")
 	}
 }
@@ -140,12 +140,12 @@ func TestGroupingSetsRuntimeOccurrencesAndFreshState(t *testing.T) {
 
 func TestGroupingSetsOncePerSourceModifiers(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(DISTINCT v ORDER BY v) FILTER(WHERE TRUE) FROM t GROUP BY GROUPING SETS((),(),())")
-	node := query.Root.(*projectNode).child.(*aggregateNode)
-	call := &node.calls[0]
-	filter, argument := call.filter, call.argument
+	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	call := &node.Calls[0]
+	filter, argument := call.Filter, call.Argument
 	filters, values := 0, 0
-	call.filter = queryProbe(filter.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { filters++; return filter.Eval(c) })
-	call.argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { values++; return argument.Eval(c) })
+	call.Filter = queryProbe(filter.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { filters++; return filter.Eval(c) })
+	call.Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { values++; return argument.Eval(c) })
 	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 	if err != nil || count != 3 || filters != 4 || values != 4 {
 		t.Fatal(count, err, filters, values)
@@ -166,7 +166,7 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT v,count(DISTINCT v ORDER BY v) FROM t GROUP BY GROUPING SETS((v),(v),()) ORDER BY v")
 			project := query.Root.(*projectNode)
-			node := project.child.(*sortNode).child.(*aggregateNode)
+			node := project.Child.(*sortNode).Child.(*aggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var execution context.Context = ctx
@@ -181,9 +181,9 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 				sortProbe = &aggregateSortCancelContext{Context: ctx, cancel: cancel}
 				execution = sortProbe
 			}
-			provider := node.calls[0].provider
+			provider := node.Calls[0].Provider
 			advances := 0
-			node.calls[0].provider = aggregateProbeProvider{AggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
+			node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 				advances++
 				err := provider.Advance(ctx, s, v, d)
 				if phase == "fanout" && advances == 2 {
@@ -198,8 +198,8 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 				return value, err
 			}}
 			if phase == "fanout" {
-				node.calls[0].order = nil
-				node.calls[0].distinct = nil
+				node.Calls[0].Order = nil
+				node.Calls[0].Distinct = nil
 			}
 			rows, count, err := finalizeQuery(execution, query.Root, source, nil)
 			if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.view != nil || source.anonymous != nil {
@@ -246,13 +246,13 @@ func TestGroupingSetsInsertLateFailureAndActiveCancellation(t *testing.T) {
 	for _, phase := range []string{"late_finalize", "fanout_cancel"} {
 		t.Run(phase, func(t *testing.T) {
 			b, source := insertSelectEvaluationFixture(t, "SELECT count(*) FROM t GROUP BY GROUPING SETS((v),(v),())")
-			node := b.query.Root.(*projectNode).child.(*aggregateNode)
-			provider := node.calls[0].provider
+			node := b.query.Root.(*projectNode).Child.(*aggregateNode)
+			provider := node.Calls[0].Provider
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("late grouped INSERT finalize")
 			advances, finalizations := 0, 0
-			node.calls[0].provider = aggregateProbeProvider{AggregateProvider: provider,
+			node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: provider,
 				advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 					advances++
 					err := provider.Advance(ctx, s, v, d)

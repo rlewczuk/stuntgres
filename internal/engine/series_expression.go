@@ -221,7 +221,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	if err != nil {
 		return nil, err
 	}
-	return seriesExpression{Info: info, args: args}, nil
+	return seriesExpression{Info: info, Args: args}, nil
 }
 
 func (b *expressionBinder) seriesSignatureError(raw parser.FunctionExpr, args []expr.Expr, unknown []bool, ambiguous bool) error {

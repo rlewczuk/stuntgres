@@ -53,10 +53,10 @@ func validateStoredCollationDependency(view catalog.Read, ref ids.ObjectRef, nod
 			comparison = true
 		}
 		literal, ok := child.(literalExpression)
-		if !ok || literal.value.IsNull() || literal.value.Type() == nil || literal.value.Type().ID() != sqltype.Regcollation || usage.Type == nil || usage.Type.ID() != sqltype.Regcollation {
+		if !ok || literal.Value.IsNull() || literal.Value.Type() == nil || literal.Value.Type().ID() != sqltype.Regcollation || usage.Type == nil || usage.Type.ID() != sqltype.Regcollation {
 			return
 		}
-		if id, failure := literal.value.ObjectOID(); failure == nil && ids.OID(id) == ref.Address.ObjectID {
+		if id, failure := literal.Value.ObjectOID(); failure == nil && ids.OID(id) == ref.Address.ObjectID {
 			identity = true
 		}
 	})

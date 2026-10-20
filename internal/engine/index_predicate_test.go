@@ -31,7 +31,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{10, 20}, ColumnMeta: catalog.ColumnMetadata{HighWater: 20}, Columns: []catalog.Column{{Name: "k", Usage: integer.Usage()}, {Name: "active", Usage: boolean.Usage()}}, Index: map[string]int{"k": 0, "active": 1}}
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), parent.Address())
 	ref.Address.SubID = 20
-	column := columnExpression{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 1, origin: ref}
+	column := columnExpression{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 1, Origin: ref}
 	predicate := &catalog.IndexPredicate{Definition: column, Execution: column, Attributes: parent.Attributes, Dependencies: []ids.ObjectRef{ref}}
 	class, _ := sqltype.DefaultIndexClass(integer)
 	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "pi", ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: []catalog.Column{parent.Columns[0]}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: catalog.BtreeMethod, Ready: true, Valid: true, Live: true, Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Predicate: predicate}}
@@ -90,7 +90,7 @@ func TestPartialIndexPredicateTruth(t *testing.T) {
 	}
 	boolean := f.predicate.Usage.Type
 	for _, value := range []sqltype.Value{sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false), sqltype.Null(boolean)} {
-		node := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: value}
+		node := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: value}
 		p := &catalog.IndexPredicate{Definition: node, Execution: node}
 		preparation := indexExecutionPreparation{}
 		got, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: p}, nil, nil, nil)
@@ -121,7 +121,7 @@ func TestPartialIndexRootMembership(t *testing.T) {
 		value sqltype.Value
 		count int
 	}{{sqltype.Boolean(f.predicate.Usage.Type, true), 5}, {sqltype.Boolean(f.predicate.Usage.Type, false), 0}, {sqltype.Null(f.predicate.Usage.Type), 0}} {
-		node := literalExpression{Info: expr.Info{Usage: f.predicate.Usage}, value: tc.value}
+		node := literalExpression{Info: expr.Info{Usage: f.predicate.Usage}, Value: tc.value}
 		def := *f.index.SQLIndex
 		def.Predicate = &catalog.IndexPredicate{Definition: node, Execution: node}
 		root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &def, f.store, nil)
@@ -260,15 +260,15 @@ func TestPartialIndexImplication(t *testing.T) {
 	active := expr.Expr(f.predicate)
 	boolean := f.predicate.Usage
 	and := func(a, b expr.Expr) expr.Expr {
-		return logicalExpression{Info: expr.Info{Usage: boolean}, op: parser.LogicalAnd, left: a, right: b}
+		return logicalExpression{Info: expr.Info{Usage: boolean}, Op: parser.LogicalAnd, Left: a, Right: b}
 	}
 	or := func(a, b expr.Expr) expr.Expr {
-		return logicalExpression{Info: expr.Info{Usage: boolean}, op: parser.LogicalOr, left: a, right: b}
+		return logicalExpression{Info: expr.Info{Usage: boolean}, Op: parser.LogicalOr, Left: a, Right: b}
 	}
-	param := parameterExpression{Info: expr.Info{Usage: boolean, Property: expr.Properties{ParameterDependent: true}}, number: 1}
-	fixed := literalExpression{Info: expr.Info{Usage: boolean}, value: sqltype.Boolean(boolean.Type, true)}
+	param := parameterExpression{Info: expr.Info{Usage: boolean, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
+	fixed := literalExpression{Info: expr.Info{Usage: boolean}, Value: sqltype.Boolean(boolean.Type, true)}
 	other := f.predicate
-	other.origin.Address.SubID++
+	other.Origin.Address.SubID++
 	for _, tc := range []struct {
 		q, p expr.Expr
 		want bool
@@ -315,19 +315,19 @@ func TestPartialIndexImplication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coercion := coercionExpression{Info: f.predicate.Info, child: active, plan: plan, mode: sqltype.Explicit}
+	coercion := coercionExpression{Info: f.predicate.Info, Child: active, Plan: plan, Mode: sqltype.Explicit}
 	sameCoercion := coercion
 	sameCoercion.Pos = parser.Position{Character: 2}
 	if !partialPredicateImpliedBy(sameCoercion, coercion) {
 		t.Fatal("exact coercion did not prove")
 	}
-	sameCoercion.mode = sqltype.Assignment
+	sameCoercion.Mode = sqltype.Assignment
 	if partialPredicateImpliedBy(sameCoercion, coercion) {
 		t.Fatal("coercion mode mismatch proved")
 	}
 	// Exact comparisons do not derive inequalities or substitute parameters.
 	integer := f.parent.Columns[0].Usage
-	n := columnExpression{Info: expr.Info{Usage: integer}, scope: 1, frame: 1, slot: 0}
+	n := columnExpression{Info: expr.Info{Usage: integer}, Scope: 1, Frame: 1, Slot: 0}
 	one, _ := sqltype.Integer(integer.Type, 1)
 	two, _ := sqltype.Integer(integer.Type, 2)
 	comparison, err := sqltype.BindComparisonPredicate(sqltype.CompareLess, integer.Type, integer.Type, boolean.Type, sqltype.CollationRef{}, false)
@@ -335,17 +335,17 @@ func TestPartialIndexImplication(t *testing.T) {
 		t.Fatal(err)
 	}
 	less := func(right expr.Expr) expr.Expr {
-		return comparisonExpression{Info: expr.Info{Usage: boolean}, predicate: comparison, operator: "<", left: n, right: right}
+		return comparisonExpression{Info: expr.Info{Usage: boolean}, Predicate: comparison, Operator: "<", Left: n, Right: right}
 	}
-	p := less(literalExpression{Info: expr.Info{Usage: integer}, value: two})
-	if partialPredicateImpliedBy(less(literalExpression{Info: expr.Info{Usage: integer}, value: one}), p) {
+	p := less(literalExpression{Info: expr.Info{Usage: integer}, Value: two})
+	if partialPredicateImpliedBy(less(literalExpression{Info: expr.Info{Usage: integer}, Value: one}), p) {
 		t.Fatal("inequality proof widened")
 	}
-	unresolved := parameterExpression{Info: expr.Info{Usage: integer, Property: expr.Properties{ParameterDependent: true}}, number: 1}
+	unresolved := parameterExpression{Info: expr.Info{Usage: integer, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 	q := less(unresolved)
 	qInfo := expr.InfoOf(q)
 	qInfo.Property.ParameterDependent = true
-	q = comparisonExpression{Info: qInfo, predicate: comparison, operator: "<", left: n, right: unresolved}
+	q = comparisonExpression{Info: qInfo, Predicate: comparison, Operator: "<", Left: n, Right: unresolved}
 	if partialPredicateImpliedBy(q, p) || !partialPredicateImpliedBy(and(p, param), p) {
 		t.Fatal("parameter implication")
 	}
@@ -354,7 +354,7 @@ func TestPartialIndexImplication(t *testing.T) {
 		t.Fatal(err)
 	}
 	different := p.(comparisonExpression)
-	different.predicate = greater
+	different.Predicate = greater
 	if partialPredicateImpliedBy(different, p) {
 		t.Fatal("different comparison provider proved")
 	}
@@ -386,8 +386,8 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	calls := 0
 	witness := partialEvaluationWitness{Info: f.predicate.Info, calls: &calls, value: sqltype.Boolean(f.predicate.Usage.Type, true)}
 	source := &querySource{view: view, ref: leaf.ref, committed: f.store.Versions, scope: scope, partialMask: mask}
-	scan := &sourceNode{querySchema: f.parent.Columns, ref: leaf.ref}
-	filter := &filterNode{querySchema: f.parent.Columns, child: scan, predicate: witness}
+	scan := &sourceNode{querySchema: f.parent.Columns, Ref: leaf.ref}
+	filter := &filterNode{querySchema: f.parent.Columns, Child: scan, Predicate: witness}
 	stage, err := openQueryNode(context.Background(), &queryState{source: source}, filter)
 	if err != nil {
 		t.Fatal(err)
@@ -467,9 +467,9 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "locking":
 				scope.queryLocks = &queryLockContext{}
 			case "occurrence locking":
-				leaf.mark = queryRowMark{mode: lock.ForUpdate}
+				leaf.mark = queryRowMark{Mode: lock.ForUpdate}
 			case "inherited locking":
-				inherited = queryRowMark{mode: lock.ForKeyShare}
+				inherited = queryRowMark{Mode: lock.ForKeyShare}
 			case "absent candidate":
 				leaf.partialCandidate = nil
 			}
@@ -484,7 +484,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	auth := AuthorizationView{View: access.View{Catalog: f.e.CatalogRead()}}
 	b := expressionBinder{query: queryScopeState{auth: &auth}}
-	param := parameterExpression{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{ParameterDependent: true}}, number: 1}
+	param := parameterExpression{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
 	if b.query.partialIndexCandidate(ref, param) != nil {
 		t.Fatal("unresolved parameter selected root")
@@ -495,7 +495,7 @@ func TestPartialIndexPredicateLifecycle(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	// Predicate-only dependency survives original-tree simplification.
 	original := *f.index.SQLIndex.Predicate
-	fixed := literalExpression{Info: f.predicate.Info, value: sqltype.Boolean(f.predicate.Usage.Type, false)}
+	fixed := literalExpression{Info: f.predicate.Info, Value: sqltype.Boolean(f.predicate.Usage.Type, false)}
 	original.Execution = fixed
 	def := *f.index.SQLIndex
 	def.Predicate = &original
@@ -513,7 +513,7 @@ func TestPartialIndexPredicateLifecycle(t *testing.T) {
 	parent.Attributes = []int32{5, 10, 20}
 	parent.Columns = append([]catalog.Column{f.parent.Columns[0]}, f.parent.Columns...)
 	column := f.predicate
-	column.slot = 2
+	column.Slot = 2
 	p := *f.index.SQLIndex.Predicate
 	p.Attributes = parent.Attributes
 	p.Definition, p.Execution = column, column
@@ -525,7 +525,7 @@ func TestPartialIndexPredicateLifecycle(t *testing.T) {
 	if err != nil || next == nil {
 		t.Fatal(err)
 	}
-	if next.SQLIndex.Predicate == &p || next.SQLIndex.Predicate.Definition.(columnExpression).slot != 1 || next.SQLIndex.Predicate.Execution.(columnExpression).slot != 1 || p.Definition.(columnExpression).slot != 2 {
+	if next.SQLIndex.Predicate == &p || next.SQLIndex.Predicate.Definition.(columnExpression).Slot != 1 || next.SQLIndex.Predicate.Execution.(columnExpression).Slot != 1 || p.Definition.(columnExpression).Slot != 2 {
 		t.Fatal("predicate slot remap mutated or missed trees")
 	}
 }
@@ -559,7 +559,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 		t.Fatal("replacement reused source predicate")
 	}
 	for _, node := range []expr.Expr{remapped.Definition, remapped.Execution} {
-		origin := node.(columnExpression).origin
+		origin := node.(columnExpression).Origin
 		if origin.Domain() != target.catalog.Domain || origin.Epoch != target.catalog.state.Epoch()+1 {
 			t.Fatal("foreign origin retained", origin)
 		}

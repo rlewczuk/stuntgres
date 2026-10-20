@@ -37,5 +37,5 @@ func (b *expressionBinder) ruleWholeRow(side parser.Identifier, pos parser.Posit
 	if side.Text == "new" {
 		ruleSide = 2
 	}
-	return rowExpression{Info: b.info(typ.Usage(), pos, properties), fields: fields, ruleSide: ruleSide}, nil
+	return rowExpression{Info: b.info(typ.Usage(), pos, properties), Fields: fields, RuleSide: ruleSide}, nil
 }

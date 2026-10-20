@@ -148,7 +148,7 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 963})
-	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
+	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 	if err := typedef.ValidateCollationProvider(view, ref); err == nil {
 		t.Fatal("fixture's unsupported comparison provider became executable")
 	}
@@ -165,7 +165,7 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	opaque := literalExpression{Info: expr.Info{Usage: arrayType.Usage()}, value: array}
+	opaque := literalExpression{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
 	if err := validateStoredCollationDependency(view, ref, opaque); err == nil {
 		t.Fatal("opaque array mistaken for scalar collation identity")
 	}

@@ -65,9 +65,9 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if !ok {
 		t.Fatal("default lost its genuine selected field", original)
 	}
-	originalRow, ok := originalField.base.(rowExpression)
-	if !ok || originalRow.fieldProjection != nil {
-		t.Fatal("fresh constructor allocated retained associations", originalField.base)
+	originalRow, ok := originalField.Base.(rowExpression)
+	if !ok || originalRow.FieldProjection != nil {
+		t.Fatal("fresh constructor allocated retained associations", originalField.Base)
 	}
 	initialContext := EvalContext{evalStatement: evalStatement{Context: op.Context(), catalog: before}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	initialValue, initialErr := originalRow.Eval(&initialContext)
@@ -106,13 +106,13 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	var selected fieldExpression
 	found := false
 	walkBoundExpression(mapped.DomainDefault.Expression, func(node expr.Expr) {
-		if field, ok := node.(fieldExpression); ok && field.attribute == source.Attributes[1] {
+		if field, ok := node.(fieldExpression); ok && field.Attribute == source.Attributes[1] {
 			selected = field
 			found = true
 		}
 	})
-	row, constructor := selected.base.(rowExpression)
-	if !found || !constructor || selected.index != 1 || len(row.fields) != 3 || len(row.fieldProjection) != 3 || row.fieldProjection[0].slot != -1 || row.fieldProjection[1].slot != 0 || row.fieldProjection[2].slot != -1 {
+	row, constructor := selected.Base.(rowExpression)
+	if !found || !constructor || selected.Index != 1 || len(row.Fields) != 3 || len(row.FieldProjection) != 3 || row.FieldProjection[0].Slot != -1 || row.FieldProjection[1].Slot != 0 || row.FieldProjection[2].Slot != -1 {
 		t.Fatal("lost original written child association", selected, row)
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), catalog: after}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
@@ -136,9 +136,9 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	// the row payload and must never evaluate retired siblings.
 	fast := selected
 	fastRow := row
-	fastRow.fields = slices.Clone(row.fields)
-	fastRow.fields[0], fastRow.fields[2] = literalExpression{}, literalExpression{}
-	fast.base = fastRow
+	fastRow.Fields = slices.Clone(row.Fields)
+	fastRow.Fields[0], fastRow.Fields[2] = literalExpression{}, literalExpression{}
+	fast.Base = fastRow
 	value, err = fast.Eval(&evaluation)
 	if err != nil {
 		t.Fatal(err)
@@ -173,8 +173,8 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 		t.Fatal("predecessor metadata changed", oldText, err)
 	}
 	forged := row
-	forged.fieldProjection = slices.Clone(row.fieldProjection)
-	forged.fieldProjection[0] = forged.fieldProjection[1]
+	forged.FieldProjection = slices.Clone(row.FieldProjection)
+	forged.FieldProjection[0] = forged.FieldProjection[1]
 	if err := validateGenerationPlan(after, nil, forged); err == nil {
 		t.Fatal("duplicate retained attribute admitted")
 	}

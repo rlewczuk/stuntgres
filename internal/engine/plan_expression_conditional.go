@@ -9,49 +9,49 @@ import (
 )
 
 type caseBranch struct {
-	condition, result expr.Expr
+	Condition, Result expr.Expr
 	// Simple CASE compares a coerced view of its one saved test value.
-	testPlan  sqltype.CoercionPlan
-	equality  sqltype.Comparison
-	testUsage sqltype.Usage
-	routine   *catalog.Procedure // Selected equality declaration, never captured permission.
+	TestPlan  sqltype.CoercionPlan
+	Equality  sqltype.Comparison
+	TestUsage sqltype.Usage
+	Routine   *catalog.Procedure // Selected equality declaration, never captured permission.
 }
 
 type caseExpression struct {
 	expr.Info
-	test      expr.Expr
-	arms      []caseBranch
-	otherwise expr.Expr
+	Test      expr.Expr
+	Arms      []caseBranch
+	Otherwise expr.Expr
 }
 
 func (e caseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.otherwise == nil {
+	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.Otherwise == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid CASE expression")
 	}
 	var test sqltype.Value
 	var err error
-	if e.test != nil {
-		test, err = e.test.Eval(ctx)
+	if e.Test != nil {
+		test, err = e.Test.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 	}
-	for _, arm := range e.arms {
-		condition, err := arm.condition.Eval(ctx)
+	for _, arm := range e.Arms {
+		condition, err := arm.Condition.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		match := false
-		if e.test != nil {
-			view, err := arm.testPlan.Apply(ctx.FunctionContext(), test, ctx.FunctionInput(), ctx.FunctionOutput())
+		if e.Test != nil {
+			view, err := arm.TestPlan.Apply(ctx.FunctionContext(), test, ctx.FunctionInput(), ctx.FunctionOutput())
 			if err != nil {
 				return sqltype.Value{}, err
 			}
 			if !view.IsNull() && !condition.IsNull() {
-				equal, err := arm.equality.EqualValues(ctx.FunctionContext(), view, condition, ctx.FunctionInput())
+				equal, err := arm.Equality.EqualValues(ctx.FunctionContext(), view, condition, ctx.FunctionInput())
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -64,44 +64,44 @@ func (e caseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			}
 		}
 		if match {
-			return arm.result.Eval(ctx)
+			return arm.Result.Eval(ctx)
 		}
 	}
-	return e.otherwise.Eval(ctx)
+	return e.Otherwise.Eval(ctx)
 }
 
 type conditionalExpression struct {
 	expr.Info
-	kind            parser.ConditionalKind
-	missingOrdering bool
-	args            []expr.Expr
-	comparison      sqltype.Comparison
+	Kind            parser.ConditionalKind
+	MissingOrdering bool
+	Args            []expr.Expr
+	Comparison      sqltype.Comparison
 }
 
 func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || len(e.args) == 0 || e.kind > parser.Least || e.kind == parser.NullIf && len(e.args) != 2 {
+	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || len(e.Args) == 0 || e.Kind > parser.Least || e.Kind == parser.NullIf && len(e.Args) != 2 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid conditional expression")
 	}
-	if err := e.extremaError(); err != nil {
+	if err := e.ExtremaError(); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.kind == parser.NullIf {
-		left, err := e.args[0].Eval(ctx)
+	if e.Kind == parser.NullIf {
+		left, err := e.Args[0].Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		right, err := e.args[1].Eval(ctx)
+		right, err := e.Args[1].Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if left.Type() != e.Usage.Type || right.Type() != e.args[1].ResultUsage().Type {
+		if left.Type() != e.Usage.Type || right.Type() != e.Args[1].ResultUsage().Type {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid NULLIF operand value")
 		}
 		if !left.IsNull() && !right.IsNull() {
-			equal, err := e.comparison.EqualValues(ctx.FunctionContext(), left, right, ctx.FunctionInput())
+			equal, err := e.Comparison.EqualValues(ctx.FunctionContext(), left, right, ctx.FunctionInput())
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -112,7 +112,7 @@ func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return left, nil
 	}
 	best := sqltype.Null(e.Usage.Type)
-	for _, arg := range e.args {
+	for _, arg := range e.Args {
 		value, err := arg.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -123,18 +123,18 @@ func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if value.IsNull() {
 			continue
 		}
-		if e.kind == parser.Coalesce {
+		if e.Kind == parser.Coalesce {
 			return value, nil
 		}
 		if best.IsNull() {
 			best = value
 			continue
 		}
-		sign, err := e.comparison.Compare(ctx.FunctionContext(), value, best, ctx.FunctionInput())
+		sign, err := e.Comparison.Compare(ctx.FunctionContext(), value, best, ctx.FunctionInput())
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if e.kind == parser.Greatest && sign > 0 || e.kind == parser.Least && sign < 0 {
+		if e.Kind == parser.Greatest && sign > 0 || e.Kind == parser.Least && sign < 0 {
 			best = value
 		}
 	}
@@ -143,11 +143,11 @@ func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 // Missing ordering is an executable initialization failure, not an equality
 // provider or an analysis error: prepared result descriptions remain available.
-func (e conditionalExpression) extremaError() error {
-	if !e.missingOrdering {
+func (e conditionalExpression) ExtremaError() error {
+	if !e.MissingOrdering {
 		return nil
 	}
-	if e.kind != parser.Greatest && e.kind != parser.Least {
+	if e.Kind != parser.Greatest && e.Kind != parser.Least {
 		return fmt.Errorf("stuntgres: invalid extrema capability")
 	}
 	return sqlError("42883", "could not identify a comparison function for type "+e.Usage.Type.DiagnosticName())
@@ -155,51 +155,51 @@ func (e conditionalExpression) extremaError() error {
 
 // A physical non-NULL BOOL left operand decides AND/OR without its right
 // operand. Coercion preflight and planning demand share this literal policy.
-func decisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
-	literal, ok := e.left.(literalExpression)
-	if !ok || literal.value.Type() == nil || !literal.value.Type().Concrete() ||
-		literal.value.Type().ID() != sqltype.Bool || literal.value.IsNull() {
+func DecisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
+	literal, ok := e.Left.(literalExpression)
+	if !ok || literal.Value.Type() == nil || !literal.Value.Type().Concrete() ||
+		literal.Value.Type().ID() != sqltype.Bool || literal.Value.IsNull() {
 		return sqltype.Value{}, false, nil
 	}
-	truth, err := TruthOf(literal.value)
+	truth, err := TruthOf(literal.Value)
 	if err != nil {
 		return sqltype.Value{}, false, err
 	}
-	if (e.op == parser.LogicalOr && truth == True) || (e.op == parser.LogicalAnd && truth == False) {
-		return literal.value, true, nil
+	if (e.Op == parser.LogicalOr && truth == True) || (e.Op == parser.LogicalAnd && truth == False) {
+		return literal.Value, true, nil
 	}
 	return sqltype.Value{}, false, nil
 }
 
 type logicalExpression struct {
 	expr.Info
-	op          parser.LogicalOperator
-	left, right expr.Expr
+	Op          parser.LogicalOperator
+	Left, Right expr.Expr
 	// A newly allocated child frame identifies a query-containing right operand.
 	// This does not enable ordinary native Boolean/cast branch optimization.
-	queryRight bool
+	QueryRight bool
 }
 
 func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
+	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Bool || e.left == nil ||
-		(e.op == parser.LogicalNot) != (e.right == nil) || e.op > parser.LogicalNot {
+	if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Bool || e.Left == nil ||
+		(e.Op == parser.LogicalNot) != (e.Right == nil) || e.Op > parser.LogicalNot {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid logical expression")
 	}
-	if e.queryRight {
+	if e.QueryRight {
 		// Match planning demand for a query-owned decisive left literal.
 		// Both children retain analysis, capture and ordinary coercion preflight.
-		_, decisive, err := decisiveLogicalValue(&e)
+		_, decisive, err := DecisiveLogicalValue(&e)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if decisive {
-			return sqltype.Boolean(e.Usage.Type, e.op == parser.LogicalOr), nil
+			return sqltype.Boolean(e.Usage.Type, e.Op == parser.LogicalOr), nil
 		}
 	}
-	v, err := e.left.Eval(ctx)
+	v, err := e.Left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -207,14 +207,14 @@ func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.op == parser.LogicalNot {
+	if e.Op == parser.LogicalNot {
 		if a == Unknown {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 		return sqltype.Boolean(e.Usage.Type, a == False), nil
 	}
 	// Evaluation order for nondecisive operands remains private.
-	v, err = e.right.Eval(ctx)
+	v, err = e.Right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -222,7 +222,7 @@ func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.op == parser.LogicalAnd {
+	if e.Op == parser.LogicalAnd {
 		if a == False || b == False {
 			return sqltype.Boolean(e.Usage.Type, false), nil
 		}
@@ -232,5 +232,5 @@ func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if a == Unknown || b == Unknown {
 		return sqltype.Null(e.Usage.Type), nil
 	}
-	return sqltype.Boolean(e.Usage.Type, e.op == parser.LogicalAnd), nil
+	return sqltype.Boolean(e.Usage.Type, e.Op == parser.LogicalAnd), nil
 }

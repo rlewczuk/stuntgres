@@ -23,7 +23,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range []sqltype.ID{sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8} {
 		provider, input := avgUnitProvider(source, id)
-		node := &aggregateNode{child: &singletonNode{}, calls: []aggregateCall{{provider: provider}}}
+		node := &aggregateNode{Child: &singletonNode{}, Calls: []aggregateCall{{Provider: provider}}}
 		mapped, err := remapViewQuery(restored.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, ok := restored.CatalogRead().LookupType(old.ID())
 			if !ok {
@@ -34,7 +34,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := mapped.(*aggregateNode).calls[0].provider
+		next := mapped.(*aggregateNode).Calls[0].Provider
 		want, restoredInput := avgUnitProvider(restored, id)
 		if next.ResultUsage() != want.ResultUsage() || provider.ResultUsage().Type == next.ResultUsage().Type {
 			t.Fatal("result descriptor was not independently remapped")
@@ -84,13 +84,13 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 func TestAvgSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT avg(1),avg(1),avg(1::bigint),avg(1::numeric),avg(1::real),avg(1::double precision),avg(INTERVAL '1 day'),count(*) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 7 {
-		t.Fatal("input-aware immutable sharing", len(node.calls))
+	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	if len(node.Calls) != 7 {
+		t.Fatal("input-aware immutable sharing", len(node.Calls))
 	}
 	for i, operation := range []functions.AggregateOperation{functions.AggregateNumericAvg, functions.AggregateNumericAvg, functions.AggregateNumericAvg, functions.AggregateFloatAvg, functions.AggregateFloatAvg, functions.AggregateIntervalAvg, functions.AggregateCount} {
-		if node.calls[i].operation != operation {
-			t.Fatal("operation", i, node.calls[i].operation)
+		if node.Calls[i].Operation != operation {
+			t.Fatal("operation", i, node.Calls[i].Operation)
 		}
 	}
 	for i, c := range q.Root.Schema()[:6] {
@@ -104,7 +104,7 @@ func TestAvgSlotsAndMetadata(t *testing.T) {
 	}
 	_, volatile, owner := queryCoreFixture(t, "SELECT avg(CASE WHEN nextval($1)>0 THEN 1 ELSE 0 END),avg(CASE WHEN nextval($1)>0 THEN 1 ELSE 0 END) FROM t")
 	defer owner.close()
-	if len(volatile.Root.(*projectNode).child.(*aggregateNode).calls) != 2 {
+	if len(volatile.Root.(*projectNode).Child.(*aggregateNode).Calls) != 2 {
 		t.Fatal("volatile calls shared")
 	}
 }
@@ -114,25 +114,25 @@ func TestAvgEagerCancellation(t *testing.T) {
 		for _, phase := range []string{"advance", "finalize", "prepublication"} {
 			_, q, source := queryCoreFixture(t, "SELECT avg(1::"+cast+") FROM t")
 			project := q.Root.(*projectNode)
-			node := project.child.(*aggregateNode)
+			node := project.Child.(*aggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
-			original := node.calls[0].provider
+			original := node.Calls[0].Provider
 			switch phase {
 			case "advance":
-				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
+				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
 					err := original.Advance(ctx, s, v, separator)
 					cancel()
 					return err
 				}}
 			case "finalize":
-				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					v, err := original.Finalize(ctx, s)
 					cancel()
 					return v, err
 				}}
 			case "prepublication":
-				expr := project.expressions[0]
-				project.expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
+				expr := project.Expressions[0]
+				project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
 			}
 			rows, count, err := finalizeQuery(ctx, q.Root, source, nil)
 			cancel()

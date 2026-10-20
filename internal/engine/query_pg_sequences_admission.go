@@ -18,36 +18,36 @@ func mapPGSequencesPredicate(bound expr.Expr, column func(columnExpression) (exp
 	case columnExpression:
 		return column(n)
 	case comparisonExpression:
-		left, ok := mapPGSequencesPredicate(n.left, column)
+		left, ok := mapPGSequencesPredicate(n.Left, column)
 		if !ok {
 			return nil, false
 		}
-		right, ok := mapPGSequencesPredicate(n.right, column)
+		right, ok := mapPGSequencesPredicate(n.Right, column)
 		if !ok {
 			return nil, false
 		}
-		n.left, n.right = left, right
+		n.Left, n.Right = left, right
 		return n, true
 	case logicalExpression:
-		left, ok := mapPGSequencesPredicate(n.left, column)
+		left, ok := mapPGSequencesPredicate(n.Left, column)
 		if !ok {
 			return nil, false
 		}
 		var right expr.Expr
-		if n.right != nil {
-			right, ok = mapPGSequencesPredicate(n.right, column)
+		if n.Right != nil {
+			right, ok = mapPGSequencesPredicate(n.Right, column)
 			if !ok {
 				return nil, false
 			}
 		}
-		n.left, n.right = left, right
+		n.Left, n.Right = left, right
 		return n, true
 	case nullTestExpression:
-		child, ok := mapPGSequencesPredicate(n.child, column)
+		child, ok := mapPGSequencesPredicate(n.Child, column)
 		if !ok {
 			return nil, false
 		}
-		n.child = child
+		n.Child = child
 		return n, true
 	}
 	return nil, false
@@ -58,7 +58,7 @@ func mapPGSequencesPredicate(bound expr.Expr, column func(columnExpression) (exp
 // a correlated column cannot be substituted with a coincident local slot.
 func pgSequencesPredicateInFrame(predicate expr.Expr, frame uint32) bool {
 	_, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
-		return column, frame != 0 && column.scope == 1 && column.frame == frame && column.virtual == nil
+		return column, frame != 0 && column.Scope == 1 && column.Frame == frame && column.Virtual == nil
 	})
 	return ok
 }
@@ -69,43 +69,43 @@ func admitPGSequencesPredicate(node LogicalNode, inputs *querySource, predicate 
 	}
 	switch n := node.(type) {
 	case *filterNode:
-		admitPGSequencesPredicate(n.child, inputs, predicate, offset, frame)
+		admitPGSequencesPredicate(n.Child, inputs, predicate, offset, frame)
 	case *rowLockNode:
-		admitPGSequencesPredicate(n.child, inputs, predicate, offset, frame)
+		admitPGSequencesPredicate(n.Child, inputs, predicate, offset, frame)
 	case *joinNode:
-		if n.kind != parser.JoinInner {
+		if n.Kind != parser.JoinInner {
 			return
 		}
-		admitPGSequencesPredicate(n.left, inputs, predicate, offset, frame)
-		admitPGSequencesPredicate(n.right, inputs, predicate, offset+n.leftWidth, frame)
+		admitPGSequencesPredicate(n.Left, inputs, predicate, offset, frame)
+		admitPGSequencesPredicate(n.Right, inputs, predicate, offset+n.LeftWidth, frame)
 	case *derivedNode:
-		if n.cte != nil || n.query == nil || n.scanFrame == 0 || n.scanFrame != frame {
+		if n.CTE != nil || n.Query == nil || n.ScanFrame == 0 || n.ScanFrame != frame {
 			return
 		}
-		project, ok := n.query.Root.(*projectNode)
+		project, ok := n.Query.Root.(*projectNode)
 		if !ok {
 			return
 		}
 		mapped, valid := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
-			slot := column.slot - offset
-			if slot < 0 || slot >= len(project.expressions) {
+			slot := column.Slot - offset
+			if slot < 0 || slot >= len(project.Expressions) {
 				return nil, false
 			}
-			inner, ok := project.expressions[slot].(columnExpression)
-			return inner, ok && project.frame != 0 && inner.scope == 1 && inner.frame == project.frame && inner.virtual == nil && inner.slot >= 0 && inner.slot < len(project.child.Schema())
+			inner, ok := project.Expressions[slot].(columnExpression)
+			return inner, ok && project.Frame != 0 && inner.Scope == 1 && inner.Frame == project.Frame && inner.Virtual == nil && inner.Slot >= 0 && inner.Slot < len(project.Child.Schema())
 		})
 		if valid {
 			// Projection columns already use the child frame's join offsets.
-			admitPGSequencesPredicate(project.child, inputs, mapped, 0, project.frame)
+			admitPGSequencesPredicate(project.Child, inputs, mapped, 0, project.Frame)
 		}
 	case *sourceNode:
-		source := querySourceAt(inputs, n.occurrence)
+		source := querySourceAt(inputs, n.Occurrence)
 		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
-			slot := column.slot - offset
+			slot := column.Slot - offset
 			if slot < 0 || slot >= len(n.Schema()) {
 				return nil, false
 			}
-			column.slot = slot
+			column.Slot = slot
 			return column, true
 		})
 		if !ok {
@@ -122,13 +122,13 @@ func admitPGSequencesSource(source *querySource, predicate expr.Expr, frame uint
 	if source.pgSequences != nil {
 		// Split only after every crossed frame/projection has been proven.
 		// A rejected mapping must never leave behind a partially admitted AND.
-		if conjunction, ok := predicate.(logicalExpression); ok && conjunction.op == parser.LogicalAnd {
-			admitPGSequencesSource(source, conjunction.left, frame)
-			admitPGSequencesSource(source, conjunction.right, frame)
+		if conjunction, ok := predicate.(logicalExpression); ok && conjunction.Op == parser.LogicalAnd {
+			admitPGSequencesSource(source, conjunction.Left, frame)
+			admitPGSequencesSource(source, conjunction.Right, frame)
 			return
 		}
 		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
-			return column, column.slot >= 0 && column.slot < 10
+			return column, column.Slot >= 0 && column.Slot < 10
 		})
 		if ok {
 			source.pgSequences.predicates = append(source.pgSequences.predicates, mapped)
@@ -137,10 +137,10 @@ func admitPGSequencesSource(source *querySource, predicate expr.Expr, frame uint
 	}
 	if source.input != nil {
 		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
-			if column.slot < 0 || column.slot >= len(source.layout) || source.layout[column.slot] < 0 {
+			if column.Slot < 0 || column.Slot >= len(source.layout) || source.layout[column.Slot] < 0 {
 				return nil, false
 			}
-			column.slot = source.layout[column.slot]
+			column.Slot = source.layout[column.Slot]
 			return column, true
 		})
 		if ok {
@@ -151,14 +151,14 @@ func admitPGSequencesSource(source *querySource, predicate expr.Expr, frame uint
 	}
 	if project, ok := source.nestedRoot.(*projectNode); ok {
 		mapped, valid := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
-			if column.slot < 0 || column.slot >= len(project.expressions) {
+			if column.Slot < 0 || column.Slot >= len(project.Expressions) {
 				return nil, false
 			}
-			inner, ok := project.expressions[column.slot].(columnExpression)
-			return inner, ok && project.frame != 0 && inner.scope == 1 && inner.frame == project.frame && inner.virtual == nil && inner.slot >= 0 && inner.slot < len(project.child.Schema())
+			inner, ok := project.Expressions[column.Slot].(columnExpression)
+			return inner, ok && project.Frame != 0 && inner.Scope == 1 && inner.Frame == project.Frame && inner.Virtual == nil && inner.Slot >= 0 && inner.Slot < len(project.Child.Schema())
 		})
 		if valid {
-			admitPGSequencesPredicate(project.child, source.nestedInputs, mapped, 0, project.frame)
+			admitPGSequencesPredicate(project.Child, source.nestedInputs, mapped, 0, project.Frame)
 		}
 	}
 }

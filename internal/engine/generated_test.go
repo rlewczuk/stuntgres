@@ -38,7 +38,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	ref.Address.SubID = 1
-	node := columnExpression{Info: expr.Info{Usage: d.Columns[0].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
+	node := columnExpression{Info: expr.Info{Usage: d.Columns[0].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: node, Planned: node}}
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	if err != nil {
@@ -106,7 +106,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	if generationImmutable(volatile) {
 		t.Fatal("volatile accepted")
 	}
-	pruned := caseExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, otherwise: leaf}
+	pruned := caseExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, Otherwise: leaf}
 	if !generationImmutable(pruned) || !generationHasTableOID(pruned) {
 		t.Fatal("surviving provider walk uses inherited volatility")
 	}
@@ -121,7 +121,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	if n, err := value.OID(); err != nil || n != 26000 {
 		t.Fatal(n, err)
 	}
-	if leaf.owner.Address.ObjectID != 25000 {
+	if leaf.Owner.Address.ObjectID != 25000 {
 		t.Fatal("source mutated")
 	}
 }
@@ -142,15 +142,15 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sameGroupExpression(left, right) || sameGroupExpression(original, left) || original.owner != owner {
+	if !sameGroupExpression(left, right) || sameGroupExpression(original, left) || original.Owner != owner {
 		t.Fatal("mapped recipe equality lost exact row owner or mutated the source")
 	}
 	mapped := left.(tableOIDExpression)
 	for _, change := range []func(*tableOIDExpression){
-		func(n *tableOIDExpression) { n.owner = New().catalog.Domain.Ref(n.owner.Epoch, n.owner.Address) },
-		func(n *tableOIDExpression) { n.owner.Epoch++ },
-		func(n *tableOIDExpression) { n.owner.Address.ObjectID++ },
-		func(n *tableOIDExpression) { n.owner.Address.SubID++ },
+		func(n *tableOIDExpression) { n.Owner = New().catalog.Domain.Ref(n.Owner.Epoch, n.Owner.Address) },
+		func(n *tableOIDExpression) { n.Owner.Epoch++ },
+		func(n *tableOIDExpression) { n.Owner.Address.ObjectID++ },
+		func(n *tableOIDExpression) { n.Owner.Address.SubID++ },
 		func(n *tableOIDExpression) { n.Usage = parent.Columns[0].Usage },
 	} {
 		different := mapped
@@ -159,7 +159,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 			t.Fatal("distinct physical row authority or full Usage compared equal")
 		}
 	}
-	column := columnExpression{Info: mapped.Info, origin: mapped.owner}
+	column := columnExpression{Info: mapped.Info, Origin: mapped.Owner}
 	if sameGroupExpression(mapped, column) {
 		t.Fatal("different expression kind compared equal")
 	}

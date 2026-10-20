@@ -17,12 +17,12 @@ func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 	project := b.query.Root.(*projectNode)
 	var analysis []expr.Expr
 	for _, definition := range b.ctes {
-		if definition.query == nil {
+		if definition.Query == nil {
 			continue
 		}
 		found := false
-		for _, expr := range project.analysisExpressions {
-			if query, ok := expr.(subqueryExpression); ok && query.cteDefinition && query.queryPlan == definition.query {
+		for _, expr := range project.AnalysisExpressions {
+			if query, ok := expr.(subqueryExpression); ok && query.cteDefinition && query.QueryPlan == definition.Query {
 				found = true
 				break
 			}
@@ -31,16 +31,16 @@ func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 			continue
 		}
 		if analysis == nil {
-			analysis = slices.Clone(project.analysisExpressions)
+			analysis = slices.Clone(project.AnalysisExpressions)
 		}
 		typ, _ := view.LookupType(sqltype.Bool)
-		analysis = append(analysis, subqueryExpression{Info: expr.Info{Usage: typ.Usage(), Pos: definition.position}, queryPlan: definition.query, cteDefinition: true})
+		analysis = append(analysis, subqueryExpression{Info: expr.Info{Usage: typ.Usage(), Pos: definition.Position}, QueryPlan: definition.Query, cteDefinition: true})
 	}
 	if analysis == nil {
 		return b
 	}
 	copy := *project
-	copy.analysisExpressions = analysis
+	copy.AnalysisExpressions = analysis
 	query := *b.query
 	query.Root = &copy
 	b.query = &query

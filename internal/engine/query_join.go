@@ -9,15 +9,15 @@ import (
 )
 
 func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
-	left, err := preflightQuery(c, n.left)
+	left, err := preflightQuery(c, n.Left)
 	if err != nil {
 		return nil, err
 	}
-	right, err := preflightQuery(c, n.right)
+	right, err := preflightQuery(c, n.Right)
 	if err != nil {
 		return nil, err
 	}
-	predicate := n.predicate
+	predicate := n.Predicate
 	changed := false
 	if predicate != nil {
 		predicate, changed, err = preflightCoercions(c, predicate)
@@ -26,23 +26,23 @@ func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
 		}
 	}
 	var merges []expr.Expr
-	for i, expression := range n.merges {
+	for i, expression := range n.Merges {
 		folded, replacement, err := preflightCoercions(c, expression)
 		if err != nil {
 			return nil, err
 		}
 		if replacement {
 			if merges == nil {
-				merges = append([]expr.Expr(nil), n.merges...)
+				merges = append([]expr.Expr(nil), n.Merges...)
 			}
 			merges[i] = folded
 		}
 	}
-	if changed || merges != nil || left != n.left || right != n.right {
+	if changed || merges != nil || left != n.Left || right != n.Right {
 		copy := *n
-		copy.left, copy.right, copy.predicate = left, right, predicate
+		copy.Left, copy.Right, copy.Predicate = left, right, predicate
 		if merges != nil {
-			copy.merges = merges
+			copy.Merges = merges
 		}
 		return &copy, nil
 	}
@@ -54,51 +54,51 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	// Admission/preflight is independent of operand population. Opening both
 	// children must validate their row-independent coercions even when the
 	// other operand yields no candidate; this does not produce either child.
-	if n.predicate != nil {
+	if n.Predicate != nil {
 		evaluation := state.evaluation(ctx)
-		predicate, changed, err := preflightCoercions(&evaluation, n.predicate)
+		predicate, changed, err := preflightCoercions(&evaluation, n.Predicate)
 		if err != nil {
 			return indexedStage{}, err
 		}
 		if changed {
 			copy := *n
-			copy.predicate = predicate
+			copy.Predicate = predicate
 			n = &copy
 		}
 	}
-	if err := initializeJoinEquality(ctx, n.predicate, n.leftWidth); err != nil {
+	if err := initializeJoinEquality(ctx, n.Predicate, n.LeftWidth); err != nil {
 		return indexedStage{}, err
 	}
-	left, err := openQueryNode(ctx, state, n.left)
+	left, err := openQueryNode(ctx, state, n.Left)
 	if err != nil {
 		return indexedStage{}, err
 	}
-	right := indexedStage{source: &querySource{flatWidth: n.rightWidth, materialized: true, authority: state.source.authority, scope: state.source.scope}, schema: n.right.Schema(), selection: []int{}}
-	if n.correlatedRight {
-		establishDeferredPresence(right.source, n.right)
+	right := indexedStage{source: &querySource{flatWidth: n.RightWidth, materialized: true, authority: state.source.authority, scope: state.source.scope}, schema: n.Right.Schema(), selection: []int{}}
+	if n.CorrelatedRight {
+		establishDeferredPresence(right.source, n.Right)
 	} else {
-		right, err = openQueryNode(ctx, state, n.right)
+		right, err = openQueryNode(ctx, state, n.Right)
 		if err != nil {
 			left.Close()
 			return indexedStage{}, err
 		}
 	}
 	width := len(n.Schema())
-	if n.leftWidth < 0 || n.rightWidth < 0 || n.leftWidth > width || n.rightWidth > width-n.leftWidth || len(n.merges) != width-n.leftWidth-n.rightWidth {
+	if n.LeftWidth < 0 || n.RightWidth < 0 || n.LeftWidth > width || n.RightWidth > width-n.LeftWidth || len(n.Merges) != width-n.LeftWidth-n.RightWidth {
 		left.Close()
 		right.Close()
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid join frame width")
 	}
-	if n.kind != parser.JoinInner {
-		settledLeft, failure := settlePendingQueryMarks(ctx, state, n.left, left)
+	if n.Kind != parser.JoinInner {
+		settledLeft, failure := settlePendingQueryMarks(ctx, state, n.Left, left)
 		if failure != nil {
 			left.Close()
 			right.Close()
 			return indexedStage{}, failure
 		}
 		left = settledLeft
-		if !n.correlatedRight {
-			settledRight, failure := settlePendingQueryMarks(ctx, state, n.right, right)
+		if !n.CorrelatedRight {
+			settledRight, failure := settlePendingQueryMarks(ctx, state, n.Right, right)
 			if failure != nil {
 				left.Close()
 				right.Close()
@@ -107,12 +107,12 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 			right = settledRight
 		}
 	}
-	if n.correlatedRight && (n.kind == parser.JoinRight || n.kind == parser.JoinFull || n.correlationPrefix < 0) {
+	if n.CorrelatedRight && (n.Kind == parser.JoinRight || n.Kind == parser.JoinFull || n.CorrelationPrefix < 0) {
 		left.Close()
 		right.Close()
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid correlated join layout")
 	}
-	if n.correlatedRight && n.correlationPrefix > 0 && (state.invocation == nil || state.invocation.Scope != 1 || state.invocation.Frame != n.frame || len(state.invocation.Row) < n.correlationPrefix) {
+	if n.CorrelatedRight && n.CorrelationPrefix > 0 && (state.invocation == nil || state.invocation.Scope != 1 || state.invocation.Frame != n.Frame || len(state.invocation.Row) < n.CorrelationPrefix) {
 		left.Close()
 		right.Close()
 		return indexedStage{}, fmt.Errorf("stuntgres: missing inherited function invocation frame")
@@ -121,12 +121,12 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	var correlationMoves []presenceCopy
 	var correlationPresence []bool
 	correlation := state.evaluation(nil)
-	if n.correlatedRight {
-		correlationRow = make([]sqltype.Value, n.correlationPrefix+n.leftWidth)
-		correlation.Frame = n.frame
+	if n.CorrelatedRight {
+		correlationRow = make([]sqltype.Value, n.CorrelationPrefix+n.LeftWidth)
+		correlation.Frame = n.Frame
 		correlation.Row = correlationRow
 		correlation.presenceSlots = left.source.presenceSlots
-		if n.correlationPrefix > 0 {
+		if n.CorrelationPrefix > 0 {
 			// Prefix and local-left slots share the bound query frame but
 			// may have different packed indices. Compile their union once.
 			prefix := querySource{presenceSlots: state.invocation.presenceSlots}
@@ -138,20 +138,20 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	}
 	invocation := *state
 	invocation.foreignOwner = foreignOwner
-	if n.correlatedRight {
+	if n.CorrelatedRight {
 		invocation.invocation = &correlation
 	}
 	rightIdentity := false
 	frame := make([]sqltype.Value, width)
 	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, scope: state.source.scope}
-	presenceMoves, presence := joinPresence(source, left.source, right.source, n.presenceSlot)
+	presenceMoves, presence := joinPresence(source, left.source, right.source, n.PresenceSlot)
 	locking := state.locking || state.source.locks.rowMarked()
 	identity := locking || state.virtualReads
 	if identity {
 		source.occurrences = appendQueryOccurrences(source.occurrences, left.source)
 		source.occurrences = appendQueryOccurrences(source.occurrences, right.source)
 	}
-	if locking && state.source.locks != nil && !n.correlatedRight {
+	if locking && state.source.locks != nil && !n.CorrelatedRight {
 		source.joinLeft, source.joinRight = left.source, right.source
 	}
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
@@ -184,8 +184,8 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	leftOccurrence, rightOccurrence := -1, 0
 	leftMatched, tail := false, false
 	var rightMatched []bool
-	preserveLeft := n.kind == parser.JoinLeft || n.kind == parser.JoinFull
-	preserveRight := n.kind == parser.JoinRight || n.kind == parser.JoinFull
+	preserveLeft := n.Kind == parser.JoinLeft || n.Kind == parser.JoinFull
+	preserveRight := n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
 	nullFrame := func(start, count int) {
 		for i := start; i < start+count; i++ {
 			frame[i] = sqltype.ResultNull(n.Schema()[i].Usage)
@@ -195,15 +195,15 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		evaluation.setContext(ctx)
 		bindIdentity(li, ri)
 		fillJoinPresence(presence, presenceMoves, left.source.presenceRow(li), right.source.presenceRow(ri))
-		for k, expr := range n.merges {
+		for k, expr := range n.Merges {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {
 				return false, err
 			}
-			if err := validateProducedValue(value, n.Schema()[n.leftWidth+n.rightWidth+k].Usage); err != nil {
+			if err := validateProducedValue(value, n.Schema()[n.LeftWidth+n.RightWidth+k].Usage); err != nil {
 				return false, err
 			}
-			frame[n.leftWidth+n.rightWidth+k] = value
+			frame[n.LeftWidth+n.RightWidth+k] = value
 		}
 		maxInt := int(^uint(0) >> 1)
 		if source.flatCount == maxInt || len(source.flat) > maxInt-width || len(source.presenceFlat) > maxInt-len(presence) {
@@ -217,11 +217,11 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		if locking && state.source.locks != nil {
 			source.versions = appendQueryVersions(source.versions, left.source, li, state.source.locks)
 			source.versions = appendQueryVersions(source.versions, right.source, ri, state.source.locks)
-			if !n.correlatedRight {
+			if !n.CorrelatedRight {
 				source.joinPairs = append(source.joinPairs, queryPair{left: li, right: ri})
 			}
 		}
-		if identity && n.correlatedRight {
+		if identity && n.CorrelatedRight {
 			source.invocationLineage = append(source.invocationLineage, queryInvocationLineage{left.source, right.source, li, ri})
 		}
 		out.selection = append(out.selection, source.flatCount)
@@ -243,24 +243,24 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 						return false, nil
 					}
 					tail, rightOccurrence = true, 0
-					nullFrame(0, n.leftWidth)
+					nullFrame(0, n.LeftWidth)
 				} else {
 					leftOccurrence, rightOccurrence, leftMatched = i, 0, false
 					row := left.source.row(left.index(i))
-					if len(row) != n.leftWidth {
+					if len(row) != n.LeftWidth {
 						return false, fmt.Errorf("stuntgres: invalid left join frame")
 					}
 					copy(frame, row)
-					if n.correlatedRight {
+					if n.CorrelatedRight {
 						if err := right.Close(); err != nil {
 							return false, err
 						}
 						correlation.setContext(ctx)
-						if n.correlationPrefix > 0 {
-							copy(correlationRow, state.invocation.Row[:n.correlationPrefix])
+						if n.CorrelationPrefix > 0 {
+							copy(correlationRow, state.invocation.Row[:n.CorrelationPrefix])
 						}
-						copy(correlationRow[n.correlationPrefix:], row)
-						if n.correlationPrefix > 0 {
+						copy(correlationRow[n.CorrelationPrefix:], row)
+						if n.CorrelationPrefix > 0 {
 							fillJoinPresence(correlationPresence, correlationMoves, state.invocation.presence, left.source.presenceRow(left.index(i)))
 						} else {
 							correlation.presence = left.source.presenceRow(left.index(i))
@@ -268,19 +268,19 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 						if identity {
 							correlation.queryOccurrences = correlation.queryOccurrences[:0]
 							correlation.queryProvenance = correlation.queryProvenance[:0]
-							if n.correlationPrefix > 0 {
+							if n.CorrelationPrefix > 0 {
 								correlation.queryOccurrences = append(correlation.queryOccurrences, state.invocation.queryOccurrences...)
 								correlation.queryProvenance = append(correlation.queryProvenance, state.invocation.queryProvenance...)
 							}
 							correlation.queryOccurrences = appendQueryOccurrences(correlation.queryOccurrences, left.source)
 							correlation.queryProvenance = appendQueryProvenance(correlation.queryProvenance, left.source, left.index(i))
 						}
-						right, err = openQueryNode(ctx, &invocation, n.right)
+						right, err = openQueryNode(ctx, &invocation, n.Right)
 						if err != nil {
 							return false, err
 						}
 						if len(right.pending) != 0 {
-							settled, failure := settlePendingQueryMarks(ctx, &invocation, n.right, right)
+							settled, failure := settlePendingQueryMarks(ctx, &invocation, n.Right, right)
 							if failure != nil {
 								right.Close()
 								return false, failure
@@ -306,7 +306,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 				li := left.index(leftOccurrence)
 				leftOccurrence = -1
 				if preserveLeft && !leftMatched {
-					nullFrame(n.leftWidth, n.rightWidth)
+					nullFrame(n.LeftWidth, n.RightWidth)
 					return emit(ctx, out, li, absentQueryIndex)
 				}
 				continue
@@ -320,18 +320,18 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 				continue
 			}
 			row := right.source.row(right.index(j))
-			if len(row) != n.rightWidth {
+			if len(row) != n.RightWidth {
 				return false, fmt.Errorf("stuntgres: invalid right join frame")
 			}
-			copy(frame[n.leftWidth:], row)
+			copy(frame[n.LeftWidth:], row)
 			if tail {
 				return emit(ctx, out, absentQueryIndex, right.index(j))
 			}
 			evaluation.setContext(ctx)
 			bindIdentity(left.index(leftOccurrence), right.index(j))
 			fillJoinPresence(presence, presenceMoves, left.source.presenceRow(left.index(leftOccurrence)), right.source.presenceRow(right.index(j)))
-			if n.predicate != nil {
-				matches, err := updateMatches(&evaluation, n.predicate)
+			if n.Predicate != nil {
+				matches, err := updateMatches(&evaluation, n.Predicate)
 				if err != nil {
 					return false, err
 				}
@@ -355,25 +355,25 @@ func initializeJoinEquality(ctx context.Context, bound expr.Expr, leftWidth int)
 	if bound == nil {
 		return nil
 	}
-	if logical, ok := bound.(logicalExpression); ok && logical.op == parser.LogicalAnd {
-		if err := initializeJoinEquality(ctx, logical.left, leftWidth); err != nil {
+	if logical, ok := bound.(logicalExpression); ok && logical.Op == parser.LogicalAnd {
+		if err := initializeJoinEquality(ctx, logical.Left, leftWidth); err != nil {
 			return err
 		}
-		return initializeJoinEquality(ctx, logical.right, leftWidth)
+		return initializeJoinEquality(ctx, logical.Right, leftWidth)
 	}
 	comparison, ok := bound.(comparisonExpression)
-	if !ok || comparison.operator != "=" {
+	if !ok || comparison.Operator != "=" {
 		return nil
 	}
 	side := func(bound expr.Expr) int {
 		result := 0
 		walkBoundExpression(bound, func(node expr.Expr) {
 			column, ok := node.(columnExpression)
-			if !ok || column.scope != 1 {
+			if !ok || column.Scope != 1 {
 				return
 			}
 			value := 1
-			if column.slot < leftWidth {
+			if column.Slot < leftWidth {
 				value = -1
 			}
 			if result == 0 {
@@ -384,11 +384,11 @@ func initializeJoinEquality(ctx context.Context, bound expr.Expr, leftWidth int)
 		})
 		return result
 	}
-	left, right := side(comparison.left), side(comparison.right)
+	left, right := side(comparison.Left), side(comparison.Right)
 	if left*right != -1 {
 		return nil
 	}
-	return comparison.predicate.DemandCollation(ctx)
+	return comparison.Predicate.DemandCollation(ctx)
 }
 
 // Each dependent invocation owns a different execution-private right source.

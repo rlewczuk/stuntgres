@@ -31,8 +31,8 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 					b.insert.defaultOrigins[j] = physical.defaultOriginAt(j)
 				}
 			}
-			b.insert.defaults[direct.slot] = defaultDestination(node, d.Columns[direct.slot].Usage)
-			b.insert.defaultOrigins[direct.slot] = origin
+			b.insert.defaults[direct.Slot] = defaultDestination(node, d.Columns[direct.Slot].Usage)
+			b.insert.defaultOrigins[direct.Slot] = origin
 		}
 	}
 	if s.Override == parser.OverrideUser && len(d.ColumnMeta.Identities) != 0 {

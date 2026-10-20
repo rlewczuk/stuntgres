@@ -65,9 +65,9 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 			s := cursorUnitSetup(t)
 			sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 			c := s.cursors.entries["h"]
-			original := c.root.expressions[0]
+			original := c.root.Expressions[0]
 			calls := 0
-			c.root.expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
+			c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
 				calls++
 				return original.Eval(ctx)
 			})
@@ -137,8 +137,8 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 			sessionSQL(t, s, "DECLARE h SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 			c := s.cursors.entries["h"]
 			pin, cell := c.source.view, c.authority
-			original, calls := c.root.expressions[0], 0
-			c.root.expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
+			original, calls := c.root.Expressions[0], 0
+			c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
 				calls++
 				return original.Eval(ctx)
 			})
@@ -204,8 +204,8 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 				s := cursorUnitSetup(t)
 				sessionSQL(t, s, "DECLARE h SCROLL CURSOR WITH HOLD FOR SELECT i FROM (SELECT i FROM unit_rows ORDER BY i OFFSET 0) AS ordered")
 				c := s.cursors.entries["h"]
-				original, calls := c.root.expressions[0], 0
-				c.root.expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
+				original, calls := c.root.Expressions[0], 0
+				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
 					calls++
 					return original.Eval(ctx)
 				})
@@ -232,10 +232,10 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 				sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 				c, ref := s.cursors.entries["h"], s.transactions.ref
 				cell := c.authority
-				original := c.root.expressions[0]
+				original := c.root.Expressions[0]
 				phase, calls := "fetch", 0
 				var first *cursorExpressionData
-				c.root.expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
+				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *EvalContext) (sqltype.Value, error) {
 					scope := ctx.liveScope()
 					if scope == nil || scope.finished || scope.txRef != ref || scope.ticket != s.transactions.ticket || ctx.Context.Value(cursorUnitContextKey{}) != phase || scope.op.done {
 						return sqltype.Value{}, errors.New("producer borrows stale commit authority")

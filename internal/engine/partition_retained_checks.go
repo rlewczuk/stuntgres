@@ -147,7 +147,7 @@ func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, 
 			return
 		}
 		if literal, ok := node.(literalExpression); ok {
-			literals = append(literals, literal.value)
+			literals = append(literals, literal.Value)
 		}
 	})
 	if err != nil {
@@ -167,7 +167,7 @@ func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, 
 				affected = true
 			} else {
 				var same bool
-				same, err = literals[position].SamePayload(ctx, literal.value)
+				same, err = literals[position].SamePayload(ctx, literal.Value)
 				affected = affected || !same
 			}
 			position++

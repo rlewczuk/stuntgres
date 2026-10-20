@@ -208,7 +208,7 @@ func captureRetainedExpressionInput(node expr.Expr, element func() error, diagno
 		}
 	case coercionExpression:
 		target := node.ResultUsage().Type
-		characterInput := sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID())
+		characterInput := sqltype.IsCharacter(node.Child.ResultUsage().Type.BaseType().ID())
 		if characterInput || sqltype.ContainsDomainConstraints(target) {
 			if characterInput && target.ContainsCatalogIdentifier() {
 				if err := element(); err != nil {

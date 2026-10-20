@@ -59,7 +59,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 		t.Run(route, func(t *testing.T) {
 			calls := 0
 			producer := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: plan, Args: []expr.Expr{enumCapturedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
-			nested := conditionalExpression{Info: expr.Info{Usage: mood.Usage()}, kind: parser.Coalesce, args: []expr.Expr{literalExpression{Info: expr.Info{Usage: mood.Usage()}, value: safe}, producer}}
+			nested := conditionalExpression{Info: expr.Info{Usage: mood.Usage()}, Kind: parser.Coalesce, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: mood.Usage()}, Value: safe}, producer}}
 			e.mu.Lock()
 			unsafeRoot := scope.owner.catalog
 			scope.owner.catalog = newCatalogChanges()

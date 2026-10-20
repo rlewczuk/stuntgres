@@ -37,16 +37,16 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 	for _, index := range analysis.Order {
 		raw := rawDefinitions[index]
 		start := len(b.query.sources)
-		definition := &cteDefinition{owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos, name: raw.Name.Text, columns: raw.Columns, recursive: analysis.Recursive[index]}
+		definition := &cteDefinition{Owner: b.frameID(), Hint: raw.Materialization, Position: raw.Name.Pos, Name: raw.Name.Text, Columns: raw.Columns, Recursive: analysis.Recursive[index]}
 		if raw.Search != nil {
-			definition.search = &searchRecipe{syntax: raw.Search}
+			definition.Search = &searchRecipe{Syntax: raw.Search}
 		}
 		if raw.Cycle != nil {
-			definition.cycle, err = b.bindCycleMarks(raw.Cycle)
+			definition.Cycle, err = b.bindCycleMarks(raw.Cycle)
 			if err != nil {
 				return nil, err
 			}
-			if !definition.recursive {
+			if !definition.Recursive {
 				return nil, expr.ErrorAt("42601", "WITH query is not recursive", raw.Name.Pos)
 			}
 		}
@@ -57,8 +57,8 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			}
 			b.cte.analysisDepth++
 			oldRecursive := b.cte.recursiveDefinition
-			if definition.recursive {
-				definition.syntax = selection
+			if definition.Recursive {
+				definition.Syntax = selection
 				b.cte.recursiveDefinition = definition
 			}
 			query, err := b.bindSelect(selection, false)
@@ -74,35 +74,35 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			if err != nil {
 				return nil, err
 			}
-			definition.query = query
-			definition.volatile = cteVolatile(query.Root) || viewVolatile
+			definition.Query = query
+			definition.Volatile = cteVolatile(query.Root) || viewVolatile
 		} else {
 			mutation, err := b.bindCTEMutation(raw.Query)
 			if err != nil {
 				return nil, err
 			}
-			definition.statement, definition.mutation = raw.Query, &mutation
+			definition.Statement, definition.Mutation = raw.Query, &mutation
 			if mutation.returning != nil {
-				definition.schema = mutation.returning.schema
+				definition.Schema = mutation.returning.schema
 			}
 		}
-		if len(raw.Columns) > len(definition.outputSchema()) {
-			return nil, expr.ErrorAt("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, raw.Name.Text, len(definition.outputSchema()), len(raw.Columns)), raw.Name.Pos)
+		if len(raw.Columns) > len(definition.OutputSchema()) {
+			return nil, expr.ErrorAt("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, raw.Name.Text, len(definition.OutputSchema()), len(raw.Columns)), raw.Name.Pos)
 		}
-		if raw.Search != nil && !definition.recursive {
+		if raw.Search != nil && !definition.Recursive {
 			return nil, expr.ErrorAt("42601", "WITH query is not recursive", raw.Name.Pos)
 		}
 		if len(raw.Columns) != 0 {
-			aliased := append(querySchema(nil), definition.outputSchema()...)
+			aliased := append(querySchema(nil), definition.OutputSchema()...)
 			for i, name := range raw.Columns {
 				aliased[i].Name = name.Text
 			}
-			if definition.query != nil {
-				project := *definition.query.Root.(*projectNode)
+			if definition.Query != nil {
+				project := *definition.Query.Root.(*projectNode)
 				project.querySchema = aliased
-				definition.query.Root = &project
+				definition.Query.Root = &project
 			} else {
-				definition.schema = aliased
+				definition.Schema = aliased
 				mutation, _ := mutationBinding(definition)
 				mutation.returning.schema = aliased
 			}
@@ -123,11 +123,11 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 	if mutation, ok := mutationBinding(d); ok && mutation.returning == nil {
 		return nil, queryNamespace{}, expr.ErrorAt("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
 	}
-	d.references++
-	schema := d.outputSchema()
+	d.References++
+	schema := d.OutputSchema()
 	var scan *derivedNode
 	var root LogicalNode
-	if d.recursive && d.query == nil {
+	if d.Recursive && d.Query == nil {
 		self := &worktableScanNode{}
 		scan, root = &self.derivedNode, self
 		if b.cte.recursiveFrames == nil {
@@ -138,11 +138,11 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 		scan = &derivedNode{}
 		root = scan
 	}
-	*scan = derivedNode{querySchema: schema, query: d.query, cte: d, table: table, ordinal: -1 - b.cte.scanOrdinal, scanFrame: b.frameID(), demand: make([]bool, len(schema))}
+	*scan = derivedNode{querySchema: schema, Query: d.Query, CTE: d, Table: table, Ordinal: -1 - b.cte.scanOrdinal, ScanFrame: b.frameID(), Demand: make([]bool, len(schema))}
 	b.cte.scanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
-		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: i, cteScan: scan, hideStar: (d.search != nil || d.cycle != nil) && binding.contained && i >= d.userWidth}
+		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: i, cteScan: scan, hideStar: (d.Search != nil || d.Cycle != nil) && binding.contained && i >= d.UserWidth}
 	}
 	name := table.Name.Parts[0].Text
 	qualifier := queryQualifier{name: name, original: name, columns: columns}
@@ -171,7 +171,7 @@ func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(ex
 		expression(bound)
 		walkBoundExpression(bound, func(n expr.Expr) {
 			if s, ok := n.(subqueryExpression); ok {
-				visitCTEQuery(s.queryPlan.Root, visit, expression, includeDefinitions)
+				visitCTEQuery(s.QueryPlan.Root, visit, expression, includeDefinitions)
 			}
 		})
 	})
@@ -183,11 +183,11 @@ func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(ex
 func cteVolatile(root LogicalNode) bool {
 	volatile := false
 	visitCTEQuery(root, func(n LogicalNode) {
-		if source, ok := n.(*sourceNode); ok && source.ref.Address.ClassID == ids.RelationClassID && source.ref.Address.ObjectID == 12048 {
+		if source, ok := n.(*sourceNode); ok && source.Ref.Address.ClassID == ids.RelationClassID && source.Ref.Address.ObjectID == 12048 {
 			volatile = true
 		}
 		for _, mark := range queryRootRowMarks(n) {
-			if mark.mode != 0 {
+			if mark.Mode != 0 {
 				volatile = true
 			}
 		}
@@ -207,7 +207,7 @@ func cteStoredViewVolatile(view catalog.Read, root LogicalNode) (bool, error) {
 	var sourceErr error
 	visitCTEQuery(root, func(node LogicalNode) {
 		if source, ok := node.(*sourceNode); ok {
-			relation, _ := view.Relation(source.ref.Address)
+			relation, _ := view.Relation(source.Ref.Address)
 			if relation == nil {
 				sourceErr = ids.ErrCatalogReplaced
 			} else if relation.RelationKind == catalog.ViewRelation {
@@ -256,8 +256,8 @@ func cteStoredViewVolatile(view catalog.Read, root LogicalNode) (bool, error) {
 
 func activateCTESources(root LogicalNode, leaves []queryLeaf) {
 	visitExecutableQuery(root, func(n LogicalNode) {
-		if source, ok := n.(*sourceNode); ok && source.occurrence >= 0 && source.occurrence < len(leaves) {
-			leaves[source.occurrence].analysisOnly = false
+		if source, ok := n.(*sourceNode); ok && source.Occurrence >= 0 && source.Occurrence < len(leaves) {
+			leaves[source.Occurrence].analysisOnly = false
 		}
 	}, func(expr.Expr) {})
 }

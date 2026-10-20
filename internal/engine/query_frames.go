@@ -136,8 +136,8 @@ func (q *queryScopeState) outerQualifiers() []queryQualifier {
 
 func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position, frame uint32) expr.Expr {
 	expr := b.queryColumnAt(c, pos).(columnExpression)
-	expr.frame = frame
-	expr.mergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(frame)
+	expr.Frame = frame
+	expr.MergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(frame)
 	return expr
 }
 

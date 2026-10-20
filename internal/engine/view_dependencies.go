@@ -546,10 +546,10 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				return err
 			}
 		}
-		if project, ok := node.(*projectNode); ok && (project.syntax != nil || definition.frames[project.frame] == project) {
-			frame = project.frame
+		if project, ok := node.(*projectNode); ok && (project.Syntax != nil || definition.frames[project.Frame] == project) {
+			frame = project.Frame
 			frozen := definition.frames[frame]
-			if frozen == nil || frozen.syntax != project.syntax {
+			if frozen == nil || frozen.Syntax != project.Syntax {
 				return fmt.Errorf("stuntgres: invalid stored query frame")
 			}
 			if prior := projects[frame]; prior != nil {
@@ -567,7 +567,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 		}
 		switch n := node.(type) {
 		case *valuesNode:
-			for _, row := range n.rows {
+			for _, row := range n.Rows {
 				if len(row) != len(n.Schema()) {
 					return fmt.Errorf("stuntgres: invalid view VALUES width")
 				}
@@ -582,39 +582,39 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				return err
 			}
 		case *recursiveUnionNode:
-			if n.definition == nil || !n.definition.recursive {
+			if n.Definition == nil || !n.Definition.Recursive {
 				return fmt.Errorf("stuntgres: invalid stored recursive definition")
 			}
-			if err := validateStoredSetNode(&n.setNode, n.cycle, n.search); err != nil {
+			if err := validateStoredSetNode(&n.setNode, n.Cycle, n.Search); err != nil {
 				return err
 			}
-			if n.search != nil || n.cycle != nil {
-				if n.definition.userWidth != len(n.leftExpressions) {
+			if n.Search != nil || n.Cycle != nil {
+				if n.Definition.UserWidth != len(n.LeftExpressions) {
 					return fmt.Errorf("stuntgres: invalid stored original width")
 				}
-				scan, offset := recursiveParentSlot(n.right.child, n.definition, 0)
+				scan, offset := recursiveParentSlot(n.Right.Child, n.Definition, 0)
 				if scan == nil {
 					return fmt.Errorf("stuntgres: missing stored recursive parent")
 				}
-				for slot := n.definition.userWidth; slot < len(n.Schema()); slot++ {
-					carry, ok := n.rightExpressions[slot].(columnExpression)
-					if !ok || carry.slot != offset+slot || carry.frame != n.right.frame || slot >= len(scan.demand) || !scan.demand[slot] {
+				for slot := n.Definition.UserWidth; slot < len(n.Schema()); slot++ {
+					carry, ok := n.RightExpressions[slot].(columnExpression)
+					if !ok || carry.Slot != offset+slot || carry.Frame != n.Right.Frame || slot >= len(scan.Demand) || !scan.Demand[slot] {
 						return fmt.Errorf("stuntgres: invalid stored recursive parent carry")
 					}
 				}
 			}
 		case *limitNode:
-			for _, expr := range []expr.Expr{n.offset, n.count} {
+			for _, expr := range []expr.Expr{n.Offset, n.Count} {
 				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expressionUsesFrame(expr, frame)) {
 					return fmt.Errorf("stuntgres: invalid stored view bound")
 				}
 			}
-			if n.withTies {
-				if n.count == nil || len(n.peerKeys) == 0 {
+			if n.WithTies {
+				if n.Count == nil || len(n.PeerKeys) == 0 {
 					return fmt.Errorf("stuntgres: invalid stored WITH TIES keys")
 				}
-				for _, key := range n.peerKeys {
-					if key.expression == nil || key.cache < -1 || key.cache < 0 && (key.slot < 0 || key.slot >= len(n.Schema())) {
+				for _, key := range n.PeerKeys {
+					if key.Expression == nil || key.Cache < -1 || key.Cache < 0 && (key.Slot < 0 || key.Slot >= len(n.Schema())) {
 						return fmt.Errorf("stuntgres: invalid stored WITH TIES slot")
 					}
 				}
@@ -624,49 +624,49 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				return err
 			}
 		case *setProjectNode:
-			if n.child == nil || n.template == nil || n.template.group == nil || *n.template.group != n.frame ||
-				len(n.calls) == 0 || n.baseWidth < 0 || n.markerWidth != len(n.template.origins) ||
-				len(n.Schema()) != n.baseWidth+n.markerWidth+len(n.template.scalars) ||
-				(len(n.child.Schema()) != n.baseWidth && len(n.child.Schema()) != len(n.Schema())) ||
-				len(n.callSlots) != len(n.calls) || len(n.template.scalarRequests) != len(n.template.scalars) ||
-				n.scalarSlots != nil && len(n.scalarSlots) != len(n.scalars) {
+			if n.Child == nil || n.Template == nil || n.Template.Group == nil || *n.Template.Group != n.Frame ||
+				len(n.Calls) == 0 || n.BaseWidth < 0 || n.MarkerWidth != len(n.Template.Origins) ||
+				len(n.Schema()) != n.BaseWidth+n.MarkerWidth+len(n.Template.Scalars) ||
+				(len(n.Child.Schema()) != n.BaseWidth && len(n.Child.Schema()) != len(n.Schema())) ||
+				len(n.CallSlots) != len(n.Calls) || len(n.Template.ScalarRequests) != len(n.Template.Scalars) ||
+				n.ScalarSlots != nil && len(n.ScalarSlots) != len(n.Scalars) {
 				return fmt.Errorf("stuntgres: invalid stored string set frame")
 			}
-			if err := validateQuerySetSteps(n.template.steps, len(n.template.origins), len(n.template.scalars)); err != nil {
+			if err := validateQuerySetSteps(n.Template.Steps, len(n.Template.Origins), len(n.Template.Scalars)); err != nil {
 				return err
 			}
-			if err := validateQuerySetSteps(n.steps, len(n.calls), len(n.scalars)); err != nil {
+			if err := validateQuerySetSteps(n.Steps, len(n.Calls), len(n.Scalars)); err != nil {
 				return err
 			}
-			if err := validateQuerySetStageOrder(n.template.steps, n.steps, n.callSlots, n.scalarSlots, len(n.scalars)); err != nil {
+			if err := validateQuerySetStageOrder(n.Template.Steps, n.Steps, n.CallSlots, n.ScalarSlots, len(n.Scalars)); err != nil {
 				return err
 			}
-			base := n.baseWidth
-			for i, original := range n.template.origins {
+			base := n.BaseWidth
+			for i, original := range n.Template.Origins {
 				if !sourceReturnsSet(original) || original.ResultUsage() != n.Schema()[base+i].Usage {
 					return fmt.Errorf("stuntgres: invalid stored string marker layout")
 				}
 			}
-			for i, scalar := range n.template.scalars {
-				request := n.template.scalarRequests[i]
-				if request < 0 || request >= len(n.template.expressions) || scalar == nil || sourceReturnsSet(scalar) || n.template.expressions[request] == nil || sourceReturnsSet(n.template.expressions[request]) || scalar.SourcePosition() != n.template.expressions[request].SourcePosition() || scalar.ResultUsage() != n.template.expressions[request].ResultUsage() {
+			for i, scalar := range n.Template.Scalars {
+				request := n.Template.ScalarRequests[i]
+				if request < 0 || request >= len(n.Template.Expressions) || scalar == nil || sourceReturnsSet(scalar) || n.Template.Expressions[request] == nil || sourceReturnsSet(n.Template.Expressions[request]) || scalar.SourcePosition() != n.Template.Expressions[request].SourcePosition() || scalar.ResultUsage() != n.Template.Expressions[request].ResultUsage() {
 					return fmt.Errorf("stuntgres: invalid stored string scalar owner")
 				}
-				if scalar == nil || scalar.ResultUsage() != n.Schema()[base+n.markerWidth+i].Usage {
+				if scalar == nil || scalar.ResultUsage() != n.Schema()[base+n.MarkerWidth+i].Usage {
 					return fmt.Errorf("stuntgres: invalid stored string scalar layout")
 				}
-				for _, previous := range n.template.scalarRequests[:i] {
+				for _, previous := range n.Template.ScalarRequests[:i] {
 					if previous == request {
 						return fmt.Errorf("stuntgres: duplicate stored string scalar owner")
 					}
 				}
 			}
-			for i, call := range n.calls {
-				slot := n.callSlots[i]
-				if slot < 0 || slot >= n.markerWidth {
+			for i, call := range n.Calls {
+				slot := n.CallSlots[i]
+				if slot < 0 || slot >= n.MarkerWidth {
 					return fmt.Errorf("stuntgres: invalid stored string call slot")
 				}
-				for _, previous := range n.callSlots[:i] {
+				for _, previous := range n.CallSlots[:i] {
 					if previous == slot {
 						return fmt.Errorf("stuntgres: duplicate stored string call slot")
 					}
@@ -675,28 +675,28 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					return fmt.Errorf("stuntgres: invalid stored string set usage")
 				}
 			}
-			for i, scalar := range n.scalars {
-				slot := querySetScalarSlot(n.scalarSlots, i)
-				if slot < 0 || slot >= len(n.template.scalars) || scalar == nil || querySetDepth(scalar) != 0 || scalar.ResultUsage() != n.Schema()[base+n.markerWidth+slot].Usage || scalar.SourcePosition() != n.template.scalars[slot].SourcePosition() {
+			for i, scalar := range n.Scalars {
+				slot := querySetScalarSlot(n.ScalarSlots, i)
+				if slot < 0 || slot >= len(n.Template.Scalars) || scalar == nil || querySetDepth(scalar) != 0 || scalar.ResultUsage() != n.Schema()[base+n.MarkerWidth+slot].Usage || scalar.SourcePosition() != n.Template.Scalars[slot].SourcePosition() {
 					return fmt.Errorf("stuntgres: invalid stored string scalar usage")
 				}
 				for previous := range i {
-					if querySetScalarSlot(n.scalarSlots, previous) == slot {
+					if querySetScalarSlot(n.ScalarSlots, previous) == slot {
 						return fmt.Errorf("stuntgres: duplicate stored string scalar slot")
 					}
 				}
 			}
 		case *sourceNode:
-			if n.occurrence < 0 || n.occurrence >= len(seen) {
+			if n.Occurrence < 0 || n.Occurrence >= len(seen) {
 				return fmt.Errorf("stuntgres: invalid view source occurrence")
 			}
-			if prior := seen[n.occurrence]; prior != nil && prior != n {
+			if prior := seen[n.Occurrence]; prior != nil && prior != n {
 				return fmt.Errorf("stuntgres: duplicate view source occurrence")
 			}
-			seen[n.occurrence] = n
-			leaf := definition.sources[n.occurrence]
+			seen[n.Occurrence] = n
+			leaf := definition.sources[n.Occurrence]
 			source, ok := catalog.Relation(leaf.ref.Address)
-			if !ok || n.ref != leaf.ref || len(n.Schema()) != len(leaf.attributes) {
+			if !ok || n.Ref != leaf.ref || len(n.Schema()) != len(leaf.attributes) {
 				return fmt.Errorf("stuntgres: invalid view source layout")
 			}
 			for _, attribute := range leaf.reads {
@@ -712,31 +712,31 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				}
 			}
 		case *joinNode:
-			if n.kind > parser.JoinFull || n.leftWidth != len(n.left.Schema()) || n.rightWidth != len(n.right.Schema()) || len(n.Schema()) != n.leftWidth+n.rightWidth+len(n.merges) {
+			if n.Kind > parser.JoinFull || n.LeftWidth != len(n.Left.Schema()) || n.RightWidth != len(n.Right.Schema()) || len(n.Schema()) != n.LeftWidth+n.RightWidth+len(n.Merges) {
 				return fmt.Errorf("stuntgres: invalid view join frame")
 			}
-			for i, merge := range n.merges {
-				if merge == nil || merge.ResultUsage() != n.Schema()[n.leftWidth+n.rightWidth+i].Usage {
+			for i, merge := range n.Merges {
+				if merge == nil || merge.ResultUsage() != n.Schema()[n.LeftWidth+n.RightWidth+i].Usage {
 					return fmt.Errorf("stuntgres: invalid view merged column usage")
 				}
 			}
 		case *rowLockNode:
 			project := definition.frames[frame]
-			if marked[frame] || project == nil || len(project.syntax.Locking) == 0 || queryRowClause(n.firstMode) != project.syntax.Locking[0].Mode || len(n.marks) > len(definition.sources) {
+			if marked[frame] || project == nil || len(project.Syntax.Locking) == 0 || queryRowClause(n.FirstMode) != project.Syntax.Locking[0].Mode || len(n.Marks) > len(definition.sources) {
 				return fmt.Errorf("stuntgres: invalid stored view rowmark")
 			}
-			for _, mark := range n.marks {
-				if mark.mode != 0 && queryRowClause(mark.mode) == "" || mark.wait > parser.RowLockNowait {
+			for _, mark := range n.Marks {
+				if mark.Mode != 0 && queryRowClause(mark.Mode) == "" || mark.Wait > parser.RowLockNowait {
 					return fmt.Errorf("stuntgres: invalid stored view rowmark")
 				}
 			}
 			marked[frame] = true
 		case *derivedNode:
-			if n.query == nil || n.query.Root == nil || len(n.Schema()) != len(n.query.Root.Schema()) {
+			if n.Query == nil || n.Query.Root == nil || len(n.Schema()) != len(n.Query.Root.Schema()) {
 				return fmt.Errorf("stuntgres: invalid stored derived frame")
 			}
 		case *worktableScanNode:
-			if n.query != nil || n.cte == nil || !n.cte.recursive || len(n.Schema()) != len(n.cte.outputSchema()) {
+			if n.Query != nil || n.CTE == nil || !n.CTE.Recursive || len(n.Schema()) != len(n.CTE.OutputSchema()) {
 				return fmt.Errorf("stuntgres: invalid stored worktable identity")
 			}
 		case *projectNode, *evaluationNode, *filterNode, *sortNode, *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *singletonNode:
@@ -760,7 +760,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					// Set operands retain their pre-common-type literal analysis,
 					// not an executable value with an invented usage. Only these
 					// explicit contextual occurrences may lack a descriptor.
-					literal, ok := unresolved.raw.(parser.LiteralExpr)
+					literal, ok := unresolved.Raw.(parser.LiteralExpr)
 					if !ok || unresolved.ResultUsage() != (sqltype.Usage{}) || literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue {
 						expressionError = fmt.Errorf("stuntgres: invalid contextual view output")
 					}
@@ -770,41 +770,41 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					return
 				}
 				if child, ok := expr.(subqueryExpression); ok {
-					if child.queryPlan == nil || child.queryPlan.Root == nil {
+					if child.QueryPlan == nil || child.QueryPlan.Root == nil {
 						expressionError = fmt.Errorf("stuntgres: invalid stored subquery")
 						return
 					}
-					if child.kind != parser.SubqueryScalar && child.kind != parser.SubqueryExists && len(child.comparisons) != len(child.queryPlan.Root.Schema()) {
+					if child.Kind != parser.SubqueryScalar && child.Kind != parser.SubqueryExists && len(child.Comparisons) != len(child.QueryPlan.Root.Schema()) {
 						expressionError = fmt.Errorf("stuntgres: invalid stored comparison width")
 						return
 					}
-					expressionError = visit(child.queryPlan.Root, frame)
+					expressionError = visit(child.QueryPlan.Root, frame)
 				}
 			})
 		}
 		if project, ok := node.(*projectNode); ok {
-			for _, expr := range project.expressions {
+			for _, expr := range project.Expressions {
 				validateExpression(expr, false)
 			}
-			for _, expr := range project.analysisExpressions {
+			for _, expr := range project.AnalysisExpressions {
 				validateExpression(expr, true)
 			}
 		} else if stage, ok := node.(*setProjectNode); ok {
-			for _, call := range stage.calls {
+			for _, call := range stage.Calls {
 				validateExpression(call, false)
 			}
-			for _, scalar := range stage.scalars {
+			for _, scalar := range stage.Scalars {
 				validateExpression(scalar, false)
 			}
-			if stage.template != nil {
-				for _, root := range stage.template.expressions {
+			if stage.Template != nil {
+				for _, root := range stage.Template.Expressions {
 					_, contextual := root.(unknownOutput)
 					validateExpression(root, contextual)
 				}
-				for _, origin := range stage.template.origins {
+				for _, origin := range stage.Template.Origins {
 					validateExpression(origin, false)
 				}
-				for _, scalar := range stage.template.scalars {
+				for _, scalar := range stage.Template.Scalars {
 					validateExpression(scalar, false)
 				}
 			}
@@ -839,7 +839,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 		return fmt.Errorf("stuntgres: invalid view query frame manifest")
 	}
 	for frame, project := range projects {
-		if project.syntax != nil && project.syntax.Locking != nil && !marked[frame] {
+		if project.Syntax != nil && project.Syntax.Locking != nil && !marked[frame] {
 			return fmt.Errorf("stuntgres: missing stored view rowmark")
 		}
 	}
@@ -850,60 +850,60 @@ func validateStoredSetNode(n *setNode, cycle *cycleRecipe, search *searchRecipe)
 	width := len(n.Schema())
 	leftWidth, groupingWidth := width, width
 	if cycle != nil {
-		if cycle.markSlot < 0 || width != cycle.markSlot+2 ||
-			n.Schema()[cycle.markSlot].Usage != cycle.mark.ResultUsage() ||
-			n.Schema()[cycle.markSlot+1].Usage.Type != cycle.path {
+		if cycle.MarkSlot < 0 || width != cycle.MarkSlot+2 ||
+			n.Schema()[cycle.MarkSlot].Usage != cycle.Mark.ResultUsage() ||
+			n.Schema()[cycle.MarkSlot+1].Usage.Type != cycle.Path {
 			return fmt.Errorf("stuntgres: invalid stored cycle layout")
 		}
-		leftWidth = cycle.markSlot
+		leftWidth = cycle.MarkSlot
 		groupingWidth--
 	}
 	if search != nil {
-		if search.syntax == nil || search.result == nil {
+		if search.Syntax == nil || search.Result == nil {
 			return fmt.Errorf("stuntgres: invalid stored search recipe")
 		}
-		expected := search.slot + 1
+		expected := search.Slot + 1
 		if cycle != nil {
 			expected += 2
 		}
-		if search.slot < 0 || width != expected || cycle != nil && cycle.markSlot != search.slot+1 ||
-			n.Schema()[search.slot].Usage != search.result.Usage() ||
-			search.record == nil || !search.record.IsComposite() || search.record.ID() != 2249 ||
-			(search.syntax.Breadth && search.result != search.record) ||
-			(!search.syntax.Breadth && (!sqltype.OccurrenceRecordArray(search.result) || search.result.Element() != search.record)) {
+		if search.Slot < 0 || width != expected || cycle != nil && cycle.MarkSlot != search.Slot+1 ||
+			n.Schema()[search.Slot].Usage != search.Result.Usage() ||
+			search.Record == nil || !search.Record.IsComposite() || search.Record.ID() != 2249 ||
+			(search.Syntax.Breadth && search.Result != search.Record) ||
+			(!search.Syntax.Breadth && (!sqltype.OccurrenceRecordArray(search.Result) || search.Result.Element() != search.Record)) {
 			return fmt.Errorf("stuntgres: invalid stored search layout")
 		}
-		if !n.all && len(search.grouping) != search.record.CompositeLen() || n.all && len(search.grouping) != 0 {
+		if !n.All && len(search.Grouping) != search.Record.CompositeLen() || n.All && len(search.Grouping) != 0 {
 			return fmt.Errorf("stuntgres: invalid stored search equality")
 		}
 		offset := 0
-		if search.syntax.Breadth {
+		if search.Syntax.Breadth {
 			offset = 1
 		}
-		if len(search.keys)+offset != search.record.CompositeLen() {
+		if len(search.Keys)+offset != search.Record.CompositeLen() {
 			return fmt.Errorf("stuntgres: invalid stored search keys")
 		}
-		for i, key := range search.keys {
-			if key < 0 || key >= search.slot || n.Schema()[key].Usage != search.record.CompositeMember(i+offset).Usage {
+		for i, key := range search.Keys {
+			if key < 0 || key >= search.Slot || n.Schema()[key].Usage != search.Record.CompositeMember(i+offset).Usage {
 				return fmt.Errorf("stuntgres: invalid stored search key usage")
 			}
 		}
-		leftWidth = search.slot
+		leftWidth = search.Slot
 		groupingWidth--
 	}
-	if n.left == nil || n.right == nil || len(n.left.Schema()) != leftWidth || len(n.right.Schema()) != width || len(n.leftExpressions) != leftWidth || len(n.rightExpressions) != width {
+	if n.Left == nil || n.Right == nil || len(n.Left.Schema()) != leftWidth || len(n.Right.Schema()) != width || len(n.LeftExpressions) != leftWidth || len(n.RightExpressions) != width {
 		return fmt.Errorf("stuntgres: invalid stored set width")
 	}
-	if n.operation != "union" && n.operation != "intersect" && n.operation != "except" {
+	if n.Operation != "union" && n.Operation != "intersect" && n.Operation != "except" {
 		return fmt.Errorf("stuntgres: invalid stored set operation")
 	}
-	grouped := !(n.operation == "union" && n.all)
-	if grouped && len(n.grouping) != groupingWidth || !grouped && len(n.grouping) != 0 {
+	grouped := !(n.Operation == "union" && n.All)
+	if grouped && len(n.Grouping) != groupingWidth || !grouped && len(n.Grouping) != 0 {
 		return fmt.Errorf("stuntgres: invalid stored set grouping")
 	}
 	for i, column := range n.Schema() {
-		if n.rightExpressions[i] == nil || n.rightExpressions[i].ResultUsage() != column.Usage ||
-			i < leftWidth && (n.leftExpressions[i] == nil || n.leftExpressions[i].ResultUsage() != column.Usage) {
+		if n.RightExpressions[i] == nil || n.RightExpressions[i].ResultUsage() != column.Usage ||
+			i < leftWidth && (n.LeftExpressions[i] == nil || n.LeftExpressions[i].ResultUsage() != column.Usage) {
 			return fmt.Errorf("stuntgres: invalid stored set coercion")
 		}
 	}

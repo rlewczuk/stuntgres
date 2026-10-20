@@ -25,7 +25,7 @@ func similarUnitTypes() (*sqltype.Descriptor, *sqltype.Descriptor) {
 func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	text, boolean := similarUnitTypes()
 	literal := func(s string) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, s)}
+		return literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, s)}
 	}
 	ep, err := sqltype.BindSimilarEscape(text.Usage(), text.Usage(), text.Usage())
 	if err != nil {
@@ -36,7 +36,7 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	null := literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text)}
+	null := literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}
 	node := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: null, Right: normalizer, Provider: mp, Operator: "~"}
 	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
 	state(t, err, "22025")
@@ -54,9 +54,9 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 
 func TestSimilarDependencyChildren(t *testing.T) {
 	text, boolean := similarUnitTypes()
-	source := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 0}
-	pattern := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 1}
-	escape := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 2}
+	source := columnExpression{Info: expr.Info{Usage: text.Usage()}, Slot: 0}
+	pattern := columnExpression{Info: expr.Info{Usage: text.Usage()}, Slot: 1}
+	escape := columnExpression{Info: expr.Info{Usage: text.Usage()}, Slot: 2}
 	helper := functions.SimilarEscape{Info: expr.Info{Usage: text.Usage()}, Pattern: pattern, Escape: escape}
 	predicate := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: source, Right: helper}
 	extraction := functions.SimilarSubstring{Info: expr.Info{Usage: text.Usage()}, Args: [3]expr.Expr{source, pattern, escape}}
@@ -64,7 +64,7 @@ func TestSimilarDependencyChildren(t *testing.T) {
 		var slots []int
 		walkBoundExpression(node, func(n expr.Expr) {
 			if column, ok := n.(columnExpression); ok {
-				slots = append(slots, column.slot)
+				slots = append(slots, column.Slot)
 			}
 		})
 		if !reflect.DeepEqual(slots, []int{0, 1, 2}) {

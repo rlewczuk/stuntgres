@@ -40,237 +40,237 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	switch e := a.(type) {
 	case assignmentValueExpression:
 		o, ok := other.(assignmentValueExpression)
-		if !ok || !same(e.base, o.base) || !same(e.value, o.value) {
+		if !ok || !same(e.Base, o.Base) || !same(e.Value, o.Value) {
 			return false
 		}
-		left, right := e.target, o.target
+		left, right := e.Target, o.Target
 		for left != nil && right != nil {
-			if left.attribute != right.attribute || left.container != right.container || left.destination != right.destination || !left.reapply.Equal(right.reapply) {
+			if left.Attribute != right.Attribute || left.Container != right.Container || left.Destination != right.Destination || !left.Reapply.Equal(right.Reapply) {
 				return false
 			}
-			if left.attribute == 0 && !same(left.node, right.node) {
+			if left.Attribute == 0 && !same(left.Node, right.Node) {
 				return false
 			}
-			left, right = left.next, right.next
+			left, right = left.Next, right.Next
 		}
 		return left == nil && right == nil
 	case tableOIDExpression:
 		o, ok := other.(tableOIDExpression)
-		return ok && e.owner == o.owner
+		return ok && e.Owner == o.Owner
 	case groupingExpression:
 		o, ok := other.(groupingExpression)
-		if !ok || !comparison.sameFrame(e.frame, o.frame) || len(e.args) != len(o.args) {
+		if !ok || !comparison.sameFrame(e.Frame, o.Frame) || len(e.Args) != len(o.Args) {
 			return false
 		}
-		for i, arg := range e.args {
-			if !same(arg, o.args[i]) {
+		for i, arg := range e.Args {
+			if !same(arg, o.Args[i]) {
 				return false
 			}
 		}
 		return true
 	case rowComparisonExpression:
 		o, ok := other.(rowComparisonExpression)
-		if !ok || e.operator != o.operator || len(e.comparisons) != len(o.comparisons) || len(e.ordering) != len(o.ordering) {
+		if !ok || e.Operator != o.Operator || len(e.Comparisons) != len(o.Comparisons) || len(e.Ordering) != len(o.Ordering) {
 			return false
 		}
-		for i, pair := range e.comparisons {
-			if !same(pair, o.comparisons[i]) {
+		for i, pair := range e.Comparisons {
+			if !same(pair, o.Comparisons[i]) {
 				return false
 			}
 		}
-		for i, provider := range e.ordering {
-			if !provider.Equal(o.ordering[i]) {
+		for i, provider := range e.Ordering {
+			if !provider.Equal(o.Ordering[i]) {
 				return false
 			}
 		}
 		return true
 	case updateOutputExpression:
 		o, ok := other.(updateOutputExpression)
-		return ok && e.index == o.index && e.group == o.group
+		return ok && e.Index == o.Index && e.Group == o.Group
 	case subqueryExpression:
 		o, ok := other.(subqueryExpression)
-		if !ok || e.updateWidth != o.updateWidth || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || len(e.membership) != len(o.membership) || (comparison != nil && e.presenceOnly != o.presenceOnly) || len(e.comparisons) != len(o.comparisons) {
+		if !ok || e.UpdateWidth != o.UpdateWidth || e.Kind != o.Kind || e.Operator != o.Operator || e.Negate != o.Negate || len(e.Membership) != len(o.Membership) || (comparison != nil && e.PresenceOnly != o.PresenceOnly) || len(e.Comparisons) != len(o.Comparisons) {
 			return false
 		}
-		if (e.jsonArray == nil) != (o.jsonArray == nil) {
+		if (e.JSONArray == nil) != (o.JSONArray == nil) {
 			return false
 		}
-		if e.jsonArray != nil && !same(e.jsonArray.input, o.jsonArray.input) {
+		if e.JSONArray != nil && !same(e.JSONArray.Input, o.JSONArray.Input) {
 			return false
 		}
 		if comparison == nil {
-			if e.queryPlan.Root.(*projectNode).frame != o.queryPlan.Root.(*projectNode).frame {
+			if e.QueryPlan.Root.(*projectNode).Frame != o.QueryPlan.Root.(*projectNode).Frame {
 				return false
 			}
-		} else if !comparison.sameQuery(b, e.queryPlan.Root, o.queryPlan.Root) {
+		} else if !comparison.sameQuery(b, e.QueryPlan.Root, o.QueryPlan.Root) {
 			return false
 		}
 		if comparison != nil {
-			if len(e.ordering) != len(o.ordering) {
+			if len(e.Ordering) != len(o.Ordering) {
 				return false
 			}
-			for i, provider := range e.ordering {
-				if !provider.Equal(o.ordering[i]) {
+			for i, provider := range e.Ordering {
+				if !provider.Equal(o.Ordering[i]) {
 					return false
 				}
 			}
 		}
-		for i, c := range e.comparisons {
-			if !same(c.left, o.comparisons[i].left) {
+		for i, c := range e.Comparisons {
+			if !same(c.Left, o.Comparisons[i].Left) {
 				return false
 			}
-			if comparison != nil && (!c.predicate.Equal(o.comparisons[i].predicate) || !same(c.right, o.comparisons[i].right)) {
+			if comparison != nil && (!c.Predicate.Equal(o.Comparisons[i].Predicate) || !same(c.Right, o.Comparisons[i].Right)) {
 				return false
 			}
 		}
 		return true
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
-		return ok && e.slot == o.slot && comparison.sameFrame(e.frame, o.frame)
+		return ok && e.Slot == o.Slot && comparison.sameFrame(e.Frame, o.Frame)
 	case *windowExpression:
 		o, ok := other.(*windowExpression)
-		if !ok || !comparison.sameFrame(e.frame, o.frame) {
+		if !ok || !comparison.sameFrame(e.Frame, o.Frame) {
 			return false
 		}
 		if e == o {
 			return true
 		}
 		if comparison != nil {
-			return e.slot == o.slot
+			return e.Slot == o.Slot
 		}
 		if b == nil {
 			// A call slot alone cannot prove window semantic identity.
 			return false
 		}
-		if e.call < 0 || o.call < 0 || e.call >= len(b.grouping.windowCalls) || o.call >= len(b.grouping.windowCalls) {
-			return e.slot == o.slot
+		if e.Call < 0 || o.Call < 0 || e.Call >= len(b.grouping.windowCalls) || o.Call >= len(b.grouping.windowCalls) {
+			return e.Slot == o.Slot
 		}
-		a, c := b.grouping.windowCalls[e.call], b.grouping.windowCalls[o.call]
+		a, c := b.grouping.windowCalls[e.Call], b.grouping.windowCalls[o.Call]
 		return b.sameWindowCall(a, c)
 	case groupExpression:
 		o, ok := other.(groupExpression)
-		return ok && e.slot == o.slot && comparison.sameFrame(e.frame, o.frame)
+		return ok && e.Slot == o.Slot && comparison.sameFrame(e.Frame, o.Frame)
 	case literalExpression:
 		o, ok := other.(literalExpression)
 		if !ok {
 			return false
 		}
-		return e.UnknownNull == o.UnknownNull && sqltype.SameDatum(e.value, o.value)
+		return e.UnknownNull == o.UnknownNull && sqltype.SameDatum(e.Value, o.Value)
 	case domainValueExpression:
 		_, ok := other.(domainValueExpression)
 		return ok
 	case columnExpression:
 		o, ok := other.(columnExpression)
-		return ok && e.origin == o.origin && e.scope == o.scope && comparison.sameFrame(e.frame, o.frame) && e.slot == o.slot
+		return ok && e.Origin == o.Origin && e.Scope == o.Scope && comparison.sameFrame(e.Frame, o.Frame) && e.Slot == o.Slot
 	case cachedOrderExpression:
 		o, ok := other.(cachedOrderExpression)
-		return comparison != nil && ok && e.slot == o.slot
+		return comparison != nil && ok && e.Slot == o.Slot
 	case parameterExpression:
 		o, ok := other.(parameterExpression)
-		return ok && e.number == o.number
+		return ok && e.Number == o.Number
 	case rowExpression:
 		o, ok := other.(rowExpression)
-		if !ok || len(e.fields) != len(o.fields) || (e.wholeNames == nil) != (o.wholeNames == nil) || e.wholeName != o.wholeName || e.wholeSource != o.wholeSource || e.presenceSlot != o.presenceSlot || e.presenceFrame != o.presenceFrame || e.returningWhole != o.returningWhole || e.returningNull != o.returningNull {
+		if !ok || len(e.Fields) != len(o.Fields) || (e.WholeNames == nil) != (o.WholeNames == nil) || e.WholeName != o.WholeName || e.WholeSource != o.WholeSource || e.PresenceSlot != o.PresenceSlot || e.PresenceFrame != o.PresenceFrame || e.ReturningWhole != o.ReturningWhole || e.ReturningNull != o.ReturningNull {
 			return false
 		}
-		if !slices.Equal(e.fieldProjection, o.fieldProjection) {
+		if !slices.Equal(e.FieldProjection, o.FieldProjection) {
 			return false
 		}
-		for i, field := range e.fields {
-			if !same(field, o.fields[i]) {
+		for i, field := range e.Fields {
+			if !same(field, o.Fields[i]) {
 				return false
 			}
 		}
 		return true
 	case fieldExpression:
 		o, ok := other.(fieldExpression)
-		return ok && e.attribute == o.attribute && same(e.base, o.base)
+		return ok && e.Attribute == o.Attribute && same(e.Base, o.Base)
 	case arrayExpression:
 		o, ok := other.(arrayExpression)
-		if !ok || e.multidimensional != o.multidimensional || len(e.elements) != len(o.elements) {
+		if !ok || e.Multidimensional != o.Multidimensional || len(e.Elements) != len(o.Elements) {
 			return false
 		}
-		for i, element := range e.elements {
-			if !same(element, o.elements[i]) {
+		for i, element := range e.Elements {
+			if !same(element, o.Elements[i]) {
 				return false
 			}
 		}
 		return true
 	case subscriptExpression:
 		o, ok := other.(subscriptExpression)
-		if !ok || e.slice != o.slice || len(e.subscripts) != len(o.subscripts) || !same(e.base, o.base) {
+		if !ok || e.Slice != o.Slice || len(e.Subscripts) != len(o.Subscripts) || !same(e.Base, o.Base) {
 			return false
 		}
-		for i, s := range e.subscripts {
-			t := o.subscripts[i]
-			if s.slice != t.slice || !same(s.lower, t.lower) || !same(s.upper, t.upper) {
+		for i, s := range e.Subscripts {
+			t := o.Subscripts[i]
+			if s.Slice != t.Slice || !same(s.Lower, t.Lower) || !same(s.Upper, t.Upper) {
 				return false
 			}
 		}
 		return true
 	case collationExpression:
 		o, ok := other.(collationExpression)
-		return ok && same(e.child, o.child)
+		return ok && same(e.Child, o.Child)
 	case coercionExpression:
 		o, ok := other.(coercionExpression)
-		return ok && e.plan.Equal(o.plan) && (checkDefinitionEquality || e.mode == o.mode) && same(e.child, o.child)
+		return ok && e.Plan.Equal(o.Plan) && (checkDefinitionEquality || e.Mode == o.Mode) && same(e.Child, o.Child)
 	case bitwiseExpression:
 		o, ok := other.(bitwiseExpression)
-		return ok && e.provider == o.provider && e.bits == o.bits && e.network == o.network && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.Provider == o.Provider && e.Bits == o.Bits && e.Network == o.Network && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
 	case selectedOperatorExpression:
 		o, ok := other.(selectedOperatorExpression)
-		return ok && e.ref == o.ref && same(e.provider, o.provider)
+		return ok && e.Ref == o.Ref && same(e.Provider, o.Provider)
 	case arithmeticExpression:
 		o, ok := other.(arithmeticExpression)
-		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
 	case likeExpression:
 		o, ok := other.(likeExpression)
-		return ok && e.provider == o.provider && e.operator == o.operator && e.namespace == o.namespace && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.Provider == o.Provider && e.Operator == o.Operator && e.Namespace == o.Namespace && same(e.Left, o.Left) && same(e.Right, o.Right)
 	case scalarArrayComparisonExpression:
 		o, ok := other.(scalarArrayComparisonExpression)
-		if !ok || !e.predicate.Equal(o.predicate) || e.operator != o.operator || e.namespace != o.namespace || e.all != o.all || !same(e.left, o.left) || !same(e.array, o.array) || len(e.items) != len(o.items) {
+		if !ok || !e.Predicate.Equal(o.Predicate) || e.Operator != o.Operator || e.Namespace != o.Namespace || e.All != o.All || !same(e.Left, o.Left) || !same(e.Array, o.Array) || len(e.Items) != len(o.Items) {
 			return false
 		}
-		for i, item := range e.items {
-			if !same(item, o.items[i]) {
+		for i, item := range e.Items {
+			if !same(item, o.Items[i]) {
 				return false
 			}
 		}
 		return true
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
-		return ok && e.predicate.Equal(o.predicate) && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.Predicate.Equal(o.Predicate) && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
 	case logicalExpression:
 		o, ok := other.(logicalExpression)
-		return ok && e.op == o.op && e.queryRight == o.queryRight && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.Op == o.Op && e.QueryRight == o.QueryRight && same(e.Left, o.Left) && same(e.Right, o.Right)
 	case nullTestExpression:
 		o, ok := other.(nullTestExpression)
-		return ok && e.not == o.not && e.whole == o.whole && same(e.child, o.child)
+		return ok && e.Not == o.Not && e.Whole == o.Whole && same(e.Child, o.Child)
 	case truthTestExpression:
 		o, ok := other.(truthTestExpression)
-		return ok && e.truth == o.truth && e.not == o.not && same(e.child, o.child)
+		return ok && e.Truth == o.Truth && e.Not == o.Not && same(e.Child, o.Child)
 	case distinctExpression:
 		o, ok := other.(distinctExpression)
-		return ok && e.equality.Equal(o.equality) && e.not == o.not && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.Equality.Equal(o.Equality) && e.Not == o.Not && same(e.Left, o.Left) && same(e.Right, o.Right)
 	case caseExpression:
 		o, ok := other.(caseExpression)
-		if !ok || len(e.arms) != len(o.arms) || !same(e.test, o.test) || !same(e.otherwise, o.otherwise) {
+		if !ok || len(e.Arms) != len(o.Arms) || !same(e.Test, o.Test) || !same(e.Otherwise, o.Otherwise) {
 			return false
 		}
-		for i, arm := range e.arms {
-			otherArm := o.arms[i]
-			if !arm.testPlan.Equal(otherArm.testPlan) || !arm.equality.Equal(otherArm.equality) || arm.testUsage != otherArm.testUsage || !same(arm.condition, otherArm.condition) || !same(arm.result, otherArm.result) {
+		for i, arm := range e.Arms {
+			otherArm := o.Arms[i]
+			if !arm.TestPlan.Equal(otherArm.TestPlan) || !arm.Equality.Equal(otherArm.Equality) || arm.TestUsage != otherArm.TestUsage || !same(arm.Condition, otherArm.Condition) || !same(arm.Result, otherArm.Result) {
 				return false
 			}
 		}
 		return true
 	case conditionalExpression:
 		o, ok := other.(conditionalExpression)
-		if !ok || e.kind != o.kind || e.missingOrdering != o.missingOrdering || !e.comparison.Equal(o.comparison) || len(e.args) != len(o.args) {
+		if !ok || e.Kind != o.Kind || e.MissingOrdering != o.MissingOrdering || !e.Comparison.Equal(o.Comparison) || len(e.Args) != len(o.Args) {
 			return false
 		}
-		for i := range e.args {
-			if !same(e.args[i], o.args[i]) {
+		for i := range e.Args {
+			if !same(e.Args[i], o.Args[i]) {
 				return false
 			}
 		}
@@ -349,7 +349,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			properties.StageDependent = true
 			info := expr.InfoOf(bound)
 			info.Property = properties
-			return groupExpression{Info: info, slot: i, frame: b.frameID()}, nil
+			return groupExpression{Info: info, Slot: i, Frame: b.frameID()}, nil
 		}
 	}
 	var err error
@@ -366,7 +366,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	case subqueryExpression:
 		old := b.grouping.groupSubquery
 		b.grouping.groupSubquery = true
-		root, failure := rewriteQueryExpressions(e.queryPlan.Root, func(child expr.Expr) (expr.Expr, bool, error) {
+		root, failure := rewriteQueryExpressions(e.QueryPlan.Root, func(child expr.Expr) (expr.Expr, bool, error) {
 			if !expressionUsesFrame(child, b.frameID()) {
 				return child, false, nil
 			}
@@ -377,35 +377,35 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		if failure != nil {
 			return nil, failure
 		}
-		if root != e.queryPlan.Root {
-			query := *e.queryPlan
+		if root != e.QueryPlan.Root {
+			query := *e.QueryPlan
 			query.Root = root
-			e.queryPlan = &query
+			e.QueryPlan = &query
 		}
-		if len(e.comparisons) != 0 {
-			comparisons := append([]comparisonExpression(nil), e.comparisons...)
+		if len(e.Comparisons) != 0 {
+			comparisons := append([]comparisonExpression(nil), e.Comparisons...)
 			for i := range comparisons {
-				comparisons[i].left = rewrite(comparisons[i].left)
+				comparisons[i].Left = rewrite(comparisons[i].Left)
 			}
-			e.comparisons = comparisons
+			e.Comparisons = comparisons
 		}
 		bound = e
 	case aggregateExpression:
-		if e.frame != 0 && e.frame != b.frameID() {
+		if e.Frame != 0 && e.Frame != b.frameID() {
 			return e, nil
 		}
-		return groupExpression{Info: e.Info, slot: len(keys) + e.slot, frame: b.frameID()}, nil
+		return groupExpression{Info: e.Info, Slot: len(keys) + e.Slot, Frame: b.frameID()}, nil
 	case *windowExpression:
 		return e, nil
 	case columnExpression:
-		if e.frame != b.frameID() {
+		if e.Frame != b.frameID() {
 			return e, nil
 		}
-		name := b.query.namespace.frame[e.slot].Name
+		name := b.query.namespace.frame[e.Slot].Name
 		for _, q := range b.query.namespace.qualifiers {
 			found := false
 			for _, c := range q.columns {
-				if c.slot == e.slot {
+				if c.slot == e.Slot {
 					name = q.name + "." + c.descriptor.Name
 					found = true
 					break
@@ -430,13 +430,13 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		stage(&e.Info)
 		bound = e
 	case fieldExpression:
-		e.base = rewrite(e.base)
+		e.Base = rewrite(e.Base)
 		stage(&e.Info)
 		bound = e
 	case arrayExpression:
-		e.elements = append([]expr.Expr(nil), e.elements...)
-		for i, element := range e.elements {
-			e.elements[i] = rewrite(element)
+		e.Elements = append([]expr.Expr(nil), e.Elements...)
+		for i, element := range e.Elements {
+			e.Elements[i] = rewrite(element)
 		}
 		stage(&e.Info)
 		bound = e
@@ -455,16 +455,16 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		stage(&e.Info)
 		bound = e
 	case collationExpression:
-		e.child = rewrite(e.child)
+		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
 	case coercionExpression:
-		e.child = rewrite(e.child)
+		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
 	case bitwiseExpression:
-		e.left = rewrite(e.left)
-		e.right = rewrite(e.right)
+		e.Left = rewrite(e.Left)
+		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
 	case functions.Timezone:
@@ -477,73 +477,73 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		e.Info = info
 		bound = e
 	case selectedOperatorExpression:
-		e.provider = rewrite(e.provider)
+		e.Provider = rewrite(e.Provider)
 		stage(&e.Info)
 		bound = e
 	case arithmeticExpression:
-		e.left = rewrite(e.left)
-		e.right = rewrite(e.right)
+		e.Left = rewrite(e.Left)
+		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
 	case likeExpression:
-		e.left, e.right = rewrite(e.left), rewrite(e.right)
+		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
 	case rowComparisonExpression:
-		e.comparisons = append([]comparisonExpression(nil), e.comparisons...)
-		for i, pair := range e.comparisons {
-			e.comparisons[i] = rewrite(pair).(comparisonExpression)
+		e.Comparisons = append([]comparisonExpression(nil), e.Comparisons...)
+		for i, pair := range e.Comparisons {
+			e.Comparisons[i] = rewrite(pair).(comparisonExpression)
 		}
 		stage(&e.Info)
 		bound = e
 	case scalarArrayComparisonExpression:
-		e.left = rewrite(e.left)
-		if e.array != nil {
-			e.array = rewrite(e.array)
+		e.Left = rewrite(e.Left)
+		if e.Array != nil {
+			e.Array = rewrite(e.Array)
 		}
-		e.items = append([]expr.Expr(nil), e.items...)
-		for i := range e.items {
-			e.items[i] = rewrite(e.items[i])
+		e.Items = append([]expr.Expr(nil), e.Items...)
+		for i := range e.Items {
+			e.Items[i] = rewrite(e.Items[i])
 		}
 		stage(&e.Info)
 		bound = e
 	case comparisonExpression:
-		e.left = rewrite(e.left)
-		e.right = rewrite(e.right)
+		e.Left = rewrite(e.Left)
+		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
 	case logicalExpression:
-		e.left = rewrite(e.left)
-		e.right = rewrite(e.right)
+		e.Left = rewrite(e.Left)
+		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
 	case nullTestExpression:
-		e.child = rewrite(e.child)
+		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
 	case truthTestExpression:
-		e.child = rewrite(e.child)
+		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
 	case distinctExpression:
-		e.left = rewrite(e.left)
-		e.right = rewrite(e.right)
+		e.Left = rewrite(e.Left)
+		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
 	case caseExpression:
-		e.test = rewrite(e.test)
-		e.arms = append([]caseBranch(nil), e.arms...)
-		for i := range e.arms {
-			e.arms[i].condition = rewrite(e.arms[i].condition)
-			e.arms[i].result = rewrite(e.arms[i].result)
+		e.Test = rewrite(e.Test)
+		e.Arms = append([]caseBranch(nil), e.Arms...)
+		for i := range e.Arms {
+			e.Arms[i].Condition = rewrite(e.Arms[i].Condition)
+			e.Arms[i].Result = rewrite(e.Arms[i].Result)
 		}
-		e.otherwise = rewrite(e.otherwise)
+		e.Otherwise = rewrite(e.Otherwise)
 		stage(&e.Info)
 		bound = e
 	case conditionalExpression:
-		e.args = append([]expr.Expr(nil), e.args...)
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
+		e.Args = append([]expr.Expr(nil), e.Args...)
+		for i := range e.Args {
+			e.Args[i] = rewrite(e.Args[i])
 		}
 		stage(&e.Info)
 		bound = e
@@ -631,78 +631,78 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 	}
 	switch e := bound.(type) {
 	case rowExpression:
-		for _, field := range e.fields {
+		for _, field := range e.Fields {
 			walk(field)
 		}
 	case fieldExpression:
-		walk(e.base)
+		walk(e.Base)
 	case arrayExpression:
-		for _, element := range e.elements {
+		for _, element := range e.Elements {
 			walk(element)
 		}
 	case subscriptExpression:
-		walk(e.base)
-		for _, s := range e.subscripts {
-			walk(s.lower)
-			walk(s.upper)
+		walk(e.Base)
+		for _, s := range e.Subscripts {
+			walk(s.Lower)
+			walk(s.Upper)
 		}
 	case aggregateExpression:
 		return &e
 	case collationExpression:
-		walk(e.child)
+		walk(e.Child)
 	case coercionExpression:
-		walk(e.child)
+		walk(e.Child)
 	case bitwiseExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case functions.Timezone:
 		walk(e.Value)
 		if !e.Local {
 			walk(e.Zone)
 		}
 	case selectedOperatorExpression:
-		walk(e.provider)
+		walk(e.Provider)
 	case arithmeticExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case likeExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case rowComparisonExpression:
-		for _, pair := range e.comparisons {
-			walk(pair.left)
-			walk(pair.right)
+		for _, pair := range e.Comparisons {
+			walk(pair.Left)
+			walk(pair.Right)
 		}
 	case scalarArrayComparisonExpression:
-		walk(e.left)
-		if e.array != nil {
-			walk(e.array)
+		walk(e.Left)
+		if e.Array != nil {
+			walk(e.Array)
 		}
-		for _, item := range e.items {
+		for _, item := range e.Items {
 			walk(item)
 		}
 	case comparisonExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case logicalExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case nullTestExpression:
-		walk(e.child)
+		walk(e.Child)
 	case truthTestExpression:
-		walk(e.child)
+		walk(e.Child)
 	case distinctExpression:
-		walk(e.left)
-		walk(e.right)
+		walk(e.Left)
+		walk(e.Right)
 	case caseExpression:
-		walk(e.test)
-		for _, arm := range e.arms {
-			walk(arm.condition)
-			walk(arm.result)
+		walk(e.Test)
+		for _, arm := range e.Arms {
+			walk(arm.Condition)
+			walk(arm.Result)
 		}
-		walk(e.otherwise)
+		walk(e.Otherwise)
 	case conditionalExpression:
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			walk(arg)
 		}
 	case extensionPathsExpression:

@@ -26,32 +26,32 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignChild := literalExpression{Info: expr.Info{Usage: foreignType.Usage()}, value: foreignValue}
+	foreignChild := literalExpression{Info: expr.Info{Usage: foreignType.Usage()}, Value: foreignValue}
 	for _, tc := range []struct {
 		name      string
 		attribute int32
 		mutate    func(arithmeticExpression) arithmeticExpression
 	}{
-		{"missing-left", 1, func(n arithmeticExpression) arithmeticExpression { n.left = nil; return n }},
-		{"missing-right", 1, func(n arithmeticExpression) arithmeticExpression { n.right = nil; return n }},
+		{"missing-left", 1, func(n arithmeticExpression) arithmeticExpression { n.Left = nil; return n }},
+		{"missing-right", 1, func(n arithmeticExpression) arithmeticExpression { n.Right = nil; return n }},
 		{"invalid-operator", 1, func(n arithmeticExpression) arithmeticExpression {
-			n.operator = sqltype.ArithmeticOperator(255)
+			n.Operator = sqltype.ArithmeticOperator(255)
 			return n
 		}},
-		{"operator-provider-mismatch", 1, func(n arithmeticExpression) arithmeticExpression { n.operator = sqltype.ArithmeticAdd; return n }},
-		{"empty-provider", 1, func(n arithmeticExpression) arithmeticExpression { n.provider = sqltype.Arithmetic{}; return n }},
-		{"foreign-child", 1, func(n arithmeticExpression) arithmeticExpression { n.left = foreignChild; return n }},
+		{"operator-provider-mismatch", 1, func(n arithmeticExpression) arithmeticExpression { n.Operator = sqltype.ArithmeticAdd; return n }},
+		{"empty-provider", 1, func(n arithmeticExpression) arithmeticExpression { n.Provider = sqltype.Arithmetic{}; return n }},
+		{"foreign-child", 1, func(n arithmeticExpression) arithmeticExpression { n.Left = foreignChild; return n }},
 		{"wrong-child-width", 1, func(n arithmeticExpression) arithmeticExpression {
-			n.left = old.ColumnMeta.Defaults[2].Expression
+			n.Left = old.ColumnMeta.Defaults[2].Expression
 			return n
 		}},
 		{"dependent-child", 1, func(n arithmeticExpression) arithmeticExpression {
-			child := n.left.(literalExpression)
+			child := n.Left.(literalExpression)
 			child.Property.RowDependent = true
-			n.left = child
+			n.Left = child
 			return n
 		}},
-		{"invalid-unary-operator", 2, func(n arithmeticExpression) arithmeticExpression { n.operator = sqltype.ArithmeticMultiply; return n }},
+		{"invalid-unary-operator", 2, func(n arithmeticExpression) arithmeticExpression { n.Operator = sqltype.ArithmeticMultiply; return n }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			next := *old
@@ -107,7 +107,7 @@ func TestDefaultSmallintArithmeticWidths(t *testing.T) {
 		left, right, result sqltype.ID
 	}{{1, sqltype.Int2, sqltype.Int2, sqltype.Int2}, {2, sqltype.Int2, sqltype.Int8, sqltype.Int8}, {3, sqltype.Int2, sqltype.Int2, sqltype.Int2}} {
 		n, ok := desc.ColumnMeta.Defaults[tc.attribute].Expression.(arithmeticExpression)
-		if !ok || n.left.ResultUsage().Type.ID() != tc.left || n.right.ResultUsage().Type.ID() != tc.right || n.provider.ResultType().ID() != tc.result {
+		if !ok || n.Left.ResultUsage().Type.ID() != tc.left || n.Right.ResultUsage().Type.ID() != tc.right || n.Provider.ResultType().ID() != tc.result {
 			t.Fatal(tc, n)
 		}
 	}
