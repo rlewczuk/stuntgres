@@ -1,14 +1,17 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"sync"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/sqltype"
 )
 
 // Every engine seeds the same built-in catalog from compiled tables; only the
@@ -31,6 +34,50 @@ func (e *Engine) installBuiltinProcedures() {
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
+}
+
+// installBuiltinConversionRoutines installs the encoding conversion routines.
+func (e *Engine) installBuiltinConversionRoutines() {
+	procedures := builtinConversionProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	for i := range procedures {
+		d := &procedures[i]
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+	}
+}
+
+// installBuiltinDomainChecks binds the builtin domain CHECK and DEFAULT seeds
+// into their seeded types. It uses the same VALUE binder and dependency
+// cooking as user domains, without a session, SQL execution or a separately
+// allocated type.
+func (e *Engine) installBuiltinDomainChecks() error {
+	checks, err := builtinDomainCheckSeeds()
+	if err != nil {
+		return err
+	}
+	for _, seed := range checks {
+		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.id})
+		if err := e.bindDomainCheckRecipes(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.constraints, sqltype.InputEnvironment{}); err != nil {
+			return err
+		}
+	}
+	for _, seed := range builtinDomainDefaultSeeds() {
+		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.id})
+		if err := e.bindDomainDefault(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.expression, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// bootstrapAuthorization is the published-catalog authority of user under
+// which builtin seeds are bound.
+func (e *Engine) bootstrapAuthorization(user authorization.PrincipalRef) AuthorizationView {
+	view := e.catalog.read(e.catalog.state)
+	return AuthorizationView{engine: e, View: access.View{
+		Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
+		Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: user},
+	}}
 }
 
 // installBuiltinOperators installs the seeded operator descriptors and the

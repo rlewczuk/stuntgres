@@ -7,8 +7,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -32,38 +30,6 @@ func (e domainValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	return e.bindDomainCheckRecipes(op.Context(), op, auth, stage, d, raw, input)
-}
-
-// The constructor uses the same VALUE binder and dependency cooking as user
-// domains, without a session, SQL execution or a separately allocated type.
-func (e *Engine) initializeBuiltinDomainChecks() error {
-	view := e.catalog.read(e.catalog.state)
-	for _, recipe := range [...]struct {
-		id          ids.OID
-		declaration string
-	}{
-		{13256, `CREATE DOMAIN information_schema.yes_or_no AS character varying(3) COLLATE "C" CONSTRAINT yes_or_no_check CHECK (VALUE IN ('YES','NO'))`},
-		{13243, `CREATE DOMAIN information_schema.cardinal_number AS integer CONSTRAINT cardinal_number_domain_check CHECK (VALUE >= 0)`},
-	} {
-		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: recipe.id})
-		raw, err := parser.Parse(recipe.declaration)
-		if err != nil {
-			return err
-		}
-		auth := AuthorizationView{engine: e, View: access.View{
-			Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
-			Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: d.Owner},
-		}}
-		if err := e.bindDomainCheckRecipes(context.Background(), nil, auth, nil, d, raw[0].(*parser.CreateDomain).Constraints, sqltype.InputEnvironment{}); err != nil {
-			return err
-		}
-	}
-	stamp := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13254})
-	auth := AuthorizationView{engine: e, View: access.View{
-		Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
-		Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: stamp.Owner},
-	}}
-	return e.bindDomainDefault(context.Background(), nil, auth, nil, stamp, parser.CurrentDateTimeExpr{Kind: parser.CurrentTimestamp, HasPrecision: true, Precision: 2}, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 }
 
 func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {

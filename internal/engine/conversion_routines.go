@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -108,14 +109,16 @@ func conversionRoutineName(oid ids.OID) string {
 	return builtinConversionRoutines[index].name
 }
 
-func (e *Engine) initializeConversionRoutines() {
-	for _, routine := range builtinConversionRoutines {
+// builtinConversionProcedures returns fresh descriptors for the builtin
+// encoding conversion routines, owned by owner.
+func builtinConversionProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
+	procedures := make([]catalog.Procedure, len(builtinConversionRoutines))
+	for i, routine := range builtinConversionRoutines {
 		provider, ok := sqltype.RegisteredEncodingConversion(routine.name)
 		if !ok {
 			panic("stuntgres: missing released encoding conversion provider")
 		}
-		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: routine.oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: routine.name, Signature: catalog.ConversionSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.roles.domain.Principal(10), Result: 23, Volatility: expr.Immutable, Strict: true, Conversion: provider}
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+		procedures[i] = catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: routine.oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: routine.name, Signature: catalog.ConversionSignature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: 23, Volatility: expr.Immutable, Strict: true, Conversion: provider}
 	}
+	return procedures
 }
