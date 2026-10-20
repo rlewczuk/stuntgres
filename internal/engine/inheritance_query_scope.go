@@ -128,7 +128,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 	for {
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.catalog)
-		for _, leaf := range s.inheritanceRelations {
+		for _, leaf := range s.inheritance.relations {
 			if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, leaf); err != nil {
 				e.mu.Unlock()
 				return err
@@ -174,7 +174,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			return nil
 		})
 		if err == nil && len(pending) == 0 {
-			s.inheritanceCatalog = view
+			s.inheritance.catalog = view
 		}
 		e.mu.Unlock()
 		if err != nil {
@@ -212,7 +212,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf)
 			if err == nil {
 				e.markTemporaryAccessLocked(s, leaf.ref)
-				s.inheritanceRelations = append(s.inheritanceRelations, leaf)
+				s.inheritance.relations = append(s.inheritance.relations, leaf)
 			}
 			e.mu.Unlock()
 			if err != nil {
@@ -232,8 +232,24 @@ func sourceOnly(statement parser.Statement) bool {
 }
 
 func (s *StatementScope) inheritanceRead(current catalog.Read) catalog.Read {
-	if s.inheritanceCatalog.State() != nil {
-		return s.inheritanceCatalog
+	if s.inheritance.catalog.State() != nil {
+		return s.inheritance.catalog
 	}
 	return current
+}
+
+// inheritanceScope is the statement's inheritance group: the exact physical
+// SELECT grants, the topology frozen after the last reconciliation, and the
+// ALTER TABLE recursion state. Every query admission writes it, so it is a
+// value group rather than a pointer slot.
+type inheritanceScope struct {
+	relations []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.
+	catalog   catalog.Read // Immutable topology after the last grant/wait reconciliation.
+	alter     *inheritanceAlterState
+}
+
+// endStatement drops the statement's physical grants and frozen topology.
+// The ALTER state is released by its own handler.
+func (i *inheritanceScope) endStatement() {
+	i.relations, i.catalog = nil, catalog.Read{}
 }

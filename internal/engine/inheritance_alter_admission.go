@@ -21,7 +21,7 @@ func inheritanceEntryOwner(actions []parser.AlterTableAction) bool {
 // after every wait, including the first-child marker's exact publication copy.
 // No stage, statement view, row evaluation or publication exists in this phase.
 func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, preparatory bool) error {
-	state := scope.inheritanceAlter
+	state := scope.inheritance.alter
 	if !preparatory && len(state.targets) == 1 {
 		return nil
 	}

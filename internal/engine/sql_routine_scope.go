@@ -64,7 +64,7 @@ type sqlRoutineScratch struct {
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.activeMutation, cteInvocation: s.cteInvocation,
-		activeViews: s.viewCreationOrZero().active, inheritanceRelations: s.inheritanceRelations, inheritanceCatalog: s.inheritanceCatalog,
+		activeViews: s.viewCreationOrZero().active, inheritanceRelations: s.inheritance.relations, inheritanceCatalog: s.inheritance.catalog,
 		authority: s.authority, routineAuth: s.routineAuth, expected: s.Expected,
 		prepared: s.prepared, admissionWaited: s.admissionWaited,
 		initialParameters: s.initialParameters, input: s.input, output: s.output,
@@ -79,7 +79,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.installRuleScratch(c.command)
 	s.mutations, s.activeMutation, s.cteInvocation = c.mutations, c.activeMutation, c.cteInvocation
 	s.setActiveViews(c.activeViews)
-	s.inheritanceRelations, s.inheritanceCatalog = c.inheritanceRelations, c.inheritanceCatalog
+	s.inheritance.relations, s.inheritance.catalog = c.inheritanceRelations, c.inheritanceCatalog
 	s.authority, s.routineAuth, s.Expected = c.authority, c.routineAuth, c.expected
 	s.prepared, s.admissionWaited = c.prepared, c.admissionWaited
 	s.initialParameters, s.sqlRoutine, s.inquiry = c.initialParameters, c.sqlRoutine, c.inquiry

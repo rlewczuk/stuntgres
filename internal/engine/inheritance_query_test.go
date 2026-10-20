@@ -173,7 +173,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.Recapture(scope.inheritanceCatalog)
+	collectAuth.Recapture(scope.inheritance.catalog)
 	e.mu.Lock()
 	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
 	var view *visibility.View
@@ -182,7 +182,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	}
 	var source *querySource
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(scope.inheritanceCatalog, view, leaf, op.session.token)
+		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, leaf, op.session.token)
 	}
 	e.mu.Unlock()
 	if err != nil {

@@ -66,7 +66,7 @@ func alterActionPhase(action parser.AlterTableActionKind) int {
 }
 
 func (e *Engine) prepareInheritanceNode(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, actions []parser.AlterTableAction) (*inheritancePreparedNode, error) {
-	state := scope.inheritanceAlter
+	state := scope.inheritance.alter
 	prepared := &inheritancePreparedNode{old: old, actions: actions, graph: state.graph, steps: make(map[int]inheritancePreparedAction)}
 	prepared.phaseZeroOnly = state.only && !inheritancePureDefinitionPreparation(actions)
 	reader := state.definition
@@ -282,10 +282,10 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *ca
 }
 
 func (scope *StatementScope) inheritancePreparedNode() *inheritancePreparedNode {
-	if scope.inheritanceAlter == nil {
+	if scope.inheritance.alter == nil {
 		return nil
 	}
-	return scope.inheritanceAlter.prepared[scope.lockedRef.Address]
+	return scope.inheritance.alter.prepared[scope.lockedRef.Address]
 }
 
 func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, index int, old *catalog.Relation, ref ids.ObjectRef, changes *catalogChanges) (*catalog.Relation, addedColumn, bool, error) {

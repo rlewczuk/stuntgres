@@ -690,7 +690,7 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		return nil
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
-	for _, source := range s.inheritanceRelations {
+	for _, source := range s.inheritance.relations {
 		if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, source); err != nil {
 			return err
 		}

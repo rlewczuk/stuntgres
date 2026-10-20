@@ -113,7 +113,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal(err)
 	}
 	admitted := map[ids.ObjectRef]bool{}
-	for _, leaf := range scope.inheritanceRelations {
+	for _, leaf := range scope.inheritance.relations {
 		admitted[leaf.ref] = true
 	}
 	if len(admitted) != 2 || !admitted[originalRef] || !admitted[lateRef] {
@@ -130,7 +130,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.Recapture(scope.inheritanceCatalog)
+	collectAuth.Recapture(scope.inheritance.catalog)
 	e.mu.Lock()
 	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
 	var view *visibility.View
@@ -139,7 +139,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	var source *querySource
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(scope.inheritanceCatalog, view, parent, op.session.token)
+		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, parent, op.session.token)
 	}
 	e.mu.Unlock()
 	if err != nil {

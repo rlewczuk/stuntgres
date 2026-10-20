@@ -51,8 +51,8 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 		attribute := original.Attributes[slot]
 		if identity, exists := original.ColumnMeta.Identities[attribute]; exists {
 			if stage == nil {
-				if scope.inheritanceAlter != nil {
-					stage = scope.inheritanceAlter.stage
+				if scope.inheritance.alter != nil {
+					stage = scope.inheritance.alter.stage
 				} else {
 					stage = e.BeginCatalogStage(auth.Catalog)
 					stage.authorizeLocked(auth, op.session)

@@ -35,13 +35,13 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 		}
 	}
 	var inherited map[string]catalog.CheckConstraint
-	if scope.inheritanceAlter != nil {
+	if scope.inheritance.alter != nil {
 		for _, a := range raw {
 			for _, c := range parent.Constraints.Check {
 				if c.Name != a.Name.Text {
 					continue
 				}
-				merge := scope.inheritanceAlter.descendant
+				merge := scope.inheritance.alter.descendant
 				if parent.Inheritance != nil {
 					provenance := parent.Inheritance.Checks[c.Name]
 					merge = merge || !provenance.Local && provenance.Count() != 0
@@ -65,7 +65,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 	if err := scope.inheritanceOnlyCreatedConstraint(parent, &next); err != nil {
 		return prepared, err
 	}
-	if scope.inheritanceAlter != nil && scope.inheritanceAlter.descendant && next.Inheritance != nil {
+	if scope.inheritance.alter != nil && scope.inheritance.alter.descendant && next.Inheritance != nil {
 		for _, check := range next.Constraints.Check {
 			if !slices.ContainsFunc(raw, func(declaration *parser.CheckConstraint) bool { return declaration.Name.Text == check.Name }) {
 				continue
@@ -77,7 +77,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 			next.Inheritance.Checks[check.Name] = provenance
 		}
 	}
-	if scope.inheritanceAlter != nil && !scope.inheritanceAlter.descendant && next.Inheritance != nil && len(inherited) != 0 {
+	if scope.inheritance.alter != nil && !scope.inheritance.alter.descendant && next.Inheritance != nil && len(inherited) != 0 {
 		graph := cloneInheritance(next.Inheritance)
 		for name := range inherited {
 			provenance := graph.Checks[name]

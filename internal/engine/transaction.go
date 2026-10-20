@@ -321,9 +321,6 @@ type StatementScope struct {
 	existingIndexOutputs    map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
 	exclusionModes          exclusionModes
 	exclusionStarted        bool
-	inheritanceRelations    []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.
-	inheritanceCatalog      catalog.Read // Immutable topology after the last grant/wait reconciliation.
-	inheritanceAlter        *inheritanceAlterState
 	Expected                *StatementDescription
 	admissionWaited         bool
 	implicit                bool
@@ -355,6 +352,7 @@ type StatementScope struct {
 	foreignActionsSlot      *foreignActionScope
 	viewCreationSlot        *viewCreationScope
 	materializedSlot        *materializedRefreshScope
+	inheritance             inheritanceScope
 }
 
 type WriteStage struct {

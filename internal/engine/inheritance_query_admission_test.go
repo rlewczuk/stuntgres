@@ -147,7 +147,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.Recapture(fresh.inheritanceCatalog)
+	collectAuth.Recapture(fresh.inheritance.catalog)
 	e.mu.Lock()
 	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, fresh.querySources, nil, freshOp.session.token, queryRowMark{})
 	var view *visibility.View
@@ -156,7 +156,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	var source *querySource
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(fresh.inheritanceCatalog, view, parent, freshOp.session.token)
+		source, err = captureInheritanceQueryPrefix(fresh.inheritance.catalog, view, parent, freshOp.session.token)
 	}
 	e.mu.Unlock()
 	if err != nil {

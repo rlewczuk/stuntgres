@@ -402,7 +402,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	}
 	if mode == parser.DropRestrict {
 		labels := supportedDependentLabelsWithPolicies(provider.base, targets, checks, edges, defaults, provider.path, policies, foreign...)
-		multipleDeletion := provider.scope != nil && provider.scope.inheritanceAlter != nil
+		multipleDeletion := provider.scope != nil && provider.scope.inheritance.alter != nil
 		return supportedRestrictErrorLabels(provider.base, edges, provider.path, labels, multipleDeletion)
 	}
 	if err := provider.foreignKeyDependents(foreign); err != nil {

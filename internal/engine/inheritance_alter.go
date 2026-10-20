@@ -228,10 +228,14 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	state := &inheritanceAlterState{changes: cloneCatalogChanges(scope.owner.catalog), root: root, targets: targets, selected: map[ids.ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
 	state.tablespace = tablespace
 	state.types = types
-	scope.inheritanceAlter = state
+	scope.inheritance.alter = state
 	scope.catalog = state.changes
 	e.mu.Unlock()
-	defer func() { scope.statementMutation = original; scope.inheritanceAlter = nil; e.DiscardCatalogStage(stage) }()
+	defer func() {
+		scope.statementMutation = original
+		scope.inheritance.alter = nil
+		e.DiscardCatalogStage(stage)
+	}()
 	// Definition preparation and every required physical grant precede the sole
 	// stage. Preparatory grants remain distinct from actually visited owners.
 	if err := e.admitInheritanceAlter(scope, op, auth, raw, preparatory); err != nil {
@@ -529,7 +533,7 @@ func inheritedNotNull(view catalog.Read, parents []ids.ObjectAddress, name strin
 }
 
 func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.Relation) (*catalog.Relation, error) {
-	state := scope.inheritanceAlter
+	state := scope.inheritance.alter
 	if state == nil || old.Inheritance == nil {
 		return next, nil
 	}

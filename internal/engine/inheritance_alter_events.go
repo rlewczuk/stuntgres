@@ -20,7 +20,7 @@ type inheritanceAlterEvent struct {
 }
 
 func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog.Relation, a parser.AlterTableAction) {
-	state := scope.inheritanceAlter
+	state := scope.inheritance.alter
 	if state == nil {
 		return
 	}
@@ -97,7 +97,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 }
 
 func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Relation, raw []*parser.CheckConstraint, start int) {
-	state := scope.inheritanceAlter
+	state := scope.inheritance.alter
 	if state == nil || state.only {
 		return
 	}
@@ -233,7 +233,7 @@ func inheritancePreparatoryLocks(actions []parser.AlterTableAction, only bool) b
 }
 
 func (scope *StatementScope) inheritanceNotNullMode(column string) notNullRecursion {
-	state := scope.inheritanceAlter
+	state := scope.inheritance.alter
 	if state != nil && state.descendant {
 		if state.validating[column] {
 			return notNullValidation
@@ -246,7 +246,7 @@ func (scope *StatementScope) inheritanceNotNullMode(column string) notNullRecurs
 // ONLY's fresh-fact prohibition uses the actual phase input, including earlier
 // DROP effects. Existing compatible facts can still merge/localize genuinely.
 func (scope *StatementScope) inheritanceOnlyCreatedConstraint(before, after *catalog.Relation) error {
-	state := scope.inheritanceAlter
+	state := scope.inheritance.alter
 	if state == nil || !state.only || state.descendant || len(state.targets) < 2 {
 		return nil
 	}

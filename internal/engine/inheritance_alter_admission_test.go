@@ -147,7 +147,7 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 	}
 	// The pending request's manager synchronization establishes that this worker
 	// is suspended after preparation and before any stage or row capture.
-	state := c.scope.inheritanceAlter
+	state := c.scope.inheritance.alter
 	if state == nil || state.stage != nil || c.scope.view != nil || c.scope.partitionValidationView != nil || len(state.changes.storage) != 0 {
 		t.Fatal("queued preparation allocated stage/view or evaluated rows")
 	}

@@ -132,7 +132,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	state := &inheritanceAlterState{stage: stage, events: map[ids.ObjectAddress][]inheritanceAlterEvent{}}
-	scope := &StatementScope{inheritanceAlter: state}
+	scope := &StatementScope{inheritance: inheritanceScope{alter: state}}
 	next := *p
 	next.Columns = slices.Clone(p.Columns[1:])
 	next.Attributes = slices.Clone(p.Attributes[1:])

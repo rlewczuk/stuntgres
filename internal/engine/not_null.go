@@ -63,7 +63,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*catalog.Relation)
-	if s.Only && scope.inheritanceAlter == nil && slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.SetNotNull }) {
+	if s.Only && scope.inheritance.alter == nil && slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.SetNotNull }) {
 		command := *s
 		command.Actions = slices.Clone(s.Actions)
 		for i := range command.Actions {
@@ -97,8 +97,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return fail(err)
 	}
 	var preparation alterTablePreparation
-	if scope.inheritanceAlter != nil && !scope.inheritanceAlter.descendant {
-		preparation = alterTablePreparation{actions: s.Actions, destination: scope.inheritanceAlter.tablespace, types: scope.inheritanceAlter.types}
+	if scope.inheritance.alter != nil && !scope.inheritance.alter.descendant {
+		preparation = alterTablePreparation{actions: s.Actions, destination: scope.inheritance.alter.tablespace, types: scope.inheritance.alter.types}
 	} else {
 		preparation, err = e.prepareAlterTableActions(scope, op, auth, old, ref, s.Actions)
 		if err != nil {
@@ -110,7 +110,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			// while the caller's already-discarded cache tail stays discarded.
 			e.mu.Unlock()
 			stage, stageErr := e.stageAlterIdentityTypes(scope, op, auth, old, s.Actions, preparation.types)
-			if scope.inheritanceAlter == nil {
+			if scope.inheritance.alter == nil {
 				e.DiscardCatalogStage(stage)
 			}
 			if stageErr != nil {
@@ -133,10 +133,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		command.Actions = work
 		s = &command
 	}
-	if scope.inheritanceAlter == nil && !rowSecurityActions(s.Actions) && inheritanceParticipant(auth.Catalog, old) {
+	if scope.inheritance.alter == nil && !rowSecurityActions(s.Actions) && inheritanceParticipant(auth.Catalog, old) {
 		return e.alterInheritanceLocked(scope, op, auth, s, count, destination, prepared)
 	}
-	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
+	if scope.inheritance.alter == nil || !scope.inheritance.alter.descendant {
 		if err := inheritanceAlterActionsGuard(auth.Catalog, old, s.Actions); err != nil {
 			return fail(err)
 		}
@@ -151,8 +151,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, rowSecurityFlags(old, s.Actions))
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
-	if scope.inheritanceAlter != nil {
-		changes = scope.inheritanceAlter.changes
+	if scope.inheritance.alter != nil {
+		changes = scope.inheritance.alter.changes
 	}
 	original := e.storage.Relations[ref.Address]
 	store := e.privateStorageLocked(changes, ref.Address)
@@ -172,25 +172,25 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	grantCatalog := e.catalog.state
 	schema := auth.Catalog.Get(old.Namespace()).Name()
 	var stage *CatalogStage
-	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
+	if scope.inheritance.alter == nil || !scope.inheritance.alter.descendant {
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 	}
 	e.mu.Unlock()
 	defer func() {
-		if scope.inheritanceAlter == nil {
+		if scope.inheritance.alter == nil {
 			e.DiscardCatalogStage(stage)
 		}
 	}()
 	originalDefinition := op.definition
-	if scope.inheritanceAlter != nil {
-		op.definition = stageDefinitionReader{scope.inheritanceAlter.stage}
+	if scope.inheritance.alter != nil {
+		op.definition = stageDefinitionReader{scope.inheritance.alter.stage}
 		auth.definition = op.definition
 	}
 	defer func() { op.definition = originalDefinition }()
 	preparedStage, err := e.stageAlterIdentityTypes(scope, op, auth, old, s.Actions, prepared)
 	stage = preparedStage
-	if stage == nil && scope.inheritanceAlter != nil {
-		stage = scope.inheritanceAlter.stage
+	if stage == nil && scope.inheritance.alter != nil {
+		stage = scope.inheritance.alter.stage
 	}
 	if err != nil {
 		return Result{}, err
@@ -806,7 +806,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		changes.dependencies = append(changes.dependencies, catalogDependencyObservation{grantCatalog, dependencyTargets})
 	}
 	changes.dependencies = append(changes.dependencies, stage.sequence.identityDependencyList()...)
-	if scope.inheritanceAlter == nil {
+	if scope.inheritance.alter == nil {
 		if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 			return Result{}, err
 		}
@@ -923,7 +923,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	scope.catalog = changes
-	if scope.inheritanceAlter == nil {
+	if scope.inheritance.alter == nil {
 		emitViewCascade(op, stage.viewCascadeNames)
 	}
 	return Result{}, nil

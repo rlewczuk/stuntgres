@@ -197,8 +197,8 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					// reentry: this branch must leave disposal to its outer owner.
 					stage = e.BeginCatalogStage(c.auth.Catalog)
 					stage.authorizeLocked(c.auth, c.op.session)
-					scope.inheritanceAlter = &inheritanceAlterState{stage: stage, descendant: true}
-					t.Cleanup(func() { scope.inheritanceAlter = nil; e.DiscardCatalogStage(stage) })
+					scope.inheritance.alter = &inheritanceAlterState{stage: stage, descendant: true}
+					t.Cleanup(func() { scope.inheritance.alter = nil; e.DiscardCatalogStage(stage) })
 				}
 				e.mu.Lock()
 				_, err := e.alterTableLocked(scope, c.op, c.auth, c.raw, 0)
@@ -225,7 +225,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					}
 					// The existing outer-owner disposal API, not Finish or the
 					// descendant, owns this private stage's transition.
-					scope.inheritanceAlter = nil
+					scope.inheritance.alter = nil
 					e.DiscardCatalogStage(stage)
 					if stage.lifecycle != catalogDiscarded {
 						t.Fatal("shared owner failed to dispose")

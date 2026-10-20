@@ -63,7 +63,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 		generatedSlot := old.IndexForAttribute(attribute)
 		if a.Mode == parser.DropRestrict {
 			message := "cannot drop desired object(s) because other objects depend on them"
-			if provider.scope == nil || provider.scope.inheritanceAlter == nil {
+			if provider.scope == nil || provider.scope.inheritance.alter == nil {
 				message = fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.Name())
 			}
 			diagnostic := sqlError("2BP01", message).(*sqlstate.Error)

@@ -241,7 +241,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if scope.querySources[0].ref != viewRef || scope.querySources[0].relation != view {
 				t.Fatal("physical expansion replaced logical view authority")
 			}
-			for _, physical := range scope.inheritanceRelations {
+			for _, physical := range scope.inheritance.relations {
 				if !tc.weak && physical.ref == parentRef {
 					t.Fatal("already admitted base gained duplicate physical manifest ownership")
 				}
