@@ -1085,6 +1085,9 @@ the type features (composite, enum and range binding).
   (12d.2) and each area is prepared in place (12d.3–12d.5). The refine and
   its decisions (authority, opaque slots, feature layering) are in the
   prompt file.
+- **12e — remove the aliases.** Done: the engine names the `analyze` types
+  directly and the driver imports `analyze` for `ParameterInfo` (§7
+  decision 11).
 
 **Stays in the engine** until their features move: rule rewriting, view and
 policy capture consumers, materialized snapshots, and statement dispatch.
@@ -1286,6 +1289,9 @@ These packages get prompt files after the steps above. Each needs `session`
     `RegistrationError` stays an engine function. Settled for step 11 (11a):
     `exec` owns `RowCursor` and `RowResult`; since 11d the driver and
     `cmd/stuntgres` import `exec` directly, with no permanent alias.
+    Settled for step 12 (12e): `analyze` owns `ParameterInfo`; the driver
+    imports `analyze` directly (`frameImporter` and the adapter tests), with
+    no permanent alias.
 
 ## 8. Implementation sessions
 
@@ -1307,7 +1313,7 @@ package-specific scope. This section holds the rules every session follows.
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10d): `plan` created, IR, node types and installed extension nodes moved, aliases removed (racecheck/finalcheck skipped by user) |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request) |
-| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a–12c done (12c: analyze host seam; racecheck/finalcheck skipped at user request); 12d refined (the binder moves last), 12d.1 done (`analyze` created, binding types moved) and 12d.2 done (binder seam cuts: authority, held inputs, lookup types and captured inputs; racecheck/finalcheck skipped at user request); 12d.5 done (aggregates, windows and DML targets prepared: files split, ON CONFLICT clause moved, shared statement helpers moved; racecheck/finalcheck skipped at user request); 12d.3 done (expression core prepared in place; racecheck/finalcheck skipped at user request); 12d.4 done (query, FROM and CTE preparation: lock admission, query namespaces and shared query helpers in `analyze`, stored views through the host; racecheck/finalcheck skipped at user request); 12d.3b done (the unlisted expression files prepared in place: files split, subscript and SQL/JSON helpers in `plan`, definition reads in `catalog`, DEFAULT closure, retained-input and rule namespace helpers in `analyze`; racecheck/finalcheck skipped at user request); 12d.6 done (the binder, its groups, `Describe` and `analyze.Host` moved into `analyze` with aliases; racecheck/finalcheck skipped at user request); 12e planned |
+| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c; 12d: 12c, 11c | done (12a–12e): `binding` split per statement kind, binder fields grouped, host seam, `analyze` created, areas prepared in place and the binder moved (12d.1–12d.6), aliases removed; the driver imports `analyze` for `ParameterInfo` (racecheck/finalcheck skipped at user request) |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c–13e planned |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |

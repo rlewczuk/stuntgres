@@ -44,7 +44,8 @@ engine or `session`. See
   query, CTEs and query sources, snapshot demands, CURRENT OF, predicate,
   RETURNING, dependencies, parameters and expressions), the kind payloads
   and the capture groups. `ParameterInfo` is the inferred parameter list;
-  the root package re-exports it to the driver. `*Binding` implements
+  the driver names it directly (`engine.FrameImporter` takes it).
+  `*Binding` implements
   `plan.CTEMutation`, so a data-modifying CTE carries its binding.
 - **Kind payloads** (`binding_groups.go`, `payloads.go`, `create_table.go`):
   `InsertBinding`, `DeleteBinding`, `CreateTableBinding` (held by value),
@@ -192,15 +193,15 @@ over the binding's clause); and the execution-side helpers over
 the binding types: `physicalBinding`, `bindingDefaultOrigin`,
 `evalBindingDefault`, `applyDefaultOrigin`, `capturedDomainReplayCell`,
 `mergeHasVirtualReads`, `selectMergeArm`, `validateCompositeOccurrence` and
-`remapLikeExpression`. Until 12e the engine names the moved types through the
-aliases in `analyze_aliases.go`.
+`remapLikeExpression`. Since 12e the engine names these types directly
+(`analyze.Binding`, `analyze.Binder`, ...); no aliases remain.
 
 ## Testing
 
 `TestInsertConflictCloneOwnsTheClauseHeader` covers `InsertConflict.Clone`
 and `TestExpectedCheckLifetimeFencesCatalogTypes` the held lifetime check.
 The binder needs an engine host, so its unit tests stay in the engine and
-reach it through the aliases and the exported members. The seams have engine unit tests: slots, binding
+name `analyze.Binder` and its exported members. The seams have engine unit tests: slots, binding
 authorities, held inputs, captured input retargeting and the host's rule
 check, expression and query mapping, stored-view reads and the view read
 graph:

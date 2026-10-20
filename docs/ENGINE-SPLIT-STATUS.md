@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `cb31ead98`. The later-wave plans
+Last verified against `master` at `93c5893bb`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,12 +15,10 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 12 `analyze`** — 12e, the alias removal (item 41) **broad**. 12a–12d
-  are done (12d.6 moved the binder).
 - **`access` B5** — the binding walkers (item 42).
 - **Step 13 `session`** — 13c, the refine (item 43, docs only).
 
-Steps 1, 2 and 4–11 and `access` are done. Step 13's in-place untangling (13a,
+Steps 1, 2 and 4–12 and `access` A1–B4 are done. Step 13's in-place untangling (13a,
 13b) is done; 13c (item 43) is ready. Step 16
 Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
 A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
@@ -270,7 +268,7 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
   - [x] 11d — Aliases removed *(broad)* (`4d4e0942e`, `4acc2dac9`,
     `17fc012f5`, `7d6ffd65a`, then the docs commit) *(racecheck/finalcheck
     skipped at user request)*
-- [ ] **Step 12 — `analyze`** ([prompt](ENGINE-SPLIT-analyze.md); 12a–12b
+- [x] **Step 12 — `analyze`** ([prompt](ENGINE-SPLIT-analyze.md); 12a–12b
   need —; 12c needs 10c; 12d needs 11c)
   - [x] 12a — `binding` split per statement kind *(broad)* (`50c0912f5`)
   - [x] 12b — `expressionBinder` fields grouped *(broad)* (`b1dc47647`,
@@ -304,7 +302,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     - [x] 12d.6 — Binder moved *(broad)* (`947dec977`, `5f9ca6d92`,
       `babc61e76`, `3fa00a84e`, then the docs commit)
       *(racecheck/finalcheck skipped at user request)*
-  - [ ] 12e — Aliases removed *(broad)*
+  - [x] 12e — Aliases removed *(broad)* (`b899826fd`, `541d4b757`,
+    `83c15f51d`, then the docs commit) *(racecheck/finalcheck skipped at user
+    request)*
 - [ ] **Step 13 — `session`** ([prompt](ENGINE-SPLIT-session.md); 13a–13b
   need —; 13c needs 11c, 12d, 8b)
   - [x] 13a — Statement scope slots *(broad)* (`21d5f3a49`, `a4219195b`,
@@ -560,8 +560,11 @@ in the prompt file's Status section.
       then the docs commit) · quickcheck passed; broad reference run
       stopped at user request (known drift only); racecheck/finalcheck
       skipped at user request
-41. [ ] Analyze 12e — [analyze](ENGINE-SPLIT-analyze.md) 12e · needs 40 ·
-    **broad**
+41. [x] Analyze 12e — [analyze](ENGINE-SPLIT-analyze.md) 12e · needs 40 ·
+    **broad** (`b899826fd`, `541d4b757`, `83c15f51d`, then the docs commit)
+    · selected dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request; the driver imports `analyze` for
+    `ParameterInfo`
 42. [ ] Access B5: binding walkers —
     [authorization](ENGINE-SPLIT-authorization.md) B5 · needs 40
 43. [ ] Session 13c (refine, docs only) —

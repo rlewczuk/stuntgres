@@ -1047,7 +1047,52 @@ identical `analyze` copies).
 
 ### 12e — Remove the aliases (broad)
 
+Done; see "12e result" in Status. The plan below is kept as the record.
+
 Use the alias tool; audit locals named `analyze`.
+
+#### 12e result
+
+Built at `93c5893bb`. Tools and scripts:
+`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-ALIASES/` (`c1.sh` … `c3.sh`,
+`refreal.sh`; the `unalias` tool of 10d, with the spec derived from
+`analyze_aliases.go`). No engine local or parameter is named `analyze`, and
+the dry run found no shadowed site, so no rename was needed first.
+
+- **Driver** (`b899826fd`): `value.go` (`frameImporter`) and six
+  `*_adapter_test.go` files name `analyze.ParameterInfo` (§7 decision 11 is
+  now in effect for step 12: no permanent alias). Three of the adapter tests
+  are not gofmt-clean on master, so they got the import by `sed` and were
+  not reformatted.
+- **Engine rewrite** (`541d4b757`): 1,239 references in 364 engine files
+  (production and tests; `expressionPolicy` 310, `binding` 240,
+  `viewLiteralPath` 127, `expressionBinder` 61, `ParameterInfo` 56), 0
+  shadowed; `analyze_aliases.go` deleted. Six aliases had no uses
+  (`resolverInputs`, `ruleBinding`, `viewNamespaceQualifier`,
+  `regObjectReference`, `compositeOccurrenceKind`, `fromSetObservation`).
+  Besides the renames the diff holds only added imports and gofmt's own
+  reflow of three one-line function literals that grew past its line limit;
+  `date_range_capture_test.go` and `timestamp_range_capture_test.go` (not
+  gofmt-clean on master) were renamed by `sed` instead. `go vet` output is
+  identical to the base up to line shifts from the added imports.
+- **Comments** (`83c15f51d`): the doc comments of `Binder`, `Host` and the
+  binder groups in `analyze` used their pre-move names; two engine comments
+  named `analyzeHost` and `expressionBinder.catalogSnapshot`.
+- **Tests.** None moved, deleted or rewritten; the only test edits are the
+  mechanical renames above.
+- **Verification.** `make build`, `go vet` and the targeted selection
+  (analysis host, binding slots, grouping sets, query target comparison,
+  rule CTEs, temporal range captures, view literals, SQL routine call
+  shapes, prepared rebind, table inheritance, update rows, the root range
+  and JSON path adapters) after every commit; `make quickcheck` passed on
+  the final code (48 GB memory cap). `REFERENCE=1` (real 18.6) passed for
+  `^TestReference(PreparedRebind|PreparedQueryRevalidates|Rule(Restrictions|SelectReturn)|QueryCTE|Default)`
+  (four packages). `make bench`: 871–980 µs/op
+  and 5,014 allocs/op after a 1.35 ms warm-up run, against 813–871 µs/op
+  and 5,014 allocs/op on master (timing noise; aliases have no runtime
+  effect); under the 1 ms target. `make deps`: module paths only; no engine
+  subpackage imports the root. `AGENTS.md`: 100 lines before and after.
+  racecheck/finalcheck skipped at user request.
 
 ## Stays in the engine
 
@@ -1164,20 +1209,13 @@ in §8.3 pass.
     `3fa00a84e`, then the docs commit; see the 12d.6 result). quickcheck and
     the selected `REFERENCE=1` run passed (known drift only); racecheck and
     finalcheck skipped at user request.
-- [ ] 12e — Aliases removed
+- [x] 12e — Aliases removed (`b899826fd`, `541d4b757`, `83c15f51d`, then
+  the docs commit; see the 12e result). quickcheck and the selected
+  `REFERENCE=1` run passed; racecheck and finalcheck skipped at user
+  request.
 
-Outstanding aliases: the 60 aliases in `internal/engine/analyze_aliases.go`:
-the binding types (12d.1), including `ParameterInfo`, which the driver
-names as `engine.ParameterInfo`; `lookupKind` and `namespaceSelection`
-(12d.2); `queryLockAdmission`, `preparedSource`, `admittedMutationTarget`,
-`queryColumn`, `queryQualifier` and `queryNamespace` (12d.4); and 12d.6's
-binder types: `expressionBinder`, `analyzeHost`, the groups the engine
-names (`clauseState`, `consumerContext`, `groupingState`, `queryScopeState`,
-`storedSyntaxState`), the vocabulary (`expressionContext`,
-`expressionPolicy`, `comparisonOperand`, `argumentWindowOwner`,
-`functionProjectionScope`, `analyzedGroupItem`, `storedExpressionSyntaxKey`,
-`fromSetObservation`, `sqlCallable`) and `QueryTargetComparison`/
-`QueryTargetOccurrence`. 12d.5 removed `insertConflictSlot`.
+Outstanding aliases: none. 12e removed the 60 aliases of
+`analyze_aliases.go`; the driver names `analyze.ParameterInfo`.
 
 Notes for later steps (the `12d.6` notes below were settled by the 12d.6
 result):
@@ -1260,13 +1298,12 @@ result):
   which moves to `analyze`, and its per-execution state (arbiters, catalog
   checkpoints, `insertWriteOverlay`), which stays in the engine; then
   `InsertConflictSlot` can shrink to the runtime half.
-- 12e: remove `analyze_aliases.go` with the `unalias` tool and settle §7
-  decision 11 for `ParameterInfo` (the driver's `value.go` names it). After
-  12d.6 the 60 aliases include `expressionBinder` (`analyze.Binder`, named in
-  about 70 engine test files and by `newExpressionBinder` and
-  `IndexExpressionBinder`) and `analyzeHost` (`analyze.Host`).
-  Comments in engine files still name the old type names through the
-  aliases.
+- 12e (done): the aliases are gone and §7 decision 11 is settled for
+  `ParameterInfo` (the driver imports `analyze`). Engine code moved by later
+  steps names `analyze.Binder`, `analyze.Binding` and the other `analyze`
+  types directly, so a later move needs only the import, not an alias step.
+  Design notes (`PG18-ARCH-*`) still call the binder `expressionBinder` in
+  their rationale; they were left as written.
 - `slotwrap` (12d.1 tmp directory) turns a pointer field into an interface
   slot by use context; reuse it for later slots.
 - 12d: `newHostedBinder` is the analyze-side constructor; the root keeps
