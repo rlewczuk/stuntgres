@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -22,14 +23,14 @@ type database struct {
 
 type startupDefaults map[string]string
 
-func (d startupDefaults) SessionDefault(_ context.Context, definition engine.SettingDefinition) (string, bool, error) {
+func (d startupDefaults) SessionDefault(_ context.Context, definition settings.Definition) (string, bool, error) {
 	v, ok := d[definition.Name]
 	return v, ok, nil
 }
 
 type settingNames map[string]struct{}
 
-func (n settingNames) SessionDefault(_ context.Context, d engine.SettingDefinition) (string, bool, error) {
+func (n settingNames) SessionDefault(_ context.Context, d settings.Definition) (string, bool, error) {
 	n[d.Name] = struct{}{}
 	return "", false, nil
 }

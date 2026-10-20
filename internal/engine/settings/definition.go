@@ -122,7 +122,7 @@ func CustomName(name string) bool {
 	return true
 }
 
-// ValidateSetting returns an owned definition without publishing partial state.
+// Validate returns an owned definition without publishing partial state.
 func Validate(d Definition) (Definition, error) {
 	d.Name = FoldName(d.Name)
 	if !CustomName(d.Name) || d.Type > Enum || d.Access > Privileged || d.Unit > Minutes || !utf8.ValidString(d.Description) || strings.IndexByte(d.Description, 0) >= 0 {

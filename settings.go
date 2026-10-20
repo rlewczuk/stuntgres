@@ -1,6 +1,9 @@
 package stuntgres
 
-import "stuntgres/internal/engine"
+import (
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/settings"
+)
 
 // SettingType selects the PostgreSQL configuration input and display rules.
 type SettingType uint8
@@ -51,7 +54,7 @@ type SettingDefinition struct {
 // RegisterSetting copies and validates a definition. Registration freezes when
 // the first connector constructs an engine, even if no connection is opened.
 func (d *Driver) RegisterSetting(def SettingDefinition) error {
-	v, err := engine.ValidateSetting(engine.SettingDefinition{Name: def.Name, Description: def.Description, Type: engine.SettingType(def.Type), Access: engine.SettingAccess(def.Access), BootDefault: def.Default, Unit: engine.SettingUnit(def.Unit), IntegerMin: def.IntegerMin, IntegerMax: def.IntegerMax, FloatMin: def.FloatMin, FloatMax: def.FloatMax, EnumValues: def.EnumValues})
+	v, err := settings.Validate(settings.Definition{Name: def.Name, Description: def.Description, Type: settings.Type(def.Type), Access: settings.Access(def.Access), BootDefault: def.Default, Unit: settings.Unit(def.Unit), IntegerMin: def.IntegerMin, IntegerMax: def.IntegerMax, FloatMin: def.FloatMin, FloatMax: def.FloatMax, EnumValues: def.EnumValues})
 	if err != nil {
 		return err
 	}

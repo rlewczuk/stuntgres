@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 	"sync"
 )
@@ -29,7 +30,7 @@ type Driver struct {
 	mu                sync.Mutex
 	engines           map[string]*engine.Engine
 	lastSession       ids.SessionID
-	settings          []engine.SettingDefinition
+	settings          []settings.Definition
 	settingsFrozen    bool
 	config            DriverConfig
 	foreignWrappers   []engine.ForeignDataWrapperDefinition
