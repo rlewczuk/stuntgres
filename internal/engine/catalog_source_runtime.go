@@ -28,6 +28,8 @@ type engineCatalogRuntime struct {
 	sequenceOwn  *catalogChanges
 }
 
+var _ pgcatalog.Runtime = engineCatalogRuntime{}
+
 func (r engineCatalogRuntime) CursorCount() int { return len(r.cursors.entries) }
 func (r engineCatalogRuntime) VisitCursors(visit func(pgcatalog.CursorFact) error) error {
 	for name, cursor := range r.cursors.entries {
