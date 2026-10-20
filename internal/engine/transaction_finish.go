@@ -92,9 +92,9 @@ func (s *StatementScope) Finish(err error) error {
 		}
 		t.mu.Lock()
 	}
-	if s.foreignOwner != nil {
+	if s.foreignTablesOrZero().owner != nil {
 		t.mu.Unlock()
-		err = s.finishForeignOwner(s.foreignOwner, err)
+		err = s.finishForeignOwner(s.foreignTablesOrZero().owner, err)
 		t.mu.Lock()
 	}
 	t.mu.Unlock()
@@ -122,8 +122,8 @@ func (s *StatementScope) Finish(err error) error {
 			}
 			t.mu.Unlock()
 			err = s.validatePrivateIndexExpressions(catalog, deletes)
-			if s.foreignOwner != nil {
-				err = s.finishForeignOwner(s.foreignOwner, err)
+			if s.foreignTablesOrZero().owner != nil {
+				err = s.finishForeignOwner(s.foreignTablesOrZero().owner, err)
 			}
 			t.mu.Lock()
 			if err == nil {
@@ -151,7 +151,7 @@ func (s *StatementScope) Finish(err error) error {
 				if err == nil {
 					err = e.catalogAuthorityPreflightLocked(s.catalogAuthority, catalog)
 				}
-				if err == nil && len(s.foreignStatements) != 0 {
+				if err == nil && len(s.foreignTablesOrZero().statements) != 0 {
 					session.mu.Unlock()
 					e.mu.Unlock()
 					t.mu.Unlock()
@@ -194,18 +194,18 @@ func (s *StatementScope) Finish(err error) error {
 		_ = disposeSQLCursors(s.op.Context(), t.session.cursors.endTransaction(t.ref))
 		t.mu.Lock()
 	}
-	if len(s.foreignStatements) != 0 {
+	if len(s.foreignTablesOrZero().statements) != 0 {
 		t.mu.Unlock()
 		err = s.finishForeignStatements(err)
 		t.mu.Lock()
 	}
-	if len(s.foreignHoldPromotions) != 0 {
+	if len(s.foreignTablesOrZero().holdPromotions) != 0 {
 		if err != nil && !published && len(t.foreignParticipants) != 0 {
 			t.mu.Unlock()
 			err = s.discardForeignHoldPromotions(err)
 			t.mu.Lock()
 		} else {
-			s.foreignHoldPromotions = nil
+			s.foreignTablesSlot.clearHoldPromotions()
 		}
 	}
 	if err != nil {

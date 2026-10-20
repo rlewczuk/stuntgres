@@ -71,7 +71,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
 		protocol: s.protocolSlot,
 		view:     s.view, partitionView: s.partitionsOrZero().validationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
-		domainEvaluation: s.domainEvaluation, domainInputCatalog: s.domainInputCatalog, foreignOwner: s.foreignOwner, foreignCursor: s.foreignCursor,
+		domainEvaluation: s.domainEvaluation, domainInputCatalog: s.domainInputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
 		presentation: s.presentationSlot, identity: s.identity,
 	}
 }
@@ -89,7 +89,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.setPartitionValidationView(c.partitionView)
 	s.ownWrites, s.ownDeletes = c.ownWrites, c.ownDeletes
 	s.domainEvaluation, s.domainInputCatalog = c.domainEvaluation, c.domainInputCatalog
-	s.foreignOwner, s.foreignCursor = c.foreignOwner, c.foreignCursor
+	s.setForeignLexical(c.foreignOwner, c.foreignCursor)
 	s.presentationSlot, s.identity = c.presentation, c.identity
 }
 
@@ -111,8 +111,8 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) 
 	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true}, ownWrites: ownWrites, ownDeletes: ownDeletes})
 	s.input.LockedDomainInput, s.input.DomainChecks = s, s
 	return func(primary error) error {
-		if s.foreignOwner != nil {
-			primary = s.finishForeignOwner(s.foreignOwner, primary)
+		if s.foreignTablesOrZero().owner != nil {
+			primary = s.finishForeignOwner(s.foreignTablesOrZero().owner, primary)
 		}
 		if s.view != nil && s.view != saved.view {
 			s.view.Release()

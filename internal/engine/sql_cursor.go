@@ -236,9 +236,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
-	foreignOwner := s.foreignOwner
-	s.foreignOwner = nil
-	c.foreignOwner = foreignOwner
+	c.foreignOwner = s.foreignTablesSlot.takeOwner()
 	r.entries[declaration.Name.Text] = c
 	r.ordinal = c.ordinal
 	s.completed, s.sessionCompleted, keep = !(declaration.Hold && s.implicit), true, true
@@ -258,7 +256,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.inquiry.visibilityCatalog = c.visibilityCatalog
 	s.inquiry.visibilityRelationPath, s.inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	c.authority.scope = s
-	s.foreignCursor = c
+	s.foreignTables().cursor = c
 }
 func (s *StatementScope) sessionPublicationPreflight() error {
 	e := s.op.session.Engine()

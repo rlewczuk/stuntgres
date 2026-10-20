@@ -42,9 +42,9 @@ func (owner *foreignScanOwner) finish(ctx context.Context) error {
 }
 
 func (s *StatementScope) ownForeignSource(source *foreignQuerySource) {
-	owner := &s.foreignOwner
-	if s.foreignCursor != nil {
-		owner = &s.foreignCursor.foreignOwner
+	owner := &s.foreignTables().owner
+	if s.foreignTablesOrZero().cursor != nil {
+		owner = &s.foreignTables().cursor.foreignOwner
 	}
 	if *owner == nil {
 		*owner = &foreignScanOwner{}

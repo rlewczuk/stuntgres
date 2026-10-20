@@ -225,8 +225,8 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		return err
 	}
-	if scope.foreignOwner != nil {
-		if err := scope.finishForeignOwner(scope.foreignOwner, nil); err != nil {
+	if scope.foreignTablesOrZero().owner != nil {
+		if err := scope.finishForeignOwner(scope.foreignTablesOrZero().owner, nil); err != nil {
 			return err
 		}
 	}

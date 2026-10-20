@@ -28,15 +28,15 @@ func fdwHoldSettlement(t *testing.T) {
 	participant := &foreignParticipant{tx: remote}
 	s.owner.foreignParticipants = []*foreignParticipant{participant}
 	marks := []*foreignParticipant{participant}
-	s.foreignStatements = marks
+	s.foreignTables().statements = marks
 	frontier := e.visibility.CommitSeq()
 	if err := e.holdPrecommit(op, s.owner, time.Now(), s); err != nil {
 		t.Fatal(err)
 	}
-	if s.finished || len(s.foreignStatements) != 1 || &s.foreignStatements[0] != &marks[0] || s.foreignStatements[0] != participant || len(remote.calls) != 0 || e.visibility.CommitSeq() != frontier {
+	if s.finished || len(s.foreignTablesOrZero().statements) != 1 || &s.foreignTables().statements[0] != &marks[0] || s.foreignTablesOrZero().statements[0] != participant || len(remote.calls) != 0 || e.visibility.CommitSeq() != frontier {
 		t.Fatal("borrowed HOLD scope settled, copied, or lost the current statement marks", remote.calls)
 	}
-	if len(s.foreignHoldPromotions) != 1 || s.foreignHoldPromotions[0] != session.cursors.entries["hold_owned"] || !s.foreignHoldPromotions[0].promoted {
+	if len(s.foreignTablesOrZero().holdPromotions) != 1 || s.foreignTablesOrZero().holdPromotions[0] != session.cursors.entries["hold_owned"] || !s.foreignTablesOrZero().holdPromotions[0].promoted {
 		t.Fatal("completion did not retain exact tentative promotion ownership")
 	}
 	remote.check = func() {
@@ -59,13 +59,13 @@ func fdwHoldSettlement(t *testing.T) {
 	if err := s.finishForeignStatements(nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(s.foreignStatements) != 0 || !reflect.DeepEqual(remote.calls, []string{"statement-success"}) {
+	if len(s.foreignTablesOrZero().statements) != 0 || !reflect.DeepEqual(remote.calls, []string{"statement-success"}) {
 		t.Fatal("current completion did not settle transferred marks exactly once", remote.calls)
 	}
 	if err := s.discardForeignHoldPromotions(nil); err != nil {
 		t.Fatal(err)
 	}
-	if session.cursors.entries["hold_owned"] != nil || len(s.foreignHoldPromotions) != 0 {
+	if session.cursors.entries["hold_owned"] != nil || len(s.foreignTablesOrZero().holdPromotions) != 0 {
 		t.Fatal("unpublished completion retained a fresh HOLD promotion")
 	}
 }

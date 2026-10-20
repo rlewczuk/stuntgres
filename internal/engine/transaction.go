@@ -304,11 +304,6 @@ type StatementScope struct {
 	ticket                *lock.Ticket
 	multiEvents           []lock.MultiEvent
 	querySources          []queryLeaf
-	foreignOwner          *foreignScanOwner
-	foreignStatements     []*foreignParticipant
-	foreignModifications  []*foreignModification
-	foreignHoldPromotions []*sqlCursor // Exact new promotions owned by this completion.
-	foreignCursor         *sqlCursor
 	queryLockAdmission    queryLockAdmission
 	queryLocks            *queryLockContext
 	txRef                 ids.TxRef
@@ -348,6 +343,7 @@ type StatementScope struct {
 	inheritance           inheritanceScope
 	indexesSlot           *indexScope
 	partitionsSlot        *partitionScope
+	foreignTablesSlot     *foreignTableScope
 }
 
 type WriteStage struct {

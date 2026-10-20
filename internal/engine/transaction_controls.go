@@ -217,20 +217,20 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		}
 		if err == nil {
 			var publicationScope *StatementScope
-			if scope != nil && len(scope.foreignStatements) != 0 {
+			if scope != nil && len(scope.foreignTablesOrZero().statements) != 0 {
 				publicationScope = scope
 			}
 			err = e.publishWrites(op, ref, t.writes, t.deletes, publicationScope)
 			committed = err == nil
 		}
-		if scope != nil && len(scope.foreignStatements) != 0 {
+		if scope != nil && len(scope.foreignTablesOrZero().statements) != 0 {
 			err = scope.finishForeignStatements(err)
 		}
 		if scope != nil {
 			if hasForeign && !committed {
 				err = scope.discardForeignHoldPromotions(err)
 			} else {
-				scope.foreignHoldPromotions = nil
+				scope.foreignTablesSlot.clearHoldPromotions()
 			}
 		}
 		// Old publication truth is independent of prospective CHAIN readmission.

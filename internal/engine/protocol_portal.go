@@ -307,8 +307,7 @@ func (s *StatementScope) installProtocolProducer(root LogicalNode, source *query
 		reader.qualified, reader.resolved = nil, nil
 		c.state.input.RegTS = reader
 	}
-	c.foreignOwner = s.foreignOwner
-	s.foreignOwner = nil
+	c.foreignOwner = s.foreignTablesSlot.takeOwner()
 	bind := s.protocolOrZero().bind
 	bind.producer = c
 	bind.completionBase, bind.completionCounted = "SELECT", true
@@ -508,7 +507,7 @@ func (s *StatementScope) enterProtocolProducer(c *sqlCursor) {
 
 func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
 	c.authority.scope = nil
-	s.foreignCursor = nil
+	s.setForeignCursor(nil)
 	s.routineAuth = AuthorizationView{}
 	s.routineDependencies = nil
 	s.protocol().resume = false

@@ -39,13 +39,13 @@ func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start tim
 	owner.mu.Lock()
 	scope.attachTransactionLocked()
 	owner.mu.Unlock()
-	scope.foreignStatements = settlement.foreignStatements
-	settlement.foreignStatements = nil
+	scope.setForeignStatements(settlement.foreignTablesOrZero().statements)
+	settlement.foreignTablesSlot.clearStatements()
 	defer func() {
-		settlement.foreignStatements = scope.foreignStatements
-		scope.foreignStatements = nil
-		settlement.foreignHoldPromotions = scope.foreignHoldPromotions
-		scope.foreignHoldPromotions = nil
+		settlement.setForeignStatements(scope.foreignTablesOrZero().statements)
+		scope.foreignTablesSlot.clearStatements()
+		settlement.setForeignHoldPromotions(scope.foreignTablesOrZero().holdPromotions)
+		scope.foreignTablesSlot.clearHoldPromotions()
 		scope.routineAuth = AuthorizationView{}
 		scope.routineDependencies = nil
 		scope.routinePrograms = nil
@@ -85,7 +85,7 @@ func (s *StatementScope) materializeHeldCursors() error {
 	// A failed current promotion is disposed by materializeHeldCursor itself.
 	promotions := cursors[:0]
 	defer func() {
-		s.foreignHoldPromotions = promotions
+		s.setForeignHoldPromotions(promotions)
 		clear(cursors[len(promotions):])
 	}()
 	for _, c := range cursors {

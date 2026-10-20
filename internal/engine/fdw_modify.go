@@ -106,7 +106,7 @@ func (m *foreignModification) begin(ctx context.Context, s *StatementScope) erro
 	}
 	m.request.Transaction = tx
 	m.entered = true
-	s.foreignModifications = append(s.foreignModifications, m)
+	s.foreignTables().modifications = append(s.foreignTablesOrZero().modifications, m)
 	if m.copy {
 		if beginner, ok := m.source.wrapper.(catalog.ForeignInsertBeginner); ok {
 			m.state, err = beginner.BeginForeignInsert(ctx, catalog.ForeignInsertRequest{ForeignRequest: copyForeignRequest(m.request.ForeignRequest), Copy: true})

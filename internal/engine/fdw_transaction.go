@@ -31,7 +31,7 @@ func (s *StatementScope) touchForeignScan(ctx context.Context, source *foreignQu
 	}
 	r := source.request
 	key := foreignParticipantKey{r.HandlerOID, r.ServerOID, r.MappingOID, r.RoleOID}
-	for _, p := range s.foreignStatements {
+	for _, p := range s.foreignTablesOrZero().statements {
 		if p.key == key {
 			if p.closed {
 				return errors.New("stuntgres: foreign transaction is already disposed")
@@ -128,9 +128,9 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 	if len(marks) != 0 && !participant.capabilities.Savepoints {
 		return nil, sqlError("0A000", "foreign transaction does not support savepoints")
 	}
-	if !slices.Contains(s.foreignStatements, participant) {
+	if !slices.Contains(s.foreignTablesOrZero().statements, participant) {
 		// Record before entry: a partial BeginStatement must be rolled back.
-		s.foreignStatements = append(s.foreignStatements, participant)
+		s.foreignTables().statements = append(s.foreignTablesOrZero().statements, participant)
 		if err := participant.tx.BeginStatement(ctx); err != nil {
 			return nil, foreignCallbackError(err)
 		}
@@ -139,23 +139,25 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 }
 
 func (s *StatementScope) finishForeignModifications(primary error) error {
-	if len(s.foreignModifications) != 0 {
+	if len(s.foreignTablesOrZero().modifications) != 0 {
 		s.foreignUnlocked()
 	}
-	for _, modification := range s.foreignModifications {
+	for _, modification := range s.foreignTablesOrZero().modifications {
 		if err := modification.end(s.op.Context()); primary == nil {
 			primary = err
 		}
 	}
-	s.foreignModifications = nil
+	if s.foreignTablesSlot != nil {
+		s.foreignTablesSlot.modifications = nil
+	}
 	return primary
 }
 func (s *StatementScope) finishForeignStatements(primary error) error {
-	if len(s.foreignStatements) != 0 {
+	if len(s.foreignTablesOrZero().statements) != 0 {
 		s.foreignUnlocked()
 	}
 	ctx := context.WithoutCancel(s.op.Context())
-	for _, p := range s.foreignStatements {
+	for _, p := range s.foreignTablesOrZero().statements {
 		if p.closed {
 			continue
 		}
@@ -168,7 +170,7 @@ func (s *StatementScope) finishForeignStatements(primary error) error {
 			_ = p.tx.Rollback(ctx)
 		}
 	}
-	s.foreignStatements = nil
+	s.foreignTablesSlot.clearStatements()
 	return primary
 }
 func rollbackForeign(ctx context.Context, participants []*foreignParticipant) error {

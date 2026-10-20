@@ -419,3 +419,84 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 	keep = err == nil
 	return result, err
 }
+
+// foreignTableScope is the statement's foreign-table slot: the foreign scan
+// owner and cursor, the FDW participants and modifications of this statement,
+// and the hold-cursor promotions owned by this completion.
+type foreignTableScope struct {
+	owner          *foreignScanOwner
+	cursor         *sqlCursor
+	statements     []*foreignParticipant
+	modifications  []*foreignModification
+	holdPromotions []*sqlCursor // Exact new promotions owned by this completion.
+}
+
+// foreignTables returns the statement's foreignTables slot, allocating it on first use.
+func (s *StatementScope) foreignTables() *foreignTableScope {
+	if s.foreignTablesSlot == nil {
+		s.foreignTablesSlot = new(foreignTableScope)
+	}
+	return s.foreignTablesSlot
+}
+
+// foreignTablesOrZero reads the foreignTables slot; a nil slot reads as zero.
+func (s *StatementScope) foreignTablesOrZero() foreignTableScope {
+	if s.foreignTablesSlot == nil {
+		return foreignTableScope{}
+	}
+	return *s.foreignTablesSlot
+}
+
+// takeOwner detaches the statement's foreign scan owner, if any.
+func (f *foreignTableScope) takeOwner() *foreignScanOwner {
+	if f == nil {
+		return nil
+	}
+	owner := f.owner
+	f.owner = nil
+	return owner
+}
+
+// clearStatements forgets the statement's foreign participants.
+func (f *foreignTableScope) clearStatements() {
+	if f != nil {
+		f.statements = nil
+	}
+}
+
+// clearHoldPromotions forgets this completion's hold-cursor promotions.
+func (f *foreignTableScope) clearHoldPromotions() {
+	if f != nil {
+		f.holdPromotions = nil
+	}
+}
+
+// The setters below install a value, allocating the slot only for a
+// non-nil value: a missing slot already reads as nil.
+
+func (s *StatementScope) setForeignStatements(statements []*foreignParticipant) {
+	if statements != nil || s.foreignTablesSlot != nil {
+		s.foreignTables().statements = statements
+	}
+}
+
+func (s *StatementScope) setForeignHoldPromotions(promotions []*sqlCursor) {
+	if promotions != nil || s.foreignTablesSlot != nil {
+		s.foreignTables().holdPromotions = promotions
+	}
+}
+
+func (s *StatementScope) setForeignCursor(cursor *sqlCursor) {
+	if cursor != nil || s.foreignTablesSlot != nil {
+		s.foreignTables().cursor = cursor
+	}
+}
+
+// setForeignLexical installs the scan owner and cursor saved around a SQL
+// routine body.
+func (s *StatementScope) setForeignLexical(owner *foreignScanOwner, cursor *sqlCursor) {
+	if owner != nil || cursor != nil || s.foreignTablesSlot != nil {
+		f := s.foreignTables()
+		f.owner, f.cursor = owner, cursor
+	}
+}

@@ -6,8 +6,8 @@ import "context"
 // identifies newly promoted cursors whose old transaction failed publication;
 // preexisting committed HOLD cursors and successful old commits are untouched.
 func (s *StatementScope) discardForeignHoldPromotions(primary error) error {
-	promotions := s.foreignHoldPromotions
-	s.foreignHoldPromotions = nil
+	promotions := s.foreignTablesOrZero().holdPromotions
+	s.foreignTablesSlot.clearHoldPromotions()
 	if len(promotions) == 0 {
 		return primary
 	}
