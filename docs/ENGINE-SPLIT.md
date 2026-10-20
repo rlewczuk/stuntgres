@@ -1230,7 +1230,9 @@ These packages get prompt files after the steps above. Each needs `session`
    `sequence`. Each step confirms its name in its first sub-step. Settled
    for step 8 (8b): `settings`, with `Definition`, `Type`, `Access`, `Unit`,
    `Value` (exported fields), `Registry`/`NewRegistry`, `Validate` and
-   `SessionDefaultProvider`; constants drop the `Setting` prefix.
+   `SessionDefaultProvider`; constants drop the `Setting` prefix. Settled
+   for step 10 (10c): `plan`, with `Node`, `Query`, `XxxNode` plan nodes and
+   `XxxExpr` expression nodes (table in the plan prompt).
 7. **Slot typing.** Before `session` moves, scope and journal slots name
    engine types; after it moves they must be lower-layer interfaces (§3 rule
    7). Settle in 13c whether that is one interface per slot or a typed key
@@ -1274,7 +1276,7 @@ package-specific scope. This section holds the rules every session follows.
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
-| 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a and 10b done (racecheck/finalcheck skipped by user); 10c–10d planned |
+| 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a–10c done: `plan` created, IR and node types moved (racecheck/finalcheck skipped by user); 10d planned |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a–12b done (racecheck/finalcheck skipped at user request); 12c–12e planned |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a done (statement scope slots; racecheck/finalcheck skipped at user request); 13b–13e planned |

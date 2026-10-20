@@ -506,20 +506,16 @@ Run `make check RUN='^(TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExt
 
 ### Expression node runtime
 
-Engine expression nodes never name `*EvalContext` in their `Eval` methods.
-`nodeRuntime` (`node_runtime.go`), implemented only by `*EvalContext`, is
-their capability: `BeginEvaluation` is the shared prologue (missing-context
-check, domain-check wiring while a domain value is active, then cancellation,
-in that order), `ApplyCoercion` and `RowAbsent` serve coercion and whole-row
-presence, `FrameValue` and `ParameterValue` are the plain column and parameter
-reads by scalar coordinates (no node copy on the hot path), and one `Eval*`
-method per remaining frame or executor node (full column, group, grouping,
-tableoid, RETURNING, MERGE action, cached order, window, domain VALUE, UPDATE
-output, subquery, SQL routine) holds that node's evaluation body. Statement-only nodes read the cancellation context and
-environments through `expr.Context`, at the same points as before. A
-data-modifying CTE carries its binding as the opaque `cteMutation`, recovered
-only through `mutationBinding`. The installed-function and extension-path
-nodes still recover `*EvalContext`; they move with `plan`, not `extension`.
+The plan IR and the expression node types live in
+[`plan`](plan/README.md), which documents the `plan.Runtime` capability.
+`*EvalContext` is its only implementation (`node_runtime.go`): it holds the
+shared prologue and the `Eval*` bodies of the frame and executor nodes. The
+engine still names the moved types through the temporary aliases in
+`plan_aliases.go` (removed in ENGINE-SPLIT 10d). A data-modifying CTE carries
+its binding as the opaque `plan.CTEMutation`, recovered only through
+`mutationBinding`. The installed-function and extension-path nodes still
+recover `*EvalContext`; they move with `plan`, not `extension`, once they
+no longer need it (see the plan prompt's 10c notes).
 
 Run `make check RUN='^TestNodeRuntimePrologue$'` for the prologue seam; public
 evaluation proof is the existing query, CTE, RETURNING, MERGE, window,

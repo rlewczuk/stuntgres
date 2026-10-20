@@ -173,6 +173,25 @@ change).
    `plan.LogicalNode`, `plan.Query`, `plan.Source`, `plan.Join`, ...;
    expression nodes `plan.Column`, `plan.Coercion`, ...). Decide with the
    user and record the table here.
+
+   Settled with the user in 10c (Node/Expr suffixes):
+
+   | Engine (alias until 10d) | `plan` |
+   |---|---|
+   | `LogicalNode`, `BoundQuery`, `querySchema` | `Node`, `Query`, `QuerySchema` |
+   | `xxxNode` (the 20 plan nodes) | `XxxNode` |
+   | `xxxExpression` (`columnExpression`, `sqlRoutineExpression`, `tableOIDExpression`, ...) | `XxxExpr` (`ColumnExpr`, `SQLRoutineExpr`, `TableOIDExpr`, ...) |
+   | `unknownOutput`, `nodeRuntime` | `UnknownOutput`, `Runtime` |
+   | `sortKey`, `queryGrouping`, `aggregateCall`, `windowCall`, `windowOperation` | `SortKey`, `Grouping`, `AggregateCall`, `WindowCall`, `WindowOperation` |
+   | `boundWindowSpec`, `boundWindowFrame`, `boundWindowBound` | `WindowSpec`, `WindowFrame`, `WindowBound` |
+   | `searchRecipe`, `cycleRecipe`, `cteDefinition`, `cteMutation` | `SearchRecipe`, `CycleRecipe`, `CTEDefinition`, `CTEMutation` |
+   | `functionCorrelation`, `querySetTemplate`, `querySetStep`, `querySetStepKind`, `querySetSlot`, `queryRowMark` | `FunctionCorrelation`, `SetTemplate`, `SetStep`, `SetStepKind`, `SetSlot`, `RowMark` |
+   | `sqlJSONArrayQuery`, other helper types | `SQLJSONArrayQuery`, capitalized |
+   | `Truth`, `True`, `False`, `Unknown`, `TruthOf` | same names |
+
+   Fields and methods are capitalized with Go initialisms (`CTE`, `SQL`,
+   `ID`); embedded `querySchema`, `setNode`, `derivedNode` and
+   `columnExpression` fields take the new type names.
 3. Move with the `movex` approach: the IR, the records, the node types of
    groups S, F and X, their non-`Eval` methods that are clean, and
    `nodeRuntime` as `plan.Runtime`. The engine keeps the `Eval*` bodies on
@@ -243,10 +262,17 @@ names `*EvalContext`. `EvalContext` is three documented groups. The checks in
 - [x] 10b — Opaque CTE mutation and node runtime, in place (`61c56b76b`,
   `55a5497bd`, `d046dec09`, `854c270a9`, `65b24c846`, docs: the commit that
   records this status) *(racecheck/finalcheck skipped at user request)*
-- [ ] 10c — `plan` created, IR and node types moved
+- [x] 10c — `plan` created, IR and node types moved (`6189f6483`,
+  `00e890338`, `a6188a084`, then the docs commit) *(racecheck/finalcheck
+  skipped at user request)*
 - [ ] 10d — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases (10c): `internal/engine/plan_aliases.go` holds 90 type
+aliases, one per moved type the engine names (`LogicalNode = plan.Node`,
+`BoundQuery = plan.Query`, `columnExpression = plan.ColumnExpr`, ...; the
+exported `Truth` too). `cteMutation` and `rowFieldProjection` need none.
+Functions and constants were qualified instead (`plan.TruthOf`,
+`plan.True`, `plan.BeginEvaluation`, the `plan.Window*` operations, ...).
 
 ### 10a result
 
@@ -409,3 +435,93 @@ Notes for later steps:
   place to win back the 10b cost.
 - Step 16: the installed-function and extension-path nodes still recover
   `*EvalContext`.
+
+### 10c result
+
+Re-measured at `1ecaa1876`, `cdf48fdd6` (after 13a) and `01c1a9ec4` (after
+16a): the move
+set is the 20 plan nodes, `LogicalNode`, `BoundQuery`, `querySchema`, the
+records, `cteMutation`, the 41 expression node types (all but the two
+extension nodes) and `nodeRuntime`. A fixed-point frontier pass (15a
+`frontier` tool) added the helper types and functions they need:
+`Truth`/`TruthOf`, `caseBranch`, `boundArraySubscript`, `boundWindowFrame`,
+`boundWindowBound`, `rowFieldProjection`, `compositeExpansionBinding`,
+`mergeReturningSide`, `wholeRowSource`, `sqlJSONArrayQuery`,
+`querySetStepKind`, all `windowOperation` constants,
+`arrayAssignmentTarget`, `decisiveLogicalValue`, `evaluateArrayBounds`,
+`queryPredicateProofValue`, `sameIntaggIdentity`, `unnestInputTypes` and the
+series/unnest source cursors: 92 types, about 3k lines.
+
+- `6189f6483` (split): `functionFromNode.openCall` became the engine
+  function `openFunctionCall` (it named `*EvalContext`). The moving
+  declarations of 56 mixed files moved unchanged into fifteen
+  `plan_*.go` topic files; eight files moved whole.
+- `00e890338` (export in place): `movex` member mode capitalized the 430
+  fields and methods and 18 functions and constants that other engine code
+  uses (14,490 references; the per-object census is identical before and
+  after). The `cteMutation` marker method became `CTEMutationPayload`, on
+  the interface and on `*binding`.
+- `a6188a084` (move): 23 files into `internal/engine/plan` with the naming
+  table above (alias mode inside the set, embedded-field renames,
+  qualification outside), `plan_aliases.go`, and a private `sqlError` copy
+  in `plan/errors.go`. `plan` imports `catalog`, `expr`, `functions`, `ids`,
+  `lock`, `parser`, `sqlstate`, `sqltype` and the standard library; no
+  engine subpackage imports the engine, and no `plan` declaration names
+  `*EvalContext`. The `Eval*` bodies stay on `*EvalContext`.
+- The commits are produced by re-runnable scripts, so the rebases over 13a
+  and 16a regenerated them on the new tip instead of merging conflicts (16a
+  only needed one more split mapping: `sameIntaggIdentity` now lives in
+  `intagg_identity.go`); the regenerated `plan` package and alias file are
+  byte-identical to the first pass.
+- Tests: no engine test covers only moved code, so none moved or was
+  deleted. Adapted mechanically: `object_address_routine_test.go`
+  (`openFunctionCall`), embedded-field keys and selectors
+  (`QuerySchema:`, `SetNode:`, ...), and four tests that match type or
+  frame names: `query_window_test.go` and `query_window_exclude_test.go`
+  (stack-frame phases `ColumnExpr.Eval`, `LiteralExpr.Eval`,
+  `WindowExpr).Eval`), `expression_protocol_test.go` and
+  `intagg_routine_authority_test.go` (`%T` names `plan.LiteralExpr`,
+  `plan.ParameterExpr`).
+- Observable only in internal invariant errors: messages that print a node
+  with `%T` (for example "unsupported deparse node %T") now name
+  `plan.XxxExpr` types. No reference or smoke test matches them.
+- `go vet` composites findings grow by 145 (2,719 to 2,864 at `01c1a9ec4`): unkeyed engine
+  literals of node types (mostly `literalExpression` and
+  `coercionExpression`) are now literals of an imported package. Other vet
+  findings are unchanged.
+- Verification: build, vet and the 1,181 targeted engine unit tests after
+  every commit; `make quickcheck` passed before and after the rebase, and
+  `make deps` lists only module paths. The five step-10 reference
+  selections passed in quick mode (inside quickcheck) and with
+  `REFERENCE=1`, before and after the rebase, except the known oracle-side
+  `/postgres` drift (`DeleteReturningBoundaries` and four MERGE
+  repeatable-read tests); every stuntgres subtest passed. Startup bench
+  (`make bench`, two interleaved rounds of five vs `cdf48fdd6`, host load
+  about 10): median 892 µs/op before and 874 µs/op after, 5,018–5,027
+  allocs/op on both. Evaluation benchmark (the 10b throwaway, six
+  interleaved runs, median/minimum): arithmetic −0.4%/−0.0%, coercion
+  +3.3%/+0.4%, conditional −4.7%/−1.1%, grouping −1.5%/−8.2%, subquery
+  +0.7%/+1.0%, table scan +1.3%/+1.8%, window −5.2%/−14.4%; allocations
+  identical. The move adds no cost. Racecheck and finalcheck skipped at
+  user request.
+
+Notes for later steps (10c):
+
+- 10d: about 87 engine files declare locals or parameters named `plan`
+  (mostly `sqltype.CoercionPlan` values); 48 files already import `plan`.
+  Check `LookupParent` at every rewritten use and rename shadowing locals
+  first. The 145 unkeyed node literals can become keyed there.
+- 10d: `SubqueryExpr.CTEDefinition` is a `bool` (the analysis-only CTE
+  edge flag), not a definition; consider a clearer name when the aliases go.
+- 11a: `query_search.go` (`searchRecipe`) moved whole into `plan`, so the
+  exec inventory no longer lists it; the series, subscripts and unnest
+  source cursors moved with their nodes.
+- 12c: the binder constructs `plan` types through the aliases until 10d.
+- 16a decided that the installed expression wrappers
+  (`installedFunctionExpression`, `installedCryptoFunctionExpression`,
+  `installedUUIDOsspFunctionExpression`) and `extensionPathsExpression` go
+  with `plan`. 10c left them in the engine: their `Eval` still recovers
+  `*EvalContext` through `evalContext`, which `plan` must not name. Moving
+  them needs a `plan.Runtime` method (or a `functions` runtime) for the
+  state they read first; do it in 10d or a follow-up sub-step.
+

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `cdf48fdd6`. The later-wave plans
+Last verified against `master` at `01c1a9ec4fc1f095fb77c48921659ed6aec63060`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,11 +15,14 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 10 `plan`** — 10c `plan` created and moved (item 33; broad); 10b
-  is done.
+- **Step 10 `plan`** — 10d aliases removed (item 34; broad); 10c is done.
+- **Step 11 `exec`** — 11a refine (item 35; docs only); 10c and 13a are
+  done.
+- **Step 12 `analyze`** — 12c refine, then host seam (item 39); 12b and 10c
+  are done.
 - **In-place untangling** — 13b operation, journal, stage and owner slots
-  (item 23; broad); 13a is done. 12c (item 39) still needs 10c (item 33).
-  10c and 13b are both broad: run them one after the other.
+  (item 23; broad); 13a is done. 10d and 13b are both broad: run them one
+  after the other.
 - **Step 16 `extension`** — 16b `extension` created and clean set moved
   (item 29); 16a is done.
 
@@ -252,7 +255,9 @@ done; 17c (item 52) waits for 13d (item 44).
     (`61c56b76b`, `55a5497bd`, `d046dec09`, `854c270a9`, `65b24c846`, docs:
     the commit that records this status) *(racecheck/finalcheck skipped at
     user request)*
-  - [ ] 10c — `plan` created, IR and node types moved *(broad)*
+  - [x] 10c — `plan` created, IR and node types moved *(broad)*
+    (`6189f6483`, `00e890338`, `a6188a084`, then the docs commit) *(racecheck/finalcheck skipped at user
+    request)*
   - [ ] 10d — Aliases removed *(broad)*
 - [ ] **Step 11 — `exec`** ([prompt](ENGINE-SPLIT-exec.md); needs 10c, 13a)
   - [ ] 11a — Refine (docs only)
@@ -452,7 +457,9 @@ in the prompt file's Status section.
 32. [x] Plan 10b — [plan](ENGINE-SPLIT-plan.md) 10b · needs 19 · selected
     dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
     user request; decision 9 settled with a measured evaluation cost
-33. [ ] Plan 10c — [plan](ENGINE-SPLIT-plan.md) 10c · needs 32 · **broad**
+33. [x] Plan 10c — [plan](ENGINE-SPLIT-plan.md) 10c · needs 32 · **broad**
+    (`6189f6483`, `00e890338`, `a6188a084`, then the docs commit) · selected dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 34. [ ] Plan 10d — [plan](ENGINE-SPLIT-plan.md) 10d · needs 33 · **broad**
 35. [ ] Exec 11a (refine, docs only) — [exec](ENGINE-SPLIT-exec.md) 11a ·
     needs 33, 22

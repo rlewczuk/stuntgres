@@ -36,7 +36,7 @@ dispatch, the DML executors and cursors.
 `query_cte.go`, `query_hash.go`, `query_distinct.go`, `query_cycle.go`,
 `query_limit.go`, `query_frames.go`, `query_subquery_capture.go`,
 `query_distinct_on.go`, `query_pending_locks.go`, `query_window_prune.go`,
-`query_virtual.go`, `query_derived.go`, `query_search.go`,
+`query_virtual.go`, `query_derived.go`,
 `query_lock_order.go`, `query_lock_versions.go`, `query_ties.go`,
 `query_authority.go`, `query_detach.go`, `query_join_absence.go`,
 `string_set_query.go` (955, function source cursors), `window_query.go`

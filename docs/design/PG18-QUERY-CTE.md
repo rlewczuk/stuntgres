@@ -39,14 +39,14 @@ never receive a physical occurrence, ObjectRef, OID, ACL or relation lock.
 
 The existing expression binder owns parameters, types, source identities and
 static dependencies. Its separate WITH environment is restored at query exit.
-Each immutable `cteDefinition` records the typed canonical query, owning frame,
+Each immutable `plan.CTEDefinition` records the typed canonical query, owning frame,
 reference count, hint, volatility and diagnostic position. An earlier definition
 is published only after its body has bound successfully. Aliases alter only the
 occurrence namespace, not the canonical definition or another alias's outputs.
 
 ## Static retention is not execution reachability
 
-Definition subplans are retained as explicitly analysis-only `subqueryExpression`
+Definition subplans are retained as explicitly analysis-only `plan.SubqueryExpr`
 edges in the existing project's `analysisExpressions`. Existing static graph
 walkers continue to see frames, expressions, dependencies and stored syntax.
 Executable walkers exclude those edges, but still visit every target and nested
@@ -153,7 +153,7 @@ WITH names, prefix aliases and hints while remapping real-object names/dependenc
 Native Dump/Restore persists real objects and stored definitions, never transient
 CTE objects or producer results.
 
-Nested stored remapping memoizes by `*projectNode` graph identity, not lexical frame
+Nested stored remapping memoizes by `*plan.ProjectNode` graph identity, not lexical frame
 number. Distinct folded roots may share a lexical evaluation coordinate while
 carrying different occurrence predicates; they must not collapse. Identical
 canonical roots still share. A separate immutable-definition memo preserves CTE

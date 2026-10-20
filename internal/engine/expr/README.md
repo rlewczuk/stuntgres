@@ -281,13 +281,13 @@ asks `ResultNullability` without requiring Composite membership.
 
 ## What stays in the engine
 
-The concrete nodes (column, parameter, coercion, CASE, row, subquery and the
-rest), the plan IR, `EvalContext` and its private state, and binding. Engine
-nodes recover the engine-local `nodeRuntime` capability from the `Context`
-they receive: statement-only nodes run its prologue and then use this
-`Context`'s environments; frame and executor nodes delegate to its `Eval*`
-methods. Only the extension nodes still recover `*EvalContext` through
-`evalContext`.
+`EvalContext` and its private state, and binding. The concrete nodes
+(column, parameter, coercion, CASE, row, subquery and the rest) and the plan
+IR live in [`plan`](../plan/README.md); they recover the `plan.Runtime`
+capability from the `Context` they receive: statement-only nodes run its
+prologue and then use this `Context`'s environments; frame and executor
+nodes delegate to its `Eval*` methods, whose bodies stay in the engine. Only
+the extension nodes still recover `*EvalContext` through `evalContext`.
 Catalog/session function nodes instead live in `functions` and recover its
 CatalogInquiryRuntime/SessionInquiryRuntime from this Context. Those finite
 capabilities keep engine authority and state out of the leaf without extending
