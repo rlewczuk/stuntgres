@@ -23,7 +23,7 @@ func TestProtocolCopyInputStartOwnership(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, _, op, scope := copyUnitStart(t, false)
 			defer op.Done()
-			scope.protocolCommand = tc.wire
+			scope.protocol().command = tc.wire
 			cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 			veto := errors.New("CopyIn publication failed")
 			if tc.before {

@@ -234,7 +234,7 @@ func (s *StatementScope) copyBinaryOutput(rows RowResult, w io.Writer) (int64, e
 	if len(schema) > math.MaxInt16 {
 		return 0, sqlError("54000", "too many binary COPY columns")
 	}
-	if s.protocolCommand || s.protocolSimple {
+	if s.protocolOrZero().command || s.protocolOrZero().simple {
 		// CopyOutResponse has already been sent. Resolve the declared send
 		// providers before the binary signature or any row demand.
 		for _, column := range schema {

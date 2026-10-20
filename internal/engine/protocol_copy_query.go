@@ -11,15 +11,16 @@ import (
 // COPY owns the initialized cursor directly; its capture carrier has no name,
 // registry entry, birth or portal execution lifecycle.
 func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (RowResult, error) {
-	expected, binding := s.Expected, s.protocolBind
-	s.Expected, s.protocolBind = nil, nil
-	defer func() { s.Expected, s.protocolBind = expected, binding }()
-	if !(s.protocolCommand || s.protocolSimple) || !protocolPlainSelect(query) {
+	expected, binding := s.Expected, s.protocolOrZero().bind
+	s.Expected = nil
+	s.setProtocolBind(nil)
+	defer func() { s.Expected = expected; s.setProtocolBind(binding) }()
+	if !(s.protocolOrZero().command || s.protocolOrZero().simple) || !protocolPlainSelect(query) {
 		result, err := s.op.session.Engine().executeStatement(s, query, 0, nil)
 		return result.Rows, err
 	}
 	capture := protocolPortal{}
-	s.protocolBind = &capture
+	s.protocol().bind = &capture
 	_, err := s.op.session.Engine().executeStatement(s, query, 0, func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error { return nil })
 	if err != nil {
 		_ = s.protocolTerminalIO(func() error { return capture.releaseExecutor(s.op.Context()) })

@@ -213,9 +213,9 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 	switch entry.body.(type) {
 	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		s.Expected = &p.entry.description
-		s.protocolBind = p
+		s.protocol().bind = p
 		_, err = s.Execute(entry.body, int(count), importer)
-		s.protocolBind = nil
+		s.setProtocolBind(nil)
 	default:
 		if err = s.prepareProtocolUtilityInput(entry.description.Parameters.Types); err != nil {
 			return out, err
@@ -309,8 +309,9 @@ func (s *StatementScope) installProtocolProducer(root LogicalNode, source *query
 	}
 	c.foreignOwner = s.foreignOwner
 	s.foreignOwner = nil
-	s.protocolBind.producer = c
-	s.protocolBind.completionBase, s.protocolBind.completionCounted = "SELECT", true
+	bind := s.protocolOrZero().bind
+	bind.producer = c
+	bind.completionBase, bind.completionCounted = "SELECT", true
 	s.authority.scope = nil
 	s.routineAuth = AuthorizationView{}
 	s.routineDependencies = nil
@@ -502,7 +503,7 @@ func (p *protocolPortal) completionTag(count int64) string {
 
 func (s *StatementScope) enterProtocolProducer(c *sqlCursor) {
 	c.admit(s)
-	s.protocolResume = true
+	s.protocol().resume = true
 }
 
 func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
@@ -510,7 +511,7 @@ func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
 	s.foreignCursor = nil
 	s.routineAuth = AuthorizationView{}
 	s.routineDependencies = nil
-	s.protocolResume = false
+	s.protocol().resume = false
 }
 
 func (s *StatementScope) captureProtocolOutput(rows *finalRows, values []sqltype.Value, catalog catalog.Read) error {
@@ -534,4 +535,40 @@ func (s *StatementScope) captureProtocolOutput(rows *finalRows, values []sqltype
 	rows.output.Operator, rows.output.Regcollation, rows.output.Regnamespace, rows.output.RegTS = rows, rows, rows, rows
 	rows.output.ACLItem = rows
 	return nil
+}
+
+// protocolScope is the statement's wire-protocol slot: the bound or simple-query
+// portal and the execution policy flags of the current protocol message.
+type protocolScope struct {
+	bind            *protocolPortal
+	resume          bool
+	simple          bool
+	simpleCreated   bool
+	simpleStreaming bool
+	simplePortal    *protocolPortal
+	command         bool // Explicit wire preparation/execution policy, not session state.
+}
+
+// protocol returns the statement's protocol slot, allocating it on first use.
+func (s *StatementScope) protocol() *protocolScope {
+	if s.protocolSlot == nil {
+		s.protocolSlot = new(protocolScope)
+	}
+	return s.protocolSlot
+}
+
+// protocolOrZero reads the protocol slot; a nil slot reads as zero.
+func (s *StatementScope) protocolOrZero() protocolScope {
+	if s.protocolSlot == nil {
+		return protocolScope{}
+	}
+	return *s.protocolSlot
+}
+
+// setProtocolBind stores the portal bound for execution; clearing it never
+// allocates the slot.
+func (s *StatementScope) setProtocolBind(p *protocolPortal) {
+	if p != nil || s.protocolSlot != nil {
+		s.protocol().bind = p
+	}
 }

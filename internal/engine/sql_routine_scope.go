@@ -33,45 +33,43 @@ func (s *StatementScope) leaveSQLRoutine() {
 // existing waits/providers alone release/reacquire it and Finish sees its real flag.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
-	command                                                                                         ruleCommandScratch
-	mutations                                                                                       []statementMutation
-	activeMutation                                                                                  int
-	cteInvocation                                                                                   *cteInvocation
-	activeViews                                                                                     []ids.ObjectAddress
-	inheritanceRelations                                                                            []queryLeaf
-	inheritanceCatalog                                                                              catalog.Read
-	authority                                                                                       *queryAuthority
-	routineAuth                                                                                     AuthorizationView
-	expected                                                                                        *StatementDescription
-	preparedReuse                                                                                   *preparedAnalysis
-	preparedInvalid                                                                                 bool
-	preparedPath                                                                                    sequence.Environment
-	preparedNamespace                                                                               uint64
-	preparedPrivate                                                                                 *catalogChanges
-	preparedEpoch                                                                                   ids.CatalogEpoch
-	preparedChangedDuringAdmission, admissionWaited                                                 bool
-	sqlRoutine                                                                                      sqlRoutineDemand
-	inquiry                                                                                         inquirySnapshot
-	initialParameters                                                                               []sqltype.Usage
-	protocolBind                                                                                    *protocolPortal
-	protocolResume, protocolSimple, protocolSimpleCreated, protocolSimpleStreaming, protocolCommand bool
-	protocolSimplePortal                                                                            *protocolPortal
-	input                                                                                           sqltype.InputEnvironment
-	output                                                                                          sqltype.OutputEnvironment
-	view, partitionView                                                                             *visibility.View
-	ownWrites                                                                                       map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes                                                                                      map[ids.ObjectAddress]*visibility.PrivateDeletes
-	domainEvaluation                                                                                *EvalContext
-	domainInputCatalog                                                                              catalog.Read
-	foreignOwner                                                                                    *foreignScanOwner
-	foreignCursor                                                                                   *sqlCursor
-	pgRegex                                                                                         sqltype.PGRegexExecution
-	conversionDefaults                                                                              map[[2]int]conversionDefault
-	regprocOutput, regprocedureOutput                                                               map[uint32]string
-	identity                                                                                        identitySnapshot
-	operatorOutput                                                                                  map[operatorOutputKey]string
-	operatorGroups                                                                                  operatorGroups
-	regTSOutput                                                                                     map[regTSOutputKey]string
+	command                                         ruleCommandScratch
+	mutations                                       []statementMutation
+	activeMutation                                  int
+	cteInvocation                                   *cteInvocation
+	activeViews                                     []ids.ObjectAddress
+	inheritanceRelations                            []queryLeaf
+	inheritanceCatalog                              catalog.Read
+	authority                                       *queryAuthority
+	routineAuth                                     AuthorizationView
+	expected                                        *StatementDescription
+	preparedReuse                                   *preparedAnalysis
+	preparedInvalid                                 bool
+	preparedPath                                    sequence.Environment
+	preparedNamespace                               uint64
+	preparedPrivate                                 *catalogChanges
+	preparedEpoch                                   ids.CatalogEpoch
+	preparedChangedDuringAdmission, admissionWaited bool
+	sqlRoutine                                      sqlRoutineDemand
+	inquiry                                         inquirySnapshot
+	initialParameters                               []sqltype.Usage
+	protocol                                        *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
+	input                                           sqltype.InputEnvironment
+	output                                          sqltype.OutputEnvironment
+	view, partitionView                             *visibility.View
+	ownWrites                                       map[ids.ObjectAddress][]storage.RowVersion
+	ownDeletes                                      map[ids.ObjectAddress]*visibility.PrivateDeletes
+	domainEvaluation                                *EvalContext
+	domainInputCatalog                              catalog.Read
+	foreignOwner                                    *foreignScanOwner
+	foreignCursor                                   *sqlCursor
+	pgRegex                                         sqltype.PGRegexExecution
+	conversionDefaults                              map[[2]int]conversionDefault
+	regprocOutput, regprocedureOutput               map[uint32]string
+	identity                                        identitySnapshot
+	operatorOutput                                  map[operatorOutputKey]string
+	operatorGroups                                  operatorGroups
+	regTSOutput                                     map[regTSOutputKey]string
 }
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
@@ -83,8 +81,8 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		preparedPrivate: s.preparedPrivate, preparedEpoch: s.preparedEpoch, preparedChangedDuringAdmission: s.preparedChangedDuringAdmission, admissionWaited: s.admissionWaited,
 		initialParameters: s.initialParameters, input: s.input, output: s.output,
 		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
-		protocolBind: s.protocolBind, protocolResume: s.protocolResume, protocolSimple: s.protocolSimple, protocolSimpleCreated: s.protocolSimpleCreated, protocolSimpleStreaming: s.protocolSimpleStreaming, protocolCommand: s.protocolCommand, protocolSimplePortal: s.protocolSimplePortal,
-		view: s.view, partitionView: s.partitionValidationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
+		protocol: s.protocolSlot,
+		view:     s.view, partitionView: s.partitionValidationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
 		domainEvaluation: s.domainEvaluation, domainInputCatalog: s.domainInputCatalog, foreignOwner: s.foreignOwner, foreignCursor: s.foreignCursor, pgRegex: s.pgRegex,
 		conversionDefaults: s.conversionDefaults, regprocOutput: s.regprocOutput, regprocedureOutput: s.regprocedureOutput, identity: s.identity,
 		operatorOutput: s.operatorOutput, operatorGroups: s.operatorGroups, regTSOutput: s.regTSOutput,
@@ -99,8 +97,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.preparedNamespace, s.preparedPrivate, s.preparedEpoch = c.preparedNamespace, c.preparedPrivate, c.preparedEpoch
 	s.preparedChangedDuringAdmission, s.admissionWaited = c.preparedChangedDuringAdmission, c.admissionWaited
 	s.initialParameters, s.sqlRoutine, s.inquiry = c.initialParameters, c.sqlRoutine, c.inquiry
-	s.protocolBind, s.protocolResume, s.protocolSimple, s.protocolSimpleCreated = c.protocolBind, c.protocolResume, c.protocolSimple, c.protocolSimpleCreated
-	s.protocolSimpleStreaming, s.protocolCommand, s.protocolSimplePortal = c.protocolSimpleStreaming, c.protocolCommand, c.protocolSimplePortal
+	s.protocolSlot = c.protocol
 	s.input, s.output = c.input, c.output
 	s.view, s.partitionValidationView = c.view, c.partitionView
 	s.ownWrites, s.ownDeletes = c.ownWrites, c.ownDeletes

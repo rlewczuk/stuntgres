@@ -93,7 +93,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			scope.protocolCommand = true
+			scope.protocol().command = true
 			defer scope.Finish(context.Canceled)
 			var cursor RowCursor
 			text := &copyCursor{
@@ -183,7 +183,7 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer scope.Finish(context.Canceled)
-			scope.protocolCommand = true
+			scope.protocol().command = true
 			reader := strings.NewReader(tc.input)
 			called := false
 			if tc.before {

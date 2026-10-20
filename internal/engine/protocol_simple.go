@@ -13,22 +13,22 @@ import (
 // their existing finalized rows and emit metadata when those rows are fetched.
 // The caller still owns Finish, notices and CommandComplete.
 func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe func([]catalog.Column) error, row func([]ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (result Result, err error) {
-	s.protocolSimple = true
-	s.protocolSimpleStreaming = true
+	s.protocol().simple = true
+	s.protocol().simpleStreaming = true
 	defer func() {
-		s.protocolSimpleStreaming = false
-		s.protocolBind = nil
-		if p := s.protocolSimplePortal; p != nil {
+		s.protocol().simpleStreaming = false
+		s.protocol().bind = nil
+		if p := s.protocolOrZero().simplePortal; p != nil {
 			if closeErr := s.protocolTerminalIO(func() error { return p.close(s.op.Context()) }); err == nil {
 				err = closeErr
 			}
-			s.protocolSimplePortal = nil
+			s.protocol().simplePortal = nil
 		}
 	}()
 	stream := protocolCopyExecution{source: source, destination: destination, hooks: hooks}
 	result, err = s.execute(stmt, 0, nil, &stream)
-	s.protocolBind = nil
-	p := s.protocolSimplePortal
+	s.protocol().bind = nil
+	p := s.protocolOrZero().simplePortal
 	if err != nil || p == nil {
 		return result, err
 	}
@@ -58,10 +58,10 @@ func protocolPlannedStatement(stmt parser.Statement) bool {
 // Called only at actual portal creation: raw parsing and required planning have
 // already succeeded. Marking a simple message never closes an execution owner.
 func (s *StatementScope) beginProtocolSimplePortal() error {
-	if !s.protocolSimple || s.protocolSimpleCreated {
+	if !s.protocolOrZero().simple || s.protocolOrZero().simpleCreated {
 		return nil
 	}
-	s.protocolSimpleCreated = true
+	s.protocol().simpleCreated = true
 	if s.op.session.preparedSQL.portals[""] == nil {
 		return nil
 	}

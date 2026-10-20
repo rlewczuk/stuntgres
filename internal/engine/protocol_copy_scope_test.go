@@ -24,7 +24,7 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			e, _, op, scope := copyUnitStart(t, false)
 			defer op.Done()
-			scope.protocolCommand = test.wire
+			scope.protocol().command = test.wire
 			var commandErr error
 			defer func() { _ = scope.Finish(commandErr) }()
 			outer := &StatementDescription{Parameters: ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, sqltype.Int4)}}}
@@ -59,7 +59,7 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 			if scope.Expected != outer {
 				t.Fatal("COPY did not restore caller signature after failure")
 			}
-			if scope.protocolBind != nil || scope.foreignCursor != nil {
+			if scope.protocolOrZero().bind != nil || scope.foreignCursor != nil {
 				t.Fatal("COPY left borrowed preparation or producer authority attached")
 			}
 			if !test.innerError {

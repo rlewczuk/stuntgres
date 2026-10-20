@@ -394,7 +394,7 @@ func (s *StatementScope) copyCommandError(err error) error {
 		return err
 	}
 	err = s.op.CommandError(err)
-	if errors.As(err, &primary) || !(s.protocolCommand || s.protocolSimple) {
+	if errors.As(err, &primary) || !(s.protocolOrZero().command || s.protocolOrZero().simple) {
 		return err
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

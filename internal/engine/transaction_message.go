@@ -67,7 +67,9 @@ func (s *StatementScope) NextStatement() (*StatementScope, error) {
 	}
 	next := s.op.session.Engine().newStatementScope(s.op, s.owner, s.statementStart)
 	next.message = true
-	next.protocolSimple = s.protocolSimple
+	if s.protocolOrZero().simple {
+		next.protocol().simple = true
+	}
 	return next, nil
 }
 func (s *StatementScope) FinishMessage(err error) error {

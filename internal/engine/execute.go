@@ -458,7 +458,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			break
 		}
 	}
-	if count != 0 || scope.protocolBind != nil {
+	if count != 0 || scope.protocolOrZero().bind != nil {
 		if importFrame == nil {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
@@ -494,7 +494,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
-	if p := scope.protocolBind; p != nil {
+	if p := scope.protocolOrZero().bind; p != nil {
 		p.values = canonical
 		if b.returning != nil {
 			p.columns = b.returning.schema
@@ -538,7 +538,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
 		// CTAS is a utility after canonical analysis/import. NoData and an
 		// existing destination skip the internal SELECT planner entirely.
-		if scope.protocolSimple && !scope.protocolSimpleCreated {
+		if scope.protocolOrZero().simple && !scope.protocolOrZero().simpleCreated {
 			e.mu.Unlock()
 			if err := scope.beginProtocolSimplePortal(); err != nil {
 				return Result{}, err

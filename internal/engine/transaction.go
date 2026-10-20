@@ -362,13 +362,6 @@ type StatementScope struct {
 	output                         sqltype.OutputEnvironment
 	initialParameters              []sqltype.Usage
 	activeSQLRoutineDepth          int // Root invocation owner; never saved/reset as lexical scratch.
-	protocolBind                   *protocolPortal
-	protocolResume                 bool
-	protocolSimple                 bool
-	protocolSimpleCreated          bool
-	protocolSimpleStreaming        bool
-	protocolSimplePortal           *protocolPortal
-	protocolCommand                bool // Explicit wire preparation/execution policy, not session state.
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.
 	pgRegex                     sqltype.PGRegexExecution
@@ -393,6 +386,7 @@ type StatementScope struct {
 	regTSOutput                 map[regTSOutputKey]string
 	inquiry                     inquirySnapshot
 	sqlRoutine                  sqlRoutineDemand
+	protocolSlot                *protocolScope
 }
 
 type WriteStage struct {
@@ -802,7 +796,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if wrapped && s != nil {
 		expected := s.Expected
 		defer func() { s.Expected = expected }()
-		preparedInvocation = s.protocolCommand && expected != nil && importFrame != nil && expected.Parameters.Count == count
+		preparedInvocation = s.protocolOrZero().command && expected != nil && importFrame != nil && expected.Parameters.Count == count
 	}
 	var utilityFrame []sqltype.Value
 	for execute != nil {
@@ -812,13 +806,13 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if count != 0 && !preparedInvocation {
 			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 		}
-		if count != 0 || stream != nil && s.protocolSimple {
+		if count != 0 || stream != nil && s.protocolOrZero().simple {
 			// SQL EXECUTE is an outer utility: its portal exists before the
 			// prepared-name lookup, actual arguments and inner planning.
 			if err := s.gate(stmt); err != nil {
 				return Result{}, err
 			}
-			if stream != nil && s.protocolSimple {
+			if stream != nil && s.protocolOrZero().simple {
 				if err := s.beginProtocolSimplePortal(); err != nil {
 					return Result{}, err
 				}
@@ -875,9 +869,9 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
 	}
-	if s.protocolSimpleStreaming && !wrapped && protocolPlainSelect(stmt) {
+	if s.protocolOrZero().simpleStreaming && !wrapped && protocolPlainSelect(stmt) {
 		p := &protocolPortal{entry: sqlPreparedStatement{body: stmt}, tx: s.txRef}
-		s.protocolSimplePortal, s.protocolBind = p, p
+		s.protocol().simplePortal, s.protocol().bind = p, p
 		if count == 0 && importFrame == nil {
 			importFrame = func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error { return nil }
 		}
@@ -1029,7 +1023,7 @@ func (t *transactionOwner) drainCursorCleanup(ctx context.Context, scope *Statem
 	participants := t.foreignCleanup
 	t.foreignCleanup = nil
 	t.mu.Unlock()
-	wire := scope != nil && (scope.protocolCommand || scope.protocolSimple)
+	wire := scope != nil && (scope.protocolOrZero().command || scope.protocolOrZero().simple)
 	var err error
 	if wire && len(cursors) != 0 {
 		err = scope.protocolTerminalIO(func() error { return disposeSQLCursors(ctx, cursors) })

@@ -106,7 +106,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	if err == nil {
 		err = s.validateLockedRelation(e)
 	}
-	if err == nil && !s.protocolResume {
+	if err == nil && !s.protocolOrZero().resume {
 		err = auth.checkQuerySources(c.leaves)
 	}
 	if err == nil {

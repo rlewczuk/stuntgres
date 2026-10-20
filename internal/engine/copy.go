@@ -178,7 +178,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	for _, target := range b.targets {
 		selected[target] = true
 	}
-	binaryInput := options.format == copyFormatBinary && (s.protocolCommand || s.protocolSimple)
+	binaryInput := options.format == copyFormatBinary && (s.protocolOrZero().command || s.protocolOrZero().simple)
 	inputColumns := len(b.insert.defaults)
 	if binaryInput {
 		inputColumns = len(b.relation.Columns)
@@ -270,7 +270,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		cursor = newCopyCursor(s, b, options, source)
 	}
 	rows, err := func() (indexWriteBatch, error) {
-		if s.protocolCommand || s.protocolSimple {
+		if s.protocolOrZero().command || s.protocolOrZero().simple {
 			s.op.copyInput.active.Store(true)
 			// CopyInResponse permits immediate frontend cancellation. Install
 			// the first-record hold before its external start hook can send it.

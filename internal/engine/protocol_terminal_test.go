@@ -111,7 +111,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			scope.protocolCommand = wire
+			scope.protocol().command = wire
 			defer scope.Finish(context.Canceled)
 			cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 			cancel(cause)

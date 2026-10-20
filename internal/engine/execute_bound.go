@@ -30,7 +30,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
-	if (scope.protocolCommand || scope.protocolSimple) && protocolPlainSelect(stmt) {
+	if (scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt) {
 		// Plan closed immutable recipes before executor startup, retaining
 		// imported-parameter, row, domain and volatile demand barriers. The
 		// private folded graph is also the graph retained by live portals.
@@ -416,7 +416,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	var err error
 	b, auth, evaluation := execution.binding, execution.auth, execution.evaluation
 	queryRoot, expressions := execution.queryRoot, execution.expressions
-	if scope.protocolSimple && !scope.protocolSimpleCreated {
+	if scope.protocolOrZero().simple && !scope.protocolOrZero().simpleCreated {
 		e.mu.Unlock()
 		if err := scope.beginProtocolSimplePortal(); err != nil {
 			return Result{}, err
@@ -745,7 +745,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if b.rule.template {
 			source = freezeViewWriteSources(scope, source, b.querySources)
 		}
-		if scope.protocolBind != nil {
+		if scope.protocolOrZero().bind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}
 		if scope.sqlRoutine.scalar {

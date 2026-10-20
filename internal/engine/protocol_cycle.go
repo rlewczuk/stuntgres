@@ -39,7 +39,7 @@ func (e *Engine) StartProtocolCommand(op *Operation, cycle *ProtocolCycle) (*Sta
 	if err != nil {
 		return nil, s.Finish(err)
 	}
-	s.protocolCommand = true
+	s.protocol().command = true
 	return s, nil
 }
 
@@ -47,7 +47,7 @@ func (e *Engine) StartProtocolCommand(op *Operation, cycle *ProtocolCycle) (*Sta
 // extended segment. Executed pipelines survive single/empty Q; a multi-Q block
 // has its own explicit implicit-block end. Parse/Bind-only work ends with Q.
 func (s *StatementScope) ProtocolSimpleQuery(statements int) {
-	s.protocolSimple = statements != 0
+	s.protocol().simple = statements != 0
 	s.owner.mu.Lock()
 	if c := s.owner.protocolCycle; c != nil {
 		c.active = c.executed && statements <= 1
