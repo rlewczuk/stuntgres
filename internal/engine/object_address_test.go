@@ -31,10 +31,11 @@ func TestObjectAddressAuthority(t *testing.T) {
 			}
 		}
 	}
-	if len(builtinRoutineIdentities) != 3397 {
-		t.Fatal("released routine count", len(builtinRoutineIdentities))
+	released := catalog.BuiltinRoutineIdentities()
+	if len(released) != 3397 {
+		t.Fatal("released routine count", len(released))
 	}
-	for _, routine := range builtinRoutineIdentities {
+	for _, routine := range released {
 		identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{1255, routine.ID, 0})
 		if err != nil || !identity.found || len(identity.names) != 2 || identity.names[1] != routine.Name {
 			t.Fatal("lookup-only routine authority", routine, identity, err)

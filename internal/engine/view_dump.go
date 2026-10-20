@@ -16,7 +16,7 @@ import (
 func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
 	address.SubID = 0
 	if address.ClassID == ids.ProcedureClassID {
-		if _, builtin := routineByOID[address.ObjectID]; builtin {
+		if _, builtin := catalog.BuiltinRoutineIdentityByOID(address.ObjectID); builtin {
 			return 0, nil
 		}
 	}

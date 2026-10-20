@@ -18,11 +18,15 @@ import (
 func TestRoutineReleaseInventory(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	if len(builtinRoutineIdentities) != 3397 || len(routineByOID) != 3397 {
+	released := catalog.BuiltinRoutineIdentities()
+	if len(released) != 3397 {
 		t.Fatal("incomplete released inventory")
 	}
 	identities := make(map[string]bool)
-	for _, fact := range builtinRoutineIdentities {
+	for _, fact := range released {
+		if byOID, ok := catalog.BuiltinRoutineIdentityByOID(fact.ID); !ok || byOID != fact {
+			t.Fatal("released identity OID is not unique", fact)
+		}
 		key := fact.Name + "(" + string(fact.Signature) + ")"
 		if fact.ID == 0 || fact.Namespace != ids.PGCatalogNamespaceOID || fact.Name == "" || identities[key] {
 			t.Fatal("invalid/duplicate released identity", fact)

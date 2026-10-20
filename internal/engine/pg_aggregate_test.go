@@ -117,14 +117,14 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	}
 	seen := make(map[ids.OID]bool)
 	for _, d := range pgcatalog.AggregateDefinitions {
-		identity, ok := routineByOID[d.Function]
+		identity, ok := catalog.BuiltinRoutineIdentityByOID(d.Function)
 		if !ok || seen[d.Function] || identity.Namespace != ids.PGCatalogNamespaceOID {
 			t.Fatal("unowned/duplicate aggregate signature", d.Function)
 		}
 		seen[d.Function] = true
 		for _, id := range d.Functions {
 			if id != 0 {
-				if _, ok := routineByOID[id]; !ok {
+				if _, ok := catalog.BuiltinRoutineIdentityByOID(id); !ok {
 					t.Fatal("unknown released helper", d.Function, id)
 				}
 			}

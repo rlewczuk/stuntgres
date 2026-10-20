@@ -1,15 +1,12 @@
-package engine
+package catalog
 
-import (
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
-)
+import "stuntgres/internal/engine/ids"
 
 // Source-fixed lookup-only routine identities from complete REL_18_0 pg_proc.dat
 // (654436 bytes). Argument symbols resolve through the complete released builtin
 // type inventory, including generated arrays. No execution providers or pg_proc
 // SQL rows are registered here. See docs/design/regproc-pg18-oracle.md.
-var builtinRoutineIdentities = [...]catalog.RoutineIdentity{
+var builtinRoutineIdentities = [...]RoutineIdentity{
 	{1242, ids.PGCatalogNamespaceOID, "boolin", "2275"},
 	{1243, ids.PGCatalogNamespaceOID, "boolout", "16"},
 	{1244, ids.PGCatalogNamespaceOID, "byteain", "2275"},

@@ -11,7 +11,7 @@ type routineKey struct {
 	signature catalog.ProcedureSignature
 }
 
-var routineByOID, routinesByName, routineBySignature = indexBuiltinRoutines()
+var routinesByName, routineBySignature = indexBuiltinRoutines()
 
 // Default counts absent from the native provider declaration inventory remain
 // lookup-only metadata, never executable registrations. PostgreSQL REL_18_6:
@@ -26,23 +26,22 @@ func routineIdentityDefaults(id ids.OID) uint8 {
 	return builtinRoutineIdentityDefaults[id]
 }
 
-func indexBuiltinRoutines() (map[ids.OID]catalog.RoutineIdentity, map[string][]catalog.RoutineIdentity, map[routineKey]catalog.RoutineIdentity) {
-	byOID := make(map[ids.OID]catalog.RoutineIdentity, len(builtinRoutineIdentities))
+func indexBuiltinRoutines() (map[string][]catalog.RoutineIdentity, map[routineKey]catalog.RoutineIdentity) {
+	identities := catalog.BuiltinRoutineIdentities()
 	byName := make(map[string][]catalog.RoutineIdentity)
-	bySignature := make(map[routineKey]catalog.RoutineIdentity, len(builtinRoutineIdentities))
-	for _, p := range builtinRoutineIdentities {
-		byOID[p.ID] = p
+	bySignature := make(map[routineKey]catalog.RoutineIdentity, len(identities))
+	for _, p := range identities {
 		byName[p.Name] = append(byName[p.Name], p)
 		bySignature[routineKey{p.Name, p.Signature}] = p
 	}
-	return byOID, byName, bySignature
+	return byName, bySignature
 }
 
 func routineIdentityByOID(view catalog.Read, id ids.OID) (catalog.RoutineIdentity, bool) {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
 		return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, true
 	}
-	if p, ok := routineByOID[id]; ok {
+	if p, ok := catalog.BuiltinRoutineIdentityByOID(id); ok {
 		return p, true
 	}
 	if owner := routineDescriptorOwner(view, id); owner != nil {

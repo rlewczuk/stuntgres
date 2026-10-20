@@ -31,7 +31,7 @@ func validateOwnedAggregate(view catalog.Read, proc *catalog.Procedure) error {
 		if helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper.Namespace != proc.Namespace().ObjectID || helper.Name != name || helper.Signature != signature {
 			return invalid()
 		}
-		if _, builtin := routineByOID[helper.ID]; builtin {
+		if _, builtin := catalog.BuiltinRoutineIdentityByOID(helper.ID); builtin {
 			return invalid()
 		}
 		for address, d := range view.Descriptors() {
