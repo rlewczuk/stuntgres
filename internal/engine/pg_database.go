@@ -89,3 +89,18 @@ func capturePGDatabase(in catalogSourceInput) ([][]sqltype.Value, error) {
 	}
 	return [][]sqltype.Value{row}, nil
 }
+
+var builtinCollationVersion = "1"
+
+func collationActualVersion(d *catalog.Collation) (*string, error) {
+	if d.Provider == "d" {
+		return databaseCollationActualVersion()
+	}
+	if _, err := catalog.CollationSemantics(d); err != nil {
+		return nil, err
+	}
+	if d.Provider == "b" {
+		return &builtinCollationVersion, nil
+	}
+	return nil, nil
+}

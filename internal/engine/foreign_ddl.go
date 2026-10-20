@@ -419,9 +419,6 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 func foreignCatalogClass(class ids.OID) bool {
 	return class == ids.ForeignWrapperClassID || class == ids.ForeignServerClassID || class == ids.ForeignMappingClassID
 }
-func foreignDependencyAddresses(d *catalog.ForeignObject) [4]ids.ObjectAddress {
-	return [4]ids.ObjectAddress{d.Wrapper, d.Server, d.Handler, d.Validator}
-}
 
 func foreignCommandTag(s *parser.ForeignDDL) string {
 	if s.Action == "import" {

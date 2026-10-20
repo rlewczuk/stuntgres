@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -114,4 +115,11 @@ func captureExtensionCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+func procedureArity(p *catalog.Procedure) int64 {
+	if p.Signature == "" {
+		return 0
+	}
+	return int64(strings.Count(string(p.Signature), ",") + 1)
 }

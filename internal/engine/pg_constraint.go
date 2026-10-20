@@ -422,3 +422,39 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog cata
 	}
 	return b.err
 }
+
+func nonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation, name string, attribute int32, check bool) (bool, int64) {
+	if graph := table.Inheritance; graph != nil {
+		provenance, exists := graph.NotNull[attribute]
+		if check {
+			provenance, exists = graph.Checks[name]
+		}
+		if exists {
+			return provenance.Local, int64(provenance.Count())
+		}
+	}
+	if table.Membership != nil {
+		parent := catalog.MustRelation(table.Membership.Parent)
+		if check {
+			for _, constraint := range parent.Constraints.Check {
+				if constraint.Name == name {
+					return false, 1
+				}
+			}
+		} else {
+			slot := slices.Index(table.Attributes, attribute)
+			if slot >= 0 {
+				parentSlot, exists := parent.Index[table.Columns[slot].Name]
+				if exists {
+					parentAttribute := parent.Attributes[parentSlot]
+					for _, constraint := range parent.Constraints.NotNull {
+						if constraint.Attribute == parentAttribute {
+							return false, 1
+						}
+					}
+				}
+			}
+		}
+	}
+	return true, 0
+}

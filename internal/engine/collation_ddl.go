@@ -13,21 +13,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-var builtinCollationVersion = "1"
-
-func collationActualVersion(d *catalog.Collation) (*string, error) {
-	if d.Provider == "d" {
-		return databaseCollationActualVersion()
-	}
-	if _, err := catalog.CollationSemantics(d); err != nil {
-		return nil, err
-	}
-	if d.Provider == "b" {
-		return &builtinCollationVersion, nil
-	}
-	return nil, nil
-}
-
 func collationVersionWarning(op *Operation, d *catalog.Collation, view catalog.Read, actual *string) error {
 	if d.Version == nil {
 		return nil

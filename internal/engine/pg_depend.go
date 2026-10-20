@@ -15,41 +15,6 @@ type pgDependEdge struct {
 	deptype               byte
 }
 
-// Pinning follows represented bootstrap authorities, never an OID cutoff.
-func pgDependPinned(view catalog.Read, reader definitionReader, address ids.ObjectAddress) bool {
-	if address.ClassID == ids.NamespaceClassID {
-		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
-	}
-	whole := address
-	whole.SubID = 0
-	d, ok := definitionDescriptorAt(view, reader, whole)
-	if !ok {
-		return false
-	}
-	switch d := d.(type) {
-	case *catalog.Type:
-		if d.OwningRelation != (ids.ObjectAddress{}) {
-			descriptor, ok := definitionDescriptorAt(view, reader, d.OwningRelation)
-			relation, relationOK := descriptor.(*catalog.Relation)
-			return !ok || !relationOK || relation.RelationKind == catalog.CatalogRelation
-		}
-		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
-		// arrays retain their owned element's dependency even without storage.
-		return !d.SQLType.IsUserDefined() && !(d.SQLType.IsArray() && (d.SQLType.Element().IsDomain() || d.SQLType.Element().IsUserDefined()))
-	case *catalog.Collation:
-		return d.Seeded()
-	case *catalog.Conversion:
-		return d.Seeded()
-	case *catalog.Procedure:
-		return d.Seeded()
-	case *catalog.Operator:
-		return routine.OperatorSeeded(d)
-	case *catalog.Relation:
-		return d.RelationKind == catalog.CatalogRelation
-	}
-	return false
-}
-
 func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSourceRuntime) ([]pgDependEdge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -459,4 +424,8 @@ func capturePGDepend(in catalogSourceInput) ([][]sqltype.Value, error) {
 		return nil, err
 	}
 	return rows, nil
+}
+
+func foreignDependencyAddresses(d *catalog.ForeignObject) [4]ids.ObjectAddress {
+	return [4]ids.ObjectAddress{d.Wrapper, d.Server, d.Handler, d.Validator}
 }

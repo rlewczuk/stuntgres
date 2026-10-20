@@ -240,12 +240,6 @@ func extensionMembership(d catalog.Descriptor) ids.ObjectAddress {
 	}
 	return ids.ObjectAddress{}
 }
-func procedureArity(p *catalog.Procedure) int64 {
-	if p.Signature == "" {
-		return 0
-	}
-	return int64(strings.Count(string(p.Signature), ",") + 1)
-}
 
 // Namespace retirement owns complete installations by their real target, not
 // by the extension's database-wide name or generic Namespace field.

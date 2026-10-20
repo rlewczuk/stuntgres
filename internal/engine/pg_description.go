@@ -98,3 +98,22 @@ func capturePGDescription(in catalogSourceInput) ([][]sqltype.Value, error) {
 	}
 	return rows, nil
 }
+
+func descriptorComment(d catalog.Descriptor, sub int32) string {
+	switch d := d.(type) {
+	case *catalog.Namespace:
+		if sub == 0 {
+			return d.Comment
+		}
+	case *catalog.Type:
+		if sub == 0 {
+			return d.Comment
+		}
+	case *catalog.Relation:
+		if sub == 0 {
+			return d.Comment
+		}
+		return d.ColumnMeta.Comments[sub]
+	}
+	return ""
+}

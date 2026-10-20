@@ -2,31 +2,12 @@ package engine
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func descriptorComment(d catalog.Descriptor, sub int32) string {
-	switch d := d.(type) {
-	case *catalog.Namespace:
-		if sub == 0 {
-			return d.Comment
-		}
-	case *catalog.Type:
-		if sub == 0 {
-			return d.Comment
-		}
-	case *catalog.Relation:
-		if sub == 0 {
-			return d.Comment
-		}
-		return d.ColumnMeta.Comments[sub]
-	}
-	return ""
-}
 func (c *EvalContext) CommentInquiry(kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
 	if err := admitInquiryBody(c, provenance); err != nil {
 		return sqltype.Value{}, err

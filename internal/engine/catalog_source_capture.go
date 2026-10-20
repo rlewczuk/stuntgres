@@ -101,3 +101,14 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	e.mu.Unlock()
 	return result, err
 }
+
+func explicitCatalogSource(oid ids.OID) bool { return oid == pgLocksOID || oid == 12048 }
+
+// Engine is the sole owner of querySource construction, including error paths.
+func captureCatalogSourceRows(in catalogSourceInput, produce catalogSourceProducer) (*querySource, error) {
+	rows, err := produce(in)
+	if err != nil {
+		return nil, err
+	}
+	return &querySource{ref: in.Ref, anonymous: rows}, nil
+}
