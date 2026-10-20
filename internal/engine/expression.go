@@ -950,8 +950,8 @@ func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvi
 }
 
 func newHostedBinder(ctx context.Context, host analyzeHost, input sqltype.InputEnvironment, expected *StatementDescription) *expressionBinder {
-	host.CaptureEnumOperationSafety(&input)
 	b := &expressionBinder{host: host, ctx: ctx, params: parameterState{parameters: make(map[int]sqltype.Usage)}, input: input, expected: expected}
+	host.CaptureEnumOperationSafety(&b.input)
 	if expected != nil {
 		b.seedParameters(expected.Parameters.Types)
 		if expected.refreshTemporals {

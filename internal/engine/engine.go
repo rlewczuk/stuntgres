@@ -30,6 +30,7 @@ import (
 type Engine struct {
 	mu            sync.Mutex
 	locks         *lock.Manager
+	analysis      bindingHost                                // Binding host without an operation; immutable after New.
 	notifications map[ids.SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu        replacementAdmission
@@ -128,6 +129,7 @@ func NewWithSettings(definitions []settings.Definition, database string, trackCo
 func newEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}}
+	e.analysis = bindingHost{engine: e}
 	e.mu.Lock()
 	e.storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{})
 	e.mu.Unlock()

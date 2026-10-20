@@ -133,6 +133,7 @@ type Operation struct {
 	nonstandardStrings bool
 	discardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
 	replaySlot         *restoreReplay          // Restore and materialized population only; see replay().
+	analysis           bindingHost             // Immutable after creation; see Engine.analysisHost.
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {
@@ -300,6 +301,7 @@ func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	combined, cancel := context.WithCancelCause(ctx)
 	op := &Operation{session: s, ctx: combined, commandContext: combined, sourceContext: ctx, cancel: cancel, private: private}
 	op.self = op
+	op.analysis = bindingHost{engine: s.engine, op: op}
 	if s.operations == nil {
 		s.operations = make(map[*Operation]struct{})
 	}

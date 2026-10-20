@@ -15,6 +15,9 @@ import (
 func TestAnalysisHostWithoutOperation(t *testing.T) {
 	e := New()
 	host := e.analysisHost(nil)
+	if host != e.analysisHost(nil) || host.engine != e || host.op != nil {
+		t.Fatal("binding without an operation does not reuse the engine's host")
+	}
 	if d := host.Definition(); d != nil {
 		t.Fatalf("Definition() = %#v, want nil", d)
 	}
@@ -40,6 +43,13 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 	}
 	defer cleanup()
 	host := e.analysisHost(op)
+	if host != e.analysisHost(op) || host.op != op || host.engine != e {
+		t.Fatal("a session operation does not reuse its own binding host")
+	}
+	copied := &Operation{session: op.session, analysis: op.analysis}
+	if fresh := e.analysisHost(copied); fresh == host || fresh.op != copied {
+		t.Fatal("a copied operation binds through the original operation's host")
+	}
 	owner, generation, ok := host.PlanOwner()
 	if !ok || owner != op.session.token || generation != op.session.discardPlansGeneration {
 		t.Fatalf("PlanOwner() = %v, %d, %v; want the session's token and generation", owner, generation, ok)

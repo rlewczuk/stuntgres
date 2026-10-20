@@ -85,8 +85,17 @@ type bindingHost struct {
 
 var _ analyzeHost = (*bindingHost)(nil)
 
-// analysisHost returns the binding host for op.
+// analysisHost returns the binding host for op. A session operation carries
+// its own host value and the engine one for binding without an operation
+// (bootstrap), so binding allocates no host; copied operations get a fresh
+// host.
 func (e *Engine) analysisHost(op *Operation) *bindingHost {
+	if op != nil && op.analysis.op == op && op.analysis.engine == e {
+		return &op.analysis
+	}
+	if op == nil && e.analysis.engine == e {
+		return &e.analysis
+	}
 	return &bindingHost{engine: e, op: op}
 }
 
