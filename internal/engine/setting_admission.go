@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/parser"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/settings"
 )
 
 var statementTimeoutCause = errors.New("stuntgres: statement timeout")
@@ -27,7 +28,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	op.lockTimeout = time.Duration(s.settings.typedValue("lock_timeout").Number) * time.Millisecond
 	op.parallelWorkers = int(s.settings.typedValue("max_parallel_workers_per_gather").Number)
 	transactionTimeout := s.settings.typedValue("transaction_timeout").Number
-	op.noticeThreshold, _ = messageLevel(s.settings.value(clientMinMessages.Name))
+	op.noticeThreshold, _ = messageLevel(s.settings.value(settings.ClientMinMessages.Name))
 	op.commandAdmission = true
 	op.commandStart = start
 	s.settings.mu.Unlock()

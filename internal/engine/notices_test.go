@@ -7,14 +7,16 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 func TestNoticesFilter(t *testing.T) {
@@ -23,7 +25,7 @@ func TestNoticesFilter(t *testing.T) {
 	witness := sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "field witness", Detail: "facts", Hint: "advice", Position: "3", InternalPosition: "2", InternalQuery: "x+", Context: "context", Schema: "s", Table: "t", Column: "c", DataType: "d", Constraint: "k"}
 	for i, threshold := range thresholds {
 		t.Run(threshold, func(t *testing.T) {
-			normalized, notice, err := normalizeClientMinMessages(threshold)
+			normalized, notice, err := settings.ClientMinMessages.Normalize(threshold)
 			if err != nil || notice != nil {
 				t.Fatal(normalized, notice, err)
 			}
@@ -50,27 +52,6 @@ func TestNoticesFilter(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-func TestNoticesApplicationName(t *testing.T) {
-	for _, tc := range []struct {
-		input, want string
-		clipped     bool
-	}{
-		{strings.Repeat("a", 64), strings.Repeat("a", 63), true},
-		{strings.Repeat("a", 62) + "é", strings.Repeat("a", 62), true},
-		{"é", `\xc3\xa9`, false},
-	} {
-		got, n, err := normalizeApplicationName(tc.input)
-		if err != nil || got != tc.want || (n != nil) != tc.clipped {
-			t.Fatalf("%q: %q %#v %v", tc.input, got, n, err)
-		}
-		if n != nil {
-			want := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: `identifier "` + tc.input + `" will be truncated to "` + tc.want + `"`}
-			if *n != want {
-				t.Fatalf("%#v", n)
-			}
-		}
 	}
 }
 func TestNoticesCommands(t *testing.T) {

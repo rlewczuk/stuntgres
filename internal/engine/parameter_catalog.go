@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 )
 
 // parameterProvider validates parameter ACL identities against the engine's
@@ -33,12 +34,12 @@ func (e *Engine) canonicalGrantParameter(name string) (string, error) {
 	return canonicalGrantParameter(e.settings, name)
 }
 
-func canonicalGrantParameter(settings settingsRegistry, name string) (string, error) {
-	key := settingFold(name)
-	if _, ok := settings.Definitions()[key]; ok {
+func canonicalGrantParameter(registry settingsRegistry, name string) (string, error) {
+	key := settings.FoldName(name)
+	if _, ok := registry.Definitions()[key]; ok {
 		return key, nil
 	}
-	if customName(key) {
+	if settings.CustomName(key) {
 		return key, nil
 	}
 	return "", sqlError("42704", fmt.Sprintf(`unrecognized configuration parameter "%s"`, name))

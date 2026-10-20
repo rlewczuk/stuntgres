@@ -2,6 +2,8 @@ package engine
 
 import (
 	"fmt"
+
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -24,15 +26,15 @@ const (
 // messageLevel maps a client message level name to its notice level. The
 // noticeLevel constants follow the settings rank order.
 func messageLevel(value string) (noticeLevel, bool) {
-	rank, ok := messageLevelRank(value)
+	rank, ok := settings.MessageLevelRank(value)
 	return noticeLevel(rank), ok
 }
 func (op *Operation) snapshotNoticeThreshold() {
 	s := op.session.settings
 	s.mu.Lock()
-	value, ok := s.values[clientMinMessages.Name]
+	value, ok := s.values[settings.ClientMinMessages.Name]
 	if !ok {
-		value = s.defaults[clientMinMessages.Name]
+		value = s.defaults[settings.ClientMinMessages.Name]
 	}
 	s.mu.Unlock()
 	op.noticeThreshold, _ = messageLevel(value)

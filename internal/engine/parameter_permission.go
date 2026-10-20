@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 )
 
 // Only lc_messages has a real native privileged setter that accepts parameter
@@ -18,7 +19,7 @@ func parameterSetAllowed(op *Operation, name string) (bool, error) {
 	if exists && role.Superuser {
 		return true, nil
 	}
-	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: settingFold(name)})
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: settings.FoldName(name)})
 	if address == (ids.ObjectAddress{}) {
 		return false, nil
 	}

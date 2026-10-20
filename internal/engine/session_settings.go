@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"sync"
-	"time"
 )
 
 type sessionSettings struct {
@@ -36,19 +38,19 @@ type sessionSettings struct {
 // Setting returns the current effective value of a recognized session setting.
 // It reads only settings-protected state, including transaction projections.
 func (s *Session) Setting(name string) (string, bool) {
-	name = settingFold(name)
-	settings := s.settings
-	settings.mu.Lock()
-	defer settings.mu.Unlock()
-	if settings.ended {
+	name = settings.FoldName(name)
+	store := s.settings
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if store.ended {
 		return "", false
 	}
-	_, hasDefault := settings.defaults[name]
-	_, hasValue := settings.values[name]
-	if !hasDefault && !hasValue && !settings.placeholders[name] {
+	_, hasDefault := store.defaults[name]
+	_, hasValue := store.values[name]
+	if !hasDefault && !hasValue && !store.placeholders[name] {
 		return "", false
 	}
-	return settings.value(name), true
+	return store.value(name), true
 }
 
 type settingOverride struct {
@@ -262,7 +264,7 @@ func (s *sessionSettings) typedValue(name string) settingValue {
 	return s.defaultTyped[name]
 }
 func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (SettingDefinition, error) {
-	key := settingFold(name)
+	key := settings.FoldName(name)
 	if d, ok := e.settings.Definitions()[key]; ok {
 		return d, nil
 	}
@@ -270,7 +272,7 @@ func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (S
 		if !create || !strings.Contains(name, ".") {
 			return e.settings.Lookup(name)
 		}
-		if !customName(name) {
+		if !settings.CustomName(name) {
 			return SettingDefinition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: "Custom parameter names must be two or more simple identifiers separated by dots."}
 		}
 	}
@@ -328,7 +330,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 		} else {
 			v, err = d.Parse(*input)
 		}
-		if err == nil && localeSetting(d.Name) {
+		if err == nil && settings.IsLocaleSetting(d.Name) {
 			v.Locale, _ = sqltype.ParseCLocale(v.Text)
 		}
 		if err != nil {
@@ -450,7 +452,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 				return Result{}, err
 			}
 			d := e.settings.Definitions()[key]
-			rows = append(rows, []sqltype.Value{sqltype.String(typ, settingDisplayName(key)), sqltype.String(typ, owner.value(key)), sqltype.String(typ, d.Description)})
+			rows = append(rows, []sqltype.Value{sqltype.String(typ, settings.DisplayName(key)), sqltype.String(typ, owner.value(key)), sqltype.String(typ, d.Description)})
 		}
 		if err := op.ctx.Err(); err != nil {
 			return Result{}, err
@@ -474,5 +476,5 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	if err := op.ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	return anonymousResult(settingColumns(typ, settingDisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, 0)
+	return anonymousResult(settingColumns(typ, settings.DisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, 0)
 }

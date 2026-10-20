@@ -1,4 +1,4 @@
-package engine
+package settings
 
 import (
 	"errors"
@@ -9,7 +9,8 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-var clientMinMessages = SettingDefinition{Name: "client_min_messages", Type: SettingEnum, BootDefault: "notice", Description: "Sets the message levels that are sent to the client.", EnumValues: []string{"debug5", "debug4", "debug3", "debug2", "debug1", "log", "notice", "warning", "error"}, Normalize: normalizeClientMinMessages}
+// ClientMinMessages is the builtin client_min_messages definition.
+var ClientMinMessages = Definition{Name: "client_min_messages", Type: Enum, BootDefault: "notice", Description: "Sets the message levels that are sent to the client.", EnumValues: []string{"debug5", "debug4", "debug3", "debug2", "debug1", "log", "notice", "warning", "error"}, Normalize: normalizeClientMinMessages}
 
 func normalizeClientMinMessages(value string) (string, *sqlstate.Error, error) {
 	if !utf8.ValidString(value) {
@@ -30,7 +31,7 @@ func normalizeClientMinMessages(value string) (string, *sqlstate.Error, error) {
 var messageLevels = [...]string{"debug5", "debug4", "debug3", "debug2", "debug1", "log", "info", "notice", "warning", "error"}
 
 // messageLevelRank returns a level's index in messageLevels; "debug" means debug2.
-func messageLevelRank(name string) (int, bool) {
+func MessageLevelRank(name string) (int, bool) {
 	if name == "debug" {
 		name = "debug2"
 	}

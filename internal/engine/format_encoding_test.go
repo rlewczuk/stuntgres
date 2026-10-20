@@ -3,86 +3,22 @@ package engine
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
-
-func TestFormatEncodingNormalizers(t *testing.T) {
-	for _, tc := range []struct{ input, want string }{{"utf-8", "UTF8"}, {"u.t_f-8", "UTF8"}, {"UNICODE", "UNICODE"}, {"unicode", "UTF8"}} {
-		got, notice, err := normalizeClientEncoding(tc.input)
-		if err != nil || notice != nil || got != tc.want {
-			t.Fatal(tc, got, notice, err)
-		}
-	}
-	for _, tc := range []struct{ input, code, message, detail string }{
-		{"not_an_encoding", "22023", `invalid value for parameter "client_encoding": "not_an_encoding"`, ""},
-		{strings.Repeat("-", 80) + "UTF8", "22023", `invalid value for parameter "client_encoding": "` + strings.Repeat("-", 63) + `"`, ""},
-		{"MULE_INTERNAL", "0A000", `invalid value for parameter "client_encoding": "MULE_INTERNAL"`, "Conversion between MULE_INTERNAL and UTF8 is not supported."},
-		{"latin1", "0A000", `client encoding "LATIN1" is not supported by stuntgres`, "Only UTF8 client encoding is supported."},
-		{"SQL_ASCII", "0A000", `client encoding "SQL_ASCII" is not supported by stuntgres`, "Only UTF8 client encoding is supported."},
-	} {
-		_, notice, err := normalizeClientEncoding(tc.input)
-		var d *sqlstate.Error
-		if notice != nil || !errors.As(err, &d) || d.Code != tc.code || d.Message != tc.message || d.Detail != tc.detail || d.Position != "" {
-			t.Fatal(tc, notice, err)
-		}
-	}
-	for _, name := range []string{"lc_messages", "lc_monetary", "lc_numeric", "lc_time"} {
-		for _, value := range []string{"C", "POSIX", ""} {
-			got, notice, err := normalizeLocale(name, value)
-			if name == "lc_messages" && value == "" {
-				var d *sqlstate.Error
-				if !errors.As(err, &d) || d.Code != "22023" || d.Detail != "" || notice != nil {
-					t.Fatal(name, value, notice, err)
-				}
-			} else if err != nil || notice != nil || got != value {
-				t.Fatal(name, value, got, notice, err)
-			}
-		}
-		for _, value := range []string{"c", "C.UTF-8", "missing", "é🙂"} {
-			_, notice, err := normalizeLocale(name, value)
-			var d *sqlstate.Error
-			if !errors.As(err, &d) || d.Code != "22023" || d.Message != fmt.Sprintf(`invalid value for parameter "%s": "%s"`, name, value) || d.Detail != "Only C and POSIX locales are supported by stuntgres." {
-				t.Fatal(name, value, notice, err)
-			}
-			if value == "é🙂" {
-				if notice == nil || notice.Severity != "WARNING" || notice.Code != "22023" || notice.Message != `locale name "é🙂" contains non-ASCII characters` {
-					t.Fatal(notice)
-				}
-			} else if notice != nil {
-				t.Fatal(notice)
-			}
-		}
-	}
-	for _, value := range []string{"info", "disabled", "debug5", "debug4", "debug3", "debug2", "debug1", "log", "notice", "warning", "error"} {
-		got, notice, err := normalizeICUValidationLevel(strings.ToUpper(value))
-		if err != nil || notice != nil || got != value {
-			t.Fatal(value, got, notice, err)
-		}
-	}
-	got, notice, err := normalizeICUValidationLevel("debug")
-	if err != nil || notice != nil || got != "debug2" {
-		t.Fatal(got, notice, err)
-	}
-	_, _, err = normalizeICUValidationLevel("bogus")
-	var d *sqlstate.Error
-	if !errors.As(err, &d) || d.Code != "22023" || d.Hint != "Available values: disabled, debug5, debug4, debug3, debug2, debug1, log, notice, warning, error." {
-		t.Fatal(err)
-	}
-}
 
 func TestFormatEncodingCapturedDefaults(t *testing.T) {
 	e := New()
 	ctx := context.Background()
 	values := map[string]string{"client_encoding": "utf-8", "lc_messages": "POSIX", "lc_monetary": "", "lc_numeric": "POSIX", "lc_time": "C", "icu_validation_level": "DEBUG", "extra_float_digits": "-1"}
 	provider := &settingsDefaultProviderForTest{values: values, calls: map[string]int{}}
-	settings := sessionSettings{defaults: make(map[string]string), values: make(map[string]string)}
-	if err := settings.initialize(ctx, e.settings.Definitions(), e.settings.Order(), provider); err != nil {
+	store := sessionSettings{defaults: make(map[string]string), values: make(map[string]string)}
+	if err := store.initialize(ctx, e.settings.Definitions(), e.settings.Order(), provider); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range e.settings.Order() {
@@ -91,16 +27,16 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]string{"client_encoding": "UTF8", "lc_messages": "POSIX", "lc_monetary": "", "lc_numeric": "POSIX", "lc_time": "C", "icu_validation_level": "debug2", "extra_float_digits": "-1"} {
-		if settings.value(name) != want {
-			t.Fatal(name, settings.value(name), want)
+		if store.value(name) != want {
+			t.Fatal(name, store.value(name), want)
 		}
-		if localeSetting(name) && settings.defaultTyped[name].Locale == (sqltype.Locale{}) {
+		if settings.IsLocaleSetting(name) && store.defaultTyped[name].Locale == (sqltype.Locale{}) {
 			t.Fatal("locale default not typed", name)
 		}
 	}
 	values["lc_numeric"] = "C.UTF-8"
 	values["extra_float_digits"] = "3"
-	if settings.value("lc_numeric") != "POSIX" || settings.typedValue("extra_float_digits").Number != -1 {
+	if store.value("lc_numeric") != "POSIX" || store.typedValue("extra_float_digits").Number != -1 {
 		t.Fatal("live provider leaked into captured defaults")
 	}
 	for _, bad := range []struct{ name, value string }{{"lc_numeric", "C.UTF-8"}, {"lc_messages", ""}, {"client_encoding", "LATIN1"}, {"icu_validation_level", "bogus"}, {"extra_float_digits", "4"}} {

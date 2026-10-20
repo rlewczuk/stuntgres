@@ -5,7 +5,9 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -60,7 +62,7 @@ func validateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 		if name == "fillfactor" {
 			n, suffix, ok := float64(o.Value.Integer), "", true
 			if o.Value.Kind != parser.IntegerValue {
-				n, suffix, ok = settingNumber(o.Value.Text, true)
+				n, suffix, ok = settings.ParseNumber(o.Value.Text, true)
 			}
 			n = math.RoundToEven(n)
 			if !ok || suffix != "" || math.IsNaN(n) || n < math.MinInt32 || n > math.MaxInt32 {

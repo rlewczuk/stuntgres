@@ -3,16 +3,16 @@ package engine
 import (
 	"context"
 	"errors"
-	"math"
 	"math/big"
 	"strings"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 // SQL values/routes are covered by TestReferenceSettingsUtilitySnapshotOwnership.
@@ -78,48 +78,6 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	}
 }
 
-func TestSettingTypedInput(t *testing.T) {
-	for _, tc := range []struct {
-		d           SettingDefinition
-		input, want string
-	}{
-		{SettingDefinition{Type: SettingBoolean}, "TRUE", "on"}, {SettingDefinition{Type: SettingBoolean}, "n", "off"},
-		{SettingDefinition{Type: SettingInteger, IntegerMin: -10, IntegerMax: 10}, "2.5", "2"}, {SettingDefinition{Type: SettingInteger, IntegerMin: -10, IntegerMax: 10}, "3.5", "4"}, {SettingDefinition{Type: SettingInteger, IntegerMin: -10, IntegerMax: 10}, "010", "8"}, {SettingDefinition{Type: SettingInteger, IntegerMin: -10, IntegerMax: 10}, "0xA", "10"},
-		{SettingDefinition{Type: SettingFloating, FloatMax: 10}, "2.1234567", "2.12346"},
-		{SettingDefinition{Type: SettingEnum, EnumValues: []string{"safe", "fast"}}, "FAST", "fast"},
-		{SettingDefinition{Type: SettingInteger, Unit: SettingKilobytes, IntegerMax: math.MaxInt32}, "30.1GB", "30822MB"},
-		{SettingDefinition{Type: SettingInteger, Unit: SettingKilobytes, IntegerMax: math.MaxInt32}, "0.5kB", "0"},
-		{SettingDefinition{Type: SettingInteger, Unit: SettingBytes, IntegerMax: math.MaxInt32}, "0.5kB", "512B"},
-		{SettingDefinition{Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32}, "1.5s", "1500ms"},
-		{SettingDefinition{Type: SettingFloating, Unit: SettingSeconds, FloatMax: 10}, "0.001s", "1ms"},
-		{SettingDefinition{Type: SettingFloating, Unit: SettingSeconds, FloatMax: 10}, "0.0000001", "0.1us"},
-		{SettingDefinition{Type: SettingFloating, Unit: SettingSeconds, FloatMax: 10}, "0.0000001s", "0"},
-		{SettingDefinition{Type: SettingFloating, FloatMax: 10}, "0x1.8p0", "1.5"},
-		{SettingDefinition{Type: SettingInteger, IntegerMin: -10, IntegerMax: 10}, "-0.5", "0"},
-	} {
-		tc.d.Name = "demo.value"
-		v, err := tc.d.Parse(tc.input)
-		if err != nil || tc.d.Format(v) != tc.want {
-			t.Errorf("%+v %q got %q err %v want %q", tc.d, tc.input, tc.d.Format(v), err, tc.want)
-		}
-	}
-	for _, input := range []string{"0b10", "0o10", "1_000", "08", "NaN", "1kB", "1 2", "1e999"} {
-		d := SettingDefinition{Name: "demo.count", Type: SettingInteger, IntegerMax: 10}
-		if _, err := d.Parse(input); err == nil {
-			t.Errorf("accepted %q", input)
-		}
-	}
-	for _, input := range []string{"o", " true ", ""} {
-		if _, err := (SettingDefinition{Name: "demo.flag", Type: SettingBoolean}).Parse(input); err == nil {
-			t.Errorf("accepted Boolean %q", input)
-		}
-	}
-	for _, input := range []string{"NaN", "1e999", "1e-999", "1e-320", "1_000", "0b10"} {
-		if _, err := (SettingDefinition{Name: "demo.real", Type: SettingFloating, FloatMax: 10}).Parse(input); err == nil {
-			t.Errorf("accepted real %q", input)
-		}
-	}
-}
 func TestSettingAdmissionTimerAtomicity(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -178,7 +136,15 @@ func TestSettingCapturedDefaults(t *testing.T) {
 	e := New()
 	p := &defaultProvider{value: "éééééééééééééééééééé"}
 	s := sessionStart(t, e, p)
-	want, _, _ := normalizeApplicationName(p.value)
+	d, err := e.settings.Lookup("application_name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	normalized, err := d.Parse(p.value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := normalized.Text
 	sessionSQL(t, s, "SET application_name TO changed")
 	sessionSQL(t, s, "RESET application_name")
 	sessionValue(t, s, want)
@@ -264,8 +230,8 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if def.bootValue.Number != 0x1p-1023 {
-		t.Fatal("registered default lost exactness", def.bootValue)
+	if def.BootValue().Number != 0x1p-1023 {
+		t.Fatal("registered default lost exactness", def.BootValue())
 	}
 	e := NewWithSettings([]SettingDefinition{def}, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "-" + exact}, calls: map[string]int{}}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -26,7 +27,7 @@ func TestObjectGrantParameterCanonicalTargets(t *testing.T) {
 	e := New()
 	for _, name := range []string{"lc_messages", "LC_MESSAGES", "application_name", "server_encoding", "OG_CUSTOM.Value"} {
 		got, err := e.canonicalGrantParameter(name)
-		if err != nil || got != settingFold(name) {
+		if err != nil || got != settings.FoldName(name) {
 			t.Fatalf("canonical target %q: %q, %v", name, got, err)
 		}
 	}

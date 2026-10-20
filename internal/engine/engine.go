@@ -6,18 +6,20 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"sync"
 )
 
 type Engine struct {
@@ -166,7 +168,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	e.storage.ReplaceSequencesLocked(make(map[ids.ObjectAddress]*storage.SequenceGenerator))
 	e.mu.Unlock()
 	e.roles.initialize()
-	e.settings = newSettingsRegistry(definitions, e.visibility.TracksCommitTimestamps())
+	e.settings = settings.NewRegistry(definitions, e.visibility.TracksCommitTimestamps())
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
@@ -382,7 +384,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if err != nil {
 			return StatementDescription{}, err
 		}
-		return StatementDescription{Results: settingColumns(typ, settingDisplayName(d.Name))}, nil
+		return StatementDescription{Results: settingColumns(typ, settings.DisplayName(d.Name))}, nil
 	case *parser.SettingCall:
 		e.mu.Lock()
 		defer e.mu.Unlock()

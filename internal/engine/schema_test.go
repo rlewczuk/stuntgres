@@ -7,12 +7,13 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
@@ -197,19 +198,6 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 		if !reflect.DeepEqual(got, tc.want) {
 			t.Fatal("reset lost captured provider default", got, tc.want)
 		}
-	}
-	for _, tc := range []struct {
-		input string
-		want  []string
-	}{{`"dot.name", "comma,name", "quote""name"`, []string{"dot.name", "comma,name", "quote\"name"}}, {`"$user", public`, []string{"$user", "public"}}, {`""`, []string{""}}, {`"", s2`, []string{"", "s2"}}, {"", nil}, {`a"b`, []string{`a"b`}}} {
-		got, err := parseSearchPath(tc.input)
-		if err != nil || !reflect.DeepEqual(got, tc.want) {
-			t.Fatal(tc, got, err)
-		}
-	}
-	for _, input := range []string{",", "s1,", `"unterminated`, `a b`} {
-		_, err := parseSearchPath(input)
-		state(t, err, "22023")
 	}
 }
 

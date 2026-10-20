@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"stuntgres/internal/engine/settings"
 )
 
 func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start time.Time) *StatementScope {
@@ -131,13 +133,13 @@ func (op *Operation) refreshStatementBudget() error {
 	if err := op.commandContext.Err(); err != nil {
 		return err
 	}
-	settings := op.session.settings
-	settings.mu.Lock()
-	timeout := settings.typedValue("statement_timeout").Number
-	transactionTimeout := settings.typedValue("transaction_timeout").Number
-	lockTimeout := settings.typedValue("lock_timeout").Number
-	threshold, _ := messageLevel(settings.value(clientMinMessages.Name))
-	settings.mu.Unlock()
+	store := op.session.settings
+	store.mu.Lock()
+	timeout := store.typedValue("statement_timeout").Number
+	transactionTimeout := store.typedValue("transaction_timeout").Number
+	lockTimeout := store.typedValue("lock_timeout").Number
+	threshold, _ := messageLevel(store.value(settings.ClientMinMessages.Name))
+	store.mu.Unlock()
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if op.timerCancel != nil {

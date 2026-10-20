@@ -1,4 +1,4 @@
-package engine
+package settings
 
 import (
 	"errors"
@@ -22,7 +22,7 @@ func normalizeClientEncoding(input string) (string, *sqlstate.Error, error) {
 		return encoding, nil, nil
 	}
 	if encoding == "" {
-		return "", nil, (SettingDefinition{Name: "client_encoding"}).invalid(candidate, "")
+		return "", nil, (Definition{Name: "client_encoding"}).invalid(candidate, "")
 	}
 	if encoding == "MULE_INTERNAL" {
 		return "", nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`invalid value for parameter "client_encoding": "%s"`, candidate), Detail: "Conversion between MULE_INTERNAL and UTF8 is not supported."}
@@ -30,7 +30,8 @@ func normalizeClientEncoding(input string) (string, *sqlstate.Error, error) {
 	return "", nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`client encoding "%s" is not supported by stuntgres`, encoding), Detail: "Only UTF8 client encoding is supported."}
 }
 
-func localeSetting(name string) bool {
+// IsLocaleSetting reports whether name is one of the lc_* locale settings.
+func IsLocaleSetting(name string) bool {
 	return name == "lc_messages" || name == "lc_monetary" || name == "lc_numeric" || name == "lc_time"
 }
 
@@ -68,23 +69,23 @@ func normalizeLCTime(input string) (string, *sqlstate.Error, error) {
 	return normalizeLocale("lc_time", input)
 }
 
-var icuValidationLevel = SettingDefinition{
-	Name: "icu_validation_level", Type: SettingEnum, BootDefault: "warning",
+var icuValidationLevel = Definition{
+	Name: "icu_validation_level", Type: Enum, BootDefault: "warning",
 	Description: "Log level for reporting invalid ICU locale strings.",
 	EnumValues:  []string{"disabled", "debug5", "debug4", "debug3", "debug2", "debug1", "log", "notice", "warning", "error"},
 	Normalize:   normalizeICUValidationLevel,
 }
 
 func normalizeICUValidationLevel(input string) (string, *sqlstate.Error, error) {
-	value := settingFold(input)
+	value := FoldName(input)
 	if value == "debug" {
 		value = "debug2"
 	}
 	if value == "disabled" {
 		return value, nil, nil
 	}
-	if _, ok := messageLevelRank(value); ok {
+	if _, ok := MessageLevelRank(value); ok {
 		return value, nil, nil
 	}
-	return "", nil, (SettingDefinition{Name: "icu_validation_level"}).invalid(input, "Available values: disabled, debug5, debug4, debug3, debug2, debug1, log, notice, warning, error.")
+	return "", nil, (Definition{Name: "icu_validation_level"}).invalid(input, "Available values: disabled, debug5, debug4, debug3, debug2, debug1, log, notice, warning, error.")
 }

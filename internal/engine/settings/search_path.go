@@ -1,4 +1,4 @@
-package engine
+package settings
 
 import (
 	"fmt"
@@ -48,7 +48,7 @@ func parseSearchPath(input string) ([]string, error) {
 			if i == 0 {
 				return invalid()
 			}
-			name = settingFold(s[:i])
+			name = FoldName(s[:i])
 			s = strings.Trim(s[i:], " \t\r\n\f\v")
 		}
 		if len(name) > 63 {
