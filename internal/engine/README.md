@@ -10,9 +10,8 @@ pointer to it, and descriptor validation and grant-name canonicalization use
 the same registry. ACL catalogs remain sparse. Search-path resolution stays in
 `schema_path.go`; runtime notice levels, threshold captures and emission stay
 in `notices.go`. Physical-session values, journals, timeout publication and
-their existing locks remain engine-owned. `settings_aliases.go` holds the
-temporary 8b aliases (`SettingDefinition`, `settingValue`, the constants,
-`ValidateSetting`) until 8c.
+their existing locks remain engine-owned. The engine, the root driver and
+`cmd/stuntgres` name `settings.` types directly; no aliases remain.
 
 ## System catalog producers
 

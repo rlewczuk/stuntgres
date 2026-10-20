@@ -884,9 +884,12 @@ misses remain recorded. See the
 **Package (8b), done.** `settings` holds the definitions, registry,
 normalizers and search-path parser and imports only `sqlstate`, `sqltype` and
 the standard library. `Engine.settings` is a `settings.Registry`;
-`RegistrationError` stays in the engine. Temporary engine aliases
-(`settings_aliases.go`) keep the root driver and `cmd/stuntgres` unchanged
-until 8c.
+`RegistrationError` stays in the engine.
+
+**Aliases removed (8c), done.** The engine, the root driver and
+`cmd/stuntgres` import `settings` directly; `engine.NewWithSettings` takes
+`[]settings.Definition`. The root `SettingDefinition` mirror types stay the
+public API.
 
 **Stays in the engine** until step 13: per-session storage
 (`sessionSettings`, the SET LOCAL action stack, savepoint `settingsMark`),
@@ -1228,6 +1231,8 @@ These packages get prompt files after the steps above. Each needs `session`
     and `StatementDescription` are named by the root driver. Settle per step
     whether the driver imports the subpackage directly (as it does `catalog`
     and `ids`) or the engine keeps a permanent facade alias (§3 rule 2).
+    Settled for step 8 (8c): the driver imports `settings` directly;
+    `RegistrationError` stays an engine function.
 
 ## 8. Implementation sessions
 
@@ -1245,7 +1250,7 @@ package-specific scope. This section holds the rules every session follows.
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
-| 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | 8a and 8b done (racecheck skipped at user request); 8c planned |
+| 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | 9a done in place; 9b–9c planned |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a done (racecheck/finalcheck skipped by user); 10b–10d planned |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `55f377e301e449ddea878d20f54a60e7bb188342`. The later-wave plans
+Last verified against `master` at `6eff87c89293238f4c5dc7688af5514d4356a699`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -17,14 +17,13 @@ as another broad item (§8).
 
 - **Step 17 `sequence`** — 17a (item 30); the Tier C sequence calls have
   moved to `functions`.
-- **Step 8 `settings`** — 8c alias removal (item 15, **broad**).
 - **Step 9 `pgcatalog`** — 9b (item 17).
 - **Step 10 `plan`** — 10b node runtime (item 32).
 - **In-place untangling** — 12a `binding` split (item 20) and 13a scope
-  slots (item 22). Both are broad: one at a time, and not together with 8c.
+  slots (item 22). Both are broad: one at a time.
 - **Step 14 `routine`** — 14a (item 24); `PG18-ROUTINE-CORE` has merged.
 
-Steps 1, 2 and 4–7 and `access` are done.
+Steps 1, 2 and 4–8 and `access` are done.
 
 ## Task tree
 
@@ -230,12 +229,13 @@ Steps 1, 2 and 4–7 and `access` are done.
       (`9a73852a6`, `416945ecb`, then the docs commit) *(racecheck skipped
       at user request)*
     - [ ] B5 — Binding walkers moved next to `binding` (needs 12d)
-- [ ] **Step 8 — `settings`** ([prompt](ENGINE-SPLIT-settings.md); needs —)
+- [x] **Step 8 — `settings`** ([prompt](ENGINE-SPLIT-settings.md); needs —)
   - [x] 8a — Registry in place (`3c1e1115a`)
   - [x] 8b — `settings` created and definitions moved (`8057bb8d0`,
     `dbf23631c`, `cc31fb6f6`, then the docs commit) *(racecheck skipped at
     user request)*
-  - [ ] 8c — Aliases removed
+  - [x] 8c — Aliases removed (`4a5e2dd43`, `ac1cfe10c`, then the docs
+    commit) *(racecheck skipped at user request)*
 - [ ] **Step 9 — `pgcatalog`** ([prompt](ENGINE-SPLIT-pgcatalog.md); needs
   5, B4; 9b also 8b)
   - [x] 9a — One producer contract and one registry, in place
@@ -371,7 +371,9 @@ in the prompt file's Status section.
 13. [x] Settings 8a — [settings](ENGINE-SPLIT-settings.md) 8a · needs — (`3c1e1115a`)
 14. [x] Settings 8b — [settings](ENGINE-SPLIT-settings.md) 8b · needs 13 ·
     racecheck skipped at user request
-15. [ ] Settings 8c — [settings](ENGINE-SPLIT-settings.md) 8c · needs 14
+15. [x] Settings 8c — [settings](ENGINE-SPLIT-settings.md) 8c · needs 14 ·
+    **broad** (`4a5e2dd43`, `ac1cfe10c`, then the docs commit) · racecheck
+    skipped at user request
 16. [x] pgcatalog 9a — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9a · needs —
 17. [ ] pgcatalog 9b — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9b · needs
     16, 14

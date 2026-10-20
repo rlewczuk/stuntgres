@@ -205,17 +205,54 @@ startup regression.
 - [x] 8b — `settings` created and definitions moved (`8057bb8d0`,
   `dbf23631c`, `cc31fb6f6`, then the docs commit) *(racecheck skipped at user
   request)*
-- [ ] 8c — Aliases removed
+- [x] 8c — Aliases removed (`4a5e2dd43`, `ac1cfe10c`, then the docs commit)
+  *(racecheck skipped at user request)*
 
-Outstanding aliases (`internal/engine/settings_aliases.go`, removed in 8c):
-types `SettingType`, `SettingAccess`, `SettingUnit`, `SettingDefinition`,
-`SessionDefaultProvider`, `settingValue`, `settingsRegistry`; constants
-`SettingBoolean`, `SettingString`, `SettingInteger`, `SettingFloating`,
-`SettingEnum`, `SettingSession`, `SettingReadOnly`, `SettingPrivileged`,
-`settingStartupOnly`, `SettingUnitNone`, `SettingBytes`, `SettingKilobytes`,
-`SettingMegabytes`, `SettingMilliseconds`, `SettingSeconds`, `SettingMinutes`;
-and the wrapper function `ValidateSetting`. `RegistrationError` is not an
-alias: it stays in the engine (`foreign_registry.go`).
+Outstanding aliases: none. 8c deleted `internal/engine/settings_aliases.go`.
+`RegistrationError` was never an alias: it stays in the engine
+(`foreign_registry.go`).
+
+8c results:
+
+- **Census** (at `6eff87c89`, `go/types` over the engine package with its
+  tests). 95 references to the aliases in 30 engine files (9 production, 21
+  test): `SettingDefinition` 39, `settingValue` 18, `ValidateSetting` 7,
+  `SessionDefaultProvider` 6, `SettingString` 6, `SettingPrivileged` 5,
+  `SettingFloating` 4, `settingsRegistry` 3, `SettingSession` 2,
+  `settingStartupOnly` 2, and `SettingBoolean`, `SettingEnum`,
+  `SettingReadOnly` 1 each. The other unit and type constants had no users
+  outside the alias file. Outside the engine: `settings.go` and `driver.go`
+  in the root driver and `cmd/stuntgres/database.go`; no other package named
+  the aliases.
+- **Rewrite** (`4a5e2dd43`). A temporary tool rewrote every reference to
+  `settings.X` and added the import (74 lines changed plus 23 imports). The
+  shadow audit looked up `settings` in scope at every rewrite site and found
+  no local or parameter shadowing the package; the existing `settings`
+  locals (`savepoints.go`, `row_security_setting_test.go`) are not at
+  rewrite sites. `NewWithSettings` now takes `[]settings.Definition`.
+- **Root driver and cmd** (`ac1cfe10c`). `settings.go` calls
+  `settings.Validate(settings.Definition{...})` with `settings.Type`,
+  `settings.Access` and `settings.Unit` conversions; `Driver.settings` is
+  `[]settings.Definition`; `cmd/stuntgres` implements `SessionDefault(ctx,
+  settings.Definition)`. The root mirror types are unchanged. The alias file
+  is deleted, and the stale `ValidateSetting` doc comment on
+  `settings.Validate` is fixed. After: zero references to any alias name in
+  Go sources (the parser's own `settingValue` grammar field is unrelated).
+  §7 decision 11 is settled for step 8: direct import.
+- **Tests.** None moved, deleted or rewritten; only names changed.
+- **Verification.** `make build` after each commit; `go vet` reports only
+  existing findings in untouched files. Targeted `make check` over all 100
+  tests in the 21 changed engine test files plus the `settings` package tests
+  and root `TestSettingsConcurrentFreeze` (105 top-level tests) passed after
+  each commit. `make quickcheck` passed (exit 0). Reference selections
+  `^TestReferenceSettings` and the 30-family 8b selection passed in quick
+  mode and with `REFERENCE=1` against the pinned PostgreSQL 18.6 image. The
+  8b public driver smoke printed byte-identical output on `6eff87c89` and
+  the branch. `make deps` lists only module paths; `settings` imports only
+  `sqlstate`, `sqltype` and the standard library, and no subpackage imports
+  the engine. `make bench` was not run: the change renames types only and
+  does not touch startup code. `make racecheck` and `finalcheck` were
+  skipped at the user's request. `AGENTS.md` stays at 100 lines.
 
 8b results:
 
@@ -286,7 +323,7 @@ alias: it stays in the engine (`foreign_registry.go`).
   `make racecheck` and `finalcheck` were skipped at the user's request.
   `AGENTS.md` stays at 100 lines.
 
-Notes for 8c: engine files that now import `settings` and also use locals
+Notes for 8c (done; no shadowing found): engine files that now import `settings` and also use locals
 named `settings` were renamed (`store`, `registry`); the alias rewrite must
 audit the remaining `settings :=` locals in `session_settings.go` and tests
 (`Session.settings` and `Engine.settings` are fields and do not collide).

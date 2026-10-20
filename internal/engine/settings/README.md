@@ -6,7 +6,9 @@ conversion, the normalizers for encoding, locale and message-level settings,
 the `search_path` list parser and the immutable registry. The package is a
 leaf of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports only `sqlstate`, `sqltype` and the standard library, and never
-the engine.
+the engine. The root driver converts its public `SettingDefinition` mirror
+to `Definition` and `cmd/stuntgres` implements `SessionDefaultProvider`; both
+import this package directly.
 
 ## What it owns
 
