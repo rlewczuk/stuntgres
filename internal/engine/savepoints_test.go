@@ -77,7 +77,7 @@ func TestSavepointsLifecycle(t *testing.T) {
 			}
 			controlsRequire(t, a, "ROLLBACK TO s")
 			if end == "physical" {
-				if err := a.transactions.EndSession(a.token, Terminated); err != nil {
+				if err := endTransactionSession(a.transactions, a.token); err != nil {
 					t.Fatal(err)
 				}
 			} else {

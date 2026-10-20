@@ -207,7 +207,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	if err == nil {
 		transactions := &transactionOwner{session: s}
-		_, err = op.Attach(Transaction, transactions)
+		_, err = op.Attach(Transaction, (*transactionSessionEnd)(transactions))
 		if err == nil {
 			s.transactions = transactions
 		}

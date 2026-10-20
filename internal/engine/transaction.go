@@ -123,7 +123,18 @@ func clearTransaction(t *transactionOwner) {
 	t.exclusionModes = exclusionModes{}
 }
 
-func (t *transactionOwner) EndSession(token ids.SessionToken, _ EndReason) error {
+// transactionSessionEnd is the owner seen as its session's Transaction
+// resource. It is a pointer conversion of the owner, so attaching it
+// allocates nothing.
+type transactionSessionEnd transactionOwner
+
+func (r *transactionSessionEnd) EndSession(token ids.SessionToken, _ EndReason) error {
+	return endTransactionSession((*transactionOwner)(r), token)
+}
+
+// endTransactionSession aborts t's transaction and releases its locks,
+// cursors and TEMP session state when the session ends.
+func endTransactionSession(t *transactionOwner, token ids.SessionToken) error {
 	if err := t.acquireAdmission(context.Background(), nil); err != nil {
 		return err
 	}
