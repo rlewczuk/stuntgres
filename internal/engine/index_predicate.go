@@ -229,5 +229,5 @@ func partialPredicateAtom(query, predicate expr.Expr) bool {
 	if q, ok := query.(plan.LogicalExpr); ok && q.Op == parser.LogicalAnd {
 		return partialPredicateAtom(q.Left, predicate) || partialPredicateAtom(q.Right, predicate)
 	}
-	return !query.Properties().ParameterDependent && exec.PlannedVolatility(query) == expr.Immutable && sameGroupExpression(query, predicate)
+	return !query.Properties().ParameterDependent && exec.PlannedVolatility(query) == expr.Immutable && SameGroupExpression(query, predicate)
 }

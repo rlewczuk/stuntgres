@@ -55,7 +55,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	}
 	visits := 0
 	plan.ExpressionChildren(n, func(expr.Expr) { visits++ })
-	if visits != 0 || !sameGroupExpression(n, n) {
+	if visits != 0 || !SameGroupExpression(n, n) {
 		t.Fatal("not a zero-child identity leaf")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), view, n)

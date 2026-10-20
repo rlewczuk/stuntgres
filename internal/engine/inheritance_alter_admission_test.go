@@ -359,7 +359,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		}
 		current := retiredUnitTable(t, e, "c")
 		attribute := current.Attributes[current.Index["extra"]]
-		if !current.Inheritance.Columns[attribute].Local || len(current.Inheritance.Columns[attribute].Origins) != 1 || !sameGroupExpression(current.ColumnMeta.Defaults[attribute].Expression, c.ColumnMeta.Defaults[attribute].Expression) || retiredUnitTable(t, e, "leaf") != leaf {
+		if !current.Inheritance.Columns[attribute].Local || len(current.Inheritance.Columns[attribute].Origins) != 1 || !SameGroupExpression(current.ColumnMeta.Defaults[attribute].Expression, c.ColumnMeta.Defaults[attribute].Expression) || retiredUnitTable(t, e, "leaf") != leaf {
 			t.Fatal("merge replaced local recipe or changed stopped leaf")
 		}
 		inheritanceAlterAssertRows(t, e, current, []sqltype.Value{inheritanceQueryInt(e, 1), inheritanceQueryInt(e, 19)})
@@ -644,7 +644,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal(err)
 			}
 			candidate := command.scope.catalog.descriptors[p.Address()].(*catalog.Relation)
-			if candidate.Constraints.NotNull[0].OID == 0 || candidate.Constraints.NotNull[0].OID == p.Constraints.NotNull[0].OID || candidate.Constraints.Check[0].OID == 0 || candidate.Constraints.Check[0].OID == p.Constraints.Check[0].OID || candidate.Constraints.NotNull[0].Name != cooked.Constraints.NotNull[0].Name || candidate.Constraints.NotNull[0].Attribute != cooked.Constraints.NotNull[0].Attribute || candidate.Constraints.Check[0].Name != cooked.Constraints.Check[0].Name || !sameGroupExpression(candidate.Constraints.Check[0].Expression, cooked.Constraints.Check[0].Expression) {
+			if candidate.Constraints.NotNull[0].OID == 0 || candidate.Constraints.NotNull[0].OID == p.Constraints.NotNull[0].OID || candidate.Constraints.Check[0].OID == 0 || candidate.Constraints.Check[0].OID == p.Constraints.Check[0].OID || candidate.Constraints.NotNull[0].Name != cooked.Constraints.NotNull[0].Name || candidate.Constraints.NotNull[0].Attribute != cooked.Constraints.NotNull[0].Attribute || candidate.Constraints.Check[0].Name != cooked.Constraints.Check[0].Name || !SameGroupExpression(candidate.Constraints.Check[0].Expression, cooked.Constraints.Check[0].Expression) {
 				t.Fatal("sole pipeline lost exact cooked names/keys/recipe or reused removed fact OIDs")
 			}
 			if cooked.Constraints.NotNull[0].OID != 0 || cooked.Constraints.Check[0].OID != 0 {

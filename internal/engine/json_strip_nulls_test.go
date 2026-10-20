@@ -98,17 +98,17 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !sameGroupExpression(e, mapped) || exec.PlannedVolatility(mapped) != expr.Immutable {
+	if err != nil || !SameGroupExpression(e, mapped) || exec.PlannedVolatility(mapped) != expr.Immutable {
 		t.Fatal(mapped, err)
 	}
 	different := e
 	different.Args[1] = plan.LiteralExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Boolean(b.typ(sqltype.Bool), false)}
-	if sameGroupExpression(e, different) {
+	if SameGroupExpression(e, different) {
 		t.Fatal("group identity ignored Boolean formal")
 	}
 	var children []expr.Expr
 	plan.ExpressionChildren(e, func(child expr.Expr) { children = append(children, child) })
-	if len(children) != 2 || !sameGroupExpression(children[0], e.Args[0]) || !sameGroupExpression(children[1], e.Args[1]) {
+	if len(children) != 2 || !SameGroupExpression(children[0], e.Args[0]) || !SameGroupExpression(children[1], e.Args[1]) {
 		t.Fatal("formal traversal", children)
 	}
 }

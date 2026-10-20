@@ -63,10 +63,10 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 			t.Fatal(text, err)
 		}
 		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || !sameGroupExpression(original, mapped) {
+		if err != nil || !SameGroupExpression(original, mapped) {
 			t.Fatal(mapped, err)
 		}
-		if !sameGroupExpression(original, original) {
+		if !SameGroupExpression(original, original) {
 			t.Fatal("lost expression identity")
 		}
 		persistent, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, original)
@@ -126,7 +126,7 @@ func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	}
 	var count int
 	plan.ExpressionChildren(bound, func(child expr.Expr) {
-		if !sameGroupExpression(child, column) {
+		if !SameGroupExpression(child, column) {
 			t.Fatal(child)
 		}
 		count++

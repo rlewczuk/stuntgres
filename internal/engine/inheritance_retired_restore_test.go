@@ -157,7 +157,7 @@ func retiredAuthorityClone(a *restoredHistoryAuthority) *restoredHistoryAuthorit
 }
 func retiredAuthorityEqual(a, b *restoredHistoryAuthority) bool {
 	return a.nextArchive == b.nextArchive && maps.Equal(a.archives, b.archives) && maps.Equal(a.sources, b.sources) && maps.EqualFunc(a.facts, b.facts, func(x, y restoredHistoricalFact) bool {
-		return x.ref == y.ref && x.oid == y.oid && x.name == y.name && x.check == y.check && slices.Equal(x.attributes, y.attributes) && sameGroupExpression(x.expression, y.expression) && x.notValid == y.notValid && x.noInherit == y.noInherit && x.local == y.local && x.count == y.count
+		return x.ref == y.ref && x.oid == y.oid && x.name == y.name && x.check == y.check && slices.Equal(x.attributes, y.attributes) && SameGroupExpression(x.expression, y.expression) && x.notValid == y.notValid && x.noInherit == y.noInherit && x.local == y.local && x.count == y.count
 	})
 }
 func retiredResourceCounts(e *Engine) [7]int {

@@ -68,7 +68,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !sameGroupExpression(original, mapped) {
+	if err != nil || !SameGroupExpression(original, mapped) {
 		t.Fatal(mapped, err)
 	}
 	if !n.Variadic || n.Labels[0] != "from_json" || n.Labels[1] != "path_elems" {

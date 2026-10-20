@@ -79,7 +79,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if err != nil || value.Type() != next.ResultUsage().Type || value.CompositeField(0).Type() != fresh[sqltype.Int4] {
 		t.Fatal(value, err)
 	}
-	if !sameGroupExpression(call, call) {
+	if !SameGroupExpression(call, call) {
 		t.Fatal("record equality lost")
 	}
 	if exec.PlannedVolatility(call) != expr.Stable {

@@ -135,7 +135,7 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 		if (parent == nil) != (d.DomainDefault == nil) {
 			return fmt.Errorf("stuntgres: inconsistent inherited domain default")
 		}
-		if parent != nil && (!sameGroupExpression(parent.Expression, d.DomainDefault.Expression) || !slices.Equal(parent.Dependencies, d.DomainDefault.Dependencies)) {
+		if parent != nil && (!SameGroupExpression(parent.Expression, d.DomainDefault.Expression) || !slices.Equal(parent.Dependencies, d.DomainDefault.Dependencies)) {
 			return fmt.Errorf("stuntgres: inconsistent inherited domain default recipe")
 		}
 		if parent != nil && d.DomainDefaultText != view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}).DomainDefaultText {

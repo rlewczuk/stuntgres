@@ -13,7 +13,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Statement, auth analyze.Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected analyze.Expected, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
+// Describe binds one statement: the single entry point behind the root
+// wrappers describe, describeWithRule and describeScoped. closed marks SQL
+// routine bodies whose formals are fixed; initial seeds parameter types.
+func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth analyze.Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected analyze.Expected, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
 	binder := newHostedBinder(ctx, host, input, expected)
 	binder.target.ruleNamespace = rule

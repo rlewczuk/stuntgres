@@ -78,7 +78,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 			t.Fatal("typed child traversal", sample.name, count)
 		}
 		mapped, err := remapBoundExpression(sample.node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || !sameGroupExpression(sample.node, mapped) {
+		if err != nil || !SameGroupExpression(sample.node, mapped) {
 			t.Fatal("stored remap", sample.name, err)
 		}
 		demand := false
@@ -91,7 +91,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 		}
 		args := expr.Expr(sample.node).(expr.Composite).Children()
 		reconstructed, err := expr.Substitute(expr.Expr(sample.node).(expr.Composite), expr.InfoOf(sample.node), args)
-		if err != nil || !sameGroupExpression(sample.node, reconstructed) {
+		if err != nil || !SameGroupExpression(sample.node, reconstructed) {
 			t.Fatal("source reconstruction", err)
 		}
 	}

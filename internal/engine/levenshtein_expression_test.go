@@ -59,7 +59,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	}
 	var children []expr.Expr
 	plan.ExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
-	if !reflect.DeepEqual(children, n.Args) || !sameGroupExpression(n, n) {
+	if !reflect.DeepEqual(children, n.Args) || !SameGroupExpression(n, n) {
 		t.Fatal(children)
 	}
 	for i := range n.Args {
@@ -70,7 +70,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		} else {
 			changed.Args[i] = n.Args[2+(i-1)%4]
 		}
-		if sameGroupExpression(n, changed) {
+		if SameGroupExpression(n, changed) {
 			t.Fatal("argument identity collapsed", i)
 		}
 	}

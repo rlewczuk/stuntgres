@@ -163,7 +163,7 @@ func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...ma
 					}
 					on[i] = plan.SortKey{Expression: next, Slot: -1, Cache: -1, TargetIdentity: len(projection) + i + 1}
 					for _, key := range order {
-						if sameGroupExpression(next, key.Expression) {
+						if SameGroupExpression(next, key.Expression) {
 							on[i].TargetIdentity = key.TargetIdentity
 							break
 						}

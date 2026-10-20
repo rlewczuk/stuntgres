@@ -78,11 +78,11 @@ func TestJSONRecordRemap(t *testing.T) {
 			walked++
 		}
 	})
-	if walked != 1 || !sameGroupExpression(original, original) {
+	if walked != 1 || !SameGroupExpression(original, original) {
 		t.Fatal("closed child traversal", walked)
 	}
 	copy, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
-	if err != nil || !sameGroupExpression(original, copy) {
+	if err != nil || !SameGroupExpression(original, copy) {
 		t.Fatal(copy, err)
 	}
 	text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})

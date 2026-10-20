@@ -84,7 +84,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, targetView, forged); err == nil {
 		t.Fatal("foreign stored provider accepted")
 	}
-	if !sameGroupExpression(bound, bound) || sameGroupExpression(bound, next) {
+	if !SameGroupExpression(bound, bound) || SameGroupExpression(bound, next) {
 		t.Fatal("provider equality")
 	}
 	var children int

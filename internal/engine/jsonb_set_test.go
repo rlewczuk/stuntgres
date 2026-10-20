@@ -108,7 +108,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !sameGroupExpression(e, mapped) {
+	if err != nil || !SameGroupExpression(e, mapped) {
 		t.Fatal(mapped, err)
 	}
 	variadic := jsonbSetUnitBind(t, b, `SELECT pg_catalog.jsonb_set('{"a":1}','{a}',VARIADIC '2'::jsonb)`)
@@ -214,7 +214,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 		}
 		seen := false
 		plan.ExpressionChildren(e, func(child expr.Expr) {
-			if sameGroupExpression(child, column) {
+			if SameGroupExpression(child, column) {
 				seen = true
 			}
 		})
@@ -223,7 +223,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 		}
 		other := e
 		other.Args[slot] = base.Args[slot]
-		if sameGroupExpression(e, other) {
+		if SameGroupExpression(e, other) {
 			t.Fatal("slot ignored in semantic identity", slot)
 		}
 	}

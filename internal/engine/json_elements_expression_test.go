@@ -76,7 +76,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 			t.Fatal("lost argument dependency", dependencies)
 		}
 		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
-		if err != nil || !sameGroupExpression(original, clone) {
+		if err != nil || !SameGroupExpression(original, clone) {
 			t.Fatal("stored remap", clone, err)
 		}
 		folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)

@@ -122,7 +122,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	}
 	builtin := n
 	builtin.Procedure, builtin.Ref = nil, ids.ObjectRef{}
-	if sameGroupExpression(n, builtin) || sameQuerySetOccurrence(n, builtin) {
+	if SameGroupExpression(n, builtin) || sameQuerySetOccurrence(n, builtin) {
 		t.Fatal("enum/builtin identity collapsed")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), n)

@@ -84,7 +84,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 				}
 			}
 			mapped, err := remapBoundExpression(r, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-			if err != nil || !sameGroupExpression(r, mapped) {
+			if err != nil || !SameGroupExpression(r, mapped) {
 				t.Fatal(mapped, err)
 			}
 			old, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
@@ -128,7 +128,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 		}
 		seen := false
 		plan.ExpressionChildren(e, func(child expr.Expr) {
-			if sameGroupExpression(child, column) {
+			if SameGroupExpression(child, column) {
 				seen = true
 			}
 		})
@@ -137,7 +137,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 		}
 		other := e
 		other.Args[slot] = base.Args[slot]
-		if sameGroupExpression(e, other) {
+		if SameGroupExpression(e, other) {
 			t.Fatal("slot ignored in semantic identity", slot)
 		}
 	}

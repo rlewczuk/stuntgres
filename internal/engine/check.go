@@ -129,7 +129,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			if !altering && d.Inheritance != nil {
 				if provenance, inherited := d.Inheritance.Checks[name]; inherited {
 					old := slices.IndexFunc(d.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == name })
-					if old < 0 || !sameGroupExpression(d.Constraints.Check[old].Expression, node) {
+					if old < 0 || !SameGroupExpression(d.Constraints.Check[old].Expression, node) {
 						return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 					}
 					if c.NoInherit {

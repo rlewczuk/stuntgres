@@ -60,7 +60,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	if err != nil || text != `["x"]` {
 		t.Fatal(text, err)
 	}
-	if !sameGroupExpression(node, node) {
+	if !SameGroupExpression(node, node) {
 		t.Fatal("expression identity not reflexive")
 	}
 }

@@ -35,7 +35,7 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 		if got := (*expressionBinder)(nil).sameQueryTarget(a, b); got != tc.same {
 			t.Fatal("binding-local target predicate", tc.left, tc.right, got, tc.same)
 		}
-		if sameGroupExpression(a, b) {
+		if SameGroupExpression(a, b) {
 			t.Fatal("ordinary comparison acquired local subquery sharing")
 		}
 	}

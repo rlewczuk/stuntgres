@@ -144,7 +144,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sameGroupExpression(left, right) || sameGroupExpression(original, left) || original.Owner != owner {
+	if !SameGroupExpression(left, right) || SameGroupExpression(original, left) || original.Owner != owner {
 		t.Fatal("mapped recipe equality lost exact row owner or mutated the source")
 	}
 	mapped := left.(plan.TableOIDExpr)
@@ -157,12 +157,12 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	} {
 		different := mapped
 		change(&different)
-		if sameGroupExpression(mapped, different) || sameGroupExpression(different, mapped) {
+		if SameGroupExpression(mapped, different) || SameGroupExpression(different, mapped) {
 			t.Fatal("distinct physical row authority or full Usage compared equal")
 		}
 	}
 	column := plan.ColumnExpr{Info: mapped.Info, Origin: mapped.Owner}
-	if sameGroupExpression(mapped, column) {
+	if SameGroupExpression(mapped, column) {
 		t.Fatal("different expression kind compared equal")
 	}
 }

@@ -455,7 +455,7 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 	}
 	qualified := call
 	qualified.Namespace = "pg_catalog"
-	if !sameGroupExpression(call, qualified) {
+	if !SameGroupExpression(call, qualified) {
 		t.Fatal("namespace spelling changed resolved identity")
 	}
 	next, changed, err := expr.Map(call, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })

@@ -55,7 +55,7 @@ func TestRegexpScalarBinding(t *testing.T) {
 	}
 	raw.ArgNames = nil
 	second, err := b.bind(raw, expressionPolicy{context: projectionContext})
-	if err != nil || !sameGroupExpression(first, second) {
+	if err != nil || !SameGroupExpression(first, second) {
 		t.Fatal(first, second, err)
 	}
 	collate := func(name string, pos int) parser.Expr {

@@ -31,7 +31,7 @@ func TestUUIDExtractIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	version := uuidExtractEngineUnit(t, b, functions.UUIDExtractVersion)
 	stamp := uuidExtractEngineUnit(t, b, functions.UUIDExtractTimestamp)
-	if !sameGroupExpression(version, version) || sameGroupExpression(version, stamp) {
+	if !SameGroupExpression(version, version) || SameGroupExpression(version, stamp) {
 		t.Fatal("operation identity")
 	}
 	other := version
@@ -40,13 +40,13 @@ func TestUUIDExtractIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	other.Arg = plan.LiteralExpr{Info: expr.Info{Usage: b.typ(sqltype.UUID).Usage()}, Value: v}
-	if sameGroupExpression(version, other) {
+	if SameGroupExpression(version, other) {
 		t.Fatal("child identity lost")
 	}
 	children := 0
 	plan.ExpressionChildren(version, func(child expr.Expr) {
 		children++
-		if !sameGroupExpression(child, version.Arg) {
+		if !SameGroupExpression(child, version.Arg) {
 			t.Fatal("wrong child")
 		}
 	})

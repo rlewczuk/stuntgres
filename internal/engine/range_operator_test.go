@@ -96,7 +96,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if original.Args[0].ResultUsage().Type != d || next.Namespace != "pg_catalog" {
 		t.Fatal("mutated retained identity")
 	}
-	if !sameGroupExpression(original, original) || sameGroupExpression(original, next) {
+	if !SameGroupExpression(original, original) || SameGroupExpression(original, next) {
 		t.Fatal("wrong expression equivalence")
 	}
 	if !generationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {

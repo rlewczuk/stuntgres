@@ -157,11 +157,11 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 			walked++
 		}
 	})
-	if walked != 1 || exec.PlannedVolatility(original) != expr.Immutable || !sameGroupExpression(original, original) || exec.QuerySetDepth(original) != 1 {
+	if walked != 1 || exec.PlannedVolatility(original) != expr.Immutable || !SameGroupExpression(original, original) || exec.QuerySetDepth(original) != 1 {
 		t.Fatal("closed traversal", walked)
 	}
 	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
-	if err != nil || !sameGroupExpression(original, clone) {
+	if err != nil || !SameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}
 	folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)

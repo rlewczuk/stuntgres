@@ -148,7 +148,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		if err != nil || truthErr != nil || truth != plan.True {
 			t.Fatal("predicate not rebound to actual child generations", truth, err, truthErr)
 		}
-		if !sameGroupExpression(original, original) || sameGroupExpression(original, mapped) {
+		if !SameGroupExpression(original, original) || SameGroupExpression(original, mapped) {
 			t.Fatal("structural identity ignored predicate generations")
 		}
 		node := original.(plan.ScalarArrayComparisonExpr)

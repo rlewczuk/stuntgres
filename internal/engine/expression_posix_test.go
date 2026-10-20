@@ -31,17 +31,17 @@ func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 	}
 	standard := extraction
 	standard.Syntax = parser.SQLFunctionSyntax
-	if !sameGroupExpression(extraction, standard) || !sameGroupExpression(standard, extraction) {
+	if !SameGroupExpression(extraction, standard) || !SameGroupExpression(standard, extraction) {
 		t.Fatal("regex substring presentation changed grouping identity")
 	}
 	swapped := extraction
 	swapped.Args = [2]expr.Expr{pattern, source}
-	if sameGroupExpression(extraction, swapped) {
+	if SameGroupExpression(extraction, swapped) {
 		t.Fatal("regex operands lost grouping identity")
 	}
 	otherOperator := predicate
 	otherOperator.Operator = "~*"
-	if sameGroupExpression(predicate, otherOperator) {
+	if SameGroupExpression(predicate, otherOperator) {
 		t.Fatal("regex operator lost grouping identity")
 	}
 }

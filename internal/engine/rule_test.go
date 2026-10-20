@@ -288,7 +288,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("single VALUES became a materialized supplied row")
 		}
 		for i, expression := range single.Expressions[0] {
-			if !sameGroupExpression(producer.new[i], expression) {
+			if !SameGroupExpression(producer.new[i], expression) {
 				t.Fatal("single VALUES recipe replaced by an output Var")
 			}
 		}

@@ -12,9 +12,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Persisted predicates have no query-local window-call metadata. A nil binder
-// selects conservative structural comparison without constructing binder state.
-func sameGroupExpression(a, other expr.Expr) bool {
+// SameGroupExpression compares two bound expressions structurally, as GROUP
+// BY matching does. Persisted predicates have no query-local window-call
+// metadata; a nil binder selects conservative structural comparison without
+// constructing binder state.
+func SameGroupExpression(a, other expr.Expr) bool {
 	return (*expressionBinder)(nil).sameGroupExpression(a, other)
 }
 

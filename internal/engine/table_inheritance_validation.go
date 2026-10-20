@@ -14,12 +14,12 @@ import (
 // persistent replacement. Compare at current row authority without changing
 // either descriptor or remapping external provider references.
 func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v catalog.Read) bool {
-	if sameGroupExpression(mapped, child) {
+	if SameGroupExpression(mapped, child) {
 		return true
 	}
 	identity := createLikeInput{Source: d}
 	current, err := remapLikeExpression(&identity, child, d, v)
-	return err == nil && sameGroupExpression(mapped, current)
+	return err == nil && SameGroupExpression(mapped, current)
 }
 
 func validateInheritance(v catalog.Read, d *catalog.Relation) error {

@@ -246,7 +246,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	}
 	children := 0
 	plan.ExpressionChildren(n, func(expr.Expr) { children++ })
-	if children != 1 || !sameGroupExpression(n, n) {
+	if children != 1 || !SameGroupExpression(n, n) {
 		t.Fatal("walker/group identity", children)
 	}
 	stored, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), n)

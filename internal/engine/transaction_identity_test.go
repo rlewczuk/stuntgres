@@ -271,7 +271,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			t.Fatal("symbolic recipe", recipe, err)
 		}
 		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || !sameGroupExpression(n, persisted) {
+		if err != nil || !SameGroupExpression(n, persisted) {
 			t.Fatal("symbolic remapping", err)
 		}
 		if err := validateGenerationPlan(e.CatalogRead(), nil, n); err != nil {

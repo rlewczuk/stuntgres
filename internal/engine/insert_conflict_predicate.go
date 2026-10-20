@@ -169,7 +169,7 @@ func conflictPredicateProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	if truth, ok := conflictLiteralTruth(a); ok && truth != plan.True {
 		return true, nil
 	}
-	if sameGroupExpression(a, b) {
+	if SameGroupExpression(a, b) {
 		return true, nil
 	}
 	if right, ok := b.(plan.LogicalExpr); ok && right.Op == parser.LogicalAnd {
@@ -209,11 +209,11 @@ func conflictPredicateProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	return conflictComparisonProof(ctx, a, b)
 }
 func conflictStrictFor(node, subject expr.Expr) bool {
-	if sameGroupExpression(node, subject) {
+	if SameGroupExpression(node, subject) {
 		return node.ResultUsage().Type.ID() == sqltype.Bool
 	}
 	if c, ok := node.(plan.ComparisonExpr); ok {
-		return !c.Predicate.SessionDependent() && (sameGroupExpression(c.Left, subject) || sameGroupExpression(c.Right, subject))
+		return !c.Predicate.SessionDependent() && (SameGroupExpression(c.Left, subject) || SameGroupExpression(c.Right, subject))
 	}
 	if n, ok := node.(plan.LogicalExpr); ok && n.Op == parser.LogicalNot {
 		return conflictStrictFor(n.Left, subject)
@@ -305,8 +305,8 @@ func conflictComparisonProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 		y.Left, y.Right = y.Right, y.Left
 		y.Operator = conflictCommuted(y.Operator)
 	}
-	if !sameGroupExpression(x.Left, y.Left) {
-		if sameGroupExpression(x.Left, y.Right) && sameGroupExpression(x.Right, y.Left) {
+	if !SameGroupExpression(x.Left, y.Left) {
+		if SameGroupExpression(x.Left, y.Right) && SameGroupExpression(x.Right, y.Left) {
 			y.Left, y.Right = y.Right, y.Left
 			y.Operator = conflictCommuted(y.Operator)
 		} else {
@@ -336,7 +336,7 @@ func conflictComparisonProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	if xi < 0 || yi < 0 {
 		return false, nil
 	}
-	if sameGroupExpression(x.Right, y.Right) {
+	if SameGroupExpression(x.Right, y.Right) {
 		return conflictSameOperators[xi][yi], nil
 	}
 	first, ok := x.Right.(plan.LiteralExpr)

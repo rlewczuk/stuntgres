@@ -46,7 +46,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if original.ResultUsage().Type != result || original.Args[0].ResultUsage().Type != d {
 		t.Fatal("mutated retained generation")
 	}
-	if !sameGroupExpression(original, original) || sameGroupExpression(original, next) {
+	if !SameGroupExpression(original, original) || SameGroupExpression(original, next) {
 		t.Fatal("incorrect provider equivalence")
 	}
 	children := 0

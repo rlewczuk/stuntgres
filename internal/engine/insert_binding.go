@@ -59,7 +59,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 		}
 		b.ArrayTargets[i] = partial
 	}
-	domainScheduling := bindInsertDefaults(binder.host.CatalogOwner(), b, auth.ReadCatalog(), s.Override)
+	domainScheduling := BindInsertDefaults(binder.host.CatalogOwner(), b, auth.ReadCatalog(), s.Override)
 	if s.Source != nil {
 		if err := bindInsertSource(b, binder, auth, s); err != nil {
 			return err
@@ -271,7 +271,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authorit
 // INSERT, COPY and foreign actions share catalog-owned default/identity plans.
 // The result tells VALUES binding whether domain inputs/defaults require the
 // existing destination-attribute projection rather than default-first demand.
-func bindInsertDefaults(owner *catalog.Owner, b *binding, view catalog.Read, override parser.InsertOverride) bool {
+func BindInsertDefaults(owner *catalog.Owner, b *binding, view catalog.Read, override parser.InsertOverride) bool {
 	hasDomains, hasTypeDefaults, hasDomainInput := false, false, false
 	for _, column := range b.Relation.Columns {
 		hasDomains = hasDomains || column.Usage.Type.HasDomainConstraints()

@@ -29,7 +29,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 		t.Fatal("path argument traversal", count)
 	}
 	mapped, err := remapBoundExpression(call, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !sameGroupExpression(call, mapped) {
+	if err != nil || !SameGroupExpression(call, mapped) {
 		t.Fatal("path reference remap", err)
 	}
 	demand := false
@@ -42,7 +42,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	}
 	args := expr.Expr(call).(expr.Composite).Children()
 	reconstructed, err := expr.Substitute(expr.Expr(call).(expr.Composite), expr.InfoOf(call), args)
-	if err != nil || !sameGroupExpression(call, reconstructed) {
+	if err != nil || !SameGroupExpression(call, reconstructed) {
 		t.Fatal("path reconstruction", err)
 	}
 	if _, err := expr.Substitute(expr.Expr(call).(expr.Composite), expr.InfoOf(call), nil); err == nil {
