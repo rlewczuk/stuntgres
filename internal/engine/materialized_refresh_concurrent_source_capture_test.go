@@ -2,14 +2,16 @@ package engine
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"testing"
-	"time"
 )
 
 func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
@@ -177,7 +179,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage.materialized().replacement.concurrent = true
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil); err != nil {
@@ -199,7 +201,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 			t.Fatal("strict target/index/ordinary/provider original lost", d.Address())
 		}
 	}
-	clone := cloneCatalogChanges(changes)
+	clone := changes.Clone()
 	if err := e.catalogPreflightLocked(clone); err != nil {
 		t.Fatal("generated fence rejected compatible source", err)
 	}

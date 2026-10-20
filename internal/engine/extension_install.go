@@ -66,7 +66,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 		return Result{}, err
 	}
 	e.mu.Lock()
-	changes := cloneCatalogChanges(scope.owner.catalog)
+	changes := scope.owner.catalog.Clone()
 	for a, d := range stage.Descriptors() {
 		// Validation ran without the mutex. Capture the stage's exact
 		// predecessor, never whatever a peer published during validation.

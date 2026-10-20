@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
@@ -15,7 +16,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	base := e.CatalogRead().State()
 	target := roleTableRef(t, e, "q").Address
 	run(t, e, `CREATE TABLE t(id INT DEFAULT nextval('q'))`)
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	changes.Dependencies = append(changes.Dependencies, catalogDependencyObservation{base, []ids.ObjectAddress{target}})
 	e.mu.Lock()
 	err := e.catalogPreflightLocked(changes)

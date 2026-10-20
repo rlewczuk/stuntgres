@@ -118,7 +118,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	base := auth.Catalog
 	var changes *catalogChanges
 	if temporary {
-		changes = cloneCatalogChanges(scope.owner.catalog)
+		changes = scope.owner.catalog.Clone()
 	}
 	stage := e.BeginCatalogStage(base)
 	stage.authorizeLocked(auth, op.session)

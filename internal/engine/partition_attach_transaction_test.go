@@ -193,7 +193,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			partitionAttachUnitGrant(t, attach, parentRef, lock.ShareUpdateExclusive)
 			partitionAttachUnitGrant(t, attach, childRef, lock.AccessExclusive)
 			stage := partitionAttachUnitStage(t, e, attach.ResolutionCatalog(), parent, child)
-			changes := cloneCatalogChanges(attach.owner.catalog)
+			changes := attach.owner.catalog.Clone()
 			if err := e.stageCatalogOverlay(attach, stage, changes); err != nil {
 				t.Fatal(err)
 			}

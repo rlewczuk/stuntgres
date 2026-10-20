@@ -44,7 +44,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			if err := f.e.stagePartitionDetach(stage, f.parent, f.child); err != nil {
 				t.Fatal(err)
 			}
-			if err := f.e.stageCatalogOverlay(detach, stage, cloneCatalogChanges(detach.owner.catalog)); err != nil {
+			if err := f.e.stageCatalogOverlay(detach, stage, detach.owner.catalog.Clone()); err != nil {
 				t.Fatal(err)
 			}
 			if err := detach.Finish(nil); err != nil {

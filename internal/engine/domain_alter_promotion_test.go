@@ -34,7 +34,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 				t.Fatal("promotion lost original ownership/observation")
 			}
 			observation := domainJournalOf(s.transactions.catalog.Domain).ValidationFences()[0]
-			clone := cloneCatalogChanges(s.transactions.catalog)
+			clone := s.transactions.catalog.Clone()
 			journal := domainWritable(clone)
 			journal.Validations = append(journal.Validations, observation)
 			if len(domainJournalOf(s.transactions.catalog.Domain).ValidationFences()) != 1 {

@@ -34,7 +34,7 @@ func (f orderProbeFence) currentLocked(*Engine, *catalogChanges) error {
 
 func TestCatalogFencesCheckKindsInCallOrder(t *testing.T) {
 	var seen []string
-	c := newCatalogChanges()
+	c := session.NewJournal()
 	for _, f := range []orderProbeFence{
 		{kind: fenceNamespace, name: "namespace"},
 		{kind: fenceStorageRead, name: "read-1"},
@@ -57,7 +57,7 @@ func TestCatalogFencesCheckKindsInCallOrder(t *testing.T) {
 			t.Fatalf("checked %v, want %v", seen, want)
 		}
 	}
-	clone := cloneCatalogChanges(c)
+	clone := c.Clone()
 	if len(clone.Fences) != len(c.Fences) || &clone.Fences[0] == &c.Fences[0] {
 		t.Fatal("journal clone must copy the fence list in order into its own slice")
 	}
@@ -66,7 +66,7 @@ func TestCatalogFencesCheckKindsInCallOrder(t *testing.T) {
 func TestCatalogFencesStopAtFirstFailure(t *testing.T) {
 	var seen []string
 	first, second := errors.New("first"), errors.New("second")
-	c := newCatalogChanges()
+	c := session.NewJournal()
 	c.AddFence(orderProbeFence{kind: fenceIndexSet, name: "index", err: second, seen: &seen})
 	c.AddFence(orderProbeFence{kind: fenceStorageRead, name: "read", err: first, seen: &seen})
 	if err := (&Engine{}).catalogFencesCurrentLocked(c, fenceStorageRead, fenceIndexSet); !errors.Is(err, first) {

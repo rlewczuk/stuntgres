@@ -17,7 +17,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	changes := cloneCatalogChanges(scope.owner.catalog)
+	changes := scope.owner.catalog.Clone()
 	originalCatalog := auth.Catalog
 	persistence := s.Persistence
 	if persistence == "" {

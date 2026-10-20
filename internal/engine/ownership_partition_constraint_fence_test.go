@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // This fixture reuses the real partition/key/storage construction, then drives
@@ -45,7 +47,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	if private {
 		// Honest predecessor plus a different selected private descriptor. This
 		// tests catalog authority, not SQL admission for transactional DB OWNER.
-		changes = newCatalogChanges()
+		changes = session.NewJournal()
 		database := *committed.(*catalog.Database)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
 		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database

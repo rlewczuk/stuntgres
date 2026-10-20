@@ -46,7 +46,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		e.mu.Unlock()
 		return writes, deletes, c, nil
 	}
-	next := cloneCatalogChanges(c)
+	next := c.Clone()
 	nextWrites, nextDeletes := maps.Clone(writes), maps.Clone(deletes)
 	for _, a := range cleared {
 		shape, exists := next.Storage[a]

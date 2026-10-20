@@ -658,7 +658,7 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 				t.Fatal("private recursive removal absent")
 			}
 			indexMaintenanceUnchanged(t, e, before)
-			copied := cloneCatalogChanges(changes)
+			copied := changes.Clone()
 			e.mu.Lock()
 			copyView := e.privateCatalogLocked(copied)
 			e.mu.Unlock()

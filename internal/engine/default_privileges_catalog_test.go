@@ -5,11 +5,13 @@ import (
 	"errors"
 	"reflect"
 	"sort"
+	"testing"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"testing"
+	"stuntgres/internal/engine/session"
 )
 
 func TestDefaultPrivilegesCloneStage(t *testing.T) {
@@ -33,7 +35,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	if staged.State().DefaultACL(key) != nil || base.State().DefaultACL(key) != record {
 		t.Fatal("default-only stage lost tombstone")
 	}
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	f.e.mu.Lock()
 	f.e.stageDefaultChangesLocked(stage, changes)
 	private := f.e.privateCatalogLocked(changes)
@@ -41,7 +43,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	if private.State().DefaultACL(key) != nil || changes.DefaultOriginals[key] != record {
 		t.Fatal("default-only private overlay")
 	}
-	cloned := cloneCatalogChanges(changes)
+	cloned := changes.Clone()
 	delete(cloned.DefaultACLs, key)
 	delete(cloned.DefaultOriginals, key)
 	delete(cloned.DefaultReads, key)
@@ -132,7 +134,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	}
 	removed := cloneRoleFixture(f.e.roles.published)
 	retireFixtureRole(removed, f.reader)
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	changes.Roles = removed
 	changes.RetiredRoles = map[authorization.PrincipalRef]struct{}{f.reader: {}}
 	if err := f.e.roleRetirementPreflightLocked(changes, f.e.catalog.state); !errors.Is(err, ids.ErrCatalogReplaced) {

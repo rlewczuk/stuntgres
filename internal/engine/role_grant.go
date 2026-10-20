@@ -445,7 +445,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		return Result{}, err
 	}
 	if op.session.transactions.retainsTransaction() {
-		changes := cloneCatalogChanges(op.session.transactions.catalog)
+		changes := op.session.transactions.catalog.Clone()
 		// Completed grant utilities retain their consulted DB predecessor in
 		// the candidate, not a scope authority with a pre-advance role revision.
 		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ids.ObjectRef{}, nil), changes); err != nil {

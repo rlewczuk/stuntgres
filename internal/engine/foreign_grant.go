@@ -68,7 +68,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 	if s.Kind == "foreign-data wrapper" {
 		class = ids.ForeignWrapperClassID
 	}
-	changes := cloneCatalogChanges(scope.owner.catalog)
+	changes := scope.owner.catalog.Clone()
 	for _, name := range s.Relations {
 		if len(name.Parts) != 1 {
 			return Result{}, sqlError("42601", "SQL/MED global names cannot be qualified")

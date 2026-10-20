@@ -126,7 +126,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err := access.ValidateACL(v.Roles, &next); err != nil {
 		return Result{}, err
 	}
-	changes := cloneCatalogChanges(scope.owner.catalog)
+	changes := scope.owner.catalog.Clone()
 	e.catalogChangeLocked(changes, db.Address(), &next)
 	scope.catalog = changes
 	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: db.Address()}, e.catalog.state.Get(db.Address()))

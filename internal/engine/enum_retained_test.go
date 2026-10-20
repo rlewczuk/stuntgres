@@ -2,16 +2,18 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Instrument a real enum producer's argument to distinguish capture from demand.
@@ -43,7 +45,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	defer scope.Finish(nil)
 	members := mood.EnumMembers()
 	e.mu.Lock()
-	scope.owner.catalog = newCatalogChanges()
+	scope.owner.catalog = session.NewJournal()
 	enumWritable(scope.owner.catalog).Unsafe = map[int64]bool{members[1].ID: true}
 	auth, err := e.authorizationLocked(op)
 	e.mu.Unlock()
@@ -65,7 +67,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			nested := plan.ConditionalExpr{Info: expr.Info{Usage: mood.Usage()}, Kind: parser.Coalesce, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: mood.Usage()}, Value: safe}, producer}}
 			e.mu.Lock()
 			unsafeRoot := scope.owner.catalog
-			scope.owner.catalog = newCatalogChanges()
+			scope.owner.catalog = session.NewJournal()
 			b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			var defaults []expr.Expr
@@ -121,7 +123,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	defer scope.Finish(nil)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	root := newCatalogChanges()
+	root := session.NewJournal()
 	enumWritable(root).Unsafe = map[int64]bool{members[1].ID: true}
 	scope.owner.catalog = root
 	auth, err := e.authorizationLocked(op)
@@ -154,7 +156,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 		t.Fatal("CREATE candidate binder lost admitted safety transport", failure)
 	}
 	mark := savepointMark{catalog: root}
-	candidate := cloneCatalogChanges(root)
+	candidate := root.Clone()
 	enumJournalOf(candidate.Enum).UnsafeMembers()[members[0].ID] = true
 	scope.owner.catalog = candidate
 	b.Input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
@@ -179,7 +181,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil || b.Input.EnumMemberSafe != nil || original.EnumMemberSafe(mood.ID(), members[1].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("completed root retained stale safety or changed old capture", err)
 	}
-	for _, empty := range []*catalogChanges{nil, newCatalogChanges()} {
+	for _, empty := range []*catalogChanges{nil, session.NewJournal()} {
 		scope.owner.catalog = empty
 		probe := analyze.Binder{}
 		// Nil engine deliberately makes any unnecessary naming/path capture fail.

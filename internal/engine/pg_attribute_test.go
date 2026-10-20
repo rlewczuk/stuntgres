@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -251,7 +252,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	ref := e.catalog.Domain.Ref(base.Epoch(), old.Address())
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}, Mode: parser.DropRestrict}
-	next, err := dropColumnCandidate(context.Background(), stage, old, ref, action, scope, newCatalogChanges(), nil)
+	next, err := dropColumnCandidate(context.Background(), stage, old, ref, action, scope, session.NewJournal(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

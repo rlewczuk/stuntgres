@@ -41,7 +41,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			step("ALTER DOMAIN public.d ADD CONSTRAINT counted CHECK(nextval('public.calls')>0) NOT VALID")
 			step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
 			changes := s.transactions.catalog
-			if len(domainJournalOf(changes.Domain).ValidationFences()) != 1 || len(domainJournalOf(cloneCatalogChanges(changes).Domain).ValidationFences()) != 1 || domainJournalOf(cloneCatalogChanges(changes).Domain).ValidationFences()[0] != domainJournalOf(changes.Domain).ValidationFences()[0] {
+			if len(domainJournalOf(changes.Domain).ValidationFences()) != 1 || len(domainJournalOf(changes.Clone().Domain).ValidationFences()) != 1 || domainJournalOf(changes.Clone().Domain).ValidationFences()[0] != domainJournalOf(changes.Domain).ValidationFences()[0] {
 				t.Fatal("immutable validation observation lost during clone")
 			}
 			view := e.privateCatalogLocked(changes)

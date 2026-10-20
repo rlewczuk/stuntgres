@@ -210,7 +210,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		e.mu.Unlock()
 		return nil
 	}
-	changes := cloneCatalogChanges(s.owner.catalog)
+	changes := s.owner.catalog.Clone()
 	stage := e.BeginCatalogStage(base)
 	stage.authorizeLocked(auth, session)
 	for address := range owned {

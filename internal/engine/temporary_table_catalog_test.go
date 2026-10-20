@@ -5,16 +5,18 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Package-function candidates use real registry descriptors and ownership; no
@@ -22,14 +24,14 @@ import (
 func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Engine, *Operation, *catalogChanges, *catalog.Relation) {
 	t.Helper()
 	e := New()
-	session := sessionStart(t, e, nil)
-	op, err := session.Acquire(context.Background())
+	s := sessionStart(t, e, nil)
+	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(op.Done)
-	c := newCatalogChanges()
-	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: session.token}
+	c := session.NewJournal()
+	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: s.token}
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.Address(), namespace)
@@ -47,7 +49,7 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 	if c.Storage[table.Address()].Original != nil || e.storage.Relations[table.Address()] != nil {
 		t.Fatal("invented committed predecessor")
 	}
-	mark := cloneCatalogChanges(c)
+	mark := c.Clone()
 	replacement := *table
 	replacement.OnCommit = parser.OnCommitDrop
 	e.catalogChangeLocked(c, table.Address(), &replacement)
@@ -70,7 +72,7 @@ func TestTemporaryTableProviderAction(t *testing.T) {
 	}
 	invalid := *table
 	invalid.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	c2 := cloneCatalogChanges(c)
+	c2 := c.Clone()
 	e.catalogChangeLocked(c2, table.Address(), &invalid)
 	if err := (relationProvider{}).Validate(e.privateCatalogLocked(c2), &invalid); err == nil {
 		t.Fatal("persistent action descriptor accepted")
@@ -86,7 +88,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 	for _, action := range []parser.OnCommitAction{parser.OnCommitPreserve, parser.OnCommitDelete, parser.OnCommitDrop} {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
 		writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
-		mark := cloneCatalogChanges(c)
+		mark := c.Clone()
 		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, c)
 		if err != nil {
 			t.Fatal(action, err)

@@ -163,7 +163,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		return Result{}, err
 	}
 	if op.session.transactions.retainsTransaction() {
-		changes := cloneCatalogChanges(op.session.transactions.catalog)
+		changes := op.session.transactions.catalog.Clone()
 		// Default utilities use the selected private DB authority, but their
 		// retained effects must fence its exact committed predecessor.
 		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ids.ObjectRef{}, nil), changes); err != nil {

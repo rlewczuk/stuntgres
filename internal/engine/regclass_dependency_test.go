@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -36,7 +37,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	next, err := scope.dropColumnCandidate(stage, old, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "v"}, Mode: parser.DropCascade}, changes)
 	if err != nil {
 		t.Fatal(err)

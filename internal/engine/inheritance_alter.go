@@ -226,7 +226,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	}
 	original := scope.statementMutation
 	var stage *CatalogStage
-	state := &inheritanceAlterState{changes: cloneCatalogChanges(scope.owner.catalog), root: root, targets: targets, selected: map[ids.ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
+	state := &inheritanceAlterState{changes: scope.owner.catalog.Clone(), root: root, targets: targets, selected: map[ids.ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
 	state.tablespace = tablespace
 	state.types = types
 	scope.inheritance.alter = state

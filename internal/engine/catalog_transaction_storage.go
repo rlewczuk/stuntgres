@@ -11,30 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type catalogStorageChange struct {
-	Original    *storage.Relation
-	Root        []storage.RowVersion
-	Ends        *storage.DeletionRoot
-	Generation  uint64
-	Replacement *storage.Relation
-	Relation    *catalog.Relation
-	Snapshot    []storage.RowVersion
-	HasSnapshot bool
-	Rewritten   bool
-	Truncated   bool
-	Frontier    ids.CommitSeq
-	Fills       map[int32]sqltype.Value
-	// Latest replacement's diagnostic mode is distinct from uninterrupted
-	// original-to-final concurrent provenance. A plain rewrite breaks the latter.
-	MaterializedConcurrent bool
-	MaterializedContinuous bool
-}
-
-type catalogDependencyObservation struct {
-	Base    *catalog.State
-	Targets []ids.ObjectAddress
-}
-
 type catalogAuthority struct {
 	session                                *Session
 	authorization, roles                   uint64

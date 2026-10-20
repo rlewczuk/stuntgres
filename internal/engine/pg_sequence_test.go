@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func pgSequenceUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
@@ -170,7 +172,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	base.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	base.SetDescriptor(a, &catalog.Relation{ObjectAddress: a, RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
-	own := newCatalogChanges()
+	own := session.NewJournal()
 	own.Descriptors[a] = nil
 	for _, tc := range []struct {
 		name string
@@ -210,7 +212,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	oldBag := pgSequenceUnitBag(t, old)
-	own := newCatalogChanges()
+	own := session.NewJournal()
 	updated := *d
 	newOptions := *options
 	newOptions.Start = -4
@@ -266,7 +268,7 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 				t.Fatal("snapshot pointer policy")
 			}
 			mark := owner.captureSavepoint("s")
-			owner.catalog = newCatalogChanges()
+			owner.catalog = session.NewJournal()
 			owner.restoreSavepoint(mark, mark.settings.clone())
 			if stableIsolation(isolation) && owner.sequenceCatalog != base {
 				t.Fatal("savepoint discarded transaction snapshot")

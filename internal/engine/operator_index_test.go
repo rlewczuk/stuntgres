@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -203,7 +204,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	current := e.CatalogRead()
 	assertOperatorIndex(t, current.State())
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	overlayMove := moved
 	overlayMove.ObjectNamespace, overlayMove.ObjectName = d.Namespace(), "#@#"
 	added := indexUnitOperator(90002, d.Namespace(), d.Name())
@@ -216,7 +217,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	assertOperatorIndex(t, current.State())
 	// Savepoint effects rematerialize from their captured base rather than
 	// editing the retained private root's buckets.
-	saved := cloneCatalogChanges(changes)
+	saved := changes.Clone()
 	e.mu.Lock()
 	e.catalogChangeLocked(changes, added.Address(), nil)
 	removedAdded := e.privateCatalogLocked(changes)
@@ -228,7 +229,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	if restored.Get(added.Address()) != added || removedAdded.Get(added.Address()) != nil {
 		t.Fatal("savepoint/private sibling membership changed")
 	}
-	changes = newCatalogChanges()
+	changes = session.NewJournal()
 	e.mu.Lock()
 	e.catalogChangeLocked(changes, moved.Address(), nil)
 	private := e.privateCatalogLocked(changes)
@@ -239,7 +240,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	}
 	assertOperatorIndex(t, private.State())
 	assertOperatorIndex(t, current.State())
-	changes = newCatalogChanges()
+	changes = session.NewJournal()
 	refreshed := moved
 	refreshed.ObjectRevision++
 	refreshed.Hash = true

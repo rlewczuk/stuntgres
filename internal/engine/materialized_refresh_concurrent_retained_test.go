@@ -14,7 +14,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 		e := New()
 		d := concurrentUnitRelation(t, e)
 		original := e.storage.Relations[d.Address()]
-		changes := newCatalogChanges()
+		changes := session.NewJournal()
 		previous := original
 		for i, concurrent := range sequence {
 			replacement := &storage.Relation{Generation: previous.Generation + 1}
@@ -39,7 +39,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	e := New()
 	d := concurrentUnitRelation(t, e)
 	private := &storage.Relation{}
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	changes.Storage[d.Address()] = catalogStorageChange{Replacement: private, Relation: d}
 	stage := &CatalogStage{materializedSlot: &materializedStage{replacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &storage.Relation{}, concurrent: true}}}
 	e.mu.Lock()
@@ -65,9 +65,9 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {
 		t.Fatal("compatible publication rejected captured source")
 	}
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	changes.Fences = []session.Fence{fence}
-	clone := cloneCatalogChanges(changes)
+	clone := changes.Clone()
 	if err := e.catalogPreflightLocked(clone); err != nil {
 		t.Fatal("source-only retained fence rejected", err)
 	}

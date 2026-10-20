@@ -33,7 +33,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					}
 				}
 				if carrier == "clone" {
-					a.transactions.catalog = cloneCatalogChanges(cloneCatalogChanges(a.transactions.catalog))
+					a.transactions.catalog = a.transactions.catalog.Clone().Clone()
 				}
 				if carrier == "promotion" || carrier == "savepoint" || carrier == "prepared" {
 					if _, err := m.step(statement(t, "BEGIN")); err != nil {
@@ -151,11 +151,11 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 	defer m.end(context.Canceled)
 	// This is the catalog-root portion of a saved owner candidate, not a claim
 	// that native explicit-block DROP ROLE is eligible after SQL SAVEPOINT.
-	before := cloneCatalogChanges(a.transactions.catalog)
+	before := a.transactions.catalog.Clone()
 	if _, err := m.step(statement(t, "DROP ROLE restored")); err != nil {
 		t.Fatal(err)
 	}
-	retirement := cloneCatalogChanges(a.transactions.catalog)
+	retirement := a.transactions.catalog.Clone()
 	if _, err := m.step(statement(t, "DROP ROLE later")); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 	if _, ok := retirement.RetiredRoles[role.Ref]; !ok {
 		t.Fatal("retirement fork lost the exact principal obligation")
 	}
-	a.transactions.catalog = cloneCatalogChanges(before)
+	a.transactions.catalog = before.Clone()
 	sessionSQL(t, b, "CREATE SCHEMA restoration_peer AUTHORIZATION restored")
 	if retirement.Roles == nil || retirement.Roles.Root.Read(authorization.PrincipalRef{}).LookupRef("restored") != (authorization.PrincipalRef{}) {
 		t.Fatal("retirement fork did not carry the private deletion")

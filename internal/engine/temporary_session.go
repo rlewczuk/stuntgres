@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
@@ -367,7 +369,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		result.previous[address] = e.storage.IndexRoots[address]
 	}
 	e.mu.Unlock()
-	changes := newCatalogChanges()
+	changes := session.NewJournal()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.catalog.read(next)}}
 	for address, shape := range stage.rowShapes {
 		parent, ok := next.Relation(address)

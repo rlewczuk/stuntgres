@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -18,9 +19,9 @@ import (
 
 func TestEnumProvenanceSavepoints(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 45000}
-	outer := newCatalogChanges()
+	outer := session.NewJournal()
 	outer.Enum = enumSlotOf(&typedef.EnumJournal{Created: map[ids.ObjectAddress]bool{address: true}, Unsafe: map[int64]bool{9: true}})
-	child := cloneCatalogChanges(outer)
+	child := outer.Clone()
 	enumJournalOf(child.Enum).UnsafeMembers()[10] = true
 	delete(enumJournalOf(child.Enum).CreatedTypes(), address)
 	if enumJournalOf(outer.Enum).UnsafeMembers()[10] || !enumJournalOf(outer.Enum).CreatedTypes()[address] {

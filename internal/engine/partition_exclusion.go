@@ -65,5 +65,5 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *O
 	if _, err = e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		return Result{}, err
 	}
-	return Result{}, e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
+	return Result{}, e.stageCatalogOverlay(scope, stage, scope.owner.catalog.Clone())
 }

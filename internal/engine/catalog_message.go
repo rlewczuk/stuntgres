@@ -312,7 +312,7 @@ func (e *Engine) stageMessageCatalog(op *Operation, p *PreparedCatalogPublicatio
 	if token.Epoch != p.epoch {
 		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
-	if err := e.stageCatalogOverlay(scope, p.stage, cloneCatalogChanges(scope.owner.catalog)); err != nil {
+	if err := e.stageCatalogOverlay(scope, p.stage, scope.owner.catalog.Clone()); err != nil {
 		return ChangeSet{}, err
 	}
 	return catalogStageChanges(p.stage), nil

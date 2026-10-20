@@ -3,11 +3,13 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"testing"
 )
 
 func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
@@ -35,7 +37,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			stage := e.BeginCatalogStage(auth.Catalog)
 			defer e.DiscardCatalogStage(stage)
 			stage.authorizeLocked(auth, op.session)
-			changes := newCatalogChanges()
+			changes := session.NewJournal()
 			authority := auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 			// Empty descriptor/removal sets are deliberate: storage-only TRUNCATE and
 			// other staged authorities must still record the database predecessor.
@@ -45,8 +47,8 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if changes.Originals[catalog.CurrentDatabaseAddress] != committed || authority.databasePredecessor != committed || authority.databaseAuthority != auth.Catalog.Get(catalog.CurrentDatabaseAddress) {
 				t.Fatal("entry/private predecessor pairing")
 			}
-			child := cloneCatalogChanges(changes)
-			released := cloneCatalogChanges(child)
+			child := changes.Clone()
+			released := child.Clone()
 			if child.Originals[catalog.CurrentDatabaseAddress] != committed || released.Originals[catalog.CurrentDatabaseAddress] != committed {
 				t.Fatal("savepoint clone lost predecessor")
 			}
@@ -61,7 +63,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.catalogPreflightLocked(released); err == nil {
 				t.Fatal("outer commit accepted changed database predecessor")
 			}
-			if err := e.captureCatalogStageLocked(stage, newCatalogChanges(), auth.Catalog.State(), nil); !errors.Is(err, ids.ErrCatalogReplaced) {
+			if err := e.captureCatalogStageLocked(stage, session.NewJournal(), auth.Catalog.State(), nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("Finish accepted changed committed predecessor", err)
 			}
 			if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != stage.databaseAuthority || auth.RoleRecord.Revision != e.roles.published.Revision {

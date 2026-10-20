@@ -31,7 +31,7 @@ func (e *Engine) installOperationRolesLocked(op *Operation, next *access.RoleRec
 		e.roles.published = next
 		return
 	}
-	c := cloneCatalogChanges(t.catalog)
+	c := t.catalog.Clone()
 	if c.RolesBase == nil {
 		c.RolesBase = e.roles.published
 	}

@@ -3,14 +3,16 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
@@ -36,7 +38,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			e.mu.Lock()
 			var carried *catalog.Namespace
 			if prior {
-				scope.catalog = newCatalogChanges()
+				scope.catalog = session.NewJournal()
 				carried = &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, ObjectName: "private_carried", Owner: e.roles.domain.Principal(10), ObjectRevision: 1}
 				e.catalogChangeLocked(scope.catalog, carried.Address(), carried)
 			}

@@ -91,7 +91,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	if !maps.Equal(root.Membership, want) || len(root.Entries) != 2 {
 		t.Fatal("private TYPE membership", root)
 	}
-	cloned := cloneCatalogChanges(changes)
+	cloned := changes.Clone()
 	if journalIndexesOrZero(cloned).uniqueRoots[next.Address()] != root {
 		t.Fatal("savepoint clone lost immutable baseline")
 	}

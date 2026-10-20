@@ -5,14 +5,16 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Reuse the ownership roles and real sequence constructor, not a mock stage.
@@ -70,7 +72,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 	if private {
 		// Honest installed predecessor, distinct selected owner-private authority;
 		// this is the package overlay seam, not new database SQL admission.
-		changes = newCatalogChanges()
+		changes = session.NewJournal()
 		database := *committed.(*catalog.Database)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
 		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database

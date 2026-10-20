@@ -16,7 +16,7 @@ type indexJournal struct {
 	rebuilds    map[ids.ObjectAddress]*catalog.Relation
 }
 
-// indexes returns the indexes slot, allocating it on first use.
+// journalIndexes returns c's index slot, allocating it on first use.
 func journalIndexes(c *catalogChanges) *indexJournal {
 	if c.Indexes == nil {
 		c.Indexes = indexSlotOf(new(indexJournal))
@@ -24,12 +24,12 @@ func journalIndexes(c *catalogChanges) *indexJournal {
 	return indexJournalOf(c.Indexes)
 }
 
-// indexesOrZero reads the indexes slot; a nil slot reads as zero.
+// journalIndexesOrZero reads c's index slot; a nil slot reads as zero.
 func journalIndexesOrZero(c *catalogChanges) indexJournal {
-	if c.Indexes == nil {
-		return indexJournal{}
+	if j := indexJournalOf(c.Indexes); j != nil {
+		return *j
 	}
-	return *indexJournalOf(c.Indexes)
+	return indexJournal{}
 }
 
 // clone copies the slot for a new journal. The journal is copy-on-write and

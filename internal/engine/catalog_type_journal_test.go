@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 )
@@ -14,7 +15,7 @@ func TestCatalogTypeJournalSlotsCopyOnWrite(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 45000}
 	root := new(storage.IndexRoot)
 	fence := new(typedef.DomainValidationFence)
-	original := newCatalogChanges()
+	original := session.NewJournal()
 	domainWritable(original).Validations = []*typedef.DomainValidationFence{fence}
 	domainWritable(original).IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{address: root}
 	enumWritable(original).Created = map[ids.ObjectAddress]bool{address: true}
@@ -25,13 +26,13 @@ func TestCatalogTypeJournalSlotsCopyOnWrite(t *testing.T) {
 		t.Fatal("write through a by-value journal copy changed the original")
 	}
 
-	clone := cloneCatalogChanges(original)
+	clone := original.Clone()
 	domainJournalOf(clone.Domain).CommittedIndexRoots()[address] = nil
 	delete(enumJournalOf(clone.Enum).CreatedTypes(), address)
 	if domainJournalOf(original.Domain).CommittedIndexRoots()[address] != root || !enumJournalOf(original.Enum).CreatedTypes()[address] {
 		t.Fatal("clone shares slot maps with the original")
 	}
-	if empty := cloneCatalogChanges(newCatalogChanges()); empty.Domain != nil || empty.Enum != nil {
+	if empty := session.NewJournal().Clone(); empty.Domain != nil || empty.Enum != nil {
 		t.Fatal("clone allocated slots for an empty journal")
 	}
 }

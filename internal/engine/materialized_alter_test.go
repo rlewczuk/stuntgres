@@ -5,15 +5,17 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"testing"
-	"time"
 )
 
 func materializedAlterUnit(t *testing.T, e *Engine, op *Operation, d *catalog.Relation, action, target string) error {
@@ -189,7 +191,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		changes := newCatalogChanges()
+		changes := session.NewJournal()
 		e.mu.Lock()
 		err = e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil)
 		e.mu.Unlock()

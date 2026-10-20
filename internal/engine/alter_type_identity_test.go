@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestAlterTypeACLAndOwnedSequenceIdentity(t *testing.T) {
@@ -326,7 +328,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 			e.mu.Lock()
 			e.catalog.state = catalog.CloneState(base)
 			e.catalog.state.SetDescriptor(sequence, &current)
-			changes := newCatalogChanges()
+			changes := session.NewJournal()
 			changes.Originals[sequence] = &current
 			target := tableRef.Address
 			target.SubID = table.Attributes[0]

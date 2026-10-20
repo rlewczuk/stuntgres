@@ -121,7 +121,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if _, err = e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		return Result{}, err
 	}
-	return Result{}, e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
+	return Result{}, e.stageCatalogOverlay(scope, stage, scope.owner.catalog.Clone())
 }
 
 func partitionDetachMembership(parent, child *catalog.Relation) error {

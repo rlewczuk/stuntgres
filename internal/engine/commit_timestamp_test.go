@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -11,12 +14,11 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 func commitTimeUnitRef(e *Engine, id ids.TxID) ids.TxRef {
@@ -87,7 +89,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 		t.Fatal("assigned-only prepared ownership was discarded")
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384}
-	if publicationNeedsXID(map[ids.ObjectAddress][]storage.RowVersion{address: nil}, map[ids.ObjectAddress]*visibility.PrivateDeletes{address: {}}, newCatalogChanges(), nil) {
+	if publicationNeedsXID(map[ids.ObjectAddress][]storage.RowVersion{address: nil}, map[ids.ObjectAddress]*visibility.PrivateDeletes{address: {}}, session.NewJournal(), nil) {
 		t.Fatal("empty reserved publication containers fabricated assignment")
 	}
 	if !publicationNeedsXID(nil, nil, nil, &preparedPublication{preparing: true}) {

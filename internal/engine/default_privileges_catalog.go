@@ -36,15 +36,6 @@ func (e *Engine) defaultACLChangeLocked(c *catalogChanges, key catalog.DefaultAC
 	c.CachedBase = nil
 	c.Cached = catalog.Read{}
 }
-func cloneDefaultChanges(source *catalogChanges, next *catalogChanges) {
-	if len(source.DefaultACLs) != 0 {
-		next.DefaultACLs = catalog.CloneDefaultACLs(source.DefaultACLs)
-		next.DefaultOriginals = catalog.CloneDefaultACLs(source.DefaultOriginals)
-	}
-	if len(source.DefaultReads) != 0 {
-		next.DefaultReads = catalog.CloneDefaultACLs(source.DefaultReads)
-	}
-}
 func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *catalogChanges) {
 	for key, record := range s.DefaultReads() {
 		if _, private := c.DefaultACLs[key]; private {

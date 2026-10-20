@@ -111,7 +111,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		e.DiscardCatalogStage(stage)
 		return fail(err)
 	}
-	changes := cloneCatalogChanges(scope.owner.catalog)
+	changes := scope.owner.catalog.Clone()
 	grantCatalog := e.catalog.state
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, grantCatalog.Get(ref.Address))
 	e.mu.Unlock()

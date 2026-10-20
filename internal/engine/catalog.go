@@ -729,7 +729,7 @@ func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p
 		if token.Epoch != p.epoch {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
-		if err := e.stageCatalogOverlay(scope, p.stage, cloneCatalogChanges(scope.owner.catalog)); err != nil {
+		if err := e.stageCatalogOverlay(scope, p.stage, scope.owner.catalog.Clone()); err != nil {
 			return ChangeSet{}, err
 		}
 		return catalogStageChanges(p.stage), nil

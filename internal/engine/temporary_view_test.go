@@ -60,7 +60,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	if e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.Get(view.Address()) != nil {
 		t.Fatal("private namespace/view escaped validation")
 	}
-	candidate := cloneCatalogChanges(changes)
+	candidate := changes.Clone()
 	e.mu.Lock()
 	err := e.captureCatalogStageLocked(stage, candidate, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {

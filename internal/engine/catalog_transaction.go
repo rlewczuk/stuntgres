@@ -6,84 +6,12 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 )
-
-// Transactional descriptors, row shapes and generators share one private overlay.
-// Original descriptors/name bindings are commit preconditions, not undo data.
-type catalogChanges struct {
-	Originals        map[ids.ObjectAddress]catalog.Descriptor
-	Descriptors      map[ids.ObjectAddress]catalog.Descriptor
-	Names            map[ids.NameKey]ids.ObjectAddress
-	DefaultACLs      map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	DefaultOriginals map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	DefaultReads     map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	Generators       map[ids.ObjectAddress]*storage.SequenceGenerator
-	Storage          map[ids.ObjectAddress]catalogStorageChange
-	Dependencies     []catalogDependencyObservation
-	CachedBase       *catalog.State
-	Cached           catalog.Read
-	Enum             session.EnumSlot
-	RolesBase        *access.RoleRecord
-	Roles            *access.RoleRecord
-	RetiredRoles     map[authorization.PrincipalRef]struct{}
-	Fences           []session.Fence // Feature commit preconditions, in recording order.
-	Domain           session.DomainSlot
-	DomainChanged    bool
-	Indexes          session.IndexSlot
-}
-
-func newCatalogChanges() *catalogChanges {
-	return &catalogChanges{Originals: map[ids.ObjectAddress]catalog.Descriptor{}, Descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, Names: map[ids.NameKey]ids.ObjectAddress{}, Generators: map[ids.ObjectAddress]*storage.SequenceGenerator{}, Storage: map[ids.ObjectAddress]catalogStorageChange{}}
-}
-func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
-	n := newCatalogChanges()
-	if c == nil {
-		return n
-	}
-	cloneDefaultChanges(c, n)
-	if c.Enum != nil {
-		n.Enum = c.Enum.Clone()
-	}
-	for a, d := range c.Originals {
-		n.Originals[a] = d
-	}
-	for a, d := range c.Descriptors {
-		n.Descriptors[a] = d
-	}
-	for k, a := range c.Names {
-		n.Names[k] = a
-	}
-	for a, g := range c.Generators {
-		n.Generators[a] = g
-	}
-	for a, shape := range c.Storage {
-		n.Storage[a] = shape
-	}
-	if c.Indexes != nil {
-		n.Indexes = c.Indexes.Clone()
-	}
-	n.Dependencies = append(n.Dependencies, c.Dependencies...)
-	n.RolesBase, n.Roles = c.RolesBase, c.Roles
-	if len(c.RetiredRoles) != 0 {
-		n.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(c.RetiredRoles))
-		for ref := range c.RetiredRoles {
-			n.RetiredRoles[ref] = struct{}{}
-		}
-	}
-	n.DomainChanged = c.DomainChanged
-	n.Fences = append(n.Fences, c.Fences...)
-	if c.Domain != nil {
-		n.Domain = c.Domain.Clone()
-	}
-	return n
-}
 
 // Caller holds Engine.mu and the session's statement admission.
 func (e *Engine) privateCatalogLocked(c *catalogChanges) catalog.Read {

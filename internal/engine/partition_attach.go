@@ -222,7 +222,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	// The canonical overlay builds real populated key roots before returning;
 	// implicit Finish and explicit COMMIT/savepoints own their publication.
-	err = e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
+	err = e.stageCatalogOverlay(scope, stage, scope.owner.catalog.Clone())
 	return Result{}, err
 }
 

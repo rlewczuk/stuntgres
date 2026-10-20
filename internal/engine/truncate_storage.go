@@ -113,7 +113,7 @@ func (s *StatementScope) stageTruncate() error {
 			return lookupErr
 		}
 	}
-	changes := cloneCatalogChanges(s.owner.catalog)
+	changes := s.owner.catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, s.op.session)
 	for _, selected := range s.truncateOrZero().relations {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -72,7 +73,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				defer op.Done()
 				var changes *catalogChanges
 				if catalog {
-					changes = newCatalogChanges()
+					changes = session.NewJournal()
 				}
 				original, frontier, root := e.catalog.state, e.visibility.CommitSeq(), receiver.notifications.state
 				switch failure {
@@ -154,7 +155,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			op.ctx = ctx
 			var changes *catalogChanges
 			if catalog {
-				changes = newCatalogChanges()
+				changes = session.NewJournal()
 			}
 			if err := e.publishRowsPrepared(op, ref, nil, nil, changes, nil, nil, nil); err != nil {
 				t.Fatal(err)

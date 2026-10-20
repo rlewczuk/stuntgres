@@ -228,7 +228,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	sessionSQL(t, owner, "CREATE TEMP TABLE private_shape_provider(v INT)")
 	sessionSQL(t, owner, "CREATE TEMP TABLE private_shape(a INT,g BOOL GENERATED ALWAYS AS('private_shape_provider'::regclass IS NOT NULL) STORED,z INT UNIQUE)")
 	sessionSQL(t, owner, "INSERT INTO private_shape(a,z) VALUES(7,9)")
-	before := cloneCatalogChanges(owner.transactions.catalog)
+	before := owner.transactions.catalog.Clone()
 	var address ids.ObjectAddress
 	for a, d := range before.Descriptors {
 		if relation, ok := d.(*catalog.Relation); ok && relation.Name() == "private_shape" {
