@@ -90,7 +90,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			private := e.privateCatalogLocked(txOwnerOf(tx).catalog)
+			private := e.privateCatalogLocked(txOwnerOf(tx).Catalog)
 			e.mu.Unlock()
 			for _, a := range extension.RemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
 				if private.Get(a) != nil || e.CatalogRead().Get(a) != before.Get(a) {
@@ -109,7 +109,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 			restored := e.CatalogRead()
 			if savepoint {
 				e.mu.Lock()
-				restored = e.privateCatalogLocked(txOwnerOf(tx).catalog)
+				restored = e.privateCatalogLocked(txOwnerOf(tx).Catalog)
 				e.mu.Unlock()
 			}
 			for _, a := range extension.RemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
@@ -147,7 +147,7 @@ func TestExtensionDropPublication(t *testing.T) {
 						t.Fatal(err)
 					}
 					e.mu.Lock()
-					observations := txOwnerOf(tx).catalog.Dependencies
+					observations := txOwnerOf(tx).Catalog.Dependencies
 					e.mu.Unlock()
 					extensionDropUnitCaptured(t, observations, target)
 					if consumer == "query_int_array_column_unsupported" {

@@ -30,7 +30,7 @@ func fdwChainReadmission(t *testing.T) {
 	sessionSQL(t, session, "DECLARE chain_hold NO SCROLL CURSOR WITH HOLD FOR SELECT v FROM chain_local")
 	promoted := payloadOf(session).cursors.entries["chain_hold"]
 	owner := session.Transactions
-	ref := owner.ref
+	ref := owner.Ref
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "chain_local"})
 	entered := make(chan struct{})
 	held := false
@@ -45,7 +45,7 @@ func fdwChainReadmission(t *testing.T) {
 	}
 	ownerExtensionOf(owner).foreign.participants = []*foreignParticipant{{tx: remote}}
 	op := transactionOperation(t, session)
-	if err := owner.acquireAdmission(op.Context(), op); err != nil {
+	if err := owner.AcquireAdmission(op.Context(), op); err != nil {
 		t.Fatal(err)
 	}
 	type outcome struct {
@@ -55,7 +55,7 @@ func fdwChainReadmission(t *testing.T) {
 	done := make(chan outcome, 1)
 	go func() {
 		result, err := e.endAdmitted(op, owner, ref, true, true, true, time.Now(), nil)
-		owner.admission.Unlock()
+		owner.Admission.Unlock()
 		op.Done()
 		done <- outcome{result, err}
 	}()
@@ -111,8 +111,8 @@ func fdwChainReadmission(t *testing.T) {
 	held = false
 	got := <-done
 	consumed = true
-	if !errors.Is(got.err, ids.ErrCatalogReplaced) || !got.result.Committed || owner.state != TxIdle || owner.ref != (ids.TxRef{}) || owner.ticket != nil {
-		t.Fatal("CHAIN changed old commit truth or installed stale next owner", got.result, got.err, owner.state)
+	if !errors.Is(got.err, ids.ErrCatalogReplaced) || !got.result.Committed || owner.State != TxIdle || owner.Ref != (ids.TxRef{}) || owner.Ticket != nil {
+		t.Fatal("CHAIN changed old commit truth or installed stale next owner", got.result, got.err, owner.State)
 	}
 	if len(remote.calls) != 1 || remote.calls[0] != "commit" {
 		t.Fatal("remote commit retried/compensated", remote.calls)
@@ -120,9 +120,9 @@ func fdwChainReadmission(t *testing.T) {
 	if payloadOf(session).cursors.entries["chain_hold"] != promoted || promoted == nil || !promoted.promoted || promoted.count != 1 {
 		t.Fatal("CHAIN readmission failure discarded a committed HOLD promotion")
 	}
-	session.Settings.mu.Lock()
-	application := session.Settings.value("application_name")
-	session.Settings.mu.Unlock()
+	session.Settings.Mu.Lock()
+	application := session.Settings.Value("application_name")
+	session.Settings.Mu.Unlock()
 	if application != "committed-old" {
 		t.Fatal("old committed settings were rolled back", application)
 	}

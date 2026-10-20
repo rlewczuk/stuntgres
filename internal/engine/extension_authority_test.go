@@ -90,10 +90,10 @@ func TestExtensionSchemaACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.settings.mu.Lock()
-	auth.settings.typed["search_path"] = path
-	auth.settings.values["search_path"] = "ext_acl"
-	auth.settings.mu.Unlock()
+	auth.settings.Mu.Lock()
+	auth.settings.Typed["search_path"] = path
+	auth.settings.Values["search_path"] = "ext_acl"
+	auth.settings.Mu.Unlock()
 	binder = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	raw.Name.Parts = raw.Name.Parts[1:]
 	_, err = binder.BindFunctionProvider(raw)

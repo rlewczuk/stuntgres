@@ -40,7 +40,7 @@ func TestMergeDeleteConcurrentClasses(t *testing.T) {
 					q = "MERGE INTO t USING source s ON t.v=s.v WHEN MATCHED THEN DELETE"
 				}
 				done := mergeUpdatePendingExecute(t, worker, q)
-				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForUpdate)
+				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
 				sessionSQL(t, peer, "UPDATE source SET v=30")
 				sessionSQL(t, peer, "COMMENT ON TABLE t IS 'compatible while MERGE DELETE waits'")
 				if lane == "noWiden" {
@@ -124,7 +124,7 @@ func TestMergeDeleteMixedPendingCancellation(t *testing.T) {
 			t.Error("DELETE worker failed to retire")
 		}
 	})
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
 	transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20, 30)
 	cancel()
 	select {
@@ -159,7 +159,7 @@ func TestMergeDeleteRowLocks(t *testing.T) {
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DELETE")
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
 	transactionRows(t, peer, "SELECT v FROM t", 10)
 	transactionEnd(t, holder, tx, false)
 	mergeUpdatePendingOutcome(t, done, 1, nil)
@@ -191,9 +191,9 @@ func TestMergeDeleteRestartRowLocks(t *testing.T) {
 			done := mergeUpdatePendingExecute(t, worker, q)
 			// The originally selected nonkey UPDATE requests NKU. Following the
 			// committed predecessor upgrades before either DELETE arm is selected.
-			mergeUpdatePendingRow(t, e, ref, row, worker, writer.Transactions.ticket, lock.ForNoKeyUpdate)
+			mergeUpdatePendingRow(t, e, ref, row, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate)
 			transactionEnd(t, writer, b, true)
-			mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForUpdate)
+			mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
 			transactionRows(t, peer, "SELECT v FROM t", 20)
 			transactionEnd(t, holder, a, false)
 			mergeUpdatePendingOutcome(t, done, 1, nil)

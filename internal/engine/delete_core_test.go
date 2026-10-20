@@ -67,7 +67,7 @@ func TestDeleteCoreVisibility(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(7),(7)")
 			private := transactionRows(t, a, "SELECT v FROM t ORDER BY v", 2, 7, 7)
 			deleteCount(t, a, "DELETE FROM t WHERE v=7", 2)
-			if firstRoot == nil || len(firstRoot.Rows) != 2 || a.Transactions.deletes[target.Address] == firstRoot || len(a.Transactions.deletes[target.Address].Rows) != 4 {
+			if firstRoot == nil || len(firstRoot.Rows) != 2 || a.Transactions.Deletes[target.Address] == firstRoot || len(a.Transactions.Deletes[target.Address].Rows) != 4 {
 				t.Fatal("prior-own deletion root was mutated/reused")
 			}
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")

@@ -63,10 +63,10 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 				}
 			}
 		}
-		if stableIsolation(scope.owner.isolation) {
+		if stableIsolation(scope.owner.Isolation) {
 			versions := shape.Snapshot
 			if !shape.HasSnapshot {
-				if root, ok := scope.owner.roots[a]; ok {
+				if root, ok := scope.owner.Roots[a]; ok {
 					versions = root.Versions
 					shape.HasSnapshot = true
 				}

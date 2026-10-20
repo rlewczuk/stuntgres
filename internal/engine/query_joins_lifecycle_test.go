@@ -294,7 +294,7 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			transactionRows(t, reader, "SELECT count(*) FROM prior", 0)
 			prior := roleTableRef(t, e, "prior")
 			left, right := roleTableRef(t, e, "a"), roleTableRef(t, e, "b")
-			readerTicket, holderTicket := reader.Transactions.ticket, holder.Transactions.ticket
+			readerTicket, holderTicket := reader.Transactions.Ticket, holder.Transactions.Ticket
 			if recoverable {
 				controlsRequire(t, reader, "SAVEPOINT before_join")
 			}
@@ -326,12 +326,12 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			if priorHeld != recoverable || !holderHeld || joinHeld || reader.TransactionState() != TxAborted {
 				t.Fatal("cancellation violated transaction authority", priorHeld, holderHeld, joinHeld, reader.TransactionState())
 			}
-			if recoverable && reader.Transactions.ticket != readerTicket || !recoverable && reader.Transactions.ticket != nil {
+			if recoverable && reader.Transactions.Ticket != readerTicket || !recoverable && reader.Transactions.Ticket != nil {
 				t.Fatal("cancellation changed transaction ticket authority")
 			}
 			if recoverable {
 				controlsRequire(t, reader, "ROLLBACK TO before_join")
-				if reader.Transactions.ticket != readerTicket || reader.TransactionState() != TxActive {
+				if reader.Transactions.Ticket != readerTicket || reader.TransactionState() != TxActive {
 					t.Fatal("savepoint recovery replaced outer authority")
 				}
 				transactionRows(t, reader, "SELECT count(*) FROM prior", 0)

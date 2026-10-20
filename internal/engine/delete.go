@@ -71,7 +71,7 @@ func (s *StatementScope) acquireRow(candidate visibility.DeleteCandidate) error 
 	if err = s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Epoch != e.catalog.state.Epoch() || candidate.Storage != e.privateStorageLocked(s.owner.catalog, candidate.Ref.Address) {
+	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Epoch != e.catalog.state.Epoch() || candidate.Storage != e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address) {
 		return ids.ErrCatalogReplaced
 	}
 	return nil
@@ -97,9 +97,9 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if !s.engine().locks.Holds(s.ticket, lock.Resource{ObjectRef: candidate.Ref, Row: candidate.Row}, lock.ForUpdate) {
 		return false, errors.New("stuntgres: deletion requires its row grant")
 	}
-	s.owner.mu.Lock()
-	defer s.owner.mu.Unlock()
-	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted || s.owner.ref != s.txRef {
+	s.owner.Mu.Lock()
+	defer s.owner.Mu.Unlock()
+	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted || s.owner.Ref != s.txRef {
 		return false, errors.New("stuntgres: inactive write stage")
 	}
 	e := s.engine()
@@ -108,7 +108,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Address.SubID != 0 || candidate.Row == 0 || candidate.Version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
-	if candidate.Ref.Epoch != e.catalog.state.Epoch() || candidate.Ref.Epoch != s.txRef.Epoch() || candidate.Storage == nil || candidate.Storage != e.privateStorageLocked(s.owner.catalog, candidate.Ref.Address) {
+	if candidate.Ref.Epoch != e.catalog.state.Epoch() || candidate.Ref.Epoch != s.txRef.Epoch() || candidate.Storage == nil || candidate.Storage != e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address) {
 		return false, ids.ErrCatalogReplaced
 	}
 	if s.view == nil {
@@ -126,7 +126,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 		return false, errors.New("stuntgres: deletion is outside its candidate view")
 	}
 	rows := s.ownWrites[candidate.Ref.Address]
-	storage := e.privateStorageLocked(s.owner.catalog, candidate.Ref.Address)
+	storage := e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address)
 	if storage == nil {
 		return false, errors.New("stuntgres: relation storage is missing")
 	}
@@ -134,7 +134,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 		rows = storage.Versions
 	}
 	original, slot, found := rowByID(rows, candidate.Row, candidate.Ordinal)
-	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.Ref.Address)
+	relation, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(candidate.Ref.Address)
 	if !found || !ok || len(original.Values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
@@ -342,7 +342,7 @@ func (s *StatementScope) latestDeleteRow(candidate visibility.DeleteCandidate) (
 	if err := s.validateLockedRelation(e); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	store := e.privateStorageLocked(s.owner.catalog, candidate.Ref.Address)
+	store := e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address)
 	if store == nil || store != candidate.Storage {
 		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}

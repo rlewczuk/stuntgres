@@ -20,7 +20,7 @@ func TestAlterRenameLock(t *testing.T) {
 			ref := roleTableRef(t, e, "t")
 			old := e.catalog.state.Get(ref.Address)
 			tx := transactionBegin(t, a)
-			if err := e.locks.Acquire(context.Background(), a.Transactions.ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
+			if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 			done := lockAsync(e, b, context.Background(), q, true)

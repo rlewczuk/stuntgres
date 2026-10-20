@@ -185,7 +185,7 @@ func TestIndexMaintenanceFinalAuthorizationFence(t *testing.T) {
 			defer done()
 			stage := indexMaintenanceStage(t, e, "t", "a")
 			op.Session.Mu.Lock()
-			stage.authSession, stage.authRevision = op.Session, op.Session.Authorization.revision
+			stage.authSession, stage.authRevision = op.Session, op.Session.Authorization.Revision
 			op.Session.Mu.Unlock()
 			e.mu.Lock()
 			stage.roleRevision = e.roles.published.Revision

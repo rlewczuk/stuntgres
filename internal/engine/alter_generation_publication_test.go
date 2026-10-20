@@ -79,7 +79,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					if err := scope.Finish(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || snapshot.Get(ref.Address) != old || old.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
+					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.Catalog != nil || snapshot.Get(ref.Address) != old || old.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
 						t.Fatal("publication changed retained source/failed install")
 					}
 					for i, row := range store.Versions {
@@ -105,7 +105,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 					t.Fatal("Finish cancellation veto", err)
 				}
-				if e.catalog.state != snapshot || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store || store.Ends != ends || store.Generation != generation || e.storage.RowFrontier() != rowID || e.storage.VersionFrontier() != versionID || e.visibility.CommitSeq() != frontier || scope.owner.catalog != nil {
+				if e.catalog.state != snapshot || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store || store.Ends != ends || store.Generation != generation || e.storage.RowFrontier() != rowID || e.storage.VersionFrontier() != versionID || e.visibility.CommitSeq() != frontier || scope.owner.Catalog != nil {
 					t.Fatal("Finish veto changed installed roots/counters/owner")
 				}
 				lockEmpty(t, e)
@@ -162,7 +162,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					}
 				case "principal":
 					op.Session.Mu.Lock()
-					op.Session.Authorization.revision++
+					op.Session.Authorization.Revision++
 					op.Session.Mu.Unlock()
 				case "role":
 					if _, err := e.Execute(admin, &parser.CreateRole{Name: parser.Identifier{Text: "generation_changed_role"}}, 0, nil); err != nil {

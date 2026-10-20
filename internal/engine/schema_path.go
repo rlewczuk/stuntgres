@@ -19,9 +19,9 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ids.ObjectAddress, bool
 func (e *Engine) explicitPathFor(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAddress, bool, error) {
 	entries := e.settings.Definitions()["search_path"].BootValue().Path
 	if auth.settings != nil && !auth.materializedPopulation {
-		auth.settings.mu.Lock()
-		entries = auth.settings.typedValue("search_path").Path
-		auth.settings.mu.Unlock()
+		auth.settings.Mu.Lock()
+		entries = auth.settings.TypedValue("search_path").Path
+		auth.settings.Mu.Unlock()
 	}
 	restricted := [2]string{"pg_catalog", "pg_temp"}
 	if auth.materializedPopulation {

@@ -56,22 +56,22 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	s.DatabaseName = e.databaseName
 	s.Cond = sync.NewCond(&s.Mu)
 	op := s.Operation(ctx, true)
-	auth := &sessionAuthorization{session: s, state: authorization.RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, revision: 1}
+	auth := &sessionAuthorization{Session: s, State: authorization.RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, Revision: 1}
 	_, authErr = op.Attach(Authorization, auth)
 	if authErr == nil {
 		s.Authorization = auth
 	}
-	owner := &sessionSettings{session: s, values: make(map[string]string), defaults: make(map[string]string)}
+	owner := &sessionSettings{Session: s, Values: make(map[string]string), Defaults: make(map[string]string)}
 	_, err := op.Attach(Settings, owner)
 	if err == nil {
 		s.Settings = owner
-		err = owner.initialize(op.Context(), e.settings.Definitions(), e.settings.Order(), start.Defaults)
+		err = owner.Initialize(op.Context(), e.settings.Definitions(), e.settings.Order(), start.Defaults)
 		if err == nil {
-			owner.mu.Lock()
+			owner.Mu.Lock()
 			s.Mu.Lock()
 			s.PublishTimeoutSettingsLocked(owner, false, time.Now())
 			s.Mu.Unlock()
-			owner.mu.Unlock()
+			owner.Mu.Unlock()
 		}
 	}
 	if err == nil {
@@ -82,7 +82,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		resetRole, err = e.initialRole(op.Context(), authenticated, start.Defaults)
 	}
 	if err == nil {
-		transactions := &transactionOwner{session: s, extension: &allocation.owner}
+		transactions := &transactionOwner{Session: s, Extension: &allocation.owner}
 		_, err = op.Attach(Transaction, (*transactionSessionEnd)(transactions))
 		if err == nil {
 			s.Transactions = transactions
@@ -100,11 +100,11 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 			err = errors.New("stuntgres: invalid advisory session")
 		}
 		if err == nil {
-			s.Advisory.ticket, s.Advisory.locks = ticket, e.locks
+			s.Advisory.Ticket, s.Advisory.Locks = ticket, e.locks
 			_, err = op.Attach(AdvisorySession, &s.Advisory)
 			if err != nil {
 				e.endLockOwner(ticket)
-				s.Advisory.ticket = nil
+				s.Advisory.Ticket = nil
 			}
 		}
 	}
@@ -153,7 +153,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 			err = roleConnectionLimitError(role.Name)
 		} else if err = ctx.Err(); err == nil {
 			if resetRole != (authorization.PrincipalRef{}) {
-				auth.state.CurrentUser, auth.state.ResetRole = resetRole, resetRole
+				auth.State.CurrentUser, auth.State.ResetRole = resetRole, resetRole
 			}
 			s.State = live
 			e.sessions[s.SessionToken] = s

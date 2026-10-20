@@ -48,23 +48,23 @@ func (s *StatementScope) Finish(err error) error {
 		if cleanupErr := drainCursorCleanup(s.owner, s.op.Context(), s); err == nil {
 			err = cleanupErr
 		}
-		s.owner.mu.Lock()
+		s.owner.Mu.Lock()
 		finishNotificationBoundary(s.owner)
-		s.owner.mu.Unlock()
+		s.owner.Mu.Unlock()
 		// the new incarnation installed by CHAIN after its linearization.
 		s.finished = true
 		s.result = err
 		s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
 		s.releaseCopyReservation()
 		if !s.message {
-			s.owner.admission.Unlock()
+			s.owner.Admission.Unlock()
 		}
 		return err
 	}
 	t := s.owner
 	e := s.engine()
 	published := false
-	t.mu.Lock()
+	t.Mu.Lock()
 	// Parsing can fail before classification; admitted failures still abort
 	// explicit work. Completed row/catalog/session utilities have already passed
 	// their installation preflight; later cancellation cannot retract success.
@@ -73,44 +73,44 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	// Implicit HOLD declaration installation is not its external completion:
 	// unfetched targets must settle before publication and ON COMMIT actions.
-	if err == nil && s.worked && t.state == TxImplicit && !t.retainsTransaction() {
-		t.mu.Unlock()
+	if err == nil && s.worked && t.State == TxImplicit && !t.RetainsTransaction() {
+		t.Mu.Unlock()
 		err = s.materializeHeldCursors()
-		t.mu.Lock()
+		t.Mu.Lock()
 	}
 	if err == nil && s.worked {
-		t.mu.Unlock()
-		err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainsTransaction(), nil)
+		t.Mu.Unlock()
+		err = s.checkExclusionEvents(t.State == TxImplicit && !t.RetainsTransaction(), nil)
 		if err == nil {
 			err = s.settleForeignActions()
 		}
 		if err == nil && s.foreignActionsOrZero().exclusionAdded {
-			err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainsTransaction(), nil)
+			err = s.checkExclusionEvents(t.State == TxImplicit && !t.RetainsTransaction(), nil)
 		}
 		if err == nil {
 			err = s.checkForeignKeys()
 		}
-		t.mu.Lock()
+		t.Mu.Lock()
 	}
 	if s.foreignTablesOrZero().owner != nil {
-		t.mu.Unlock()
+		t.Mu.Unlock()
 		err = s.finishForeignOwner(s.foreignTablesOrZero().owner, err)
-		t.mu.Lock()
+		t.Mu.Lock()
 	}
-	t.mu.Unlock()
+	t.Mu.Unlock()
 	err = s.finishForeignModifications(err)
-	t.mu.Lock()
+	t.Mu.Lock()
 	if err == nil && s.worked {
-		catalog := t.catalog
+		catalog := t.Catalog
 		if s.catalog != nil {
 			catalog = s.catalog
 		}
-		if t.state == TxImplicit && !t.retainsTransaction() {
+		if t.State == TxImplicit && !t.RetainsTransaction() {
 			if !s.completed {
-				t.mu.Unlock()
-				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority, s)
+				t.Mu.Unlock()
+				err = e.publishRows(s.op, t.Ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority, s)
 				published = err == nil
-				t.mu.Lock()
+				t.Mu.Lock()
 			}
 		} else if !s.sessionCompleted {
 			var deletes map[ids.ObjectAddress]*visibility.PrivateDeletes
@@ -118,31 +118,31 @@ func (s *StatementScope) Finish(err error) error {
 			if s.projectedRoots {
 				writes, deletes = s.stage.rows, s.stage.deletes
 			} else {
-				deletes = mergeDeletions(t.deletes, s.stage.deletes)
+				deletes = mergeDeletions(t.Deletes, s.stage.deletes)
 			}
-			t.mu.Unlock()
+			t.Mu.Unlock()
 			err = s.validatePrivateIndexExpressions(catalog, deletes)
 			if s.foreignTablesOrZero().owner != nil {
 				err = s.finishForeignOwner(s.foreignTablesOrZero().owner, err)
 			}
-			t.mu.Lock()
+			t.Mu.Lock()
 			if err == nil {
 				if !s.projectedRoots {
-					writes = prepareOwnWrites(t.writes, s.stage.rows, s.stage.replacing)
+					writes = prepareOwnWrites(t.Writes, s.stage.rows, s.stage.replacing)
 				}
-				notificationActions := t.notificationActions
+				notificationActions := t.NotificationActions
 				if len(notificationActions) == 0 {
 					notificationActions = s.notificationActions
 				} else {
 					notificationActions = append(notificationActions, s.notificationActions...)
 				}
-				notificationEvents := appendNotificationEvents(t.notificationEvents, s.notificationEvents)
+				notificationEvents := appendNotificationEvents(t.NotificationEvents, s.notificationEvents)
 				session := s.op.Session
 			privateForeignFence:
 				e.mu.Lock()
 				session.Mu.Lock()
 				err = publicationOperationLocked(e, s.op)
-				if err == nil && t.ref.Epoch() != e.catalog.state.Epoch() {
+				if err == nil && t.Ref.Epoch() != e.catalog.state.Epoch() {
 					err = ids.ErrCatalogReplaced
 				}
 				if err == nil && s.catalog != nil {
@@ -154,9 +154,9 @@ func (s *StatementScope) Finish(err error) error {
 				if err == nil && len(s.foreignTablesOrZero().statements) != 0 {
 					session.Mu.Unlock()
 					e.mu.Unlock()
-					t.mu.Unlock()
+					t.Mu.Unlock()
 					settleErr := s.finishForeignStatements(nil)
-					t.mu.Lock()
+					t.Mu.Lock()
 					if settleErr == nil {
 						goto privateForeignFence
 					}
@@ -166,15 +166,15 @@ func (s *StatementScope) Finish(err error) error {
 				}
 				if err == nil {
 					for a, rows := range s.stage.rows {
-						if !s.stage.replacing && len(t.writes[a]) != 0 {
-							copy(writes[a][len(t.writes[a]):], rows)
+						if !s.stage.replacing && len(t.Writes[a]) != 0 {
+							copy(writes[a][len(t.Writes[a]):], rows)
 						}
 					}
-					t.writes = writes
-					t.deletes = deletes
-					t.catalog = catalog
-					t.notificationActions = notificationActions
-					t.notificationEvents = notificationEvents
+					t.Writes = writes
+					t.Deletes = deletes
+					t.Catalog = catalog
+					t.NotificationActions = notificationActions
+					t.NotificationEvents = notificationEvents
 					if s.indexesOrZero().exclusionStarted {
 						ownerExtensionOf(t).exclusionModes = s.indexesOrZero().exclusionModes
 					}
@@ -185,25 +185,25 @@ func (s *StatementScope) Finish(err error) error {
 			}
 		}
 		if err == nil {
-			t.command++
+			t.Command++
 		}
 	}
-	if t.state == TxImplicit && err != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
-		t.mu.Unlock()
+	if t.State == TxImplicit && err != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
+		t.Mu.Unlock()
 		s.foreignUnlocked()
-		_ = disposeSQLCursors(s.op.Context(), payloadOf(t.session).cursors.endTransaction(t.ref))
-		t.mu.Lock()
+		_ = disposeSQLCursors(s.op.Context(), payloadOf(t.Session).cursors.endTransaction(t.Ref))
+		t.Mu.Lock()
 	}
 	if len(s.foreignTablesOrZero().statements) != 0 {
-		t.mu.Unlock()
+		t.Mu.Unlock()
 		err = s.finishForeignStatements(err)
-		t.mu.Lock()
+		t.Mu.Lock()
 	}
 	if len(s.foreignTablesOrZero().holdPromotions) != 0 {
 		if err != nil && !published && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
-			t.mu.Unlock()
+			t.Mu.Unlock()
 			err = s.discardForeignHoldPromotions(err)
-			t.mu.Lock()
+			t.Mu.Lock()
 		} else {
 			s.foreignTablesSlot.clearHoldPromotions()
 		}
@@ -214,53 +214,53 @@ func (s *StatementScope) Finish(err error) error {
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	var endedTicket *lock.Ticket
-	if t.state == TxImplicit && (!t.retainsTransaction() || err != nil) {
-		t.session.Settings.finishTransaction(err == nil)
-		e.endSerializable(t.ref, err == nil)
-		endedTicket = t.ticket
-		t.ticket = nil
+	if t.State == TxImplicit && (!t.RetainsTransaction() || err != nil) {
+		t.Session.Settings.FinishTransaction(err == nil)
+		e.endSerializable(t.Ref, err == nil)
+		endedTicket = t.Ticket
+		t.Ticket = nil
 		clearTransaction(t)
-		t.session.RetireTransactionTimeout()
-	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
+		t.Session.RetireTransactionTimeout()
+	} else if err != nil && admittedFailure && (t.State == TxActive || t.State == TxAborted) {
 		if errors.Is(err, ids.ErrCatalogReplaced) {
-			ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.clear())
-			t.truncateSavepoints(0)
+			ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.clear())
+			t.TruncateSavepoints(0)
 		}
-		if len(t.savepoints) != 0 {
-			if t.state == TxActive {
-				mark := t.savepoints[len(t.savepoints)-1]
-				t.mu.Unlock()
-				remoteErr := foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 1, mark.serial)
-				t.mu.Lock()
+		if len(t.Savepoints) != 0 {
+			if t.State == TxActive {
+				mark := t.Savepoints[len(t.Savepoints)-1]
+				t.Mu.Unlock()
+				remoteErr := foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 1, mark.Serial)
+				t.Mu.Lock()
 				if remoteErr != nil {
 					ownerExtensionOf(t).retireForeign()
 				}
-				restoreSavepoint(t, mark, mark.settings.clone())
-				e.locks.Restore(t.ticket, mark.locks)
+				restoreSavepoint(t, mark, mark.Settings.Clone())
+				e.locks.Restore(t.Ticket, mark.Locks)
 			}
-			t.state = TxAborted
+			t.State = TxAborted
 		} else {
 			ownerExtensionOf(t).retireForeign()
-			t.session.Settings.finishTransaction(false)
-			e.endSerializable(t.ref, false)
-			t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
-			t.deferrable = t.entryDeferrable
-			t.state = TxAborted
+			t.Session.Settings.FinishTransaction(false)
+			e.endSerializable(t.Ref, false)
+			t.Isolation, t.ReadOnly = t.EntryIsolation, t.EntryReadOnly
+			t.Deferrable = t.EntryDeferrable
+			t.State = TxAborted
 			syncCharacteristics(t)
-			t.writes = nil
-			t.deletes = nil
-			t.roots = nil
-			t.sequenceCatalog = nil
-			t.frontier = 0
-			t.catalog = nil
-			t.notificationActions = nil
-			t.notificationEvents = nil
-			endedTicket = t.ticket
-			t.ticket = nil
-			ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.endTransaction(t.ref))
+			t.Writes = nil
+			t.Deletes = nil
+			t.Roots = nil
+			t.SequenceCatalog = nil
+			t.Frontier = 0
+			t.Catalog = nil
+			t.NotificationActions = nil
+			t.NotificationEvents = nil
+			endedTicket = t.Ticket
+			t.Ticket = nil
+			ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
 		}
 	}
-	e.endStatementVisibility(s.txRef, t.state != TxIdle && stableIsolation(t.isolation))
+	e.endStatementVisibility(s.txRef, t.State != TxIdle && stableIsolation(t.Isolation))
 	if s.view != nil {
 		s.view.Release()
 		s.view = nil
@@ -288,7 +288,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
 	s.result = err
 	finishNotificationBoundary(t)
-	t.mu.Unlock()
+	t.Mu.Unlock()
 	if s.replacementRead {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
@@ -300,7 +300,7 @@ func (s *StatementScope) Finish(err error) error {
 	e.endLockOwner(endedTicket)
 	s.releaseCopyReservation()
 	if !s.message {
-		t.admission.Unlock()
+		t.Admission.Unlock()
 	}
 	return err
 }

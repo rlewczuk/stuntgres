@@ -85,8 +85,8 @@ func (f defaultUnitFixture) grant(t *testing.T, class, privilege string, schemas
 func (f defaultUnitFixture) actor(ref authorization.PrincipalRef) {
 	f.e.mu.Lock()
 	f.op.Session.Mu.Lock()
-	f.op.Session.Authorization.state.CurrentUser = ref
-	f.op.Session.Authorization.revision++
+	f.op.Session.Authorization.State.CurrentUser = ref
+	f.op.Session.Authorization.Revision++
 	f.op.Session.Mu.Unlock()
 	f.e.mu.Unlock()
 }

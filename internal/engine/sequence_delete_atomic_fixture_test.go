@@ -114,10 +114,10 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence ids.ObjectAddress, firstTemp bool) {
 	t.Helper()
 	tx := s.Transactions
-	if tx.state != TxActive || len(tx.writes[table]) != 2 || tx.deletes[table] == nil || len(tx.deletes[table].Rows) != 3 || tx.catalog == nil {
+	if tx.State != TxActive || len(tx.Writes[table]) != 2 || tx.Deletes[table] == nil || len(tx.Deletes[table].Rows) != 3 || tx.Catalog == nil {
 		t.Fatal("fixture must contain private appended rows, committed/own deletions and sequence overlay")
 	}
-	g := tx.catalog.Generators[sequence]
+	g := tx.Catalog.Generators[sequence]
 	if g == nil || g.Last != 100 || g.Called || g == engineOf(s).storage.Sequences[sequence] {
 		t.Fatal("fixture must contain a private restarted generator")
 	}
@@ -126,16 +126,16 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 			t.Fatal("fixture reused a published TEMP namespace")
 		}
 		var namespaces, temps int
-		for a, d := range tx.catalog.Descriptors {
+		for a, d := range tx.Catalog.Descriptors {
 			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.SessionToken {
 				namespaces++
-				if tx.catalog.Originals[a] != nil || engineOf(s).catalog.state.Get(a) != nil {
+				if tx.Catalog.Originals[a] != nil || engineOf(s).catalog.state.Get(a) != nil {
 					t.Fatal("TEMP namespace was not genuinely new")
 				}
 			}
 			if r, ok := d.(*catalog.Relation); ok && r.Name() == "first_temp" {
 				temps++
-				if tx.catalog.Generators[a] == nil || engineOf(s).storage.Sequences[a] != nil {
+				if tx.Catalog.Generators[a] == nil || engineOf(s).storage.Sequences[a] != nil {
 					t.Fatal("TEMP generator is not private")
 				}
 			}
@@ -149,7 +149,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *Session, old *lock.Ticket) {
 	t.Helper()
 	tx := s.Transactions
-	if tx.state != TxIdle || tx.ref != (ids.TxRef{}) || tx.command != 0 || !tx.start.IsZero() || tx.writes != nil || tx.deletes != nil || tx.catalog != nil || tx.ticket != nil {
+	if tx.State != TxIdle || tx.Ref != (ids.TxRef{}) || tx.Command != 0 || !tx.Start.IsZero() || tx.Writes != nil || tx.Deletes != nil || tx.Catalog != nil || tx.Ticket != nil {
 		t.Fatal("failed native Commit did not discard the complete private transaction incarnation")
 	}
 	if len(e.locks.Inspect(old).Journals[old]) != 0 {

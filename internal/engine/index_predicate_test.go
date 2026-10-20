@@ -365,7 +365,7 @@ func TestPartialIndexImplication(t *testing.T) {
 
 func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, exec.Leaf, *visibility.View) {
 	f := newPartialIndexFixture(t)
-	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
+	scope := &StatementScope{owner: &transactionOwner{Isolation: ReadCommitted}}
 	leaf := exec.Leaf{Ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), Relation: f.parent, Storage: f.store, PartialCandidate: f.index}
 	data := &visibility.Data{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
 	view := visibility.NewView(data)
@@ -428,7 +428,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			inherited := plan.RowMark{}
 			switch name {
 			case "private catalog":
-				scope.owner.catalog = &catalogChanges{}
+				scope.owner.Catalog = &catalogChanges{}
 			case "own insert":
 				data.Own = map[ids.ObjectAddress][]storage.RowVersion{a: {f.store.Versions[1]}}
 			case "own update":
@@ -439,7 +439,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "own delete":
 				data.Deleted = map[ids.ObjectAddress]*visibility.PrivateDeletes{a: {}}
 			case "historical":
-				scope.owner.isolation = RepeatableRead
+				scope.owner.Isolation = RepeatableRead
 			case "frontier":
 				f.e.visibility.AdvanceCommitSeqLocked()
 			case "rewrite":

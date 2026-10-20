@@ -596,7 +596,7 @@ func TestPartitionConstraintsAdmittedCancellation(t *testing.T) {
 				resource = "keyed_leaf"
 			}
 			tx := transactionBegin(t, holder)
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: roleTableRef(t, e, resource)}, lock.AccessExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: roleTableRef(t, e, resource)}, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			before := indexMaintenanceCapture(e)
@@ -639,10 +639,10 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 			oldRoot := e.storage.IndexRoots[child.Address]
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT kept")
-			prior := s.Transactions.catalog
+			prior := s.Transactions.Catalog
 			before := indexMaintenanceCapture(e)
 			sessionSQL(t, s, query)
-			changes := s.Transactions.catalog
+			changes := s.Transactions.Catalog
 			if changes == nil || changes == prior {
 				t.Fatal("missing distinct utility overlay")
 			}
@@ -666,7 +666,7 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 				t.Fatal("overlay copy changed immutable edge authority")
 			}
 			sessionSQL(t, s, "ROLLBACK TO kept")
-			if s.Transactions.catalog != prior || e.catalog.state.Get(child.Address) != oldChild || e.storage.IndexRoots[child.Address] != oldRoot {
+			if s.Transactions.Catalog != prior || e.catalog.state.Get(child.Address) != oldChild || e.storage.IndexRoots[child.Address] != oldRoot {
 				t.Fatal("savepoint rebuilt or published prior utility roots")
 			}
 			sessionSQL(t, s, query)
@@ -776,7 +776,7 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *Operation) *Cat
 	stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.SQLIndex.Parent: base.MustRelation(parent.SQLIndex.Parent), child.SQLIndex.Parent: base.MustRelation(child.SQLIndex.Parent)}
 	stage.domainBases = []catalog.Descriptor{parent, child}
 	op.Session.Mu.Lock()
-	stage.authSession, stage.authRevision = op.Session, op.Session.Authorization.revision
+	stage.authSession, stage.authRevision = op.Session, op.Session.Authorization.Revision
 	op.Session.Mu.Unlock()
 	e.mu.Lock()
 	stage.roleRevision = e.roles.published.Revision
@@ -1175,7 +1175,7 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 		stage.indexes().parents[index.SQLIndex.Parent] = base.MustRelation(index.SQLIndex.Parent)
 	}
 	op.Session.Mu.Lock()
-	stage.authSession, stage.authRevision = op.Session, op.Session.Authorization.revision
+	stage.authSession, stage.authRevision = op.Session, op.Session.Authorization.Revision
 	op.Session.Mu.Unlock()
 	e.mu.Lock()
 	stage.roleRevision = e.roles.published.Revision

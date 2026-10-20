@@ -54,7 +54,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 		return err
 	}
 	s.prepared.namespace = auth.Catalog.State().NamespaceGeneration()
-	s.prepared.private = auth.session.Transactions.catalog
+	s.prepared.private = auth.session.Transactions.Catalog
 	s.prepared.epoch = auth.Catalog.Epoch()
 	if s.Expected == nil {
 		return nil
@@ -68,7 +68,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 }
 
 func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment) bool {
-	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.SessionToken || analysis.private != auth.session.Transactions.catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(analysis.path, path) {
+	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.SessionToken || analysis.private != auth.session.Transactions.Catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(analysis.path, path) {
 		return false
 	}
 	for _, dep := range analysis.dependencies {
@@ -206,7 +206,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 	}
 	if auth.session != nil {
 		if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == auth.session.SessionToken {
-			auth.session.Transactions.accessedTemporary = true
+			auth.session.Transactions.AccessedTemporary = true
 		}
 	}
 	return ref, nil

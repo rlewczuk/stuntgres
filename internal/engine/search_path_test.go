@@ -70,9 +70,9 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	}
 	readerOp, readerDone := roleOperation(t, e, "reader")
 	defer readerDone()
-	readerOp.Session.Settings.mu.Lock()
-	readerOp.Session.Settings.typed["search_path"] = setting
-	readerOp.Session.Settings.mu.Unlock()
+	readerOp.Session.Settings.Mu.Lock()
+	readerOp.Session.Settings.Typed["search_path"] = setting
+	readerOp.Session.Settings.Mu.Unlock()
 	scope, err := e.StartStatement(readerOp)
 	if err != nil {
 		t.Fatal(err)

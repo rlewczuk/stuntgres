@@ -12,10 +12,10 @@ import (
 
 func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
-	if s.op == nil || s.op.Session == nil || s.op.Session.Advisory.ticket == nil {
+	if s.op == nil || s.op.Session == nil || s.op.Session.Advisory.Ticket == nil {
 		return sqltype.Value{}, errors.New("stuntgres: missing advisory session scope")
 	}
-	ticket := s.op.Session.Advisory.ticket
+	ticket := s.op.Session.Advisory.Ticket
 	if action == functions.AdvisoryUnlockAll {
 		if err := s.engine().locks.UnlockAdvisoryAll(ticket); err != nil {
 			return sqltype.Value{}, err

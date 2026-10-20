@@ -129,7 +129,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 					run(t, e, "CREATE USER changed")
 				case "auth":
 					op.Session.Mu.Lock()
-					op.Session.Authorization.revision++
+					op.Session.Authorization.Revision++
 					op.Session.Mu.Unlock()
 				case "end":
 					op.Session.RequestEnd(CleanClose)

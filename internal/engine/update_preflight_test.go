@@ -173,7 +173,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				switch mode {
 				case "authority":
 					op.Session.Mu.Lock()
-					op.Session.Authorization.state.CurrentUser = actor.Ref
+					op.Session.Authorization.State.CurrentUser = actor.Ref
 					op.Session.Mu.Unlock()
 				case "storage":
 					address := scope.lockedRef.Address

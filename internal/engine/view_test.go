@@ -166,9 +166,9 @@ func TestViewFrozenRelativeLiteralNativeReplay(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	scope.owner.mu.Lock()
-	scope.owner.start = time.Date(2003, 7, 7, 4, 5, 6, 0, time.UTC)
-	scope.owner.mu.Unlock()
+	scope.owner.Mu.Lock()
+	scope.owner.Start = time.Date(2003, 7, 7, 4, 5, 6, 0, time.UTC)
+	scope.owner.Mu.Unlock()
 	_, err = scope.Execute(create, 0, nil)
 	if err = scope.Finish(err); err != nil {
 		t.Fatal(err)

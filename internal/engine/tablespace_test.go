@@ -90,7 +90,7 @@ func TestTablespaceExecutorNoPublication(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	state, roles, oid, revision, principal := e.catalog.state, e.roles.published, e.catalog.nextOID, e.catalog.nextRevision, e.roles.nextPrincipal
-	identity, authorizationRevision := op.RoleState(), op.Session.Authorization.revision
+	identity, authorizationRevision := op.RoleState(), op.Session.Authorization.Revision
 	for _, tc := range []struct {
 		stmt          parser.CreateTablespace
 		code, message string
@@ -104,7 +104,7 @@ func TestTablespaceExecutorNoPublication(t *testing.T) {
 		if result.Rows != nil || result.CommandTag != "" {
 			t.Fatal("refusal exposed result", result)
 		}
-		if e.catalog.state != state || e.catalog.state.Epoch() != state.Epoch() || e.roles.published != roles || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.roles.nextPrincipal != principal || op.RoleState() != identity || op.Session.Authorization.revision != authorizationRevision {
+		if e.catalog.state != state || e.catalog.state.Epoch() != state.Epoch() || e.roles.published != roles || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.roles.nextPrincipal != principal || op.RoleState() != identity || op.Session.Authorization.Revision != authorizationRevision {
 			t.Fatal("refusal published catalog/identity/allocator changes")
 		}
 	}

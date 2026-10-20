@@ -12,9 +12,9 @@ func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*visibility.View, e
 	if err := s.active(); err != nil {
 		return nil, err
 	}
-	s.owner.mu.Lock()
-	defer s.owner.mu.Unlock()
-	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
+	s.owner.Mu.Lock()
+	defer s.owner.Mu.Unlock()
+	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
 		return nil, errors.New("stuntgres: inactive data view scope")
 	}
 	e := s.engine()
@@ -48,7 +48,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		if ref.Epoch != e.catalog.state.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
+		if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
 			return nil, errors.New("stuntgres: relation storage is missing")
 		}
 	}
@@ -66,10 +66,10 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 				return nil, errors.New("stuntgres: relation is outside statement data view")
 			}
 			captured := data.GenerationAt(ref.Address)
-			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
+			current := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 			if captured != current {
 				oldRelation, _ := data.Catalog.Relation(ref.Address)
-				liveRelation, _ := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
+				liveRelation, _ := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
 				if !sameMaterializedLineage(oldRelation, liveRelation, captured, current) {
 					return nil, ids.ErrCatalogReplaced
 				}
@@ -88,10 +88,10 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		}
 	}
 	frontier := e.visibility.CommitSeq()
-	if !latest && stableIsolation(s.owner.isolation) {
-		frontier = s.owner.frontier
+	if !latest && stableIsolation(s.owner.Isolation) {
+		frontier = s.owner.Frontier
 	}
-	catalog := e.privateCatalogLocked(s.owner.catalog)
+	catalog := e.privateCatalogLocked(s.owner.Catalog)
 	data := &visibility.Data{
 		Tx: s.txRef, Command: s.command, Frontier: frontier,
 		Catalog:   catalog,
@@ -101,15 +101,15 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		data.Generations = make(map[ids.ObjectAddress]visibility.Generation, len(refs))
 	}
 	for _, ref := range refs {
-		stored := e.privateStorageLocked(s.owner.catalog, ref.Address)
+		stored := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 		versions, ends := stored.Versions, stored.Ends
 		needsBirthFilter := false
 		var rewrite catalogStorageChange
-		if s.owner.catalog != nil {
-			rewrite = s.owner.catalog.Storage[ref.Address]
+		if s.owner.Catalog != nil {
+			rewrite = s.owner.Catalog.Storage[ref.Address]
 		}
-		if !latest && stableIsolation(s.owner.isolation) && !rewrite.Rewritten {
-			root, exists := s.owner.roots[ref.Address]
+		if !latest && stableIsolation(s.owner.Isolation) && !rewrite.Rewritten {
+			root, exists := s.owner.Roots[ref.Address]
 			if exists {
 				current, ok := e.catalog.state.Relation(ref.Address)
 				live := e.storage.Relations[ref.Address]
@@ -130,8 +130,8 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 				}
 				// Proven TRUNCATE retirement keeps the original frontier but
 				// uses the current incarnation, never the retained old rows.
-				if s.owner.catalog != nil {
-					if shape, changed := s.owner.catalog.Storage[ref.Address]; changed && shape.HasSnapshot {
+				if s.owner.Catalog != nil {
+					if shape, changed := s.owner.Catalog.Storage[ref.Address]; changed && shape.HasSnapshot {
 						versions = shape.Snapshot
 						needsBirthFilter = false // Projected frozen snapshots retain their birth bound.
 					}
@@ -140,7 +140,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 				versions, ends = nil, nil
 			}
 		}
-		if !latest && rewrite.Rewritten && stableIsolation(s.owner.isolation) {
+		if !latest && rewrite.Rewritten && stableIsolation(s.owner.Isolation) {
 			if data.RewrittenFrontiers == nil {
 				data.RewrittenFrontiers = make(map[ids.ObjectAddress]ids.CommitSeq)
 			}

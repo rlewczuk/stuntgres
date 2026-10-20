@@ -151,7 +151,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, rowSecurityFlags(old, s.Actions))
 	}
-	changes := scope.owner.catalog.Clone()
+	changes := scope.owner.Catalog.Clone()
 	if scope.inheritance.alter != nil {
 		changes = scope.inheritance.alter.changes
 	}
@@ -169,7 +169,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		shape = catalogStorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
 	}
 	versions, ends, frontier := store.Versions, store.Ends, e.visibility.CommitSeq()
-	snapshot, snapshotExists := scope.owner.roots[ref.Address]
+	snapshot, snapshotExists := scope.owner.Roots[ref.Address]
 	grantCatalog := e.catalog.state
 	schema := auth.Catalog.Get(old.Namespace()).Name()
 	var stage *CatalogStage
@@ -630,14 +630,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	rewrite = rewrite || perRowAdd
 	if rewrite {
-		scope.owner.mu.Lock()
+		scope.owner.Mu.Lock()
 		err = scope.acquireSerializableSnapshot()
 		if err == nil {
 			e.mu.Lock()
 			err = e.serializableReadLocked(scope, ref)
 			e.mu.Unlock()
 		}
-		scope.owner.mu.Unlock()
+		scope.owner.Mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}
@@ -722,7 +722,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var disclosure AuthorizationView
 	if err == nil {
 		disclosure, err = e.authorizationLocked(op)
-		disclosure.Catalog = e.privateCatalogLocked(scope.owner.catalog)
+		disclosure.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 		disclosure.Recapture(disclosure.Catalog)
 	}
 	e.mu.Unlock()
@@ -910,7 +910,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.mu.Unlock()
 	}
 	if rewrite {
-		scope.owner.mu.Lock()
+		scope.owner.Mu.Lock()
 		e.mu.Lock()
 		err = scope.validateLockedRelation(e)
 		if err == nil {
@@ -918,7 +918,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			err = e.serializableWriteLocked(scope, ref, event[:])
 		}
 		e.mu.Unlock()
-		scope.owner.mu.Unlock()
+		scope.owner.Mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}

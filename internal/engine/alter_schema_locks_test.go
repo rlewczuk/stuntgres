@@ -26,7 +26,7 @@ func TestAlterSchemaLockCancellationAndTimeout(t *testing.T) {
 				address := NameAddressForTempMove(t, e, source, target)
 				ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 				tx := transactionBegin(t, a)
-				if err := e.locks.Acquire(context.Background(), a.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+				if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 					t.Fatal(err)
 				}
 				q := "ALTER TABLE s1.t SET SCHEMA s2"

@@ -17,7 +17,7 @@ func (e *Engine) operationRolesLocked(op *Operation) *access.RoleRecord {
 }
 func (e *Engine) sessionRolesLocked(session *Session) *access.RoleRecord {
 	if session != nil && session.Transactions != nil {
-		if c := session.Transactions.catalog; c != nil && c.Roles != nil {
+		if c := session.Transactions.Catalog; c != nil && c.Roles != nil {
 			return c.Roles
 		}
 	}
@@ -27,24 +27,24 @@ func (e *Engine) sessionRolesLocked(session *Session) *access.RoleRecord {
 // The operation/session publication preflight has passed before this call.
 func (e *Engine) installOperationRolesLocked(op *Operation, next *access.RoleRecord) {
 	t := op.Session.Transactions
-	if !t.retainsTransaction() {
+	if !t.RetainsTransaction() {
 		e.roles.published = next
 		return
 	}
-	c := t.catalog.Clone()
+	c := t.Catalog.Clone()
 	if c.RolesBase == nil {
 		c.RolesBase = e.roles.published
 	}
 	c.Roles = next
-	t.catalog = c
+	t.Catalog = c
 }
 
 // Session.mu is held, and all revision checks have reserved rollback capacity.
 func (e *Engine) touchOperationIdentityLocked(op *Operation) {
 	t := op.Session.Transactions
-	if (t.retainsTransaction() || t.state == TxActive) && !t.identityCaptured {
-		t.identityEntry = op.Session.Authorization.state
-		t.identityCaptured = true
+	if (t.RetainsTransaction() || t.State == TxActive) && !t.IdentityCaptured {
+		t.IdentityEntry = op.Session.Authorization.State
+		t.IdentityCaptured = true
 	}
 }
 

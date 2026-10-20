@@ -18,7 +18,7 @@ func TestQueryLimitAggregateSiblingRecheck(t *testing.T) {
 			transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 			sessionSQL(t, a, "UPDATE t SET v=30 WHERE id=1")
 			done := queryLimitAsync(t, e, b, "SELECT marked.v+grouped.k AS value FROM marked CROSS JOIN grouped WHERE marked.id=1 ORDER BY grouped.k LIMIT 2", prepared)
-			rowLockQueued(t, e, a.Transactions.ticket, lock.ForUpdate)
+			rowLockQueued(t, e, a.Transactions.Ticket, lock.ForUpdate)
 			transactionEnd(t, a, ar, true)
 			rowLockAwait(t, done, 31, 32)
 			lockEmpty(t, e)

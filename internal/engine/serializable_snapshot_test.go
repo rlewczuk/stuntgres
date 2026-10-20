@@ -59,9 +59,9 @@ func serializableUnitCaptureWorker(t *testing.T, scope *StatementScope) func() e
 		}
 	})
 	go func() {
-		scope.owner.mu.Lock()
+		scope.owner.Mu.Lock()
 		err := scope.acquireSerializableSnapshot()
-		scope.owner.mu.Unlock()
+		scope.owner.Mu.Unlock()
 		done <- err
 	}()
 	return func() error {
@@ -80,13 +80,13 @@ func TestSerializableSafeSnapshotImmediateAndInactiveDeferrable(t *testing.T) {
 	for _, readOnly := range []bool{false, true} {
 		e := New()
 		scope, node := serializableUnitAcquisition(t, e, context.Background(), readOnly, true)
-		scope.owner.mu.Lock()
+		scope.owner.Mu.Lock()
 		err := scope.acquireSerializableSnapshot()
-		scope.owner.mu.Unlock()
+		scope.owner.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !scope.owner.snapshotSet || node.ReadOnly != readOnly || node.Deferrable != true || node.Exempt != readOnly || node.Ready != nil {
+		if !scope.owner.SnapshotSet || node.ReadOnly != readOnly || node.Deferrable != true || node.Exempt != readOnly || node.Ready != nil {
 			t.Fatal("immediate snapshot policy", node)
 		}
 	}
@@ -108,7 +108,7 @@ func TestSerializableSafeSnapshotWriterAbortOrNoWriteCommitWakes(t *testing.T) {
 			if err := join(); err != nil {
 				t.Fatal(err)
 			}
-			if !node.Exempt || !scope.owner.snapshotSet || len(node.Possible) != 0 {
+			if !node.Exempt || !scope.owner.SnapshotSet || len(node.Possible) != 0 {
 				t.Fatal("safe resolution did not preserve TX snapshot")
 			}
 		})
@@ -130,7 +130,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	join := serializableUnitCaptureWorker(t, scope)
 	serializableUnitAwaitCandidate(t, e, node)
 	e.mu.Lock()
-	if scope.owner.roots[ref.Address].Storage != old {
+	if scope.owner.Roots[ref.Address].Storage != old {
 		t.Fatal("candidate did not capture old root")
 	}
 	next := &storage.Relation{Generation: old.Generation + 1}
@@ -142,7 +142,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	if err := join(); err != nil {
 		t.Fatal(err)
 	}
-	if scope.owner.roots[ref.Address].Storage != next || scope.owner.frontier != e.visibility.CommitSeq() || !node.Exempt || node.Unsafe {
+	if scope.owner.Roots[ref.Address].Storage != next || scope.owner.Frontier != e.visibility.CommitSeq() || !node.Exempt || node.Unsafe {
 		t.Fatal("unsafe candidate escaped or was not recaptured")
 	}
 }
@@ -177,9 +177,9 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			sessionSQL(t, setup, "INSERT INTO replacement_rows VALUES(11)")
 			relation := catalogRef(t, e, e.CatalogRead(), "replacement_rows")
 			writerScope, writer := serializableUnitAcquisition(t, e, context.Background(), false, false)
-			writerScope.owner.mu.Lock()
+			writerScope.owner.Mu.Lock()
 			err := writerScope.acquireSerializableSnapshot()
-			writerScope.owner.mu.Unlock()
+			writerScope.owner.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -191,10 +191,10 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			e.mu.Lock()
 			ready := node.Ready
 			oldEpoch := e.catalog.state.Epoch()
-			oldRoot := scope.owner.roots[relation.Address]
+			oldRoot := scope.owner.Roots[relation.Address]
 			before := serializableSnapshotPublication(e)
 			_, containsWriter := node.Possible[writer]
-			blocked := containsWriter && len(node.Possible) == 1 && !node.Resolved && !scope.owner.snapshotSet && !writer.Ended && !writer.Committed && oldRoot.Storage != nil
+			blocked := containsWriter && len(node.Possible) == 1 && !node.Resolved && !scope.owner.SnapshotSet && !writer.Ended && !writer.Committed && oldRoot.Storage != nil
 			e.mu.Unlock()
 			if !blocked {
 				t.Fatal("candidate was not blocked on the actual unresolved captured writer")
@@ -236,7 +236,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 					e.mu.Lock()
 					defer e.mu.Unlock()
 					serializableRequirePublicationUnchanged(t, e, before)
-					if e.visibility.Serializable.Nodes[writer.Ref] != writer || e.visibility.Serializable.Nodes[node.Ref] != node || node.Ready != ready || node.Resolved || node.Aborted || writer.Aborted || scope.owner.roots[relation.Address].Storage != oldRoot.Storage {
+					if e.visibility.Serializable.Nodes[writer.Ref] != writer || e.visibility.Serializable.Nodes[node.Ref] != node || node.Ready != ready || node.Resolved || node.Aborted || writer.Aborted || scope.owner.Roots[relation.Address].Storage != oldRoot.Storage {
 						t.Fatal("failed replacement fenced or discarded acquisition")
 					}
 				}()
@@ -269,7 +269,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			func() {
 				e.mu.Lock()
 				defer e.mu.Unlock()
-				if scope.owner.roots != nil || scope.owner.frontier != 0 || scope.owner.snapshotSet || len(node.Possible) != 0 || !node.Resolved {
+				if scope.owner.Roots != nil || scope.owner.Frontier != 0 || scope.owner.SnapshotSet || len(node.Possible) != 0 || !node.Resolved {
 					t.Fatal("candidate roots/wait not released")
 				}
 				if writer.Ended || writer.Committed {
@@ -284,17 +284,17 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			}()
 			if mode != "cancel" {
 				freshScope, fresh := serializableUnitAcquisition(t, e, context.Background(), true, true)
-				freshScope.owner.mu.Lock()
+				freshScope.owner.Mu.Lock()
 				err := freshScope.acquireSerializableSnapshot()
-				freshScope.owner.mu.Unlock()
+				freshScope.owner.Mu.Unlock()
 				if err != nil {
 					t.Fatal("new epoch acquisition", err)
 				}
-				if fresh.Ref.Epoch() != oldEpoch+1 || !fresh.Exempt || !freshScope.owner.snapshotSet || len(fresh.Possible) != 0 || freshScope.owner.frontier != e.visibility.CommitSeq() {
+				if fresh.Ref.Epoch() != oldEpoch+1 || !fresh.Exempt || !freshScope.owner.SnapshotSet || len(fresh.Possible) != 0 || freshScope.owner.Frontier != e.visibility.CommitSeq() {
 					t.Fatal("new epoch inherited replaced cohort")
 				}
 				freshRelation := catalogRef(t, e, e.CatalogRead(), "replacement_rows")
-				if freshScope.owner.roots[freshRelation.Address].Storage == oldRoot.Storage {
+				if freshScope.owner.Roots[freshRelation.Address].Storage == oldRoot.Storage {
 					t.Fatal("new epoch reused replaced storage root")
 				}
 				e.endSerializable(fresh.Ref, false)
@@ -357,7 +357,7 @@ func TestSerializablePublicationOrdinaryFailureCannotDoomPeers(t *testing.T) {
 	frontier := e.visibility.CommitSeq()
 	e.mu.Unlock()
 	ctx, cancel := context.WithCancel(context.Background())
-	op, err := txOwnerOf(a.Ref).session.Acquire(ctx)
+	op, err := txOwnerOf(a.Ref).Session.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +391,7 @@ func TestSerializableSafeSnapshotAttemptedWriterRemainsCandidate(t *testing.T) {
 	if err := join(); err != nil {
 		t.Fatal(err)
 	}
-	if !reader.Exempt || !scope.owner.snapshotSet {
+	if !reader.Exempt || !scope.owner.SnapshotSet {
 		t.Fatal("writer resolution did not release safe acquisition")
 	}
 }
@@ -406,13 +406,13 @@ func TestSerializableGoBirthDeferrableOverridePresence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if session.Transactions.deferrable == override || !session.Transactions.entryDeferrable {
+		if session.Transactions.Deferrable == override || !session.Transactions.EntryDeferrable {
 			t.Fatal("Go birth confused omitted and explicit deferrability overrides")
 		}
 		scope := &StatementScope{owner: session.Transactions, op: op, txRef: ref}
-		scope.owner.mu.Lock()
+		scope.owner.Mu.Lock()
 		err = scope.acquireSerializableSnapshot()
-		scope.owner.mu.Unlock()
+		scope.owner.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}

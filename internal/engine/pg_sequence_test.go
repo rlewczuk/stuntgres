@@ -228,15 +228,15 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	owner := op.Session.Transactions
-	owner.sequenceCatalog = &base
-	owner.catalog = own
+	owner.SequenceCatalog = &base
+	owner.Catalog = own
 	scope := &StatementScope{op: op, owner: owner}
 	e.mu.Lock()
 	captured, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err != nil || !reflect.DeepEqual(pgSequenceUnitBag(t, captured), want) {
 		t.Fatal("retained base plus own overlay", err)
 	}
-	if owner.accessedTemporary || !reflect.DeepEqual(pgSequenceUnitBag(t, old), oldBag) || d.Sequence.Start != -1 {
+	if owner.AccessedTemporary || !reflect.DeepEqual(pgSequenceUnitBag(t, old), oldBag) || d.Sequence.Start != -1 {
 		t.Fatal("capture mutated retained rows or physical TEMP authority")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -264,13 +264,13 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			if stableIsolation(isolation) && owner.sequenceCatalog != base || !stableIsolation(isolation) && owner.sequenceCatalog != nil {
+			if stableIsolation(isolation) && owner.SequenceCatalog != base || !stableIsolation(isolation) && owner.SequenceCatalog != nil {
 				t.Fatal("snapshot pointer policy")
 			}
 			mark := captureSavepoint(owner, "s")
-			owner.catalog = session.NewJournal()
-			restoreSavepoint(owner, mark, mark.settings.clone())
-			if stableIsolation(isolation) && owner.sequenceCatalog != base {
+			owner.Catalog = session.NewJournal()
+			restoreSavepoint(owner, mark, mark.Settings.Clone())
+			if stableIsolation(isolation) && owner.SequenceCatalog != base {
 				t.Fatal("savepoint discarded transaction snapshot")
 			}
 			e.mu.Lock()
@@ -279,13 +279,13 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			if stableIsolation(isolation) && owner.sequenceCatalog != base {
+			if stableIsolation(isolation) && owner.SequenceCatalog != base {
 				t.Fatal("peer publication replaced retained pointer")
 			}
 			if _, err := e.Rollback(op, ref); err != nil {
 				t.Fatal(err)
 			}
-			if owner.sequenceCatalog != nil || owner.snapshotSet {
+			if owner.SequenceCatalog != nil || owner.SnapshotSet {
 				t.Fatal("terminal rollback retained pointer")
 			}
 		})
@@ -312,7 +312,7 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 			serializableUnitAwaitCandidate(t, e, node)
 			e.mu.Lock()
 			old := e.catalog.state
-			captured := scope.owner.sequenceCatalog
+			captured := scope.owner.SequenceCatalog
 			e.mu.Unlock()
 			if captured != old {
 				t.Fatal("candidate failed to retain catalog")
@@ -328,7 +328,7 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 				if err := join(); err != nil {
 					t.Fatal(err)
 				}
-				if scope.owner.sequenceCatalog != next || !scope.owner.snapshotSet {
+				if scope.owner.SequenceCatalog != next || !scope.owner.SnapshotSet {
 					t.Fatal("unsafe candidate catalog was not recaptured")
 				}
 			} else {
@@ -336,7 +336,7 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 				if err := join(); !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if scope.owner.sequenceCatalog != nil || scope.owner.snapshotSet {
+				if scope.owner.SequenceCatalog != nil || scope.owner.SnapshotSet {
 					t.Fatal("canceled candidate retained catalog")
 				}
 			}

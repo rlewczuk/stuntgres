@@ -5,7 +5,7 @@ import "stuntgres/internal/engine/ids"
 // Statement admission serializes mutation of the sticky top-level footprint.
 // Savepoint restoration deliberately never restores it.
 func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.ObjectRef) {
-	catalog := e.privateCatalogLocked(scope.owner.catalog)
+	catalog := e.privateCatalogLocked(scope.owner.Catalog)
 	if scope.catalog != nil {
 		catalog = e.privateCatalogLocked(scope.catalog)
 	}
@@ -14,6 +14,6 @@ func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.Object
 		return
 	}
 	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.SessionToken {
-		scope.owner.accessedTemporary = true
+		scope.owner.AccessedTemporary = true
 	}
 }

@@ -91,13 +91,13 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			original := e.storage.Relations[d.Address()]
 			original.Ends = &storage.DeletionRoot{}
 			scope := refreshUnitScope(t, e, context.Background())
-			scope.owner.isolation = RepeatableRead
+			scope.owner.Isolation = RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			root := scope.owner.roots[d.Address()]
-			frontier := scope.owner.frontier
-			if root.Storage != original || root.Ends != original.Ends || scope.owner.roots[unrelated.Address()].Storage != e.storage.Relations[unrelated.Address()] {
+			root := scope.owner.Roots[d.Address()]
+			frontier := scope.owner.Frontier
+			if root.Storage != original || root.Ends != original.Ends || scope.owner.Roots[unrelated.Address()].Storage != e.storage.Relations[unrelated.Address()] {
 				t.Fatal("snapshot did not capture database roots")
 			}
 			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
@@ -130,7 +130,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			d = e.catalog.state.MustRelation(d.Address())
 			scope := refreshUnitScope(t, e, context.Background())
-			scope.owner.isolation = RepeatableRead
+			scope.owner.Isolation = RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}

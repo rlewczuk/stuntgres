@@ -159,7 +159,7 @@ func (s *StatementScope) readmitProgramsAfterWait() error {
 	if err == nil {
 		auth, err = s.writeAuthorizationLocked(e)
 		if err == nil {
-			auth.Recapture(e.privateCatalogLocked(s.owner.catalog))
+			auth.Recapture(e.privateCatalogLocked(s.owner.Catalog))
 		}
 	}
 	e.mu.Unlock()

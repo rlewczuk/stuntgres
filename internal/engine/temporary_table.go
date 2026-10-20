@@ -17,7 +17,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	changes := scope.owner.catalog.Clone()
+	changes := scope.owner.Catalog.Clone()
 	originalCatalog := auth.Catalog
 	persistence := s.Persistence
 	if persistence == "" {
@@ -68,7 +68,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", "ON COMMIT can only be used on temporary tables")
 	}
-	if !temporary && scope.owner.state == TxActive {
+	if !temporary && scope.owner.State == TxActive {
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
@@ -123,7 +123,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	createdAddress, _ := stage.NameBinding(key)
 	created := e.catalog.Domain.Ref(base.Epoch(), createdAddress)
 	if temporary {
-		scope.owner.accessedTemporary = true
+		scope.owner.AccessedTemporary = true
 		if len(stage.domainBases) != 0 {
 			// The validated stage no longer mutates these observations. Retain
 			// them through Finish without copying them into the outer transaction.
@@ -195,7 +195,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(scope.owner.catalog).State(), scope.catalogAuthority)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(scope.owner.Catalog).State(), scope.catalogAuthority)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -239,7 +239,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err == nil && scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
-	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.Session || scope.op.Session.Authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).Revision != stage.roleRevision) {
+	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.Session || scope.op.Session.Authorization.Revision != stage.authRevision || e.operationRolesLocked(scope.op).Revision != stage.roleRevision) {
 		err = fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	if err == nil {

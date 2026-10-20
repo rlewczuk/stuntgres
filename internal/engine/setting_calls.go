@@ -151,18 +151,18 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	owner := op.Session.Settings
 	locked := true
-	unlock := func() { op.Session.Mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
+	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.mu.Unlock() }
 	defer func() {
 		if locked {
 			unlock()
 		}
 	}()
-	owner.mu.Lock()
+	owner.Mu.Lock()
 	op.Session.Mu.Lock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if owner.ended {
+	if owner.Ended {
 		return Result{}, fmt.Errorf("stuntgres: settings attachment ended")
 	}
 	output := sqltype.Null(typ)
@@ -176,7 +176,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 			if err != nil {
 				return Result{}, err
 			}
-			output = sqltype.String(typ, owner.value(d.Name))
+			output = sqltype.String(typ, owner.Value(d.Name))
 		}
 		if err := op.Ctx.Err(); err != nil {
 			return Result{}, err

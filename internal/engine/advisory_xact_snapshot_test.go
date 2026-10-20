@@ -15,29 +15,29 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 		a, _ := advisoryUnitOwner(t, e)
 		peer := sessionStart(t, e, nil)
 		key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 1, Low: 2}
-		mark := e.locks.Checkpoint(a.Transactions.ticket)
+		mark := e.locks.Checkpoint(a.Transactions.Ticket)
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 		advisoryXactUnitGrant(t, a, key, sessionMode, false)
-		err := e.locks.CheckPreparedAdvisory(a.Transactions.ticket)
+		err := e.locks.CheckPreparedAdvisory(a.Transactions.Ticket)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "cannot PREPARE while holding both session-level and transaction-level locks on the same object" {
 			t.Fatal("mixed actual tags", err)
 		}
 		// A rolled-back transaction contribution is absent even when the persistent
 		// hold and its genuine resource journal still exist.
-		e.locks.Restore(a.Transactions.ticket, mark)
-		if err := e.locks.CheckPreparedAdvisory(a.Transactions.ticket); err != nil {
+		e.locks.Restore(a.Transactions.Ticket, mark)
+		if err := e.locks.CheckPreparedAdvisory(a.Transactions.Ticket); err != nil {
 			t.Fatal("restriction on journal rather than grant", err)
 		}
 		pair := key
 		pair.Kind = lock.AdvisoryPairResource
 		advisoryXactUnitGrant(t, a, pair, lock.AdvisoryExclusive, true)
-		old := a.Transactions.ticket
+		old := a.Transactions.Ticket
 		if err := preparedUnitControl(t, e, a, parser.KindPrepareTransaction, "advisory_xact_unit"); err != nil {
 			t.Fatal(err)
 		}
 		lockState := e.locks.Inspect(old)
-		if e.prepared["advisory_xact_unit"].ticket != old || !lockState.Detached[old] || lockState.Participant(old) == lockState.Participant(a.Advisory.ticket) {
+		if e.prepared["advisory_xact_unit"].ticket != old || !lockState.Detached[old] || lockState.Participant(old) == lockState.Participant(a.Advisory.Ticket) {
 			t.Fatal("prepared owner did not detach")
 		}
 		transactionBegin(t, a)
@@ -86,7 +86,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 		return out
 	}
 	rows := capture()
-	if len(rows) != 1 || rows[0].Mode != lock.AdvisoryShare || rows[0].Owner.Local != a.Transactions.ref.ID() {
+	if len(rows) != 1 || rows[0].Mode != lock.AdvisoryShare || rows[0].Owner.Local != a.Transactions.Ref.ID() {
 		t.Fatal("same process mode duplication", rows)
 	}
 	advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
@@ -96,7 +96,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	request, err := e.locks.StartAcquire(ctx, b.Transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{})
+	request, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, key, lock.AdvisoryExclusive, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
@@ -119,7 +119,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	if err := request.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	e.endLockOwner(a.Transactions.ticket)
+	e.endLockOwner(a.Transactions.Ticket)
 	rows = capture()
 	if len(rows) != 1 || rows[0].Mode != lock.AdvisoryShare {
 		t.Fatal("transaction end crossed session mode", rows)
@@ -128,7 +128,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	other := key
 	other.Low++
 	advisoryXactUnitGrant(t, b, other, lock.AdvisoryExclusive, true)
-	old := b.Transactions.ticket
+	old := b.Transactions.Ticket
 	if err := preparedUnitControl(t, e, b, parser.KindPrepareTransaction, "advisory_snapshot"); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	if detached != 1 {
 		t.Fatal("prepared row count", detached)
 	}
-	transactionEnd(t, a, a.Transactions.ref, false)
+	transactionEnd(t, a, a.Transactions.Ref, false)
 	if err := preparedUnitControl(t, e, a, parser.KindRollbackPrepared, "advisory_snapshot"); err != nil {
 		t.Fatal(err)
 	}

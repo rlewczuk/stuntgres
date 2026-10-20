@@ -63,9 +63,9 @@ func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Rel
 }
 
 func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
-	s.owner.mu.Lock()
-	active := s.owner.inBlock()
-	s.owner.mu.Unlock()
+	s.owner.Mu.Lock()
+	active := s.owner.InBlock()
+	s.owner.Mu.Unlock()
 	if !active {
 		return sqlError("25P01", "LOCK TABLE can only be used in transaction blocks")
 	}
@@ -159,7 +159,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	ancestors = append(ancestors, ref)
 	for _, source := range viewOf(d).sources {
 		e.mu.Lock()
-		view := e.privateCatalogLocked(s.owner.catalog)
+		view := e.privateCatalogLocked(s.owner.Catalog)
 		child, ok := view.Relation(source.ref.Address)
 		use, useErr := storedViewUseReference(view, d, source.ref)
 		valid := ok && useErr == nil

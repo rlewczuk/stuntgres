@@ -215,9 +215,9 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if ref.Epoch != e.catalog.state.Epoch() {
 		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
-	catalog := e.privateCatalogLocked(s.owner.catalog)
+	catalog := e.privateCatalogLocked(s.owner.Catalog)
 	parent, ok := catalog.Relation(ref.Address)
-	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
+	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 	if !ok || store == nil || !sameRelationRowShape(candidate.parent, parent) {
 		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}

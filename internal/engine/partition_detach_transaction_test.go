@@ -35,7 +35,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 				t.Fatal(err)
 			}
 			markOp.Done()
-			beforeRows := maps.Clone(owner.Transactions.roots)
+			beforeRows := maps.Clone(owner.Transactions.Roots)
 			detach, op := partitionAttachUnitScope(t, f.e, owner)
 			partitionAttachUnitGrant(t, detach, parentRef, lock.AccessExclusive)
 			partitionAttachUnitGrant(t, detach, ref, lock.AccessExclusive)
@@ -44,18 +44,18 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			if err := f.e.stagePartitionDetach(stage, f.parent, f.child); err != nil {
 				t.Fatal(err)
 			}
-			if err := f.e.stageCatalogOverlay(detach, stage, detach.owner.catalog.Clone()); err != nil {
+			if err := f.e.stageCatalogOverlay(detach, stage, detach.owner.Catalog.Clone()); err != nil {
 				t.Fatal(err)
 			}
 			if err := detach.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
 			op.Done()
-			private := f.e.privateCatalogLocked(owner.Transactions.catalog)
+			private := f.e.privateCatalogLocked(owner.Transactions.Catalog)
 			if private.MustRelation(ref.Address).Membership != nil || f.e.catalog.state.Get(ref.Address) != f.child {
 				t.Fatal("detach overlay did not remain private")
 			}
-			if !reflect.DeepEqual(beforeRows, owner.Transactions.roots) {
+			if !reflect.DeepEqual(beforeRows, owner.Transactions.Roots) {
 				t.Fatal("metadata-only detach changed private row roots")
 			}
 			partitionAttachUnitWrite(t, f.e, owner, ref, 4)
@@ -69,14 +69,14 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 					t.Fatal(err)
 				}
 				rollbackOp.Done()
-				if f.e.privateCatalogLocked(owner.Transactions.catalog).Get(ref.Address) != f.child {
+				if f.e.privateCatalogLocked(owner.Transactions.Catalog).Get(ref.Address) != f.child {
 					t.Fatal("savepoint did not restore exact attached descriptor")
 				}
 				lockState := f.e.locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: parentRef}]
-				mode := entry.Holders[owner.Transactions.ticket].Mode
+				mode := entry.Holders[owner.Transactions.Ticket].Mode
 				childEntry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-				childHeld := childEntry != nil && childEntry.Holders[owner.Transactions.ticket].Mode != 0
+				childHeld := childEntry != nil && childEntry.Holders[owner.Transactions.Ticket].Mode != 0
 				if mode != lock.AccessShare || childHeld {
 					t.Fatal("post-savepoint AX contributions survived", mode, childHeld)
 				}

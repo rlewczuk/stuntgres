@@ -662,7 +662,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			if s.IfNotExists {
 				e.mu.Lock()
 				currentAuth, authErr := e.statementAuthorizationLocked(scope.op, s)
-				current := e.privateCatalogLocked(scope.owner.catalog)
+				current := e.privateCatalogLocked(scope.owner.Catalog)
 				_, exists := current.LookupName(key)
 				same := current.Epoch() == base.Epoch() && current.Get(parent.Address()) != nil
 				if authErr == nil && same && exists {

@@ -20,7 +20,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			e := New()
 			a := sessionStart(t, e, nil)
 			beforeCatalog, beforeRoles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
-			original, revision := a.Authorization.state, a.Authorization.revision
+			original, revision := a.Authorization.State, a.Authorization.Revision
 			m := batchUnitStart(t, a, context.Background())
 			defer m.end(context.Canceled)
 			for _, q := range []string{"CREATE ROLE batch_member LOGIN", "CREATE SCHEMA batch_schema AUTHORIZATION batch_member", "CREATE TABLE batch_schema.t(v INT)", "INSERT INTO batch_schema.t VALUES(1),(2)", "CREATE UNIQUE INDEX ix ON batch_schema.t(v)", "GRANT SELECT ON batch_schema.t TO batch_member", "SET ROLE batch_member"} {
@@ -33,10 +33,10 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer result.Rows.Close()
-			a.Transactions.mu.Lock()
-			changes := a.Transactions.catalog
-			ref := a.Transactions.ref
-			a.Transactions.mu.Unlock()
+			a.Transactions.Mu.Lock()
+			changes := a.Transactions.Catalog
+			ref := a.Transactions.Ref
+			a.Transactions.Mu.Unlock()
 			if changes == nil || changes.Roles == nil || changes.RolesBase != beforeRoles || ref == (ids.TxRef{}) {
 				t.Fatal("missing joint candidate authority")
 			}
@@ -55,7 +55,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if !ok {
 				t.Fatal("pending index")
 			}
-			if changes.Storage[table].Original != nil || len(journalIndexesOrZero(changes).uniqueRoots[index].Entries) != 0 || len(a.Transactions.writes[table]) != 2 {
+			if changes.Storage[table].Original != nil || len(journalIndexesOrZero(changes).uniqueRoots[index].Entries) != 0 || len(a.Transactions.Writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
 			if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {
@@ -85,7 +85,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal("primary error replaced", end, err)
 				}
-				if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || a.Authorization.state != original || a.Authorization.revision <= revision || a.Transactions.identityCaptured {
+				if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || a.Authorization.State != original || a.Authorization.Revision <= revision || a.Transactions.IdentityCaptured {
 					t.Fatal("joint rollback or identity revision")
 				}
 			}
@@ -197,7 +197,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate := s.Transactions.catalog.Clone()
+	candidate := s.Transactions.Catalog.Clone()
 	ns, err := e.relationCreationNamespaceLocked(auth, definition.Name, "temporary", candidate)
 	if err != nil {
 		t.Fatal(err)
@@ -312,7 +312,7 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 			}
 			defer retained.Rows.Close()
 			e.mu.Lock()
-			catalog := e.privateCatalogLocked(s.Transactions.catalog)
+			catalog := e.privateCatalogLocked(s.Transactions.Catalog)
 			ns := catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"})
 			table := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "u"})
 			copyTable := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "c"})

@@ -124,8 +124,8 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 		t.Fatal(err)
 	}
 	gate := &generatedRepairSource{entered: make(chan struct{}), release: make(chan struct{})}
-	session.Random.rand = *rand.New(gate)
-	session.Random.initialized = true
+	session.Random.Rand = *rand.New(gate)
+	session.Random.Initialized = true
 	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: []storage.RowVersion{{Values: source}}}}, sequences: map[ids.ObjectAddress]*storage.SequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {Last: 77, Called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}, imported: d.Address(), temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
 	t.Cleanup(func() {
 		op.Done()

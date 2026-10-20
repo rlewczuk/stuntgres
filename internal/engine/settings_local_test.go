@@ -16,50 +16,50 @@ func TestSettingsLocalActions(t *testing.T) {
 		}{
 			{"S", "s"}, {"L", "b"}, {"SL", "s"}, {"LS", "s"}, {"SLSL", "s"}, {"SLD", "s"}, {"SLR", ""}, {"SDR", "s"},
 		} {
-			s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settings.Value{"x": {Number: math.SmallestNonzeroFloat64}}}
+			s := &sessionSettings{Values: map[string]string{"x": "b"}, Typed: map[string]settings.Value{"x": {Number: math.SmallestNonzeroFloat64}}}
 			for _, action := range tc.actions {
 				switch action {
 				case 'S':
-					s.touch("x", false)
-					s.restore("x", settingOverride{present: true, text: "s", typed: settings.Value{Number: 2}})
+					s.Touch("x", false)
+					s.Restore("x", settingOverride{Present: true, Text: "s", Typed: settings.Value{Number: 2}})
 				case 'L':
-					s.touch("x", true)
-					s.restore("x", settingOverride{present: true, text: "l", typed: settings.Value{Number: 3}})
+					s.Touch("x", true)
+					s.Restore("x", settingOverride{Present: true, Text: "l", Typed: settings.Value{Number: 3}})
 				case 'D':
-					s.touch("x", true)
-					s.restore("x", settingOverride{})
+					s.Touch("x", true)
+					s.Restore("x", settingOverride{})
 				case 'R':
-					if _, ok := s.values["x"]; ok {
-						s.touch("x", false)
-						s.restore("x", settingOverride{})
+					if _, ok := s.Values["x"]; ok {
+						s.Touch("x", false)
+						s.Restore("x", settingOverride{})
 					}
 				}
-				if len(s.actions) != 1 {
-					t.Fatal("unbounded action map", s.actions)
+				if len(s.Actions) != 1 {
+					t.Fatal("unbounded action map", s.Actions)
 				}
 			}
-			s.finishTransaction(commit)
+			s.FinishTransaction(commit)
 			want := tc.want
 			if !commit {
 				want = "b"
 			}
-			if s.values["x"] != want || s.actions != nil {
-				t.Fatalf("%s commit=%v got=%q want=%q", tc.actions, commit, s.values["x"], want)
+			if s.Values["x"] != want || s.Actions != nil {
+				t.Fatalf("%s commit=%v got=%q want=%q", tc.actions, commit, s.Values["x"], want)
 			}
-			if !commit && s.typed["x"].Number != math.SmallestNonzeroFloat64 {
+			if !commit && s.Typed["x"].Number != math.SmallestNonzeroFloat64 {
 				t.Fatal("typed original lost")
 			}
-			s.finishTransaction(commit)
+			s.FinishTransaction(commit)
 		}
 	}
 }
 
 func TestSettingsLocalEndedCleanup(t *testing.T) {
-	s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settings.Value{}}
-	s.touch("x", true)
+	s := &sessionSettings{Values: map[string]string{"x": "b"}, Typed: map[string]settings.Value{}}
+	s.Touch("x", true)
 	s.EndSession(ids.SessionToken{}, 0)
-	s.finishTransaction(false)
-	if s.values != nil || s.typed != nil || s.actions != nil {
+	s.FinishTransaction(false)
+	if s.Values != nil || s.Typed != nil || s.Actions != nil {
 		t.Fatal("ended owner recreated")
 	}
 }
@@ -68,16 +68,16 @@ func TestSettingsLocalUntouchedTransaction(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	ref := transactionBegin(t, s)
-	if s.Settings.actions != nil {
+	if s.Settings.Actions != nil {
 		t.Fatal("Begin allocated actions")
 	}
 	r := sessionSQL(t, s, "SHOW application_name")
 	r.Rows.Close()
-	if s.Settings.actions != nil {
+	if s.Settings.Actions != nil {
 		t.Fatal("read allocated actions")
 	}
 	transactionEnd(t, s, ref, true)
-	if s.Settings.actions != nil {
+	if s.Settings.Actions != nil {
 		t.Fatal("end retained actions")
 	}
 }

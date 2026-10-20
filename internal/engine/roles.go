@@ -98,22 +98,22 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		}
 		session := op.Session
 		settings := session.Settings
-		settings.mu.Lock()
-		defer settings.mu.Unlock()
+		settings.Mu.Lock()
+		defer settings.Mu.Unlock()
 		session.Mu.Lock()
 		defer session.Mu.Unlock()
 		a := session.Authorization
 		// Reserve failure unwind, retained savepoints and outer restoration.
-		if err := roleRevisionHeadroom(a, uint64(len(session.Transactions.savepoints))+3); err != nil {
+		if err := roleRevisionHeadroom(a, uint64(len(session.Transactions.Savepoints))+3); err != nil {
 			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
 		e.touchOperationIdentityLocked(op)
-		settings.touchRole(a.state.CurrentUser, s.Local)
-		a.state.CurrentUser = target
-		a.revision++
+		settings.TouchRole(a.State.CurrentUser, s.Local)
+		a.State.CurrentUser = target
+		a.Revision++
 		return Result{}, nil
 	case *parser.SessionAuthorization:
 		target := v.State.Authenticated
@@ -130,22 +130,22 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		}
 		session := op.Session
 		settings := session.Settings
-		settings.mu.Lock()
-		defer settings.mu.Unlock()
+		settings.Mu.Lock()
+		defer settings.Mu.Unlock()
 		session.Mu.Lock()
 		defer session.Mu.Unlock()
 		a := session.Authorization
-		if err := roleRevisionHeadroom(a, uint64(len(session.Transactions.savepoints))+3); err != nil {
+		if err := roleRevisionHeadroom(a, uint64(len(session.Transactions.Savepoints))+3); err != nil {
 			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
 		e.touchOperationIdentityLocked(op)
-		settings.touchRole(a.state.CurrentUser, false)
-		a.state.SessionUser = target
-		a.state.CurrentUser = target
-		a.revision++
+		settings.TouchRole(a.State.CurrentUser, false)
+		a.State.SessionUser = target
+		a.State.CurrentUser = target
+		a.Revision++
 		return Result{}, nil
 	case *parser.DropRole:
 		actor, exists := v.Roles.Find(v.State.CurrentUser)
@@ -339,14 +339,14 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 		return Result{}, err
 	}
 	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
-	if t := op.Session.Transactions; t.retainsTransaction() {
+	if t := op.Session.Transactions; t.RetainsTransaction() {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.
-		if t.catalog.RetiredRoles == nil {
-			t.catalog.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(ordered))
+		if t.Catalog.RetiredRoles == nil {
+			t.Catalog.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(ordered))
 		}
 		for _, ref := range ordered {
-			t.catalog.RetiredRoles[ref] = struct{}{}
+			t.Catalog.RetiredRoles[ref] = struct{}{}
 		}
 	}
 	return Result{}, nil

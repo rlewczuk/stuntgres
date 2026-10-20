@@ -528,8 +528,8 @@ type arrayRelationalLoopContext struct {
 }
 
 func (c *arrayRelationalLoopContext) Err() error {
-	if c.owner.mu.TryLock() {
-		c.owner.mu.Unlock()
+	if c.owner.Mu.TryLock() {
+		c.owner.Mu.Unlock()
 	} else {
 		c.calls++
 		if c.calls == 2 {

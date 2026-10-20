@@ -60,7 +60,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		// A modifying WITH is an analysis error, before cursor installation
 		// checks. Ordinary declarations keep their existing execution order.
 		if !parser.HasModifyingCTE(declaration.Query) {
-			if !scope.owner.inBlock() && !declaration.Hold {
+			if !scope.owner.InBlock() && !declaration.Hold {
 				return Result{}, sqlError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
 			}
 			name := declaration.Name.Text
@@ -139,13 +139,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
 			return e.executeDatabaseGrant(scope, grant, count)
 		}
-		result, err := e.executeRole(op, stmt, count, !scope.owner.inBlock())
+		result, err := e.executeRole(op, stmt, count, !scope.owner.InBlock())
 		if err == nil {
 			scope.completed = true
 		}
 		return result, err
 	case *parser.Set, *parser.Show, *parser.Reset:
-		result, err := e.executeSetting(op, stmt, count, !scope.owner.inBlock())
+		result, err := e.executeSetting(op, stmt, count, !scope.owner.InBlock())
 		if err == nil {
 			scope.completed = true
 		}

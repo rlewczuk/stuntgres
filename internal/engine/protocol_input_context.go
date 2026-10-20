@@ -12,15 +12,15 @@ import (
 // Session.mu protects the lazy context and its cancellation. Context returns an
 // actual standard context, never a proxy that changes Done/Err after selection.
 type protocolCopyInputContext struct {
-	active      atomic.Bool
-	decoding    atomic.Bool
-	masked      context.Context
+	Active      atomic.Bool
+	Decoding    atomic.Bool
+	Masked      context.Context
 	cancel      context.CancelCauseFunc
 	timerCancel context.CancelFunc
 }
 
-func (c *protocolCopyInputContext) held() bool {
-	return c.active.Load() && c.decoding.Load()
+func (c *protocolCopyInputContext) Held() bool {
+	return c.Active.Load() && c.Decoding.Load()
 }
 
 func pendingProtocolUserCancel(ctx context.Context) bool {
@@ -30,19 +30,19 @@ func pendingProtocolUserCancel(ctx context.Context) bool {
 
 // Caller holds Session.mu. The original operation context is never replaced.
 func (c *protocolCopyInputContext) effectiveLocked(op *Operation) context.Context {
-	if !c.held() {
+	if !c.Held() {
 		return op.Ctx
 	}
-	if c.masked == nil && pendingProtocolUserCancel(op.Ctx) {
+	if c.Masked == nil && pendingProtocolUserCancel(op.Ctx) {
 		// WithoutCancel hides the original cancelCtxKey as well as Done/Err.
 		// Re-project only the already captured absolute budget, never a fresh one.
-		c.masked, c.cancel = context.WithCancelCause(context.WithoutCancel(op.Ctx))
+		c.Masked, c.cancel = context.WithCancelCause(context.WithoutCancel(op.Ctx))
 		if deadline, ok := op.Ctx.Deadline(); ok {
 			cause := error(context.DeadlineExceeded)
 			if !op.StatementDeadline.IsZero() && deadline.Equal(op.StatementDeadline) {
 				cause = statementTimeoutCause
 			}
-			c.masked, c.timerCancel = context.WithDeadlineCause(c.masked, deadline, cause)
+			c.Masked, c.timerCancel = context.WithDeadlineCause(c.Masked, deadline, cause)
 		}
 		if op.Released || op.Session.State != live {
 			var cause error
@@ -52,18 +52,18 @@ func (c *protocolCopyInputContext) effectiveLocked(op *Operation) context.Contex
 			c.cancel(cause)
 		}
 	}
-	if c.masked != nil {
-		return c.masked
+	if c.Masked != nil {
+		return c.Masked
 	}
 	return op.Ctx
 }
 
 func (op *Operation) StopCopyInput() {
 	op.Session.Mu.Lock()
-	op.CopyInput.active.Store(false)
-	op.CopyInput.decoding.Store(false)
+	op.CopyInput.Active.Store(false)
+	op.CopyInput.Decoding.Store(false)
 	cancel, timerCancel := op.CopyInput.cancel, op.CopyInput.timerCancel
-	op.CopyInput.masked, op.CopyInput.cancel, op.CopyInput.timerCancel = nil, nil, nil
+	op.CopyInput.Masked, op.CopyInput.cancel, op.CopyInput.timerCancel = nil, nil, nil
 	op.Session.Mu.Unlock()
 	if cancel != nil {
 		cancel(nil)
@@ -76,7 +76,7 @@ func (op *Operation) StopCopyInput() {
 // Successful conversion must observe pending cancellation before its row can
 // leave the input stage. Failed conversion returns its actual primary error.
 func (op *Operation) PendingCopyInputError() error {
-	if !op.CopyInput.active.Load() {
+	if !op.CopyInput.Active.Load() {
 		return nil
 	}
 	op.Session.Mu.Lock()

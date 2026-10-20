@@ -26,7 +26,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 			}
 			base := e.CatalogRead()
 			ref := e.catalog.Domain.Ref(base.Epoch(), parent.Address())
-			if err = e.locks.Acquire(context.Background(), holder.Session.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.ShareUpdateExclusive); err != nil {
+			if err = e.locks.Acquire(context.Background(), holder.Session.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.ShareUpdateExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -40,7 +40,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			scope := &StatementScope{op: op, owner: op.Session.Transactions, txRef: tx, ticket: op.Session.Transactions.ticket}
+			scope := &StatementScope{op: op, owner: op.Session.Transactions, txRef: tx, ticket: op.Session.Transactions.Ticket}
 			defer func() {
 				if op.Context().Err() != nil {
 					// A canceled Commit follows the real failed-commit rollback
@@ -140,7 +140,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 	}()
 	base := e.CatalogRead()
 	ref := e.catalog.Domain.Ref(base.Epoch(), table.Address())
-	if err := e.locks.Acquire(context.Background(), holder.Session.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.Session.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -163,7 +163,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 			t.Error(err)
 		}
 	}()
-	scope := &StatementScope{op: op, owner: op.Session.Transactions, txRef: tx, ticket: op.Session.Transactions.ticket}
+	scope := &StatementScope{op: op, owner: op.Session.Transactions, txRef: tx, ticket: op.Session.Transactions.Ticket}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Remove(ref); err != nil {

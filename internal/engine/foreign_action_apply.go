@@ -257,7 +257,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		e.mu.Lock()
-		current := e.privateCatalogLocked(s.owner.catalog)
+		current := e.privateCatalogLocked(s.owner.Catalog)
 		err = refreshForeignActionJob(current, job)
 		e.mu.Unlock()
 		if err != nil {

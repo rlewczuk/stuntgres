@@ -17,12 +17,12 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 	cancel, await := indexMaintenanceAsync(t, e, builder, "CREATE INDEX CONCURRENTLY hi ON t USING hash(n)")
 	// Observe actual manager completion requests, after the coordinator froze
 	// its cohort; worker start and descriptor flags alone are not queue proof.
-	concurrentUnitCompletion(t, e, first.Transactions.ticket, builder)
+	concurrentUnitCompletion(t, e, first.Transactions.Ticket, builder)
 	concurrentUnitIndex(t, e, "hi", false, false)
 	sessionSQL(t, later, "BEGIN")
 	sessionSQL(t, later, "INSERT INTO t VALUES(4)")
 	sessionSQL(t, first, "COMMIT")
-	concurrentUnitCompletion(t, e, later.Transactions.ticket, builder)
+	concurrentUnitCompletion(t, e, later.Transactions.Ticket, builder)
 	concurrentUnitIndex(t, e, "hi", true, false)
 	cancel()
 	if err := await(); !errors.Is(err, context.Canceled) {

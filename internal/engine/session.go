@@ -42,7 +42,7 @@ const (
 )
 
 type ResourceHandle struct {
-	session ids.SessionToken
+	Session ids.SessionToken
 	kind    ResourceKind
 	serial  uint64
 }
@@ -67,8 +67,8 @@ const (
 )
 
 type resourceEntry struct {
-	handle ResourceHandle
-	owner  SessionResource
+	Handle ResourceHandle
+	Owner  SessionResource
 }
 type Session struct {
 	ids.SessionOwnerMarker
@@ -174,7 +174,7 @@ func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error
 	return op, nil
 }
 func (op *Operation) Context() context.Context {
-	if op.CopyInput.held() {
+	if op.CopyInput.Held() {
 		op.Session.Mu.Lock()
 		ctx := op.CopyInput.effectiveLocked(op)
 		op.Session.Mu.Unlock()
@@ -226,7 +226,7 @@ func validateSessionOperation(domain *ids.Domain, op *Operation) error {
 		}
 		return errors.New("stuntgres: inactive operation")
 	}
-	if op.CopyInput.held() {
+	if op.CopyInput.Held() {
 		return op.FatalErrorLocked(op.CopyInput.effectiveLocked(op).Err())
 	}
 	return op.FatalErrorLocked(op.Ctx.Err())
@@ -268,7 +268,7 @@ func (op *Operation) Attach(kind ResourceKind, owner SessionResource) (ResourceH
 }
 func (s *Session) Detach(h ResourceHandle, reason EndReason) error {
 	s.Mu.Lock()
-	if h.session != s.SessionToken || h.kind >= resourceKinds || h.serial == 0 {
+	if h.Session != s.SessionToken || h.kind >= resourceKinds || h.serial == 0 {
 		s.Mu.Unlock()
 		return errors.New("stuntgres: foreign resource handle")
 	}
@@ -277,7 +277,7 @@ func (s *Session) Detach(h ResourceHandle, reason EndReason) error {
 		return nil
 	}
 	entry := s.Resources[h.kind]
-	if entry == nil || entry.handle != h {
+	if entry == nil || entry.Handle != h {
 		s.Mu.Unlock()
 		return errors.New("stuntgres: stale resource handle")
 	}
@@ -288,7 +288,7 @@ func (s *Session) Detach(h ResourceHandle, reason EndReason) error {
 	s.detaching = true
 	s.Resources[h.kind] = nil
 	s.Mu.Unlock()
-	err := entry.owner.EndSession(s.SessionToken, reason)
+	err := entry.Owner.EndSession(s.SessionToken, reason)
 	s.Mu.Lock()
 	s.Removed[h] = true
 	if err != nil {
@@ -354,14 +354,14 @@ func (s *Session) end() {
 		}
 		s.Resources[kind] = nil
 		s.Mu.Unlock()
-		err := entry.owner.EndSession(s.SessionToken, s.Reason)
+		err := entry.Owner.EndSession(s.SessionToken, s.Reason)
 		if kind == Transaction {
 			// The transaction callback has returned and released its admission
 			// lock. Maintenance never runs inside a SessionResource callback.
 			err = errors.Join(err, s.Host.EndMaintenance(s))
 		}
 		s.Mu.Lock()
-		s.Removed[entry.handle] = true
+		s.Removed[entry.Handle] = true
 		if err != nil {
 			s.cleanupErrors = append(s.cleanupErrors, err)
 		}

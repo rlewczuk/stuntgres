@@ -55,10 +55,10 @@ func exclusionCompletionQueued(t *testing.T, e *Engine, owner, waiter *lock.Tick
 				t.Fatal("completion waiter retained engine metadata lock")
 			}
 			e.mu.Unlock()
-			if !txOwnerOf(waiter.Ref()).mu.TryLock() {
+			if !txOwnerOf(waiter.Ref()).Mu.TryLock() {
 				t.Fatal("completion waiter retained transaction owner lock")
 			}
-			txOwnerOf(waiter.Ref()).mu.Unlock()
+			txOwnerOf(waiter.Ref()).Mu.Unlock()
 			return
 		}
 		select {
@@ -91,12 +91,12 @@ func TestExclusionPeerCompletion(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING btree(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
 	ar, br := transactionBegin(t, a), transactionBegin(t, b)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	at := a.Transactions.ticket
+	at := a.Transactions.Ticket
 	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.events) != 0 {
 		t.Fatal("uncontested first admission invented a deferred obligation")
 	}
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
-	bt := b.Transactions.ticket
+	bt := b.Transactions.Ticket
 	if len(ownerExtensionOrZero(b.Transactions).exclusionModes.events) != 1 {
 		t.Fatal("peer admission did not enlist its actual row/version")
 	}
@@ -122,7 +122,7 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING hash(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
 	transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	at := a.Transactions.ticket
+	at := a.Transactions.Ticket
 	before := e.exclusionPending[at]
 	sessionSQL(t, a, "SAVEPOINT m")
 	sessionSQL(t, a, "SET CONSTRAINTS ex IMMEDIATE")
@@ -136,12 +136,12 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 	}
 	sessionSQL(t, a, "PREPARE TRANSACTION 'exclusion_unit'")
 	prepared := e.prepared["exclusion_unit"]
-	if prepared == nil || prepared.ticket != at || a.Transactions.ticket != nil || e.exclusionPending[at] != before {
+	if prepared == nil || prepared.ticket != at || a.Transactions.Ticket != nil || e.exclusionPending[at] != before {
 		t.Fatal("PREPARE did not retain the detached dirty owner")
 	}
 	br := transactionBegin(t, b)
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
-	bt := b.Transactions.ticket
+	bt := b.Transactions.Ticket
 	done := exclusionCommitWorker(t, b, br)
 	exclusionCompletionQueued(t, e, at, bt, done)
 	sessionSQL(t, a, "ROLLBACK PREPARED 'exclusion_unit'")

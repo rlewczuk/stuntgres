@@ -309,7 +309,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			stage.querySources = []catalog.Descriptor{ext}
 			stage.authSession = op.Session
-			stage.authRevision = op.Session.Authorization.revision
+			stage.authRevision = op.Session.Authorization.Revision
 			stage.roleRevision = e.roles.published.Revision
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
@@ -330,7 +330,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "role":
 				e.roles.published.Revision++
 			case "authorization":
-				op.Session.Authorization.revision++
+				op.Session.Authorization.Revision++
 			}
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {

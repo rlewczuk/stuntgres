@@ -57,7 +57,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: qs}]
-			valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive && entry.Holders[holder.Transactions.ticket].Mode == heldMode
+			valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive && entry.Holders[holder.Transactions.Ticket].Mode == heldMode
 			if valid {
 				ticket := entry.Pending[0].Ticket
 				for _, ref := range []ids.ObjectRef{p, q, ps} {
@@ -94,7 +94,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 				sequenceScalar(t, waiter, "SELECT nextval('p_id_seq')", 3)
 				tx := transactionBegin(t, holder)
 				truncateUnitExecute(t, e, holder, truncateRestartUnitAST("p"))
-				candidate := holder.Transactions.catalog.Generators[ps.Address]
+				candidate := holder.Transactions.Catalog.Generators[ps.Address]
 				done, _ := truncateRestartUnitAsyncSQL(t, e, waiter, query)
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
@@ -103,7 +103,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 				if query == "SELECT * FROM p_id_seq" {
 					wantMode = lock.AccessShare
 				}
-				valid := entry != nil && entry.Holders[holder.Transactions.ticket].Mode == lock.AccessExclusive && len(entry.Pending) == 1 && entry.Pending[0].Mode == wantMode
+				valid := entry != nil && entry.Holders[holder.Transactions.Ticket].Mode == lock.AccessExclusive && len(entry.Pending) == 1 && entry.Pending[0].Mode == wantMode
 				if !valid {
 					t.Fatal("function/cache bypassed successful reset AX")
 				}
@@ -134,7 +134,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 		e, holder, p, _, ps, _ := truncateRestartUnitFixture(t)
 		waiter := sessionStart(t, e, nil)
 		tx := transactionBegin(t, holder)
-		holderTicket := holder.Transactions.ticket
+		holderTicket := holder.Transactions.Ticket
 		oldStore, oldGenerator := e.storage.Relations[p.Address], e.storage.Sequences[ps.Address]
 		// Pause at OWNED BY's actual first grant, before its table-AS
 		// dependency. TRUNCATE retains table-AX then requests sequence-AX.

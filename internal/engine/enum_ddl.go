@@ -93,7 +93,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 	if err != nil {
 		return Result{}, err
 	}
-	changes := scope.owner.catalog.Clone()
+	changes := scope.owner.Catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	if create, ok := stmt.(*parser.CreateEnum); ok {
@@ -101,7 +101,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, err
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
-		if len(scope.owner.savepoints) == 0 {
+		if len(scope.owner.Savepoints) == 0 {
 			journal := enumWritable(changes)
 			if journal.Created == nil {
 				journal.Created = make(map[ids.ObjectAddress]bool)
@@ -167,7 +167,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			}
 			order := typedef.EnumInsertionOrder(members, at)
 			members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
-			if !enumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.owner.savepoints) != 0 {
+			if !enumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.owner.Savepoints) != 0 {
 				journal := enumWritable(changes)
 				if journal.Unsafe == nil {
 					journal.Unsafe = make(map[int64]bool)

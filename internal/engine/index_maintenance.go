@@ -124,7 +124,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		return Result{}, err
 	}
 	if scope.partitionIndexTransaction(stmt) {
-		err := e.stageCatalogOverlay(scope, stage, scope.owner.catalog.Clone())
+		err := e.stageCatalogOverlay(scope, stage, scope.owner.Catalog.Clone())
 		return Result{}, err
 	}
 	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})

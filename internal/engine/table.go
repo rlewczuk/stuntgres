@@ -104,7 +104,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			break
 		}
 	}
-	if !temporary && scope.owner.state == TxActive {
+	if !temporary && scope.owner.State == TxActive {
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
@@ -118,7 +118,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	base := auth.Catalog
 	var changes *catalogChanges
 	if temporary {
-		changes = scope.owner.catalog.Clone()
+		changes = scope.owner.Catalog.Clone()
 	}
 	stage := e.BeginCatalogStage(base)
 	stage.authorizeLocked(auth, op.Session)
@@ -157,7 +157,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		if err := e.stageCatalogOverlay(scope, stage, changes); err != nil {
 			return Result{}, err
 		}
-		scope.owner.accessedTemporary = true
+		scope.owner.AccessedTemporary = true
 		emitViewCascade(op, stage.viewCascadeNames)
 		for _, notice := range notices {
 			op.EmitNotice(levelNotice, notice)

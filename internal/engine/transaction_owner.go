@@ -43,56 +43,56 @@ type TxOptions struct {
 
 type transactionOwner struct {
 	ids.TxOwnerMarker
-	admission       sync.Mutex
-	copyLease       *StatementLease // the statement holding the COPY reservation
-	copyDone        chan struct{}
-	ticket          *lock.Ticket
-	mu              sync.Mutex
-	session         *Session
-	state           TxState
-	ref             ids.TxRef
-	next            ids.TxID
-	command         ids.CommandID
-	writes          map[ids.ObjectAddress][]storage.RowVersion
-	deletes         map[ids.ObjectAddress]*visibility.PrivateDeletes
-	start           time.Time
-	isolation       Isolation
-	readOnly        bool
-	deferrable      bool
-	entryIsolation  Isolation
-	entryReadOnly   bool
-	entryDeferrable bool
-	snapshotSet     bool
-	frontier        ids.CommitSeq
-	roots           map[ids.ObjectAddress]visibility.Root
+	Admission       sync.Mutex
+	CopyLease       *StatementLease // the statement holding the COPY reservation
+	CopyDone        chan struct{}
+	Ticket          *lock.Ticket
+	Mu              sync.Mutex
+	Session         *Session
+	State           TxState
+	Ref             ids.TxRef
+	Next            ids.TxID
+	Command         ids.CommandID
+	Writes          map[ids.ObjectAddress][]storage.RowVersion
+	Deletes         map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Start           time.Time
+	Isolation       Isolation
+	ReadOnly        bool
+	Deferrable      bool
+	EntryIsolation  Isolation
+	EntryReadOnly   bool
+	EntryDeferrable bool
+	SnapshotSet     bool
+	Frontier        ids.CommitSeq
+	Roots           map[ids.ObjectAddress]visibility.Root
 	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
-	sequenceCatalog     *catalog.State
-	catalog             *catalogChanges
-	savepoints          []savepointMark
-	accessedTemporary   bool
-	retainedMessage     bool           // Admission spans a direct multi-command message.
-	protocolCycle       *ProtocolCycle // Retention only; never owns admission.
-	identityEntry       authorization.RoleState
-	identityCaptured    bool
-	messageBorn         bool
-	notificationActions []notificationAction
-	notificationEvents  []Notification
-	extension           session.OwnerSlot // Root extension; see ownerExtensionOf.
-	savepointSerial     uint64            // Advanced by every SAVEPOINT, never reset; names foreign savepoints.
+	SequenceCatalog     *catalog.State
+	Catalog             *catalogChanges
+	Savepoints          []savepointMark
+	AccessedTemporary   bool
+	RetainedMessage     bool           // Admission spans a direct multi-command message.
+	ProtocolCycle       *ProtocolCycle // Retention only; never owns admission.
+	IdentityEntry       authorization.RoleState
+	IdentityCaptured    bool
+	MessageBorn         bool
+	NotificationActions []notificationAction
+	NotificationEvents  []Notification
+	Extension           session.OwnerSlot // Root extension; see ownerExtensionOf.
+	SavepointSerial     uint64            // Advanced by every SAVEPOINT, never reset; names foreign savepoints.
 }
 
 func (s *Session) TransactionState() TxState {
 	t := s.Transactions
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.state
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
+	return t.State
 }
 
-func (t *transactionOwner) validate(ref ids.TxRef) error {
-	if ref.Domain() != t.session.SessionToken.Domain() || ref.Session() != t.session.SessionToken || ref.ID() == 0 || ref.Attachment() != ids.TxOwner(t) {
+func (t *transactionOwner) Validate(ref ids.TxRef) error {
+	if ref.Domain() != t.Session.SessionToken.Domain() || ref.Session() != t.Session.SessionToken || ref.ID() == 0 || ref.Attachment() != ids.TxOwner(t) {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
-	if t.state == TxIdle || ref != t.ref {
+	if t.State == TxIdle || ref != t.Ref {
 		return errors.New("stuntgres: stale transaction reference")
 	}
 	return nil
@@ -100,21 +100,21 @@ func (t *transactionOwner) validate(ref ids.TxRef) error {
 
 // Admission remains held for ordinary statements. Only a reserved COPY drops
 // the mutex across external I/O; every owner mutator waits on its logical lease.
-func (t *transactionOwner) acquireAdmission(ctx context.Context, op *Operation) error {
+func (t *transactionOwner) AcquireAdmission(ctx context.Context, op *Operation) error {
 	waited := false
 	for {
-		t.admission.Lock()
-		if t.copyLease == nil {
+		t.Admission.Lock()
+		if t.CopyLease == nil {
 			if waited && op != nil {
-				if err := validateSessionOperation(t.session.SessionToken.Domain(), op); err != nil {
-					t.admission.Unlock()
+				if err := validateSessionOperation(t.Session.SessionToken.Domain(), op); err != nil {
+					t.Admission.Unlock()
 					return err
 				}
 			}
 			return nil
 		}
-		done := t.copyDone
-		t.admission.Unlock()
+		done := t.CopyDone
+		t.Admission.Unlock()
 		select {
 		case <-done:
 			waited = true
@@ -125,6 +125,6 @@ func (t *transactionOwner) acquireAdmission(ctx context.Context, op *Operation) 
 }
 
 // Caller holds the transaction mutex where required by existing gates.
-func (t *transactionOwner) inBlock() bool {
-	return t.state == TxActive || t.state == TxImplicit && t.retainsTransaction()
+func (t *transactionOwner) InBlock() bool {
+	return t.State == TxActive || t.State == TxImplicit && t.RetainsTransaction()
 }

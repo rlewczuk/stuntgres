@@ -45,8 +45,8 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	defer scope.Finish(nil)
 	members := mood.EnumMembers()
 	e.mu.Lock()
-	scope.owner.catalog = session.NewJournal()
-	enumWritable(scope.owner.catalog).Unsafe = map[int64]bool{members[1].ID: true}
+	scope.owner.Catalog = session.NewJournal()
+	enumWritable(scope.owner.Catalog).Unsafe = map[int64]bool{members[1].ID: true}
 	auth, err := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {
@@ -66,8 +66,8 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			producer := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: enumSupportPlan, Args: []expr.Expr{enumCapturedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
 			nested := plan.ConditionalExpr{Info: expr.Info{Usage: mood.Usage()}, Kind: parser.Coalesce, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: mood.Usage()}, Value: safe}, producer}}
 			e.mu.Lock()
-			unsafeRoot := scope.owner.catalog
-			scope.owner.catalog = session.NewJournal()
+			unsafeRoot := scope.owner.Catalog
+			scope.owner.Catalog = session.NewJournal()
 			b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			var defaults []expr.Expr
@@ -83,7 +83,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			}
 			err := b.CaptureRetainedWriteInput(defaults, generations, checks)
 			lazyNamingOnly := b.Input.TypeDiagnosticName != nil && b.Input.EnumMemberSafe == nil
-			scope.owner.catalog = unsafeRoot
+			scope.owner.Catalog = unsafeRoot
 			if err == nil {
 				captureEnumOperationSafety(op, &b.Input)
 				err = e.captureEnumOperationInput(auth, &b.Input)
@@ -125,7 +125,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	defer e.mu.Unlock()
 	root := session.NewJournal()
 	enumWritable(root).Unsafe = map[int64]bool{members[1].ID: true}
-	scope.owner.catalog = root
+	scope.owner.Catalog = root
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
@@ -155,10 +155,10 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "55P04" {
 		t.Fatal("CREATE candidate binder lost admitted safety transport", failure)
 	}
-	mark := savepointMark{catalog: root}
+	mark := savepointMark{Catalog: root}
 	candidate := root.Clone()
 	enumJournalOf(candidate.Enum).UnsafeMembers()[members[0].ID] = true
-	scope.owner.catalog = candidate
+	scope.owner.Catalog = candidate
 	b.Input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
 	captureEnumOperationSafety(op, &b.Input)
 	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil {
@@ -168,21 +168,21 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	if enumJournalOf(root.Enum).UnsafeMembers()[members[0].ID] || !original.EnumMemberSafe(mood.ID(), members[0].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("candidate mutation changed borrowed root or fresh capture missed it")
 	}
-	scope.owner.catalog = mark.catalog
+	scope.owner.Catalog = mark.Catalog
 	b.Input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
 	captureEnumOperationSafety(op, &b.Input)
 	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil || !b.Input.EnumMemberSafe(mood.ID(), members[0].ID) || b.Input.EnumMemberSafe(mood.ID(), members[1].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("savepoint root replacement mutated old capture or failed refresh", err)
 	}
 	// Completion clears current provenance, not previously admitted captures.
-	scope.owner.catalog = nil
+	scope.owner.Catalog = nil
 	b.Input = sqltype.InputEnvironment{}
 	captureEnumOperationSafety(op, &b.Input)
 	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil || b.Input.EnumMemberSafe != nil || original.EnumMemberSafe(mood.ID(), members[1].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("completed root retained stale safety or changed old capture", err)
 	}
 	for _, empty := range []*catalogChanges{nil, session.NewJournal()} {
-		scope.owner.catalog = empty
+		scope.owner.Catalog = empty
 		probe := analyze.Binder{}
 		// Nil engine deliberately makes any unnecessary naming/path capture fail.
 		if allocations := testing.AllocsPerRun(100, func() {

@@ -31,12 +31,12 @@ func messageLevel(value string) (noticeLevel, bool) {
 }
 func (op *Operation) SnapshotNoticeThreshold() {
 	s := op.Session.Settings
-	s.mu.Lock()
-	value, ok := s.values[settings.ClientMinMessages.Name]
+	s.Mu.Lock()
+	value, ok := s.Values[settings.ClientMinMessages.Name]
 	if !ok {
-		value = s.defaults[settings.ClientMinMessages.Name]
+		value = s.Defaults[settings.ClientMinMessages.Name]
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 	op.NoticeThreshold, _ = messageLevel(value)
 }
 func (op *Operation) EmitNotice(level noticeLevel, diagnostic sqlstate.Error) {

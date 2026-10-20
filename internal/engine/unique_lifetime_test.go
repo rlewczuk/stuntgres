@@ -252,7 +252,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	}
 	sessionSQL(t, a, "ALTER TABLE t DROP extra")
 	sessionSQL(t, a, "ALTER TABLE t ALTER k TYPE BIGINT")
-	changes := a.Transactions.catalog
+	changes := a.Transactions.Catalog
 	var rebuilt ids.ObjectAddress
 	var root *storage.IndexRoot
 	for address, candidate := range journalIndexesOrZero(changes).uniqueRoots {
@@ -263,14 +263,14 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	}
 	sessionSQL(t, a, "SAVEPOINT after_type")
 	sessionSQL(t, a, "ALTER TABLE t ALTER k TYPE TEXT USING k::text")
-	if journalIndexesOrZero(a.Transactions.catalog).uniqueRoots[rebuilt] != nil {
+	if journalIndexesOrZero(a.Transactions.Catalog).uniqueRoots[rebuilt] != nil {
 		t.Fatal("removed backing retained private baseline")
 	}
 	if len(root.Entries) != 1 || btreeKeys(t, root)[0] != "1" {
 		t.Fatal("retained private root mutated")
 	}
 	sessionSQL(t, a, "ROLLBACK TO after_type")
-	if journalIndexesOrZero(a.Transactions.catalog).uniqueRoots[rebuilt] != root {
+	if journalIndexesOrZero(a.Transactions.Catalog).uniqueRoots[rebuilt] != root {
 		t.Fatal("savepoint did not share/restore immutable baseline")
 	}
 	op, err = a.Acquire(context.Background())
@@ -299,7 +299,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	}
 	op.Done()
 	sessionSQL(t, a, "INSERT INTO t VALUES(3)")
-	if journalIndexesOrZero(a.Transactions.catalog).uniqueRoots[rebuilt] != root || len(root.Entries) != 1 {
+	if journalIndexesOrZero(a.Transactions.Catalog).uniqueRoots[rebuilt] != root || len(root.Entries) != 1 {
 		t.Fatal("DML rebuilt/modified baseline instead of overlaying effects")
 	}
 	transactionEnd(t, a, ar, false)

@@ -18,12 +18,12 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(v INT)")
 			ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			if err := e.locks.Acquire(context.Background(), a.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			r, err := e.locks.StartAcquire(ctx, b.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, lock.Policy{Timeout: time.Hour})
+			r, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, lock.Policy{Timeout: time.Hour})
 			if err != nil || r == nil {
 				t.Fatal(err)
 			}
@@ -32,11 +32,11 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "end":
-				e.endLockOwner(b.Transactions.ticket)
+				e.endLockOwner(b.Transactions.Ticket)
 			case "fence":
 				e.locks.Fence(ref.Epoch + 1)
 			case "grant":
-				e.endLockOwner(a.Transactions.ticket)
+				e.endLockOwner(a.Transactions.Ticket)
 				cancel()
 			}
 			err = r.Wait()

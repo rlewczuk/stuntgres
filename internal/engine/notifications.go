@@ -220,15 +220,15 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 		}
 		s.notificationEvents = append(s.notificationEvents, Notification{PID: uint64(s.op.Session.SessionToken.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
 	case *parser.Listen:
-		s.notificationActions = append(s.notificationActions, notificationAction{channel: raw.Channel.Text, listen: true})
+		s.notificationActions = append(s.notificationActions, notificationAction{Channel: raw.Channel.Text, Listen: true})
 	case *parser.Unlisten:
 		e := s.engine()
 		e.mu.Lock()
 		state := payloadOf(s.op.Session).notifications.state
 		history := state != nil && state.history
 		e.mu.Unlock()
-		if history || len(s.owner.notificationActions) != 0 || len(s.notificationActions) != 0 {
-			s.notificationActions = append(s.notificationActions, notificationAction{channel: raw.Channel.Text, all: raw.All})
+		if history || len(s.owner.NotificationActions) != 0 || len(s.notificationActions) != 0 {
+			s.notificationActions = append(s.notificationActions, notificationAction{Channel: raw.Channel.Text, All: raw.All})
 		}
 	}
 	return Result{}, nil
@@ -238,10 +238,10 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 // effects but must still release committed peer events. CHAIN and intermediate
 // COMMIT segments deliberately leave busy true and do not scan.
 func finishNotificationBoundary(t *transactionOwner) {
-	if t.state != TxIdle || t.retainsTransaction() {
+	if t.State != TxIdle || t.RetainsTransaction() {
 		return
 	}
-	e, n := engineOf(t.session), &payloadOf(t.session).notifications
+	e, n := engineOf(t.Session), &payloadOf(t.Session).notifications
 	if !n.used.Load() {
 		return
 	}

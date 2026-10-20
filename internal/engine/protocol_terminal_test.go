@@ -48,10 +48,10 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 		if op.Context().Err() == nil {
 			t.Error("disposal did not exercise canceled operation")
 		}
-		if !scope.owner.admission.TryLock() {
+		if !scope.owner.Admission.TryLock() {
 			t.Error("failed executor disposal held admission")
 		} else {
-			scope.owner.admission.Unlock()
+			scope.owner.Admission.Unlock()
 		}
 		if !e.mu.TryLock() {
 			t.Error("failed executor disposal held engine lock")
@@ -83,15 +83,15 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	}
 	// Restoring a frontier that includes this owner keeps its identity, without
 	// reacquiring resources or repeating terminal callbacks.
-	scope.owner.mu.Lock()
+	scope.owner.Mu.Lock()
 	retireProtocolPortalsAfter(scope.owner, 1)
-	scope.owner.mu.Unlock()
+	scope.owner.Mu.Unlock()
 	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(session).preparedSQL.portals["p"] != p || disposals != 1 {
 		t.Fatal("older failed identity did not survive frontier", err, disposals)
 	}
-	scope.owner.mu.Lock()
+	scope.owner.Mu.Lock()
 	retireProtocolPortalsAfter(scope.owner, 0)
-	scope.owner.mu.Unlock()
+	scope.owner.Mu.Unlock()
 	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(session).preparedSQL.portals["p"] != nil || disposals != 1 {
 		t.Fatal("retirement leaked identity or repeated executor disposal", err, disposals)
 	}

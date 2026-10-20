@@ -222,7 +222,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	// The canonical overlay builds real populated key roots before returning;
 	// implicit Finish and explicit COMMIT/savepoints own their publication.
-	err = e.stageCatalogOverlay(scope, stage, scope.owner.catalog.Clone())
+	err = e.stageCatalogOverlay(scope, stage, scope.owner.Catalog.Clone())
 	return Result{}, err
 }
 
@@ -237,7 +237,7 @@ func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectN
 func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (catalog.Read, *catalog.Relation, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	view := e.privateCatalogLocked(scope.owner.catalog)
+	view := e.privateCatalogLocked(scope.owner.Catalog)
 	d, ok := view.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Epoch != scope.txRef.Epoch() {
 		return catalog.Read{}, nil, ids.ErrCatalogReplaced

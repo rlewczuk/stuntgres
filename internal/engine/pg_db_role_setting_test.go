@@ -139,10 +139,10 @@ func TestPGDBRoleSettingSessionDefaultsExcluded(t *testing.T) {
 	a := sessionStart(t, e, provider)
 	provider.values["application_name"], provider.values["dbrole18.mode"] = "captured_second", "second"
 	b := sessionStart(t, e, provider)
-	if a.Settings.defaults["application_name"] == b.Settings.defaults["application_name"] {
+	if a.Settings.Defaults["application_name"] == b.Settings.Defaults["application_name"] {
 		t.Fatal("different captured defaults not established")
 	}
-	if a.Settings.defaults["dbrole18.mode"] == b.Settings.defaults["dbrole18.mode"] {
+	if a.Settings.Defaults["dbrole18.mode"] == b.Settings.Defaults["dbrole18.mode"] {
 		t.Fatal("different registered defaults not established")
 	}
 	pgDBRoleSettingUnitCapture(t, e, e.CatalogRead())

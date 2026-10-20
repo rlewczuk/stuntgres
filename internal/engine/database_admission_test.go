@@ -173,8 +173,8 @@ func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 		if err != nil {
 			t.Fatal("authenticated CONNECT denied by effective reset role", err)
 		}
-		if s.Authorization.state.CurrentUser != reset || s.CountedAuthenticated != login {
-			t.Fatal("startup role or physical identity changed", s.Authorization.state)
+		if s.Authorization.State.CurrentUser != reset || s.CountedAuthenticated != login {
+			t.Fatal("startup role or physical identity changed", s.Authorization.State)
 		}
 		s.RequestEnd(CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {

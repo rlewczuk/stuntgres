@@ -104,7 +104,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 							err = checkTemporaryStorageAccess(auth.Catalog, before, s.op.Session.SessionToken)
 						}
 						if err == nil {
-							store = e.privateStorageLocked(s.owner.catalog, ref.Address)
+							store = e.privateStorageLocked(s.owner.Catalog, ref.Address)
 						}
 					}
 				}
@@ -145,7 +145,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var d *catalog.Relation
 		if err == nil {
 			d, _ = auth.Catalog.Relation(ref.Address)
-			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
+			current := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 			if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != ref.Epoch || d == nil || before.Namespace() != d.Namespace() || !sameRelationRowShape(before, d) || store != current && !store.SameTruncateLineage(current) {
 				err = ids.ErrCatalogReplaced
 			} else if name != nil {
@@ -169,7 +169,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			}
 			if err == nil {
 				if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == s.op.Session.SessionToken {
-					s.owner.accessedTemporary = true
+					s.owner.AccessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {
 					s.truncate().relations = append(s.truncateOrZero().relations, truncateRelation{ref: ref, relation: d, storage: current, privilege: privilege})
@@ -236,7 +236,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	}
 	for {
 		e.mu.Lock()
-		catalog := e.privateCatalogLocked(s.owner.catalog)
+		catalog := e.privateCatalogLocked(s.owner.Catalog)
 		inbound := truncateReferencers(catalog, selected)
 		e.mu.Unlock()
 		if len(inbound) == 0 {

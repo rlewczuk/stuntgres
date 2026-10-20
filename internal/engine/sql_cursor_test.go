@@ -135,7 +135,7 @@ func TestSQLCursorSavepointOrdinalAndStaleIncarnation(t *testing.T) {
 	if payloadOf(s).cursors.entries["parent"] != nil {
 		t.Fatal("rollback resurrects CLOSE")
 	}
-	old := s.Transactions.ref
+	old := s.Transactions.Ref
 	sessionSQL(t, s, "COMMIT")
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "DECLARE parent NO SCROLL CURSOR FOR SELECT 4")
@@ -380,8 +380,8 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 		if err := scope.Finish(nil); err != nil {
 			t.Fatalf("%s: repeated Finish changes success: %v", query, err)
 		}
-		if s.Transactions.state != TxActive {
-			t.Fatalf("%s aborts completed explicit transaction: %v", query, s.Transactions.state)
+		if s.Transactions.State != TxActive {
+			t.Fatalf("%s aborts completed explicit transaction: %v", query, s.Transactions.State)
 		}
 		return result
 	}

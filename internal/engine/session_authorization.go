@@ -8,19 +8,19 @@ import (
 )
 
 type sessionAuthorization struct {
-	session  *Session
-	state    authorization.RoleState
-	revision uint64
+	Session  *Session
+	State    authorization.RoleState
+	Revision uint64
 }
 
 func (a *sessionAuthorization) EndSession(token ids.SessionToken, reason EndReason) error {
-	if a.session == nil || a.session.SessionToken != token {
+	if a.Session == nil || a.Session.SessionToken != token {
 		return fmt.Errorf("stuntgres: foreign authorization attachment")
 	}
-	a.session.Mu.Lock()
-	defer a.session.Mu.Unlock()
-	if a.session.Authorization == a {
-		a.session.Authorization = nil
+	a.Session.Mu.Lock()
+	defer a.Session.Mu.Unlock()
+	if a.Session.Authorization == a {
+		a.Session.Authorization = nil
 	}
 	return nil
 }
@@ -35,5 +35,5 @@ func (op *Operation) RoleState() authorization.RoleState {
 	if s.Authorization == nil {
 		return authorization.RoleState{}
 	}
-	return s.Authorization.state
+	return s.Authorization.State
 }

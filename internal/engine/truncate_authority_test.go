@@ -385,7 +385,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 				sessionSQL(t, s, "INSERT INTO p VALUES(3)")
 				sessionSQL(t, s, "SAVEPOINT recover")
 			}
-			priorWrites := s.Transactions.writes[p.Address]
+			priorWrites := s.Transactions.Writes[p.Address]
 			oldP, oldQ := e.storage.Relations[p.Address], e.storage.Relations[q.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			scope, op := truncateUnitScope(t, e, s, ctx)
@@ -402,7 +402,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 			}
 			if explicit {
 				sessionSQL(t, s, "ROLLBACK TO recover")
-				if !sameVersionRoot(s.Transactions.writes[p.Address], priorWrites) || s.Transactions.catalog != nil && len(s.Transactions.catalog.Storage) != 0 {
+				if !sameVersionRoot(s.Transactions.Writes[p.Address], priorWrites) || s.Transactions.Catalog != nil && len(s.Transactions.Catalog.Storage) != 0 {
 					t.Fatal("failed statement/savepoint lost prior private root")
 				}
 				transactionEnd(t, s, tx, false)

@@ -33,17 +33,17 @@ func timeoutMechanicsSession(t *testing.T) *Session {
 }
 
 func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSession time.Duration, assignment bool, now time.Time) {
-	s.Settings.mu.Lock()
-	defer s.Settings.mu.Unlock()
-	if s.Settings.typed == nil {
-		s.Settings.typed = make(map[string]settings.Value)
+	s.Settings.Mu.Lock()
+	defer s.Settings.Mu.Unlock()
+	if s.Settings.Typed == nil {
+		s.Settings.Typed = make(map[string]settings.Value)
 	}
 	for name, duration := range map[string]time.Duration{
 		"transaction_timeout":                 transaction,
 		"idle_in_transaction_session_timeout": idleTransaction,
 		"idle_session_timeout":                idleSession,
 	} {
-		s.Settings.typed[name] = settings.Value{Number: float64(duration / time.Millisecond)}
+		s.Settings.Typed[name] = settings.Value{Number: float64(duration / time.Millisecond)}
 	}
 	s.Mu.Lock()
 	s.PublishTimeoutSettingsLocked(s.Settings, assignment, now)
@@ -65,11 +65,11 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
 	scope := &StatementScope{statementStart: now, transactionStart: now}
 	s.StartProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
-	s.Transactions.mu.Lock()
-	if s.Transactions.next != 0 || s.Transactions.state != TxIdle {
+	s.Transactions.Mu.Lock()
+	if s.Transactions.Next != 0 || s.Transactions.State != TxIdle {
 		t.Error("provisional budget minted transaction state")
 	}
-	s.Transactions.mu.Unlock()
+	s.Transactions.Mu.Unlock()
 	s.Mu.Lock()
 	slot := &s.Timeouts.Transaction
 	deadline, generation := slot.Deadline, slot.Generation
@@ -373,11 +373,11 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 				t.Error("finish changed original failure", err)
 			}
 			op.Done()
-			s.Transactions.mu.Lock()
-			if s.Transactions.next != 0 || s.Transactions.state != TxIdle {
+			s.Transactions.Mu.Lock()
+			if s.Transactions.Next != 0 || s.Transactions.State != TxIdle {
 				t.Error("no-birth finish minted transaction state")
 			}
-			s.Transactions.mu.Unlock()
+			s.Transactions.Mu.Unlock()
 			s.Mu.Lock()
 			if !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Transaction.Timer != nil {
 				t.Error("no-birth finish retained runtime timer")
@@ -397,7 +397,7 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 		t.Fatal(err)
 	}
 	// This mechanics unit substitutes a failing callback for the SQL-name owner.
-	if err := s.Detach(s.Resources[PreparedSQL].handle, CleanClose); err != nil {
+	if err := s.Detach(s.Resources[PreparedSQL].Handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	cleanupError := errors.New("independent cleanup result")
@@ -451,15 +451,15 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 	s := timeoutMechanicsSession(t)
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 2*time.Hour, 3*time.Hour, false, now)
-	s.Settings.mu.Lock()
+	s.Settings.Mu.Lock()
 	for name, value := range map[string]string{
 		"transaction_timeout":                 "1h",
 		"idle_in_transaction_session_timeout": "2h",
 		"idle_session_timeout":                "3h",
 	} {
-		s.Settings.values[name] = value
+		s.Settings.Values[name] = value
 	}
-	s.Settings.mu.Unlock()
+	s.Settings.Mu.Unlock()
 	op, err := s.AcquireActivity(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -490,16 +490,16 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 		t.Error("retired pre-reset callback terminated owner")
 	}
 	s.Mu.Unlock()
-	s.Settings.mu.Lock()
+	s.Settings.Mu.Lock()
 	for _, name := range []string{"transaction_timeout", "idle_in_transaction_session_timeout", "idle_session_timeout"} {
-		_, text := s.Settings.values[name]
-		_, typed := s.Settings.typed[name]
-		_, journal := s.Settings.actions[name]
+		_, text := s.Settings.Values[name]
+		_, typed := s.Settings.Typed[name]
+		_, journal := s.Settings.Actions[name]
 		if text || typed || !journal {
 			t.Error("batch reset bypassed canonical journal/cache", name)
 		}
 	}
-	s.Settings.mu.Unlock()
+	s.Settings.Mu.Unlock()
 	if _, err := engineOf(s).Rollback(op, ref); err != nil {
 		t.Fatal(err)
 	}

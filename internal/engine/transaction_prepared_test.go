@@ -35,15 +35,15 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ticket := origin.Transactions.ticket
+	ticket := origin.Transactions.Ticket
 	if err := preparedUnitControl(t, e, origin, parser.KindPrepareTransaction, "move"); err != nil {
 		t.Fatal(err)
 	}
 	entry := e.prepared["move"]
-	if entry == nil || entry.ticket != ticket || entry.ref != ref || origin.Transactions.ticket != nil || origin.TransactionState() != TxIdle {
+	if entry == nil || entry.ticket != ticket || entry.ref != ref || origin.Transactions.Ticket != nil || origin.TransactionState() != TxIdle {
 		t.Fatal("ownership was not transferred once")
 	}
-	if err := origin.Transactions.validate(ref); err == nil {
+	if err := origin.Transactions.Validate(ref); err == nil {
 		t.Fatal("detached reference still authorized")
 	}
 	entry.claimed = true
@@ -94,10 +94,10 @@ func TestPreparedTransactionFailureEndsStickyFootprint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.Transactions.accessedTemporary = true
+	s.Transactions.AccessedTemporary = true
 	err = preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "temp")
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || s.TransactionState() != TxIdle || s.Transactions.accessedTemporary || s.Transactions.ticket != nil || len(e.prepared) != 0 {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || s.TransactionState() != TxIdle || s.Transactions.AccessedTemporary || s.Transactions.Ticket != nil || len(e.prepared) != 0 {
 		t.Fatal(err, "failed prepare did not dispose entire owner")
 	}
 }

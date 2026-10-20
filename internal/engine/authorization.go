@@ -195,27 +195,27 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	}
 	view := e.catalog.read(e.catalog.state)
 	if s.Transactions != nil {
-		view = e.privateCatalogLocked(s.Transactions.catalog)
+		view = e.privateCatalogLocked(s.Transactions.Catalog)
 	}
 	r := e.roles.read(e.catalog.owner(), view, e.operationRolesLocked(op))
-	if _, err := r.Descriptor(a.state.Authenticated); err != nil {
+	if _, err := r.Descriptor(a.State.Authenticated); err != nil {
 		return AuthorizationView{}, err
 	}
 	// PREPARE can detach a newly created role while preserving SET ROLE's ID.
 	// Admission validates that ID's authority, not its current name visibility.
-	for _, ref := range [...]authorization.PrincipalRef{a.state.SessionUser, a.state.CurrentUser} {
+	for _, ref := range [...]authorization.PrincipalRef{a.State.SessionUser, a.State.CurrentUser} {
 		if err := r.ValidatePrincipal(ref); err != nil {
 			return AuthorizationView{}, err
 		}
 	}
-	identity := a.state
+	identity := a.State
 	if operationReplayOrZero(op).materializedOwner != (authorization.PrincipalRef{}) {
 		if _, err := r.Descriptor(operationReplayOrZero(op).materializedOwner); err != nil {
 			return AuthorizationView{}, err
 		}
 		identity.CurrentUser = operationReplayOrZero(op).materializedOwner
 	}
-	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.Definition, settings: s.Settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
+	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.State, Revision: a.Revision}, engine: e, definition: op.Definition, settings: s.Settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.MissingCurrent = identity.CurrentUser
 	}

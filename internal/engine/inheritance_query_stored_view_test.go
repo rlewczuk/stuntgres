@@ -254,7 +254,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			catalog := scope.inheritanceRead(e.privateCatalogLocked(scope.owner.catalog))
+			catalog := scope.inheritanceRead(e.privateCatalogLocked(scope.owner.Catalog))
 			collectAuth.Recapture(catalog)
 			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.Session.SessionToken, plan.RowMark{})
 			var snapshot *visibility.View
@@ -265,7 +265,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if captureErr == nil {
 				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).sources[0].only}, op.Session.SessionToken)
 			}
-			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.catalog, parent.Address()) == parentStorage
+			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.Catalog, parent.Address()) == parentStorage
 			e.mu.Unlock()
 			if captureErr != nil {
 				t.Fatal(captureErr)

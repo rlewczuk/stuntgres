@@ -32,13 +32,13 @@ func notificationEffects(op *Operation, ref ids.TxRef, phase *preparedPublicatio
 	// The caller holds this session's transaction admission. Validate against
 	// that owner, never against an owner reached through an untrusted old ref.
 	owner := op.Session.Transactions
-	if err := owner.validate(ref); err != nil {
+	if err := owner.Validate(ref); err != nil {
 		return nil, nil, err
 	}
 	if scope != nil && (scope.op != op || scope.owner != owner) {
 		return nil, nil, errors.New("stuntgres: foreign notification statement")
 	}
-	actions, events := owner.notificationActions, owner.notificationEvents
+	actions, events := owner.NotificationActions, owner.NotificationEvents
 	if scope != nil {
 		if len(actions) == 0 {
 			actions = scope.notificationActions
@@ -86,16 +86,16 @@ func (e *Engine) prepareNotificationPublication(sender *Session, actions []notif
 		if c.resource == own && len(actions) != 0 {
 			next.channels = maps.Clone(next.channels)
 			for _, action := range actions {
-				if action.listen {
+				if action.Listen {
 					if next.channels == nil {
 						next.channels = make(map[string]struct{})
 					}
-					next.channels[action.channel] = struct{}{}
+					next.channels[action.Channel] = struct{}{}
 					next.history = true
-				} else if action.all {
+				} else if action.All {
 					clear(next.channels)
 				} else {
-					delete(next.channels, action.channel)
+					delete(next.channels, action.Channel)
 				}
 			}
 			if len(next.channels) == 0 {

@@ -236,10 +236,10 @@ func TestFDWModifyLifecycle(t *testing.T) {
 			} else {
 				e.mu.Unlock()
 			}
-			if !s.owner.mu.TryLock() {
+			if !s.owner.Mu.TryLock() {
 				t.Error("owner locked")
 			} else {
-				s.owner.mu.Unlock()
+				s.owner.Mu.Unlock()
 			}
 			if !session.Mu.TryLock() {
 				t.Error("session locked")

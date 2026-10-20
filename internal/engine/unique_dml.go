@@ -22,7 +22,7 @@ func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*catalog.Relation, cat
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return nil, catalog.Read{}, ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(s.owner.catalog)
+	view := e.privateCatalogLocked(s.owner.Catalog)
 	parent, ok := view.Relation(ref.Address)
 	if !ok {
 		return nil, catalog.Read{}, errors.New("stuntgres: invalid unique parent")
@@ -191,7 +191,7 @@ retry:
 	if b.checked {
 		e := s.engine()
 		e.mu.Lock()
-		if e.privateCatalogLocked(s.owner.catalog).State() != view.State() {
+		if e.privateCatalogLocked(s.owner.Catalog).State() != view.State() {
 			e.mu.Unlock()
 			goto retry
 		}
@@ -420,7 +420,7 @@ retry:
 			e.mu.Unlock()
 			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
-		current := e.privateCatalogLocked(s.owner.catalog)
+		current := e.privateCatalogLocked(s.owner.Catalog)
 		if current.State() != binding.catalog {
 			e.mu.Unlock()
 			s.uniqueBinding = nil
@@ -438,14 +438,14 @@ retry:
 		auth.Recapture(auth.Catalog)
 		namespace, _ := current.Namespace(parent.Namespace())
 		root := e.storage.IndexRoots[index.Address()]
-		if changes := s.owner.catalog; changes != nil {
+		if changes := s.owner.Catalog; changes != nil {
 			if private := journalIndexesOrZero(changes).uniqueRoots[index.Address()]; private != nil {
 				root = private
 			}
 		}
 		var versions []storage.RowVersion
-		if action != nil && (action.Update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
-			if stored := e.privateStorageLocked(s.owner.catalog, ref.Address); stored != nil {
+		if action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
+			if stored := e.privateStorageLocked(s.owner.Catalog, ref.Address); stored != nil {
 				versions = stored.Versions
 			}
 		}
@@ -513,7 +513,7 @@ retry:
 				}
 			}
 			if !replaced {
-				if action != nil && (action.Update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
+				if action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
 					head, err := conflictEntryVersion(versions, entry)
 					if err != nil {
 						return uniqueConflict{}, err

@@ -277,6 +277,6 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 	if err != nil {
 		return Result{}, err
 	}
-	err = e.stageCatalogOverlay(scope, stage, scope.owner.catalog.Clone())
+	err = e.stageCatalogOverlay(scope, stage, scope.owner.Catalog.Clone())
 	return Result{}, err
 }

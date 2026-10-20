@@ -73,9 +73,9 @@ func TestTransactionIsolationRetainedResults(t *testing.T) {
 			if err != nil || ok {
 				t.Fatal("retained result changed", ok, err)
 			}
-			a.Transactions.mu.Lock()
-			retained := a.Transactions.roots != nil
-			a.Transactions.mu.Unlock()
+			a.Transactions.Mu.Lock()
+			retained := a.Transactions.Roots != nil
+			a.Transactions.Mu.Unlock()
 			if retained {
 				t.Fatal("owner roots retained after disposal")
 			}
@@ -138,25 +138,25 @@ func TestTransactionIsolationAbortCharacteristics(t *testing.T) {
 				op.Done()
 				waitsDiagnostic(t, err, "25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
 				owner := a.Transactions
-				owner.mu.Lock()
-				state, isolation, readOnly := owner.state, owner.isolation, owner.readOnly
-				owner.mu.Unlock()
+				owner.Mu.Lock()
+				state, isolation, readOnly := owner.State, owner.Isolation, owner.ReadOnly
+				owner.Mu.Unlock()
 				if state != TxAborted || isolation != baseline.isolation || readOnly != baseline.readOnly {
 					t.Fatal(state, isolation, readOnly)
 				}
-				a.Settings.mu.Lock()
-				defaultIsolation := isolationFromText(a.Settings.value("default_transaction_isolation"))
-				defaultReadOnly := a.Settings.value("default_transaction_read_only") == "on"
-				projectedIsolation, projectedReadOnly := a.Settings.currentIsolation, a.Settings.currentReadOnly
-				a.Settings.mu.Unlock()
+				a.Settings.Mu.Lock()
+				defaultIsolation := isolationFromText(a.Settings.Value("default_transaction_isolation"))
+				defaultReadOnly := a.Settings.Value("default_transaction_read_only") == "on"
+				projectedIsolation, projectedReadOnly := a.Settings.CurrentIsolation, a.Settings.CurrentReadOnly
+				a.Settings.Mu.Unlock()
 				if defaultIsolation != baseline.isolation || defaultReadOnly != baseline.readOnly ||
 					projectedIsolation != isolationText(baseline.isolation) || projectedReadOnly != baseline.readOnly {
 					t.Fatal(defaultIsolation, defaultReadOnly, projectedIsolation, projectedReadOnly)
 				}
 				sessionSQL(t, a, end)
-				owner.mu.Lock()
-				state, isolation, readOnly = owner.state, owner.isolation, owner.readOnly
-				owner.mu.Unlock()
+				owner.Mu.Lock()
+				state, isolation, readOnly = owner.State, owner.Isolation, owner.ReadOnly
+				owner.Mu.Unlock()
 				if state != TxActive || isolation != baseline.isolation || readOnly != baseline.readOnly {
 					t.Fatal(state, isolation, readOnly)
 				}

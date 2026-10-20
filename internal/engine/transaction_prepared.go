@@ -41,7 +41,7 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 		return nil
 	}
 	if p.preparing {
-		if p.origin.ref != p.entry.ref || !p.origin.inBlock() {
+		if p.origin.Ref != p.entry.ref || !p.origin.InBlock() {
 			return errors.New("stuntgres: stale preparing transaction")
 		}
 		if e.prepared[p.entry.gid] != nil {
@@ -59,7 +59,7 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 // Engine.mu and the finishing Session.mu are held at final installation.
 func (e *Engine) preparedActorLocked(op *Operation, entry *preparedTransaction) error {
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
-	current := op.Session.Authorization.state.CurrentUser
+	current := op.Session.Authorization.State.CurrentUser
 	if err := roles.ValidatePrincipal(current); err != nil {
 		return err
 	}
@@ -75,9 +75,9 @@ func (e *Engine) installPreparedLocked(p *preparedPublication) {
 	e.visibility.SerializablePreparedLocked(p.entry.ref)
 	e.visibility.DropSnapshotLocked(p.entry.ref)
 	e.prepared[p.entry.gid] = p.entry
-	p.origin.ticket = nil
+	p.origin.Ticket = nil
 	clearTransaction(p.origin)
-	p.origin.session.RetireTransactionTimeoutLocked()
+	p.origin.Session.RetireTransactionTimeoutLocked()
 }
 
 func (e *Engine) finishPreparedLocked(p *preparedPublication) {
@@ -113,21 +113,21 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		_, err := e.endAdmitted(s.op, t, ref, false, false, true, s.statementStart, s)
 		return err
 	}
-	t.mu.Lock()
+	t.Mu.Lock()
 	var err error
-	if payloadOf(t.session).cursors.hasCurrentHold(ref) {
+	if payloadOf(t.Session).cursors.hasCurrentHold(ref) {
 		err = sqlError("0A000", "cannot PREPARE a transaction that has created a cursor WITH HOLD")
 	}
 	if err == nil && len(control.GID) >= 200 {
 		err = sqlError("22023", `transaction identifier "`+control.GID+`" is too long`)
 	}
-	if err == nil && t.accessedTemporary {
+	if err == nil && t.AccessedTemporary {
 		err = sqlError("0A000", "cannot PREPARE a transaction that has operated on temporary objects")
 	}
 	if err == nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
 		err = sqlError("0A000", "cannot PREPARE a transaction that has operated on foreign tables")
 	}
-	if err == nil && (len(t.notificationActions) != 0 || len(t.notificationEvents) != 0) {
+	if err == nil && (len(t.NotificationActions) != 0 || len(t.NotificationEvents) != 0) {
 		err = sqlError("0A000", "cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY")
 	}
 	var entry *preparedTransaction
@@ -135,37 +135,37 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		auth, authErr := operationAuthorization(s.op)
 		err = authErr
 		if err == nil {
-			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.Session.DatabaseName, ticket: t.ticket, writes: t.writes, deletes: t.deletes, catalog: t.catalog, roots: t.roots, frontier: t.frontier, options: TxOptions{Isolation: t.isolation, ReadOnly: t.readOnly, Deferrable: t.deferrable}}
+			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.Session.DatabaseName, ticket: t.Ticket, writes: t.Writes, deletes: t.Deletes, catalog: t.Catalog, roots: t.Roots, frontier: t.Frontier, options: TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
 			e.mu.Lock()
 			if e.prepared == nil {
 				e.prepared = make(map[string]*preparedTransaction)
 			}
 			e.mu.Unlock()
 			s.attachTransactionLocked()
-			t.mu.Unlock()
+			t.Mu.Unlock()
 			err = e.locks.CheckPreparedAdvisory(entry.ticket)
 			if err == nil {
 				err = e.checkTransactionExclusions(s)
 			}
 			if err == nil {
-				err = e.publishRowsPrepared(s.op, ref, t.writes, t.deletes, t.catalog, nil, &preparedPublication{entry: entry, preparing: true, origin: t}, s)
+				err = e.publishRowsPrepared(s.op, ref, t.Writes, t.Deletes, t.Catalog, nil, &preparedPublication{entry: entry, preparing: true, origin: t}, s)
 			}
-			t.mu.Lock()
+			t.Mu.Lock()
 		}
 	}
 	if err != nil {
-		ticket := t.ticket
-		t.ticket = nil
+		ticket := t.Ticket
+		t.Ticket = nil
 		e.endSerializable(ref, false)
 		clearTransaction(t)
-		t.session.RetireTransactionTimeout()
-		t.session.Settings.finishTransaction(false)
-		t.mu.Unlock()
+		t.Session.RetireTransactionTimeout()
+		t.Session.Settings.FinishTransaction(false)
+		t.Mu.Unlock()
 		e.endLockOwner(ticket)
 		return err
 	}
-	t.session.Settings.finishTransaction(true)
-	t.mu.Unlock()
+	t.Session.Settings.FinishTransaction(true)
+	t.Mu.Unlock()
 	e.locks.DetachPrepared(entry.ticket)
 	return nil
 }

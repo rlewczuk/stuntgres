@@ -37,17 +37,17 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 			primary := errors.New("output stopped")
 			var lease chan struct{}
 			writer := protocolCopyScopeWriter(func([]byte) (int, error) {
-				lease = scope.owner.copyDone
+				lease = scope.owner.CopyDone
 				if scope.foreignTablesOrZero().cursor != nil {
 					t.Error("COPY retained its producer's borrowed scope during output")
 				}
 				if scope.Expected != outer {
 					t.Error("inner query signature escaped into COPY output")
 				}
-				if !scope.owner.admission.TryLock() {
+				if !scope.owner.Admission.TryLock() {
 					t.Error("COPY output held owner admission")
 				} else {
-					scope.owner.admission.Unlock()
+					scope.owner.Admission.Unlock()
 				}
 				if !e.mu.TryLock() {
 					t.Error("COPY output held engine mutex")
@@ -64,7 +64,7 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 				t.Fatal("COPY left borrowed preparation or producer authority attached")
 			}
 			if !test.innerError {
-				if lease == nil || scope.owner.copyDone != lease || scope.owner.copyLease != &scope.lease {
+				if lease == nil || scope.owner.CopyDone != lease || scope.owner.CopyLease != &scope.lease {
 					t.Fatal("query disposal replaced or released COPY's active reservation")
 				}
 				select {

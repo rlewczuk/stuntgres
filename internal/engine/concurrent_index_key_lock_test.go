@@ -37,13 +37,13 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 					sessionSQL(t, owner, "BEGIN ISOLATION LEVEL READ COMMITTED")
 					sessionSQL(t, owner, "INSERT INTO t VALUES(3,30)")
 					cancel, await = indexMaintenanceAsync(t, e, builder, query)
-					concurrentUnitCompletion(t, e, owner.Transactions.ticket, builder)
+					concurrentUnitCompletion(t, e, owner.Transactions.Ticket, builder)
 				case "readyinvalid":
 					sessionSQL(t, owner, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 					rows := sessionSQL(t, owner, "SELECT n FROM u")
 					rows.Rows.Close()
 					cancel, await = indexMaintenanceAsync(t, e, builder, query)
-					concurrentUnitCompletion(t, e, owner.Transactions.ticket, builder)
+					concurrentUnitCompletion(t, e, owner.Transactions.Ticket, builder)
 				case "valid":
 					sessionSQL(t, builder, query)
 				}

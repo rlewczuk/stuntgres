@@ -33,7 +33,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		}
 		lockState := e.locks.Inspect()
 		registrations := len(lockState.Sessions)
-		canonical := lockState.Sessions[s.SessionToken] == s.Advisory.ticket
+		canonical := lockState.Sessions[s.SessionToken] == s.Advisory.Ticket
 		if registrations != 1 || !canonical {
 			t.Fatal("failed initialization leaked/replaced owner", registrations, canonical)
 		}

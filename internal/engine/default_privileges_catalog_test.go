@@ -63,9 +63,9 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	committedCatalog, committedRoles := f.e.catalog.state, f.e.roles.published
-	f.op.Session.Transactions.retainedMessage = true
+	f.op.Session.Transactions.RetainedMessage = true
 	f.grant(t, "tables", "select", nil)
-	changes := f.op.Session.Transactions.catalog
+	changes := f.op.Session.Transactions.Catalog
 	f.e.mu.Lock()
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
@@ -95,8 +95,8 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	// The real retained-message rejection path discards the same entire overlay;
 	// independently prove that neither root was ever mutated and detached reads
 	// retain the earlier private result after the owning overlay is discarded.
-	f.op.Session.Transactions.catalog = nil
-	f.op.Session.Transactions.retainedMessage = false
+	f.op.Session.Transactions.Catalog = nil
+	f.op.Session.Transactions.RetainedMessage = false
 	if f.e.catalog.state != committedCatalog || f.e.roles.published != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
 		t.Fatal("retained failure changed committed or retained snapshots")
 	}

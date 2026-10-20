@@ -50,7 +50,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		return err
 	}
 	e.mu.Lock()
-	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	childRef, err := e.resolveRelationReference(auth, raw.Name, true)
 	if err != nil {
@@ -73,7 +73,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	}
 	captures := make([]alterForeignKeyAdmission, count)
 	refs := []ids.ObjectRef{childRef}
-	stores := map[ids.ObjectAddress]*storage.Relation{childRef.Address: e.privateStorageLocked(s.owner.catalog, childRef.Address)}
+	stores := map[ids.ObjectAddress]*storage.Relation{childRef.Address: e.privateStorageLocked(s.owner.Catalog, childRef.Address)}
 	i := 0
 	for _, action := range raw.Actions {
 		if action.Action != parser.AddForeignKey {
@@ -85,7 +85,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			return alterCookingError(resolveErr)
 		}
 		captures[i].target = ref
-		captures[i].storage = e.privateStorageLocked(s.owner.catalog, ref.Address)
+		captures[i].storage = e.privateStorageLocked(s.owner.Catalog, ref.Address)
 		if ref != childRef {
 			parent, ok := auth.Catalog.Relation(ref.Address)
 			if ok && parent.RelationKind == catalog.TableRelation {
@@ -130,7 +130,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	sameName := func(name parser.ObjectName, expected ids.ObjectRef) error {
 		current, resolveErr := e.resolveReference(auth, name)

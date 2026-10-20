@@ -260,8 +260,8 @@ func (c *sqlCursor) admit(s *StatementScope) {
 }
 func (s *StatementScope) sessionPublicationPreflight() error {
 	e := s.engine()
-	s.owner.mu.Lock()
-	defer s.owner.mu.Unlock()
+	s.owner.Mu.Lock()
+	defer s.owner.Mu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	s.op.Session.Mu.Lock()
@@ -269,7 +269,7 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 	if err := publicationOperationLocked(e, s.op); err != nil {
 		return err
 	}
-	if err := s.owner.validate(s.txRef); err != nil {
+	if err := s.owner.Validate(s.txRef); err != nil {
 		return err
 	}
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -279,9 +279,9 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 		return err
 	}
 	if s.queryLocks != nil {
-		catalog := e.privateCatalogLocked(s.owner.catalog)
+		catalog := e.privateCatalogLocked(s.owner.Catalog)
 		for _, entry := range s.queryLocks.Leaves {
-			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, entry.Leaf); err != nil {
+			if _, err := currentQuerySourceLocked(e, catalog, s.owner.Catalog, entry.Leaf); err != nil {
 				return err
 			}
 		}

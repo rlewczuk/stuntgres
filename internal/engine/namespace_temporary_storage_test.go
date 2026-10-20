@@ -79,7 +79,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	}{{foreign, false}, {foreign, true}, {chain, false}} {
 		refs, err := collect(catalogView, tc.relation, tc.only, false, peer.SessionToken)
 		defaultUnitDiagnostic(t, err, "0A000", "cannot access temporary tables of other sessions")
-		if len(refs) != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.TemporaryNamespace != (ids.ObjectAddress{}) || peer.Transactions.accessedTemporary {
+		if len(refs) != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.TemporaryNamespace != (ids.ObjectAddress{}) || peer.Transactions.AccessedTemporary {
 			t.Fatal("rejected physical source changed capture frontier or TEMP footprint", refs, err)
 		}
 	}
@@ -138,7 +138,7 @@ func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 			}
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.TemporaryNamespace != (ids.ObjectAddress{}) || peer.Transactions.accessedTemporary {
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.TemporaryNamespace != (ids.ObjectAddress{}) || peer.Transactions.AccessedTemporary {
 				t.Fatal("foreign physical execution boundary/atomicity", prepared, err)
 			}
 		}
@@ -181,7 +181,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 			}
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.accessedTemporary {
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.AccessedTemporary {
 				t.Fatal("foreign target changed owner state or rejection boundary", query, prepared, err)
 			}
 		}
@@ -203,7 +203,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 		op.Done()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.accessedTemporary {
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.AccessedTemporary {
 			t.Fatal("foreign COPY changed owner state or emitted rows", query, count, err)
 		}
 	}

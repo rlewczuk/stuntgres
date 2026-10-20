@@ -53,7 +53,7 @@ func (h *statementHost) AcquireQueryRow(leaf exec.Leaf, row ids.RowID, mark plan
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf)
+	_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.Catalog), s.owner.Catalog, leaf)
 	if err == nil {
 		err = e.assignTransactionXIDLocked(s.txRef)
 	}
@@ -79,7 +79,7 @@ func (h *statementHost) LatestQueryRow(leaf exec.Leaf, candidate storage.RowVers
 	}()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if _, err := currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf); err != nil {
+	if _, err := currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.Catalog), s.owner.Catalog, leaf); err != nil {
 		return storage.RowVersion{}, false, err
 	}
 	store := leaf.Storage
@@ -93,17 +93,17 @@ func (h *statementHost) LatestQueryRow(leaf exec.Leaf, candidate storage.RowVers
 	}
 	physical = current
 	present = visibility.LiveVersion(current, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[leaf.Ref.Address])
-	if stableIsolation(s.owner.isolation) && current.Born != 0 {
-		changed := current.Born > s.owner.frontier
+	if stableIsolation(s.owner.Isolation) && current.Born != 0 {
+		changed := current.Born > s.owner.Frontier
 		if store.Ends != nil {
 			end, ok := store.Ends.Rows[current.Row]
-			changed = changed || ok && end.Version == current.Version && end.End > s.owner.frontier
+			changed = changed || ok && end.Version == current.Version && end.End > s.owner.Frontier
 		}
 		if changed {
 			// KEY SHARE retains RR values only across compatible replacements.
 			// A key transition after the frontier remains incompatible even if
 			// later updates restore the key or change only payload.
-			if mode == lock.ForKeyShare && present && current.Version != candidate.Version && current.KeyChangedAt <= s.owner.frontier {
+			if mode == lock.ForKeyShare && present && current.Version != candidate.Version && current.KeyChangedAt <= s.owner.Frontier {
 				return candidate, true, nil
 			}
 			return storage.RowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent update")

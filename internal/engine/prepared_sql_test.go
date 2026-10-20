@@ -65,7 +65,7 @@ func TestPreparedSQLSessionOwner(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	r := payloadOf(a).preparedSQL
-	if r == nil || a.Resources[PreparedSQL] == nil || a.Resources[PreparedSQL].owner != r || r.token != a.SessionToken {
+	if r == nil || a.Resources[PreparedSQL] == nil || a.Resources[PreparedSQL].Owner != r || r.token != a.SessionToken {
 		t.Fatal("missing attached session owner")
 	}
 	entry := &sqlPreparedStatement{body: &parser.Select{}}
@@ -76,7 +76,7 @@ func TestPreparedSQLSessionOwner(t *testing.T) {
 	if err := r.EndSession(a.SessionToken, InitFailure); err != nil || len(r.entries) != 0 {
 		t.Fatal("end did not clear definitions", err)
 	}
-	if a.Resources[PreparedSQL].owner != r {
+	if a.Resources[PreparedSQL].Owner != r {
 		t.Fatal("clearing detached owner")
 	}
 	r.entries["p"] = entry

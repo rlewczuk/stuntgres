@@ -13,10 +13,10 @@ import (
 
 func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
 	base := e.catalog.state
-	if scope.owner.sequenceCatalog != nil {
-		base = scope.owner.sequenceCatalog
+	if scope.owner.SequenceCatalog != nil {
+		base = scope.owner.SequenceCatalog
 	}
-	own := scope.owner.catalog
+	own := scope.owner.Catalog
 	rows := make([][]sqltype.Value, 0)
 	provider := &exec.PGSequencesSource{Host: hostOf(scope)}
 	appendDefinition := func(descriptor catalog.Descriptor) error {
@@ -111,7 +111,7 @@ func (h *statementHost) CompletePGSequence(ctx context.Context, ref ids.ObjectRe
 	if err != nil {
 		return err
 	}
-	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || relation.RelationKind != catalog.SequenceRelation {

@@ -267,7 +267,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	// Released MERGE checks read-only after analysis/planning conversions, but
 	// before executor column/source ACLs. Other statements keep their ordering.
-	if b.Merge != nil && scope.owner.readOnly && !temporaryDataTarget(auth, &b, stmt) {
+	if b.Merge != nil && scope.owner.ReadOnly && !temporaryDataTarget(auth, &b, stmt) {
 		e.mu.Unlock()
 		tag := "MERGE"
 		if prepared != nil && prepared.primaryTag != "" {
@@ -306,7 +306,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	// PostgreSQL reports the rewritten SELECT command for a marked view,
 	// including constant views without physical lock leaves. Physical table
 	// rowmarks retain their original SELECT FOR ... diagnostic.
-	if scope.owner.readOnly {
+	if scope.owner.ReadOnly {
 		if selecting {
 			for _, leaf := range b.QuerySources {
 				if leaf.Mark.Mode != 0 && leaf.Relation.RelationKind == catalog.ViewRelation {
@@ -316,7 +316,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 	}
-	if selecting && tag == "" && scope.owner.readOnly && b.Query != nil {
+	if selecting && tag == "" && scope.owner.ReadOnly && b.Query != nil {
 		mode, modeErr := e.firstQueryRowModeLocked(scope, b.Query.Root, b.QuerySources)
 		if modeErr != nil {
 			e.mu.Unlock()
@@ -326,7 +326,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			tag = "SELECT"
 		}
 	}
-	if scope.owner.readOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
+	if scope.owner.ReadOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}

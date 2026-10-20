@@ -43,7 +43,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			if tc.target {
 				heldRef = targetRef
 			}
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: heldRef}, tc.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: heldRef}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -53,7 +53,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			joined := false
 			defer func() {
 				cancel()
-				e.endLockOwner(holder.Transactions.ticket)
+				e.endLockOwner(holder.Transactions.Ticket)
 				if !joined {
 					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 					defer stop()

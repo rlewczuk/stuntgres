@@ -236,7 +236,7 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
 		if scope.cteInvocation != nil {
-			err = e.stageCatalogOverlay(scope, stage, scope.owner.catalog.Clone())
+			err = e.stageCatalogOverlay(scope, stage, scope.owner.Catalog.Clone())
 		} else {
 			_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 		}

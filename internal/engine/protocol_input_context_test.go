@@ -27,8 +27,8 @@ func TestProtocolCopyInputContext(t *testing.T) {
 		}
 		defer op.Done()
 		original, originalSource := op.Ctx, op.SourceContext
-		op.CopyInput.active.Store(true)
-		op.CopyInput.decoding.Store(true)
+		op.CopyInput.Active.Store(true)
+		op.CopyInput.Decoding.Store(true)
 		defer op.StopCopyInput()
 		before := op.Context()
 		cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
@@ -65,7 +65,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 		if err := op.PendingCopyInputError(); err != context.Canceled {
 			t.Fatal("successful conversion lost pending cancellation", err)
 		}
-		op.CopyInput.decoding.Store(false)
+		op.CopyInput.Decoding.Store(false)
 		if !errors.Is(e.validateOperation(op), context.Canceled) || op.Context().Err() != context.Canceled {
 			t.Fatal("input cancellation hold escaped decoder into assembly")
 		}
@@ -84,8 +84,8 @@ func TestProtocolCopyInputContext(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		op.CopyInput.active.Store(true)
-		op.CopyInput.decoding.Store(true)
+		op.CopyInput.Active.Store(true)
+		op.CopyInput.Decoding.Store(true)
 		defer op.StopCopyInput()
 		cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 		cancel(cause)
@@ -110,8 +110,8 @@ func TestProtocolCopyInputContext(t *testing.T) {
 				cancel(nil)
 				t.Fatal(err)
 			}
-			op.CopyInput.active.Store(true)
-			op.CopyInput.decoding.Store(true)
+			op.CopyInput.Active.Store(true)
+			op.CopyInput.Decoding.Store(true)
 			cancel(cause)
 			input := op.Context()
 			_, err = testUsage(e, sqltype.Int4).Type.InputWithEnvironment(input, "bad", -1, sqltype.InputEnvironment{})
@@ -173,7 +173,7 @@ func TestProtocolCopyStartCancellation(t *testing.T) {
 				if count != 0 || !errors.As(err, &diagnostic) || *diagnostic != want {
 					t.Fatalf("COPY start cancellation = count %d, error %#v (%v), want %#v; finish %v", count, diagnostic, err, want, finishErr)
 				}
-				if op.CopyInput.active.Load() || op.CopyInput.decoding.Load() || cause.Context != "" {
+				if op.CopyInput.Active.Load() || op.CopyInput.Decoding.Load() || cause.Context != "" {
 					t.Fatal("COPY input hold or owned diagnostic escaped its invocation")
 				}
 			})

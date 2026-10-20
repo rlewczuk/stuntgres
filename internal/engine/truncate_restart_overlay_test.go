@@ -16,43 +16,43 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO p VALUES(9)")
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	sessionSQL(t, s, "SAVEPOINT before_reset")
-	writes, catalog := s.Transactions.writes[p.Address], s.Transactions.catalog
+	writes, catalog := s.Transactions.Writes[p.Address], s.Transactions.Catalog
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-	first := s.Transactions.catalog.Generators[ps.Address]
+	first := s.Transactions.Catalog.Generators[ps.Address]
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	if first.Last != 1 || original.Last != 3 || e.storage.Sequences[ps.Address] != original {
 		t.Fatal("replacement mutated original counter")
 	}
 	sessionSQL(t, s, "ROLLBACK TO before_reset")
-	if s.Transactions.catalog != catalog || !sameVersionRoot(s.Transactions.writes[p.Address], writes) || e.catalog.state.Get(ps.Address) != descriptor || !currvalIs(payloadOf(s).sequences.Memory(ps.Address), 1) || payloadOf(s).sequences.Last() != ps.Address {
+	if s.Transactions.Catalog != catalog || !sameVersionRoot(s.Transactions.Writes[p.Address], writes) || e.catalog.state.Get(ps.Address) != descriptor || !currvalIs(payloadOf(s).sequences.Memory(ps.Address), 1) || payloadOf(s).sequences.Last() != ps.Address {
 		t.Fatal("savepoint failed binding/root/memory separation")
 	}
 	lockState := e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ps}]
 	mode := lock.Mode(0)
 	if entry != nil {
-		mode = entry.Holders[s.Transactions.ticket].Mode
+		mode = entry.Holders[s.Transactions.Ticket].Mode
 	}
 	if mode&lock.AccessExclusive != 0 {
 		t.Fatal("savepoint retained reset AX")
 	}
 	sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-	second := s.Transactions.catalog.Generators[ps.Address]
+	second := s.Transactions.Catalog.Generators[ps.Address]
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	sessionSQL(t, s, "SAVEPOINT after_reset")
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 2)
 	sessionSQL(t, s, "ROLLBACK TO after_reset")
-	if s.Transactions.catalog.Generators[ps.Address] != second || second.Last != 2 {
+	if s.Transactions.Catalog.Generators[ps.Address] != second || second.Last != 2 {
 		t.Fatal("savepoint copied/undid private generator counter")
 	}
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-	third := s.Transactions.catalog.Generators[ps.Address]
-	if third == second || third.Last != 1 || third.Called || third.Generation == second.Generation || s.Transactions.catalog.Originals[ps.Address] != descriptor {
+	third := s.Transactions.Catalog.Generators[ps.Address]
+	if third == second || third.Last != 1 || third.Called || third.Generation == second.Generation || s.Transactions.Catalog.Originals[ps.Address] != descriptor {
 		t.Fatal("repeat lost binding identity/first original")
 	}
 	sessionSQL(t, s, "ROLLBACK TO after_reset")
-	if s.Transactions.catalog.Generators[ps.Address] != second || second.Last != 2 {
+	if s.Transactions.Catalog.Generators[ps.Address] != second || second.Last != 2 {
 		t.Fatal("savepoint did not restore prior private binding")
 	}
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
@@ -245,7 +245,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		e, s, _, _, ps, _ := truncateRestartUnitFixture(t)
 		tx := transactionBegin(t, s)
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-		replacement := s.Transactions.catalog.Generators[ps.Address]
+		replacement := s.Transactions.Catalog.Generators[ps.Address]
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq OWNED BY NONE")
 		sessionSQL(t, s, "CREATE SEQUENCE later START 90 OWNED BY p.id")
 		transactionEnd(t, s, tx, true)

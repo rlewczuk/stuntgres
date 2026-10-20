@@ -36,7 +36,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		})
 		sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 		result, err := cursorUnitExecute(t, s, context.Background(), "COMMIT")
-		if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || calls != 2 || !good.promoted || payloadOf(s).cursors.entries["good"] != good || payloadOf(s).cursors.entries["bad"] != nil || payloadOf(s).cursors.entries["ordinary"] != nil || bad.values != nil || bad.source != nil || badPin.Load() != nil || goodPin.Load() != nil || badCell.Host != nil || s.Transactions.state != TxIdle {
+		if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || calls != 2 || !good.promoted || payloadOf(s).cursors.entries["good"] != good || payloadOf(s).cursors.entries["bad"] != nil || payloadOf(s).cursors.entries["ordinary"] != nil || bad.values != nil || bad.source != nil || badPin.Load() != nil || goodPin.Load() != nil || badCell.Host != nil || s.Transactions.State != TxIdle {
 			t.Fatal("failed end retracts promotion or publishes pending store", result, err, calls)
 		}
 		cursorUnitBatch(t, s, "FETCH ALL FROM good", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
@@ -106,7 +106,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 			t.Fatal("implicit materialization cancellation suppressed", err)
 		}
-		if payloadOf(s).cursors.entries["implicit_h"] != nil || pin.Load() != nil || cell.Host != nil || s.Transactions.state != TxIdle {
+		if payloadOf(s).cursors.entries["implicit_h"] != nil || pin.Load() != nil || cell.Host != nil || s.Transactions.State != TxIdle {
 			t.Fatal("failed implicit declaration retains producer")
 		}
 	})
@@ -120,7 +120,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		result, err := engineOf(s).Commit(op, s.Transactions.ref)
+		result, err := engineOf(s).Commit(op, s.Transactions.Ref)
 		if err != nil || !result.Committed {
 			op.Done()
 			t.Fatal(result, err)
@@ -154,8 +154,8 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 				query = "SELECT nextval('hold_draw') AS n FROM unit_rows"
 			}
 			sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR "+query)
-			c, ref := payloadOf(s).cursors.entries["h"], s.Transactions.ref
-			ticket := s.Transactions.ticket
+			c, ref := payloadOf(s).cursors.entries["h"], s.Transactions.Ref
+			ticket := s.Transactions.Ticket
 			pin, cell := c.source.View, c.authority
 			sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -219,7 +219,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 			cancel()
 			lockAwait(t, done, context.Canceled)
 			joined = true
-			if c.promoted || c.values != nil || c.source != nil || c.stage != nil || pin.Load() != nil || cell.Host != nil || payloadOf(s).cursors.entries["h"] != nil || s.Transactions.ticket != nil || s.Transactions.state != TxIdle {
+			if c.promoted || c.values != nil || c.source != nil || c.stage != nil || pin.Load() != nil || cell.Host != nil || payloadOf(s).cursors.entries["h"] != nil || s.Transactions.Ticket != nil || s.Transactions.State != TxIdle {
 				t.Fatal("canceled commit retains partial store/producer/admission")
 			}
 			s.Mu.Lock()

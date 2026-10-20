@@ -368,8 +368,8 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		t.Cleanup(unblock)
 		s.Mu.Lock()
 		entry := s.Resources[Authorization]
-		gate.owner = entry.owner
-		entry.owner = gate
+		gate.owner = entry.Owner
+		entry.Owner = gate
 		s.Mu.Unlock()
 		s.RequestEnd(CleanClose)
 		select {

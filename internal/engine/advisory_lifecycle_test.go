@@ -131,7 +131,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			waiter := lockState.Resources[key].Pending[0]
 			request := waiter.Request
 			_, journaled := lockState.Journals[ticket][key]
-			if waiter.Provenance != provenance || waiter.Ticket != b.Advisory.ticket || !journaled {
+			if waiter.Provenance != provenance || waiter.Ticket != b.Advisory.Ticket || !journaled {
 				t.Fatal("persistent request lost current transient provenance")
 			}
 			if grantBeforeFence {
@@ -144,7 +144,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 				})
 				advisoryUnitUnlock(t, a, key, lock.AdvisoryShare, true)
 				granted := request.Terminal() && request.Err() == nil
-				count := m.Inspect().Resources[key].Holders[b.Advisory.ticket]
+				count := m.Inspect().Resources[key].Holders[b.Advisory.Ticket]
 				if !granted || count.Shared != 1 || count.Exclusive != 1 {
 					t.Fatal("actual transfer before readmission", granted, count)
 				}
@@ -165,7 +165,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			lockState = m.Inspect(ticket)
 			liveSource := lockState.Valid(ticket)
 			journal := len(lockState.Journals[ticket])
-			persistentLive := lockState.Valid(b.Advisory.ticket)
+			persistentLive := lockState.Valid(b.Advisory.Ticket)
 			count := advisoryUnitHold(b, key)
 			wantExclusive := uint64(0)
 			if grantBeforeFence {
@@ -178,10 +178,10 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			if _, err := advisoryUnitAcquire(t, c, rc, key, lock.AdvisoryExclusive, true); !errors.Is(err, lock.ErrUnavailable) {
 				t.Fatal("new epoch ignored physical holds", err)
 			}
-			if err := m.UnlockAdvisoryAll(a.Advisory.ticket); err != nil {
+			if err := m.UnlockAdvisoryAll(a.Advisory.Ticket); err != nil {
 				t.Fatal(err)
 			}
-			if err := m.UnlockAdvisoryAll(b.Advisory.ticket); err != nil {
+			if err := m.UnlockAdvisoryAll(b.Advisory.Ticket); err != nil {
 				t.Fatal(err)
 			}
 			advisoryUnitGrant(t, c, rc, key, lock.AdvisoryExclusive)
@@ -197,7 +197,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		transactionEnd(t, b, rb, false)
 		observed := make(chan bool, 1)
 		// Inject a cleanup observer in place of the now-installed SQL-name owner.
-		if err := b.Detach(b.Resources[PreparedSQL].handle, CleanClose); err != nil {
+		if err := b.Detach(b.Resources[PreparedSQL].Handle, CleanClose); err != nil {
 			t.Fatal(err)
 		}
 		op := transactionOperation(t, b)
@@ -225,10 +225,10 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		default:
 			t.Fatal("prepared resource cleanup callback missing")
 		}
-		lockState := e.locks.Inspect(b.Advisory.ticket)
-		persistentLive := lockState.Valid(b.Advisory.ticket)
+		lockState := e.locks.Inspect(b.Advisory.Ticket)
+		persistentLive := lockState.Valid(b.Advisory.Ticket)
 		sourceLive := lockState.Valid(ticket)
-		journal := len(lockState.Journals[b.Advisory.ticket])
+		journal := len(lockState.Journals[b.Advisory.Ticket])
 		if persistentLive || sourceLive || journal != 0 || advisoryUnitHold(b, key) != (lock.Hold{}) || advisoryUnitHold(a, key).Shared != 1 {
 			t.Fatal("physical cleanup scope", persistentLive, sourceLive, journal)
 		}

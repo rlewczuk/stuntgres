@@ -11,23 +11,23 @@ func (s *StatementScope) reserveCopy() error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	if s.owner.copyLease != nil {
+	if s.owner.CopyLease != nil {
 		return errors.New("stuntgres: COPY owner is already reserved")
 	}
-	s.owner.copyLease = &s.lease
-	s.owner.copyDone = make(chan struct{})
+	s.owner.CopyLease = &s.lease
+	s.owner.CopyDone = make(chan struct{})
 	return nil
 }
 func (s *StatementScope) releaseCopyReservation() {
-	if s.self == s && s.owner.copyLease == &s.lease {
-		done := s.owner.copyDone
-		s.owner.copyLease = nil
-		s.owner.copyDone = nil
+	if s.self == s && s.owner.CopyLease == &s.lease {
+		done := s.owner.CopyDone
+		s.owner.CopyLease = nil
+		s.owner.CopyDone = nil
 		close(done)
 	}
 }
 func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
-	if s == nil || s.self != s || s.finished || s.owner.copyLease != &s.lease {
+	if s == nil || s.self != s || s.finished || s.owner.CopyLease != &s.lease {
 		return 0, errors.New("stuntgres: invalid COPY reservation")
 	}
 	if err = s.active(); err != nil {
@@ -39,19 +39,19 @@ func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
 	}
-	s.owner.admission.Unlock()
+	s.owner.Admission.Unlock()
 	defer func() {
-		s.owner.admission.Lock()
+		s.owner.Admission.Lock()
 		if fenced {
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		}
 		resume := s.active()
-		if resume == nil && s.owner.copyLease != &s.lease {
+		if resume == nil && s.owner.CopyLease != &s.lease {
 			resume = errors.New("stuntgres: lost COPY reservation")
 		}
-		s.owner.mu.Lock()
-		if resume == nil && (s.owner.ref != s.txRef || s.owner.command != s.command) {
+		s.owner.Mu.Lock()
+		if resume == nil && (s.owner.Ref != s.txRef || s.owner.Command != s.command) {
 			resume = errors.New("stuntgres: stale COPY owner")
 		}
 		if resume == nil {
@@ -63,7 +63,7 @@ func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
 			}
 			e.mu.Unlock()
 		}
-		s.owner.mu.Unlock()
+		s.owner.Mu.Unlock()
 		if err == nil || err == io.EOF {
 			if resume != nil {
 				n = 0

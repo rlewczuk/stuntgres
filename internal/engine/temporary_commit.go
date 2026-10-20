@@ -75,8 +75,8 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: input, Output: output, Catalog: base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		project := func(old, replacement *catalog.Relation) error {
 			owner := op.Session.Transactions
-			snapshot, exists := owner.roots[old.Address()]
-			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.Address()], nextDeletes[old.Address()], snapshot, exists, stableIsolation(owner.isolation))
+			snapshot, exists := owner.Roots[old.Address()]
+			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.Address()], nextDeletes[old.Address()], snapshot, exists, stableIsolation(owner.Isolation))
 			if err != nil {
 				return err
 			}

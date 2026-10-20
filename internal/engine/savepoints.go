@@ -13,43 +13,43 @@ import (
 )
 
 func captureSavepoint(t *transactionOwner, name string) savepointMark {
-	writes := maps.Clone(t.writes)
-	t.savepointSerial++
-	for a, rows := range t.writes {
+	writes := maps.Clone(t.Writes)
+	t.SavepointSerial++
+	for a, rows := range t.Writes {
 		// A later append after rollback must not overwrite a discarded suffix
 		// still retained by a result opened before rollback.
 		writes[a] = rows[:len(rows):len(rows)]
 	}
-	e := engineOf(t.session)
+	e := engineOf(t.Session)
 	e.mu.Lock()
-	projection := e.exclusionPending[t.ticket]
+	projection := e.exclusionPending[t.Ticket]
 	e.mu.Unlock()
-	t.session.Mu.Lock()
-	identity := t.session.Authorization.state
-	t.session.Mu.Unlock()
-	return savepointMark{name: name, serial: t.savepointSerial, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.Settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: payloadOf(t.session).cursors.ordinal, exclusion: exclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
+	t.Session.Mu.Lock()
+	identity := t.Session.Authorization.State
+	t.Session.Mu.Unlock()
+	return savepointMark{Name: name, Serial: t.SavepointSerial, Writes: writes, Deletes: t.Deletes, Catalog: t.Catalog, Settings: t.Session.Settings.Savepoint(), Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable, Locks: e.locks.Checkpoint(t.Ticket), Cursors: payloadOf(t.Session).cursors.ordinal, Exclusion: exclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), Identity: identity, NotificationActions: t.NotificationActions[:len(t.NotificationActions):len(t.NotificationActions)], NotificationEvents: t.NotificationEvents[:len(t.NotificationEvents):len(t.NotificationEvents)]}
 }
 
 func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settingsMark) {
-	ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.rollback(mark.cursors))
-	retireProtocolPortalsAfter(t, mark.cursors)
-	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
-	t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
-	t.session.Settings.restoreSavepoint(settings, mark.identity)
-	t.isolation, t.readOnly = mark.isolation, mark.readOnly
-	t.deferrable = mark.deferrable
+	ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.rollback(mark.Cursors))
+	retireProtocolPortalsAfter(t, mark.Cursors)
+	t.Writes, t.Deletes, t.Catalog = mark.Writes, mark.Deletes, mark.Catalog
+	t.NotificationActions, t.NotificationEvents = mark.NotificationActions, mark.NotificationEvents
+	t.Session.Settings.RestoreSavepoint(settings, mark.Identity)
+	t.Isolation, t.ReadOnly = mark.Isolation, mark.ReadOnly
+	t.Deferrable = mark.Deferrable
 	syncCharacteristics(t)
-	e := engineOf(t.session)
+	e := engineOf(t.Session)
 	e.mu.Lock()
-	exclusion := exclusionMarkOrZero(mark.exclusion)
+	exclusion := exclusionMarkOrZero(mark.Exclusion)
 	ownerExtensionOf(t).exclusionModes = exclusion.modes
 	if exclusion.projection == nil {
-		delete(e.exclusionPending, t.ticket)
+		delete(e.exclusionPending, t.Ticket)
 	} else {
 		if e.exclusionPending == nil {
 			e.exclusionPending = make(map[*lock.Ticket]*exclusionProjection)
 		}
-		e.exclusionPending[t.ticket] = exclusion.projection
+		e.exclusionPending[t.Ticket] = exclusion.projection
 	}
 	e.exclusionGeneration++
 	e.reconcileSerializableWritesLocked(t)
@@ -59,8 +59,8 @@ func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settings
 // Called owner-first. Preparation intentionally performs no name lookup.
 func (s *StatementScope) gateSavepoint(control *parser.SavepointControl) error {
 	t, e := s.owner, s.engine()
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
 	if s.message {
 		if err := s.admitTransactionLocked(e); err != nil {
 			return err
@@ -69,7 +69,7 @@ func (s *StatementScope) gateSavepoint(control *parser.SavepointControl) error {
 	if err := e.endPreflight(s.op); err != nil {
 		return err
 	}
-	if t.state == TxAborted && control.Kind != parser.RollbackSavepoint {
+	if t.State == TxAborted && control.Kind != parser.RollbackSavepoint {
 		return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 	}
 	return nil
@@ -85,9 +85,9 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		}
 	}
 	t, e := s.owner, s.engine()
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.state == TxIdle || t.state == TxImplicit {
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
+	if t.State == TxIdle || t.State == TxImplicit {
 		word := "SAVEPOINT"
 		if control.Kind == parser.RollbackSavepoint {
 			word = "ROLLBACK TO SAVEPOINT"
@@ -102,23 +102,23 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	var settings settingsMark
 	var stack []savepointMark
 	if control.Kind == parser.CreateSavepoint {
-		if t.savepointSerial == ^uint64(0) {
+		if t.SavepointSerial == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: foreign savepoint identity exhausted")
 		}
 		mark = captureSavepoint(t, control.Name.Text)
 		// Reserve the stack before the final callback-free preflight.
-		stack = slices.Grow(t.savepoints, 1)
+		stack = slices.Grow(t.Savepoints, 1)
 	} else {
-		for i := len(t.savepoints) - 1; i >= 0; i-- {
-			if t.savepoints[i].name == control.Name.Text {
+		for i := len(t.Savepoints) - 1; i >= 0; i-- {
+			if t.Savepoints[i].Name == control.Name.Text {
 				index = i
 				break
 			}
 		}
 		if index >= 0 {
-			mark = t.savepoints[index]
+			mark = t.Savepoints[index]
 			if control.Kind == parser.RollbackSavepoint {
-				settings = mark.settings.clone()
+				settings = mark.Settings.Clone()
 			}
 		}
 	}
@@ -133,74 +133,74 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		kind = 2
 	}
 	s.foreignUnlocked()
-	t.mu.Unlock()
-	hookErr := foreignSavepoint(t, s.op.Context(), kind, mark.serial)
-	t.mu.Lock()
+	t.Mu.Unlock()
+	hookErr := foreignSavepoint(t, s.op.Context(), kind, mark.Serial)
+	t.Mu.Lock()
 	if hookErr != nil {
 		return Result{}, hookErr
 	}
 	result, err := func() (Result, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		t.session.Settings.mu.Lock()
-		defer t.session.Settings.mu.Unlock()
+		t.Session.Settings.Mu.Lock()
+		defer t.Session.Settings.Mu.Unlock()
 		s.op.Session.Mu.Lock()
 		defer s.op.Session.Mu.Unlock()
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return Result{}, err
 		}
-		if err := t.validate(t.ref); err != nil {
+		if err := t.Validate(t.Ref); err != nil {
 			return Result{}, err
 		}
-		if t.ref.Epoch() != e.catalog.state.Epoch() {
+		if t.Ref.Epoch() != e.catalog.state.Epoch() {
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		if control.Kind != parser.CreateSavepoint && index < 0 {
 			return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
 		}
-		if (t.identityCaptured || t.session.Settings.roleAction.present) && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
+		if (t.IdentityCaptured || t.Session.Settings.RoleAction.Present) && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
 			// Reserve failed-preflight restoration and remaining boundaries.
-			if err := roleRevisionHeadroom(t.session.Authorization, uint64(len(t.savepoints))+3); err != nil {
+			if err := roleRevisionHeadroom(t.Session.Authorization, uint64(len(t.Savepoints))+3); err != nil {
 				return Result{}, err
 			}
 		}
 		switch control.Kind {
 		case parser.CreateSavepoint:
-			t.savepoints = append(stack, mark)
+			t.Savepoints = append(stack, mark)
 		case parser.RollbackSavepoint:
-			ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.rollback(mark.cursors))
-			retireProtocolPortalsAfter(t, mark.cursors)
-			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
-			t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
-			targetIdentity := mark.identity
-			targetIdentity.CurrentUser = settings.currentRole
-			t.session.Settings.restoreIdentityLocked(targetIdentity)
-			t.session.Settings.values, t.session.Settings.typed, t.session.Settings.actions = settings.values, settings.typed, settings.actions
-			t.session.Settings.roleAction = settings.roleAction
-			t.session.PublishTimeoutSettingsLocked(t.session.Settings, false, time.Now())
-			t.isolation, t.readOnly = mark.isolation, mark.readOnly
-			t.deferrable = mark.deferrable
-			t.session.Settings.currentIsolation = isolationText(t.isolation)
-			t.session.Settings.currentReadOnly = t.readOnly
-			t.session.Settings.currentDeferrable = t.deferrable
-			exclusion := exclusionMarkOrZero(mark.exclusion)
+			ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.rollback(mark.Cursors))
+			retireProtocolPortalsAfter(t, mark.Cursors)
+			t.Writes, t.Deletes, t.Catalog = mark.Writes, mark.Deletes, mark.Catalog
+			t.NotificationActions, t.NotificationEvents = mark.NotificationActions, mark.NotificationEvents
+			targetIdentity := mark.Identity
+			targetIdentity.CurrentUser = settings.CurrentRole
+			t.Session.Settings.RestoreIdentityLocked(targetIdentity)
+			t.Session.Settings.Values, t.Session.Settings.Typed, t.Session.Settings.Actions = settings.Values, settings.Typed, settings.Actions
+			t.Session.Settings.RoleAction = settings.RoleAction
+			t.Session.PublishTimeoutSettingsLocked(t.Session.Settings, false, time.Now())
+			t.Isolation, t.ReadOnly = mark.Isolation, mark.ReadOnly
+			t.Deferrable = mark.Deferrable
+			t.Session.Settings.CurrentIsolation = isolationText(t.Isolation)
+			t.Session.Settings.CurrentReadOnly = t.ReadOnly
+			t.Session.Settings.CurrentDeferrable = t.Deferrable
+			exclusion := exclusionMarkOrZero(mark.Exclusion)
 			ownerExtensionOf(t).exclusionModes = exclusion.modes
 			if exclusion.projection == nil {
-				delete(e.exclusionPending, t.ticket)
+				delete(e.exclusionPending, t.Ticket)
 			} else {
-				e.exclusionPending[t.ticket] = exclusion.projection
+				e.exclusionPending[t.Ticket] = exclusion.projection
 			}
 			e.exclusionGeneration++
 			e.reconcileSerializableWritesLocked(t)
-			e.enrollSerializableLocked(t.ref, t.isolation)
-			t.truncateSavepoints(index + 1)
-			t.state = TxActive
+			e.enrollSerializableLocked(t.Ref, t.Isolation)
+			t.TruncateSavepoints(index + 1)
+			t.State = TxActive
 		case parser.ReleaseSavepoint:
 			// PostgreSQL restores the parent's access mode on subcommit, unlike
 			// ordinary SESSION/LOCAL settings, whose effects are retained.
-			t.readOnly = mark.readOnly
-			t.session.Settings.currentReadOnly = t.readOnly
-			t.truncateSavepoints(index)
+			t.ReadOnly = mark.ReadOnly
+			t.Session.Settings.CurrentReadOnly = t.ReadOnly
+			t.TruncateSavepoints(index)
 		}
 		s.controlOutcome = controlExecuted
 		return Result{}, nil
@@ -209,7 +209,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		return result, err
 	}
 	if control.Kind == parser.RollbackSavepoint {
-		e.locks.Restore(t.ticket, mark.locks)
+		e.locks.Restore(t.Ticket, mark.Locks)
 	}
 	return Result{}, nil
 }

@@ -7,8 +7,8 @@ import (
 
 func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start time.Time) *StatementScope {
 	s := newStatementScope(op, t, start)
-	s.transactionStart, s.message = start, t.retainedMessage
-	if t.retainedMessage && t.messageBorn && t.state == TxIdle {
+	s.transactionStart, s.message = start, t.RetainedMessage
+	if t.RetainedMessage && t.MessageBorn && t.State == TxIdle {
 		s.transactionStart = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	op.Session.StartProvisionalTimeout(&s.lease, op, s.transactionStart)
@@ -19,20 +19,20 @@ func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start tim
 // control first in a new segment, uses the ordinary incarnation and lock ticket.
 func (s *StatementScope) admitTransactionLocked(e *Engine) error {
 	t := s.owner
-	if t.state == TxIdle {
+	if t.State == TxIdle {
 		if err := e.beginLocked(s.op, t, TxImplicit, s.transactionStart); err != nil {
 			return err
 		}
 	}
-	if t.ticket == nil && t.state != TxAborted {
-		ref := t.ref
-		t.mu.Unlock()
+	if t.Ticket == nil && t.State != TxAborted {
+		ref := t.Ref
+		t.Mu.Unlock()
 		ticket, err := e.registerTransactionLocks(ref)
-		t.mu.Lock()
+		t.Mu.Lock()
 		if err != nil {
 			return err
 		}
-		t.ticket = ticket
+		t.Ticket = ticket
 	}
 	s.attachTransactionLocked()
 	return nil
@@ -49,10 +49,10 @@ func (s *StatementScope) RetainMessage() error {
 		return errors.New("stuntgres: foreign message admission")
 	}
 	s.message = true
-	s.owner.mu.Lock()
-	s.owner.retainedMessage = true
-	s.owner.messageBorn = s.owner.state != TxIdle
-	s.owner.mu.Unlock()
+	s.owner.Mu.Lock()
+	s.owner.RetainedMessage = true
+	s.owner.MessageBorn = s.owner.State != TxIdle
+	s.owner.Mu.Unlock()
 	return nil
 }
 func (s *StatementScope) NextStatement() (*StatementScope, error) {
@@ -83,16 +83,16 @@ func (s *StatementScope) FinishMessage(err error) error {
 		err = s.Finish(err)
 	}
 	t := s.owner
-	t.mu.Lock()
-	state, ref := t.state, t.ref
-	t.mu.Unlock()
+	t.Mu.Lock()
+	state, ref := t.State, t.Ref
+	t.Mu.Unlock()
 	if err != nil && (state == TxImplicit || state == TxActive) && s.finished {
 		failed := s.engine().newStatementScope(s.op, t, s.statementStart)
 		failed.message = true
 		_ = failed.Finish(err)
-		t.mu.Lock()
-		state, ref = t.state, t.ref
-		t.mu.Unlock()
+		t.Mu.Lock()
+		state, ref = t.State, t.Ref
+		t.Mu.Unlock()
 	}
 	if state == TxImplicit {
 		_, endErr := s.engine().endAdmitted(s.op, t, ref, err == nil, false, true, s.statementStart, s)
@@ -100,16 +100,16 @@ func (s *StatementScope) FinishMessage(err error) error {
 			err = endErr
 		}
 	}
-	t.mu.Lock()
-	t.retainedMessage = false
+	t.Mu.Lock()
+	t.RetainedMessage = false
 	finishNotificationBoundary(t)
-	t.mu.Unlock()
+	t.Mu.Unlock()
 	s.op.Session.Mu.Lock()
 	s.op.SQLFinished = true
 	s.op.Session.Mu.Unlock()
 	s.messageEnded = true
 	s.messageResult = err
-	t.admission.Unlock()
+	t.Admission.Unlock()
 	return err
 }
 func (s *StatementScope) ownsMessageScope() bool {

@@ -83,11 +83,11 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 		return ids.ErrCatalogReplaced
 	}
 	capture := func(d *catalog.Relation) error {
-		if current := e.privateCatalogLocked(scope.owner.catalog).Get(d.Address()); current != d {
+		if current := e.privateCatalogLocked(scope.owner.Catalog).Get(d.Address()); current != d {
 			return ids.ErrCatalogReplaced
 		}
 		stage.domainBases = append(stage.domainBases, d)
-		storage := e.privateStorageLocked(scope.owner.catalog, d.Address())
+		storage := e.privateStorageLocked(scope.owner.Catalog, d.Address())
 		if storage == nil {
 			return ids.ErrCatalogReplaced
 		}

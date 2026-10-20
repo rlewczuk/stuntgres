@@ -12,7 +12,7 @@ import (
 // Historical, private and rewritten views always use the ordinary scan.
 func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf exec.Leaf, view *visibility.View, mark plan.RowMark) *storage.IndexRoot {
 	candidate := leaf.PartialCandidate
-	if candidate == nil || view == nil || scope.owner.catalog != nil || stableIsolation(scope.owner.isolation) || scope.queryLocks != nil || mark.Mode != 0 {
+	if candidate == nil || view == nil || scope.owner.Catalog != nil || stableIsolation(scope.owner.Isolation) || scope.queryLocks != nil || mark.Mode != 0 {
 		return nil
 	}
 	data := view.Data()

@@ -25,7 +25,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		ref := scope.lockedRef
 		ref.Address = old.Address()
 		e.mu.Lock()
-		current := e.privateCatalogLocked(scope.owner.catalog)
+		current := e.privateCatalogLocked(scope.owner.Catalog)
 		fresh, err := e.statementAuthorizationLocked(op, raw)
 		if err == nil && current.Get(old.Address()) != old {
 			err = ids.ErrCatalogReplaced
@@ -67,7 +67,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 			provenance.ExplicitDefault = true
 			next.Inheritance.Columns[attribute] = provenance
 		}
-		store := e.privateStorageLocked(scope.owner.catalog, old.Address())
+		store := e.privateStorageLocked(scope.owner.Catalog, old.Address())
 		if store == nil {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced

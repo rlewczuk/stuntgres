@@ -287,10 +287,10 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.settings.mu.Lock()
-	auth.settings.typed["search_path"] = path
-	auth.settings.values["search_path"] = "candidate_schema"
-	auth.settings.mu.Unlock()
+	auth.settings.Mu.Lock()
+	auth.settings.Typed["search_path"] = path
+	auth.settings.Values["search_path"] = "candidate_schema"
+	auth.settings.Mu.Unlock()
 	auth.Catalog = e.stageRead(stage)
 	auth.Recapture(auth.Catalog)
 	binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)

@@ -92,7 +92,7 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, a, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
-	owner := a.Transactions.ticket
+	owner := a.Transactions.Ticket
 	table := roleTableRef(t, e, "t")
 	e.mu.Lock()
 	store := e.storage.Relations[table.Address]
@@ -138,7 +138,7 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 	sessionSQL(t, a, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	sessionSQL(t, a, "INSERT INTO t VALUES(2,'first')")
 	_, await := indexMaintenanceAsync(t, e, b, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n) INCLUDE(p)")
-	concurrentUnitCompletion(t, e, a.Transactions.ticket, b)
+	concurrentUnitCompletion(t, e, a.Transactions.Ticket, b)
 	initial, absent := concurrentUnitIndex(t, e, "ui", false, false)
 	if absent != nil {
 		t.Fatal("not-ready root present")
@@ -150,7 +150,7 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 	sessionSQL(t, d, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	sessionSQL(t, d, "INSERT INTO t VALUES(1,'grandfathered')")
 	sessionSQL(t, a, "COMMIT")
-	concurrentUnitCompletion(t, e, d.Transactions.ticket, b)
+	concurrentUnitCompletion(t, e, d.Transactions.Ticket, b)
 	ready, before := concurrentUnitIndex(t, e, "ui", true, false)
 	if !reflect.DeepEqual(btreeKeys(t, before), []string{"1", "2"}) || initial.SQLIndex.Ready {
 		t.Fatal("first root/admission predecessor")
@@ -195,11 +195,11 @@ func TestConcurrentIndexU4NotReadySkipsExpressionEvaluation(t *testing.T) {
 	sessionSQL(t, a, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	_, await := indexMaintenanceAsync(t, e, b, "CREATE INDEX CONCURRENTLY ix ON t((10/n))")
-	concurrentUnitCompletion(t, e, a.Transactions.ticket, b)
+	concurrentUnitCompletion(t, e, a.Transactions.Ticket, b)
 	sessionSQL(t, d, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	sessionSQL(t, d, "INSERT INTO t VALUES(0)")
 	sessionSQL(t, a, "COMMIT")
-	concurrentUnitCompletion(t, e, d.Transactions.ticket, b)
+	concurrentUnitCompletion(t, e, d.Transactions.Ticket, b)
 	_, before := concurrentUnitIndex(t, e, "ix", true, false)
 	concurrentUnitError(t, c, "INSERT INTO t VALUES(0)", "22012")
 	sessionSQL(t, d, "COMMIT")
@@ -258,7 +258,7 @@ func TestConcurrentIndexU4GenericShapePreservesInvalidRoots(t *testing.T) {
 				rows := sessionSQL(t, s, "SELECT n FROM u")
 				rows.Rows.Close()
 				cancel, await := indexMaintenanceAsync(t, e, builder, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n)")
-				concurrentUnitCompletion(t, e, s.Transactions.ticket, builder)
+				concurrentUnitCompletion(t, e, s.Transactions.Ticket, builder)
 				cancel()
 				if err := await(); !errors.Is(err, context.Canceled) {
 					t.Fatal(err)

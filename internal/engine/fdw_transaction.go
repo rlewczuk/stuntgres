@@ -73,9 +73,9 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 	}
 	t := s.owner
 	key := foreignParticipantKey{request.HandlerOID, request.ServerOID, request.MappingOID, request.RoleOID}
-	t.mu.Lock()
-	if err := t.validate(s.txRef); err != nil {
-		t.mu.Unlock()
+	t.Mu.Lock()
+	if err := t.Validate(s.txRef); err != nil {
+		t.Mu.Unlock()
 		return nil, err
 	}
 	var participant *foreignParticipant
@@ -85,8 +85,8 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 			break
 		}
 	}
-	marks := t.savepoints // Borrowed immutable roots under retained owner admission.
-	t.mu.Unlock()
+	marks := t.Savepoints // Borrowed immutable roots under retained owner admission.
+	t.Mu.Unlock()
 	if participant == nil {
 		capabilities, err := provider.ForeignTransactionCapabilities(ctx, exec.CopyForeignRequest(request))
 		if err != nil {
@@ -116,19 +116,19 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 				return nil, errors.New("stuntgres: foreign savepoint capability has no implementation")
 			}
 			for _, mark := range marks {
-				if err := sp.Savepoint(ctx, foreignMarkName(mark.serial)); err != nil {
+				if err := sp.Savepoint(ctx, foreignMarkName(mark.Serial)); err != nil {
 					_ = tx.Rollback(context.WithoutCancel(ctx))
 					return nil, exec.ForeignCallbackError(err)
 				}
 			}
 		}
-		t.mu.Lock()
-		err = t.validate(s.txRef)
+		t.Mu.Lock()
+		err = t.Validate(s.txRef)
 		if err == nil {
 			x := ownerExtensionOf(t)
 			x.foreign.participants = append(x.foreign.participants, participant)
 		}
-		t.mu.Unlock()
+		t.Mu.Unlock()
 		if err != nil {
 			_ = tx.Rollback(context.WithoutCancel(ctx))
 			return nil, err
@@ -199,10 +199,10 @@ func rollbackForeign(ctx context.Context, participants []*foreignParticipant) er
 	return first
 }
 func commitForeign(t *transactionOwner, ctx context.Context, ref ids.TxRef) error {
-	t.mu.Lock()
-	err := t.validate(ref)
+	t.Mu.Lock()
+	err := t.Validate(ref)
 	participants := ownerExtensionOrZero(t).foreign.participants // Admission excludes enrollment/disposal.
-	t.mu.Unlock()
+	t.Mu.Unlock()
 	if err != nil {
 		return err
 	}

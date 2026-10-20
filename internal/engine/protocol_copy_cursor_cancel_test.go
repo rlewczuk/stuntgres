@@ -117,8 +117,8 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 					defaults: make([]bool, 1), omitted: make([]bool, 1),
 				}
 			}
-			op.CopyInput.active.Store(true)
-			op.CopyInput.decoding.Store(true)
+			op.CopyInput.Active.Store(true)
+			op.CopyInput.Decoding.Store(true)
 			defer op.StopCopyInput()
 			scheduled := &copyCursorCancelContext{Context: op.Ctx, cancel: cancel, cause: tc.cause}
 			op.Ctx = scheduled
@@ -223,7 +223,7 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 			if reader.Len() != len(tc.input) {
 				t.Fatal("Start cancellation authority consumed input", reader.Len(), tc.name)
 			}
-			if op.CopyInput.active.Load() || op.CopyInput.decoding.Load() || op.CopyInput.masked != nil {
+			if op.CopyInput.Active.Load() || op.CopyInput.Decoding.Load() || op.CopyInput.Masked != nil {
 				t.Fatal("COPY input ownership escaped Start/decoder lifetime")
 			}
 			if context.Cause(source) != tc.cause || source.Err() != context.Canceled {

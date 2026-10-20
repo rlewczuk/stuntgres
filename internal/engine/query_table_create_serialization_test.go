@@ -56,7 +56,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				t.Fatal(err)
 			}
 			node := e.visibility.Serializable.Nodes[scope.txRef]
-			if node == nil || !node.Captured || scope.owner.state != TxImplicit {
+			if node == nil || !node.Captured || scope.owner.State != TxImplicit {
 				t.Fatal("missing actual implicit serializable consumer")
 			}
 			e.mu.Lock()

@@ -63,13 +63,13 @@ func TestDeleteUsingSourceGrantsStayReadOnly(t *testing.T) {
 	var targetMode, sourceMode lock.Mode
 	for resource, entry := range lockState.Resources {
 		if resource.ObjectRef == target && resource.Row == 0 {
-			targetMode = entry.Holders[writer.Transactions.ticket].Mode
+			targetMode = entry.Holders[writer.Transactions.Ticket].Mode
 		}
 		if resource.ObjectRef == source {
 			if resource.Row != 0 {
 				t.Fatal("ordinary source tuple write grant", resource)
 			}
-			sourceMode = entry.Holders[writer.Transactions.ticket].Mode
+			sourceMode = entry.Holders[writer.Transactions.Ticket].Mode
 		}
 	}
 	if targetMode&lock.RowExclusive == 0 || sourceMode&lock.AccessShare == 0 || sourceMode&lock.RowExclusive != 0 {

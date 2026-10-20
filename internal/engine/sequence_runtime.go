@@ -77,7 +77,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 		return 0, err
 	}
 	if ns, ok := auth.Catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.SessionToken {
-		scope.owner.accessedTemporary = true
+		scope.owner.AccessedTemporary = true
 	}
 	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
 	if request.Name == "nextval" {
@@ -91,7 +91,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 			return 0, err
 		}
 	}
-	if scope.owner.readOnly && (request.Name == "nextval" || request.Name == "setval") {
+	if scope.owner.ReadOnly && (request.Name == "nextval" || request.Name == "setval") {
 		ns, _ := auth.Catalog.Namespace(d.Namespace())
 		if ns == nil || ns.Temporary != scope.op.Session.SessionToken {
 			return 0, sqlError("25006", "cannot execute "+request.Name+"() in a read-only transaction")

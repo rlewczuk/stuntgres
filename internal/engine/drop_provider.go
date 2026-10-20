@@ -527,7 +527,7 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 	prepared.next = next
 	e := provider.owner
 	e.mu.Lock()
-	err := scope.validateColumnDropObservationsLocked(prepared, e.privateCatalogLocked(scope.owner.catalog))
+	err := scope.validateColumnDropObservationsLocked(prepared, e.privateCatalogLocked(scope.owner.Catalog))
 	e.mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -578,7 +578,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 	e.mu.Lock()
 	err := scope.validateColumnDropObservationsLocked(prepared, stage.Base)
 	if err == nil {
-		err = scope.validateColumnDropObservationsLocked(prepared, e.privateCatalogLocked(scope.owner.catalog))
+		err = scope.validateColumnDropObservationsLocked(prepared, e.privateCatalogLocked(scope.owner.Catalog))
 	}
 	e.mu.Unlock()
 	if err != nil {

@@ -29,7 +29,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	if table(auth.session.TemporaryNamespace) {
 		return auth.session.TemporaryNamespace
 	}
-	if owner := auth.session.Transactions; owner != nil && owner.catalog != nil {
+	if owner := auth.session.Transactions; owner != nil && owner.Catalog != nil {
 		for a, d := range auth.Catalog.Descriptors() {
 			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.SessionToken {
 				return a
@@ -69,7 +69,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	if auth.session == nil || privateSessionOf(auth.session.SessionToken) != nil {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: private maintenance cannot create a temporary namespace")
 	}
-	auth.session.Transactions.accessedTemporary = true
+	auth.session.Transactions.AccessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ids.ObjectAddress{}) {
 		return e.catalog.Domain.Ref(e.catalog.state.Epoch(), a), nil
 	}

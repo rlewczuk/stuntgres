@@ -127,13 +127,13 @@ func TestCommitTimePublication(t *testing.T) {
 				}
 				defer op.Done()
 				tx := session.Transactions
-				tx.mu.Lock()
+				tx.Mu.Lock()
 				err = e.beginLocked(op, tx, TxImplicit, time.Now())
-				tx.mu.Unlock()
+				tx.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
-				ref := tx.ref
+				ref := tx.Ref
 				if err := e.assignTransactionXIDLocked(ref); err != nil {
 					t.Fatal(err)
 				}

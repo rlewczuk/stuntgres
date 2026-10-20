@@ -155,17 +155,17 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		ra := transactionBegin(t, a)
 		rb := transactionBegin(t, b)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		if err := e.locks.Acquire(context.Background(), a.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
 		go func() {
-			done <- e.locks.Acquire(ctx, b.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare)
+			done <- e.locks.Acquire(ctx, b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare)
 		}()
 		lockPending(t, e, 1)
 		ended := make(chan struct{})
-		go func() { e.endLockOwner(a.Transactions.ticket); close(ended) }()
+		go func() { e.endLockOwner(a.Transactions.Ticket); close(ended) }()
 		cancel()
 		err := <-done
 		<-ended
@@ -175,7 +175,7 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		lockState := e.locks.Inspect()
 		held := lock.Mode(0)
 		if entry := lockState.Resources[lock.Resource{ObjectRef: ref}]; entry != nil {
-			held = entry.Holders[b.Transactions.ticket].Mode
+			held = entry.Holders[b.Transactions.Ticket].Mode
 		}
 		if err != nil && held != 0 {
 			t.Fatal("failed acquisition retained contribution")

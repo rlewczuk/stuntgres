@@ -10,14 +10,14 @@ import (
 // can therefore drain this operation and replacement can fence its candidate.
 func (s *StatementScope) acquireSerializableSnapshot() error {
 	t, e := s.owner, s.engine()
-	if t.snapshotSet || t.isolation != Serializable {
+	if t.SnapshotSet || t.Isolation != Serializable {
 		return nil
 	}
 	for {
 		e.mu.Lock()
 		s.op.Session.Mu.Lock()
 		err := publicationOperationLocked(e, s.op)
-		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch()) {
+		if err == nil && (t.Ref != s.txRef || t.Ref.Epoch() != e.catalog.state.Epoch()) {
 			err = ids.ErrCatalogReplaced
 		}
 		s.op.Session.Mu.Unlock()
@@ -25,19 +25,19 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			e.mu.Unlock()
 			return err
 		}
-		e.enrollSerializableLocked(t.ref, t.isolation)
-		node := e.visibility.CaptureSerializableLocked(t.ref, t.readOnly, t.deferrable)
+		e.enrollSerializableLocked(t.Ref, t.Isolation)
+		node := e.visibility.CaptureSerializableLocked(t.Ref, t.ReadOnly, t.Deferrable)
 		roots := make(map[ids.ObjectAddress]visibility.Root, len(e.storage.Relations))
 		for address, storage := range e.storage.Relations {
 			if relation, ok := e.catalog.state.Relation(address); ok {
 				roots[address] = visibility.Root{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
-		t.roots, t.frontier = roots, e.visibility.CommitSeq()
-		t.sequenceCatalog = e.catalog.state
+		t.Roots, t.Frontier = roots, e.visibility.CommitSeq()
+		t.SequenceCatalog = e.catalog.state
 		ready, wait := node.SafeSnapshotWait()
 		if !wait {
-			t.snapshotSet = true
+			t.SnapshotSet = true
 			e.mu.Unlock()
 			return nil
 		}
@@ -58,28 +58,28 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		s.op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, s.op)
 		live, safe := node.SafeSnapshotOutcome()
-		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch() || !live) {
+		if err == nil && (t.Ref != s.txRef || t.Ref.Epoch() != e.catalog.state.Epoch() || !live) {
 			err = ids.ErrCatalogReplaced
 		}
 		s.op.Session.Mu.Unlock()
 		if err != nil {
 			node.AbandonSafeSnapshotLocked()
-			t.roots = nil
-			t.sequenceCatalog = nil
-			t.frontier = 0
+			t.Roots = nil
+			t.SequenceCatalog = nil
+			t.Frontier = 0
 			e.mu.Unlock()
 			return err
 		}
 		if safe {
-			t.snapshotSet = true
+			t.SnapshotSet = true
 			e.mu.Unlock()
 			return nil
 		}
 		// Unsafe candidates have exposed neither rows nor analysis handles.
 		// Discard their immutable roots and take a fresh authoritative snapshot.
-		t.roots = nil
-		t.sequenceCatalog = nil
-		t.frontier = 0
+		t.Roots = nil
+		t.SequenceCatalog = nil
+		t.Frontier = 0
 		e.mu.Unlock()
 	}
 }

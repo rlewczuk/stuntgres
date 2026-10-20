@@ -109,9 +109,9 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				e.mu.Unlock()
 				err = m.end(nil)
 			case "ref_before":
-				stale := s.Transactions.ref
+				stale := s.Transactions.Ref
 				stale = withTxID(stale, stale.ID()+1)
-				err = e.publishWrites(m.op, stale, s.Transactions.writes, s.Transactions.deletes, nil)
+				err = e.publishWrites(m.op, stale, s.Transactions.Writes, s.Transactions.Deletes, nil)
 				if err == nil {
 					t.Fatal("stale publication ref admitted")
 				}
@@ -152,7 +152,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			if got := tuples(result); len(got) != 1 || got[0][0] != int64(1) {
 				t.Fatal("completed output changed at disposition", got)
 			}
-			if s.Transactions.retainedMessage {
+			if s.Transactions.RetainedMessage {
 				t.Fatal("message admission flag retained")
 			}
 		})
@@ -180,7 +180,7 @@ func TestDriverBatchRoleACLConflictKeepsPeerRoot(t *testing.T) {
 					t.Fatal(q, err)
 				}
 			}
-			c := s.Transactions.catalog
+			c := s.Transactions.Catalog
 			if c == nil || c.RolesBase == nil || c.Roles == nil {
 				t.Fatal("missing pending role/ACL revision authority")
 			}

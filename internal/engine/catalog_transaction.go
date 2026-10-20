@@ -85,7 +85,7 @@ func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress)
 			return g
 		}
 	}
-	if c := s.owner.catalog; c != nil {
+	if c := s.owner.Catalog; c != nil {
 		if descriptor, exists := c.Descriptors[a]; exists && descriptor == nil {
 			return nil
 		}

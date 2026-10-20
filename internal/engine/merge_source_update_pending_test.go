@@ -61,7 +61,7 @@ func TestMergeSourceUpdatePending(t *testing.T) {
 					}
 				}
 				done := mergeUpdatePendingExecute(t, worker, q)
-				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, 0)
+				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, 0)
 				transactionRows(t, peer, "SELECT v FROM t", 10)
 				if lane == "fixedSource" {
 					sessionSQL(t, peer, "UPDATE source SET x=8")

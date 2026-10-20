@@ -61,10 +61,10 @@ func TestRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 				b := sessionStart(t, e, nil)
 				sessionSQL(t, a, tc.create)
 				sessionSQL(t, a, "CREATE TABLE u(v INT)")
-				originalName := b.Settings.values["application_name"]
+				originalName := b.Settings.Values["application_name"]
 				ra := transactionBegin(t, a)
 				rb := transactionBegin(t, b)
-				t.Cleanup(func() { e.endLockOwner(a.Transactions.ticket); e.endLockOwner(b.Transactions.ticket) })
+				t.Cleanup(func() { e.endLockOwner(a.Transactions.Ticket); e.endLockOwner(b.Transactions.Ticket) })
 				name := "t"
 				if strings.Contains(tc.create, "猫") {
 					name = "\"猫\""
@@ -88,8 +88,8 @@ func TestRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 				if b.TransactionState() != TxAborted {
 					t.Fatal("victim not aborted")
 				}
-				if got := b.Settings.values["application_name"]; got != originalName || b.Settings.actions != nil {
-					t.Fatalf("victim settings not restored before release: %q, actions=%v", got, b.Settings.actions)
+				if got := b.Settings.Values["application_name"]; got != originalName || b.Settings.Actions != nil {
+					t.Fatalf("victim settings not restored before release: %q, actions=%v", got, b.Settings.Actions)
 				}
 				op, err := b.Acquire(context.Background())
 				if err != nil {
@@ -119,7 +119,7 @@ func TestRelationDeadlockLifecycleCanceledPredecessor(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE u(v INT)")
 	transactionBegin(t, a)
 	transactionBegin(t, b)
-	at, bt := a.Transactions.ticket, b.Transactions.ticket
+	at, bt := a.Transactions.Ticket, b.Transactions.Ticket
 	t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
 	x := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
 	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "u")}

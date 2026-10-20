@@ -433,8 +433,8 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 		}
 		check("engine", e.mu.TryLock, e.mu.Unlock)
 		check("session", s.Mu.TryLock, s.Mu.Unlock)
-		check("settings", s.Settings.mu.TryLock, s.Settings.mu.Unlock)
-		check("transaction", txn.mu.TryLock, txn.mu.Unlock)
+		check("settings", s.Settings.Mu.TryLock, s.Settings.Mu.Unlock)
+		check("transaction", txn.Mu.TryLock, txn.Mu.Unlock)
 		check("replacement", e.replacementMu.TryLock, e.replacementMu.Unlock)
 		return failure
 	}}
@@ -445,14 +445,14 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	payloadOf(s).cursors.entries = map[string]*sqlCursor{"child": cursor}
 	e.replacementMu.RLock()
 	e.mu.Lock()
-	s.Settings.mu.Lock()
+	s.Settings.Mu.Lock()
 	s.Mu.Lock()
-	txn.mu.Lock()
+	txn.Mu.Lock()
 	ownerExtensionOf(txn).cursorCleanup = append(ownerExtensionOrZero(txn).cursorCleanup, payloadOf(s).cursors.rollback(0)...)
 	premature := scan.ends
-	txn.mu.Unlock()
+	txn.Mu.Unlock()
 	s.Mu.Unlock()
-	s.Settings.mu.Unlock()
+	s.Settings.Mu.Unlock()
 	e.mu.Unlock()
 	e.replacementMu.RUnlock()
 	if premature != 0 {

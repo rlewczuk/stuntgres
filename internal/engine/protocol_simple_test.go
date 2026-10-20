@@ -49,17 +49,17 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 		t.Fatal("control unexpectedly admitted a transaction")
 	}
 	owner := session.Transactions
-	ref, command := owner.ref, owner.command
+	ref, command := owner.Ref, owner.Command
 	e.replacementMu.RLock()
 	scope.replacementRead = true
 	rows := exec.NewFinalRows(nil, 0)
 	calls := 0
 	payloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"": {tx: ref, rows: protocolDisposalProbe{RowResult: rows, close: func() error {
 		calls++
-		if !owner.admission.TryLock() {
+		if !owner.Admission.TryLock() {
 			t.Error("disposal held admission")
 		} else {
-			owner.admission.Unlock()
+			owner.Admission.Unlock()
 		}
 		if !e.mu.TryLock() {
 			t.Error("disposal held engine lock")
@@ -76,7 +76,7 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	if err := scope.beginProtocolSimplePortal(); err != nil {
 		t.Fatal(err)
 	}
-	if calls != 1 || !rows.Closed || scope.txRef != ref || scope.command != command || owner.ref != ref || owner.command != command || !scope.replacementRead || owner.copyLease != nil {
+	if calls != 1 || !rows.Closed || scope.txRef != ref || scope.command != command || owner.Ref != ref || owner.Command != command || !scope.replacementRead || owner.CopyLease != nil {
 		t.Fatal("disposal changed incarnation, lost fence or retained reservation", calls)
 	}
 	// The same attached owner must support subsequent real output reservation;

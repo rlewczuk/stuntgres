@@ -233,7 +233,7 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	deleteCount(t, a, "DELETE FROM t WHERE v=2", 1)
 	target := catalogRef(t, e, e.CatalogRead(), "t")
 	epoch, frontier, ends := e.CatalogRead().Epoch(), e.visibility.CommitSeq(), e.storage.Relations[target.Address].Ends
-	own := a.Transactions.deletes[target.Address]
+	own := a.Transactions.Deletes[target.Address]
 	sentinel := errors.New("late replacement reader")
 	if err := e.Restore(context.Background(), &deleteFailingReader{text: "CREATE TABLE fresh(v INT); INSERT INTO fresh VALUES(99);", err: sentinel}); !errors.Is(err, sentinel) {
 		t.Fatal(err)
@@ -251,7 +251,7 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	if err := e.Restore(ctx, strings.NewReader("CREATE TABLE fresh(v INT)")); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address].Ends != ends || a.TransactionState() != TxActive || a.Transactions.deletes[target.Address] != own {
+	if e.CatalogRead().Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address].Ends != ends || a.TransactionState() != TxActive || a.Transactions.Deletes[target.Address] != own {
 		t.Fatal("failed replacement changed committed/private authority")
 	}
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 7)

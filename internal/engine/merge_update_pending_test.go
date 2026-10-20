@@ -125,7 +125,7 @@ func TestMergeUpdateReadCommittedPending(t *testing.T) {
 					q += " WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
 				}
 				done := mergeUpdatePendingExecute(t, worker, q)
-				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, 0)
+				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, 0)
 				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 30)
 				if lane == "fixedSource" {
 					sessionSQL(t, peer, "UPDATE source SET x=8")
@@ -205,20 +205,20 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				original := e.storage.Relations[ref.Address].Versions[0]
 				sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 				transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
-				worker.Transactions.mu.Lock()
-				frontier := worker.Transactions.frontier
-				roots := make(map[ids.ObjectAddress]visibility.Root, len(worker.Transactions.roots))
-				for address, root := range worker.Transactions.roots {
+				worker.Transactions.Mu.Lock()
+				frontier := worker.Transactions.Frontier
+				roots := make(map[ids.ObjectAddress]visibility.Root, len(worker.Transactions.Roots))
+				for address, root := range worker.Transactions.Roots {
 					roots[address] = root
 				}
-				worker.Transactions.mu.Unlock()
+				worker.Transactions.Mu.Unlock()
 				sessionSQL(t, worker, "UPDATE t SET v=21 WHERE id=2")
 				sessionSQL(t, worker, "DELETE FROM t WHERE id=3")
 				sessionSQL(t, worker, "INSERT INTO t VALUES(4,40)")
-				worker.Transactions.mu.Lock()
-				priorWrites := append([]storage.RowVersion(nil), worker.Transactions.writes[ref.Address]...)
-				priorDeletes := worker.Transactions.deletes[ref.Address]
-				worker.Transactions.mu.Unlock()
+				worker.Transactions.Mu.Lock()
+				priorWrites := append([]storage.RowVersion(nil), worker.Transactions.Writes[ref.Address]...)
+				priorDeletes := worker.Transactions.Deletes[ref.Address]
+				worker.Transactions.Mu.Unlock()
 				if targetOnly {
 					sessionSQL(t, worker, "SAVEPOINT before_target_only")
 				}
@@ -233,19 +233,19 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					q = "MERGE INTO t USING (SELECT 9 AS id WHERE FALSE) s ON t.id=s.id WHEN NOT MATCHED BY SOURCE AND t.id=1 THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
 				}
 				done := mergeUpdatePendingExecute(t, worker, q)
-				mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.Transactions.ticket, 0)
+				mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.Transactions.Ticket, 0)
 				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20, 30)
 				transactionEnd(t, holder, tx, commit)
 				if commit && deleted {
 					mergeUpdatePendingOutcome(t, done, 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent delete"})
-					worker.Transactions.mu.Lock()
-					correctOverlay := len(worker.Transactions.writes) == 0 && len(worker.Transactions.deletes) == 0
+					worker.Transactions.Mu.Lock()
+					correctOverlay := len(worker.Transactions.Writes) == 0 && len(worker.Transactions.Deletes) == 0
 					if targetOnly {
 						// The target-only lane has a recoverable savepoint: its
 						// successful ancestor work survives the failed statement.
-						correctOverlay = reflect.DeepEqual(worker.Transactions.writes[ref.Address], priorWrites) && worker.Transactions.deletes[ref.Address] == priorDeletes
+						correctOverlay = reflect.DeepEqual(worker.Transactions.Writes[ref.Address], priorWrites) && worker.Transactions.Deletes[ref.Address] == priorDeletes
 					}
-					worker.Transactions.mu.Unlock()
+					worker.Transactions.Mu.Unlock()
 					if !correctOverlay {
 						t.Fatal("concurrent delete violated private recovery boundary")
 					}
@@ -263,9 +263,9 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					}
 				} else {
 					mergeUpdatePendingOutcome(t, done, 1, nil)
-					worker.Transactions.mu.Lock()
-					sameSnapshot := worker.Transactions.snapshotSet && worker.Transactions.frontier == frontier && reflect.DeepEqual(worker.Transactions.roots, roots)
-					worker.Transactions.mu.Unlock()
+					worker.Transactions.Mu.Lock()
+					sameSnapshot := worker.Transactions.SnapshotSet && worker.Transactions.Frontier == frontier && reflect.DeepEqual(worker.Transactions.Roots, roots)
+					worker.Transactions.Mu.Unlock()
 					if !sameSnapshot {
 						t.Fatal("MERGE advanced or replaced the pinned RR snapshot")
 					}
@@ -276,14 +276,14 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					}
 					// The replacement keeps logical identity and its actual predecessor base;
 					// a peer descendant of snapshot10 is not a new unmatched INSERT.
-					worker.Transactions.mu.Lock()
+					worker.Transactions.Mu.Lock()
 					var own storage.RowVersion
-					for _, v := range worker.Transactions.writes[ref.Address] {
+					for _, v := range worker.Transactions.Writes[ref.Address] {
 						if v.Row == original.Row {
 							own = v
 						}
 					}
-					worker.Transactions.mu.Unlock()
+					worker.Transactions.Mu.Unlock()
 					if own.Row != original.Row || own.Version == original.Version || own.Base == 0 {
 						t.Fatal("lost replacement identity/predecessor", own, original)
 					}
@@ -352,10 +352,10 @@ func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
 				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
 			}
 			done := mergeUpdatePendingExecute(t, worker, q)
-			mergeUpdatePendingRow(t, e, ref, row, worker, writer.Transactions.ticket, lock.ForNoKeyUpdate)
+			mergeUpdatePendingRow(t, e, ref, row, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate)
 			transactionEnd(t, writer, b, true)
 			if tc.strong {
-				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForUpdate)
+				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
 				transactionRows(t, peer, "SELECT v FROM t", 20)
 				transactionEnd(t, holder, a, false)
 			}

@@ -28,7 +28,7 @@ func TestQueryLimitFrontierHolds(t *testing.T) {
 					}
 					br := transactionBegin(t, b)
 					rowLockViewRows(t, e, b, q, prepared, want...)
-					queryLimitGrants(t, e, b.Transactions.ticket, holds)
+					queryLimitGrants(t, e, b.Transactions.Ticket, holds)
 					transactionEnd(t, b, br, false)
 					lockEmpty(t, e)
 				})
@@ -49,7 +49,7 @@ func TestQueryLimitAggregateSibling(t *testing.T) {
 			sessionSQL(t, c, "CREATE VIEW grouped AS SELECT k,count(*) AS n FROM u GROUP BY k")
 			br := transactionBegin(t, b)
 			rowLockViewRows(t, e, b, "SELECT scalar_wrapper.v FROM scalar_wrapper CROSS JOIN grouped WHERE scalar_wrapper.id=1 ORDER BY grouped.k LIMIT 1", prepared, 10)
-			rowLockViewGrants(t, e, b.Transactions.ticket, "t", 1)
+			rowLockViewGrants(t, e, b.Transactions.Ticket, "t", 1)
 			transactionEnd(t, b, br, false)
 			lockEmpty(t, e)
 		})

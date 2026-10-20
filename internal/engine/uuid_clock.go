@@ -15,7 +15,7 @@ type uuidClock struct {
 	previous int64
 }
 
-func (s *uuidClock) now() int64 {
+func (s *uuidClock) Now() int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.previous = functions.UUIDAscendingTime(s.previous, time.Now().UnixNano(), functions.UUIDClockStep())

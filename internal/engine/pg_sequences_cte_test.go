@@ -104,7 +104,7 @@ func pgSequencesCTEHolder(t *testing.T, e *Engine, s *Session, used bool) {
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 		var mode lock.Mode
 		if entry != nil {
-			mode = entry.Holders[s.Transactions.ticket].Mode
+			mode = entry.Holders[s.Transactions.Ticket].Mode
 		}
 		var want lock.Mode
 		if used {

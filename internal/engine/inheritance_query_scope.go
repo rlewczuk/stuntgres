@@ -106,7 +106,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 	roots := s.querySources
 	if s.materializedOrZero().refresh {
 		e.mu.Lock()
-		catalog := e.privateCatalogLocked(s.owner.catalog)
+		catalog := e.privateCatalogLocked(s.owner.Catalog)
 		d, ok := catalog.Relation(s.lockedRef.Address)
 		if !ok || d.View == nil {
 			e.mu.Unlock()
@@ -128,9 +128,9 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 	}
 	for {
 		e.mu.Lock()
-		view := e.privateCatalogLocked(s.owner.catalog)
+		view := e.privateCatalogLocked(s.owner.Catalog)
 		for _, leaf := range s.inheritance.relations {
-			if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, leaf); err != nil {
+			if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, leaf); err != nil {
 				e.mu.Unlock()
 				return err
 			}
@@ -166,7 +166,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 					}
 				}
 			}
-			leaf.Storage = e.privateStorageLocked(s.owner.catalog, leaf.Ref.Address)
+			leaf.Storage = e.privateStorageLocked(s.owner.Catalog, leaf.Ref.Address)
 			pending = append(pending, leaf)
 			if grants == nil {
 				grants = make(map[ids.ObjectRef]lock.Mode)
@@ -202,15 +202,15 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			if err != nil {
 				return err
 			}
-			s.owner.mu.Lock()
-			implicit := s.owner.state == TxImplicit
-			s.owner.mu.Unlock()
+			s.owner.Mu.Lock()
+			implicit := s.owner.State == TxImplicit
+			s.owner.Mu.Unlock()
 			if implicit && !s.replacementRead {
 				e.replacementMu.RLock()
 				s.replacementRead = true
 			}
 			e.mu.Lock()
-			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf)
+			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.Catalog), s.owner.Catalog, leaf)
 			if err == nil {
 				e.markTemporaryAccessLocked(s, leaf.Ref)
 				s.inheritance.relations = append(s.inheritance.relations, leaf)

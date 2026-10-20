@@ -63,7 +63,7 @@ func TestDeleteCoreContention(t *testing.T) {
 			e.mu.Unlock()
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: target, Row: row}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Holders[a.Transactions.ticket].Mode == lock.ForUpdate
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Holders[a.Transactions.Ticket].Mode == lock.ForUpdate
 			if !queued {
 				t.Fatal("not waiting on original logical row")
 			}
@@ -107,16 +107,16 @@ func TestDeleteCoreRowAuthority(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	resource := lock.Resource{ObjectRef: ref, Row: 1}
 	manager := e.locks
-	if err := manager.Acquire(context.Background(), a.Transactions.ticket, resource, lock.ForUpdate); err != nil {
+	if err := manager.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.Acquire(context.Background(), a.Transactions.ticket, resource, lock.ForUpdate); err != nil {
+	if err := manager.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.ForUpdate); err != nil {
 		t.Fatal("self reentry", err)
 	}
-	if err := manager.Acquire(context.Background(), b.Transactions.ticket, lock.Resource{ObjectRef: ref, Row: 2}, lock.ForUpdate); err != nil {
+	if err := manager.Acquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref, Row: 2}, lock.ForUpdate); err != nil {
 		t.Fatal("distinct row", err)
 	}
-	if err := manager.Acquire(context.Background(), b.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+	if err := manager.Acquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal("ordinary SELECT", err)
 	}
 	for _, invalid := range []struct {
@@ -126,16 +126,16 @@ func TestDeleteCoreRowAuthority(t *testing.T) {
 		{lock.Resource{ObjectRef: ref}, lock.ForUpdate}, {resource, lock.AccessExclusive}, {resource, lock.AccessShare},
 		{lock.Resource{ObjectRef: ref.Domain().Ref(ref.Epoch+1, ref.Address), Row: 1}, lock.ForUpdate},
 	} {
-		if err := manager.Acquire(context.Background(), b.Transactions.ticket, invalid.resource, invalid.mode); err == nil {
+		if err := manager.Acquire(context.Background(), b.Transactions.Ticket, invalid.resource, invalid.mode); err == nil {
 			t.Fatal("invalid resource/mode accepted", invalid)
 		}
 	}
-	copyTicket := *a.Transactions.ticket
+	copyTicket := *a.Transactions.Ticket
 	if err := manager.Acquire(context.Background(), &copyTicket, resource, lock.ForUpdate); err == nil {
 		t.Fatal("copied ticket accepted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	request, err := manager.StartAcquire(ctx, b.Transactions.ticket, resource, lock.ForUpdate, lock.Policy{})
+	request, err := manager.StartAcquire(ctx, b.Transactions.Ticket, resource, lock.ForUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("row did not queue", request, err)
 	}
@@ -171,7 +171,7 @@ func TestDeleteCoreQueuedCancellation(t *testing.T) {
 			cancel()
 			deleteAwait(t, done, 0, context.Canceled)
 			if explicit {
-				if b.TransactionState() != TxAborted || b.Transactions.writes != nil || b.Transactions.deletes != nil || b.Transactions.ticket != nil {
+				if b.TransactionState() != TxAborted || b.Transactions.Writes != nil || b.Transactions.Deletes != nil || b.Transactions.Ticket != nil {
 					t.Fatal("explicit cancellation did not discard all private work")
 				}
 				transactionEnd(t, b, br, false)

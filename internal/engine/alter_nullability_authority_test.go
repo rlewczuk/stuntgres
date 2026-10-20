@@ -24,7 +24,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE t ALTER a SET NOT NULL")
 	op := transactionOperation(t, s)
 	s.Mu.Lock()
-	before := s.Authorization.revision
+	before := s.Authorization.Revision
 	s.Mu.Unlock()
 	if _, err := e.executeRole(op, statement(t, "SET SESSION AUTHORIZATION nn_nonowner"), 0, false); err != nil {
 		op.Done()
@@ -33,7 +33,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	role, exists := e.Roles().Lookup("nn_nonowner")
 	state := op.RoleState()
 	s.Mu.Lock()
-	after := s.Authorization.revision
+	after := s.Authorization.Revision
 	s.Mu.Unlock()
 	auth, err := operationAuthorization(op)
 	if err != nil {

@@ -69,9 +69,9 @@ func (s *StatementScope) beginProtocolSimplePortal() error {
 	// Its pre-execution disposal still borrows the current owner's exact fence;
 	// it must not start a new transaction or relax copyIO's resume validation.
 	if s.txRef == (ids.TxRef{}) {
-		s.owner.mu.Lock()
+		s.owner.Mu.Lock()
 		s.attachTransactionLocked()
-		s.owner.mu.Unlock()
+		s.owner.Mu.Unlock()
 	}
 	return s.CloseProtocolPortal("")
 }

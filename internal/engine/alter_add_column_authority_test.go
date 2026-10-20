@@ -38,7 +38,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: seq}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.Transactions.ticket].Mode&lock.AccessExclusive != 0
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.Transactions.Ticket].Mode&lock.AccessExclusive != 0
 			if !queued {
 				t.Fatal("ADD did not queue AS against exact provider")
 			}
@@ -99,9 +99,9 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					sessionSQL(t, worker, "INSERT INTO t VALUES(4)")
 					sessionSQL(t, worker, "SAVEPOINT before_add")
 				}
-				priorWrites := worker.Transactions.writes[ref.Address]
-				priorDeletes := worker.Transactions.deletes[ref.Address]
-				priorCatalog := worker.Transactions.catalog
+				priorWrites := worker.Transactions.Writes[ref.Address]
+				priorDeletes := worker.Transactions.Deletes[ref.Address]
+				priorCatalog := worker.Transactions.Catalog
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, err := worker.Acquire(ctx)
@@ -144,7 +144,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					cancel()
 				case "authorization":
 					worker.Mu.Lock()
-					worker.Authorization.revision++
+					worker.Authorization.Revision++
 					worker.Mu.Unlock()
 				case "storage":
 					injectedStorage = &storage.Relation{Generation: stored.Generation + 1, Versions: stored.Versions, Ends: stored.Ends}
@@ -181,7 +181,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != wantStorage || old.ColumnMeta.HighWater != 1 || len(old.Columns) != 1 || generator.Last != 6 {
 						t.Fatal("veto published ADD or rewound sequence")
 					}
-					if explicit && (!sameVersionRoot(worker.Transactions.writes[ref.Address], priorWrites) || worker.Transactions.deletes[ref.Address] != priorDeletes || worker.Transactions.catalog != priorCatalog) {
+					if explicit && (!sameVersionRoot(worker.Transactions.Writes[ref.Address], priorWrites) || worker.Transactions.Deletes[ref.Address] != priorDeletes || worker.Transactions.Catalog != priorCatalog) {
 						t.Fatal("savepoint private roots changed by veto")
 					}
 				} else {

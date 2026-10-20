@@ -18,8 +18,8 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 	ctx := context.Background()
 	values := map[string]string{"client_encoding": "utf-8", "lc_messages": "POSIX", "lc_monetary": "", "lc_numeric": "POSIX", "lc_time": "C", "icu_validation_level": "DEBUG", "extra_float_digits": "-1"}
 	provider := &settingsDefaultProviderForTest{values: values, calls: map[string]int{}}
-	store := sessionSettings{defaults: make(map[string]string), values: make(map[string]string)}
-	if err := store.initialize(ctx, e.settings.Definitions(), e.settings.Order(), provider); err != nil {
+	store := sessionSettings{Defaults: make(map[string]string), Values: make(map[string]string)}
+	if err := store.Initialize(ctx, e.settings.Definitions(), e.settings.Order(), provider); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range e.settings.Order() {
@@ -28,22 +28,22 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]string{"client_encoding": "UTF8", "lc_messages": "POSIX", "lc_monetary": "", "lc_numeric": "POSIX", "lc_time": "C", "icu_validation_level": "debug2", "extra_float_digits": "-1"} {
-		if store.value(name) != want {
-			t.Fatal(name, store.value(name), want)
+		if store.Value(name) != want {
+			t.Fatal(name, store.Value(name), want)
 		}
-		if settings.IsLocaleSetting(name) && store.defaultTyped[name].Locale == (sqltype.Locale{}) {
+		if settings.IsLocaleSetting(name) && store.DefaultTyped[name].Locale == (sqltype.Locale{}) {
 			t.Fatal("locale default not typed", name)
 		}
 	}
 	values["lc_numeric"] = "C.UTF-8"
 	values["extra_float_digits"] = "3"
-	if store.value("lc_numeric") != "POSIX" || store.typedValue("extra_float_digits").Number != -1 {
+	if store.Value("lc_numeric") != "POSIX" || store.TypedValue("extra_float_digits").Number != -1 {
 		t.Fatal("live provider leaked into captured defaults")
 	}
 	for _, bad := range []struct{ name, value string }{{"lc_numeric", "C.UTF-8"}, {"lc_messages", ""}, {"client_encoding", "LATIN1"}, {"icu_validation_level", "bogus"}, {"extra_float_digits", "4"}} {
-		owner := sessionSettings{defaults: make(map[string]string), values: make(map[string]string)}
+		owner := sessionSettings{Defaults: make(map[string]string), Values: make(map[string]string)}
 		p := &settingsDefaultProviderForTest{values: map[string]string{bad.name: bad.value}, calls: map[string]int{}}
-		if err := owner.initialize(ctx, e.settings.Definitions(), e.settings.Order(), p); err == nil {
+		if err := owner.Initialize(ctx, e.settings.Definitions(), e.settings.Order(), p); err == nil {
 			t.Fatal("invalid physical default accepted", bad)
 		}
 	}
@@ -108,7 +108,7 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 		t.Fatal("real ordinary role missing")
 	}
 	op.Session.Mu.Lock()
-	op.Session.Authorization.state.CurrentUser = reader.Ref
+	op.Session.Authorization.State.CurrentUser = reader.Ref
 	op.Session.Mu.Unlock()
 	if op.RoleState().SessionUser == reader.Ref {
 		t.Fatal("fixture lost superuser session identity")
@@ -117,13 +117,13 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if err := settingAccess(messages, op); !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != `permission denied to set parameter "lc_messages"` {
 		t.Fatal("current ordinary role admitted", err)
 	}
-	if op.Session.Settings.value("lc_messages") != "POSIX" {
+	if op.Session.Settings.Value("lc_messages") != "POSIX" {
 		t.Fatal("access check mutated setting")
 	}
 	if _, err := e.executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
 		t.Fatal("all-reset incorrectly reused individual permission", err)
 	}
-	if op.Session.Settings.value("lc_messages") != "C" {
+	if op.Session.Settings.Value("lc_messages") != "C" {
 		t.Fatal("all-reset retained privileged override")
 	}
 }
@@ -191,7 +191,7 @@ func TestFormatEncodingValidationNotices(t *testing.T) {
 		} else if len(notices) != 2 || notices[0].Code != "25P01" || notices[0].Message != "SET LOCAL can only be used in transaction blocks" || notices[1].Code != "22023" || notices[1].Severity != "WARNING" || notices[1].Message != `locale name "é🙂" contains non-ASCII characters` {
 			t.Fatal("failed validation lost or reordered actual warnings", notices)
 		}
-		if op.Session.Settings.value("lc_time") != "C" {
+		if op.Session.Settings.Value("lc_time") != "C" {
 			t.Fatal("failed locale validation published candidate")
 		}
 		if len(op.DetachNotices()) != 0 {

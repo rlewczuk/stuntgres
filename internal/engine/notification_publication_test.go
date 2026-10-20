@@ -63,7 +63,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				receiver, sender := sessionStart(t, e, nil), sessionStart(t, e, nil)
 				notificationUnitListen(t, receiver)
 				ref := transactionBegin(t, sender)
-				sender.Transactions.notificationEvents = []Notification{{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "published"}}
+				sender.Transactions.NotificationEvents = []Notification{{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "published"}}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, err := sender.AcquireActivity(ctx)
@@ -147,7 +147,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			r, s := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			notificationUnitListen(t, r)
 			ref := transactionBegin(t, s)
-			s.Transactions.notificationEvents = []Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
+			s.Transactions.NotificationEvents = []Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
 			replacement := *payloadOf(r).notifications.state
 			replacement.ready = replacement.ready.append([]Notification{{PID: 999, Channel: "unit", Payload: "before"}})
 			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: &payloadOf(r).notifications, replacement: &replacement}
@@ -215,26 +215,26 @@ func TestNotificationSavepointRoots(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	transactionBegin(t, s)
 	owner := s.Transactions
-	owner.mu.Lock()
-	defer owner.mu.Unlock()
+	owner.Mu.Lock()
+	defer owner.Mu.Unlock()
 	parent := Notification{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "parent"}
-	owner.notificationActions = make([]notificationAction, 1, 8)
-	owner.notificationActions[0] = notificationAction{channel: "unit", listen: true}
-	owner.notificationEvents = make([]Notification, 1, 8)
-	owner.notificationEvents[0] = parent
+	owner.NotificationActions = make([]notificationAction, 1, 8)
+	owner.NotificationActions[0] = notificationAction{Channel: "unit", Listen: true}
+	owner.NotificationEvents = make([]Notification, 1, 8)
+	owner.NotificationEvents[0] = parent
 	mark := captureSavepoint(owner, "root")
-	if cap(mark.notificationActions) != len(mark.notificationActions) || cap(mark.notificationEvents) != len(mark.notificationEvents) {
+	if cap(mark.NotificationActions) != len(mark.NotificationActions) || cap(mark.NotificationEvents) != len(mark.NotificationEvents) {
 		t.Fatal("savepoint retained mutable append capacity")
 	}
 	child := Notification{PID: parent.PID, Channel: "unit", Payload: "child"}
-	owner.notificationEvents = appendNotificationEvents(owner.notificationEvents, []Notification{parent, child})
-	owner.notificationActions = append(owner.notificationActions, notificationAction{all: true})
-	restoreSavepoint(owner, mark, mark.settings.clone())
-	owner.notificationEvents = appendNotificationEvents(owner.notificationEvents, []Notification{parent, child})
-	if !reflect.DeepEqual(owner.notificationEvents, []Notification{parent, child}) || len(owner.notificationActions) != 1 {
+	owner.NotificationEvents = appendNotificationEvents(owner.NotificationEvents, []Notification{parent, child})
+	owner.NotificationActions = append(owner.NotificationActions, notificationAction{All: true})
+	restoreSavepoint(owner, mark, mark.Settings.Clone())
+	owner.NotificationEvents = appendNotificationEvents(owner.NotificationEvents, []Notification{parent, child})
+	if !reflect.DeepEqual(owner.NotificationEvents, []Notification{parent, child}) || len(owner.NotificationActions) != 1 {
 		t.Fatal("rollback roots/dedup ancestry corrupted")
 	}
-	if len(mark.notificationEvents) != 1 || mark.notificationEvents[0] != parent {
+	if len(mark.NotificationEvents) != 1 || mark.NotificationEvents[0] != parent {
 		t.Fatal("append overwrote retained parent")
 	}
 }

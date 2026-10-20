@@ -10,14 +10,14 @@ import (
 // This delegate owns only the physical lifetime handle. Counts, granted modes,
 // queues and terminal decisions belong exclusively to lock.Manager.
 type sessionAdvisory struct {
-	ticket *lock.Ticket
-	locks  *lock.Manager
+	Ticket *lock.Ticket
+	Locks  *lock.Manager
 }
 
 func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error {
-	if a.ticket.Session() != token {
+	if a.Ticket.Session() != token {
 		return errors.New("stuntgres: foreign advisory session")
 	}
-	a.locks.End(a.ticket)
+	a.Locks.End(a.Ticket)
 	return nil
 }

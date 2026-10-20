@@ -194,7 +194,7 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 	if err != nil || ref.Address != table.Namespace() || temporaryNamespace(auth) != table.Namespace() {
 		t.Fatal("owned stage namespace unresolved", err)
 	}
-	if op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || op.Session.Transactions.catalog != nil {
+	if op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || op.Session.Transactions.Catalog != nil {
 		t.Fatal("stage namespace published before CREATE success")
 	}
 	auth.stagedTemporary = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}

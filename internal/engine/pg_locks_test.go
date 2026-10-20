@@ -304,9 +304,9 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(context.Canceled)
-	scope.owner.mu.Lock()
+	scope.owner.Mu.Lock()
 	scope.attachTransactionLocked()
-	scope.owner.mu.Unlock()
+	scope.owner.Mu.Unlock()
 	scope.worked = true
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 	store := e.storage.Relations[d.Address()]

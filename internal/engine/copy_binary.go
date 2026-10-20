@@ -97,12 +97,12 @@ func (c *copyBinaryCursor) headerInput() error {
 	return nil
 }
 func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
-	wireInput := c.scope.op.CopyInput.active.Load()
+	wireInput := c.scope.op.CopyInput.Active.Load()
 	if wireInput {
 		ctx = c.scope.op.Context()
 	}
 	if err := ctx.Err(); err != nil {
-		if c.header && c.scope.op.CopyInput.held() && pendingProtocolUserCancel(ctx) {
+		if c.header && c.scope.op.CopyInput.Held() && pendingProtocolUserCancel(ctx) {
 			// Refresh a context captured just before user cancellation only
 			// after binary startup has admitted the row-decoding phase.
 			ctx = c.scope.op.Context()

@@ -76,7 +76,7 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = result.Rows.Close()
-	ref, start, stamp := s.Transactions.ref, s.Transactions.start, m.scope.statementStart
+	ref, start, stamp := s.Transactions.Ref, s.Transactions.Start, m.scope.statementStart
 	s.Mu.Lock()
 	deadline := s.Timeouts.Transaction.Deadline
 	idle := !s.Timeouts.Idle.Deadline.IsZero()
@@ -96,7 +96,7 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 	later := s.Timeouts.Transaction.Deadline
 	idle = !s.Timeouts.Idle.Deadline.IsZero()
 	s.Mu.Unlock()
-	if s.Transactions.ref == ref || !s.Transactions.start.After(start) || !later.After(deadline) || m.scope.statementStart != stamp || m.scope.transactionStart != s.Transactions.start || idle || m.op.SQLFinished {
+	if s.Transactions.Ref == ref || !s.Transactions.Start.After(start) || !later.After(deadline) || m.scope.statementStart != stamp || m.scope.transactionStart != s.Transactions.Start || idle || m.op.SQLFinished {
 		t.Fatal("fresh segment reused prior birth/budget or message admission ended")
 	}
 	if err = m.end(nil); err != nil {
@@ -143,7 +143,7 @@ func TestDriverBatchFatalTransactionBudget(t *testing.T) {
 	if err = s.WaitEnd(wait); err != nil {
 		t.Fatal(err)
 	}
-	if s.IsLive() || s.Transactions.retainedMessage || s.Transactions.ticket != nil || s.TransactionState() != TxIdle {
+	if s.IsLive() || s.Transactions.RetainedMessage || s.Transactions.Ticket != nil || s.TransactionState() != TxIdle {
 		t.Fatal("fatal message retained owner resources")
 	}
 	lockEmpty(t, e)

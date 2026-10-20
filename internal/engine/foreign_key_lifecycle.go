@@ -416,7 +416,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	}
 	e := stage.owner
 	e.mu.Lock()
-	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	e.mu.Unlock()
 	for address, descriptor := range stage.Descriptors() {

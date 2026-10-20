@@ -8,7 +8,7 @@ import (
 func TestOwnerExtensionAllocatedWithSession(t *testing.T) {
 	e := NewWithSettings(nil, "", false)
 	s := sessionStart(t, e, nil)
-	x, _ := s.Transactions.extension.(*ownerExtension)
+	x, _ := s.Transactions.Extension.(*ownerExtension)
 	if x == nil {
 		t.Fatal("session owner has no root extension")
 	}
@@ -28,11 +28,11 @@ func TestOwnerExtensionOfLiteralOwner(t *testing.T) {
 			t.Fatal("missing extension does not read as zero")
 		}
 	})
-	if allocs != 0 || owner.extension != nil {
-		t.Fatalf("reading a missing extension allocated (%v allocs, slot %v)", allocs, owner.extension)
+	if allocs != 0 || owner.Extension != nil {
+		t.Fatalf("reading a missing extension allocated (%v allocs, slot %v)", allocs, owner.Extension)
 	}
 	x := ownerExtensionOf(owner)
-	if x == nil || owner.extension != x || ownerExtensionOf(owner) != x {
+	if x == nil || owner.Extension != x || ownerExtensionOf(owner) != x {
 		t.Fatal("ownerExtensionOf did not store one extension")
 	}
 	x.foreign.participants = []*foreignParticipant{{}}

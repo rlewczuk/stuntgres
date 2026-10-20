@@ -126,9 +126,9 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 	}
 	defer scope.Finish(nil)
 	op.CommandStart = op.CommandStart.Add(time.Second)
-	session.Settings.mu.Lock()
-	session.Settings.typed["timezone_abbreviations"] = settings.Value{Text: "India", TimezoneAbbreviations: sqltype.TimezoneAbbreviationsIndia}
-	session.Settings.mu.Unlock()
+	session.Settings.Mu.Lock()
+	session.Settings.Typed["timezone_abbreviations"] = settings.Value{Text: "India", TimezoneAbbreviations: sqltype.TimezoneAbbreviationsIndia}
+	session.Settings.Mu.Unlock()
 	for range 2 {
 		for _, tc := range []struct {
 			oid    ids.OID

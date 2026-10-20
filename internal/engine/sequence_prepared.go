@@ -18,12 +18,12 @@ func journalOf(c *catalogChanges) sequence.JournalIdentity {
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequence.Environment, error) {
 	key := sequence.PathKey{Role: auth.State.CurrentUser, Authorization: auth.Revision, Roles: auth.RoleRecord.Revision, Namespace: auth.Catalog.State().NamespaceGeneration(), Epoch: auth.Catalog.Epoch(), Temp: temporaryNamespace(auth), Prefix: auth.pathPrefix, Database: auth.Catalog.Get(catalog.CurrentDatabaseAddress)}
 	if auth.session != nil && auth.session.Transactions != nil {
-		key.Private = journalOf(auth.session.Transactions.catalog)
+		key.Private = journalOf(auth.session.Transactions.Catalog)
 	}
 	if auth.settings != nil {
-		auth.settings.mu.Lock()
-		key.Text = auth.settings.typedValue("search_path").Text
-		auth.settings.mu.Unlock()
+		auth.settings.Mu.Lock()
+		key.Text = auth.settings.TypedValue("search_path").Text
+		auth.settings.Mu.Unlock()
 	} else {
 		key.Text = e.settings.Definitions()["search_path"].BootValue().Text
 	}
@@ -51,7 +51,7 @@ func (e *Engine) sequenceAnalysisLocked(auth AuthorizationView, constants []sequ
 	if err != nil {
 		return sequence.Analysis{}, err
 	}
-	return sequence.Analysis{Constants: constants, Path: path, Private: journalOf(auth.session.Transactions.catalog), Session: auth.session.SessionToken, Namespace: auth.Catalog.State().NamespaceGeneration()}, nil
+	return sequence.Analysis{Constants: constants, Path: path, Private: journalOf(auth.session.Transactions.Catalog), Session: auth.session.SessionToken, Namespace: auth.Catalog.State().NamespaceGeneration()}, nil
 }
 func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *sequence.Analysis) (bool, error) {
 	if analysis == nil || len(analysis.Constants) == 0 {
@@ -61,7 +61,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	if err != nil {
 		return false, err
 	}
-	changed := analysis.Session != auth.session.SessionToken || analysis.Private != journalOf(auth.session.Transactions.catalog) || analysis.Namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(path, analysis.Path)
+	changed := analysis.Session != auth.session.SessionToken || analysis.Private != journalOf(auth.session.Transactions.Catalog) || analysis.Namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(path, analysis.Path)
 	for _, constant := range analysis.Constants {
 		ref := constant.Ref
 		if ref.Domain() != e.catalog.Domain {

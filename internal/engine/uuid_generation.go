@@ -11,4 +11,4 @@ func (h *statementHost) FunctionUUIDReady() error {
 	}
 	return nil
 }
-func (h *statementHost) FunctionUUIDTime() int64 { return h.op.Session.UUID.now() }
+func (h *statementHost) FunctionUUIDTime() int64 { return h.op.Session.UUID.Now() }

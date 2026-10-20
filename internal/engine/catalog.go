@@ -719,17 +719,17 @@ func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token Publication
 	return e.publishCatalog(nil, nil, p, token)
 }
 func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
-	if op != nil && op.Session.Transactions.retainsTransaction() {
+	if op != nil && op.Session.Transactions.RetainsTransaction() {
 		return e.stageMessageCatalog(op, p, token)
 	}
-	if scope != nil && scope.owner.state == TxActive {
+	if scope != nil && scope.owner.State == TxActive {
 		if scope.op == nil || scope.op != op || p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 		}
 		if token.Epoch != p.epoch {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
-		if err := e.stageCatalogOverlay(scope, p.stage, scope.owner.catalog.Clone()); err != nil {
+		if err := e.stageCatalogOverlay(scope, p.stage, scope.owner.Catalog.Clone()); err != nil {
 			return ChangeSet{}, err
 		}
 		return catalogStageChanges(p.stage), nil
@@ -1176,7 +1176,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				s.authSession.Mu.Lock()
 			}
 			auth := s.authSession.Authorization
-			valid := auth != nil && auth.revision == s.authRevision && e.roles.published.Revision == s.roleRevision
+			valid := auth != nil && auth.Revision == s.authRevision && e.roles.published.Revision == s.roleRevision
 			if op == nil || s.authSession != op.Session {
 				s.authSession.Mu.Unlock()
 			}
@@ -1188,7 +1188,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if op == nil || s.authSession != op.Session {
 				s.authSession.Mu.Lock()
 			}
-			auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.Authorization.state}, engine: e}
+			auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.Authorization.State}, engine: e}
 			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedOrZero().replacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.Session {
 				s.authSession.Mu.Unlock()

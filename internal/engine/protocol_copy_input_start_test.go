@@ -55,13 +55,13 @@ func TestProtocolCopyInputStartOwnership(t *testing.T) {
 			} else if !errors.Is(err, context.Canceled) {
 				t.Fatal("ordinary or pre-start cancellation changed", err)
 			}
-			if op.CopyInput.active.Load() || op.CopyInput.decoding.Load() || op.CopyInput.masked != nil || len(scope.stage.rows) != 0 {
+			if op.CopyInput.Active.Load() || op.CopyInput.Decoding.Load() || op.CopyInput.Masked != nil || len(scope.stage.rows) != 0 {
 				t.Fatal("failed input leaked ownership or applied rows")
 			}
 			if finish := scope.Finish(err); finish == nil {
 				t.Fatal("failed COPY finished successfully")
 			}
-			if scope.owner.copyLease != nil {
+			if scope.owner.CopyLease != nil {
 				t.Fatal("failed COPY retained reservation")
 			}
 		})

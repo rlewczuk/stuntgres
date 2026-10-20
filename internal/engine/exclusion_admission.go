@@ -167,7 +167,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.state.Epoch() || e.privateCatalogLocked(s.owner.catalog).State() != binding.catalog {
+	if ref.Epoch != e.catalog.state.Epoch() || e.privateCatalogLocked(s.owner.Catalog).State() != binding.catalog {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
@@ -240,7 +240,7 @@ func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *
 	s.installExclusionProjectionLocked(e, p)
 }
 func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate visibility.DeleteCandidate) {
-	parent, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.Ref.Address)
+	parent, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(candidate.Ref.Address)
 	if !ok || len(parent.Constraints.Exclusion) == 0 {
 		return
 	}
@@ -283,7 +283,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	view := e.privateCatalogLocked(s.owner.catalog)
+	view := e.privateCatalogLocked(s.owner.Catalog)
 	if ref.Epoch != e.catalog.state.Epoch() || view.State() != binding.catalog {
 		return exclusionScan{}, ids.ErrCatalogReplaced
 	}
@@ -297,8 +297,8 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
 	root := e.storage.IndexRoots[index.Address()]
-	if s.owner.catalog != nil {
-		if private, ok := journalIndexesOrZero(s.owner.catalog).uniqueRoots[index.Address()]; ok {
+	if s.owner.Catalog != nil {
+		if private, ok := journalIndexesOrZero(s.owner.Catalog).uniqueRoots[index.Address()]; ok {
 			root = private
 		}
 	}
@@ -306,7 +306,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	if !ok {
 		return exclusionScan{}, fmt.Errorf("stuntgres: missing exclusion namespace")
 	}
-	store := e.privateStorageLocked(s.owner.catalog, binding.parent.Address())
+	store := e.privateStorageLocked(s.owner.Catalog, binding.parent.Address())
 	if store == nil {
 		return exclusionScan{}, fmt.Errorf("stuntgres: missing exclusion row storage")
 	}
@@ -317,13 +317,13 @@ func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ids.Obje
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	root := e.storage.IndexRoots[index]
-	if s.owner.catalog != nil {
-		if private, ok := journalIndexesOrZero(s.owner.catalog).uniqueRoots[index]; ok {
+	if s.owner.Catalog != nil {
+		if private, ok := journalIndexesOrZero(s.owner.Catalog).uniqueRoots[index]; ok {
 			root = private
 		}
 	}
-	store := e.privateStorageLocked(s.owner.catalog, scan.parent)
-	return scan.generation == e.exclusionGeneration && scan.view.State() == e.privateCatalogLocked(s.owner.catalog).State() && scan.root == root && store == scan.store && store.Generation == scan.storeGeneration && len(store.Versions) == len(scan.versions) && store.Ends == scan.ends
+	store := e.privateStorageLocked(s.owner.Catalog, scan.parent)
+	return scan.generation == e.exclusionGeneration && scan.view.State() == e.privateCatalogLocked(s.owner.Catalog).State() && scan.root == root && store == scan.store && store.Generation == scan.storeGeneration && len(store.Versions) == len(scan.versions) && store.Ends == scan.ends
 }
 func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, candidate storage.RowVersion, recheck bool, purpose indexProbePurpose) (uniqueConflict, bool, error) {
 	index := bound.index

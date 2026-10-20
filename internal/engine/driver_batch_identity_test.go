@@ -12,19 +12,19 @@ import (
 func batchUnitIdentity(m *batchUnitMessage, current authorization.PrincipalRef) bool {
 	s := m.op.Session
 	t := s.Transactions
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	s.Settings.mu.Lock()
-	defer s.Settings.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
+	s.Settings.Mu.Lock()
+	defer s.Settings.Mu.Unlock()
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	if roleRevisionHeadroom(s.Authorization, uint64(len(t.savepoints))+3) != nil {
+	if roleRevisionHeadroom(s.Authorization, uint64(len(t.Savepoints))+3) != nil {
 		return false
 	}
 	engineOf(s).touchOperationIdentityLocked(m.op)
-	s.Settings.touchRole(s.Authorization.state.CurrentUser, false)
-	s.Authorization.state.CurrentUser = current
-	s.Authorization.revision++
+	s.Settings.TouchRole(s.Authorization.State.CurrentUser, false)
+	s.Authorization.State.CurrentUser = current
+	s.Authorization.Revision++
 	return true
 }
 func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
@@ -35,7 +35,7 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	}
 	b, _ := e.Roles().Lookup("b")
 	c, _ := e.Roles().Lookup("c")
-	original := s.Authorization.state
+	original := s.Authorization.State
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
 	for _, q := range []string{"SET ROLE a", "BEGIN", "SAVEPOINT p"} {
@@ -43,13 +43,13 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 			t.Fatal(q, err)
 		}
 	}
-	mark := s.Authorization.state
-	revision := s.Authorization.revision
-	ref := s.Transactions.ref
+	mark := s.Authorization.State
+	revision := s.Authorization.Revision
+	ref := s.Transactions.Ref
 	if err := m.end(nil); err != nil {
 		t.Fatal(err)
 	}
-	if !s.Transactions.identityCaptured || s.Transactions.identityEntry != original || s.Transactions.retainedMessage || s.Transactions.ref != ref {
+	if !s.Transactions.IdentityCaptured || s.Transactions.IdentityEntry != original || s.Transactions.RetainedMessage || s.Transactions.Ref != ref {
 		t.Fatal("message reset lost promoted identity entry")
 	}
 	n := batchUnitStart(t, s, context.Background())
@@ -66,13 +66,13 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	if _, err := n.step(statement(t, "RELEASE q")); err != nil {
 		t.Fatal(err)
 	}
-	if s.Authorization.state.CurrentUser != c.Ref || len(s.Transactions.savepoints) != 1 {
+	if s.Authorization.State.CurrentUser != c.Ref || len(s.Transactions.Savepoints) != 1 {
 		t.Fatal("release rewound identity")
 	}
 	if _, err := n.step(statement(t, "ROLLBACK TO p")); err != nil {
 		t.Fatal(err)
 	}
-	if s.Authorization.state != mark || s.Authorization.revision <= revision || s.Transactions.identityEntry != original {
+	if s.Authorization.State != mark || s.Authorization.Revision <= revision || s.Transactions.IdentityEntry != original {
 		t.Fatal("outer mark restoration")
 	}
 	if _, err := n.step(statement(t, "SAVEPOINT q")); err != nil {
@@ -81,19 +81,19 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	if !batchUnitIdentity(n, b.Ref) {
 		t.Fatal("recovery mutation capacity")
 	}
-	revision = s.Authorization.revision
+	revision = s.Authorization.Revision
 	_, failure := n.step(statement(t, "SELECT missing"))
 	if failure == nil {
 		t.Fatal("admitted failure")
 	}
-	if s.TransactionState() != TxAborted || s.Authorization.state != mark || s.Authorization.revision <= revision {
+	if s.TransactionState() != TxAborted || s.Authorization.State != mark || s.Authorization.Revision <= revision {
 		t.Fatal("abort did not restore reached mark identity monotonically")
 	}
-	revision = s.Authorization.revision
+	revision = s.Authorization.Revision
 	if _, err := n.step(statement(t, "ROLLBACK TO q")); err != nil {
 		t.Fatal(err)
 	}
-	if s.TransactionState() != TxActive || s.Authorization.state != mark || s.Authorization.revision != revision {
+	if s.TransactionState() != TxActive || s.Authorization.State != mark || s.Authorization.Revision != revision {
 		t.Fatal("same-state recovery invented mutation")
 	}
 	if _, err := n.step(statement(t, "ROLLBACK")); err != nil {
@@ -102,7 +102,7 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	if err := n.end(nil); err != nil {
 		t.Fatal(err)
 	}
-	if s.Authorization.state != original || s.Authorization.revision <= revision || s.Transactions.identityCaptured {
+	if s.Authorization.State != original || s.Authorization.Revision <= revision || s.Transactions.IdentityCaptured {
 		t.Fatal("outer rollback lost entry identity")
 	}
 }
@@ -111,11 +111,11 @@ func TestDriverBatchIdentityRevisionCapacity(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE ROLE a")
 	role, _ := e.Roles().Lookup("a")
-	original := s.Authorization.state
+	original := s.Authorization.State
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
-	s.Authorization.revision = ^uint64(0) - 3
-	if !batchUnitIdentity(m, role.Ref) || s.Authorization.revision != ^uint64(0)-2 {
+	s.Authorization.Revision = ^uint64(0) - 3
+	if !batchUnitIdentity(m, role.Ref) || s.Authorization.Revision != ^uint64(0)-2 {
 		t.Fatal("reserved mutation denied")
 	}
 	if batchUnitIdentity(m, role.Ref) {
@@ -127,12 +127,12 @@ func TestDriverBatchIdentityRevisionCapacity(t *testing.T) {
 	if _, err := m.step(statement(t, "ROLLBACK")); err != nil {
 		t.Fatal(err)
 	}
-	if s.Authorization.state != original || s.Authorization.revision != ^uint64(0)-1 {
+	if s.Authorization.State != original || s.Authorization.Revision != ^uint64(0)-1 {
 		t.Fatal("rollback revision wrapped")
 	}
 	_, err := m.step(statement(t, "SET ROLE a"))
 	var diagnostic interface{ SQLState() string }
-	if err == nil || !strings.Contains(err.Error(), "session authorization revision exhausted") || errors.As(err, &diagnostic) || s.Authorization.state != original || s.Authorization.revision != ^uint64(0)-1 {
+	if err == nil || !strings.Contains(err.Error(), "session authorization revision exhausted") || errors.As(err, &diagnostic) || s.Authorization.State != original || s.Authorization.Revision != ^uint64(0)-1 {
 		t.Fatal("exhaustion mutated or forged SQL diagnostic", err)
 	}
 	if end := m.end(err); end != err {

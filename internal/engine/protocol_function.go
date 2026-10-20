@@ -22,16 +22,16 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, err
 	}
 	t := s.owner
-	t.mu.Lock()
-	if t.state == TxAborted {
-		t.mu.Unlock()
+	t.Mu.Lock()
+	if t.State == TxAborted {
+		t.Mu.Unlock()
 		return ProtocolField{}, sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 	}
-	if c := t.protocolCycle; c != nil {
-		c.active = c.executed
+	if c := t.ProtocolCycle; c != nil {
+		c.Active = c.Executed
 	}
 	err := s.admitTransactionLocked(s.engine())
-	t.mu.Unlock()
+	t.Mu.Unlock()
 	if err != nil {
 		return ProtocolField{}, err
 	}

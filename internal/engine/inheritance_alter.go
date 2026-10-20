@@ -226,7 +226,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	}
 	original := scope.statementMutation
 	var stage *CatalogStage
-	state := &inheritanceAlterState{changes: scope.owner.catalog.Clone(), root: root, targets: targets, selected: map[ids.ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
+	state := &inheritanceAlterState{changes: scope.owner.Catalog.Clone(), root: root, targets: targets, selected: map[ids.ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
 	state.tablespace = tablespace
 	state.types = types
 	scope.inheritance.alter = state
@@ -250,7 +250,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	state.events = make(map[ids.ObjectAddress][]inheritanceAlterEvent)
 	state.selected = make(map[ids.ObjectAddress]bool)
 	e.mu.Lock()
-	current := e.privateCatalogLocked(scope.owner.catalog)
+	current := e.privateCatalogLocked(scope.owner.Catalog)
 	stage = e.BeginCatalogStage(current)
 	stage.authorizeLocked(auth, op.Session)
 	state.stage = stage
@@ -260,7 +260,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 			continue
 		}
 		e.mu.Lock()
-		current := e.privateCatalogLocked(scope.owner.catalog)
+		current := e.privateCatalogLocked(scope.owner.Catalog)
 		if current.Get(old.Address()) != old {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
@@ -305,7 +305,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		}
 		scope.lockedRef, scope.lockedDescriptor = ref, old
 		e.mu.Lock()
-		scope.lockedStorage = e.privateStorageLocked(scope.owner.catalog, old.Address())
+		scope.lockedStorage = e.privateStorageLocked(scope.owner.Catalog, old.Address())
 		e.mu.Unlock()
 		if len(planned) == 0 {
 			next, err := scope.finishInheritanceAlterCandidate(old, old)
@@ -344,7 +344,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		return Result{}, err
 	}
 	for _, old := range state.targets {
-		if state.selected[old.Address()] && e.privateCatalogLocked(scope.owner.catalog).Get(old.Address()) != old {
+		if state.selected[old.Address()] && e.privateCatalogLocked(scope.owner.Catalog).Get(old.Address()) != old {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}

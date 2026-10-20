@@ -21,7 +21,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	}()
 	e := s.engine()
 	e.mu.Lock()
-	catalogView := e.privateCatalogLocked(s.owner.catalog)
+	catalogView := e.privateCatalogLocked(s.owner.Catalog)
 	d, _ := catalogView.Relation(s.lockedRef.Address)
 	hasView := d != nil && (d.RelationKind == catalog.ViewRelation || s.materializedOrZero().refresh && d.RelationKind == catalog.MaterializedViewRelation)
 	for _, leaf := range s.querySources {
@@ -140,10 +140,10 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	catalogView = e.privateCatalogLocked(s.owner.catalog)
+	catalogView = e.privateCatalogLocked(s.owner.Catalog)
 	if s.materializedOrZero().refresh {
 		for _, observed := range s.materializedOrZero().sources {
-			if !materializedSourceCurrent(s.materializedOrZero().sourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.catalog, observed.Address())) {
+			if !materializedSourceCurrent(s.materializedOrZero().sourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.Catalog, observed.Address())) {
 				return ids.ErrCatalogReplaced
 			}
 		}
@@ -171,7 +171,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	for _, ref := range refs {
 		e.mu.Lock()
-		d, _ := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
+		d, _ := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
 		unsupported := d != nil && hierarchyRelation(d) && modes[ref] != 0
 		e.mu.Unlock()
 		if unsupported {
@@ -196,15 +196,15 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		if err := s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {
 			return err
 		}
-		s.owner.mu.Lock()
-		implicit := s.owner.state == TxImplicit
-		s.owner.mu.Unlock()
+		s.owner.Mu.Lock()
+		implicit := s.owner.State == TxImplicit
+		s.owner.Mu.Unlock()
 		if implicit && !s.replacementRead {
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		}
 		e.mu.Lock()
-		current, exists := e.privateCatalogLocked(s.owner.catalog).Find(ref.Address)
+		current, exists := e.privateCatalogLocked(s.owner.Catalog).Find(ref.Address)
 		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.state.Epoch() && exists
 		if valid && d != nil && preparedDefinitionStamp(current, s.op.Session) != preparedDefinitionStamp(d, s.op.Session) {
 			s.prepared.changedDuringAdmission = true

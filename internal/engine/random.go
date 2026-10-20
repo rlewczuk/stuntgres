@@ -12,21 +12,21 @@ import (
 // transaction/catalog/lifecycle lock is acquired while this mutex is held.
 // State deliberately survives rollback and native catalog replacement.
 type randomState struct {
-	mu          sync.Mutex
+	Mu          sync.Mutex
 	pcg         random.PCG
-	rand        random.Rand
-	initialized bool
+	Rand        random.Rand
+	Initialized bool
 }
 
 func (s *randomState) seed(a, b uint64) {
 	s.pcg.Seed(a, b)
-	if !s.initialized {
-		s.rand = *random.New(&s.pcg)
-		s.initialized = true
+	if !s.Initialized {
+		s.Rand = *random.New(&s.pcg)
+		s.Initialized = true
 	}
 }
 func (s *randomState) initialize() error {
-	if s.initialized {
+	if s.Initialized {
 		return nil
 	}
 	var entropy [16]byte
@@ -37,16 +37,16 @@ func (s *randomState) initialize() error {
 	return nil
 }
 func (s *randomState) SeedWords(a, b uint64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	s.seed(a, b)
 }
 func (s *randomState) Borrow() (*random.Rand, error) {
-	s.mu.Lock()
+	s.Mu.Lock()
 	if err := s.initialize(); err != nil {
-		s.mu.Unlock()
+		s.Mu.Unlock()
 		return nil, err
 	}
-	return &s.rand, nil
+	return &s.Rand, nil
 }
-func (s *randomState) Release() { s.mu.Unlock() }
+func (s *randomState) Release() { s.Mu.Unlock() }

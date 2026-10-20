@@ -57,8 +57,8 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 }
 
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
-	if stage.authSession != nil && stage.authSession.Transactions.retainsTransaction() {
-		if changes := stage.authSession.Transactions.catalog; changes != nil {
+	if stage.authSession != nil && stage.authSession.Transactions.RetainsTransaction() {
+		if changes := stage.authSession.Transactions.Catalog; changes != nil {
 			if root := journalIndexesOrZero(changes).uniqueRoots[address]; root != nil {
 				return root
 			}
@@ -98,10 +98,10 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 				}
 			}
 		}
-		if stableIsolation(scope.owner.isolation) && !shape.HasSnapshot {
-			scope.owner.mu.Lock()
-			snapshot, exists := scope.owner.roots[address]
-			scope.owner.mu.Unlock()
+		if stableIsolation(scope.owner.Isolation) && !shape.HasSnapshot {
+			scope.owner.Mu.Lock()
+			snapshot, exists := scope.owner.Roots[address]
+			scope.owner.Mu.Unlock()
 			if exists {
 				shape.Snapshot, shape.HasSnapshot = snapshot.Versions, true
 			}

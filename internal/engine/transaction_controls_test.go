@@ -61,20 +61,20 @@ func TestTransactionControlsChainIdentity(t *testing.T) {
 				sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 				controlsRequire(t, a, "BEGIN")
 				sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-				old, ticket := a.Transactions.ref, a.Transactions.ticket
+				old, ticket := a.Transactions.Ref, a.Transactions.Ticket
 				if aborted {
 					controlsAbort(t, a)
 				}
 				if err := controlsDescribe(t, a, q); err != nil {
 					t.Fatal(err)
 				}
-				if a.Transactions.ref != old || a.Transactions.ticket != map[bool]*lock.Ticket{false: ticket, true: nil}[aborted] {
+				if a.Transactions.Ref != old || a.Transactions.Ticket != map[bool]*lock.Ticket{false: ticket, true: nil}[aborted] {
 					t.Fatal("Describe ended owner")
 				}
 				controlsRequire(t, a, q)
-				next := a.Transactions.ref
-				fresh := a.Transactions.ticket
-				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.Ref() != next || a.TransactionState() != TxActive || a.Transactions.command != 0 || a.Transactions.writes != nil || len(e.locks.Inspect(fresh).Journals[fresh]) != 0 {
+				next := a.Transactions.Ref
+				fresh := a.Transactions.Ticket
+				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.Ref() != next || a.TransactionState() != TxActive || a.Transactions.Command != 0 || a.Transactions.Writes != nil || len(e.locks.Inspect(fresh).Journals[fresh]) != 0 {
 					t.Fatal("chain did not create independent empty authority", next, a.Transactions)
 				}
 				lockState := e.locks.Inspect()
@@ -110,7 +110,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 		controlsRequire(t, a, "BEGIN")
 		sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 		sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-		ref, ticket, command := a.Transactions.ref, a.Transactions.ticket, a.Transactions.command
+		ref, ticket, command := a.Transactions.Ref, a.Transactions.Ticket, a.Transactions.Command
 		ctx, cancel := context.WithCancel(context.Background())
 		op, err := a.Acquire(ctx)
 		if err != nil {
@@ -128,8 +128,8 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			if !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) {
 				t.Fatal("pre-admission context error", err)
 			}
-			if a.Transactions.ref != ref || a.Transactions.ticket != ticket ||
-				a.Transactions.command != command || a.TransactionState() != TxActive {
+			if a.Transactions.Ref != ref || a.Transactions.Ticket != ticket ||
+				a.Transactions.Command != command || a.TransactionState() != TxActive {
 				t.Fatal("pre-canceled entry changed genuine transaction")
 			}
 		}
@@ -154,8 +154,8 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 		if !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || result.Committed {
 			t.Fatal("canceled native Commit outcome", result, err)
 		}
-		if a.TransactionState() != TxIdle || a.Transactions.ref.ID() != 0 ||
-			a.Transactions.ticket != nil || a.Transactions.writes != nil || e.visibility.CommitSeq() != frontier {
+		if a.TransactionState() != TxIdle || a.Transactions.Ref.ID() != 0 ||
+			a.Transactions.Ticket != nil || a.Transactions.Writes != nil || e.visibility.CommitSeq() != frontier {
 			t.Fatal("canceled native Commit retained work/holds or published")
 		}
 		op.Done()
@@ -177,19 +177,19 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			sessionSQL(t, b, "CREATE TABLE t(v INT)")
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-			old := a.Transactions.ref
+			old := a.Transactions.Ref
 			frontier := e.visibility.CommitSeq()
 			switch counter {
 			case "tx":
-				a.Transactions.next = ids.TxID(^uint64(0))
+				a.Transactions.Next = ids.TxID(^uint64(0))
 			case "frontier":
 				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 			case "command":
-				a.Transactions.command = ids.CommandID(^uint64(0))
+				a.Transactions.Command = ids.CommandID(^uint64(0))
 			}
 			err := controlsExecute(t, a, "COMMIT AND CHAIN")
 			if counter == "command" {
-				if err != nil || a.Transactions.command != 0 || a.Transactions.ref == old {
+				if err != nil || a.Transactions.Command != 0 || a.Transactions.Ref == old {
 					t.Fatal(err, a.Transactions)
 				}
 				transactionRows(t, b, "SELECT v FROM t", 1)
@@ -197,8 +197,8 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			} else {
 				want := map[string]string{"tx": "stuntgres: transaction identity exhausted", "frontier": "stuntgres: commit sequence exhausted"}[counter]
 				var diagnostic interface{ SQLState() string }
-				if err == nil || err.Error() != want || errors.As(err, &diagnostic) || a.Transactions.ref.ID() != 0 && a.Transactions.ref != old {
-					t.Fatal(err, a.Transactions.ref)
+				if err == nil || err.Error() != want || errors.As(err, &diagnostic) || a.Transactions.Ref.ID() != 0 && a.Transactions.Ref != old {
+					t.Fatal(err, a.Transactions.Ref)
 				}
 				if counter == "tx" && e.visibility.CommitSeq() != frontier {
 					t.Fatal("birth exhaustion published")
@@ -214,7 +214,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 	sessionSQL(t, b, "CREATE TABLE t(v INT)")
 	controlsRequire(t, a, "BEGIN")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	ref := a.Transactions.ref
+	ref := a.Transactions.Ref
 	foreignRef := transactionBegin(t, b)
 	op := transactionOperation(t, a)
 	copyOp := *op
@@ -285,7 +285,7 @@ func TestTransactionControlsLockLifecycle(t *testing.T) {
 			}
 			r.Rows.Close()
 			if strings.Contains(q, "CHAIN") {
-				if len(e.locks.Inspect(a.Transactions.ticket).Journals[a.Transactions.ticket]) != 0 {
+				if len(e.locks.Inspect(a.Transactions.Ticket).Journals[a.Transactions.Ticket]) != 0 {
 					t.Fatal("AX inherited")
 				}
 				sessionSQL(t, a, "INSERT INTO t VALUES(2)")
@@ -336,7 +336,7 @@ func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	controlsRequire(t, a, "ROLLBACK AND CHAIN")
-	if a.Transactions.ref.Epoch() != e.CatalogRead().Epoch() {
+	if a.Transactions.Ref.Epoch() != e.CatalogRead().Epoch() {
 		t.Fatal("stale chained epoch")
 	}
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
@@ -354,11 +354,11 @@ func TestTransactionControlsSessionLifecycle(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO t VALUES(77)")
 	controlsRequire(t, a, "BEGIN")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	old := a.Transactions.ref
+	old := a.Transactions.Ref
 	if err := a.Reuse(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if a.Transactions.ref != old {
+	if a.Transactions.Ref != old {
 		t.Fatal("healthy reuse ended SQL block")
 	}
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 77)
@@ -462,7 +462,7 @@ func TestTransactionControlsStateMatrix(t *testing.T) {
 							controlsAbort(t, a)
 						}
 					}
-					ref, command, ticket := a.Transactions.ref, a.Transactions.command, a.Transactions.ticket
+					ref, command, ticket := a.Transactions.Ref, a.Transactions.Command, a.Transactions.Ticket
 					ast := statement(t, q)
 					start := strings.HasPrefix(q, "BEGIN") || strings.HasPrefix(q, "START")
 					if prepare {
@@ -479,7 +479,7 @@ func TestTransactionControlsStateMatrix(t *testing.T) {
 						if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 {
 							t.Fatal(description, err)
 						}
-						if a.Transactions.ref != ref || a.Transactions.command != command || a.Transactions.ticket != ticket || a.TransactionState() != state {
+						if a.Transactions.Ref != ref || a.Transactions.Command != command || a.Transactions.Ticket != ticket || a.TransactionState() != state {
 							t.Fatal("Describe affected transaction")
 						}
 					}
@@ -502,7 +502,7 @@ func TestTransactionControlsStateMatrix(t *testing.T) {
 					} else if err != nil {
 						t.Fatal(err)
 					}
-					if start && state == TxActive && (a.Transactions.ref != ref || a.Transactions.command != command || a.Transactions.ticket != ticket) {
+					if start && state == TxActive && (a.Transactions.Ref != ref || a.Transactions.Command != command || a.Transactions.Ticket != ticket) {
 						t.Fatal("redundant start changed owner")
 					}
 					want := []int64{}
@@ -524,7 +524,7 @@ func TestTransactionControlsMissingOperationAuthority(t *testing.T) {
 	controlsRequire(t, a, "BEGIN")
 	sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	ref, ticket, command := a.Transactions.ref, a.Transactions.ticket, a.Transactions.command
+	ref, ticket, command := a.Transactions.Ref, a.Transactions.Ticket, a.Transactions.Command
 	op := transactionOperation(t, a)
 	nonmember := *op
 	nonmember.Self = &nonmember
@@ -545,7 +545,7 @@ func TestTransactionControlsMissingOperationAuthority(t *testing.T) {
 	if scope != nil {
 		t.Fatal("nonmember admitted a scope")
 	}
-	if a.Transactions.ref != ref || a.Transactions.ticket != ticket || a.Transactions.command != command || a.TransactionState() != TxActive {
+	if a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || a.Transactions.Command != command || a.TransactionState() != TxActive {
 		t.Fatal("nonmember mutated genuine owner")
 	}
 	op.Done()

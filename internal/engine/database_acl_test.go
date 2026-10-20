@@ -155,7 +155,7 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 	}
 	auth.State.CurrentUser = reader
 	base, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	changes := s.Transactions.catalog.Clone()
+	changes := s.Transactions.Catalog.Clone()
 	ref, err := e.relationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)
 	e.mu.Unlock()
 	if err == nil || ref != (ids.ObjectRef{}) {

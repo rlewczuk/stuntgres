@@ -276,14 +276,14 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 	}
 	e := s.engine()
 	e.mu.Lock()
-	current := e.privateCatalogLocked(s.owner.catalog)
+	current := e.privateCatalogLocked(s.owner.Catalog)
 	currentIndex, ok := current.Relation(index.Address())
 	if !ok || !sameIndexKeySemantics(index, currentIndex) {
 		e.mu.Unlock()
 		return false, nil, ids.ErrCatalogReplaced
 	}
 	root := e.storage.IndexRoots[index.Address()]
-	if changes := s.owner.catalog; changes != nil && journalIndexesOrZero(changes).uniqueRoots[index.Address()] != nil {
+	if changes := s.owner.Catalog; changes != nil && journalIndexesOrZero(changes).uniqueRoots[index.Address()] != nil {
 		root = journalIndexesOrZero(changes).uniqueRoots[index.Address()]
 	}
 	e.mu.Unlock()

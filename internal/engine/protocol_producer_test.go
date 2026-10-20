@@ -38,15 +38,15 @@ func TestProtocolPortalProducer(t *testing.T) {
 	// older demand or disposing a different transaction's exported owner.
 	session := sessionStart(t, e, nil)
 	owner := session.Transactions
-	p.tx, p.born = owner.ref, 1
+	p.tx, p.born = owner.Ref, 1
 	newRows, foreignRows := exec.NewFinalRows(nil, 0), exec.NewFinalRows(nil, 0)
-	newPortal := &protocolPortal{tx: owner.ref, born: 2, rows: newRows}
-	foreign := &protocolPortal{tx: owner.ref, born: 3, rows: foreignRows}
+	newPortal := &protocolPortal{tx: owner.Ref, born: 2, rows: newRows}
+	foreign := &protocolPortal{tx: owner.Ref, born: 3, rows: foreignRows}
 	foreign.tx = withTxID(foreign.tx, foreign.tx.ID()+1)
 	payloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
-	owner.mu.Lock()
+	owner.Mu.Lock()
 	retireProtocolPortalsAfter(owner, 1)
-	owner.mu.Unlock()
+	owner.Mu.Unlock()
 	if p.retired || !newPortal.retired || foreign.retired || cursor.ordinalPosition != 4 {
 		t.Fatal("savepoint frontier changed older position or foreign ownership")
 	}

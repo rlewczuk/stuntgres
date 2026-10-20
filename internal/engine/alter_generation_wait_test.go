@@ -52,8 +52,8 @@ func TestAlterGeneratedExpressionAuthorizationAfterWait(t *testing.T) {
 	// Change the real session principal while AX admission is parked, rather than
 	// changing the ALTER AST or replacing its authorization result with a mock.
 	op.Session.Mu.Lock()
-	op.Session.Authorization.state.CurrentUser = actor.RoleState().CurrentUser
-	op.Session.Authorization.revision++
+	op.Session.Authorization.State.CurrentUser = actor.RoleState().CurrentUser
+	op.Session.Authorization.Revision++
 	op.Session.Mu.Unlock()
 	if err := blocker.Finish(nil); err != nil {
 		t.Fatal(err)

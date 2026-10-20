@@ -30,9 +30,9 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	if name == "" {
 		delete(r.entries, "")
 	}
-	s.op.Session.Settings.mu.Lock()
-	standard := s.op.Session.Settings.value("standard_conforming_strings") == "on"
-	s.op.Session.Settings.mu.Unlock()
+	s.op.Session.Settings.Mu.Lock()
+	standard := s.op.Session.Settings.Value("standard_conforming_strings") == "on"
+	s.op.Session.Settings.Mu.Unlock()
 	statements, err := parser.ParseWithOptions(source, parser.Options{Context: s.op.Context(), StandardConformingStrings: standard, Notice: s.op.ParseNotice})
 	if err != nil {
 		return ProtocolStatement{}, err
@@ -48,9 +48,9 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 		return ProtocolStatement{}, err
 	}
 	if body == nil {
-		s.owner.mu.Lock()
+		s.owner.Mu.Lock()
 		err = s.admitTransactionLocked(s.engine())
-		s.owner.mu.Unlock()
+		s.owner.Mu.Unlock()
 		if err != nil {
 			return ProtocolStatement{}, err
 		}

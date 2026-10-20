@@ -260,11 +260,11 @@ func TestRolePersistentReferencesAndIdentityGuards(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Session.Mu.Lock()
-	op.Session.Authorization.state.SessionUser = d.Ref
+	op.Session.Authorization.State.SessionUser = d.Ref
 	op.Session.Mu.Unlock()
 	roleError(t, e, op, "DROP ROLE dependent", "55006", "session user cannot be dropped", "")
 	op.Session.Mu.Lock()
-	op.Session.Authorization.state.SessionUser = op.Session.Authorization.state.Authenticated
+	op.Session.Authorization.State.SessionUser = op.Session.Authorization.State.Authenticated
 	op.Session.Mu.Unlock()
 	roleError(t, e, op, "DROP ROLE postgres", "55006", "current user cannot be dropped", "")
 	roleExecute(t, e, op, "DROP ROLE dependent")

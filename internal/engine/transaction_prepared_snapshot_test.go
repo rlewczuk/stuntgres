@@ -48,8 +48,8 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			join := serializableUnitCaptureWorker(t, reader)
 			serializableUnitAwaitCandidate(t, e, node)
 			e.mu.Lock()
-			original := reader.owner.roots[relation.Address]
-			frontier := reader.owner.frontier
+			original := reader.owner.Roots[relation.Address]
+			frontier := reader.owner.Frontier
 			e.mu.Unlock()
 			if err := preparedUnitControl(t, e, writer, parser.KindPrepareTransaction, "candidate"); err != nil {
 				t.Fatal(err)
@@ -59,7 +59,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			if node.Resolved || len(node.Possible) != 1 || reader.owner.snapshotSet || reader.owner.frontier != frontier || reader.owner.roots[relation.Address].Storage != original.Storage {
+			if node.Resolved || len(node.Possible) != 1 || reader.owner.SnapshotSet || reader.owner.Frontier != frontier || reader.owner.Roots[relation.Address].Storage != original.Storage {
 				e.mu.Unlock()
 				t.Fatal("prepare/origin end prematurely resolved or replaced admitted candidate")
 			}
@@ -74,13 +74,13 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			if err := join(); err != nil {
 				t.Fatal(err)
 			}
-			reader.owner.mu.Lock()
-			root := reader.owner.roots[relation.Address]
-			if !reader.owner.snapshotSet || reader.owner.frontier != frontier || root.Storage != original.Storage {
-				reader.owner.mu.Unlock()
+			reader.owner.Mu.Lock()
+			root := reader.owner.Roots[relation.Address]
+			if !reader.owner.SnapshotSet || reader.owner.Frontier != frontier || root.Storage != original.Storage {
+				reader.owner.Mu.Unlock()
 				t.Fatal("final outcome replaced admitted snapshot")
 			}
-			reader.owner.mu.Unlock()
+			reader.owner.Mu.Unlock()
 			source, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: root.Versions}, frontier, root.Ends, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -136,7 +136,7 @@ func TestPreparedTemporarySemanticDescriptionIsSticky(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !s.Transactions.accessedTemporary {
+	if !s.Transactions.AccessedTemporary {
 		t.Fatal("semantic description omitted actual temporary namespace access")
 	}
 	if err := preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "semantic"); err == nil {

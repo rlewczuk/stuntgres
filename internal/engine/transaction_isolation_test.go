@@ -109,19 +109,19 @@ func TestTransactionIsolationRootLifecycle(t *testing.T) {
 	sessionSQL(t, a, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	transactionRows(t, a, "SELECT v FROM t", 1)
 	tOwner := a.Transactions
-	tOwner.mu.Lock()
-	roots := tOwner.roots
-	frontier := tOwner.frontier
-	tOwner.mu.Unlock()
+	tOwner.Mu.Lock()
+	roots := tOwner.Roots
+	frontier := tOwner.Frontier
+	tOwner.Mu.Unlock()
 	if len(roots) != 1 || frontier == 0 {
 		t.Fatal("missing all-relation roots")
 	}
 	sessionSQL(t, b, "UPDATE t SET v=2")
 	transactionRows(t, a, "SELECT v FROM t", 1)
 	sessionSQL(t, a, "ROLLBACK")
-	tOwner.mu.Lock()
-	retained := tOwner.roots != nil || tOwner.snapshotSet
-	tOwner.mu.Unlock()
+	tOwner.Mu.Lock()
+	retained := tOwner.Roots != nil || tOwner.SnapshotSet
+	tOwner.Mu.Unlock()
 	if retained {
 		t.Fatal("retained owner roots after end")
 	}
@@ -182,7 +182,7 @@ func TestTransactionIsolationStatementTimeout(t *testing.T) {
 		}
 	})
 	request := timeoutPendingRequest(t, e, op)
-	rowLockQueued(t, e, b.Transactions.ticket, lock.ForNoKeyUpdate)
+	rowLockQueued(t, e, b.Transactions.Ticket, lock.ForNoKeyUpdate)
 	timeoutPendingPublish(t, e, request, op.StatementDeadline)
 	select {
 	case err := <-done:

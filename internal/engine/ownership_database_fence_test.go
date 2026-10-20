@@ -110,7 +110,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			for address, root := range f.e.storage.Relations {
 				relations[address] = root
 			}
-			sessionRevision := session.Authorization.revision
+			sessionRevision := session.Authorization.Revision
 			prefix := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
 			if _, err := message.step(prefix); err != nil {
 				t.Fatal(err)
@@ -153,7 +153,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				cancel()
 			}
 			current := f.e.catalog.state
-			if f.e.roles.published != oldRoles || current.Epoch() != oldCatalog.Epoch() || session.Authorization.revision != sessionRevision {
+			if f.e.roles.published != oldRoles || current.Epoch() != oldCatalog.Epoch() || session.Authorization.Revision != sessionRevision {
 				t.Fatal("intervening DB change altered unrelated authority")
 			}
 			finishErr := message.scope.Finish(nil)

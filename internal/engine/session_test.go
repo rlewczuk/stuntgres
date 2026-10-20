@@ -210,7 +210,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Replace the production SQL-name owner only in this callback-order unit.
-	if err = s.Detach(s.Resources[PreparedSQL].handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[PreparedSQL].Handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	op, _ := s.Acquire(context.Background())
@@ -277,7 +277,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 		t.Fatal(order)
 	}
 	lockState := e.locks.Inspect()
-	advisoryLive := lockState.Valid(s.Advisory.ticket)
+	advisoryLive := lockState.Valid(s.Advisory.Ticket)
 	if advisoryLive {
 		t.Fatal("built-in advisory delegate survived session cleanup")
 	}
@@ -315,7 +315,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 		t.Fatal(err, count)
 	}
 	foreign := h
-	foreign.session = withSessionDomain(foreign.session, New().catalog.Domain)
+	foreign.Session = withSessionDomain(foreign.Session, New().catalog.Domain)
 	if err = s.Detach(foreign, CleanClose); err == nil {
 		t.Fatal("foreign detach")
 	}
@@ -334,7 +334,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	if _, err = s.Acquire(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if err = s.Detach(s.Resources[PreparedSQL].handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[PreparedSQL].Handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	s.Mu.Lock()
@@ -354,7 +354,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	// This unit injects cleanup errors rather than exercising SQL definitions.
-	if err = s.Detach(s.Resources[PreparedSQL].handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[PreparedSQL].Handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	op, _ := s.Acquire(context.Background())

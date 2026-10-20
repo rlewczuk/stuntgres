@@ -590,7 +590,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 				switch mode {
 				case "authority":
 					op.Session.Mu.Lock()
-					op.Session.Authorization.state.CurrentUser = actor.Ref
+					op.Session.Authorization.State.CurrentUser = actor.Ref
 					op.Session.Mu.Unlock()
 				case "teardown":
 					op.Session.RequestEnd(CleanClose)
@@ -760,7 +760,7 @@ func TestConditionalInsertPlanningPriorityAtomicity(t *testing.T) {
 		}
 		if denied {
 			op.Session.Mu.Lock()
-			op.Session.Authorization.state.CurrentUser = actor.Ref
+			op.Session.Authorization.State.CurrentUser = actor.Ref
 			op.Session.Mu.Unlock()
 		}
 		scope, err := e.StartStatement(op)

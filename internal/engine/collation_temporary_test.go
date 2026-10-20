@@ -61,7 +61,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	before := e.CatalogRead()
 	tx := transactionBegin(t, peer)
 	ref := catalogRef(t, e, before, "coll_cleanup_t")
-	if err := e.locks.Acquire(context.Background(), peer.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), peer.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	owner.RequestEnd(CleanClose)

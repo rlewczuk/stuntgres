@@ -18,7 +18,7 @@ func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (s
 	if d, ok := e.settings.Definitions()[key]; ok {
 		return d, nil
 	}
-	if !s.placeholders[key] {
+	if !s.Placeholders[key] {
 		if !create || !strings.Contains(name, ".") {
 			return e.settings.Lookup(name)
 		}
@@ -45,13 +45,13 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 		if d.Normalize != nil {
 			v.Text, notice, err = d.Normalize(*input)
 		} else if d.Name == "datestyle" {
-			owner.mu.Lock()
-			current, ok := owner.typed[d.Name]
+			owner.Mu.Lock()
+			current, ok := owner.Typed[d.Name]
 			if !ok {
-				current = owner.defaultTyped[d.Name]
+				current = owner.DefaultTyped[d.Name]
 			}
-			defaults := owner.defaultTyped[d.Name]
-			owner.mu.Unlock()
+			defaults := owner.DefaultTyped[d.Name]
+			owner.Mu.Unlock()
 			style, detail := sqltype.ParseDateStyle(*input, current.DateStyle, defaults.DateStyle)
 			if detail != "" {
 				err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "DateStyle": "%s"`, *input), Detail: detail}
@@ -72,26 +72,26 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	owner.mu.Lock()
-	defer owner.mu.Unlock()
+	owner.Mu.Lock()
+	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return "", err
 	}
-	if owner.ended {
+	if owner.Ended {
 		return "", errors.New("stuntgres: settings attachment ended")
 	}
-	owner.touch(d.Name, local)
+	owner.Touch(d.Name, local)
 	if _, registered := e.settings.Definitions()[d.Name]; !registered {
-		owner.placeholders[d.Name] = true
+		owner.Placeholders[d.Name] = true
 	}
 	if input == nil {
-		delete(owner.values, d.Name)
-		delete(owner.typed, d.Name)
+		delete(owner.Values, d.Name)
+		delete(owner.Typed, d.Name)
 	} else {
-		owner.values[d.Name] = d.Format(v)
-		owner.typed[d.Name] = v
+		owner.Values[d.Name] = d.Format(v)
+		owner.Typed[d.Name] = v
 	}
 	if d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout" {
 		op.Session.PublishTimeoutSettingsLocked(owner, d.Name == "transaction_timeout", time.Now())
@@ -99,7 +99,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 	if notice != nil {
 		op.EmitNotice(levelNotice, *notice)
 	}
-	return owner.value(d.Name), nil
+	return owner.Value(d.Name), nil
 }
 
 func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
@@ -152,10 +152,10 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 		return Result{}, errors.New("stuntgres: invalid setting statement")
 	}
 	e.mu.Lock()
-	owner.mu.Lock()
+	owner.Mu.Lock()
 	op.Session.Mu.Lock()
 	locked := true
-	unlock := func() { op.Session.Mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
+	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.mu.Unlock() }
 	defer func() {
 		if locked {
 			unlock()
@@ -164,7 +164,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if owner.ended {
+	if owner.Ended {
 		return Result{}, errors.New("stuntgres: settings attachment ended")
 	}
 	typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
@@ -182,7 +182,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 				return Result{}, err
 			}
 			d := e.settings.Definitions()[key]
-			rows = append(rows, []sqltype.Value{sqltype.String(typ, settings.DisplayName(key)), sqltype.String(typ, owner.value(key)), sqltype.String(typ, d.Description)})
+			rows = append(rows, []sqltype.Value{sqltype.String(typ, settings.DisplayName(key)), sqltype.String(typ, owner.Value(key)), sqltype.String(typ, d.Description)})
 		}
 		if err := op.Ctx.Err(); err != nil {
 			return Result{}, err
@@ -206,5 +206,5 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	if err := op.Ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	return anonymousResult(settingColumns(typ, settings.DisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, 0)
+	return anonymousResult(settingColumns(typ, settings.DisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, owner.Value(d.Name))}}, 0)
 }

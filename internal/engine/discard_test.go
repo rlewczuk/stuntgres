@@ -62,9 +62,9 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			cursor := &sqlCursor{root: &plan.ProjectNode{}, authority: &exec.Authority{}}
 			cursor.tx = tx
 			payloadOf(a).cursors.entries["c"] = cursor
-			resources, serial, ticket, catalog, roles := a.Resources, a.Serial, a.Advisory.ticket, e.catalog.state, e.roles.published
+			resources, serial, ticket, catalog, roles := a.Resources, a.Serial, a.Advisory.Ticket, e.catalog.state, e.roles.published
 			discardUnitApply(t, a, category)
-			if a.Resources != resources || a.Serial != serial || a.Advisory.ticket != ticket || !a.IsLive() {
+			if a.Resources != resources || a.Serial != serial || a.Advisory.Ticket != ticket || !a.IsLive() {
 				t.Fatal("DISCARD detached or retired physical owners")
 			}
 			if e.catalog.state != catalog || e.roles.published != roles || payloadOf(b).preparedSQL.entries["p"] != entry || !currvalIs(payloadOf(b).sequences.Memory(address), 8) || payloadOf(b).sequences.Last() != address || b.DiscardPlansGeneration != 0 {
@@ -154,20 +154,20 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 		sessionSQL(t, s, "BEGIN")
 		sessionSQL(t, s, "INSERT INTO discard_pending VALUES(7)")
 		sessionSQL(t, s, "SAVEPOINT mark")
-		catalog, marks := s.Transactions.catalog, len(s.Transactions.savepoints)
+		catalog, marks := s.Transactions.Catalog, len(s.Transactions.Savepoints)
 		var address ids.ObjectAddress
-		for a, rows := range s.Transactions.writes {
+		for a, rows := range s.Transactions.Writes {
 			if len(rows) != 0 {
 				address = a
 			}
 		}
-		rows := s.Transactions.writes[address]
+		rows := s.Transactions.Writes[address]
 		if len(rows) == 0 {
 			t.Fatal("missing genuine private write")
 		}
 		for _, category := range []parser.DiscardCategory{parser.DiscardPlans, parser.DiscardSequences} {
 			discardUnitApply(t, s, category)
-			if s.Transactions.catalog != catalog || len(s.Transactions.savepoints) != marks || &s.Transactions.writes[address][0] != &rows[0] {
+			if s.Transactions.Catalog != catalog || len(s.Transactions.Savepoints) != marks || &s.Transactions.Writes[address][0] != &rows[0] {
 				t.Fatal("stage-free subset merged or replaced private roots")
 			}
 		}
@@ -304,7 +304,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	storage := e.storage.Relations[relation.Address()]
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "CREATE TEMP TABLE discard_private(v int)")
-	private := e.privateCatalogLocked(s.Transactions.catalog)
+	private := e.privateCatalogLocked(s.Transactions.Catalog)
 	var privateAddress ids.ObjectAddress
 	for a, d := range private.Descriptors() {
 		if d.Name() == "discard_private" {
@@ -332,11 +332,11 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if e.catalog.state.Get(relation.Address()) != relation || s.Transactions.catalog == nil || s.TemporaryNamespace != namespace {
+	if e.catalog.state.Get(relation.Address()) != relation || s.Transactions.Catalog == nil || s.TemporaryNamespace != namespace {
 		t.Fatal("private deletion leaked to shared catalog or retired namespace")
 	}
 	sessionSQL(t, s, "ROLLBACK")
-	if e.catalog.state.Get(relation.Address()) != relation || e.storage.Relations[relation.Address()] != storage || s.Transactions.catalog != nil {
+	if e.catalog.state.Get(relation.Address()) != relation || e.storage.Relations[relation.Address()] != storage || s.Transactions.Catalog != nil {
 		t.Fatal("rollback failed to release private deletion")
 	}
 	t.Run("CollationDependentProjection", func(t *testing.T) {
@@ -421,7 +421,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					t.Fatal(err)
 				}
 				op.Done()
-				private := e.privateCatalogLocked(s.Transactions.catalog)
+				private := e.privateCatalogLocked(s.Transactions.Catalog)
 				projected := private.MustRelation(survivor.Address())
 				if projected == survivor || len(projected.Columns) != 1 || private.Get(providerAddress) != nil || private.Get(indexAddress) != nil || e.catalog.state.Get(survivor.Address()) != survivor || e.storage.Relations[survivor.Address()] != storage || len(storage.Versions[0].Values) != 2 {
 					t.Fatal("private projection leaked into committed descriptor/data or missed closure")
@@ -505,23 +505,23 @@ func TestDiscardConfiguredReset(t *testing.T) {
 	provider := &discardDefaultProvider{}
 	s := sessionStart(t, e, provider)
 	calls := provider.calls
-	reset, authenticated, counted := s.Authorization.state.ResetRole, s.Authorization.state.Authenticated, s.CountedAuthenticated
+	reset, authenticated, counted := s.Authorization.State.ResetRole, s.Authorization.State.Authenticated, s.CountedAuthenticated
 	// Alter genuine owner overrides without inventing connector options.
-	s.Settings.values["application_name"] = "changed"
-	s.Settings.typed["application_name"] = settings.Value{Text: "changed"}
-	s.Settings.placeholders["discard.placeholder"] = true
-	s.Settings.values["discard.placeholder"] = "changed"
-	s.Settings.typed["discard.placeholder"] = settings.Value{Text: "changed"}
-	s.Authorization.state.CurrentUser = authenticated
+	s.Settings.Values["application_name"] = "changed"
+	s.Settings.Typed["application_name"] = settings.Value{Text: "changed"}
+	s.Settings.Placeholders["discard.placeholder"] = true
+	s.Settings.Values["discard.placeholder"] = "changed"
+	s.Settings.Typed["discard.placeholder"] = settings.Value{Text: "changed"}
+	s.Authorization.State.CurrentUser = authenticated
 	discardUnitApply(t, s, parser.DiscardAll)
-	if provider.calls != calls || s.Settings.value("application_name") != "discard-configured" || !s.Settings.placeholders["discard.placeholder"] || s.Authorization.state.CurrentUser != reset || s.Authorization.state.SessionUser != authenticated || s.CountedAuthenticated != counted {
+	if provider.calls != calls || s.Settings.Value("application_name") != "discard-configured" || !s.Settings.Placeholders["discard.placeholder"] || s.Authorization.State.CurrentUser != reset || s.Authorization.State.SessionUser != authenticated || s.CountedAuthenticated != counted {
 		t.Fatal("ALL lost configured defaults/recognition/identity")
 	}
-	before := s.Authorization.state
-	s.Authorization.revision = ^uint64(0)
+	before := s.Authorization.State
+	s.Authorization.Revision = ^uint64(0)
 	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
 	_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardAll}, 0)
-	if err == nil || !reflect.DeepEqual(before, s.Authorization.state) || scope.completed {
+	if err == nil || !reflect.DeepEqual(before, s.Authorization.State) || scope.completed {
 		t.Fatal("revision exhaustion installed effects", err)
 	}
 	scope.Finish(err)

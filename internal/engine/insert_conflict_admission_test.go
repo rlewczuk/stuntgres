@@ -157,8 +157,8 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 	for _, isolation := range []Isolation{ReadCommitted, RepeatableRead, Serializable} {
 		f := insertConflictUniqueFixture(t)
 		scope, ref := insertConflictUnitScope(t, f)
-		scope.owner.isolation = isolation
-		scope.owner.frontier = 0
+		scope.owner.Isolation = isolation
+		scope.owner.Frontier = 0
 		admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 		if isolation == ReadCommitted {
 			if err != nil || admitted {

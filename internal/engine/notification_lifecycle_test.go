@@ -90,7 +90,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 			t.Fatal(got)
 		}
 		s.Mu.Lock()
-		handle := s.Resources[Notifications].handle
+		handle := s.Resources[Notifications].Handle
 		s.Mu.Unlock()
 		if err := s.Detach(handle, CleanClose); err != nil {
 			t.Fatal(err)
@@ -203,7 +203,7 @@ func TestNotificationBatchOwnership(t *testing.T) {
 	notificationUnitListen(t, a)
 	notificationUnitListen(t, b)
 	ref := transactionBegin(t, sender)
-	sender.Transactions.notificationEvents = []Notification{
+	sender.Transactions.NotificationEvents = []Notification{
 		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "first"},
 		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "second"},
 	}

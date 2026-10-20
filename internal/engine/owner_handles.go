@@ -24,7 +24,7 @@ func sessionTokenAttached(token ids.SessionToken) bool {
 func txOwnerAttached(ref ids.TxRef) bool {
 	owner := txOwnerOf(ref)
 	return owner != nil && sessionTokenAttached(ref.Session()) &&
-		(ref.Session().ID() != 0 || owner.session == privateSessionOf(ref.Session()))
+		(ref.Session().ID() != 0 || owner.Session == privateSessionOf(ref.Session()))
 }
 
 // privateSessionOf recovers the maintenance session a private token names,

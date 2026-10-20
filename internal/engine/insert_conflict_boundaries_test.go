@@ -162,11 +162,11 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	manager := f.e.locks
 	// A session ticket has no candidate unique-key contribution. The mark must
 	// not capture or later restore the persistent counted ownership.
-	mark := manager.CheckpointUnique(session.Advisory.ticket, nil)
+	mark := manager.CheckpointUnique(session.Advisory.Ticket, nil)
 	if len(mark) != 0 {
 		t.Fatal("persistent ticket entered candidate checkpoint", mark)
 	}
-	manager.RestoreUnique(session.Advisory.ticket, mark)
+	manager.RestoreUnique(session.Advisory.Ticket, mark)
 	row := insertConflictUnitRow(t, f, 20)
 	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: row}, indexWriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal(admitted, err)

@@ -24,7 +24,7 @@ func TestMergeReturningRowRecheck(t *testing.T) {
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=40 WHERE id=1")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING source src ON t.id=src.id WHEN MATCHED THEN UPDATE SET v=t.v+src.delta RETURNING merge_action(),src.delta,old.v,new.v")
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForNoKeyUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	// The source changes only after observing the worker's actual row queue.
 	sessionSQL(t, peer, "UPDATE source SET delta=99")
 	transactionEnd(t, holder, tx, true)
@@ -92,7 +92,7 @@ func TestMergeReturningCancellation(t *testing.T) {
 			t.Error("cancelled returning worker did not retire")
 		}
 	})
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForNoKeyUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	transactionRows(t, peer, "SELECT v FROM t", 10)
 	cancel()
 	select {

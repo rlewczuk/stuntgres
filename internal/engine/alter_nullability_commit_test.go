@@ -56,7 +56,7 @@ func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
 			transactionRows(t, s, "SELECT a FROM t ORDER BY a", 8, 9)
 			sequenceScalar(t, s, "SELECT nextval('seq')", 20)
 		}
-		if s.Transactions.state != TxIdle {
+		if s.Transactions.State != TxIdle {
 			transactionEnd(t, s, tx, false)
 		}
 		lockEmpty(t, e)

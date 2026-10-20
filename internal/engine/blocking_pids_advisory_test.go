@@ -20,7 +20,7 @@ func TestBlockingPidsAdvisorySafeSnapshot(t *testing.T) {
 	advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r, err := e.locks.StartAcquire(ctx, b.Advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: rb})
+	r, err := e.locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: rb})
 	if err != nil || r == nil {
 		t.Fatal("persistent advisory request", r, err)
 	}

@@ -37,53 +37,53 @@ func isolationText(level Isolation) string {
 	}
 }
 func syncCharacteristics(t *transactionOwner) {
-	settings := t.session.Settings
-	settings.mu.Lock()
-	settings.currentIsolation = isolationText(t.isolation)
-	settings.currentReadOnly = t.readOnly
-	settings.currentDeferrable = t.deferrable
-	settings.mu.Unlock()
-	e := engineOf(t.session)
+	settings := t.Session.Settings
+	settings.Mu.Lock()
+	settings.CurrentIsolation = isolationText(t.Isolation)
+	settings.CurrentReadOnly = t.ReadOnly
+	settings.CurrentDeferrable = t.Deferrable
+	settings.Mu.Unlock()
+	e := engineOf(t.Session)
 	e.mu.Lock()
-	if !t.snapshotSet && (t.state == TxActive || t.state == TxImplicit) {
-		e.enrollSerializableLocked(t.ref, t.isolation)
+	if !t.SnapshotSet && (t.State == TxActive || t.State == TxImplicit) {
+		e.enrollSerializableLocked(t.Ref, t.Isolation)
 	}
 	e.mu.Unlock()
 }
 func assignModes(t *transactionOwner, modes []parser.TransactionMode) error {
-	isolation, readOnly, deferrable := t.isolation, t.readOnly, t.deferrable
+	isolation, readOnly, deferrable := t.Isolation, t.ReadOnly, t.Deferrable
 	for _, mode := range modes {
 		if mode.Isolation != parser.IsolationDefault {
 			next := Isolation(mode.Isolation)
-			if t.snapshotSet && next != isolation {
+			if t.SnapshotSet && next != isolation {
 				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
 			}
-			if len(t.savepoints) != 0 && next != isolation {
+			if len(t.Savepoints) != 0 && next != isolation {
 				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must not be called in a subtransaction")
 			}
 			isolation = next
 		}
 		if mode.AccessSet {
-			if len(t.savepoints) != 0 && readOnly && !mode.ReadOnly {
+			if len(t.Savepoints) != 0 && readOnly && !mode.ReadOnly {
 				return sqlError("25001", "cannot set transaction read-write mode inside a read-only transaction")
 			}
-			if t.snapshotSet && readOnly && !mode.ReadOnly {
+			if t.SnapshotSet && readOnly && !mode.ReadOnly {
 				return sqlError("25001", "transaction read-write mode must be set before any query")
 			}
 			readOnly = mode.ReadOnly
 		}
 		if mode.DeferrableSet {
-			if len(t.savepoints) != 0 {
+			if len(t.Savepoints) != 0 {
 				return sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE cannot be called within a subtransaction")
 			}
-			if t.snapshotSet {
+			if t.SnapshotSet {
 				return sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE must be called before any query")
 			}
 			deferrable = mode.Deferrable
 		}
 	}
-	t.isolation, t.readOnly = isolation, readOnly
-	t.deferrable = deferrable
+	t.Isolation, t.ReadOnly = isolation, readOnly
+	t.Deferrable = deferrable
 	syncCharacteristics(t)
 	return nil
 }
@@ -96,8 +96,8 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d settings.Definition
 		return "", err
 	}
 	t := op.Session.Transactions
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
 	if err := e.endPreflight(op); err != nil {
 		return "", err
 	}
@@ -114,15 +114,15 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d settings.Definition
 		return "", err
 	}
 	if d.Name == "transaction_isolation" {
-		return isolationText(t.isolation), nil
+		return isolationText(t.Isolation), nil
 	}
 	if d.Name == "transaction_deferrable" {
-		if t.deferrable {
+		if t.Deferrable {
 			return "on", nil
 		}
 		return "off", nil
 	}
-	if t.readOnly {
+	if t.ReadOnly {
 		return "on", nil
 	}
 	return "off", nil
@@ -156,19 +156,19 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 			e.mu.Lock()
 			d := e.settings.Definitions()[name]
 			e.mu.Unlock()
-			if _, err := e.applySetting(s.op, t.session.Settings, d, &value, false); err != nil {
+			if _, err := e.applySetting(s.op, t.Session.Settings, d, &value, false); err != nil {
 				return Result{}, err
 			}
 		}
 		s.completed = true
 		return Result{}, nil
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
 	if err := e.endPreflight(s.op); err != nil {
 		return Result{}, err
 	}
-	if !t.inBlock() {
+	if !t.InBlock() {
 		s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
 	}
 	err := assignModes(t, stmt.Modes)
@@ -190,23 +190,23 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 // reading its function identity or invoking argument/result codecs.
 func (s *StatementScope) snapshotDataPhase() error {
 	t, e := s.owner, s.engine()
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
 	if err := s.acquireSerializableSnapshot(); err != nil {
 		return err
 	}
 	needsProjection := func(roots map[ids.ObjectAddress]visibility.Root) bool {
-		if !stableIsolation(t.isolation) || t.catalog == nil {
+		if !stableIsolation(t.Isolation) || t.Catalog == nil {
 			return false
 		}
-		for address, shape := range t.catalog.Storage {
+		for address, shape := range t.Catalog.Storage {
 			if root, exists := roots[address]; exists && !shape.HasSnapshot && !slices.Equal(root.Relation.Attributes, shape.Relation.Attributes) {
 				return true
 			}
 		}
 		return false
 	}
-	if t.snapshotSet && !needsProjection(t.roots) {
+	if t.SnapshotSet && !needsProjection(t.Roots) {
 		return nil
 	}
 	session := s.op.Session
@@ -216,7 +216,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return err
 		}
-		if t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch() {
+		if t.Ref != s.txRef || t.Ref.Epoch() != e.catalog.state.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		return nil
@@ -226,10 +226,10 @@ func (s *StatementScope) snapshotDataPhase() error {
 		e.mu.Unlock()
 		return err
 	}
-	roots, frontier := t.roots, t.frontier
-	sequenceCatalog := t.sequenceCatalog
-	if !t.snapshotSet && stableIsolation(t.isolation) {
-		if _, err := e.visibilitySnapshotLocked(t.ref, false); err != nil {
+	roots, frontier := t.Roots, t.Frontier
+	sequenceCatalog := t.SequenceCatalog
+	if !t.SnapshotSet && stableIsolation(t.Isolation) {
+		if _, err := e.visibilitySnapshotLocked(t.Ref, false); err != nil {
 			session.Mu.Unlock()
 			e.mu.Unlock()
 			return err
@@ -244,14 +244,14 @@ func (s *StatementScope) snapshotDataPhase() error {
 		sequenceCatalog = e.catalog.state
 	}
 	if !needsProjection(roots) {
-		t.roots, t.frontier = roots, frontier
-		t.sequenceCatalog = sequenceCatalog
-		t.snapshotSet = true
+		t.Roots, t.Frontier = roots, frontier
+		t.SequenceCatalog = sequenceCatalog
+		t.SnapshotSet = true
 		session.Mu.Unlock()
 		e.mu.Unlock()
 		return nil
 	}
-	catalog := t.catalog
+	catalog := t.Catalog
 	session.Mu.Unlock()
 	e.mu.Unlock()
 	// Raw roots remain the committed authority. Dense private projections are
@@ -264,10 +264,10 @@ func (s *StatementScope) snapshotDataPhase() error {
 	session.Mu.Lock()
 	err = check()
 	if err == nil {
-		t.catalog = projected
-		t.roots, t.frontier = roots, frontier
-		t.sequenceCatalog = sequenceCatalog
-		t.snapshotSet = true
+		t.Catalog = projected
+		t.Roots, t.Frontier = roots, frontier
+		t.SequenceCatalog = sequenceCatalog
+		t.SnapshotSet = true
 	}
 	session.Mu.Unlock()
 	e.mu.Unlock()
@@ -449,9 +449,9 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	case *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return nil
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if tag := modifyingTag(stmt); t.readOnly && tag != "" {
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
+	if tag := modifyingTag(stmt); t.ReadOnly && tag != "" {
 		return sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
 	return nil
@@ -470,18 +470,18 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 		return nil
 	}
 	t := s.owner
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
 	if _, ok := stmt.(*parser.CreateTablespace); ok {
-		if t.inBlock() {
+		if t.InBlock() {
 			return sqlError("25001", "CREATE TABLESPACE cannot run inside a transaction block")
 		}
 		return nil
 	}
-	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character != 0 && t.inBlock() {
+	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character != 0 && t.InBlock() {
 		return sqlError("25001", "CREATE INDEX CONCURRENTLY cannot run inside a transaction block")
 	}
-	if t.state == TxActive {
+	if t.State == TxActive {
 		return sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	return nil
@@ -519,16 +519,16 @@ func explicitUtility(stmt parser.Statement) bool {
 	return false
 }
 func (s *StatementScope) repeatableConflict(head storage.RowVersion, end *storage.DeletionRoot) error {
-	if !stableIsolation(s.owner.isolation) || head.Born == 0 {
+	if !stableIsolation(s.owner.Isolation) || head.Born == 0 {
 		return nil
 	}
 	// The snapshot's predecessor was replaced before its successor was deleted.
 	// PostgreSQL reports that first update, rather than the successor's tombstone.
-	if head.Born > s.owner.frontier {
+	if head.Born > s.owner.Frontier {
 		return sqlError("40001", "could not serialize access due to concurrent update")
 	}
 	if end != nil {
-		if tombstone, ok := end.Rows[head.Row]; ok && tombstone.Version == head.Version && tombstone.End > s.owner.frontier {
+		if tombstone, ok := end.Rows[head.Row]; ok && tombstone.Version == head.Version && tombstone.End > s.owner.Frontier {
 			return sqlError("40001", "could not serialize access due to concurrent delete")
 		}
 	}

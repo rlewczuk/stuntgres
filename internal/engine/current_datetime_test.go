@@ -135,22 +135,22 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	first := implicit.input.TransactionStart
 	assertClock(first)
 	finish(implicit, nil)
-	if !session.Transactions.start.IsZero() {
+	if !session.Transactions.Start.IsZero() {
 		t.Fatal("implicit clock retained after end")
 	}
 	advance(first)
 	ref := transactionBegin(t, session)
 	owner := session.Transactions
-	outer := owner.start
+	outer := owner.Start
 	assertClock(outer)
 	if !outer.After(first) {
 		t.Fatal("driver birth did not refresh", first, outer)
 	}
-	owner.mu.Lock()
+	owner.Mu.Lock()
 	mark := captureSavepoint(owner, "clock")
-	restoreSavepoint(owner, mark, mark.settings.clone())
-	restored := owner.start
-	owner.mu.Unlock()
+	restoreSavepoint(owner, mark, mark.Settings.Clone())
+	restored := owner.Start
+	owner.Mu.Unlock()
 	if !restored.Equal(outer) {
 		t.Fatal("savepoint rebirthed clock", outer, restored)
 	}
@@ -159,7 +159,7 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	start := scopeFor()
 	_, err := start.executeControl(&parser.TransactionControl{Kind: parser.KindStart}, 0)
 	finish(start, err)
-	sqlClock := owner.start
+	sqlClock := owner.Start
 	assertClock(sqlClock)
 	if !sqlClock.After(outer) {
 		t.Fatal("SQL birth did not refresh", sqlClock, outer)
@@ -168,9 +168,9 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	chain := scopeFor()
 	_, err = chain.executeControl(&parser.TransactionControl{Kind: parser.KindCommit, Chain: true}, 0)
 	finish(chain, err)
-	assertClock(owner.start)
-	if !owner.start.After(sqlClock) {
-		t.Fatal("CHAIN birth did not refresh", owner.start, sqlClock)
+	assertClock(owner.Start)
+	if !owner.Start.After(sqlClock) {
+		t.Fatal("CHAIN birth did not refresh", owner.Start, sqlClock)
 	}
-	transactionEnd(t, session, owner.ref, false)
+	transactionEnd(t, session, owner.Ref, false)
 }

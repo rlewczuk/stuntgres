@@ -55,27 +55,27 @@ func (e *Engine) transactionAdmission(op *Operation) error {
 
 // Admission is held by the Go entrypoint or the SQL scope, never recursively.
 func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Time) (ids.TxRef, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
 	if err := e.transactionAdmission(op); err != nil {
 		return ids.TxRef{}, err
 	}
-	if t.state != TxIdle {
+	if t.State != TxIdle {
 		return ids.TxRef{}, errors.New("stuntgres: transaction already active")
 	}
 	if err := e.beginLocked(op, t, TxActive, start); err != nil {
 		return ids.TxRef{}, err
 	}
-	ref := t.ref
-	t.mu.Unlock()
+	ref := t.Ref
+	t.Mu.Unlock()
 	ticket, err := e.registerTransactionLocks(ref)
-	t.mu.Lock()
+	t.Mu.Lock()
 	if err != nil {
 		clearTransaction(t)
-		t.session.RetireTransactionTimeout()
+		t.Session.RetireTransactionTimeout()
 		return ids.TxRef{}, err
 	}
-	t.ticket = ticket
+	t.Ticket = ticket
 	return ref, nil
 }
 
@@ -102,7 +102,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			e.replacementMu.RUnlock()
 		}
 	}()
-	t.mu.Lock()
+	t.Mu.Lock()
 	var old, candidate *lock.Ticket
 	var next ids.TxRef
 	installedNext := false
@@ -111,14 +111,14 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			e.endSerializable(next, false)
 		}
 		finishNotificationBoundary(t)
-		t.mu.Unlock()
+		t.Mu.Unlock()
 		e.endLockOwner(candidate)
 		e.endLockOwner(old)
 	}()
 	if err := e.transactionAuthority(op); err != nil {
 		return EndResult{}, err
 	}
-	if err := t.validate(ref); err != nil {
+	if err := t.Validate(ref); err != nil {
 		return EndResult{}, err
 	}
 	if !sqlEnd {
@@ -127,25 +127,25 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		// incarnation; Rollback still rejects cancellation without clearing it.
 		if err := op.Context().Err(); err != nil {
 			if commit {
-				old = t.ticket
-				t.ticket = nil
-				t.session.Settings.finishTransaction(false)
-				e.endSerializable(t.ref, false)
+				old = t.Ticket
+				t.Ticket = nil
+				t.Session.Settings.FinishTransaction(false)
+				e.endSerializable(t.Ref, false)
 				clearTransaction(t)
-				t.session.RetireTransactionTimeout()
+				t.Session.RetireTransactionTimeout()
 			}
 			return EndResult{}, err
 		}
 	}
-	isolation, readOnly, deferrable := t.isolation, t.readOnly, t.deferrable
-	if chain && (!commit || t.state == TxAborted) && len(t.savepoints) != 0 {
+	isolation, readOnly, deferrable := t.Isolation, t.ReadOnly, t.Deferrable
+	if chain && (!commit || t.State == TxAborted) && len(t.Savepoints) != 0 {
 		// Abort pops every retained child before PostgreSQL selects CHAIN
 		// characteristics. Healthy commit instead carries the current child
 		// mode; do not apply abort unwinding to that distinct disposition.
-		readOnly = t.savepoints[0].readOnly
+		readOnly = t.Savepoints[0].ReadOnly
 	}
 	if chain {
-		if t.next == ids.TxID(^uint64(0)) {
+		if t.Next == ids.TxID(^uint64(0)) {
 			return EndResult{}, errors.New("stuntgres: transaction identity exhausted")
 		}
 		e.mu.Lock()
@@ -156,8 +156,8 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			diagnostic, err = e.visibility.NextDiagnosticTxLocked()
 		}
 		if err == nil {
-			t.next++
-			next = e.catalog.Domain.Tx(t.session.SessionToken, t.next, e.catalog.state.Epoch(), t, diagnostic)
+			t.Next++
+			next = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.state.Epoch(), t, diagnostic)
 			e.enrollSerializableLocked(next, isolation)
 		}
 		op.Session.Mu.Unlock()
@@ -165,10 +165,10 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		if err != nil {
 			return EndResult{}, err
 		}
-		t.mu.Unlock()
+		t.Mu.Unlock()
 		var errRegister error
 		candidate, errRegister = e.registerTransactionLocks(next)
-		t.mu.Lock()
+		t.Mu.Lock()
 		if errRegister != nil {
 			return EndResult{}, errRegister
 		}
@@ -177,14 +177,14 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	// failed rollback preflight, ends the old incarnation with its original error.
 	var err error
 	committed := false
-	if commit && t.state != TxAborted {
+	if commit && t.State != TxAborted {
 		if len(ownerExtensionOrZero(t).exclusionModes.events) != 0 || payloadOf(op.Session).cursors.hasCurrentHold(ref) {
 			if scope == nil {
 				scope = newStatementScope(op, t, statementOperationStart(op))
 			}
 			scope.attachTransactionLocked()
 		}
-		t.mu.Unlock()
+		t.Mu.Unlock()
 		if chainFence {
 			e.replacementMu.RUnlock()
 			chainFence = false
@@ -198,7 +198,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		if scope != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
 			scope.foreignUnlocked()
 		}
-		if cleanupErr := disposeSQLCursors(op.Context(), payloadOf(t.session).cursors.endTransaction(ref)); err == nil {
+		if cleanupErr := disposeSQLCursors(op.Context(), payloadOf(t.Session).cursors.endTransaction(ref)); err == nil {
 			err = cleanupErr
 		}
 		hasForeign := len(ownerExtensionOrZero(t).foreign.participants) != 0
@@ -220,7 +220,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			if scope != nil && len(scope.foreignTablesOrZero().statements) != 0 {
 				publicationScope = scope
 			}
-			err = e.publishWrites(op, ref, t.writes, t.deletes, publicationScope)
+			err = e.publishWrites(op, ref, t.Writes, t.Deletes, publicationScope)
 			committed = err == nil
 		}
 		if scope != nil && len(scope.foreignTablesOrZero().statements) != 0 {
@@ -243,7 +243,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			}
 			e.mu.Unlock()
 		}
-		t.mu.Lock()
+		t.Mu.Lock()
 	} else {
 		err = e.endPreflight(op)
 		// Replacement also fences SQL recovery commits of aborted blocks.
@@ -258,13 +258,13 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	if err != nil && !commit {
 		return EndResult{}, err
 	}
-	if !commit || t.state == TxAborted {
+	if !commit || t.State == TxAborted {
 		if chainFence {
 			e.replacementMu.RUnlock()
 			chainFence = false
 		}
-		t.mu.Unlock()
-		cleanupErr := disposeSQLCursors(op.Context(), payloadOf(t.session).cursors.endTransaction(ref))
+		t.Mu.Unlock()
+		cleanupErr := disposeSQLCursors(op.Context(), payloadOf(t.Session).cursors.endTransaction(ref))
 		if chain {
 			e.replacementMu.RLock()
 			chainFence = true
@@ -274,39 +274,39 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			}
 			e.mu.Unlock()
 		}
-		t.mu.Lock()
+		t.Mu.Lock()
 		if err == nil {
 			err = cleanupErr
 		}
 	}
-	old = t.ticket
-	t.ticket = nil
-	t.session.Settings.finishTransaction(committed)
-	e.endSerializable(t.ref, committed)
+	old = t.Ticket
+	t.Ticket = nil
+	t.Session.Settings.FinishTransaction(committed)
+	e.endSerializable(t.Ref, committed)
 	clearTransaction(t)
-	t.session.RetireTransactionTimeout()
+	t.Session.RetireTransactionTimeout()
 	if err != nil {
 		return EndResult{Committed: committed}, err
 	}
 	// All fallible work/allocation is over. Publication survives late cancel,
 	// and old waiters wake only after this fresh empty incarnation is installed.
 	if chain {
-		t.ref = next
-		t.state = TxActive
-		t.isolation, t.readOnly = isolation, readOnly
-		t.deferrable = deferrable
+		t.Ref = next
+		t.State = TxActive
+		t.Isolation, t.ReadOnly = isolation, readOnly
+		t.Deferrable = deferrable
 		// CHAIN restores modes directly: they are the new block's unstacked
 		// baseline, unlike BEGIN's overrides of session defaults.
-		t.entryIsolation, t.entryReadOnly = isolation, readOnly
-		t.entryDeferrable = deferrable
+		t.EntryIsolation, t.EntryReadOnly = isolation, readOnly
+		t.EntryDeferrable = deferrable
 		syncCharacteristics(t)
-		t.start = nextStart
-		t.ticket = candidate
+		t.Start = nextStart
+		t.Ticket = candidate
 		candidate = nil
 		installedNext = true
-		t.session.Mu.Lock()
-		t.session.BeginTimeoutLocked(next, true, time.Now())
-		t.session.Mu.Unlock()
+		t.Session.Mu.Lock()
+		t.Session.BeginTimeoutLocked(next, true, time.Now())
+		t.Session.Mu.Unlock()
 	}
 	return EndResult{Committed: committed}, nil
 }
@@ -325,9 +325,9 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		s.op.SnapshotNoticeThreshold()
 	}
 	t := s.owner
-	t.mu.Lock()
-	state, ref := t.state, t.ref
-	t.mu.Unlock()
+	t.Mu.Lock()
+	state, ref := t.State, t.Ref
+	t.Mu.Unlock()
 	var err error
 	if control.Kind == parser.KindPrepareTransaction || control.Kind == parser.KindCommitPrepared || control.Kind == parser.KindRollbackPrepared {
 		err = s.executePrepared(control, state, ref)
@@ -340,20 +340,20 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		if state == TxIdle {
 			_, err = e.beginAdmitted(s.op, t, s.transactionStart)
 			if err == nil {
-				t.mu.Lock()
+				t.Mu.Lock()
 				err = assignModes(t, control.Modes)
-				t.mu.Unlock()
+				t.Mu.Unlock()
 			}
 		} else if state == TxImplicit {
 			err = e.endPreflight(s.op)
 			if err == nil {
-				t.mu.Lock()
-				t.state = TxActive
+				t.Mu.Lock()
+				t.State = TxActive
 				err = assignModes(t, control.Modes)
-				t.mu.Unlock()
-				t.session.Mu.Lock()
-				t.session.Timeouts.Explicit = true
-				t.session.Mu.Unlock()
+				t.Mu.Unlock()
+				t.Session.Mu.Lock()
+				t.Session.Timeouts.Explicit = true
+				t.Session.Mu.Unlock()
 			}
 		} else {
 			err = e.endPreflight(s.op)

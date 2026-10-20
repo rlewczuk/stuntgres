@@ -30,11 +30,11 @@ func TestTruncateSnapshots(t *testing.T) {
 			e, writer, p, q := truncateUnitFixture(t)
 			reader := sessionStart(t, e, nil)
 			sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-			tx := reader.Transactions.ref
+			tx := reader.Transactions.Ref
 			transactionRows(t, reader, "SELECT id FROM q", 7)
-			frontier := reader.Transactions.frontier
-			captured := reader.Transactions.roots[p.Address]
-			qRoot := reader.Transactions.roots[q.Address]
+			frontier := reader.Transactions.Frontier
+			captured := reader.Transactions.Roots[p.Address]
+			qRoot := reader.Transactions.Roots[q.Address]
 			if captured.Storage != e.storage.Relations[p.Address] || len(captured.Versions) != 2 {
 				t.Fatal("stable snapshot did not capture untouched relation")
 			}
@@ -58,8 +58,8 @@ func TestTruncateSnapshots(t *testing.T) {
 			} else {
 				transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
 			}
-			retained := reader.Transactions.roots[p.Address]
-			if retained.Storage != captured.Storage || !sameVersionRoot(retained.Versions, captured.Versions) || retained.Ends != captured.Ends || reader.Transactions.frontier != frontier || !sameVersionRoot(reader.Transactions.roots[q.Address].Versions, qRoot.Versions) {
+			retained := reader.Transactions.Roots[p.Address]
+			if retained.Storage != captured.Storage || !sameVersionRoot(retained.Versions, captured.Versions) || retained.Ends != captured.Ends || reader.Transactions.Frontier != frontier || !sameVersionRoot(reader.Transactions.Roots[q.Address].Versions, qRoot.Versions) {
 				t.Fatal("TRUNCATE became a second snapshot/root authority")
 			}
 			transactionEnd(t, reader, tx, false)
@@ -73,14 +73,14 @@ func TestTruncateSnapshotsInherited(t *testing.T) {
 	child := roleTableRef(t, e, "c")
 	reader := sessionStart(t, e, nil)
 	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-	tx := reader.Transactions.ref
+	tx := reader.Transactions.Ref
 	transactionRows(t, reader, "SELECT id FROM q", 7)
-	frontier := reader.Transactions.frontier
-	oldParent, oldChild := reader.Transactions.roots[p.Address], reader.Transactions.roots[child.Address]
+	frontier := reader.Transactions.Frontier
+	oldParent, oldChild := reader.Transactions.Roots[p.Address], reader.Transactions.Roots[child.Address]
 	sessionSQL(t, writer, "TRUNCATE ONLY c")
 	sessionSQL(t, writer, "INSERT INTO c VALUES(9)")
 	transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
-	if !oldChild.Storage.SameTruncateLineage(e.storage.Relations[child.Address]) || reader.Transactions.frontier != frontier || reader.Transactions.roots[p.Address].Storage != oldParent.Storage || !sameVersionRoot(reader.Transactions.roots[p.Address].Versions, oldParent.Versions) || reader.Transactions.roots[child.Address].Storage != oldChild.Storage {
+	if !oldChild.Storage.SameTruncateLineage(e.storage.Relations[child.Address]) || reader.Transactions.Frontier != frontier || reader.Transactions.Roots[p.Address].Storage != oldParent.Storage || !sameVersionRoot(reader.Transactions.Roots[p.Address].Versions, oldParent.Versions) || reader.Transactions.Roots[child.Address].Storage != oldChild.Storage {
 		t.Fatal("inherited SELECT replaced the original snapshot authority")
 	}
 	sessionSQL(t, reader, "INSERT INTO c VALUES(4)")
@@ -173,9 +173,9 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 	e, writer, p, q := truncateUnitFixture(t)
 	reader := sessionStart(t, e, nil)
 	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-	tx := reader.Transactions.ref
+	tx := reader.Transactions.Ref
 	transactionRows(t, reader, "SELECT id FROM q", 7)
-	frontier := reader.Transactions.frontier
+	frontier := reader.Transactions.Frontier
 	truncateUnitExecute(t, e, writer, truncateUnitAST("p"))
 	sessionSQL(t, writer, "INSERT INTO p VALUES(9)")
 	sessionSQL(t, writer, "INSERT INTO q VALUES(8)")

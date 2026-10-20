@@ -23,7 +23,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		e.mu.Unlock()
 		return nil, auth, err
 	}
-	changes := s.owner.catalog
+	changes := s.owner.Catalog
 	if s.catalog != nil {
 		changes = s.catalog
 	}

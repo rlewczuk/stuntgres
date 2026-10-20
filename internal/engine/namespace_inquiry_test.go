@@ -97,7 +97,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			if err := scope.Finish(failure); !errors.Is(err, failure) {
 				t.Fatal(err)
 			}
-			if e.catalog.state != base || s.TemporaryNamespace != (ids.ObjectAddress{}) || s.Transactions.catalog != nil {
+			if e.catalog.state != base || s.TemporaryNamespace != (ids.ObjectAddress{}) || s.Transactions.Catalog != nil {
 				t.Fatal("Finish veto published namespace")
 			}
 		})

@@ -54,7 +54,7 @@ func TestUpdateCoreMultiRelationPreflight(t *testing.T) {
 	sessionSQL(t, a, "UPDATE u SET v=8")
 	// Corrupt only test-owned private provenance to exercise final all-relations
 	// rejection independent of manager prevention of ordinary stale predecessors.
-	a.Transactions.writes[uRef.Address][0].Base++
+	a.Transactions.Writes[uRef.Address][0].Base++
 	op := transactionOperation(t, a)
 	_, err := e.Commit(op, tx)
 	if err == nil {

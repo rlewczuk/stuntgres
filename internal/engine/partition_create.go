@@ -117,7 +117,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 				ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), leaf.Address())
 				pending.defaultLeaves = append(pending.defaultLeaves, ref)
 				stage.domainBases = append(stage.domainBases, leaf)
-				storage := e.privateStorageLocked(scope.owner.catalog, leaf.Address())
+				storage := e.privateStorageLocked(scope.owner.Catalog, leaf.Address())
 				if storage == nil {
 					return ids.ErrCatalogReplaced
 				}

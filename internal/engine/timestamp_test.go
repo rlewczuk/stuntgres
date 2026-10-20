@@ -140,7 +140,7 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := time.Now().UTC()
-	start := op.Session.Transactions.start
+	start := op.Session.Transactions.Start
 	if start.Before(before.Truncate(time.Microsecond)) || start.After(after) || start.Location() != time.UTC || start.Nanosecond()%1000 != 0 {
 		t.Fatal("transaction start must be quantized UTC within BEGIN bounds", start, before, after)
 	}
@@ -164,7 +164,7 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 	if _, err = e.Rollback(op, tx); err != nil {
 		t.Fatal(err)
 	}
-	if !op.Session.Transactions.start.IsZero() {
+	if !op.Session.Transactions.Start.IsZero() {
 		t.Fatal("transaction clock retained after clear")
 	}
 	ast := statement(t, "INSERT INTO t VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999')")
@@ -285,16 +285,16 @@ func TestTimestampSQLTransactionControlClock(t *testing.T) {
 				t.Fatal(err)
 			}
 			owner := op.Session.Transactions
-			if owner.start.Before(before.Truncate(time.Microsecond)) || owner.start.After(time.Now().UTC()) || owner.start.Location() != time.UTC || owner.start.Nanosecond()%1000 != 0 {
-				t.Fatal("SQL BEGIN must capture a quantized UTC transaction start within bounds", owner.start)
+			if owner.Start.Before(before.Truncate(time.Microsecond)) || owner.Start.After(time.Now().UTC()) || owner.Start.Location() != time.UTC || owner.Start.Nanosecond()%1000 != 0 {
+				t.Fatal("SQL BEGIN must capture a quantized UTC transaction start within bounds", owner.Start)
 			}
 			// A deterministic old incarnation distinguishes fresh chain birth
 			// without sleeping or relying on wall-clock resolution.
 			oldStart := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-			owner.mu.Lock()
-			owner.start = oldStart
-			oldRef := owner.ref
-			owner.mu.Unlock()
+			owner.Mu.Lock()
+			owner.Start = oldStart
+			oldRef := owner.Ref
+			owner.Mu.Unlock()
 			checkInput := func(want time.Time) {
 				t.Helper()
 				scope, scopeErr := e.StartStatement(op)
@@ -322,8 +322,8 @@ func TestTimestampSQLTransactionControlClock(t *testing.T) {
 			if _, err = e.Execute(op, statement(t, "BEGIN"), 0, nil); err != nil {
 				t.Fatal(err)
 			}
-			if !owner.start.Equal(oldStart) {
-				t.Fatal("control preparation/redundant BEGIN changed clock", owner.start)
+			if !owner.Start.Equal(oldStart) {
+				t.Fatal("control preparation/redundant BEGIN changed clock", owner.Start)
 			}
 			if aborted {
 				_, err = e.Execute(op, statement(t, "INSERT INTO t VALUES(TIMESTAMP 'nonsense')"), 0, nil)
@@ -333,17 +333,17 @@ func TestTimestampSQLTransactionControlClock(t *testing.T) {
 			if _, err = e.Execute(op, statement(t, end), 0, nil); err != nil {
 				t.Fatal(err)
 			}
-			newStart := owner.start
-			if owner.state != TxActive || owner.ref == oldRef || newStart.Before(before.Truncate(time.Microsecond)) || newStart.After(time.Now().UTC()) || newStart.Location() != time.UTC || newStart.Nanosecond()%1000 != 0 {
-				t.Fatal("CHAIN must capture a fresh quantized UTC transaction start within bounds", owner.state, owner.ref, newStart)
+			newStart := owner.Start
+			if owner.State != TxActive || owner.Ref == oldRef || newStart.Before(before.Truncate(time.Microsecond)) || newStart.After(time.Now().UTC()) || newStart.Location() != time.UTC || newStart.Nanosecond()%1000 != 0 {
+				t.Fatal("CHAIN must capture a fresh quantized UTC transaction start within bounds", owner.State, owner.Ref, newStart)
 			}
 			checkInput(newStart)
 			checkInput(newStart)
 			if _, err = e.Execute(op, statement(t, "ROLLBACK"), 0, nil); err != nil {
 				t.Fatal(err)
 			}
-			if !owner.start.IsZero() {
-				t.Fatal("SQL end retained transaction clock", owner.start)
+			if !owner.Start.IsZero() {
+				t.Fatal("SQL end retained transaction clock", owner.Start)
 			}
 		})
 	}

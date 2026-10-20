@@ -30,7 +30,7 @@ func queryRootRowMode(node plan.Node) lock.Mode {
 	}
 }
 func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) (lock.Mode, error) {
-	view := e.privateCatalogLocked(scope.owner.catalog)
+	view := e.privateCatalogLocked(scope.owner.Catalog)
 	if _, err := validateViewReadGraph(view, leaves); err != nil {
 		return 0, err
 	}
@@ -222,7 +222,7 @@ func stringInheritedRowMark(node plan.Node) bool {
 // kind and authorization checks remain Execute-only.
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) error {
 	marked := queryRootRowMode(root) != 0
-	view := e.privateCatalogLocked(scope.owner.catalog)
+	view := e.privateCatalogLocked(scope.owner.Catalog)
 	visibilityDemand, err := validateViewReadGraph(view, leaves)
 	if err != nil {
 		return err

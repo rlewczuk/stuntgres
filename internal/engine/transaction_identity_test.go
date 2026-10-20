@@ -179,7 +179,7 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	finisher := sessionStart(t, e, nil)
 	op := transactionOperation(t, finisher)
 	defer op.Done()
-	entry := &preparedTransaction{gid: "identity_claimed", ref: owner.Ref(), ticket: owner, owner: finisher.Authorization.state.CurrentUser, claimed: true}
+	entry := &preparedTransaction{gid: "identity_claimed", ref: owner.Ref(), ticket: owner, owner: finisher.Authorization.State.CurrentUser, claimed: true}
 	e.mu.Lock()
 	e.prepared = map[string]*preparedTransaction{entry.gid: entry}
 	before := e.visibility.Entries[owner.Ref()]

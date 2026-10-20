@@ -24,7 +24,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			if owner.sequenceCatalog == nil {
+			if owner.SequenceCatalog == nil {
 				t.Fatal("snapshot not acquired")
 			}
 			switch terminal {
@@ -34,12 +34,12 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 				}
 			case "abort":
 				scope.self = scope
-				owner.admission.Lock()
+				owner.Admission.Lock()
 				failure := sqlError("22023", "unit admitted failure")
 				if err := scope.Finish(failure); err != failure {
 					t.Fatal(err)
 				}
-				if owner.state != TxAborted {
+				if owner.State != TxAborted {
 					t.Fatal("failure did not abort owner")
 				}
 			case "session_end":
@@ -49,7 +49,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if owner.sequenceCatalog != nil {
+			if owner.SequenceCatalog != nil {
 				t.Fatal("terminal owner retained catalog")
 			}
 		})
@@ -64,7 +64,7 @@ func TestPGSequenceSerializableCandidateEpochFence(t *testing.T) {
 	serializableUnitAwaitCandidate(t, e, node)
 	e.mu.Lock()
 	old := e.catalog.state
-	retained := scope.owner.sequenceCatalog
+	retained := scope.owner.SequenceCatalog
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 	// Wake the candidate as an ordinary resolved safe candidate: admission
@@ -78,7 +78,7 @@ func TestPGSequenceSerializableCandidateEpochFence(t *testing.T) {
 	if err := join(); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
-	if scope.owner.sequenceCatalog != nil || scope.owner.snapshotSet {
+	if scope.owner.SequenceCatalog != nil || scope.owner.SnapshotSet {
 		t.Fatal("fenced candidate retained old catalog")
 	}
 }

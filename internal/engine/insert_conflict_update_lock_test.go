@@ -317,7 +317,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 			id := e.storage.Relations[ref.Address].Versions[0].Row
 			workerTx := transactionBegin(t, worker)
 			sessionSQL(t, worker, "INSERT INTO t VALUES(4,40)")
-			baseline := e.locks.CheckpointUnique(worker.Transactions.ticket, nil)
+			baseline := e.locks.CheckpointUnique(worker.Transactions.Ticket, nil)
 			holderTx := transactionBegin(t, holder)
 			transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 			running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,1) ON CONFLICT(k) DO UPDATE SET "+set+" WHERE FALSE")

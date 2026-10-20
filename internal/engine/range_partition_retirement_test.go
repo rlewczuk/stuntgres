@@ -151,10 +151,10 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	}
 	defer op.Done()
 	e.mu.Lock()
-	base := e.privateCatalogLocked(owner.catalog)
+	base := e.privateCatalogLocked(owner.Catalog)
 	e.mu.Unlock()
 	_, _ = rangePartitionRetirementDescriptors(t, base)
-	writes, deletes, changes := owner.writes, owner.deletes, owner.catalog
+	writes, deletes, changes := owner.Writes, owner.Deletes, owner.Catalog
 	if deletes[provider.Address()] == nil {
 		t.Fatal("fixture has no actual committed-provider deletion root")
 	}
@@ -176,7 +176,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == changes || !reflect.DeepEqual(writes, beforeWrites) || !reflect.DeepEqual(deletes, beforeDeletes) || owner.catalog != changes {
+	if next == changes || !reflect.DeepEqual(writes, beforeWrites) || !reflect.DeepEqual(deletes, beforeDeletes) || owner.Catalog != changes {
 		t.Fatal("retirement preparation mutated original transaction state")
 	}
 	removed := make(map[ids.ObjectAddress]bool)
@@ -207,7 +207,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 			t.Fatal("outer commit retained closure state", a)
 		}
 	}
-	if owner.writes != nil || owner.deletes != nil || owner.catalog != nil {
+	if owner.Writes != nil || owner.Deletes != nil || owner.Catalog != nil {
 		t.Fatal("outer commit retained transaction roots")
 	}
 }

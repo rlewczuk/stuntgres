@@ -30,7 +30,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 	e := s.engine()
 	for {
 		e.mu.Lock()
-		view := e.privateCatalogLocked(s.owner.catalog)
+		view := e.privateCatalogLocked(s.owner.Catalog)
 		root, ok := view.Relation(s.lockedRef.Address)
 		if !ok {
 			e.mu.Unlock()
@@ -41,7 +41,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			return nil
 		}
 		for _, target := range s.inheritedTargets {
-			if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, target); err != nil {
+			if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, target); err != nil {
 				e.mu.Unlock()
 				return err
 			}
@@ -58,7 +58,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 			ref := s.lockedRef
 			ref.Address = child.Address()
-			pending = append(pending, exec.Leaf{Ref: ref, Relation: child, Storage: e.privateStorageLocked(s.owner.catalog, child.Address()), Only: true})
+			pending = append(pending, exec.Leaf{Ref: ref, Relation: child, Storage: e.privateStorageLocked(s.owner.Catalog, child.Address()), Only: true})
 			return nil
 		})
 		e.mu.Unlock()
@@ -82,15 +82,15 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			if err != nil {
 				return err
 			}
-			s.owner.mu.Lock()
-			implicit := s.owner.state == TxImplicit
-			s.owner.mu.Unlock()
+			s.owner.Mu.Lock()
+			implicit := s.owner.State == TxImplicit
+			s.owner.Mu.Unlock()
 			if implicit && !s.replacementRead {
 				e.replacementMu.RLock()
 				s.replacementRead = true
 			}
 			e.mu.Lock()
-			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, target)
+			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.Catalog), s.owner.Catalog, target)
 			if err == nil {
 				s.inheritedTargets = append(s.inheritedTargets, target)
 				e.markTemporaryAccessLocked(s, target.Ref)
@@ -196,7 +196,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 		}
 		physicalSchema := schema
 		e.mu.Lock()
-		if ns := e.privateCatalogLocked(s.owner.catalog).Get(relation.Namespace()); ns != nil {
+		if ns := e.privateCatalogLocked(s.owner.Catalog).Get(relation.Namespace()); ns != nil {
 			physicalSchema = ns.Name()
 		}
 		e.mu.Unlock()

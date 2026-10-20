@@ -302,8 +302,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.Show:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		op.Session.Settings.mu.Lock()
-		defer op.Session.Settings.mu.Unlock()
+		op.Session.Settings.Mu.Lock()
+		defer op.Session.Settings.Mu.Unlock()
 		typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 		if s.All {
 			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
@@ -489,7 +489,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 	if auth.session != nil {
 		namespace, _ := auth.definitionDescriptor(d.Namespace())
 		if ns, ok := namespace.(*catalog.Namespace); ok && ns.Temporary == auth.session.SessionToken {
-			auth.session.Transactions.accessedTemporary = true
+			auth.session.Transactions.AccessedTemporary = true
 		}
 	}
 	return e.catalog.Domain.Ref(view.Epoch(), a), nil

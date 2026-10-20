@@ -22,7 +22,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		e.mu.Unlock()
 		return nil, nil, err
 	}
-	catalog := e.privateCatalogLocked(scope.owner.catalog)
+	catalog := e.privateCatalogLocked(scope.owner.Catalog)
 	e.mu.Unlock()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.QuoteCaptures = scope.quoteCaptures
@@ -46,7 +46,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		e.mu.Unlock()
 		return nil, nil, err
 	}
-	catalog = e.privateCatalogLocked(scope.owner.catalog)
+	catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	consumer = catalog.MustRelation(ref.Address)
 	relationPrincipal := consumer.Owner
 	if definition.invoker {
@@ -60,7 +60,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.only, Principal: relationPrincipal, Storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), Mark: viewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.analysisOnly}
+		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.only, Principal: relationPrincipal, Storage: e.privateStorageLocked(scope.owner.Catalog, leaf.ref.Address), Mark: viewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.analysisOnly}
 		leaves[i].Uses, err = querySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {
 			e.mu.Unlock()

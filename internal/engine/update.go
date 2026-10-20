@@ -157,7 +157,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 	if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
 		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
-	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
+	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 	if store == nil {
 		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}

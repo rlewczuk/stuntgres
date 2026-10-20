@@ -23,7 +23,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 	e := s.engine()
 	for _, event := range s.indexesOrZero().exclusionModes.events {
 		e.mu.Lock()
-		view := e.privateCatalogLocked(s.owner.catalog)
+		view := e.privateCatalogLocked(s.owner.Catalog)
 		parent, live := view.Relation(event.parent.Address)
 		index, exists := view.Relation(event.index.Address)
 		e.mu.Unlock()
@@ -83,7 +83,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 			return Result{}, err
 		}
 	}
-	if !s.owner.inBlock() {
+	if !s.owner.InBlock() {
 		s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET CONSTRAINTS can only be used in transaction blocks"})
 	}
 	e := s.engine()
@@ -92,7 +92,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		return Result{}, err
 	}
 	e.mu.Lock()
-	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	s.beginExclusionProjectionLocked(e)
 	e.mu.Unlock()
@@ -192,7 +192,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		}
 		candidate.events = s.indexesOrZero().exclusionModes.events
 	}
-	if s.owner.inBlock() {
+	if s.owner.InBlock() {
 		s.indexes().exclusionModes = candidate
 	}
 	return Result{}, nil

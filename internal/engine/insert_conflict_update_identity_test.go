@@ -20,8 +20,8 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		sessionSQL(t, s, "INSERT INTO t VALUES(9,0),(1,10)")
 		sessionSQL(t, s, "DELETE FROM t WHERE k=9")
 		op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,2) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
-		scope.owner.isolation = isolation
-		scope.owner.frontier = e.visibility.CommitSeq()
+		scope.owner.Isolation = isolation
+		scope.owner.Frontier = e.visibility.CommitSeq()
 		integer := func(n int64) sqltype.Value {
 			v, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 			if err != nil {
@@ -56,7 +56,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		transactionRows(t, observer, "SELECT v FROM t", 2)
 		tx := transactionBegin(t, s)
 		sessionSQL(t, s, "UPDATE t SET v=3 WHERE k=1")
-		prior := s.Transactions.writes[b.Ref.Address][0]
+		prior := s.Transactions.Writes[b.Ref.Address][0]
 		op2, scope2, b2 := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,4) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
 		own, err := scope2.probeUniqueRow(b2.Ref, &indexWriteCandidate{values: nextProposal}, nil, indexWriteBatch{}, scope2.insertConflict, indexProbeRuntime)
@@ -251,7 +251,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 			transactionRows(t, worker, "SELECT v FROM t", 10)
 			sessionSQL(t, holder, "DELETE FROM t WHERE k=1")
 			result := sessionSQL(t, worker, "INSERT INTO t VALUES(1,11) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE FALSE")
-			fresh := worker.Transactions.writes[ref.Address]
+			fresh := worker.Transactions.Writes[ref.Address]
 			if result.Count != 1 || len(fresh) != 1 || fresh[0].Row == old.Row || fresh[0].Base != 0 {
 				t.Fatal("no-hit insertion must not reuse deleted snapshot identity", result, fresh, old)
 			}

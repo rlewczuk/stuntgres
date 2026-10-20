@@ -38,13 +38,13 @@ func TestSavepointsChainCharacteristics(t *testing.T) {
 					t.Fatal("failure witness", err)
 				}
 			}
-			ref, ticket := a.Transactions.ref, a.Transactions.ticket
+			ref, ticket := a.Transactions.Ref, a.Transactions.Ticket
 			controlsRequire(t, a, tc.end)
 			owner := a.Transactions
-			if owner.readOnly != tc.readOnly {
-				t.Fatalf("chained readonly %v want %v", owner.readOnly, tc.readOnly)
+			if owner.ReadOnly != tc.readOnly {
+				t.Fatalf("chained readonly %v want %v", owner.ReadOnly, tc.readOnly)
 			}
-			if owner.state != TxActive || owner.ref == ref || owner.ticket == ticket || len(owner.savepoints) != 0 || owner.snapshotSet || owner.command != 0 || owner.writes != nil {
+			if owner.State != TxActive || owner.Ref == ref || owner.Ticket == ticket || len(owner.Savepoints) != 0 || owner.SnapshotSet || owner.Command != 0 || owner.Writes != nil {
 				t.Fatal("CHAIN did not install clean independent incarnation")
 			}
 			published := []int64{}

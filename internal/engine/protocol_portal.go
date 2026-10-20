@@ -100,9 +100,9 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 		return out, err
 	}
 	if entry.body == nil {
-		s.owner.mu.Lock()
+		s.owner.Mu.Lock()
 		err = s.admitTransactionLocked(s.engine())
-		s.owner.mu.Unlock()
+		s.owner.Mu.Unlock()
 		if err != nil {
 			return out, err
 		}
@@ -266,11 +266,11 @@ func protocolAbortedError() error {
 // Savepoint publication only removes visibility; callbacks and producer
 // disposal belong to the existing unlocked terminal cleanup path.
 func retireProtocolPortalsAfter(t *transactionOwner, frontier uint64) {
-	if payloadOf(t.session).preparedSQL == nil {
+	if payloadOf(t.Session).preparedSQL == nil {
 		return
 	}
-	for _, p := range payloadOf(t.session).preparedSQL.portals {
-		if p.tx == t.ref && p.born > frontier {
+	for _, p := range payloadOf(t.Session).preparedSQL.portals {
+		if p.tx == t.Ref && p.born > frontier {
 			p.retired = true
 		}
 	}
@@ -339,8 +339,8 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	if p.tx != s.txRef {
 		return out, missingProtocolPortal(name)
 	}
-	if cycle := s.owner.protocolCycle; extended && cycle != nil {
-		cycle.executed = true
+	if cycle := s.owner.ProtocolCycle; extended && cycle != nil {
+		cycle.Executed = true
 	}
 	if p.state == protocolPortalDone || p.state == protocolPortalFailed {
 		return out, sqlError("55000", fmt.Sprintf("portal \"%s\" cannot be run", name))

@@ -57,7 +57,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		return Result{}, err
 	}
 	program.count = count
-	if tag := modifyingTag(stmt); scope.owner.readOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
+	if tag := modifyingTag(stmt); scope.owner.ReadOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}

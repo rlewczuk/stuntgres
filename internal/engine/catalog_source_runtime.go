@@ -43,16 +43,16 @@ func (r engineCatalogRuntime) VisitCursors(visit func(pgcatalog.CursorFact) erro
 }
 func (r engineCatalogRuntime) SessionSettings() pgcatalog.SettingsFact {
 	s := r.settings
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	source := "default"
-	if s.rowSecurityProviderDefault {
+	if s.RowSecurityProviderDefault {
 		source = "client"
 	}
-	if _, present := s.values["row_security"]; present {
+	if _, present := s.Values["row_security"]; present {
 		source = "session"
 	}
-	return pgcatalog.SettingsFact{s.value("row_security"), s.defaults["row_security"], source}
+	return pgcatalog.SettingsFact{s.Value("row_security"), s.Defaults["row_security"], source}
 }
 func (r engineCatalogRuntime) PreparedCount() int { return len(r.engine.prepared) }
 func (r engineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, visit func(pgcatalog.PreparedFact) error) error {

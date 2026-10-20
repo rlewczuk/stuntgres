@@ -75,7 +75,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
-	changes := s.owner.catalog
+	changes := s.owner.Catalog
 	if s.catalog != nil {
 		changes = s.catalog
 	}
@@ -133,7 +133,7 @@ func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode 
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	changes := s.owner.catalog
+	changes := s.owner.Catalog
 	if s.catalog != nil {
 		changes = s.catalog
 	}
@@ -157,7 +157,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		return err
 	}
 	e.mu.Lock()
-	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	temporary := raw.Persistence == "temporary" || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == "pg_temp"
 	var destination ids.ObjectAddress
@@ -254,7 +254,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		return err
 	}
 	e.mu.Lock()
-	changes := s.owner.catalog
+	changes := s.owner.Catalog
 	if s.catalog != nil {
 		changes = s.catalog
 	}
@@ -415,7 +415,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	changes := s.owner.catalog
+	changes := s.owner.Catalog
 	if s.catalog != nil {
 		changes = s.catalog
 	}

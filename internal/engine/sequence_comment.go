@@ -54,7 +54,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if s.Null {
 		next.Comment = ""
 	}
-	changes := scope.owner.catalog.Clone()
+	changes := scope.owner.Catalog.Clone()
 	e.catalogChangeLocked(changes, ref.Address, &next)
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 	scope.catalog = changes

@@ -24,19 +24,19 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
+	if s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.Ref {
 		return errors.New("stuntgres: invalid SSI read authority")
 	}
 	// Relevance is the cheap test; most readers are not serializable.
 	node := e.visibility.RelevantSerializableLocked(s.txRef)
-	if node == nil || !e.serializableEligibleLocked(ref, s.owner.catalog) {
+	if node == nil || !e.serializableEligibleLocked(ref, s.owner.Catalog) {
 		return nil
 	}
 	return e.visibility.SerializableReadLocked(node, ref.Address)
 }
 
 func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []visibility.SerializableWrite) error {
-	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
+	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.Ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}
 	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
@@ -47,7 +47,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 			return errors.New("stuntgres: invalid SSI write identity")
 		}
 	}
-	if !e.serializableEligibleLocked(ref, s.owner.catalog) {
+	if !e.serializableEligibleLocked(ref, s.owner.Catalog) {
 		return nil
 	}
 	node := e.visibility.RelevantSerializableLocked(s.txRef)
@@ -60,19 +60,19 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 // Rollback restores surviving identity evidence only, never graph edges,
 // predicates, doom or attempted-write history. Engine.mu and owner.mu held.
 func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
-	e.visibility.ReconcileSerializableWritesLocked(t.ref, func(address ids.ObjectAddress, event visibility.SerializableWrite) bool {
+	e.visibility.ReconcileSerializableWritesLocked(t.Ref, func(address ids.ObjectAddress, event visibility.SerializableWrite) bool {
 		if event.Rewrite {
-			return t.catalog != nil && t.catalog.Storage[address].Rewritten
+			return t.Catalog != nil && t.Catalog.Storage[address].Rewritten
 		}
 		if event.Deletion {
-			root := t.deletes[address]
+			root := t.Deletes[address]
 			if root == nil {
 				return false
 			}
 			candidate, ok := root.Rows[event.Row]
 			return ok && candidate.Version == event.Base
 		}
-		for _, row := range t.writes[address] {
+		for _, row := range t.Writes[address] {
 			if row.Version == event.Version {
 				return true
 			}

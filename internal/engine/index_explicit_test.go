@@ -42,7 +42,7 @@ func TestBtreeIndexExplicitExclusionBeforeTargets(t *testing.T) {
 						t.Fatal("syntax-only Prepare", err)
 					}
 				}
-				ticket := builder.Transactions.ticket
+				ticket := builder.Transactions.Ticket
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				done := waitsCommandAsync(e, builder, ctx, query, false)

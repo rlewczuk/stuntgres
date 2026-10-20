@@ -93,7 +93,7 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 				sessions[i] = sessionStart(t, e, nil)
 				sessionSQL(t, sessions[i], fmt.Sprintf("CREATE TABLE t%d(v INT)", i))
 				transactionBegin(t, sessions[i])
-				tickets[i] = sessions[i].Transactions.ticket
+				tickets[i] = sessions[i].Transactions.Ticket
 				resources[i] = lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), fmt.Sprintf("t%d", i))}
 				t.Cleanup(func() { e.endLockOwner(tickets[i]) })
 			}
@@ -165,40 +165,40 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t2(v INT)")
 	for _, s := range []*Session{a, b, c} {
 		transactionBegin(t, s)
-		ticket := s.Transactions.ticket
+		ticket := s.Transactions.Ticket
 		t.Cleanup(func() { e.endLockOwner(ticket) })
 	}
 	x := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t1")}
 	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t2")}
-	deadlockRequest(t, e, a.Transactions.ticket, x, lock.AccessShare)
-	deadlockRequest(t, e, c.Transactions.ticket, y, lock.AccessExclusive)
-	rb := deadlockRequest(t, e, b.Transactions.ticket, x, lock.AccessExclusive)
-	rc := deadlockRequest(t, e, c.Transactions.ticket, x, lock.AccessShare)
+	deadlockRequest(t, e, a.Transactions.Ticket, x, lock.AccessShare)
+	deadlockRequest(t, e, c.Transactions.Ticket, y, lock.AccessExclusive)
+	rb := deadlockRequest(t, e, b.Transactions.Ticket, x, lock.AccessExclusive)
+	rc := deadlockRequest(t, e, c.Transactions.Ticket, x, lock.AccessShare)
 	lockState := e.locks.Inspect()
 	queue := lockState.Resources[x].Pending
 	ordered := len(queue) == 2 && queue[0].Request == rb && queue[1].Request == rc
 	if !ordered {
 		t.Fatal("missing conflicting predecessor queue proof")
 	}
-	ra := deadlockRequest(t, e, a.Transactions.ticket, y, lock.AccessShare)
+	ra := deadlockRequest(t, e, a.Transactions.Ticket, y, lock.AccessShare)
 	if err := deadlockResult(t, rc); err != nil {
 		t.Fatal("resolvable soft cycle must not abort", err)
 	}
 	lockState = e.locks.Inspect()
-	ah := lockState.Resources[x].Holders[a.Transactions.ticket].Mode
+	ah := lockState.Resources[x].Holders[a.Transactions.Ticket].Mode
 	bt := rb.Terminal()
 	if ah != lock.AccessShare || bt {
 		t.Fatal("reorder revoked holder or granted incompatible follower")
 	}
-	e.endLockOwner(c.Transactions.ticket)
+	e.endLockOwner(c.Transactions.Ticket)
 	if err := deadlockResult(t, ra); err != nil {
 		t.Fatal(err)
 	}
-	e.endLockOwner(a.Transactions.ticket)
+	e.endLockOwner(a.Transactions.Ticket)
 	if err := deadlockResult(t, rb); err != nil {
 		t.Fatal(err)
 	}
-	e.endLockOwner(b.Transactions.ticket)
+	e.endLockOwner(b.Transactions.Ticket)
 	lockEmpty(t, e)
 }
 
@@ -207,7 +207,7 @@ func TestRelationDeadlockUncontended(t *testing.T) {
 	a := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	transactionBegin(t, a)
-	ticket := a.Transactions.ticket
+	ticket := a.Transactions.Ticket
 	defer e.endLockOwner(ticket)
 	resource := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
 	if err := e.locks.Acquire(context.Background(), ticket, resource, lock.AccessShare); err != nil {

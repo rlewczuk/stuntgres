@@ -15,10 +15,10 @@ func (*ownerExtension) OwnerSlot() {}
 // ownerExtensionOf returns t's extension for writing. Session owners always
 // have one; an owner built without one (unit-test literals) gets one here.
 func ownerExtensionOf(t *transactionOwner) *ownerExtension {
-	x, _ := t.extension.(*ownerExtension)
+	x, _ := t.Extension.(*ownerExtension)
 	if x == nil {
 		x = new(ownerExtension)
-		t.extension = x
+		t.Extension = x
 	}
 	return x
 }
@@ -26,7 +26,7 @@ func ownerExtensionOf(t *transactionOwner) *ownerExtension {
 // ownerExtensionOrZero returns a copy of t's extension for reading; a missing
 // extension reads as all zero and is not allocated.
 func ownerExtensionOrZero(t *transactionOwner) ownerExtension {
-	if x, _ := t.extension.(*ownerExtension); x != nil {
+	if x, _ := t.Extension.(*ownerExtension); x != nil {
 		return *x
 	}
 	return ownerExtension{}

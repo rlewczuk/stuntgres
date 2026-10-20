@@ -112,21 +112,21 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		return false, false, err
 	}
 	*candidate = batch.candidate(0)
-	s.owner.mu.Lock()
-	defer s.owner.mu.Unlock()
+	s.owner.Mu.Lock()
+	defer s.owner.Mu.Unlock()
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
+	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
 		return false, false, errors.New("stuntgres: inactive write stage")
 	}
 	if ref.Domain() != e.catalog.Domain {
 		return false, false, errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.ref.Epoch() {
+	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
 		return false, false, ids.ErrCatalogReplaced
 	}
-	catalog := e.privateCatalogLocked(s.owner.catalog)
+	catalog := e.privateCatalogLocked(s.owner.Catalog)
 	if s.uniqueBinding == nil || s.uniqueBinding.catalog != catalog.State() {
 		return false, true, nil
 	}
@@ -134,7 +134,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if !ok || !sameRelationRowShape(s.uniqueBinding.parent, parent) {
 		return false, false, ids.ErrCatalogReplaced
 	}
-	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
+	if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
 		return false, false, errors.New("stuntgres: relation storage is missing")
 	}
 	if len(row) != len(parent.Columns) {

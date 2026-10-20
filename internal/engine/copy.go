@@ -117,9 +117,9 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	// Table COPY opens the target, validates columns and checks privileges
 	// before BeginCopy processes options. Query COPY processes options first.
 	if syntax.From {
-		s.owner.mu.Lock()
-		readOnly := s.owner.readOnly
-		s.owner.mu.Unlock()
+		s.owner.Mu.Lock()
+		readOnly := s.owner.ReadOnly
+		s.owner.Mu.Unlock()
 		if readOnly && !temporaryDataTarget(auth, &b, syntax) {
 			return 0, sqlError("25006", "cannot execute COPY FROM in a read-only transaction")
 		}
@@ -274,10 +274,10 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	rows, err := func() (indexWriteBatch, error) {
 		if s.protocolOrZero().command || s.protocolOrZero().simple {
-			s.op.CopyInput.active.Store(true)
+			s.op.CopyInput.Active.Store(true)
 			// CopyInResponse permits immediate frontend cancellation. Install
 			// the first-record hold before its external start hook can send it.
-			s.op.CopyInput.decoding.Store(true)
+			s.op.CopyInput.Decoding.Store(true)
 			defer s.op.StopCopyInput()
 		}
 		if err := s.startProtocolCopy(hooks, true, options, len(b.Targets)); err != nil {

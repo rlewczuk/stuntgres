@@ -66,7 +66,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForUpdate && entry.Holders[holder.Transactions.ticket].Mode == lock.ForNoKeyUpdate
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForUpdate && entry.Holders[holder.Transactions.Ticket].Mode == lock.ForNoKeyUpdate
 			if !queued {
 				t.Fatal("not an actual DELETE rowUpdate queue")
 			}
@@ -111,7 +111,7 @@ func TestDeleteUsingContentionOutcomes(t *testing.T) {
 			var writerTx ids.TxRef
 			if phase == "repeatable_update" || phase == "repeatable_delete" {
 				sessionSQL(t, writer, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-				writerTx = writer.Transactions.ref
+				writerTx = writer.Transactions.Ref
 				transactionRows(t, writer, "SELECT id FROM t", 1)
 			}
 			holderTx := transactionBegin(t, holder)

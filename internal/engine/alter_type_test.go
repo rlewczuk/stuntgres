@@ -91,11 +91,11 @@ func TestAlterTypeCommittedOwnDMLProvenance(t *testing.T) {
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET c='7' WHERE id=1")
 	sessionSQL(t, s, "DELETE FROM t WHERE id=2")
-	if rows := s.Transactions.writes[ref.Address]; len(rows) != 1 || rows[0].Base == 0 || s.Transactions.deletes[ref.Address] == nil {
+	if rows := s.Transactions.Writes[ref.Address]; len(rows) != 1 || rows[0].Base == 0 || s.Transactions.Deletes[ref.Address] == nil {
 		t.Fatal("fixture missed committed update/delete provenance", rows)
 	}
 	sessionSQL(t, s, "ALTER TABLE t ALTER c TYPE INT USING c::int")
-	if rows := s.Transactions.writes[ref.Address]; len(rows) != 1 || rows[0].Base != 0 || s.Transactions.deletes[ref.Address] != nil {
+	if rows := s.Transactions.Writes[ref.Address]; len(rows) != 1 || rows[0].Base != 0 || s.Transactions.Deletes[ref.Address] != nil {
 		t.Fatal("rewrite retained omitted committed predecessor", rows)
 	}
 	transactionEnd(t, s, tx, true)

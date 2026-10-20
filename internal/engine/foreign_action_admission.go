@@ -34,17 +34,17 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 		return err
 	}
 	admission := s.foreignActionsOrZero().admissions[ref.Address]
-	if admission == nil || admission.ref != ref || admission.tx != s.txRef || s.owner.ref != s.txRef {
+	if admission == nil || admission.ref != ref || admission.tx != s.txRef || s.owner.Ref != s.txRef {
 		return errors.New("stuntgres: missing internal action admission")
 	}
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	current, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
-	if !ok || !sameRelationRowShape(admission.relation, current) || e.privateStorageLocked(s.owner.catalog, ref.Address) != admission.storage {
+	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
+	if !ok || !sameRelationRowShape(admission.relation, current) || e.privateStorageLocked(s.owner.Catalog, ref.Address) != admission.storage {
 		return ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(s.owner.catalog)
+	view := e.privateCatalogLocked(s.owner.Catalog)
 	for _, captured := range admission.jobs {
 		if err := refreshForeignActionJob(view, &captured); err != nil {
 			return err
@@ -94,12 +94,12 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	if !held {
 		return errors.New("stuntgres: internal action admission requires its relation grant")
 	}
-	current, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
-	storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
+	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
+	storage := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 	if !ok || !sameRelationRowShape(current, job.child) || storage == nil {
 		return ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(s.owner.catalog)
+	view := e.privateCatalogLocked(s.owner.Catalog)
 	if err := refreshForeignActionJob(view, job); err != nil {
 		return err
 	}
@@ -163,8 +163,8 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if !e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref, Row: old.Row}, lock.ForUpdate) {
 		return errors.New("stuntgres: internal action deletion requires its row grant")
 	}
-	s.owner.mu.Lock()
-	defer s.owner.mu.Unlock()
+	s.owner.Mu.Lock()
+	defer s.owner.Mu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
@@ -173,7 +173,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if !s.foreignActionsOrZero().admissions[ref.Address].writable {
 		return errors.New("stuntgres: read-only internal action admission")
 	}
-	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
+	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
 		return errors.New("stuntgres: inactive internal action stage")
 	}
 	if uniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
@@ -229,13 +229,13 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKey
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var retained foreignKeyRows
-	if stableIsolation(s.owner.isolation) && s.owner.snapshotSet {
-		if root, exists := s.owner.roots[ref.Address]; exists {
+	if stableIsolation(s.owner.Isolation) && s.owner.SnapshotSet {
+		if root, exists := s.owner.Roots[ref.Address]; exists {
 			if root.Storage != rows.storage {
 				return foreignKeyRows{}, retained, ids.ErrCatalogReplaced
 			}
 			retained = rows
-			retained.committed, retained.ends, retained.frontier = root.Versions, root.Ends, s.owner.frontier
+			retained.committed, retained.ends, retained.frontier = root.Versions, root.Ends, s.owner.Frontier
 		}
 	}
 	return rows, retained, nil

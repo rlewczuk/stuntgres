@@ -517,7 +517,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if ref.Domain() != nil {
 		err = s.observePartitionRelationLocked(e, ref)
 		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
-			d, exists := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
+			d, exists := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
 			partitionDrop = exists && hierarchyRelation(d) && partitionConstraintDropActions(d, action.Actions)
 		}
 	}
@@ -553,17 +553,17 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 	}
-	s.owner.mu.Lock()
-	implicit := s.owner.state == TxImplicit
-	txref := s.owner.ref
-	s.owner.mu.Unlock()
+	s.owner.Mu.Lock()
+	implicit := s.owner.State == TxImplicit
+	txref := s.owner.Ref
+	s.owner.Mu.Unlock()
 	if implicit && !ownerOnly && !s.replacementRead {
 		e.replacementMu.RLock()
 		s.replacementRead = true
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	descriptor, live := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
+	descriptor, live := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || txref.Epoch() != e.catalog.state.Epoch() || !live {
 		return ids.ErrCatalogReplaced
 	}
@@ -586,7 +586,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		s.prepared.changedDuringAdmission = true
 	}
 	if source {
-		s.querySources = append(s.querySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: sourceOnly(stmt), Storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
+		s.querySources = append(s.querySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: sourceOnly(stmt), Storage: e.privateStorageLocked(s.owner.Catalog, ref.Address)})
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
@@ -600,7 +600,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			storageTarget = descriptor.RelationKind == catalog.TableRelation && (len(s.mutations) != 0 || statement.Conflict != nil && statement.Conflict.Update)
 		}
 		if storageTarget {
-			s.lockedStorage = e.privateStorageLocked(s.owner.catalog, ref.Address)
+			s.lockedStorage = e.privateStorageLocked(s.owner.Catalog, ref.Address)
 			if s.lockedStorage == nil {
 				return errors.New("stuntgres: relation storage is missing")
 			}
@@ -691,21 +691,21 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 	if len(s.querySources) == 0 && s.lockedRef.Domain() == nil && len(s.partitionRelations) == 0 {
 		return nil
 	}
-	view := e.privateCatalogLocked(s.owner.catalog)
+	view := e.privateCatalogLocked(s.owner.Catalog)
 	for _, source := range s.inheritance.relations {
-		if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, source); err != nil {
+		if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, source); err != nil {
 			return err
 		}
 	}
 	for i, source := range s.querySources {
-		current, err := currentQuerySourceLocked(e, view, s.owner.catalog, source)
+		current, err := currentQuerySourceLocked(e, view, s.owner.Catalog, source)
 		if err != nil {
 			return err
 		}
 		if refreshSources && (current.RelationKind != catalog.MaterializedViewRelation || s.view == nil) {
 			s.querySources[i].Relation = current
 			if current.RelationKind == catalog.MaterializedViewRelation {
-				s.querySources[i].Storage = e.privateStorageLocked(s.owner.catalog, source.Ref.Address)
+				s.querySources[i].Storage = e.privateStorageLocked(s.owner.Catalog, source.Ref.Address)
 			}
 		}
 	}
@@ -719,7 +719,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	if s.lockedRef.Domain() == nil {
 		return nil
 	}
-	view := e.privateCatalogLocked(s.owner.catalog)
+	view := e.privateCatalogLocked(s.owner.Catalog)
 	if s.lockedRef.Domain() != e.catalog.Domain || s.lockedRef.Epoch != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -731,14 +731,14 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	} else if s.lockedStorage != nil {
 		relation, ok := current.(*catalog.Relation)
 		captured, capturedOK := s.lockedDescriptor.(*catalog.Relation)
-		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.catalog, s.lockedRef.Address) != s.lockedStorage || !sameRelationRowShape(captured, relation) {
+		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.Catalog, s.lockedRef.Address) != s.lockedStorage || !sameRelationRowShape(captured, relation) {
 			return ids.ErrCatalogReplaced
 		}
 	} else if current != s.lockedDescriptor {
 		return ids.ErrCatalogReplaced
 	}
 	for _, target := range s.inheritedTargets {
-		if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, target); err != nil {
+		if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, target); err != nil {
 			return err
 		}
 	}

@@ -84,9 +84,9 @@ func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget
 		t.Fatal("mechanics relation fixture", err)
 	}
 	timeoutMechanicsSettings(s, transactionBudget, 0, 0, false, time.Now())
-	s.Settings.mu.Lock()
-	s.Settings.values["transaction_timeout"] = transactionBudget.String()
-	s.Settings.mu.Unlock()
+	s.Settings.Mu.Lock()
+	s.Settings.Values["transaction_timeout"] = transactionBudget.String()
+	s.Settings.Mu.Unlock()
 	begin := timeoutPendingOperation(t, s)
 	ref, err := e.Begin(begin, TxOptions{})
 	if err != nil {
@@ -168,23 +168,23 @@ func timeoutPendingRecovery(t *testing.T, s *Session, ref ids.TxRef, child bool)
 		t.Error("recoverable ERROR lost physical owner and recovery authority")
 		return
 	}
-	s.Transactions.mu.Lock()
-	if s.Transactions.state != TxAborted || s.Transactions.ref != ref {
+	s.Transactions.Mu.Lock()
+	if s.Transactions.State != TxAborted || s.Transactions.Ref != ref {
 		t.Error("ERROR did not retain exact aborted transaction")
 	}
-	s.Transactions.mu.Unlock()
+	s.Transactions.Mu.Unlock()
 	if child {
 		timeoutPendingControl(t, s, parser.RollbackSavepoint)
-		s.Transactions.mu.Lock()
-		if s.Transactions.state != TxActive || s.Transactions.ref != ref || len(s.Transactions.savepoints) != 1 {
+		s.Transactions.Mu.Lock()
+		if s.Transactions.State != TxActive || s.Transactions.Ref != ref || len(s.Transactions.Savepoints) != 1 {
 			t.Error("child rollback did not recover parent incarnation")
 		}
-		s.Transactions.mu.Unlock()
-		s.Settings.mu.Lock()
-		if s.Settings.value("application_name") != "parent" {
+		s.Transactions.Mu.Unlock()
+		s.Settings.Mu.Lock()
+		if s.Settings.Value("application_name") != "parent" {
 			t.Error("child ERROR lost retained parent settings")
 		}
-		s.Settings.mu.Unlock()
+		s.Settings.Mu.Unlock()
 		s.Mu.Lock()
 		if s.State != live || !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 			t.Error("child recovery rearmed budget or accepted fatal")
@@ -323,7 +323,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 					if phase != "lock-error-produced" {
 						if phase == "lock-due-before-grant" {
 							peer := timeoutPendingOperation(t, holder)
-							if _, err := engineOf(holder).Rollback(peer, holder.Transactions.ref); err != nil {
+							if _, err := engineOf(holder).Rollback(peer, holder.Transactions.Ref); err != nil {
 								t.Fatal(err)
 							}
 							peer.Done()
@@ -378,7 +378,7 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 					op.Cancel(nil)
 				} else {
 					peer := timeoutPendingOperation(t, holder)
-					if _, err := engineOf(holder).Rollback(peer, holder.Transactions.ref); err != nil {
+					if _, err := engineOf(holder).Rollback(peer, holder.Transactions.Ref); err != nil {
 						t.Fatal(err)
 					}
 					peer.Done()
@@ -442,10 +442,10 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 		e := engineOf(s)
 		start := time.Now()
 		time.Sleep(300 * time.Millisecond)
-		s.Settings.mu.Lock()
-		s.Settings.typed["statement_timeout"] = settings.Value{Number: 375}
-		s.Settings.values["statement_timeout"] = "375ms"
-		s.Settings.mu.Unlock()
+		s.Settings.Mu.Lock()
+		s.Settings.Typed["statement_timeout"] = settings.Value{Number: 375}
+		s.Settings.Values["statement_timeout"] = "375ms"
+		s.Settings.Mu.Unlock()
 		op, _, err := s.AcquireCommand(context.Background())
 		if err != nil {
 			t.Fatal("admitting residual-timeout command", err)
@@ -500,8 +500,8 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 			t.Fatalf("active mutation did not queue behind peer: %#v", state)
 		}
 		waiter := state.Pending[0]
-		if waiter.Request != request || waiter.Ticket != s.Transactions.ticket || waiter.Mode != lock.RowExclusive ||
-			waiter.Terminal || state.Holders[holder.Transactions.ticket].Mode != lock.AccessExclusive ||
+		if waiter.Request != request || waiter.Ticket != s.Transactions.Ticket || waiter.Mode != lock.RowExclusive ||
+			waiter.Terminal || state.Holders[holder.Transactions.Ticket].Mode != lock.AccessExclusive ||
 			op.LockWait.Request() != request {
 			t.Fatalf("active mutation lost exact queue/owner/mode: %#v", state)
 		}
@@ -545,7 +545,7 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 			t.Fatal("fatal callback did not terminate owner and clear its queued request independently of peer")
 		}
 		peer := timeoutPendingOperation(t, holder)
-		if _, err := e.Rollback(peer, holder.Transactions.ref); err != nil {
+		if _, err := e.Rollback(peer, holder.Transactions.Ref); err != nil {
 			t.Fatal("releasing healthy peer", err)
 		}
 		peer.Done()
@@ -573,7 +573,7 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 		e := engineOf(s)
 		start := time.Now()
 		release := timeoutPendingOperation(t, holder)
-		if _, err := e.Rollback(release, holder.Transactions.ref); err != nil {
+		if _, err := e.Rollback(release, holder.Transactions.Ref); err != nil {
 			t.Fatal("releasing initial peer holder", err)
 		}
 		release.Done()
@@ -605,12 +605,12 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 		}
 		peer := timeoutPendingOperation(t, holder)
 		scope := timeoutPendingScope(t, peer)
-		s.Transactions.mu.Lock()
-		ownerTicket := s.Transactions.ticket
-		s.Transactions.mu.Unlock()
-		holder.Transactions.mu.Lock()
-		peerTicket := holder.Transactions.ticket
-		holder.Transactions.mu.Unlock()
+		s.Transactions.Mu.Lock()
+		ownerTicket := s.Transactions.Ticket
+		s.Transactions.Mu.Unlock()
+		holder.Transactions.Mu.Lock()
+		peerTicket := holder.Transactions.Ticket
+		holder.Transactions.Mu.Unlock()
 		t.Cleanup(peer.Done)
 		lockStatement.Mode = parser.LockAccessExclusive
 		finished := make(chan error, 1)

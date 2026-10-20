@@ -154,14 +154,14 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 	}
 	if rewrite {
-		scope.owner.mu.Lock()
+		scope.owner.Mu.Lock()
 		err = scope.acquireSerializableSnapshot()
 		if err == nil {
 			e.mu.Lock()
 			err = e.serializableReadLocked(scope, e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address()))
 			e.mu.Unlock()
 		}
-		scope.owner.mu.Unlock()
+		scope.owner.Mu.Unlock()
 		if err != nil {
 			return err
 		}

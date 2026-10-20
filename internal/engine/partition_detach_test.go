@@ -180,7 +180,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 			}
 			if authority != nil {
 				authority.Mu.Lock()
-				authority.Authorization.revision++
+				authority.Authorization.Revision++
 				authority.Mu.Unlock()
 			}
 			if veto == "revision" {

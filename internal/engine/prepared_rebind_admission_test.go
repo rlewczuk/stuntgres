@@ -92,7 +92,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					early = e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 					e.mu.Unlock()
 					earlyHolder = transactionBegin(t, ddl)
-					if err := e.locks.Acquire(context.Background(), ddl.Transactions.ticket, lock.Resource{ObjectRef: early}, lock.AccessExclusive); err != nil {
+					if err := e.locks.Acquire(context.Background(), ddl.Transactions.Ticket, lock.Resource{ObjectRef: early}, lock.AccessExclusive); err != nil {
 						t.Fatal(err)
 					}
 					earlyHeld = true
@@ -110,7 +110,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					sessionSQL(t, ddl, "ALTER TABLE b.t ADD unused INT")
 				}
 				holderRef := transactionBegin(t, holder)
-				if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: late}, lock.AccessExclusive); err != nil {
+				if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: late}, lock.AccessExclusive); err != nil {
 					t.Fatal(err)
 				}
 				if action == "grant_definition" {

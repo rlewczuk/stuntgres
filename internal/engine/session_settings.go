@@ -13,21 +13,21 @@ import (
 )
 
 type sessionSettings struct {
-	mu               sync.Mutex
-	session          *Session
-	defaults, values map[string]string
+	Mu               sync.Mutex
+	Session          *Session
+	Defaults, Values map[string]string
 	// typed contains only overrides; captured defaults never require reparsing.
-	typed, defaultTyped        map[string]settings.Value
-	placeholders               map[string]bool
-	ended                      bool
-	rowSecurityProviderDefault bool // Immutable native startup-default provenance.
-	actions                    map[string]settingAction
-	roleAction                 roleSettingAction
+	Typed, DefaultTyped        map[string]settings.Value
+	Placeholders               map[string]bool
+	Ended                      bool
+	RowSecurityProviderDefault bool // Immutable native startup-default provenance.
+	Actions                    map[string]settingAction
+	RoleAction                 roleSettingAction
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
-	currentIsolation  string
-	currentReadOnly   bool
-	currentDeferrable bool
+	CurrentIsolation  string
+	CurrentReadOnly   bool
+	CurrentDeferrable bool
 }
 
 // Setting returns the current effective value of a recognized session setting.
@@ -35,23 +35,23 @@ type sessionSettings struct {
 func (s *Session) Setting(name string) (string, bool) {
 	name = settings.FoldName(name)
 	store := s.Settings
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.ended {
+	store.Mu.Lock()
+	defer store.Mu.Unlock()
+	if store.Ended {
 		return "", false
 	}
-	_, hasDefault := store.defaults[name]
-	_, hasValue := store.values[name]
-	if !hasDefault && !hasValue && !store.placeholders[name] {
+	_, hasDefault := store.Defaults[name]
+	_, hasValue := store.Values[name]
+	if !hasDefault && !hasValue && !store.Placeholders[name] {
 		return "", false
 	}
-	return store.value(name), true
+	return store.Value(name), true
 }
 
 type settingOverride struct {
-	present bool
-	text    string
-	typed   settings.Value
+	Present bool
+	Text    string
+	Typed   settings.Value
 }
 type settingAction struct {
 	original  settingOverride
@@ -67,13 +67,13 @@ const (
 
 // A role has one typed journal entry, not a generic string-setting override.
 type roleSettingAction struct {
-	present             bool
+	Present             bool
 	original, candidate authorization.PrincipalRef
 	kind                uint8
 }
 
 func roleRevisionHeadroom(a *sessionAuthorization, needed uint64) error {
-	if ^uint64(0)-a.revision < needed {
+	if ^uint64(0)-a.Revision < needed {
 		return fmt.Errorf("stuntgres: session authorization revision exhausted")
 	}
 	return nil
@@ -81,51 +81,51 @@ func roleRevisionHeadroom(a *sessionAuthorization, needed uint64) error {
 
 // Called with settings and Session locked. Role refs were validated before
 // publication; restoration must not repeat membership eligibility checks.
-func (s *sessionSettings) touchRole(current authorization.PrincipalRef, local bool) {
-	a := s.roleAction
-	if !a.present {
-		a.present = true
+func (s *sessionSettings) TouchRole(current authorization.PrincipalRef, local bool) {
+	a := s.RoleAction
+	if !a.Present {
+		a.Present = true
 		a.original = current
 	}
 	if !local {
 		a.kind = settingSession
 		a.candidate = authorization.PrincipalRef{}
-	} else if !s.roleAction.present {
+	} else if !s.RoleAction.Present {
 		a.kind = settingLocal
 	} else if a.kind == settingSession {
 		a.kind = settingSessionLocal
 		a.candidate = current
 	}
-	s.roleAction = a
+	s.RoleAction = a
 }
 
 // Install a complete boundary state once; admission reserves revision capacity.
-func (s *sessionSettings) restoreIdentityLocked(target authorization.RoleState) {
-	a := s.session.Authorization
-	if a != nil && a.state != target {
-		a.state = target
-		a.revision++
+func (s *sessionSettings) RestoreIdentityLocked(target authorization.RoleState) {
+	a := s.Session.Authorization
+	if a != nil && a.State != target {
+		a.State = target
+		a.Revision++
 	}
 }
 
 func (s *sessionSettings) override(name string) settingOverride {
-	text, present := s.values[name]
-	return settingOverride{present: present, text: text, typed: s.typed[name]}
+	text, present := s.Values[name]
+	return settingOverride{Present: present, Text: text, Typed: s.Typed[name]}
 }
-func (s *sessionSettings) restore(name string, v settingOverride) {
-	if v.present {
-		s.values[name] = v.text
-		s.typed[name] = v.typed
+func (s *sessionSettings) Restore(name string, v settingOverride) {
+	if v.Present {
+		s.Values[name] = v.Text
+		s.Typed[name] = v.Typed
 	} else {
-		delete(s.values, name)
-		delete(s.typed, name)
+		delete(s.Values, name)
+		delete(s.Typed, name)
 	}
 }
-func (s *sessionSettings) touch(name string, local bool) {
-	if s.actions == nil {
-		s.actions = make(map[string]settingAction)
+func (s *sessionSettings) Touch(name string, local bool) {
+	if s.Actions == nil {
+		s.Actions = make(map[string]settingAction)
 	}
-	a, exists := s.actions[name]
+	a, exists := s.Actions[name]
 	if !exists {
 		a.original = s.override(name)
 	}
@@ -138,53 +138,53 @@ func (s *sessionSettings) touch(name string, local bool) {
 		a.kind = settingSessionLocal
 		a.candidate = s.override(name)
 	}
-	s.actions[name] = a
+	s.Actions[name] = a
 }
 
 // finishTransaction runs under transaction admission. Typed timer restoration
 // follows settings -> Session ordering, without providers or external callbacks.
-func (s *sessionSettings) finishTransaction(commit bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.ended {
-		for name, a := range s.actions {
+func (s *sessionSettings) FinishTransaction(commit bool) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	if !s.Ended {
+		for name, a := range s.Actions {
 			if !commit || a.kind == settingLocal {
-				s.restore(name, a.original)
+				s.Restore(name, a.original)
 			} else if a.kind == settingSessionLocal {
-				s.restore(name, a.candidate)
+				s.Restore(name, a.candidate)
 			}
 		}
 	}
-	if s.session != nil {
-		s.session.Mu.Lock()
-		t := s.session.Transactions
-		target := s.session.Authorization.state
-		if !commit && t.identityCaptured {
-			target.Authenticated = t.identityEntry.Authenticated
-			target.SessionUser = t.identityEntry.SessionUser
-			target.ResetRole = t.identityEntry.ResetRole
+	if s.Session != nil {
+		s.Session.Mu.Lock()
+		t := s.Session.Transactions
+		target := s.Session.Authorization.State
+		if !commit && t.IdentityCaptured {
+			target.Authenticated = t.IdentityEntry.Authenticated
+			target.SessionUser = t.IdentityEntry.SessionUser
+			target.ResetRole = t.IdentityEntry.ResetRole
 		}
-		if a := s.roleAction; a.present {
+		if a := s.RoleAction; a.Present {
 			if !commit || a.kind == settingLocal {
 				target.CurrentUser = a.original
 			} else if a.kind == settingSessionLocal {
 				target.CurrentUser = a.candidate
 			}
 		}
-		s.restoreIdentityLocked(target)
-		t.identityEntry = authorization.RoleState{}
-		t.identityCaptured = false
-		s.session.PublishTimeoutSettingsLocked(s, false, time.Now())
-		s.session.Mu.Unlock()
+		s.RestoreIdentityLocked(target)
+		t.IdentityEntry = authorization.RoleState{}
+		t.IdentityCaptured = false
+		s.Session.PublishTimeoutSettingsLocked(s, false, time.Now())
+		s.Session.Mu.Unlock()
 	}
-	s.actions = nil
-	s.roleAction = roleSettingAction{}
+	s.Actions = nil
+	s.RoleAction = roleSettingAction{}
 }
 
-func (s *sessionSettings) initialize(ctx context.Context, definitions map[string]settings.Definition, names []string, provider settings.SessionDefaultProvider) error {
-	s.typed = make(map[string]settings.Value)
-	s.defaultTyped = make(map[string]settings.Value)
-	s.placeholders = make(map[string]bool)
+func (s *sessionSettings) Initialize(ctx context.Context, definitions map[string]settings.Definition, names []string, provider settings.SessionDefaultProvider) error {
+	s.Typed = make(map[string]settings.Value)
+	s.DefaultTyped = make(map[string]settings.Value)
+	s.Placeholders = make(map[string]bool)
 	for _, name := range names {
 		d := definitions[name]
 		v := d.BootValue()
@@ -198,7 +198,7 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 			}
 			if present {
 				if name == "row_security" {
-					s.rowSecurityProviderDefault = true
+					s.RowSecurityProviderDefault = true
 				}
 				v, err = d.Parse(input)
 				if err != nil {
@@ -213,48 +213,48 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		s.defaults[d.Name] = normalized
-		s.defaultTyped[d.Name] = v
+		s.Defaults[d.Name] = normalized
+		s.DefaultTyped[d.Name] = v
 	}
 	return nil
 }
 func (s *sessionSettings) EndSession(_ ids.SessionToken, _ EndReason) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.ended = true
-	s.defaults = nil
-	s.values = nil
-	s.typed = nil
-	s.defaultTyped = nil
-	s.placeholders = nil
-	s.actions = nil
-	s.roleAction = roleSettingAction{}
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	s.Ended = true
+	s.Defaults = nil
+	s.Values = nil
+	s.Typed = nil
+	s.DefaultTyped = nil
+	s.Placeholders = nil
+	s.Actions = nil
+	s.RoleAction = roleSettingAction{}
 	return nil
 }
-func (s *sessionSettings) value(name string) string {
-	if name == "transaction_isolation" && s.currentIsolation != "" {
-		return s.currentIsolation
+func (s *sessionSettings) Value(name string) string {
+	if name == "transaction_isolation" && s.CurrentIsolation != "" {
+		return s.CurrentIsolation
 	}
 	if name == "transaction_read_only" {
-		if s.currentReadOnly {
+		if s.CurrentReadOnly {
 			return "on"
 		}
 		return "off"
 	}
 	if name == "transaction_deferrable" {
-		if s.currentDeferrable {
+		if s.CurrentDeferrable {
 			return "on"
 		}
 		return "off"
 	}
-	if v, ok := s.values[name]; ok {
+	if v, ok := s.Values[name]; ok {
 		return v
 	}
-	return s.defaults[name]
+	return s.Defaults[name]
 }
-func (s *sessionSettings) typedValue(name string) settings.Value {
-	if v, ok := s.typed[name]; ok {
+func (s *sessionSettings) TypedValue(name string) settings.Value {
+	if v, ok := s.Typed[name]; ok {
 		return v
 	}
-	return s.defaultTyped[name]
+	return s.DefaultTyped[name]
 }

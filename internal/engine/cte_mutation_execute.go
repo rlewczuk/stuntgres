@@ -88,7 +88,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			continue
 		}
 		count++
-		if scope.owner.readOnly && !temporaryDataTarget(auth, mutation, definition.Statement) {
+		if scope.owner.ReadOnly && !temporaryDataTarget(auth, mutation, definition.Statement) {
 			primaryTag = modifyingTag(statement)
 			if primaryTag == "" {
 				primaryTag = "SELECT"

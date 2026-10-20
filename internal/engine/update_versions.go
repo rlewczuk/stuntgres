@@ -144,21 +144,21 @@ retry:
 	if err := s.validateIndexCandidates(ref, &batch); err != nil {
 		return err
 	}
-	s.owner.mu.Lock()
+	s.owner.Mu.Lock()
 	e := s.engine()
 	e.mu.Lock()
-	admission := e.privateCatalogLocked(s.owner.catalog).State()
+	admission := e.privateCatalogLocked(s.owner.Catalog).State()
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
 		e.mu.Unlock()
-		s.owner.mu.Unlock()
+		s.owner.Mu.Unlock()
 		if err := s.revalidateIndexRows(ref, old, &batch); err != nil {
 			return err
 		}
 		goto retry
 	}
-	defer s.owner.mu.Unlock()
+	defer s.owner.Mu.Unlock()
 	defer e.mu.Unlock()
-	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
+	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
 	if ref.Domain() != e.catalog.Domain {
@@ -175,8 +175,8 @@ retry:
 			return err
 		}
 	}
-	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
-	if !ok || e.privateStorageLocked(s.owner.catalog, ref.Address) == nil || len(old) != len(rows) {
+	relation, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
+	if !ok || e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil || len(old) != len(rows) {
 		return errors.New("stuntgres: invalid update stage")
 	}
 	for i, row := range rows {

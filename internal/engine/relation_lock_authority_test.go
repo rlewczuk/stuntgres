@@ -70,8 +70,8 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	ra := transactionBegin(t, a)
 	rb := transactionBegin(t, b)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	ta := a.Transactions.ticket
-	tb := b.Transactions.ticket
+	ta := a.Transactions.Ticket
+	tb := b.Transactions.Ticket
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := e.locks.Acquire(canceled, tb, lock.Resource{ObjectRef: ref}, lock.AccessShare); !errors.Is(err, context.Canceled) {
@@ -103,7 +103,7 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	// An old callback/fence cannot remove a new incarnation's contribution.
 	old := tb
 	rb = transactionBegin(t, b)
-	tb = b.Transactions.ticket
+	tb = b.Transactions.Ticket
 	if tb == old {
 		t.Fatal("ticket reused")
 	}

@@ -8,6 +8,6 @@ type Notification struct {
 }
 
 type notificationAction struct {
-	channel     string
-	listen, all bool
+	Channel     string
+	Listen, All bool
 }

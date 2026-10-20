@@ -71,8 +71,8 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
 	gateRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), gate.Address())
-	defer e.endLockOwner(holder.Transactions.ticket)
-	if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
+	defer e.endLockOwner(holder.Transactions.Ticket)
+	if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -83,7 +83,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	joined := false
 	defer func() {
 		cancel()
-		e.endLockOwner(holder.Transactions.ticket)
+		e.endLockOwner(holder.Transactions.Ticket)
 		if !joined {
 			select {
 			case <-done:
@@ -102,7 +102,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		entry := lockState.Resources[lock.Resource{ObjectRef: gateRef}]
 		waiting := entry != nil && len(entry.Pending) == 1 &&
 			entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.AccessShare &&
-			entry.Holders[holder.Transactions.ticket].Mode&lock.AccessExclusive != 0
+			entry.Holders[holder.Transactions.Ticket].Mode&lock.AccessExclusive != 0
 		innerRef := e.catalog.Domain.Ref(gateRef.Epoch, inner.Address())
 		innerEntry := lockState.Resources[lock.Resource{ObjectRef: innerRef}]
 		granted := innerEntry != nil && innerEntry.Holders[scope.ticket].Mode&lock.AccessShare != 0
@@ -154,7 +154,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	assertSourceWait()
 	assertManifest()
-	e.endLockOwner(holder.Transactions.ticket)
+	e.endLockOwner(holder.Transactions.Ticket)
 	select {
 	case err := <-done:
 		joined = true

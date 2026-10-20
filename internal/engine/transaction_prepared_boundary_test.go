@@ -106,7 +106,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 	preparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{{preparedBoundaryInteger(7)}}})
 	preparedUnitStatement(t, e, origin, &parser.CreateSequence{Name: preparedBoundaryName("prepared_boundary_sequence"), Options: []parser.SequenceOption{{Name: "start", Value: 41}}})
 	e.mu.Lock()
-	beforeVisibility := e.visibility.Entries[origin.Transactions.ref]
+	beforeVisibility := e.visibility.Entries[origin.Transactions.Ref]
 	e.mu.Unlock()
 	if !beforeVisibility.Snapshot || beforeVisibility.XID == 0 {
 		t.Fatal("real modifying Serializable owner did not advertise visibility")
@@ -133,9 +133,9 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 	if !found || predecessor.Version != update.Base || update.Born != 0 {
 		t.Fatal("fixture did not retain the genuine live UPDATE base/version")
 	}
-	origin.Settings.mu.Lock()
-	setting := origin.Settings.value("application_name")
-	origin.Settings.mu.Unlock()
+	origin.Settings.Mu.Lock()
+	setting := origin.Settings.Value("application_name")
+	origin.Settings.Mu.Unlock()
 	if setting != "prepared-boundary" {
 		t.Fatal("successful prepare did not commit SET and undo SET LOCAL", setting)
 	}
@@ -304,7 +304,7 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session,
 		derived.Execution = &preparedBoundaryExpression{Expr: derived.Execution, barrier: func() {
 			// Assert the blocking callback is outside every metadata mutex, including
 			// the detached origin and finishing attachment. Never wait under a lock.
-			for _, lock := range []*sync.Mutex{&e.mu, &origin.Mu, &origin.Transactions.mu, &finisher.Mu, &finisher.Transactions.mu} {
+			for _, lock := range []*sync.Mutex{&e.mu, &origin.Mu, &origin.Transactions.Mu, &finisher.Mu, &finisher.Transactions.Mu} {
 				if !lock.TryLock() {
 					t.Error("publication expression executed under metadata mutex")
 					close(arrived)
@@ -480,7 +480,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		tickets[i] = owner.Transactions.ticket
+		tickets[i] = owner.Transactions.Ticket
 		preparedUnitStatement(t, e, owner, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Values: []string{"winner-setting"}})
 		preparedUnitStatement(t, e, owner, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Local: true, Values: []string{"local-setting"}})
 		preparedUnitStatement(t, e, owner, &parser.Insert{Name: preparedBoundaryName("ssi_unit"), Rows: [][]parser.Expr{{preparedBoundaryInteger(int64(i + 1))}}})
@@ -549,12 +549,12 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 		t.Fatal("wrong registry winner")
 	}
 	for i, owner := range owners {
-		if owner.TransactionState() != TxIdle || owner.Transactions.ticket != nil || owner.Transactions.catalog != nil || len(owner.Transactions.writes) != 0 || len(owner.Transactions.deletes) != 0 || len(owner.Transactions.roots) != 0 {
+		if owner.TransactionState() != TxIdle || owner.Transactions.Ticket != nil || owner.Transactions.Catalog != nil || len(owner.Transactions.Writes) != 0 || len(owner.Transactions.Deletes) != 0 || len(owner.Transactions.Roots) != 0 {
 			t.Fatal("whole transaction did not detach/end", i)
 		}
-		owner.Settings.mu.Lock()
-		value := owner.Settings.value("application_name")
-		owner.Settings.mu.Unlock()
+		owner.Settings.Mu.Lock()
+		value := owner.Settings.Value("application_name")
+		owner.Settings.Mu.Unlock()
 		expected := ""
 		if i == winner.owner {
 			expected = "winner-setting"
@@ -621,7 +621,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	}
 	waitContext, cancelWaiter := context.WithCancel(context.Background())
 	defer cancelWaiter()
-	request, err := e.locks.StartAcquire(waitContext, waiter.Transactions.ticket, resource, lock.AccessShare, lock.Policy{})
+	request, err := e.locks.StartAcquire(waitContext, waiter.Transactions.Ticket, resource, lock.AccessShare, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("waiter was not queued behind prepared table hold", err)
 	}

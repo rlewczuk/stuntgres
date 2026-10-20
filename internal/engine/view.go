@@ -186,7 +186,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`could not determine which collation to use for view column "%s"`, projection.Schema()[i].Name), Hint: "Use the COLLATE clause to set the collation explicitly."}
 		}
 	}
-	changes := s.owner.catalog.Clone()
+	changes := s.owner.Catalog.Clone()
 	ns, err := e.relationCreationNamespaceLocked(auth, view.Name, persistence, changes)
 	if err != nil {
 		return err
@@ -433,7 +433,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, err
 	}
 	if scope.viewCreationOrZero().changes != nil {
-		scope.owner.accessedTemporary = true
+		scope.owner.AccessedTemporary = true
 		if err := e.stageCatalogOverlay(scope, stage, scope.viewCreationOrZero().changes); err != nil {
 			return Result{}, err
 		}

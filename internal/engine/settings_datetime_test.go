@@ -14,9 +14,9 @@ func TestSettingsTimezoneAbbreviationsCapturedProvider(t *testing.T) {
 	check := func(s *Session, want sqltype.TimezoneAbbreviations) {
 		t.Helper()
 		input, _ := sessionPresentation(s)
-		s.Settings.mu.Lock()
-		text := s.Settings.value("timezone_abbreviations")
-		s.Settings.mu.Unlock()
+		s.Settings.Mu.Lock()
+		text := s.Settings.Value("timezone_abbreviations")
+		s.Settings.Mu.Unlock()
 		if input.TimezoneAbbreviations != want || text != want.String() {
 			t.Fatal(input.TimezoneAbbreviations, text, want)
 		}

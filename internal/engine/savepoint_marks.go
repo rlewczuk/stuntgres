@@ -16,67 +16,67 @@ import (
 // Marks retain immutable logical roots and held lock contributions, not
 // generator counters or snapshots. The outer block keeps the same ticket.
 type savepointMark struct {
-	name                string
-	serial              uint64 // the owner's savepointSerial at capture; names foreign savepoints
-	writes              map[ids.ObjectAddress][]storage.RowVersion
-	deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
-	catalog             *catalogChanges
-	settings            settingsMark
-	isolation           Isolation
-	readOnly            bool
-	deferrable          bool
-	locks               lock.Checkpoint
-	cursors             uint64
-	exclusion           session.ExclusionMarkSlot // nil when zero; see exclusionMarkSlotOf
-	identity            authorization.RoleState
-	notificationActions []notificationAction
-	notificationEvents  []Notification
+	Name                string
+	Serial              uint64 // the owner's savepointSerial at capture; names foreign savepoints
+	Writes              map[ids.ObjectAddress][]storage.RowVersion
+	Deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Catalog             *catalogChanges
+	Settings            settingsMark
+	Isolation           Isolation
+	ReadOnly            bool
+	Deferrable          bool
+	Locks               lock.Checkpoint
+	Cursors             uint64
+	Exclusion           session.ExclusionMarkSlot // nil when zero; see exclusionMarkSlotOf
+	Identity            authorization.RoleState
+	NotificationActions []notificationAction
+	NotificationEvents  []Notification
 }
 
 type settingsMark struct {
-	values      map[string]string
-	typed       map[string]settings.Value
-	actions     map[string]settingAction
-	roleAction  roleSettingAction
-	currentRole authorization.PrincipalRef
+	Values      map[string]string
+	Typed       map[string]settings.Value
+	Actions     map[string]settingAction
+	RoleAction  roleSettingAction
+	CurrentRole authorization.PrincipalRef
 }
 
-func (m settingsMark) clone() settingsMark {
-	m.values, m.typed, m.actions = maps.Clone(m.values), maps.Clone(m.typed), maps.Clone(m.actions)
+func (m settingsMark) Clone() settingsMark {
+	m.Values, m.Typed, m.Actions = maps.Clone(m.Values), maps.Clone(m.Typed), maps.Clone(m.Actions)
 	return m
 }
 
-func (s *sessionSettings) savepoint() settingsMark {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	m := settingsMark{values: s.values, typed: s.typed, actions: s.actions, roleAction: s.roleAction}
-	if s.session != nil {
-		s.session.Mu.Lock()
-		if s.session.Authorization != nil {
-			m.currentRole = s.session.Authorization.state.CurrentUser
+func (s *sessionSettings) Savepoint() settingsMark {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	m := settingsMark{Values: s.Values, Typed: s.Typed, Actions: s.Actions, RoleAction: s.RoleAction}
+	if s.Session != nil {
+		s.Session.Mu.Lock()
+		if s.Session.Authorization != nil {
+			m.CurrentRole = s.Session.Authorization.State.CurrentUser
 		}
-		s.session.Mu.Unlock()
+		s.Session.Mu.Unlock()
 	}
-	return m.clone()
+	return m.Clone()
 }
 
 // candidate is already independent of the retained mark; no callbacks or
 // allocation are allowed between final preflight and effect installation.
-func (s *sessionSettings) restoreSavepoint(candidate settingsMark, identity authorization.RoleState) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.values, s.typed, s.actions = candidate.values, candidate.typed, candidate.actions
-	s.roleAction = candidate.roleAction
-	if s.session != nil {
-		s.session.Mu.Lock()
-		identity.CurrentUser = candidate.currentRole
-		s.restoreIdentityLocked(identity)
-		s.session.PublishTimeoutSettingsLocked(s, false, time.Now())
-		s.session.Mu.Unlock()
+func (s *sessionSettings) RestoreSavepoint(candidate settingsMark, identity authorization.RoleState) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	s.Values, s.Typed, s.Actions = candidate.Values, candidate.Typed, candidate.Actions
+	s.RoleAction = candidate.RoleAction
+	if s.Session != nil {
+		s.Session.Mu.Lock()
+		identity.CurrentUser = candidate.CurrentRole
+		s.RestoreIdentityLocked(identity)
+		s.Session.PublishTimeoutSettingsLocked(s, false, time.Now())
+		s.Session.Mu.Unlock()
 	}
 }
 
-func (t *transactionOwner) truncateSavepoints(n int) {
-	clear(t.savepoints[n:])
-	t.savepoints = t.savepoints[:n]
+func (t *transactionOwner) TruncateSavepoints(n int) {
+	clear(t.Savepoints[n:])
+	t.Savepoints = t.Savepoints[:n]
 }

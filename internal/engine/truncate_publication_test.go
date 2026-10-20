@@ -61,7 +61,7 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	sessionSQL(t, waiter, "INSERT INTO p VALUES(3)")
 	transactionRows(t, waiter, "SELECT id FROM p ORDER BY id", 1, 2, 3)
 	sessionSQL(t, waiter, "SAVEPOINT preserve")
-	writes, ticket := waiter.Transactions.writes[p.Address], waiter.Transactions.ticket
+	writes, ticket := waiter.Transactions.Writes[p.Address], waiter.Transactions.Ticket
 	done, cancel := truncateUnitAsync(t, e, waiter, truncateUnitAST("p", "q"))
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
@@ -77,13 +77,13 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	lockAwait(t, done, context.Canceled)
 	sessionSQL(t, waiter, "ROLLBACK TO preserve")
 	foreignKeyHeldMode(t, e, p, 0, ticket, lock.AccessShare|lock.RowExclusive)
-	if !sameVersionRoot(waiter.Transactions.writes[p.Address], writes) || waiter.Transactions.catalog != nil && len(waiter.Transactions.catalog.Storage) != 0 {
+	if !sameVersionRoot(waiter.Transactions.Writes[p.Address], writes) || waiter.Transactions.Catalog != nil && len(waiter.Transactions.Catalog.Storage) != 0 {
 		t.Fatal("canceled upgrade lost earlier roots/left empty generation")
 	}
 	transactionEnd(t, holder, held, false)
 	truncateUnitExecute(t, e, waiter, truncateUnitAST("p"))
 	sessionSQL(t, waiter, "ROLLBACK TO preserve")
-	if !sameVersionRoot(waiter.Transactions.writes[p.Address], writes) {
+	if !sameVersionRoot(waiter.Transactions.Writes[p.Address], writes) {
 		t.Fatal("rollback-to did not restore roots after later success")
 	}
 	foreignKeyHeldMode(t, e, p, 0, ticket, lock.AccessShare|lock.RowExclusive)
@@ -98,7 +98,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO p VALUES(3)")
 			sessionSQL(t, s, "SAVEPOINT preserve")
 			oldP, oldQ := e.storage.Relations[p.Address], e.storage.Relations[q.Address]
-			writes := s.Transactions.writes[p.Address]
+			writes := s.Transactions.Writes[p.Address]
 			scope := truncateUnitStage(t, e, s, "p", "q")
 			switch kind {
 			case "storage":
@@ -134,7 +134,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 			}
 			if kind != "epoch" {
 				sessionSQL(t, s, "ROLLBACK TO preserve")
-				if !sameVersionRoot(s.Transactions.writes[p.Address], writes) || s.Transactions.catalog != nil && len(s.Transactions.catalog.Storage) != 0 {
+				if !sameVersionRoot(s.Transactions.Writes[p.Address], writes) || s.Transactions.Catalog != nil && len(s.Transactions.Catalog.Storage) != 0 {
 					t.Fatal("final veto lost prior overlay roots")
 				}
 			}

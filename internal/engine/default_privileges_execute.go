@@ -162,8 +162,8 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if op.Session.Transactions.retainsTransaction() {
-		changes := op.Session.Transactions.catalog.Clone()
+	if op.Session.Transactions.RetainsTransaction() {
+		changes := op.Session.Transactions.Catalog.Clone()
 		// Default utilities use the selected private DB authority, but their
 		// retained effects must fence its exact committed predecessor.
 		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ids.ObjectRef{}, nil), changes); err != nil {
@@ -172,7 +172,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		for key, record := range updates {
 			e.defaultACLChangeLocked(changes, key, record)
 		}
-		op.Session.Transactions.catalog = changes
+		op.Session.Transactions.Catalog = changes
 	} else {
 		e.catalog.state = &candidate
 	}

@@ -112,7 +112,7 @@ func TestCopyBinaryLifecycle(t *testing.T) {
 						t.Fatalf("binary timeout=%#v want=%#v", record, want)
 					}
 				}
-				if scope.owner.copyLease != nil || scope.stage.rows != nil {
+				if scope.owner.CopyLease != nil || scope.stage.rows != nil {
 					t.Fatal("binary interruption leaked reservation/stage")
 				}
 				if setting == "transaction_timeout" {
@@ -151,7 +151,7 @@ func TestCopyBinaryFinalCancellationVeto(t *testing.T) {
 	if result.Rows != nil {
 		defer result.Rows.Close()
 	}
-	if result.Count != 0 || scope.stage.rows != nil || scope.owner.copyLease != nil {
+	if result.Count != 0 || scope.stage.rows != nil || scope.owner.CopyLease != nil {
 		t.Fatal("final binary cancellation published or leaked", result.Count)
 	}
 }

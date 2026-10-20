@@ -88,7 +88,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 					ar := transactionBegin(t, a)
 					sessionSQL(t, a, "DELETE FROM t")
-					at := a.Transactions.ticket
+					at := a.Transactions.Ticket
 					projection := e.exclusionPending[at]
 					parent := roleTableRef(t, e, "public.t")
 					index := e.catalog.state.MustRelation(parent.Address).Constraints.Exclusion[0].Index
@@ -139,7 +139,7 @@ func TestExclusionCompletionDeadlock(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
-	at, bt := a.Transactions.ticket, b.Transactions.ticket
+	at, bt := a.Transactions.Ticket, b.Transactions.Ticket
 	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.events) != 1 || len(ownerExtensionOrZero(b.Transactions).exclusionModes.events) != 1 {
 		t.Fatal("crossed admissions must independently enlist both owners")
 	}

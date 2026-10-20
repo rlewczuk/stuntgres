@@ -21,9 +21,9 @@ func fdwHoldSettlement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Finish(errors.New("unit cleanup"))
-	s.owner.mu.Lock()
+	s.owner.Mu.Lock()
 	s.attachTransactionLocked()
-	s.owner.mu.Unlock()
+	s.owner.Mu.Unlock()
 	remote := &fdwUnitTransaction{}
 	participant := &foreignParticipant{tx: remote}
 	ownerExtensionOf(s.owner).foreign.participants = []*foreignParticipant{participant}
@@ -45,10 +45,10 @@ func fdwHoldSettlement(t *testing.T) {
 		} else {
 			e.mu.Unlock()
 		}
-		if !s.owner.mu.TryLock() {
+		if !s.owner.Mu.TryLock() {
 			t.Error("HOLD settlement holds owner.mu")
 		} else {
-			s.owner.mu.Unlock()
+			s.owner.Mu.Unlock()
 		}
 		if !e.replacementMu.TryLock() {
 			t.Error("HOLD settlement holds replacement reservation")

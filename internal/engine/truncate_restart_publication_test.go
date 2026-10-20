@@ -98,10 +98,10 @@ func TestTruncateRestartPublication(t *testing.T) {
 	tx := transactionBegin(t, s)
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
-	first := s.Transactions.catalog
+	first := s.Transactions.Catalog
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
-	second := s.Transactions.catalog
+	second := s.Transactions.Catalog
 	if first.Generators[ps.Address] == second.Generators[ps.Address] || second.Originals[ps.Address] != oldD || second.Storage[p.Address].Original != oldP || second.Storage[q.Address].Original != oldQ || e.storage.Sequences[ps.Address] != oldPS || oldPS.Last != 3 || e.storage.Sequences[qs.Address] != oldQS {
 		t.Fatal("repeat lost originals or mutated live binding")
 	}
@@ -134,7 +134,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				cancel()
 			case "Authorization":
 				s.Mu.Lock()
-				s.Authorization.revision++
+				s.Authorization.Revision++
 				s.Mu.Unlock()
 			case "Roles":
 				peer := sessionStart(t, e, nil)
@@ -183,7 +183,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				t.Fatal("descriptor replaced on veto")
 			}
 			sessionSQL(t, s, "ROLLBACK TO preserve")
-			if s.Transactions.catalog != nil {
+			if s.Transactions.Catalog != nil {
 				t.Fatal("failed statement leaked overlay past savepoint")
 			}
 			transactionEnd(t, s, tx, false)

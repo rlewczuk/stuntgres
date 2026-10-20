@@ -213,7 +213,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 						t.Fatal("saved completion error/cache disposal lost", diagnostic, memoryA)
 					}
 				}
-				if *memoryB != cacheB || e.catalog.state != before || e.storage.Relations[old.Address()] != storage || e.storage.Sequences[a] != generatorA || e.storage.Sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || scope.catalog != nil || scope.owner.catalog != nil {
+				if *memoryB != cacheB || e.catalog.state != before || e.storage.Relations[old.Address()] != storage || e.storage.Sequences[a] != generatorA || e.storage.Sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || scope.catalog != nil || scope.owner.Catalog != nil {
 					t.Fatal("failed controller published a prefix or visited later TYPE")
 				}
 				if shared {

@@ -142,23 +142,23 @@ func TestConstraintRenamePrivateOverlay(t *testing.T) {
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	tx := s.Transactions
-	first := tx.catalog
+	first := tx.Catalog
 	if first == nil || first.Originals[ref.Address] != old || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal("private overlay/original authority absent")
 	}
 	sessionSQL(t, s, "SAVEPOINT saved")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT new TO later")
-	second := tx.catalog
+	second := tx.Catalog
 	if second == first || first.Descriptors[index].Name() != "new" || second.Descriptors[index].Name() != "later" || second.Originals[ref.Address] != old {
 		t.Fatal("repeated rename mutated saved overlay")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")
-	if tx.catalog != first {
+	if tx.Catalog != first {
 		t.Fatal("savepoint did not restore exact overlay")
 	}
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT new TO old")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	if tx.catalog.Originals[ref.Address] != old || e.storage.Relations[ref.Address] != store || e.storage.IndexRoots[index] != root {
+	if tx.Catalog.Originals[ref.Address] != old || e.storage.Relations[ref.Address] != store || e.storage.IndexRoots[index] != root {
 		t.Fatal("name reuse lost originals/storage/root")
 	}
 	sessionSQL(t, s, "COMMIT")
@@ -346,7 +346,7 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "ALTER TABLE t ALTER k TYPE BIGINT")
-	earlier := s.Transactions.catalog
+	earlier := s.Transactions.Catalog
 	parent := earlier.Descriptors[ref.Address].(*catalog.Relation)
 	index := parent.Constraints.Unique[0].Index
 	root := journalIndexesOrZero(earlier).uniqueRoots[index]
@@ -356,12 +356,12 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	}
 	sessionSQL(t, s, "SAVEPOINT saved")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	renamed := s.Transactions.catalog
+	renamed := s.Transactions.Catalog
 	if renamed == earlier || journalIndexesOrZero(renamed).uniqueRoots[index] != root || renamed.Storage[ref.Address].Replacement != storage || earlier.Descriptors[index].Name() != "old" {
 		t.Fatal("rename copied/mutated prior private roots")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")
-	if s.Transactions.catalog != earlier {
+	if s.Transactions.Catalog != earlier {
 		t.Fatal("private root savepoint pointer lost")
 	}
 	sessionSQL(t, s, "ROLLBACK")

@@ -524,7 +524,7 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 	if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
 		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
-	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
+	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 	if store == nil {
 		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
@@ -537,8 +537,8 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 		return storage.RowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
 	}
 	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address])
-	if !live && stableIsolation(s.owner.isolation) && store.Ends != nil {
-		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.frontier {
+	if !live && stableIsolation(s.owner.Isolation) && store.Ends != nil {
+		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.Frontier {
 			return storage.RowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent delete")
 		}
 	}

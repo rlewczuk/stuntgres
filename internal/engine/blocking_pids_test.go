@@ -20,7 +20,7 @@ func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *lock.Ticket) {
 	t.Helper()
 	s := sessionStart(t, e, nil)
 	transactionBegin(t, s)
-	return s, s.Transactions.ticket
+	return s, s.Transactions.Ticket
 }
 
 func blockingUnitResource(e *Engine) lock.Resource {
@@ -242,7 +242,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			}
 		})
 		transactionBegin(t, high)
-		ht := high.Transactions.ticket
+		ht := high.Transactions.Ticket
 		resource := blockingUnitResource(e)
 		if err := e.locks.Acquire(context.Background(), lt, resource, lock.AccessExclusive); err != nil {
 			t.Fatal(err)

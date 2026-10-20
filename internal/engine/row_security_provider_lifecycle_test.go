@@ -100,13 +100,13 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			reset := func() {
 				t.Helper()
 				apply(nil, false)
-				s.Settings.finishTransaction(true)
+				s.Settings.FinishTransaction(true)
 			}
 			for _, ending := range []string{"COMMIT", "ROLLBACK"} {
 				for _, kind := range []string{"SESSION", "LOCAL"} {
 					apply(&other, kind == "LOCAL")
 					check(s, other, tc.value, "session")
-					s.Settings.finishTransaction(ending == "COMMIT")
+					s.Settings.FinishTransaction(ending == "COMMIT")
 					if kind == "SESSION" && ending == "COMMIT" {
 						check(s, other, tc.value, "session")
 					} else {
@@ -121,13 +121,13 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				apply(&other, false)
 				apply(&tc.value, true)
 				check(s, tc.value, tc.value, "session")
-				mark := s.Settings.savepoint()
-				identity := s.Authorization.state
+				mark := s.Settings.Savepoint()
+				identity := s.Authorization.State
 				apply(nil, false)
 				baseline()
-				s.Settings.restoreSavepoint(mark.clone(), identity)
+				s.Settings.RestoreSavepoint(mark.Clone(), identity)
 				check(s, tc.value, tc.value, "session")
-				s.Settings.finishTransaction(ending == "COMMIT")
+				s.Settings.FinishTransaction(ending == "COMMIT")
 				if ending == "COMMIT" {
 					check(s, other, tc.value, "session")
 				} else {
@@ -139,13 +139,13 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			// A mark before either kind must recover absent override provenance,
 			// including explicit boot-equal provider values.
 			for _, kind := range []string{"SESSION", "LOCAL"} {
-				mark := s.Settings.savepoint()
-				identity := s.Authorization.state
+				mark := s.Settings.Savepoint()
+				identity := s.Authorization.State
 				apply(&other, kind == "LOCAL")
 				check(s, other, tc.value, "session")
-				s.Settings.restoreSavepoint(mark.clone(), identity)
+				s.Settings.RestoreSavepoint(mark.Clone(), identity)
 				baseline()
-				s.Settings.finishTransaction(true)
+				s.Settings.FinishTransaction(true)
 				baseline()
 			}
 			if !tc.noProvider && provider.calls["row_security"] != 1 {

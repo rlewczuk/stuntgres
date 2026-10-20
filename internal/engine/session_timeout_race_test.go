@@ -37,7 +37,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			})
 			timeoutPendingRequest(t, engineOf(s), op)
 			peer := timeoutPendingOperation(t, holder)
-			peerRef := holder.Transactions.ref
+			peerRef := holder.Transactions.Ref
 			start, callbacksDone := make(chan struct{}), make(chan struct{})
 			expired, released := make(chan error, 1), make(chan error, 1)
 			var callbacks sync.WaitGroup
@@ -102,7 +102,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	s, holder, _, _ := timeoutPendingFixture(t, false)
 	manager := engineOf(s).locks
-	ticket := holder.Transactions.ticket
+	ticket := holder.Transactions.Ticket
 	var resource lock.Resource
 	for ref := range manager.Inspect().Journals[ticket] {
 		resource = ref
@@ -132,7 +132,7 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	blocked := timeoutPendingOperation(t, s)
 	policy := lock.Policy{TimeoutSlot: &blocked.LockWait, NoWait: true, Timeout: time.Hour}
 	if allocations := testing.AllocsPerRun(100, func() {
-		request, err := manager.StartAcquire(blocked.Context(), s.Transactions.ticket, resource, lock.AccessShare, policy)
+		request, err := manager.StartAcquire(blocked.Context(), s.Transactions.Ticket, resource, lock.AccessShare, policy)
 		if request != nil || err != lock.ErrUnavailable {
 			panic("NOWAIT queued or granted conflicting request")
 		}
@@ -142,7 +142,7 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	if blocked.LockWait.Request() != nil || blocked.LockWait.Failed() {
 		t.Fatal("NOWAIT published pending timeout")
 	}
-	request, err := manager.StartAcquire(blocked.Context(), s.Transactions.ticket, resource, lock.AccessShare, lock.Policy{TimeoutSlot: &blocked.LockWait})
+	request, err := manager.StartAcquire(blocked.Context(), s.Transactions.Ticket, resource, lock.AccessShare, lock.Policy{TimeoutSlot: &blocked.LockWait})
 	if request == nil || err != nil {
 		t.Fatal("disabled timeout request", request, err)
 	}

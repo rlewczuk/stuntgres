@@ -34,7 +34,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if concurrent {
 				mode = lock.Exclusive
 			}
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -52,7 +52,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				e.mu.Lock()
 				e.catalog.state.SetEpoch(originalEpoch)
 				e.mu.Unlock()
-				e.endLockOwner(holder.Transactions.ticket)
+				e.endLockOwner(holder.Transactions.Ticket)
 				if !joined {
 					select {
 					case <-done:
@@ -109,7 +109,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			e.catalog.state = &nextState
 			before, rowCounter, versionCounter := e.visibility.CommitSeq(), e.storage.RowFrontier(), e.storage.VersionFrontier()
 			e.mu.Unlock()
-			e.endLockOwner(holder.Transactions.ticket)
+			e.endLockOwner(holder.Transactions.Ticket)
 			var err error
 			select {
 			case err = <-done:

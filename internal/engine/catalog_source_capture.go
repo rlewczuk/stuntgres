@@ -64,16 +64,16 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		in.Roles = scope.inquiry.commentRoles
 	case 2224:
 		runtime.sequenceBase = e.catalog.state
-		if scope.owner.sequenceCatalog != nil {
-			runtime.sequenceBase = scope.owner.sequenceCatalog
+		if scope.owner.SequenceCatalog != nil {
+			runtime.sequenceBase = scope.owner.SequenceCatalog
 		}
-		runtime.sequenceOwn = scope.owner.catalog
+		runtime.sequenceOwn = scope.owner.Catalog
 	default:
 		switch oid {
 		case 2609, 3079, ids.ParameterClassID:
 			in.Catalog = scope.inquiry.commentCatalog
 		default:
-			in.Catalog = e.privateCatalogLocked(scope.owner.catalog)
+			in.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 		}
 		if oid == ids.ParameterClassID {
 			in.Roles = scope.inquiry.commentRoles

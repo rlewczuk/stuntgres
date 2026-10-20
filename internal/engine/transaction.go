@@ -22,35 +22,35 @@ type EndResult struct{ Committed bool }
 
 func clearTransaction(t *transactionOwner) {
 	ownerExtensionOf(t).retireForeign()
-	if payloadOf(t.session).cursors != nil {
-		ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.endTransaction(t.ref))
+	if payloadOf(t.Session).cursors != nil {
+		ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
 	}
-	if payloadOf(t.session).preparedSQL != nil {
-		for _, p := range payloadOf(t.session).preparedSQL.portals {
-			if p.tx == t.ref {
+	if payloadOf(t.Session).preparedSQL != nil {
+		for _, p := range payloadOf(t.Session).preparedSQL.portals {
+			if p.tx == t.Ref {
 				p.retired = true
 			}
 		}
 	}
-	if t.protocolCycle != nil {
-		t.protocolCycle.executed = false
+	if t.ProtocolCycle != nil {
+		t.ProtocolCycle.Executed = false
 	}
-	t.state = TxIdle
-	t.ref = ids.TxRef{}
-	t.command = 0
-	t.writes = nil
-	t.deletes = nil
-	t.start = time.Time{}
-	t.snapshotSet = false
-	t.frontier = 0
-	t.roots = nil
-	t.sequenceCatalog = nil
-	t.catalog = nil
-	t.notificationActions = nil
-	t.notificationEvents = nil
-	clear(t.savepoints)
-	t.savepoints = nil
-	t.accessedTemporary = false
+	t.State = TxIdle
+	t.Ref = ids.TxRef{}
+	t.Command = 0
+	t.Writes = nil
+	t.Deletes = nil
+	t.Start = time.Time{}
+	t.SnapshotSet = false
+	t.Frontier = 0
+	t.Roots = nil
+	t.SequenceCatalog = nil
+	t.Catalog = nil
+	t.NotificationActions = nil
+	t.NotificationEvents = nil
+	clear(t.Savepoints)
+	t.Savepoints = nil
+	t.AccessedTemporary = false
 	ownerExtensionOf(t).exclusionModes = exclusionModes{}
 }
 
@@ -66,42 +66,42 @@ func (r *transactionSessionEnd) EndSession(token ids.SessionToken, _ EndReason) 
 // endTransactionSession aborts t's transaction and releases its locks,
 // cursors and TEMP session state when the session ends.
 func endTransactionSession(t *transactionOwner, token ids.SessionToken) error {
-	if err := t.acquireAdmission(context.Background(), nil); err != nil {
+	if err := t.AcquireAdmission(context.Background(), nil); err != nil {
 		return err
 	}
-	defer t.admission.Unlock()
-	t.mu.Lock()
-	if token != t.session.SessionToken {
-		t.mu.Unlock()
+	defer t.Admission.Unlock()
+	t.Mu.Lock()
+	if token != t.Session.SessionToken {
+		t.Mu.Unlock()
 		return errors.New("stuntgres: foreign transaction session")
 	}
-	engineOf(t.session).endSerializable(t.ref, false)
-	t.session.Settings.finishTransaction(false)
+	engineOf(t.Session).endSerializable(t.Ref, false)
+	t.Session.Settings.FinishTransaction(false)
 	clearTransaction(t)
-	t.session.RetireTransactionTimeout()
-	ticket := t.ticket
-	t.ticket = nil
-	t.mu.Unlock()
-	engineOf(t.session).endLockOwner(ticket)
+	t.Session.RetireTransactionTimeout()
+	ticket := t.Ticket
+	t.Ticket = nil
+	t.Mu.Unlock()
+	engineOf(t.Session).endLockOwner(ticket)
 	cleanupErr := drainCursorCleanup(t, context.Background(), nil)
 	// Collation-bearing namespaces are retained for lawful runner teardown after
 	// this callback releases admission. Other TEMP cleanup retains its owner path.
-	if err := engineOf(t.session).endTemporarySession(t.session); cleanupErr == nil {
+	if err := engineOf(t.Session).endTemporarySession(t.Session); cleanupErr == nil {
 		cleanupErr = err
 	}
 	return cleanupErr
 }
 
 func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, start time.Time) error {
-	if t.next == ids.TxID(^uint64(0)) {
+	if t.Next == ids.TxID(^uint64(0)) {
 		return errors.New("stuntgres: transaction identity exhausted")
 	}
 	session := op.Session
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	settings := session.Settings
-	settings.mu.Lock()
-	defer settings.mu.Unlock()
+	settings.Mu.Lock()
+	defer settings.Mu.Unlock()
 	session.Mu.Lock()
 	defer session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
@@ -111,24 +111,24 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	if err != nil {
 		return err
 	}
-	t.next++
-	t.ref = e.catalog.Domain.Tx(t.session.SessionToken, t.next, e.catalog.state.Epoch(), t, diagnostic)
-	t.state = state
+	t.Next++
+	t.Ref = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.state.Epoch(), t, diagnostic)
+	t.State = state
 	payloadOf(session).notifications.busy = true
-	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
-	t.readOnly = settings.value("default_transaction_read_only") == "on"
-	t.deferrable = settings.value("default_transaction_deferrable") == "on"
-	t.entryIsolation, t.entryReadOnly = t.isolation, t.readOnly
-	t.entryDeferrable = t.deferrable
-	settings.currentIsolation = isolationText(t.isolation)
-	settings.currentReadOnly = t.readOnly
-	settings.currentDeferrable = t.deferrable
-	e.enrollSerializableLocked(t.ref, t.isolation)
-	t.start = start
-	if t.retainedMessage {
-		t.messageBorn = true
+	t.Isolation = isolationFromText(settings.Value("default_transaction_isolation"))
+	t.ReadOnly = settings.Value("default_transaction_read_only") == "on"
+	t.Deferrable = settings.Value("default_transaction_deferrable") == "on"
+	t.EntryIsolation, t.EntryReadOnly = t.Isolation, t.ReadOnly
+	t.EntryDeferrable = t.Deferrable
+	settings.CurrentIsolation = isolationText(t.Isolation)
+	settings.CurrentReadOnly = t.ReadOnly
+	settings.CurrentDeferrable = t.Deferrable
+	e.enrollSerializableLocked(t.Ref, t.Isolation)
+	t.Start = start
+	if t.RetainedMessage {
+		t.MessageBorn = true
 	}
-	session.BeginTimeoutLocked(t.ref, state == TxActive, start)
+	session.BeginTimeoutLocked(t.Ref, state == TxActive, start)
 	return nil
 }
 
@@ -141,22 +141,22 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (ids.TxRef, error) {
 		return ids.TxRef{}, err
 	}
 	t := op.Session.Transactions
-	if err := t.acquireAdmission(op.Context(), op); err != nil {
+	if err := t.AcquireAdmission(op.Context(), op); err != nil {
 		return ids.TxRef{}, err
 	}
-	defer t.admission.Unlock()
+	defer t.Admission.Unlock()
 	ref, err := e.beginAdmitted(op, t, start)
 	if err == nil {
-		t.mu.Lock()
+		t.Mu.Lock()
 		if options.Isolation != DefaultIsolation {
-			t.isolation = options.Isolation
+			t.Isolation = options.Isolation
 		}
-		t.readOnly = options.ReadOnly
+		t.ReadOnly = options.ReadOnly
 		if options.DeferrableSet {
-			t.deferrable = options.Deferrable
+			t.Deferrable = options.Deferrable
 		}
 		syncCharacteristics(t)
-		t.mu.Unlock()
+		t.Mu.Unlock()
 	}
 	return ref, err
 }
@@ -166,10 +166,10 @@ func (e *Engine) Rollback(op *Operation, ref ids.TxRef) (EndResult, error) {
 		return EndResult{}, err
 	}
 	t := op.Session.Transactions
-	if err := t.acquireAdmission(op.Context(), op); err != nil {
+	if err := t.AcquireAdmission(op.Context(), op); err != nil {
 		return EndResult{}, err
 	}
-	defer t.admission.Unlock()
+	defer t.Admission.Unlock()
 	result, err := e.endAdmitted(op, t, ref, false, false, false, time.Time{}, nil)
 	if cleanupErr := drainCursorCleanup(t, op.Context(), nil); err == nil {
 		err = cleanupErr
@@ -183,10 +183,10 @@ func (e *Engine) Commit(op *Operation, ref ids.TxRef) (EndResult, error) {
 		return EndResult{}, admissionErr
 	}
 	t := op.Session.Transactions
-	if err := t.acquireAdmission(op.Context(), op); err != nil {
+	if err := t.AcquireAdmission(op.Context(), op); err != nil {
 		return EndResult{}, err
 	}
-	defer t.admission.Unlock()
+	defer t.Admission.Unlock()
 	result, err := e.endAdmitted(op, t, ref, true, false, false, time.Time{}, nil)
 	if cleanupErr := drainCursorCleanup(t, op.Context(), nil); err == nil {
 		err = cleanupErr
@@ -288,11 +288,11 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 		return nil, err
 	}
 	t := op.Session.Transactions
-	if err := t.acquireAdmission(op.Context(), op); err != nil {
+	if err := t.AcquireAdmission(op.Context(), op); err != nil {
 		return nil, err
 	}
 	if err := e.transactionAdmission(op); err != nil {
-		t.admission.Unlock()
+		t.Admission.Unlock()
 		return nil, err
 	}
 	return e.newStatementScope(op, t, start), nil
@@ -308,9 +308,9 @@ func newStatementScope(op *Operation, owner *transactionOwner, start time.Time) 
 	s.stage.self = &s.stage
 	s.input, s.output = sessionPresentation(op.Session)
 	settings := op.Session.Settings
-	settings.mu.Lock()
-	s.rowSecurity = settings.value("row_security") == "on"
-	settings.mu.Unlock()
+	settings.Mu.Lock()
+	s.rowSecurity = settings.Value("row_security") == "on"
+	settings.Mu.Unlock()
 	return s
 }
 
@@ -325,35 +325,35 @@ func statementOperationStart(op *Operation) time.Time {
 // presentation capture when formatting its supplementary integrity fence.
 func sessionPresentation(session *Session) (input sqltype.InputEnvironment, output sqltype.OutputEnvironment) {
 	settings := session.Settings
-	settings.mu.Lock()
-	defer settings.mu.Unlock()
-	if settings.value("bytea_output") == "escape" {
+	settings.Mu.Lock()
+	defer settings.Mu.Unlock()
+	if settings.Value("bytea_output") == "escape" {
 		output.ByteaOutput = sqltype.ByteaEscape
 	}
-	output.QuoteAllIdentifiers = settings.value("quote_all_identifiers") == "on"
-	_, output.ClientEncoding = sqltype.ClientEncodingName(settings.value("client_encoding"))
-	zone, ok := settings.typed["timezone"]
+	output.QuoteAllIdentifiers = settings.Value("quote_all_identifiers") == "on"
+	_, output.ClientEncoding = sqltype.ClientEncodingName(settings.Value("client_encoding"))
+	zone, ok := settings.Typed["timezone"]
 	if !ok {
-		zone = settings.defaultTyped["timezone"]
+		zone = settings.DefaultTyped["timezone"]
 	}
-	style, ok := settings.typed["datestyle"]
+	style, ok := settings.Typed["datestyle"]
 	if !ok {
-		style = settings.defaultTyped["datestyle"]
+		style = settings.DefaultTyped["datestyle"]
 	}
-	abbreviations, ok := settings.typed["timezone_abbreviations"]
+	abbreviations, ok := settings.Typed["timezone_abbreviations"]
 	if !ok {
-		abbreviations = settings.defaultTyped["timezone_abbreviations"]
+		abbreviations = settings.DefaultTyped["timezone_abbreviations"]
 	}
 	input.TimezoneAbbreviations = abbreviations.TimezoneAbbreviations
 	input.Zone, output.Zone = zone.Zone, zone.Zone
 	input.DateStyle, output.DateStyle = style.DateStyle, style.DateStyle
-	output.IntervalStyle = sqltype.ParseIntervalStyle(settings.value("intervalstyle"))
+	output.IntervalStyle = sqltype.ParseIntervalStyle(settings.Value("intervalstyle"))
 	input.IntervalStyle = output.IntervalStyle
-	output.ExtraFloatDigits = int32(settings.typedValue("extra_float_digits").Number)
+	output.ExtraFloatDigits = int32(settings.TypedValue("extra_float_digits").Number)
 	output.FloatPrecisionSet = true
-	input.NumericLocale = settings.typedValue("lc_numeric").Locale
-	input.MonetaryLocale = settings.typedValue("lc_monetary").Locale
-	input.TimeLocale = settings.typedValue("lc_time").Locale
+	input.NumericLocale = settings.TypedValue("lc_numeric").Locale
+	input.MonetaryLocale = settings.TypedValue("lc_monetary").Locale
+	input.TimeLocale = settings.TypedValue("lc_time").Locale
 	output.NumericLocale, output.MonetaryLocale, output.TimeLocale = input.NumericLocale, input.MonetaryLocale, input.TimeLocale
 	return input, output
 }
@@ -377,8 +377,8 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return s.gateSavepoint(control)
 	}
 	if control, ok := stmt.(*parser.TransactionControl); ok {
-		s.owner.mu.Lock()
-		defer s.owner.mu.Unlock()
+		s.owner.Mu.Lock()
+		defer s.owner.Mu.Unlock()
 		if s.message {
 			if err := s.admitTransactionLocked(s.engine()); err != nil {
 				return err
@@ -387,7 +387,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		if err := s.engine().endPreflight(s.op); err != nil {
 			return err
 		}
-		if (control.Kind == parser.KindStart || control.Kind == parser.KindCommitPrepared || control.Kind == parser.KindRollbackPrepared) && s.owner.state == TxAborted {
+		if (control.Kind == parser.KindStart || control.Kind == parser.KindCommitPrepared || control.Kind == parser.KindRollbackPrepared) && s.owner.State == TxAborted {
 			return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 		}
 		return nil
@@ -396,9 +396,9 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	e := s.engine()
 	// Admission serializes this session, so the idle classification stays valid
 	// while reserving replacement admission outside transaction synchronization.
-	t.mu.Lock()
-	idle := t.state == TxIdle
-	t.mu.Unlock()
+	t.Mu.Lock()
+	idle := t.State == TxIdle
+	t.Mu.Unlock()
 	if idle {
 		switch stmt.(type) {
 		case *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard, *parser.Truncate:
@@ -412,21 +412,21 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 			}
 		}
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
 	if err := s.admitTransactionLocked(e); err != nil {
 		return err
 	}
 	e.mu.Lock()
-	stale := t.ref.Epoch() != e.catalog.state.Epoch()
+	stale := t.Ref.Epoch() != e.catalog.state.Epoch()
 	e.mu.Unlock()
 	if stale {
 		return ids.ErrCatalogReplaced
 	}
-	if t.state == TxAborted {
+	if t.State == TxAborted {
 		return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 	}
-	if t.command == ids.CommandID(^uint64(0)) {
+	if t.Command == ids.CommandID(^uint64(0)) {
 		return errors.New("stuntgres: command identity exhausted")
 	}
 	return nil
@@ -435,13 +435,13 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 // The transaction owner mutex is held; admission protects the projected roots.
 func (s *StatementScope) attachTransactionLocked() {
 	t := s.owner
-	s.ticket = t.ticket
-	s.txRef = t.ref
-	s.implicit = t.state == TxImplicit
-	s.input.TransactionStart = t.start
-	s.command = t.command
-	s.ownWrites = t.writes
-	s.ownDeletes = t.deletes
+	s.ticket = t.Ticket
+	s.txRef = t.Ref
+	s.implicit = t.State == TxImplicit
+	s.input.TransactionStart = t.Start
+	s.command = t.Command
+	s.ownWrites = t.Writes
+	s.ownDeletes = t.Deletes
 }
 
 func (s *StatementScope) ResolutionCatalog() catalog.Read {
@@ -486,13 +486,13 @@ retry:
 	if err := s.validateIndexCandidates(ref, &batch); err != nil {
 		return err
 	}
-	s.owner.mu.Lock()
+	s.owner.Mu.Lock()
 	e := s.engine()
 	e.mu.Lock()
-	admission := e.privateCatalogLocked(s.owner.catalog).State()
+	admission := e.privateCatalogLocked(s.owner.Catalog).State()
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
 		e.mu.Unlock()
-		s.owner.mu.Unlock()
+		s.owner.Mu.Unlock()
 		if s.insertConflict != nil && s.insertConflict.Update == nil {
 			var err error
 			batch, err = s.revalidateConflictRows(ref, batch)
@@ -507,21 +507,21 @@ retry:
 		}
 		goto retry
 	}
-	defer s.owner.mu.Unlock()
+	defer s.owner.Mu.Unlock()
 	defer e.mu.Unlock()
-	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
+	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
 	if ref.Domain() != e.catalog.Domain {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.ref.Epoch() {
+	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
+	if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
 		return errors.New("stuntgres: relation storage is missing")
 	}
-	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
+	relation, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
 	if !ok {
 		return errors.New("stuntgres: invalid relation descriptor")
 	}
@@ -652,7 +652,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return s.engine().describeOperation(s, stmt)
 	}
 	indexBuild := earlyIndexUtility(stmt)
-	if !queryCreation && s.owner.state == TxActive && explicitUtility(stmt) && !indexBuild {
+	if !queryCreation && s.owner.State == TxActive && explicitUtility(stmt) && !indexBuild {
 		return StatementDescription{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	if err := s.selectPreparedAnalysis(stmt); err != nil {
@@ -672,9 +672,9 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame FrameImporter, stream *protocolCopyExecution) (result Result, err error) {
 	var before TxState
 	if s != nil && s.owner != nil {
-		s.owner.mu.Lock()
-		before = s.owner.state
-		s.owner.mu.Unlock()
+		s.owner.Mu.Lock()
+		before = s.owner.State
+		s.owner.Mu.Unlock()
 	}
 	// Adapter argument normalization precedes scope admission.
 	execute, wrapped := stmt.(*parser.ExecuteSQL)
@@ -905,11 +905,11 @@ func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]storage.RowVersio
 }
 
 func drainCursorCleanup(t *transactionOwner, ctx context.Context, scope *StatementScope) error {
-	t.mu.Lock()
+	t.Mu.Lock()
 	x := ownerExtensionOf(t)
 	cursors, participants := x.cursorCleanup, x.foreign.cleanup
 	x.cursorCleanup, x.foreign.cleanup = nil, nil
-	t.mu.Unlock()
+	t.Mu.Unlock()
 	wire := scope != nil && (scope.protocolOrZero().command || scope.protocolOrZero().simple)
 	var err error
 	if wire && len(cursors) != 0 {
@@ -920,12 +920,12 @@ func drainCursorCleanup(t *transactionOwner, ctx context.Context, scope *Stateme
 	if failure := rollbackForeign(ctx, participants); err == nil {
 		err = failure
 	}
-	if payloadOf(t.session).preparedSQL == nil {
+	if payloadOf(t.Session).preparedSQL == nil {
 		return err
 	}
-	for name, p := range payloadOf(t.session).preparedSQL.portals {
+	for name, p := range payloadOf(t.Session).preparedSQL.portals {
 		if p.retired {
-			delete(payloadOf(t.session).preparedSQL.portals, name)
+			delete(payloadOf(t.Session).preparedSQL.portals, name)
 			var failure error
 			if wire {
 				failure = scope.protocolTerminalIO(func() error { return p.close(ctx) })

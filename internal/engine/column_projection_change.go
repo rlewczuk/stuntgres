@@ -17,7 +17,7 @@ import (
 // roots. The original publication preconditions remain in shape.
 func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, store *storage.Relation, shape catalogStorageChange, snapshot visibility.Root, snapshotExists bool) (catalogStorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	writes, deletes := scope.columnProjectionRoots(old.Address())
-	return projectColumnShapeRoots(scope.op.Context(), stableIsolation(scope.owner.isolation), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
+	return projectColumnShapeRoots(scope.op.Context(), stableIsolation(scope.owner.Isolation), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
 }
 
 func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalog.Relation, store *storage.Relation, shape catalogStorageChange, snapshot visibility.Root, snapshotExists bool, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) (catalogStorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
@@ -102,10 +102,10 @@ func (scope *StatementScope) stagePreparedColumnShape(stage *CatalogStage, chang
 func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, metadataPrepared bool) error {
 	writes, deletes := scope.columnProjectionRoots(old.Address())
 	stage.owner.mu.Lock()
-	snapshot, snapshotExists := scope.owner.roots[old.Address()]
+	snapshot, snapshotExists := scope.owner.Roots[old.Address()]
 	stage.owner.mu.Unlock()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.isolation), metadataPrepared)
+	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.Isolation), metadataPrepared)
 	if err == nil && projected {
 		scope.stageProjectedColumnRoots(old.Address(), writes, deletes)
 	}
@@ -205,9 +205,9 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 		}
 		scope.stageProjectedColumnRoots(address, writes, projectDeletions(deletes, rowShape.replacement))
 		stage.owner.mu.Lock()
-		snapshot, snapshotExists := scope.owner.roots[address]
+		snapshot, snapshotExists := scope.owner.Roots[address]
 		stage.owner.mu.Unlock()
-		if stableIsolation(scope.owner.isolation) && snapshotExists && !shape.Rewritten {
+		if stableIsolation(scope.owner.Isolation) && snapshotExists && !shape.Rewritten {
 			shape.Snapshot, err = projectVersions(scope.op.Context(), snapshot.Versions, snapshot.Relation, next, shape.Fills)
 			if err != nil {
 				return err
