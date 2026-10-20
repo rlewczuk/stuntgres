@@ -83,14 +83,12 @@ type transactionOwner struct {
 	cursorCleanup       []*sqlCursor // Detached under owner lock; drained unlocked.
 	notificationActions []notificationAction
 	notificationEvents  []Notification
-	foreignParticipants []*foreignParticipant
-	foreignCleanup      []*foreignParticipant
-	foreignMarkNext     uint64
+	foreign             foreignTransaction
 }
 
 func (t *transactionOwner) clear() {
-	t.foreignCleanup = append(t.foreignCleanup, t.foreignParticipants...)
-	t.foreignParticipants = nil
+	t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
+	t.foreign.participants = nil
 	if t.session.cursors != nil {
 		t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.endTransaction(t.ref)...)
 	}
@@ -980,8 +978,8 @@ func (t *transactionOwner) drainCursorCleanup(ctx context.Context, scope *Statem
 	t.mu.Lock()
 	cursors := t.cursorCleanup
 	t.cursorCleanup = nil
-	participants := t.foreignCleanup
-	t.foreignCleanup = nil
+	participants := t.foreign.cleanup
+	t.foreign.cleanup = nil
 	t.mu.Unlock()
 	wire := scope != nil && (scope.protocolOrZero().command || scope.protocolOrZero().simple)
 	var err error

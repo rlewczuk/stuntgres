@@ -10,6 +10,15 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
+// foreignTransaction is the transaction owner's FDW state. It is a value group,
+// not a lazy slot: every SAVEPOINT advances markNext. Enrollment and disposal
+// keep their existing admission and owner-lock rules.
+type foreignTransaction struct {
+	participants []*foreignParticipant
+	cleanup      []*foreignParticipant
+	markNext     uint64
+}
+
 type foreignParticipantKey struct{ handler, server, mapping, role uint32 }
 type foreignParticipant struct {
 	key          foreignParticipantKey
@@ -68,7 +77,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		return nil, err
 	}
 	var participant *foreignParticipant
-	for _, p := range t.foreignParticipants {
+	for _, p := range t.foreign.participants {
 		if p.key == key {
 			participant = p
 			break
@@ -114,7 +123,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		t.mu.Lock()
 		err = t.validate(s.txRef)
 		if err == nil {
-			t.foreignParticipants = append(t.foreignParticipants, participant)
+			t.foreign.participants = append(t.foreign.participants, participant)
 		}
 		t.mu.Unlock()
 		if err != nil {
@@ -189,7 +198,7 @@ func rollbackForeign(ctx context.Context, participants []*foreignParticipant) er
 func (t *transactionOwner) commitForeign(ctx context.Context, ref ids.TxRef) error {
 	t.mu.Lock()
 	err := t.validate(ref)
-	participants := t.foreignParticipants // Admission excludes enrollment/disposal.
+	participants := t.foreign.participants // Admission excludes enrollment/disposal.
 	t.mu.Unlock()
 	if err != nil {
 		return err
@@ -208,7 +217,7 @@ func (t *transactionOwner) commitForeign(ctx context.Context, ref ids.TxRef) err
 	return nil
 }
 func (t *transactionOwner) foreignPending() bool {
-	for _, p := range t.foreignParticipants {
+	for _, p := range t.foreign.participants {
 		if !p.closed {
 			return true
 		}
@@ -218,7 +227,7 @@ func (t *transactionOwner) foreignPending() bool {
 func foreignMarkName(id uint64) string { return fmt.Sprintf("stuntgres_sql_%d", id) }
 
 func (t *transactionOwner) foreignSavepoint(ctx context.Context, kind int, id uint64) error {
-	for _, p := range t.foreignParticipants {
+	for _, p := range t.foreign.participants {
 		if p.closed {
 			return errors.New("stuntgres: foreign transaction is already disposed")
 		}
@@ -226,7 +235,7 @@ func (t *transactionOwner) foreignSavepoint(ctx context.Context, kind int, id ui
 			return sqlError("0A000", "foreign transaction does not support savepoints")
 		}
 	}
-	for _, p := range t.foreignParticipants {
+	for _, p := range t.foreign.participants {
 		sp := p.tx.(catalog.ForeignTransactionSavepoints)
 		var err error
 		switch kind {
@@ -238,7 +247,7 @@ func (t *transactionOwner) foreignSavepoint(ctx context.Context, kind int, id ui
 			err = sp.Release(ctx, foreignMarkName(id))
 		}
 		if err != nil {
-			_ = rollbackForeign(ctx, t.foreignParticipants)
+			_ = rollbackForeign(ctx, t.foreign.participants)
 			return foreignCallbackError(err)
 		}
 	}

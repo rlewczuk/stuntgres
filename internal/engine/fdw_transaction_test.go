@@ -97,7 +97,7 @@ func TestFDWTransactionParticipants(t *testing.T) {
 		t.Fatal(err)
 	}
 	second, err := s.enlistForeign(op.Context(), p, r, false)
-	if err != nil || first != second || len(s.owner.foreignParticipants) != 1 {
+	if err != nil || first != second || len(s.owner.foreign.participants) != 1 {
 		t.Fatal("participant not shared", err)
 	}
 	if !reflect.DeepEqual(p.tx.calls, []string{"begin-statement"}) {
@@ -118,7 +118,7 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	if err := s.owner.commitForeign(op.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := rollbackForeign(op.Context(), s.owner.foreignParticipants); err != nil {
+	if err := rollbackForeign(op.Context(), s.owner.foreign.participants); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(p.tx.calls, []string{"begin-statement", "statement-success", "save:stuntgres_sql_7", "rollback:stuntgres_sql_7", "release:stuntgres_sql_7", "commit"}) {
@@ -129,7 +129,7 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	a := &fdwUnitTransaction{name: "a", order: &order}
 	b := &fdwUnitTransaction{name: "b", order: &order, commitError: failure}
 	c := &fdwUnitTransaction{name: "c", order: &order}
-	s.owner.foreignParticipants = []*foreignParticipant{{tx: a}, {tx: b}, {tx: c}}
+	s.owner.foreign.participants = []*foreignParticipant{{tx: a}, {tx: b}, {tx: c}}
 	if err := s.owner.commitForeign(op.Context(), ref); !errors.Is(err, failure) {
 		t.Fatal(err)
 	}

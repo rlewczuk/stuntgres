@@ -187,7 +187,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.command++
 		}
 	}
-	if t.state == TxImplicit && err != nil && len(t.foreignParticipants) != 0 {
+	if t.state == TxImplicit && err != nil && len(t.foreign.participants) != 0 {
 		t.mu.Unlock()
 		s.foreignUnlocked()
 		_ = disposeSQLCursors(s.op.Context(), t.session.cursors.endTransaction(t.ref))
@@ -199,7 +199,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.mu.Lock()
 	}
 	if len(s.foreignTablesOrZero().holdPromotions) != 0 {
-		if err != nil && !published && len(t.foreignParticipants) != 0 {
+		if err != nil && !published && len(t.foreign.participants) != 0 {
 			t.mu.Unlock()
 			err = s.discardForeignHoldPromotions(err)
 			t.mu.Lock()
@@ -232,16 +232,16 @@ func (s *StatementScope) Finish(err error) error {
 				remoteErr := t.foreignSavepoint(context.WithoutCancel(s.op.Context()), 1, mark.foreignID)
 				t.mu.Lock()
 				if remoteErr != nil {
-					t.foreignCleanup = append(t.foreignCleanup, t.foreignParticipants...)
-					t.foreignParticipants = nil
+					t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
+					t.foreign.participants = nil
 				}
 				t.restoreSavepoint(mark, mark.settings.clone())
 				e.locks.Restore(t.ticket, mark.locks)
 			}
 			t.state = TxAborted
 		} else {
-			t.foreignCleanup = append(t.foreignCleanup, t.foreignParticipants...)
-			t.foreignParticipants = nil
+			t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
+			t.foreign.participants = nil
 			t.session.settings.finishTransaction(false)
 			e.endSerializable(t.ref, false)
 			t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
