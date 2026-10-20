@@ -169,7 +169,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			if err := prepareAlterIndexRoots(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
-			insertConflictWantHints(t, changes.uniqueRoots[index.Address()], &shaped, want)
+			insertConflictWantHints(t, changes.indexesOrZero().uniqueRoots[index.Address()], &shaped, want)
 		})
 	}
 }
@@ -236,7 +236,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	if err := prepareAlterIndexRoots(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}
-	root := changes.uniqueRoots[index.Address()]
+	root := changes.indexesOrZero().uniqueRoots[index.Address()]
 	if root != validated[index.Name()].root {
 		t.Fatal("validated root was not genuinely reused")
 	}

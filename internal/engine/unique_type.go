@@ -293,7 +293,7 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 		if build := validated[index.Name()]; build != nil && build.index.Address() == address && sameIndexKeySemantics(build.index, index) {
 			continue
 		}
-		if candidate, produced := changes.indexCandidates[address]; produced && candidate.matchesIndex(index, baseline) {
+		if candidate, produced := changes.indexesOrZero().candidates[address]; produced && candidate.matchesIndex(index, baseline) {
 			continue
 		}
 		if original := changes.originals[address]; original == descriptor {

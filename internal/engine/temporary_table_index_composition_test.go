@@ -185,7 +185,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if changes.originals[index.Address()] != index || changes.storage[survivor.Address()].original != before || !sameVersionRoot(changes.storage[survivor.Address()].root, oldRows) || changes.storage[survivor.Address()].ends != before.Ends || changes.storage[survivor.Address()].generation != before.Generation {
 				t.Fatal("original publication predecessor lost")
 			}
-			root := changes.uniqueRoots[index.Address()]
+			root := changes.indexesOrZero().uniqueRoots[index.Address()]
 			if root == nil || root == oldRoot || len(root.Entries) != 1 {
 				t.Fatal("missing actual rebuilt index root")
 			}

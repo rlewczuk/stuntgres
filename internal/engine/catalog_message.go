@@ -200,10 +200,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		if err := observe(a, d); err != nil {
 			return err
 		}
-		if c.indexRebuilds == nil {
-			c.indexRebuilds = map[ids.ObjectAddress]*catalog.Relation{}
+		if c.indexesOrZero().rebuilds == nil {
+			c.indexes().rebuilds = map[ids.ObjectAddress]*catalog.Relation{}
 		}
-		c.indexRebuilds[a] = d
+		c.indexes().rebuilds[a] = d
 	}
 	for k, a := range s.Touched() {
 		if current.NameAddress(k) != a {

@@ -282,8 +282,8 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 		return false, nil, ids.ErrCatalogReplaced
 	}
 	root := e.storage.IndexRoots[index.Address()]
-	if changes := s.owner.catalog; changes != nil && changes.uniqueRoots[index.Address()] != nil {
-		root = changes.uniqueRoots[index.Address()]
+	if changes := s.owner.catalog; changes != nil && changes.indexesOrZero().uniqueRoots[index.Address()] != nil {
+		root = changes.indexesOrZero().uniqueRoots[index.Address()]
 	}
 	e.mu.Unlock()
 	if root == nil {

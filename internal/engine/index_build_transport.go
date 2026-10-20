@@ -64,14 +64,14 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *catalog.Relat
 }
 
 func retainIndexBuild(changes *catalogChanges, index *catalog.Relation, baseline *storage.Relation, root *storage.IndexRoot) {
-	if changes.uniqueRoots == nil {
-		changes.uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
+	if changes.indexesOrZero().uniqueRoots == nil {
+		changes.indexes().uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 	}
-	if changes.indexCandidates == nil {
-		changes.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
+	if changes.indexesOrZero().candidates == nil {
+		changes.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 	}
-	changes.uniqueRoots[index.Address()] = root
-	changes.indexCandidates[index.Address()] = indexRootCandidate{index: index, root: root, storage: baseline.IndexIdentity(), generation: baseline.Generation, ends: baseline.Ends, length: len(baseline.Versions)}
+	changes.indexes().uniqueRoots[index.Address()] = root
+	changes.indexes().candidates[index.Address()] = indexRootCandidate{index: index, root: root, storage: baseline.IndexIdentity(), generation: baseline.Generation, ends: baseline.Ends, length: len(baseline.Versions)}
 }
 
 // Only pending executable index data needs row-coupled outputs. Plain rows keep

@@ -147,8 +147,8 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		var root *storage.IndexRoot
 		if len(indices) != 0 {
 			root = e.storage.IndexRoots[indices[0].Address()]
-			if scope.owner.catalog != nil && scope.owner.catalog.uniqueRoots[indices[0].Address()] != nil {
-				root = scope.owner.catalog.uniqueRoots[indices[0].Address()]
+			if scope.owner.catalog != nil && scope.owner.catalog.indexesOrZero().uniqueRoots[indices[0].Address()] != nil {
+				root = scope.owner.catalog.indexesOrZero().uniqueRoots[indices[0].Address()]
 			}
 		}
 		if root == nil {

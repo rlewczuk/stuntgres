@@ -53,7 +53,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 	}
 	if c != nil && (len(c.descriptors) != 0 || len(c.names) != 0 || len(c.defaultACLs) != 0 ||
 		len(c.generators) != 0 || len(c.storage) != 0 || c.roles != nil ||
-		len(c.uniqueRoots) != 0 || len(c.indexCandidates) != 0 || len(c.indexRebuilds) != 0) {
+		c.indexesSlot.pending()) {
 		return true
 	}
 	for _, rows := range writes {
@@ -326,8 +326,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			var rebuildIntents map[ids.ObjectAddress]*catalog.Relation
 			var indexCandidates map[ids.ObjectAddress]indexRootCandidate
 			if c != nil {
-				rebuildIntents = c.indexRebuilds
-				indexCandidates = c.indexCandidates
+				rebuildIntents = c.indexesOrZero().rebuilds
+				indexCandidates = c.indexesOrZero().candidates
 			}
 			var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
 			if c != nil {

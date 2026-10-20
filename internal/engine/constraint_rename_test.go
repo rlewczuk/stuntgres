@@ -349,7 +349,7 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	earlier := s.transactions.catalog
 	parent := earlier.descriptors[ref.Address].(*catalog.Relation)
 	index := parent.Constraints.Unique[0].Index
-	root := earlier.uniqueRoots[index]
+	root := earlier.indexesOrZero().uniqueRoots[index]
 	storage := earlier.storage[ref.Address].replacement
 	if root == nil || storage == nil {
 		t.Fatal("TYPE did not establish genuine private roots")
@@ -357,7 +357,7 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	sessionSQL(t, s, "SAVEPOINT saved")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	renamed := s.transactions.catalog
-	if renamed == earlier || renamed.uniqueRoots[index] != root || renamed.storage[ref.Address].replacement != storage || earlier.descriptors[index].Name() != "old" {
+	if renamed == earlier || renamed.indexesOrZero().uniqueRoots[index] != root || renamed.storage[ref.Address].replacement != storage || earlier.descriptors[index].Name() != "old" {
 		t.Fatal("rename copied/mutated prior private roots")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")

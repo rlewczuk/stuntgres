@@ -25,8 +25,6 @@ type catalogChanges struct {
 	defaultReads     map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	generators       map[ids.ObjectAddress]*storage.SequenceGenerator
 	storage          map[ids.ObjectAddress]catalogStorageChange
-	uniqueRoots      map[ids.ObjectAddress]*storage.IndexRoot
-	indexCandidates  map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
 	dependencies     []catalogDependencyObservation
 	cachedBase       *catalog.State
 	cached           catalog.Read
@@ -34,10 +32,10 @@ type catalogChanges struct {
 	rolesBase        *access.RoleRecord
 	roles            *access.RoleRecord
 	retiredRoles     map[authorization.PrincipalRef]struct{}
-	indexRebuilds    map[ids.ObjectAddress]*catalog.Relation
 	fences           []catalogFence // Feature commit preconditions, in recording order.
 	domain           *typedef.DomainJournal
 	domainChanged    bool
+	indexesSlot      *indexJournal
 }
 
 func newCatalogChanges() *catalogChanges {
@@ -65,18 +63,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	for a, shape := range c.storage {
 		n.storage[a] = shape
 	}
-	if c.uniqueRoots != nil {
-		n.uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(c.uniqueRoots))
-		for a, root := range c.uniqueRoots {
-			n.uniqueRoots[a] = root
-		}
-	}
-	if c.indexCandidates != nil {
-		n.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate, len(c.indexCandidates))
-		for a, candidate := range c.indexCandidates {
-			n.indexCandidates[a] = candidate
-		}
-	}
+	n.indexesSlot = c.indexesSlot.clone()
 	n.dependencies = append(n.dependencies, c.dependencies...)
 	n.rolesBase, n.roles = c.rolesBase, c.roles
 	if len(c.retiredRoles) != 0 {
@@ -86,12 +73,6 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		}
 	}
 	n.domainChanged = c.domainChanged
-	if c.indexRebuilds != nil {
-		n.indexRebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(c.indexRebuilds))
-		for a, d := range c.indexRebuilds {
-			n.indexRebuilds[a] = d
-		}
-	}
 	n.fences = append(n.fences, c.fences...)
 	n.domain = c.domain.Clone()
 	return n
@@ -155,8 +136,7 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d c
 	}
 	c.descriptors[a] = d
 	if d == nil {
-		delete(c.uniqueRoots, a)
-		delete(c.indexCandidates, a)
+		c.indexesSlot.forget(a)
 	}
 	c.cachedBase = nil
 	c.cached = catalog.Read{}

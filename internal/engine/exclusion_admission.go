@@ -291,7 +291,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	auth.Recapture(auth.Catalog)
 	root := e.storage.IndexRoots[index.Address()]
 	if s.owner.catalog != nil {
-		if private, ok := s.owner.catalog.uniqueRoots[index.Address()]; ok {
+		if private, ok := s.owner.catalog.indexesOrZero().uniqueRoots[index.Address()]; ok {
 			root = private
 		}
 	}
@@ -311,7 +311,7 @@ func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ids.Obje
 	defer e.mu.Unlock()
 	root := e.storage.IndexRoots[index]
 	if s.owner.catalog != nil {
-		if private, ok := s.owner.catalog.uniqueRoots[index]; ok {
+		if private, ok := s.owner.catalog.indexesOrZero().uniqueRoots[index]; ok {
 			root = private
 		}
 	}
