@@ -512,12 +512,12 @@ The plan IR and the expression node types live in
 [`plan`](plan/README.md), which documents the `plan.Runtime` capability.
 `*EvalContext` is its only implementation (`node_runtime.go`): it holds the
 shared prologue and the `Eval*` bodies of the frame and executor nodes. The
-engine still names the moved types through the temporary aliases in
-`plan_aliases.go` (removed in ENGINE-SPLIT 10d). A data-modifying CTE carries
+engine names the `plan` types directly. A data-modifying CTE carries
 its binding as the opaque `plan.CTEMutation`, recovered only through
-`mutationBinding`. The installed-function and extension-path nodes still
-recover `*EvalContext`; they move with `plan`, not `extension`, once they
-no longer need it (see the plan prompt's 10c notes).
+`mutationBinding`. The installed extension routine nodes and the
+`pg_extension_update_paths` node live in `plan` too; their provider
+validators (`validInstalledText`, `validateInstalled*`) stay here, beside
+`EvalInstalledText` and `OpenExtensionPaths`.
 
 Run `make check RUN='^TestNodeRuntimePrologue$'` for the prologue seam; public
 evaluation proof is the existing query, CTE, RETURNING, MERGE, window,

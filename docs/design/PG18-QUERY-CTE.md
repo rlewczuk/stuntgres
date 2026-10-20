@@ -69,7 +69,7 @@ an unused v-reading definition with SELECT7, but rejects a referenced v reader.
 ## Derived graph reuse and genuine folding
 
 The closed logical-node convention is retained. CTE occurrences extend the
-existing `derivedNode` with immutable definition identity, original table syntax,
+existing `plan.DerivedNode` with immutable definition identity, original table syntax,
 virtual namespace ordinal, scanning frame and positional output demand.
 Ordinary derived queries keep their existing behavior. Materialized occurrences
 open a shared CTE reader; eligible folded occurrences use independent query graph

@@ -41,14 +41,14 @@ sharing catalog generation or pointer ownership. Anonymous expressions permit
 1664 fields; named catalog/storage composites retain1600. Exact named identity,
 member typmods/collations and domain wrappers remain authoritative.
 Structural assignment requires actual anonymous RECORD identity, not merely a
-rowExpression implementation node. Both raw rebind and rawless member rebuilding
+`plan.RowExpr` implementation node. Both raw rebind and rawless member rebuilding
 are guarded; named/domain operands use normal destination/conditional coercion.
 Projected INSERT SELECT RECORD cannot recover direct constructor/whole-source
 conversion authority, including typed derived rows. Direct UPDATE/INSERT VALUES
 remain contextual; anonymous missing-source UPDATE reconstructs present NULL
 members, whereas compatible named/base-domain conversion retains whole NULL.
 
-The existing binder constructs `rowExpression` and `fieldExpression`. A named
+The existing binder constructs `plan.RowExpr` and `plan.FieldExpr`. A named
 row destination types each child through ordinary coercion edges. Every child
 is bound/finalized before final arity/coercion validation. A field stores the
 stable attribute and current dense projection index. Direct constructor field

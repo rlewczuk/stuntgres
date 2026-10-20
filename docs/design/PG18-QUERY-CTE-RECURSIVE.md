@@ -38,8 +38,8 @@ Collation indeterminacy is expression provenance, not a zero Usage collation ID;
 the anchor/overall comparison preserves that distinction and renders an
 indeterminate collation as PostgreSQL's `(null)`.
 
-A `worktableScanNode` carries a definition identity and typed virtual scan layout,
-not a child pointing at the canonical query. `recursiveUnionNode` owns the two real
+A `plan.WorktableScanNode` carries a definition identity and typed virtual scan layout,
+not a child pointing at the canonical query. `plan.RecursiveUnionNode` owns the two real
 arm projects and existing set coercion/grouping recipes. Structural visitors remain
 acyclic and traverse both real arms once per occurrence. The self identity remains
 symbolic in stored rendering and never becomes a persistent catalog dependency.

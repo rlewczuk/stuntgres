@@ -265,14 +265,11 @@ names `*EvalContext`. `EvalContext` is three documented groups. The checks in
 - [x] 10c — `plan` created, IR and node types moved (`6189f6483`,
   `00e890338`, `a6188a084`, then the docs commit) *(racecheck/finalcheck
   skipped at user request)*
-- [ ] 10d — Aliases removed
+- [x] 10d — Aliases removed, plus the three 10c follow-ups (`fb6c19185`,
+  `367313c0d`, `3860f511e`, `9ba165e93`, `3f66996a4`, `50e07094a`, then the
+  docs commit) *(racecheck/finalcheck skipped at user request)*
 
-Outstanding aliases (10c): `internal/engine/plan_aliases.go` holds 90 type
-aliases, one per moved type the engine names (`LogicalNode = plan.Node`,
-`BoundQuery = plan.Query`, `columnExpression = plan.ColumnExpr`, ...; the
-exported `Truth` too). `cteMutation` and `rowFieldProjection` need none.
-Functions and constants were qualified instead (`plan.TruthOf`,
-`plan.True`, `plan.BeginEvaluation`, the `plan.Window*` operations, ...).
+Outstanding aliases: none. 10d deleted `plan_aliases.go` (90 aliases).
 
 ### 10a result
 
@@ -505,23 +502,97 @@ series/unnest source cursors: 92 types, about 3k lines.
   identical. The move adds no cost. Racecheck and finalcheck skipped at
   user request.
 
+### 10d result
+
+Measured at `faaebbf0d` (after 13b and 16b) with go/types over the engine
+package and its tests. The user asked for the three 10c follow-ups in the
+same sub-step: keyed node literals, the `CTEDefinition` rename and the
+installed-node move.
+
+- `fb6c19185` (shadowing): 82 locals and parameters named `plan` would have
+  captured an inserted `plan.X` (232 rewrite sites). They were renamed by
+  type with a free-name check at every use: `coercionPlan` (56),
+  `stringPlan`, `binaryPlan`, `enumSupportPlan`, `queryPlan` (`*plan.Query`
+  in three tests), ... and `arithmetic` once; 205 identifiers in 65 files.
+  Other `plan` locals (not at rewrite sites) keep their name; new code that
+  names the package inside their scope must rename them first.
+- `367313c0d` (aliases): 6,360 references in 596 engine files (largest
+  `projectNode` 640, `literalExpression` 596, `columnExpression` 414,
+  `LogicalNode` 408, `querySchema` 218, `coercionExpression` 184) now name
+  `plan.` types; `plan_aliases.go` is deleted. No package outside the
+  engine used the exported `BoundQuery`, `LogicalNode` or `Truth`. Four
+  comments and one test message named old types. The tool's gofmt pass
+  reformatted two files that were not gofmt-clean on master
+  (`window_frame_bind.go`, `query_window_exclude_remedy_test.go`).
+- `3860f511e` (keyed literals): the 145 positional engine literals of
+  `plan` types got field keys; positional `false`/`nil` elements were
+  dropped (same zero value). `go vet` findings for the engine went from
+  2,904 to 2,759 and back to 2,760 after the move (none names a `plan`
+  type); the others are unchanged.
+- `9ba165e93`: `SubqueryExpr.CTEDefinition` (the analysis-only CTE edge
+  flag) is now `CTEEdge`; 23 references in 17 files.
+- `3f66996a4` and `50e07094a` (installed nodes): the six installed
+  extension wrappers and the `pg_extension_update_paths` node moved to
+  `plan` as `InstalledTextExpr`, `InstalledCryptoExpr`,
+  `InstalledUUIDOsspExpr`, `InstalledMetaphoneExpr`,
+  `InstalledLevenshteinExpr`, `InstalledSoundexExpr` and
+  `ExtensionPathsExpr` (`expression_installed.go`,
+  `expression_extension_paths.go`), with exported identity fields
+  (`Procedure`, `Ref`, `Dictionary`, `Template`, `Arg`) and their clean
+  `Rebuild` and source-protocol methods. The provider validators read
+  `extension` registries, which `plan` must not import, so they became
+  engine functions taking the node (`validInstalledText`,
+  `validInstalledUUIDOsspShape`, `validateInstalled*`) and stayed in their
+  files, as did `closedPgcryptoDefault`, `cryptoExpressionSignature` and
+  `bindExtensionPaths`. Two `plan.Runtime` methods hold the former engine
+  state reads: `EvalInstalledText` (prologue, provider check, kernel) and
+  `OpenExtensionPaths`. A nil or foreign context still fails with "missing
+  expression context". No production code recovers `*EvalContext` from an
+  `expr.Context` any more; `evalContext` is a test helper
+  (`eval_context_test.go`).
+- Tests: none moved or deleted. Adapted: renamed identifiers throughout;
+  `expression_protocol_test.go` expects `%T` `plan.InstalledSoundexExpr`;
+  `TestViewLiteralProtocolInstalledWrapper` lost its test-only `Capture`
+  override on the UUID wrapper (Go allows no methods on an imported type).
+  That override proved the view-literal capture takes the explicit
+  installed-wrapper branch before the promoted `Capture` hook; for this node
+  both paths capture the same operands, so the order is no longer
+  observable. The test's capture, remap-identity and validation assertions
+  are unchanged.
+- `plan` imports are unchanged (`catalog`, `expr`, `functions`, `ids`,
+  `lock`, `parser`, `sqlstate`, `sqltype` and the standard library); no
+  engine subpackage imports the engine.
+- Verification: `go build` and `go vet` (diffed against master) after every
+  commit, and a targeted engine unit selection of 1,551 tests (the 10c set
+  plus every test in a changed engine test file and the extension wrapper
+  tests) after every commit. The six reference selections (the five step-10
+  sets and the extension set in the README's `## Testing`) passed in quick
+  mode and with `REFERENCE=1` against PostgreSQL 18.6, except the known
+  oracle-side `/postgres` drift (`DeleteReturningBoundaries` and four MERGE
+  repeatable-read tests); every stuntgres subtest passed. `make quickcheck`
+  passed and `make deps` lists only module paths. Startup bench (`make
+  bench`, two interleaved rounds of five vs `faaebbf0d`, host load about 7):
+  median 853 µs/op before and 867 µs/op after, 5,014–5,022 allocs/op on
+  both; the difference is within the run-to-run noise. Racecheck and
+  finalcheck skipped at user request.
+
 Notes for later steps (10c):
 
-- 10d: about 87 engine files declare locals or parameters named `plan`
-  (mostly `sqltype.CoercionPlan` values); 48 files already import `plan`.
-  Check `LookupParent` at every rewritten use and rename shadowing locals
-  first. The 145 unkeyed node literals can become keyed there.
-- 10d: `SubqueryExpr.CTEDefinition` is a `bool` (the analysis-only CTE
-  edge flag), not a definition; consider a clearer name when the aliases go.
+- 10d (done): shadowing locals renamed, the 145 node literals keyed and
+  `SubqueryExpr.CTEDefinition` renamed `CTEEdge` (see 10d result).
+- 11a: `EvalInstalledText` and `OpenExtensionPaths` (`extension_expression.go`,
+  `extension_paths.go`) join the `Eval*` bodies on `*EvalContext` that step
+  11 inventories.
 - 11a: `query_search.go` (`searchRecipe`) moved whole into `plan`, so the
   exec inventory no longer lists it; the series, subscripts and unnest
   source cursors moved with their nodes.
-- 12c: the binder constructs `plan` types through the aliases until 10d.
+- 12c: the binder constructs `plan` types directly since 10d.
 - 16a decided that the installed expression wrappers
   (`installedFunctionExpression`, `installedCryptoFunctionExpression`,
   `installedUUIDOsspFunctionExpression`) and `extensionPathsExpression` go
   with `plan`. 10c left them in the engine: their `Eval` still recovers
   `*EvalContext` through `evalContext`, which `plan` must not name. Moving
   them needs a `plan.Runtime` method (or a `functions` runtime) for the
-  state they read first; do it in 10d or a follow-up sub-step.
+  state they read first; do it in 10d or a follow-up sub-step. Done in 10d
+  with `EvalInstalledText` and `OpenExtensionPaths`.
 

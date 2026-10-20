@@ -75,11 +75,12 @@ Imports of the move set: `authorization`, `catalog`, `expr`, `functions`,
 - `database_grant.go` (was `extension_database.go`): database GRANT and
   `initializeDatabase`.
 - Node and binder code (decision of 16a item 4, see Status): the installed
-  expression wrappers `installedFunctionExpression`,
-  `installedCryptoFunctionExpression`, `installedUUIDOsspFunctionExpression`
-  with `closedPgcryptoDefault` and `cryptoExpressionSignature`, and the
-  `pg_extension_update_paths` node `extensionPathsExpression`, go with
-  `plan` (10c/10d); `EvalContext.FunctionPgcrypto*` with step 11; the intagg
+  expression wrappers and the `pg_extension_update_paths` node moved to
+  `plan` in 10d (`plan.InstalledTextExpr`, `plan.InstalledCryptoExpr`,
+  `plan.InstalledUUIDOsspExpr`, the three fuzzystrmatch wrappers and
+  `plan.ExtensionPathsExpr`); their provider validators,
+  `closedPgcryptoDefault` and `cryptoExpressionSignature` stay in the engine
+  with the binder; `EvalContext.FunctionPgcrypto*` with step 11; the intagg
   binder methods and `bindExtensionPaths` with step 12; the intagg view
   recipe methods with the postponed `view` package.
 
@@ -303,11 +304,11 @@ Notes for later steps:
   measure; when the handlers move, the installers become `extension`
   types again (or staging takes the provider as an argument) and the
   registry may hold the providers directly.
-- 10d: the installed wrappers check provider identity with
-  `extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto` and call
-  `extension.Stock*.ValidateProcedure`. `plan` sits below `extension`, so those checks
-  must go through `catalog.Owner().Extensions[name]` and the procedure
-  provider registry instead of naming extension types.
+- 10d (done): the installed wrappers' provider checks
+  (`extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto`,
+  `extension.Stock*.ValidateProcedure`) became engine functions taking the
+  node (`validInstalledText`, `validateInstalled*`); only the node types
+  moved to `plan`, so `plan` names no extension type.
 - 14c/14d: `procedureProvider` (builtin, SQL, foreign and conversion
   routine validation) is routine code; `routineByOID`'s callers now use the
   catalog identity table.

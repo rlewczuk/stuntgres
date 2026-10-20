@@ -529,7 +529,7 @@ it reaches the text routes `BindPosixSubstring`, `BindSimilarSubstring` and
 candidates and the engine's `||` binder.
 
 The LIKE operator binder is ported onto `Binder` but stays in the engine,
-because its node (`likeExpression`) is engine-private.
+because its node is `plan.LikeExpr` and `plan` imports `functions`.
 
 `BindUUIDGeneration` is exported because pgcrypto's `gen_random_uuid`, which
 still binds in the engine, uses it when `pg_catalog` wins the path.
@@ -844,10 +844,11 @@ yet registered, function column definition lists and JSONB record star
 expansion, name/catalog/ACL and dependency resolution, parameter/result contracts, descriptor generations,
 retag/remap and stored SQL presentation. The capabilities supply existing
 authority without copying rows or the full evaluation context. Installed
-extension routines keep their engine wrapper nodes (for example
-`installedUUIDOsspFunctionExpression`, `installedCryptoFunctionExpression` and
-`installedFunctionExpression` for unaccent and `daitch_mokotoff`) and stored
-identity; manifest validation lives in `extension`. Registered bind code
+extension routines keep their wrapper nodes in `plan` (for example
+`plan.InstalledUUIDOsspExpr`, `plan.InstalledCryptoExpr` and
+`plan.InstalledTextExpr` for unaccent and `daitch_mokotoff`) and stored
+identity; the engine validates that identity, and manifest validation lives
+in `extension`. Registered bind code
 reaches them only through `InstalledRoutine`. UUID, pgcrypto and genuine SQL routine DEFAULT admission
 (`closedUUIDDefault`, `closedPgcryptoDefault`, `closedSQLRoutineDefault`) stay
 with the engine's DEFAULT binder and stored-expression validator. Registered

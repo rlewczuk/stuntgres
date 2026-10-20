@@ -34,6 +34,14 @@ It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
   `CaseExpr`, `RowExpr`, `SubqueryExpr`, `WindowExpr`, ...) with their
   `Eval` methods, and the set-returning `UnnestExpr`, `SeriesExpr` and
   `SubscriptsExpr` with their source protocol and cursors.
+- **Installed extension nodes** (`expression_installed.go`,
+  `expression_extension_paths.go`): `InstalledTextExpr` (unaccent,
+  `daitch_mokotoff`), `InstalledCryptoExpr`, `InstalledUUIDOsspExpr`,
+  `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr` and
+  `InstalledSoundexExpr` wrap a `functions` kernel with the captured
+  installed procedure and its object reference; `ExtensionPathsExpr` is the
+  `pg_extension_update_paths` set source. The engine validates their
+  identity against the extension providers.
 - **Three-valued logic** (`expression.go`): `Truth`, `True`, `False`,
   `Unknown` and `TruthOf`.
 
@@ -57,6 +65,10 @@ implementation.
   `EvalReturningWholeRow`, `EvalMergeAction`, `EvalCachedOrder`,
   `EvalWindow`, `EvalDomainValue`, `EvalUpdateOutput`, `EvalSubquery`,
   `EvalSQLRoutine`) holds that node's evaluation body in the engine.
+- `EvalInstalledText` runs the prologue, checks the captured provider and
+  evaluates the kernel; `OpenExtensionPaths` lists the named extension's
+  version pairs from the live catalog. Both stay in the engine because they
+  read the extension providers.
 
 Statement-only nodes run the prologue and then read `FunctionContext()`,
 `FunctionInput()` and `FunctionOutput()`; frame and executor nodes delegate
@@ -85,10 +97,9 @@ their whole `Eval` to the runtime.
 `indexedStage`, `finalRows`; `RowCursor` and `RowResult`; the binder that
 constructs the nodes; the central switches that list node types (deparse,
 remap, retag, conditional planning, query walks, join legality, aggregate
-binding, defaults); the installed-function and extension-path nodes, which
-still recover `*EvalContext` (16a assigned them to this package once they
-no longer do). Until 10d the engine names these types through temporary aliases in
-`plan_aliases.go`.
+binding, defaults); the installed-node validators (`validInstalledText`,
+`validateInstalled*`, `closedPgcryptoDefault`) and `bindExtensionPaths`.
+The engine names the types here directly; no aliases remain.
 
 ## Testing
 
@@ -108,4 +119,5 @@ make check RUN='^TestReference(QueryWindow|GroupingSets|QueryAggregate)'
 make check RUN='^TestReference(InsertReturning|UpdateReturning|DeleteReturning|Merge(Delete|Insert|Nothing|Returning|Source|Update))'
 make check RUN='^TestReference(Domain|GeneratedStored|GeneratedVirtual)'
 make check RUN='^TestReference(QueryJoins|QueryOuterJoins|ViewNative|DumpRound|DeparseConstraints)'
+make check RUN='^TestReference(Extension|Pgcrypto|UUIDOssp|Metaphone|Levenshtein|Soundex|Intagg)'
 ```

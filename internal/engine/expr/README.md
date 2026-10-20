@@ -286,8 +286,9 @@ asks `ResultNullability` without requiring Composite membership.
 IR live in [`plan`](../plan/README.md); they recover the `plan.Runtime`
 capability from the `Context` they receive: statement-only nodes run its
 prologue and then use this `Context`'s environments; frame and executor
-nodes delegate to its `Eval*` methods, whose bodies stay in the engine. Only
-the extension nodes still recover `*EvalContext` through `evalContext`.
+nodes delegate to its `Eval*` methods, whose bodies stay in the engine. No
+node recovers `*EvalContext`; the installed extension nodes use runtime
+methods too.
 Catalog/session function nodes instead live in `functions` and recover its
 CatalogInquiryRuntime/SessionInquiryRuntime from this Context. Those finite
 capabilities keep engine authority and state out of the leaf without extending

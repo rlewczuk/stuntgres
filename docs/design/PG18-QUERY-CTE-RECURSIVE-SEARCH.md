@@ -69,7 +69,7 @@ lexicographic/prefix/dimension ordering. JSON can be constructed/emitted under A
 only comparison reaching its field errors. No eager SEARCH grouping requirement,
 engine-local comparator or hidden tie breaker is installed.
 
-UNION ALL retains no SEARCH equality/hash. DISTINCT retains original queryGrouping
+UNION ALL retains no SEARCH equality/hash. DISTINCT retains original `plan.Grouping`
 providers plus optional CYCLE mark, with explicit index-to-output-slot mapping.
 SEARCH record/path and CYCLE path identity belong to immutable recipes. Hash and
 collision equality include every generated component, depth, path record and array

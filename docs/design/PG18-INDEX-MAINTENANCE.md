@@ -168,7 +168,7 @@ definitions have nil Predicate. Retained projections keep their captured meaning
 across later predicate replacement and root publication.
 
 `indexCatalogKey` follows PostgreSQL ComputeIndexAttrs: peel only top-level
-collationExpression wrappers from the original analyzed definition; a column
+`plan.CollationExpr` wrappers from the original analyzed definition; a column
 uses its stable parent attribute and has no indexprs entry, while another node
 is the original analyzed expression entry with indkey0. Casts and simplification
 are never peeled/evaluated. Native execution/original trees remain unchanged;

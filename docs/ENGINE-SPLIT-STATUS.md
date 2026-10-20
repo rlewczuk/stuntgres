@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `c6766e328`. The later-wave plans
+Last verified against `master` at `faaebbf0d`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,13 +15,12 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 10 `plan`** — 10d aliases removed (item 34; broad); 10c is done.
 - **Step 11 `exec`** — 11a refine (item 35; docs only); 10c and 13a are
   done.
 - **Step 12 `analyze`** — 12c refine, then host seam (item 39); 12b and 10c
   are done.
 
-Steps 1, 2 and 4–9 and `access` are done. Step 13's in-place untangling (13a,
+Steps 1, 2 and 4–10 and `access` are done. Step 13's in-place untangling (13a,
 13b) is done; 13c (item 43) waits for 11c (item 37) and 12d (item 40). Step 16
 Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
 A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
@@ -245,7 +244,7 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     *(racecheck skipped at user request)*
   - [x] 9c — Aliases removed (`62a29d11d`, `7ea3c95e9`, then the docs
     commit) *(racecheck skipped at user request)*
-- [ ] **Step 10 — `plan`** ([prompt](ENGINE-SPLIT-plan.md); needs 2, 3 F1, 5)
+- [x] **Step 10 — `plan`** ([prompt](ENGINE-SPLIT-plan.md); needs 2, 3 F1, 5)
   - [x] 10a — `EvalContext` split in place *(broad)* (the commit that
     records this status) *(racecheck/finalcheck skipped at user request)*
   - [x] 10b — Opaque CTE mutation and node runtime, in place
@@ -255,7 +254,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
   - [x] 10c — `plan` created, IR and node types moved *(broad)*
     (`6189f6483`, `00e890338`, `a6188a084`, then the docs commit) *(racecheck/finalcheck skipped at user
     request)*
-  - [ ] 10d — Aliases removed *(broad)*
+  - [x] 10d — Aliases removed *(broad)* (`fb6c19185`, `367313c0d`,
+    `3860f511e`, `9ba165e93`, `3f66996a4`, `50e07094a`, then the docs commit)
+    *(racecheck/finalcheck skipped at user request)*
 - [ ] **Step 11 — `exec`** ([prompt](ENGINE-SPLIT-exec.md); needs 10c, 13a)
   - [ ] 11a — Refine (docs only)
   - [ ] 11b — Host seam in place
@@ -467,7 +468,11 @@ in the prompt file's Status section.
 33. [x] Plan 10c — [plan](ENGINE-SPLIT-plan.md) 10c · needs 32 · **broad**
     (`6189f6483`, `00e890338`, `a6188a084`, then the docs commit) · selected dual-mode proof and
     quickcheck passed; racecheck/finalcheck skipped at user request
-34. [ ] Plan 10d — [plan](ENGINE-SPLIT-plan.md) 10d · needs 33 · **broad**
+34. [x] Plan 10d — [plan](ENGINE-SPLIT-plan.md) 10d · needs 33 · **broad**
+    (`fb6c19185`, `367313c0d`, `3860f511e`, `9ba165e93`, `3f66996a4`,
+    `50e07094a`, then the docs commit) · with the three 10c follow-ups ·
+    selected dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 35. [ ] Exec 11a (refine, docs only) — [exec](ENGINE-SPLIT-exec.md) 11a ·
     needs 33, 22
 36. [ ] Exec 11b — [exec](ENGINE-SPLIT-exec.md) 11b · needs 35
