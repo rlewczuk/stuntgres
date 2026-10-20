@@ -200,7 +200,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 	}
 	b.prepared.sequenceConstants = slices.Clone(b.prepared.sequenceConstants)
 	for i := range b.prepared.sequenceConstants {
-		b.prepared.sequenceConstants[i].ref = ref(b.prepared.sequenceConstants[i].ref)
+		b.prepared.sequenceConstants[i].Ref = ref(b.prepared.sequenceConstants[i].Ref)
 	}
 	if b.insert.conflict != nil {
 		next := *b.insert.conflict.instantiate()

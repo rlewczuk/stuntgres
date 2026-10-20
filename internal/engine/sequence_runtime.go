@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 )
 
 var _ functions.SequenceRuntime = (*EvalContext)(nil)
@@ -40,7 +41,7 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 	}
 	if request.Name == "lastval" {
 		e.mu.Lock()
-		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), scope.op.session.sequences.last())
+		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), scope.op.session.sequences.Last())
 		e.mu.Unlock()
 		if ref.Address == (ids.ObjectAddress{}) {
 			return 0, sqlError("55000", "lastval is not yet defined in this session")
@@ -67,7 +68,7 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 				beforeErr = sqlError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
 			}
 		} else {
-			beforeErr = sequenceKind(d)
+			beforeErr = sequence.CheckKind(d)
 		}
 	}
 	e.mu.Unlock()
@@ -94,7 +95,7 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 		}
 		return 0, sqlError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
 	}
-	if err = sequenceKind(d); err != nil {
+	if err = sequence.CheckKind(d); err != nil {
 		return 0, err
 	}
 	if ns, ok := auth.Catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.session.token {
@@ -123,12 +124,12 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 	if g == nil {
 		return 0, fmt.Errorf("stuntgres: sequence state missing")
 	}
-	m := session.sequences.demandLocked(ref.Address)
-	m.observeLocked(g.Generation)
+	m := session.sequences.DemandLocked(ref.Address)
+	m.ObserveLocked(g.Generation)
 	var result int64
 	switch request.Name {
 	case "currval", "lastval":
-		value, valid := m.current()
+		value, valid := m.Current()
 		if !valid {
 			msg := fmt.Sprintf(`currval of sequence "%s" is not yet defined in this session`, d.Name())
 			if request.Name == "lastval" {
@@ -138,11 +139,11 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 		}
 		result = value
 	case "nextval":
-		result, err = m.nextLocked(*d.Sequence, g, d.Name())
+		result, err = m.NextLocked(*d.Sequence, g, d.Name())
 		if err != nil {
 			return 0, err
 		}
-		session.sequences.recordLastLocked(d.Address())
+		session.sequences.RecordLastLocked(d.Address())
 	case "setval":
 		result, err = request.Value.Integer()
 		if err != nil {
@@ -159,7 +160,7 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 			}
 		}
 		g.Last, g.Called = result, called
-		m.setLocked(result, called)
+		m.SetLocked(result, called)
 	}
 	return result, nil
 }

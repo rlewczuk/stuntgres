@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -105,7 +106,7 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 	if staged := provider.replacement(ref.Address); staged != nil {
 		descriptor = staged
 	}
-	sequence, err := identitySequenceDefinition(descriptor, table, attribute)
+	sequence, err := sequence.IdentityDefinition(descriptor, table, attribute)
 	if err != nil {
 		return capture, err
 	}

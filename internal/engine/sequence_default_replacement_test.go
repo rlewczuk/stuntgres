@@ -18,7 +18,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 			sessionSQL(t, s, "CREATE TEMP SEQUENCE kept START 30")
 			sequenceScalar(t, s, "SELECT nextval('kept')", 30)
 			_, description := sequencePreparedDescription(t, e, s, "SELECT nextval('kept')")
-			tempRef := description.sequences.constants[0].ref
+			tempRef := description.sequences.Constants[0].Ref
 			temp := e.catalog.state.Get(tempRef.Address)
 			const script = "CREATE TABLE imported(n BIGINT DEFAULT CAST(7 AS BIGINT),b BOOL DEFAULT (CAST(1 AS BIGINT)=CAST(1 AS BIGINT)))"
 			var source *Engine

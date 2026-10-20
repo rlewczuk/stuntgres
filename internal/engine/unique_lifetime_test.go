@@ -164,17 +164,17 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			sessionSQL(t, b, "CREATE TEMP SEQUENCE kept CACHE 10")
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
-			tempRef := description.sequences.constants[0].ref
+			tempRef := description.sequences.Constants[0].Ref
 			temp := target.catalog.state.Get(tempRef.Address)
 			generator := target.storage.Sequences[tempRef.Address]
-			memory := b.sequences.memory(tempRef.Address)
+			memory := b.sequences.Memory(tempRef.Address)
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must produce a real retained TEMP address collision", tempRef.Address, original.Address())
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || b.sequences.memory(tempRef.Address) != memory {
+			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || b.sequences.Memory(tempRef.Address) != memory {
 				t.Fatal("retained TEMP identity changed")
 			}
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)

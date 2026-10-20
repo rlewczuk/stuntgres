@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -88,7 +89,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			return generationWriteError(target.Name, false)
 		}
 		if identity, ok := out.relation.ColumnMeta.Identities[out.relation.Attributes[out.targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
-			return identityInsertError(target.Name)
+			return sequence.IdentityInsertError(target.Name)
 		}
 		assigned, err := binder.assignOutput(expr, target)
 		if err != nil && partial != nil {

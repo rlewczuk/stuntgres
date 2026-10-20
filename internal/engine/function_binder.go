@@ -235,8 +235,8 @@ func (b *expressionBinder) SequenceArgument(raw parser.Expr) (expr.Expr, ids.Obj
 func (b *expressionBinder) SequenceTemporary(ref ids.ObjectRef, pos parser.Position) (ids.SessionToken, error) {
 	var temporary ids.SessionToken
 	for _, constant := range b.prepared.sequenceConstants {
-		if constant.ref == ref {
-			temporary = constant.temporary
+		if constant.Ref == ref {
+			temporary = constant.Temporary
 		}
 	}
 	if b.consumer.defaultConsumer {

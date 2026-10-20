@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -30,8 +31,8 @@ type sequenceDeletePublicationSnapshot struct {
 	endValues               map[ids.RowID]storage.RowEnd
 	frontier                ids.CommitSeq
 	temporary, last         ids.ObjectAddress
-	memory                  map[ids.ObjectAddress]*sequenceMemory
-	memoryValues            map[ids.ObjectAddress]sequenceMemory
+	memory                  map[ids.ObjectAddress]*sequence.Memory
+	memoryValues            map[ids.ObjectAddress]sequence.Memory
 }
 
 func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
@@ -44,8 +45,8 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		generators:      make(map[ids.ObjectAddress]*storage.SequenceGenerator),
 		generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
 		store:           e.storage.Relations[table], frontier: e.visibility.CommitSeq(),
-		temporary: s.temporaryNamespace, last: s.sequences.last(),
-		memory: make(map[ids.ObjectAddress]*sequenceMemory), memoryValues: make(map[ids.ObjectAddress]sequenceMemory),
+		temporary: s.temporaryNamespace, last: s.sequences.Last(),
+		memory: make(map[ids.ObjectAddress]*sequence.Memory), memoryValues: make(map[ids.ObjectAddress]sequence.Memory),
 	}
 	for a, d := range e.catalog.state.Descriptors() {
 		p.descriptors[a] = d
@@ -100,11 +101,11 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 	if p.ends != nil && !reflect.DeepEqual(p.ends.Rows, p.endValues) {
 		t.Fatal("changed committed deletion entries")
 	}
-	if s.temporaryNamespace != p.temporary || s.sequences.last() != p.last || s.sequences.Len() != len(p.memory) {
+	if s.temporaryNamespace != p.temporary || s.sequences.Last() != p.last || s.sequences.Len() != len(p.memory) {
 		t.Fatal("failed combined publication changed session temporary handle or sequence memory container")
 	}
 	for a, m := range p.memory {
-		if s.sequences.memory(a) != m || *m != p.memoryValues[a] {
+		if s.sequences.Memory(a) != m || *m != p.memoryValues[a] {
 			t.Fatal("changed session sequence memory", a)
 		}
 	}

@@ -24,7 +24,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 		t.Fatal("replacement mutated original counter")
 	}
 	sessionSQL(t, s, "ROLLBACK TO before_reset")
-	if s.transactions.catalog != catalog || !sameVersionRoot(s.transactions.writes[p.Address], writes) || e.catalog.state.Get(ps.Address) != descriptor || !currvalIs(s.sequences.memory(ps.Address), 1) || s.sequences.last() != ps.Address {
+	if s.transactions.catalog != catalog || !sameVersionRoot(s.transactions.writes[p.Address], writes) || e.catalog.state.Get(ps.Address) != descriptor || !currvalIs(s.sequences.Memory(ps.Address), 1) || s.sequences.Last() != ps.Address {
 		t.Fatal("savepoint failed binding/root/memory separation")
 	}
 	lockState := e.locks.Inspect()
@@ -57,7 +57,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	}
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	transactionEnd(t, s, tx, false)
-	if e.storage.Sequences[ps.Address] != original || original.Last != 4 || !currvalIs(s.sequences.memory(ps.Address), 3) {
+	if e.storage.Sequences[ps.Address] != original || original.Last != 4 || !currvalIs(s.sequences.Memory(ps.Address), 3) {
 		t.Fatal("outer rollback undid ordinary allocation or local observation")
 	}
 	lockEmpty(t, e)
@@ -69,12 +69,12 @@ func TestTruncateRestartCache(t *testing.T) {
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq CACHE 4")
 		sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 		original := e.storage.Sequences[ps.Address]
-		if original.Last != 6 || s.sequences.memory(ps.Address).CachedTail() != 3 {
+		if original.Last != 6 || s.sequences.Memory(ps.Address).CachedTail() != 3 {
 			t.Fatal("cache fixture not primed")
 		}
 		tx := transactionBegin(t, s)
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-		if s.sequences.memory(ps.Address).CachedTail() != 0 || !currvalIs(s.sequences.memory(ps.Address), 3) || s.sequences.last() != ps.Address {
+		if s.sequences.Memory(ps.Address).CachedTail() != 0 || !currvalIs(s.sequences.Memory(ps.Address), 3) || s.sequences.Last() != ps.Address {
 			t.Fatal("reset did not discard just unused tail")
 		}
 		transactionEnd(t, s, tx, false) // No sequence operation after reset.
@@ -94,16 +94,16 @@ func TestTruncateRestartCache(t *testing.T) {
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
 		transactionEnd(t, s, tx, false)
 		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
-		if e.storage.Sequences[ps.Address] != original || peer.sequences.memory(ps.Address).CachedTail() != 2 {
+		if e.storage.Sequences[ps.Address] != original || peer.sequences.Memory(ps.Address).CachedTail() != 2 {
 			t.Fatal("rollback invalidated untouched peer tail")
 		}
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-		if e.storage.Sequences[ps.Address] == original || !currvalIs(peer.sequences.memory(ps.Address), 4) {
+		if e.storage.Sequences[ps.Address] == original || !currvalIs(peer.sequences.Memory(ps.Address), 4) {
 			t.Fatal("commit did not replace binding/preserved local observation")
 		}
 		sequenceScalar(t, peer, "SELECT currval('p_id_seq')", 4)
 		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)
-		if peer.sequences.memory(ps.Address).Generation() != e.storage.Sequences[ps.Address].Generation {
+		if peer.sequences.Memory(ps.Address).Generation() != e.storage.Sequences[ps.Address].Generation {
 			t.Fatal("peer did not adopt committed generation")
 		}
 		lockEmpty(t, e)
@@ -119,7 +119,7 @@ func TestTruncateRestartCache(t *testing.T) {
 			query := "SELECT nextval('s'),nextval('other')"
 			callerAST, caller := sequencePreparedDescription(t, e, s, query)
 			peerAST, other := sequencePreparedDescription(t, e, peer, query)
-			ref := caller.sequences.constants[0].ref
+			ref := caller.sequences.Constants[0].Ref
 			original := e.catalog.state.MustRelation(ref.Address)
 			sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 			sessionSQL(t, s, "CREATE SEQUENCE a.other START 200")
@@ -138,14 +138,14 @@ func TestTruncateRestartCache(t *testing.T) {
 			if end == "DiscardSequences" {
 				sessionSQL(t, s, "DISCARD SEQUENCES")
 			}
-			memory := s.sequences.memory(ref.Address)
-			if memory == nil || memory.sourceStamp() <= original.SequencePlanStamp || currvalValid(memory) || currvalValue(memory) != 0 || memory.CachedTail() != 0 || s.sequences.last() != (ids.ObjectAddress{}) || peer.sequences.memory(ref.Address) != nil || e.catalog.state.Get(ref.Address) != original {
+			memory := s.sequences.Memory(ref.Address)
+			if memory == nil || memory.SourceStamp() <= original.SequencePlanStamp || currvalValid(memory) || currvalValue(memory) != 0 || memory.CachedTail() != 0 || s.sequences.Last() != (ids.ObjectAddress{}) || peer.sequences.Memory(ref.Address) != nil || e.catalog.state.Get(ref.Address) != original {
 				t.Fatal("local source event minted an observation, touched peer, mutated descriptor, or was undone")
 			}
 			e.mu.Lock()
 			localStamp, peerStamp := preparedDefinitionStamp(original, s), preparedDefinitionStamp(original, peer)
 			e.mu.Unlock()
-			if localStamp != memory.sourceStamp() || peerStamp != original.SequencePlanStamp {
+			if localStamp != memory.SourceStamp() || peerStamp != original.SequencePlanStamp {
 				t.Fatal("source stamp authority not caller-local")
 			}
 			for _, test := range []struct {

@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -426,8 +427,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	var cell *sequenceAnalysis
-	if len(analysis.constants) != 0 {
+	var cell *sequence.Analysis
+	if len(analysis.Constants) != 0 {
 		cell = &analysis
 	}
 	regtypes, err := e.regtypeAnalysisLocked(auth, callerRegtypes)
@@ -571,7 +572,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 					continue
 				}
 				typeName := c.TypeName
-				if lowered := serialTypeName(typeName); lowered != "" {
+				if lowered := sequence.SerialTypeName(typeName); lowered != "" {
 					typeName.Name = lowered
 				}
 				u, err := e.resolveTableColumnType(typeName, op)
@@ -587,7 +588,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 					return b, err
 				}
 				if declaration.identity != nil && u.Type.ID() != sqltype.Int2 && u.Type.ID() != sqltype.Int4 && u.Type.ID() != sqltype.Int8 {
-					return b, sequenceOptionError("sequence type must be smallint, integer, or bigint")
+					return b, sequence.OptionError("sequence type must be smallint, integer, or bigint")
 				}
 				declarations = append(declarations, declaration)
 				columns = append(columns, catalog.Column{Name: c.Name, Usage: u, DeclaredDimensions: int16(len(typeName.ArrayBounds)), Nullable: true, NullabilityKnown: true})

@@ -87,7 +87,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO public.anchor VALUES(77)")
 	sessionSQL(t, s, "CREATE TEMP SEQUENCE local_s CACHE 10")
 	ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('local_s')")
-	address := description.sequences.constants[0].ref.Address
+	address := description.sequences.Constants[0].Ref.Address
 	namespace, token := s.temporaryNamespace, s.token
 	descriptor, nsDescriptor := e.catalog.state.Get(address), e.catalog.state.Get(namespace)
 	held := func(want int64) {
@@ -103,7 +103,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 		}
 	}
 	held(1)
-	generator, memory := e.storage.Sequences[address], s.sequences.memory(address)
+	generator, memory := e.storage.Sequences[address], s.sequences.Memory(address)
 	generatorState, memoryState := *generator, *memory
 	before := captureTemporaryProjectionCatalog(e)
 	sequenceRows := sessionSQL(t, s, "SELECT last_value,is_called FROM local_s")
@@ -112,7 +112,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 		if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 			t.Fatal("repeated self replacement", err)
 		}
-		if s.token != token || s.temporaryNamespace != namespace || e.catalog.state.Get(address) != descriptor || e.catalog.state.Get(namespace) != nsDescriptor || e.storage.Sequences[address] != generator || s.sequences.memory(address) != memory || *generator != generatorState || *memory != memoryState {
+		if s.token != token || s.temporaryNamespace != namespace || e.catalog.state.Get(address) != descriptor || e.catalog.state.Get(namespace) != nsDescriptor || e.storage.Sequences[address] != generator || s.sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
 			t.Fatal("self replacement changed exact live TEMP authority/cache")
 		}
 		if e.catalog.state.DescriptorCount() != len(before.descriptors) || e.catalog.state.NameCount() != len(before.names) || len(e.storage.Sequences) != 1 {
@@ -156,9 +156,9 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO portable.survivor VALUES(8,9223372036854775807,true,NULL,NULL),(9,-9223372036854775808,false,NULL,NULL)")
 	sessionSQL(t, b, "INSERT INTO public.old_table VALUES(77)")
 	ast, description := sequencePreparedDescription(t, dest, b, "SELECT nextval('dest_temp')")
-	address := description.sequences.constants[0].ref.Address
+	address := description.sequences.Constants[0].Ref.Address
 	_, sourceDescription := sequencePreparedDescription(t, source, a, "SELECT nextval('source_temp')")
-	sourceTemp := sourceDescription.sequences.constants[0].ref.Address
+	sourceTemp := sourceDescription.sequences.Constants[0].Ref.Address
 	sourceTable := roleTableRef(t, source, "portable.owner_table").Address
 	if sourceTable != address {
 		t.Fatal("fixture did not exercise actual persistent/TEMP OID collision", sourceTable, address)
@@ -170,9 +170,9 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	namespace, token := b.temporaryNamespace, b.token
 	sourceNamespace := a.temporaryNamespace
 	descriptor, nsDescriptor := dest.catalog.state.Get(address), dest.catalog.state.Get(namespace)
-	generator, memory := dest.storage.Sequences[address], b.sequences.memory(address)
+	generator, memory := dest.storage.Sequences[address], b.sequences.Memory(address)
 	generatorState, memoryState := *generator, *memory
-	sourceGenerator, sourceMemory := source.storage.Sequences[sourceTemp], a.sequences.memory(sourceTemp)
+	sourceGenerator, sourceMemory := source.storage.Sequences[sourceTemp], a.sequences.Memory(sourceTemp)
 	sourceGeneratorState, sourceMemoryState := *sourceGenerator, *sourceMemory
 	sourceGenerators := make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	sourceStates := make(map[ids.ObjectAddress]storage.SequenceGenerator)
@@ -197,7 +197,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if _, err := dest.ReplaceCatalog(context.Background(), source, sourceBefore.view); err != nil {
 		t.Fatal(err)
 	}
-	if b.token != token || b.temporaryNamespace != namespace || dest.catalog.state.Get(address) != descriptor || dest.catalog.state.Get(namespace) != nsDescriptor || dest.storage.Sequences[address] != generator || b.sequences.memory(address) != memory || *generator != generatorState || *memory != memoryState {
+	if b.token != token || b.temporaryNamespace != namespace || dest.catalog.state.Get(address) != descriptor || dest.catalog.state.Get(namespace) != nsDescriptor || dest.storage.Sequences[address] != generator || b.sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
 		t.Fatal("foreign replacement changed destination TEMP identity/cache")
 	}
 	var tempNamespaces, tempRelations int
@@ -271,7 +271,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		}
 	}
 	destBefore.unchanged(t)
-	if source.catalog.state != sourceBefore.view.State() || source.storage.Sequences[sourceTemp] != sourceGenerator || a.sequences.memory(sourceTemp) != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
+	if source.catalog.state != sourceBefore.view.State() || source.storage.Sequences[sourceTemp] != sourceGenerator || a.sequences.Memory(sourceTemp) != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
 		t.Fatal("destination import changed source live authority")
 	}
 	r, err := sequencePreparedExecute(dest, b, ast, &description)
@@ -360,7 +360,7 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 			sessionSQL(t, s, "CREATE SEQUENCE public.kept_s START 40")
 			sessionSQL(t, s, "CREATE TEMP SEQUENCE retired_temp START 90")
 			_, description := sequencePreparedDescription(t, source, s, "SELECT nextval('retired_temp')")
-			address, namespace := description.sequences.constants[0].ref.Address, s.temporaryNamespace
+			address, namespace := description.sequences.Constants[0].Ref.Address, s.temporaryNamespace
 			captured := captureTemporaryProjectionCatalog(source)
 			retained := sessionSQL(t, s, "SELECT last_value FROM retired_temp")
 			endTemporaryProjectionSession(t, s)

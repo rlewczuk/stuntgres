@@ -52,7 +52,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 			sessionSQL(t, s, q)
 		}
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
-		original := d.sequences.constants[0].ref
+		original := d.sequences.Constants[0].Ref
 		oldStamp := e.catalog.state.MustRelation(original.Address).SequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 		if err := e.SetObjectACL(context.Background(), original, authorization.ACLValue{}); err != nil {
@@ -78,10 +78,10 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		}
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 		cell := d.sequences
-		constant := &cell.constants[0]
-		path := &cell.path.namespaces[0]
+		constant := &cell.Constants[0]
+		path := &cell.Path.Namespaces[0]
 		key, _ := s.sequences.CachedPathKey()
-		ref := cell.constants[0].ref
+		ref := cell.Constants[0].Ref
 		stamp := e.catalog.state.MustRelation(ref.Address).SequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 		for _, want := range []int64{10, 11, 12} {
@@ -94,7 +94,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 			if got[0][0] != want {
 				t.Fatal(got, want)
 			}
-			if d.sequences != cell || &cell.constants[0] != constant || &cell.path.namespaces[0] != path || !cachedSequencePathIs(s, key) {
+			if d.sequences != cell || &cell.Constants[0] != constant || &cell.Path.Namespaces[0] != path || !cachedSequencePathIs(s, key) {
 				t.Fatal("unchanged execution replaced analysis or effective namespace cache")
 			}
 		}
@@ -215,7 +215,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		transactionEnd(t, a, tx, true)
 		var diagnostic *sqlstate.Error
 		err := <-done
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "XX000", Message: fmt.Sprintf("could not open relation with OID %d", d.sequences.constants[0].ref.Address.ObjectID)}
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "XX000", Message: fmt.Sprintf("could not open relation with OID %d", d.sequences.Constants[0].Ref.Address.ObjectID)}
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatalf("queued error=%#v want=%#v", diagnostic, want)
 		}
@@ -292,21 +292,21 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	shadow, sd := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	sessionSQL(t, s, "CREATE SEQUENCE a.s START 500")
 	owned, od := sequencePreparedDescription(t, e, s, "SELECT nextval('b.s')")
-	stamp := od.sequences.constants[0].stamp
+	stamp := od.sequences.Constants[0].Stamp
 	sessionSQL(t, s, "ALTER SEQUENCE b.s OWNER TO reader")
 	result(shadow, &sd, 500)
-	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).SequencePlanStamp == stamp {
+	if e.catalog.state.MustRelation(od.sequences.Constants[0].Ref.Address).SequencePlanStamp == stamp {
 		t.Fatal("real owner change retained plan stamp")
 	}
 	result(owned, &od, 10)
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET UNLOGGED")
-	stamp = e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).SequencePlanStamp
+	stamp = e.catalog.state.MustRelation(od.sequences.Constants[0].Ref.Address).SequencePlanStamp
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET UNLOGGED")
-	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).SequencePlanStamp != stamp {
+	if e.catalog.state.MustRelation(od.sequences.Constants[0].Ref.Address).SequencePlanStamp != stamp {
 		t.Fatal("same unlogged persistence invalidated")
 	}
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET LOGGED")
-	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).SequencePlanStamp == stamp {
+	if e.catalog.state.MustRelation(od.sequences.Constants[0].Ref.Address).SequencePlanStamp == stamp {
 		t.Fatal("real logged persistence transition did not invalidate")
 	}
 }
@@ -316,7 +316,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TEMP SEQUENCE s")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
-	ref := d.sequences.constants[0].ref
+	ref := d.sequences.Constants[0].Ref
 	descriptor := e.catalog.state.MustRelation(ref.Address)
 	namespace := e.catalog.state.MustNamespace(descriptor.Namespace())
 	for _, action := range []string{"LOGGED", "UNLOGGED"} {
@@ -437,7 +437,7 @@ func TestSequencePreparedACLPublicationFailure(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE SEQUENCE s")
 	_, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
-	ref := d.sequences.constants[0].ref
+	ref := d.sequences.Constants[0].Ref
 	original := e.catalog.state
 	roles := e.roles.published
 	frontier := e.catalog.nextRevision

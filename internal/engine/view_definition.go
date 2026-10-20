@@ -45,12 +45,12 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition.namespaces = b.capture.namespaces
 	definition.sequenceRefs = make(map[int]ids.ObjectRef, len(b.prepared.sequenceConstants))
 	for _, constant := range b.prepared.sequenceConstants {
-		if constant.temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.temporary != auth.session.token) {
+		if constant.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.Temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
-		definition.sequenceRefs[constant.offset] = constant.ref
-		if _, exists := auth.Catalog.Find(constant.ref.Address); exists {
-			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: constant.ref, Revision: constant.stamp})
+		definition.sequenceRefs[constant.Offset] = constant.Ref
+		if _, exists := auth.Catalog.Find(constant.Ref.Address); exists {
+			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: constant.Ref, Revision: constant.Stamp})
 		}
 	}
 	for _, constant := range b.prepared.regtypeConstants {

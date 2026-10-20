@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -136,7 +137,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					return generationWriteError(c.Name, false)
 				}
 				if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
-					return identityInsertError(c.Name)
+					return sequence.IdentityInsertError(c.Name)
 				}
 				if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 					b.expressions[rowIndex][j] = unknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, raw: v}
@@ -172,7 +173,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 				return generationWriteError(c.Name, false)
 			}
 			if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
-				return identityInsertError(c.Name)
+				return sequence.IdentityInsertError(c.Name)
 			}
 			var plan expr.Expr
 			var err error

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -61,7 +62,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if old.ColumnMeta.HighWater >= 1600 {
 		return fail(sqlError("54011", "tables can have at most 1600 columns"))
 	}
-	if serialTypeName(column.TypeName) != "" {
+	if sequence.SerialTypeName(column.TypeName) != "" {
 		return fail(insertError("0A000", "ADD COLUMN serial declarations are unsupported", column.Pos))
 	}
 	e.mu.Lock()

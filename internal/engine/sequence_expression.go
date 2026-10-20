@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,9 +30,9 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 			return nil, ref, err
 		}
 		if b.expected != nil && b.expected.sequences != nil {
-			for _, constant := range b.expected.sequences.constants {
-				if constant.offset == literal.Value.Pos.Offset {
-					ref, temporary, found = constant.ref, constant.temporary, true
+			for _, constant := range b.expected.sequences.Constants {
+				if constant.Offset == literal.Value.Pos.Offset {
+					ref, temporary, found = constant.Ref, constant.Temporary, true
 					break
 				}
 			}
@@ -56,7 +57,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		if represented {
 			stamp = preparedDefinitionStamp(d, auth.session)
 		}
-		b.prepared.sequenceConstants = append(b.prepared.sequenceConstants, sequenceConstant{offset: literal.Value.Pos.Offset, ref: ref, temporary: temporary, stamp: stamp, represented: represented})
+		b.prepared.sequenceConstants = append(b.prepared.sequenceConstants, sequence.Constant{Offset: literal.Value.Pos.Offset, Ref: ref, Temporary: temporary, Stamp: stamp, Represented: represented})
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
 		info := b.info(typ.Usage(), literal.Value.Pos, expr.Properties{})
 		if _, ok := auth.definitionRelation(ref.Address); ok {

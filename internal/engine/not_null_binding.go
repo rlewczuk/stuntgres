@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
@@ -142,7 +143,7 @@ type createColumnDeclaration struct {
 
 func bindCreateColumnDeclaration(column *parser.Column, table string) (createColumnDeclaration, error) {
 	var declaration createColumnDeclaration
-	declaration.serial = serialTypeName(column.TypeName) != ""
+	declaration.serial = sequence.SerialTypeName(column.TypeName) != ""
 	seen := declaration.serial
 	declaration.columnNotNull = declaration.serial
 	for _, constraint := range column.Constraints {

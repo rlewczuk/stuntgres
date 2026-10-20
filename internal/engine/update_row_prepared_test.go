@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"testing"
 )
 
@@ -60,7 +61,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			ownedAST, owned := sequencePreparedDescription(t, e, s, query("nextval('own_draw')"))
 			ownedRef := catalogRef(t, e, e.CatalogRead(), "own_draw")
 			assertOwned := func() {
-				if owned.sequences == nil || len(owned.sequences.constants) != 1 || owned.sequences.constants[0].ref != ownedRef || owned.regtypes != nil {
+				if owned.sequences == nil || len(owned.sequences.Constants) != 1 || owned.sequences.Constants[0].Ref != ownedRef || owned.regtypes != nil {
 					t.Fatal("raw caller/CTE capture group polluted or lost", owned.sequences, owned.regtypes)
 				}
 			}
@@ -88,7 +89,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			}
 			assertOwned()
 			previous := owned.analysis
-			captures := append([]sequenceConstant(nil), owned.sequences.constants...)
+			captures := append([]sequence.Constant(nil), owned.sequences.Constants...)
 			before = description.analysis
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
@@ -107,7 +108,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				result.Rows.Close()
 				t.Fatal("retired caller literal exposed rows")
 			}
-			if !errors.Is(err, ids.ErrCatalogReplaced) || owned.analysis != previous || !reflect.DeepEqual(captures, owned.sequences.constants) {
+			if !errors.Is(err, ids.ErrCatalogReplaced) || owned.analysis != previous || !reflect.DeepEqual(captures, owned.sequences.Constants) {
 				t.Fatal("direct caller lifetime fence or atomic capture publication changed", err)
 			}
 		})

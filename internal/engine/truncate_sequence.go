@@ -122,7 +122,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		// even if it rolls back without another function demand. Its local
 		// source event also survives rollback, without changing observation
 		// validity/value, the last-demanded sequence, or a peer's analysis.
-		session.sequences.demandLocked(a).markSourceEventLocked(stage.Get(a).(*catalog.Relation).SequencePlanStamp)
+		session.sequences.DemandLocked(a).MarkSourceEventLocked(stage.Get(a).(*catalog.Relation).SequencePlanStamp)
 	}
 	s.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	return observed, nil

@@ -262,7 +262,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				} else {
 					transactionEnd(t, holder, tx, false)
 				}
-				if holder.sequences.memory(ps.Address) != nil || waiter.sequences.memory(ps.Address) != nil {
+				if holder.sequences.Memory(ps.Address) != nil || waiter.sequences.Memory(ps.Address) != nil {
 					t.Fatal("persistent replacement retained retired sequence observation/source event")
 				}
 				if len(oldStore.Versions) != 2 || oldGenerator.Last != 2 || oldStore.TruncateLineage != nil {
@@ -289,15 +289,15 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TEMP TABLE local_t(id SERIAL)")
 			ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('local_t_id_seq')")
-			ref := description.sequences.constants[0].ref
+			ref := description.sequences.Constants[0].Ref
 			tx := transactionBegin(t, s)
 			truncateUnitExecute(t, e, s, truncateRestartUnitAST("local_t"))
 			transactionEnd(t, s, tx, false)
-			memory := s.sequences.memory(ref.Address)
-			if memory == nil || memory.sourceStamp() == 0 || currvalValid(memory) {
+			memory := s.sequences.Memory(ref.Address)
+			if memory == nil || memory.SourceStamp() == 0 || currvalValid(memory) {
 				t.Fatal("missing zero-valid local analysis event")
 			}
-			stamp := memory.sourceStamp()
+			stamp := memory.SourceStamp()
 			if control == "Reset" {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
@@ -305,7 +305,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			} else if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE replacement(id INT);")); err != nil {
 				t.Fatal(err)
 			}
-			if s.sequences.memory(ref.Address) != memory || memory.sourceStamp() != stamp || currvalValid(memory) {
+			if s.sequences.Memory(ref.Address) != memory || memory.SourceStamp() != stamp || currvalValid(memory) {
 				t.Fatal("exact caller-owned live TEMP event lost across control replacement")
 			}
 			result, err := sequencePreparedExecute(e, s, ast, &description)

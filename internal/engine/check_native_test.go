@@ -15,7 +15,7 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 			sessionSQL(t, session, "CREATE TEMP SEQUENCE kept START 30")
 			sequenceScalar(t, session, "SELECT nextval('kept')", 30)
 			_, description := sequencePreparedDescription(t, target, session, "SELECT nextval('kept')")
-			tempRef := description.sequences.constants[0].ref
+			tempRef := description.sequences.Constants[0].Ref
 			temp := target.catalog.state.Get(tempRef.Address)
 			const script = "CREATE TABLE imported(n BIGINT DEFAULT CAST(1 AS BIGINT),b BOOL DEFAULT TRUE,CONSTRAINT c CHECK(n=CAST(1 AS BIGINT) AND b))"
 			if mode == "Restore" {

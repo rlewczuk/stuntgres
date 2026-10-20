@@ -95,7 +95,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	if raw.Category == parser.DiscardSequences || raw.Category == parser.DiscardAll {
 		e := session.Engine()
 		e.mu.Lock()
-		session.sequences.discardLocked(raw.Category == parser.DiscardAll)
+		session.sequences.DiscardLocked(raw.Category == parser.DiscardAll)
 		e.mu.Unlock()
 	}
 	s.completed, s.sessionCompleted = true, true

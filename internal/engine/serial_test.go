@@ -97,13 +97,13 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			sessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 1`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
-			temp := description.sequences.constants[0].ref.Address
+			temp := description.sequences.Constants[0].Ref.Address
 			original := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			leaf := serialLeaf(original.ColumnMeta.Defaults[1].Expression)
 			if leaf.Ref.Address != temp {
 				t.Fatal("fixture lacks actual persistent sequence collision", leaf.Ref.Address, temp)
 			}
-			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], b.sequences.memory(temp)
+			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], b.sequences.Memory(temp)
 			if mode == "Restore" {
 				var dump bytes.Buffer
 				if err := source.Dump(context.Background(), &dump); err != nil {
@@ -115,7 +115,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			if dest.catalog.state.Get(temp) != definition || dest.storage.Sequences[temp] != generator || b.sequences.memory(temp) != memory {
+			if dest.catalog.state.Get(temp) != definition || dest.storage.Sequences[temp] != generator || b.sequences.Memory(temp) != memory {
 				t.Fatal("retained TEMP changed")
 			}
 			d := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.t").Address)

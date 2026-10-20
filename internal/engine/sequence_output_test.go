@@ -15,7 +15,7 @@ func TestSequenceRegclassOutputAndNumericIdentity(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE SEQUENCE s START 10")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT 's'::regclass")
-	oid := d.sequences.constants[0].ref.Address.ObjectID
+	oid := d.sequences.Constants[0].Ref.Address.ObjectID
 	r, err := sequencePreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)

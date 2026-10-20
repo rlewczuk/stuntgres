@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -60,8 +61,8 @@ type ownershipManualSnapshot struct {
 	revision        uint64
 	generators      map[ids.ObjectAddress]*storage.SequenceGenerator
 	generatorValues map[ids.ObjectAddress]storage.SequenceGenerator
-	memory          *sequenceMemory
-	memoryValue     sequenceMemory
+	memory          *sequence.Memory
+	memoryValue     sequence.Memory
 	last            ids.ObjectAddress
 	rows            map[ids.ObjectAddress][]storage.RowVersion
 }
@@ -70,7 +71,7 @@ func ownershipManualCapture(e *Engine, session *Session, sequence ids.ObjectRef)
 	snapshot := ownershipManualSnapshot{
 		roots: indexMaintenanceCapture(e), roles: e.roles.published, revision: session.authorization.revision,
 		generators: make(map[ids.ObjectAddress]*storage.SequenceGenerator), generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
-		memory: session.sequences.memory(sequence.Address), last: session.sequences.last(),
+		memory: session.sequences.Memory(sequence.Address), last: session.sequences.Last(),
 		rows: make(map[ids.ObjectAddress][]storage.RowVersion),
 	}
 	snapshot.memoryValue = *snapshot.memory
@@ -108,7 +109,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 	}
 	values := tuples(result)
 	result.Rows.Close()
-	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.storage.Sequences[sequence.Address].Last != 42 || session.sequences.memory(sequence.Address).CachedTail() != 2 {
+	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.storage.Sequences[sequence.Address].Last != 42 || session.sequences.Memory(sequence.Address).CachedTail() != 2 {
 		t.Fatal("fixture did not consume actual nontransactional CACHE3 sequence", values)
 	}
 	if _, err := message.step(statement(t, "INSERT INTO ownership_fence_sentinel VALUES(9)")); err != nil {
@@ -167,7 +168,7 @@ func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session,
 	if e.roles.published != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.Catalog.Epoch() || auth.DatabasePredecessor != committed || auth.Catalog.Get(sequence.Address) != old || old.Owner != auth.Roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
 	}
-	if session.sequences.memory(sequence.Address) != before.memory || *before.memory != before.memoryValue || session.sequences.last() != before.last {
+	if session.sequences.Memory(sequence.Address) != before.memory || *before.memory != before.memoryValue || session.sequences.Last() != before.last {
 		t.Fatal("manual utility changed actual currval/cache/lastval memory")
 	}
 	for address, generator := range before.generators {

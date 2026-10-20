@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -58,9 +59,9 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			definition := constraint.Identity
 			id := table.Columns[slot].Usage.Type.ID()
 			if id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
-				return sequenceOptionError("identity column type must be smallint, integer, or bigint")
+				return sequence.OptionError("identity column type must be smallint, integer, or bigint")
 			}
-			_, _, typeName := sequenceTypeLimits(id)
+			_, _, typeName := sequence.TypeLimits(id)
 			raw := []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: typeName}}}
 			var explicit parser.ObjectName
 			persistence := "logged"
@@ -82,7 +83,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 				}
 				raw = append(raw, option)
 			}
-			options, restart, err := bindSequenceOptions(nil, storage.SequenceGenerator{}, raw)
+			options, restart, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, raw)
 			if err != nil {
 				return err
 			}

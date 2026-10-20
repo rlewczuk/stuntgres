@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -201,7 +202,7 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 
 func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	e, _, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
-	options, _, err := bindSequenceOptions(nil, storage.SequenceGenerator{}, nil)
+	options, _, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

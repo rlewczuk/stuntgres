@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -133,7 +134,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	// implementation boundary; neither path publishes allocated auxiliaries.
 	pending.unsupportedCombination = len(child.ColumnMeta.Generations) != 0 || len(child.ColumnMeta.Identities) != 0
 	for _, element := range syntax.Elements {
-		if element.Column != nil && serialTypeName(element.Column.TypeName) != "" {
+		if element.Column != nil && sequence.SerialTypeName(element.Column.TypeName) != "" {
 			pending.unsupportedCombination = true
 		}
 	}

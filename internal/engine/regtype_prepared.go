@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ type regtypeConstant struct {
 }
 type regtypeAnalysis struct {
 	constants         []regtypeConstant
-	path              sequenceEnvironment
+	path              sequence.Environment
 	role              authorization.PrincipalRef
 	database          string
 	types, collations bool
@@ -73,7 +74,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 		if err != nil {
 			return false, err
 		}
-		if cell.role != auth.State.CurrentUser || cell.database != auth.session.databaseName || !sameSequenceEnvironment(cell.path, path) {
+		if cell.role != auth.State.CurrentUser || cell.database != auth.session.databaseName || !sequence.SameEnvironment(cell.path, path) {
 			return false, nil
 		}
 	}

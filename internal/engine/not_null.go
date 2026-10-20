@@ -902,8 +902,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if generators := stage.sequence.stagedGenerators(); len(generators) != 0 {
 		e.mu.Lock()
 		for address, generator := range generators {
-			if memory := op.session.sequences.memory(address); memory != nil {
-				memory.discardStaleTailLocked(generator.Generation)
+			if memory := op.session.sequences.Memory(address); memory != nil {
+				memory.DiscardStaleTailLocked(generator.Generation)
 			}
 		}
 		e.mu.Unlock()

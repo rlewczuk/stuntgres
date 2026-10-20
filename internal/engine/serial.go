@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -17,8 +18,8 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		if !declaration.serial {
 			continue
 		}
-		_, _, typeName := sequenceTypeLimits(table.Columns[slot].Usage.Type.ID())
-		options, _, err := bindSequenceOptions(nil, storage.SequenceGenerator{}, []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: typeName}}})
+		_, _, typeName := sequence.TypeLimits(table.Columns[slot].Usage.Type.ID())
+		options, _, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: typeName}}})
 		if err != nil {
 			return err
 		}

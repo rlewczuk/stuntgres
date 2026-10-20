@@ -21,7 +21,7 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			sessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 1`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
-			temp := description.sequences.constants[0].ref.Address
+			temp := description.sequences.Constants[0].Ref.Address
 			original := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.consumer").Address)
 			leaf := serialLeaf(original.ColumnMeta.Defaults[1].Expression)
 			if leaf.Ref.Address != temp {

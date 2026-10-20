@@ -32,7 +32,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	auth.RoleRecord = roles
 	auth.Recapture(e.catalog.read(before))
 	warm, err := e.sequenceEnvironmentLocked(auth)
-	if err != nil || !slices.Contains(warm.namespaces, address) {
+	if err != nil || !slices.Contains(warm.Namespaces, address) {
 		t.Fatal("owner did not warm public namespace", warm, err)
 	}
 	key, _ := op.session.sequences.CachedPathKey()
@@ -44,20 +44,20 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	fresh.Catalog = e.catalog.read(after)
 	fresh.Recapture(fresh.Catalog)
 	revoked, err := e.sequenceEnvironmentLocked(fresh)
-	if err != nil || slices.Contains(revoked.namespaces, address) {
+	if err != nil || slices.Contains(revoked.Namespaces, address) {
 		t.Fatal("warm path retained former database-owner authority", revoked, err)
 	}
 	replacement, _ := op.session.sequences.CachedPathKey()
-	if replacement.database == key.database || replacement.roles != key.roles || replacement.epoch != key.epoch || replacement.namespace != key.namespace || replacement.authorization != key.authorization {
+	if replacement.Database == key.Database || replacement.Roles != key.Roles || replacement.Epoch != key.Epoch || replacement.Namespace != key.Namespace || replacement.Authorization != key.Authorization {
 		t.Fatal("not a database-only path invalidation", key, replacement)
 	}
 	retained, err := e.sequenceEnvironmentLocked(auth)
-	if err != nil || !slices.Contains(retained.namespaces, address) {
+	if err != nil || !slices.Contains(retained.Namespaces, address) {
 		t.Fatal("retained pair followed live database", retained, err)
 	}
 	fresh.State.CurrentUser = successor
 	owned, err := e.sequenceEnvironmentLocked(fresh)
-	if err != nil || !slices.Contains(owned.namespaces, address) {
+	if err != nil || !slices.Contains(owned.Namespaces, address) {
 		t.Fatal("successor did not acquire actual owner path", owned, err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -226,16 +227,16 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 
 func TestGroupingSetsRestoreWhitelist(t *testing.T) {
 	ordinary := statement(t, "SELECT setval('s',1,true)").(*parser.Select)
-	if !restoreSequenceState(ordinary) {
+	if !sequence.RestoresState(ordinary) {
 		t.Fatal("dump's unqualified setval statement was not whitelisted")
 	}
 	qualified := statement(t, "SELECT pg_catalog.setval('s',1,true)").(*parser.Select)
-	if restoreSequenceState(qualified) {
+	if sequence.RestoresState(qualified) {
 		t.Fatal("qualified call widened the existing whitelist")
 	}
 	for _, clause := range []string{" GROUP BY ()", " GROUP BY ALL ()", " GROUP BY DISTINCT ()"} {
 		grouped := statement(t, "SELECT setval('s',1,true)"+clause).(*parser.Select)
-		if restoreSequenceState(grouped) {
+		if sequence.RestoresState(grouped) {
 			t.Fatal("explicit empty grouping bypassed restore whitelist", clause)
 		}
 	}

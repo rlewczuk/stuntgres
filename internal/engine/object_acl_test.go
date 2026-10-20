@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -89,7 +90,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		catalogView := engine.CatalogRead()
 		principal := engine.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		stage := engine.BeginCatalogStage(catalogView)
-		options, _, err := bindSequenceOptions(nil, storage.SequenceGenerator{}, nil)
+		options, _, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

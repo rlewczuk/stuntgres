@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -246,7 +247,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if old.Sequence != nil && old.Sequence.Owned != (ids.ObjectAddress{}) {
 		parent := old.Sequence.Owned
 		parent.SubID = 0
-		return fail(sequenceLinkedError(old, auth.Catalog.MustRelation(parent), false))
+		return fail(sequence.LinkedError(old, auth.Catalog.MustRelation(parent), false))
 	}
 	if err = access.OwnershipEligibility(auth.View, auth, target, old.Namespace()); err != nil {
 		return fail(err)

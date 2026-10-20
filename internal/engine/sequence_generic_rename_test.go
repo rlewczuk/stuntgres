@@ -16,7 +16,7 @@ func TestSequenceGenericRelationRenameAuthority(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE SEQUENCE s START 14 CACHE 1")
 			ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
-			ref := description.sequences.constants[0].ref
+			ref := description.sequences.Constants[0].Ref
 			before := e.catalog.state.MustRelation(ref.Address)
 			generator := e.storage.Sequences[ref.Address]
 			state := *generator

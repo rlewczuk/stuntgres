@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -12,7 +13,7 @@ import (
 
 func TestTemporaryTableCleanupClosure(t *testing.T) {
 	e, op, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
-	options, _, err := bindSequenceOptions(nil, storage.SequenceGenerator{}, nil)
+	options, _, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 )
 
@@ -60,7 +61,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 				return generationWriteError(d.Columns[slot].Name, false)
 			}
 			if identity, ok := d.ColumnMeta.Identities[attr]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
-				return identityInsertError(d.Columns[slot].Name)
+				return sequence.IdentityInsertError(d.Columns[slot].Name)
 			}
 		}
 		discard := len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[slot]

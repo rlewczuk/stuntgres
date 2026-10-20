@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 	"sync"
@@ -95,7 +96,7 @@ type Session struct {
 	cursors                *cursorRegistry
 	preparedSQL            *sqlPreparedRegistry
 	authorization          *sessionAuthorization
-	sequences              sessionSequences
+	sequences              sequence.SessionMemory
 	discardPlansGeneration uint64 // serialized by physical-owner statement admission
 	sqlRoutines            map[ids.ObjectAddress]sqlRoutineAnalysis
 	temporaryNamespace     ids.ObjectAddress

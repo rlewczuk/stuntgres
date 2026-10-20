@@ -1,4 +1,4 @@
-package engine
+package sequence
 
 import (
 	"fmt"
@@ -8,7 +8,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func sequenceKind(d *catalog.Relation) error {
+// CheckKind rejects a relation that is not a sequence, as PostgreSQL does
+// when a sequence function opens it.
+func CheckKind(d *catalog.Relation) error {
 	if d == nil {
 		return fmt.Errorf("stuntgres: missing sequence descriptor")
 	}
@@ -21,7 +23,9 @@ func sequenceKind(d *catalog.Relation) error {
 	return nil
 }
 
-func sequenceLinkedError(d *catalog.Relation, table *catalog.Relation, move bool) error {
+// LinkedError rejects an owner change or schema move of a sequence linked
+// to a table.
+func LinkedError(d *catalog.Relation, table *catalog.Relation, move bool) error {
 	msg := fmt.Sprintf(`cannot change owner of sequence "%s"`, d.Name())
 	if move {
 		msg = "cannot move an owned sequence into another schema"
@@ -29,11 +33,14 @@ func sequenceLinkedError(d *catalog.Relation, table *catalog.Relation, move bool
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: msg, Detail: fmt.Sprintf(`Sequence "%s" is linked to table "%s".`, d.Name(), table.Name())}
 }
 
-func identityInsertError(column string) error {
+// IdentityInsertError rejects an explicit value for a GENERATED ALWAYS
+// identity column.
+func IdentityInsertError(column string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "428C9", Message: fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column), Detail: fmt.Sprintf(`Column "%s" is an identity column defined as GENERATED ALWAYS.`, column), Hint: "Use OVERRIDING SYSTEM VALUE to override."}
 }
 
-func identitySequenceDropError(read catalog.Read, sequence *catalog.Relation) error {
+// IdentityDropError rejects dropping a sequence an identity column requires.
+func IdentityDropError(read catalog.Read, sequence *catalog.Relation) error {
 	address := sequence.Sequence.Owned
 	address.SubID = 0
 	table := read.MustRelation(address)
@@ -47,7 +54,9 @@ func identitySequenceDropError(read catalog.Read, sequence *catalog.Relation) er
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop sequence %s because column %s of table %s requires it", sequence.Name(), column, table.Name()), Hint: fmt.Sprintf("You can drop column %s of table %s instead.", column, table.Name())}
 }
 
-func identitySequenceDefinition(descriptor catalog.Descriptor, table *catalog.Relation, attribute int32) (*catalog.Relation, error) {
+// IdentityDefinition returns the identity sequence of a table column, or
+// ids.ErrCatalogReplaced when descriptor is no longer that sequence.
+func IdentityDefinition(descriptor catalog.Descriptor, table *catalog.Relation, attribute int32) (*catalog.Relation, error) {
 	sequence, ok := descriptor.(*catalog.Relation)
 	owned := table.Address()
 	owned.SubID = attribute
@@ -58,7 +67,7 @@ func identitySequenceDefinition(descriptor catalog.Descriptor, table *catalog.Re
 }
 
 // SERIAL is declaration syntax, never a catalog type or identity column.
-func serialTypeName(name parser.TypeName) string {
+func SerialTypeName(name parser.TypeName) string {
 	if name.Schema != nil {
 		return ""
 	}

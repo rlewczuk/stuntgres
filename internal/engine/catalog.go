@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
@@ -164,7 +165,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if r.SequencePlanStamp == 0 || r.Sequence == nil || len(r.Columns) != 3 || r.Columns[0].Name != "last_value" || r.Columns[1].Name != "log_cnt" || r.Columns[2].Name != "is_called" || r.Columns[0].Usage.Type.ID() != sqltype.Int8 || r.Columns[1].Usage.Type.ID() != sqltype.Int8 || r.Columns[2].Usage.Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid sequence descriptor")
 		}
-		if _, _, err := bindSequenceOptions(r.Sequence, storage.SequenceGenerator{Last: r.Sequence.Start}, nil); err != nil {
+		if _, _, err := sequence.BindOptions(r.Sequence, storage.SequenceGenerator{Last: r.Sequence.Start}, nil); err != nil {
 			return err
 		}
 		if r.Sequence.Identity && r.Sequence.Owned == (ids.ObjectAddress{}) {

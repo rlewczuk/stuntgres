@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -342,7 +343,7 @@ type StatementScope struct {
 	Expected                       *StatementDescription
 	preparedReuse                  *preparedAnalysis
 	preparedInvalid                bool
-	preparedPath                   sequenceEnvironment
+	preparedPath                   sequence.Environment
 	preparedNamespace              uint64
 	preparedPrivate                *catalogChanges
 	preparedEpoch                  ids.CatalogEpoch

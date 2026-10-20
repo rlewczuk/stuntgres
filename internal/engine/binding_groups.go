@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -69,7 +70,7 @@ type viewCapture struct {
 type preparedCaptures struct {
 	temporals         []temporalConstant
 	composites        map[preparedCompositeKey]compositeOccurrence
-	sequenceConstants []sequenceConstant
+	sequenceConstants []sequence.Constant
 	regclassConcat    bool
 	regtypeConstants  []regtypeConstant
 }

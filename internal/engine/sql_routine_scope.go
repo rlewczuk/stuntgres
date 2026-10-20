@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -45,7 +46,7 @@ type sqlRoutineScratch struct {
 	expected                                                                                        *StatementDescription
 	preparedReuse                                                                                   *preparedAnalysis
 	preparedInvalid                                                                                 bool
-	preparedPath                                                                                    sequenceEnvironment
+	preparedPath                                                                                    sequence.Environment
 	preparedNamespace                                                                               uint64
 	preparedPrivate                                                                                 *catalogChanges
 	preparedEpoch                                                                                   ids.CatalogEpoch

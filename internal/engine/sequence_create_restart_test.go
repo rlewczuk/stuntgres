@@ -179,7 +179,7 @@ func TestSequenceCreateRestartCache(t *testing.T) {
 				if !reflect.DeepEqual(got, [][]driver.Value{{persistence.initial}}) {
 					t.Fatal("first prepared demand", got)
 				}
-				ref := held.sequences.constants[0].ref
+				ref := held.sequences.Constants[0].Ref
 				options := e.catalog.state.MustRelation(ref.Address).Sequence
 				want := catalog.SequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: math.MaxInt64, Start: 5, Cache: 3, Persistence: persistence.catalog}
 				if !reflect.DeepEqual(*options, want) {

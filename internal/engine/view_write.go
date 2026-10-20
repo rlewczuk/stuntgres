@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -621,7 +622,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				return generationWriteError(name, true)
 			}
 			if identity, ok := w.base.ColumnMeta.Identities[attr]; ok && identity.Mode == parser.IdentityAlways {
-				d := identityInsertError(name).(*sqlstate.Error)
+				d := sequence.IdentityInsertError(name).(*sqlstate.Error)
 				d.Message = fmt.Sprintf("column %q can only be updated to DEFAULT", name)
 				d.Hint = ""
 				return d

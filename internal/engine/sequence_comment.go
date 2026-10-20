@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 )
 
@@ -19,7 +20,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 	}
 	if err == nil {
-		err = sequenceKind(auth.Catalog.MustRelation(ref.Address))
+		err = sequence.CheckKind(auth.Catalog.MustRelation(ref.Address))
 	}
 	if err == nil {
 		err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -99,7 +100,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if descriptor == nil {
 		descriptor = stage.Base.Get(address)
 	}
-	sequence, ok := descriptor.(*catalog.Relation)
+	relation, ok := descriptor.(*catalog.Relation)
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
@@ -110,7 +111,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if generator == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
 	}
-	options, restart, err := bindSequenceOptions(sequence.Sequence, *generator, raw)
+	options, restart, err := sequence.BindOptions(relation.Sequence, *generator, raw)
 	if err != nil {
 		return err
 	}
@@ -118,7 +119,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if err != nil {
 		return err
 	}
-	changed := *sequence
+	changed := *relation
 	changed.Sequence = &options
 	changed.ObjectRevision = revision
 	changed.SequencePlanStamp = revision
@@ -146,16 +147,16 @@ func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *Catalog
 	defer e.mu.Unlock()
 	id := usage.Type.ID()
 	if id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
-		return sequenceOptionError("identity column type must be smallint, integer, or bigint")
+		return sequence.OptionError("identity column type must be smallint, integer, or bigint")
 	}
-	_, _, name := sequenceTypeLimits(id)
+	_, _, name := sequence.TypeLimits(id)
 	if err := e.stageIdentitySequenceOptionsLocked(scope, stage, table, attribute, address, []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: name}}}); err != nil {
 		return err
 	}
 	// AS discards this backend's tail even if a later table pass rolls back.
 	// currval/lastval and unseen peer caches are physical-session authorities.
-	if memory := scope.op.session.sequences.memory(address); memory != nil {
-		memory.discardTailLocked()
+	if memory := scope.op.session.sequences.Memory(address); memory != nil {
+		memory.DiscardTailLocked()
 	}
 	return nil
 }
@@ -173,7 +174,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if staged, exists := stage.Find(address); exists {
 		descriptor = staged
 	}
-	if _, err := identitySequenceDefinition(descriptor, table, attribute); err != nil {
+	if _, err := sequence.IdentityDefinition(descriptor, table, attribute); err != nil {
 		return err
 	}
 	stage.sequenceState().captureIdentityOriginal(address, e.catalog.state.Get(address))

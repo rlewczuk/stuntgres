@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -53,7 +54,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			continue
 		}
 		if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[slot]]; ok && identity.Mode == parser.IdentityAlways {
-			diagnostic := identityInsertError(a.Target.Text).(*sqlstate.Error)
+			diagnostic := sequence.IdentityInsertError(a.Target.Text).(*sqlstate.Error)
 			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, a.Target.Text)
 			diagnostic.Hint = ""
 			return diagnostic

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -17,7 +18,7 @@ type preparedAnalysis struct {
 	epoch           ids.CatalogEpoch
 	session         ids.SessionToken
 	private         *catalogChanges
-	path            sequenceEnvironment
+	path            sequence.Environment
 	namespace       uint64
 	target          ids.ObjectRef
 	targets         map[parser.Statement]ids.ObjectRef
@@ -70,8 +71,8 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 	return nil
 }
 
-func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequenceEnvironment) bool {
-	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(analysis.path, path) {
+func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment) bool {
+	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(analysis.path, path) {
 		return false
 	}
 	for _, dep := range analysis.dependencies {
@@ -90,8 +91,8 @@ func preparedDefinitionStamp(d catalog.Descriptor, session *Session) ids.Definit
 	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.SequenceRelation {
 		stamp := relation.SequencePlanStamp
 		if session != nil {
-			if memory := session.sequences.memory(relation.Address()); memory != nil {
-				stamp = max(stamp, memory.sourceStamp())
+			if memory := session.sequences.Memory(relation.Address()); memory != nil {
+				stamp = max(stamp, memory.SourceStamp())
 			}
 		}
 		return stamp

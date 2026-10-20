@@ -31,7 +31,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 	defer e.sessionMu.Unlock()
 	for _, s := range e.sessions {
 		s.sqlRoutines = nil
-		s.sequences.retainLocked(func(a ids.ObjectAddress) bool {
+		s.sequences.RetainLocked(func(a ids.ObjectAddress) bool {
 			r, ok := e.catalog.state.Relation(a)
 			if !ok {
 				return false

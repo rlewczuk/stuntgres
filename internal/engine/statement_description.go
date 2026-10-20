@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/sqltype"
 )
 
@@ -16,7 +17,7 @@ type StatementDescription struct {
 	// specialized groups atomically, preserving native logical literal identity.
 	temporals        []temporalConstant
 	composites       map[preparedCompositeKey]compositeOccurrence
-	sequences        *sequenceAnalysis
+	sequences        *sequence.Analysis
 	regtypes         *regtypeAnalysis
 	analysis         *preparedAnalysis
 	quotes           []quoteConstant

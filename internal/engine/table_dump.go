@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
@@ -33,7 +34,7 @@ type dumpRelation struct {
 	recipePlaceholders  bool
 	recipeComponent     ids.ObjectAddress
 	identities          map[int32]catalog.ColumnIdentity
-	identitySequences   map[ids.ObjectAddress]dumpSequence
+	identitySequences   map[ids.ObjectAddress]sequence.Dump
 }
 
 func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {

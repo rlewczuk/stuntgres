@@ -426,7 +426,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			if scope.Expected.sequences != nil {
 				*scope.Expected.sequences = analysis
-			} else if len(analysis.constants) != 0 {
+			} else if len(analysis.Constants) != 0 {
 				scope.Expected.sequences = &analysis
 			}
 			if scope.Expected.regtypes != nil && regtypes != nil {

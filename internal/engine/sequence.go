@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -188,7 +189,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		// Ordinary CREATE validates options before DefineRelation checks CREATE
 		// authority. IF NOT EXISTS checks the namespace before options or skip.
 		if !s.IfNotExists {
-			options, restart, err = bindSequenceOptions(nil, storage.SequenceGenerator{}, s.Options)
+			options, restart, err = sequence.BindOptions(nil, storage.SequenceGenerator{}, s.Options)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -228,7 +229,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		if s.IfNotExists {
-			options, restart, err = bindSequenceOptions(nil, storage.SequenceGenerator{}, s.Options)
+			options, restart, err = sequence.BindOptions(nil, storage.SequenceGenerator{}, s.Options)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -289,7 +290,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		old := auth.Catalog.MustRelation(ref.Address)
-		err = sequenceKind(old)
+		err = sequence.CheckKind(old)
 		if err == nil {
 			err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 		}
@@ -333,7 +334,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if state == nil {
 			return Result{}, fmt.Errorf("stuntgres: sequence state missing")
 		}
-		options, restart, err := bindSequenceOptions(old.Sequence, *state, s.Options)
+		options, restart, err := sequence.BindOptions(old.Sequence, *state, s.Options)
 		if err != nil {
 			return Result{}, err
 		}
@@ -377,7 +378,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if options.Owned != (ids.ObjectAddress{}) {
 				a := options.Owned
 				a.SubID = 0
-				return Result{}, sequenceLinkedError(&d, auth.Catalog.MustRelation(a), false)
+				return Result{}, sequence.LinkedError(&d, auth.Catalog.MustRelation(a), false)
 			}
 			actor, _ := auth.Roles.Descriptor(auth.State.CurrentUser)
 			if !actor.Superuser {
@@ -401,7 +402,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if options.Owned != (ids.ObjectAddress{}) {
 				a := options.Owned
 				a.SubID = 0
-				return Result{}, sequenceLinkedError(&d, auth.Catalog.MustRelation(a), true)
+				return Result{}, sequence.LinkedError(&d, auth.Catalog.MustRelation(a), true)
 			}
 			destination := &parser.CreateSequence{Name: parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.Name()}}}, Persistence: "logged"}
 			ns, err := e.relationCreationNamespaceLocked(auth, destination.Name, destination.Persistence, changes)
@@ -450,8 +451,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			changes.generators[d.Address()] = &replacement
 		}
 		if s.Action == "" || persistenceChanged {
-			if m := op.session.sequences.memory(d.Address()); m != nil {
-				m.discardTailLocked()
+			if m := op.session.sequences.Memory(d.Address()); m != nil {
+				m.DiscardTailLocked()
 			}
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
@@ -498,7 +499,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		}
 		if d.Sequence.Identity {
 			e.mu.Unlock()
-			return Result{}, identitySequenceDropError(auth.Catalog, d)
+			return Result{}, sequence.IdentityDropError(auth.Catalog, d)
 		}
 		refs = append(refs, ref)
 	}
@@ -574,7 +575,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, err
 		}
 		if d.Sequence.Identity {
-			return Result{}, identitySequenceDropError(auth.Catalog, d)
+			return Result{}, sequence.IdentityDropError(auth.Catalog, d)
 		}
 		e.catalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.generators, ref.Address)

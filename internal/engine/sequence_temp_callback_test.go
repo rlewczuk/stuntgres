@@ -106,7 +106,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	state.SetEpoch(ids.CatalogEpoch(^uint64(0)))
 	e.catalog.state = state
 	_, bd := sequencePreparedDescription(t, e, b, "SELECT nextval('owned_temp')")
-	owned := bd.sequences.constants[0].ref.Address
+	owned := bd.sequences.Constants[0].Ref.Address
 	namespace := b.temporaryNamespace
 	retained := e.CatalogRead()
 	generators, storage := e.storage.Sequences, e.storage.Relations

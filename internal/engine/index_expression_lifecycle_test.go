@@ -102,10 +102,10 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	session := sessionStart(t, target, nil)
 	sessionSQL(t, session, "CREATE TEMP SEQUENCE retained START 40 CACHE 5")
 	_, description := sequencePreparedDescription(t, target, session, "SELECT nextval('retained')")
-	temporary := description.sequences.constants[0].ref.Address
+	temporary := description.sequences.Constants[0].Ref.Address
 	sequenceScalar(t, session, "SELECT nextval('retained')", 40)
 	descriptor := target.catalog.state.Get(temporary)
-	generator, memory := target.storage.Sequences[temporary], session.sequences.memory(temporary)
+	generator, memory := target.storage.Sequences[temporary], session.sequences.Memory(temporary)
 	generatorState, memoryState := *generator, *memory
 	for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(2),(2),(NULL)", "CREATE INDEX ix ON t((10/n),(n+1),(10/n))"} {
 		run(t, source, q)
@@ -130,7 +130,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if target.catalog.state.Get(temporary) != descriptor || target.storage.Sequences[temporary] != generator || session.sequences.memory(temporary) != memory || *generator != generatorState || *memory != memoryState {
+	if target.catalog.state.Get(temporary) != descriptor || target.storage.Sequences[temporary] != generator || session.sequences.Memory(temporary) != memory || *generator != generatorState || *memory != memoryState {
 		t.Fatal("derived replacement changed retained TEMP descriptor/cache")
 	}
 	sequenceScalar(t, session, "SELECT nextval('retained')", 41)

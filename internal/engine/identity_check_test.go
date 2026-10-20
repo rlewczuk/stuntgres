@@ -84,13 +84,13 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			sessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 10`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
-			temp := description.sequences.constants[0].ref.Address
+			temp := description.sequences.Constants[0].Ref.Address
 			owner := roleTableRef(t, source, "portable.i").Address
 			originalView, originalCheck := roleTableRef(t, source, "portable.v").Address, roleTableRef(t, source, "portable.c").Address
 			if temp != owner {
 				t.Fatal("fixture lacks owner-table collision", temp, owner)
 			}
-			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], b.sequences.memory(temp)
+			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], b.sequences.Memory(temp)
 			generatorState, memoryState := *generator, *memory
 			// Force the required relationship using observed object identities,
 			// independently of how many embedded definitions consume OIDs.
@@ -143,7 +143,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			if err := dest.Restore(context.Background(), bytes.NewReader(again.Bytes())); err != nil {
 				t.Fatal("second remapped dump cannot restore", err)
 			}
-			if dest.catalog.state.Get(temp) != definition || dest.storage.Sequences[temp] != generator || b.sequences.memory(temp) != memory || *generator != generatorState || *memory != memoryState {
+			if dest.catalog.state.Get(temp) != definition || dest.storage.Sequences[temp] != generator || b.sequences.Memory(temp) != memory || *generator != generatorState || *memory != memoryState {
 				t.Fatal("retained TEMP state changed")
 			}
 			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 1)
@@ -301,7 +301,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 		t.Fatal(binder.prepared.sequenceConstants)
 	}
 	constant := binder.prepared.sequenceConstants[0]
-	if constant.ref.Address != address || constant.ref.Domain() != e.catalog.Domain || constant.ref.Epoch != read.Epoch() || constant.stamp != candidate.SequencePlanStamp {
+	if constant.Ref.Address != address || constant.Ref.Domain() != e.catalog.Domain || constant.Ref.Epoch != read.Epoch() || constant.Stamp != candidate.SequencePlanStamp {
 		t.Fatal("regclass resolution/stamp mixed candidate and published authority", constant)
 	}
 	qualified := statement(t, `SELECT candidate_schema.nextval('candidate_only')`).(*parser.Select).Targets[0].(parser.CallExpr)

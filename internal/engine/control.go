@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -149,7 +150,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		configured  bool
 	}
 	var schemas []dumpSchema
-	var sequences []dumpSequence
+	var sequences []sequence.Dump
 	type dumpView struct {
 		owner, sql string
 	}
@@ -635,7 +636,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				e.mu.Unlock()
 				return fmt.Errorf("stuntgres: sequence state missing")
 			}
-			sequence := dumpSequence{owner: principal.Name, schema: ns.Name(), name: r.Name(), options: *r.Sequence, state: *g, comment: r.Comment}
+			entry := sequence.Dump{Owner: principal.Name, Schema: ns.Name(), Name: r.Name(), Options: *r.Sequence, State: *g, Comment: r.Comment}
 			if owned := r.Sequence.Owned; owned != (ids.ObjectAddress{}) {
 				tableAddress := owned
 				tableAddress.SubID = 0
@@ -645,17 +646,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return fmt.Errorf("stuntgres: sequence ownership target missing")
 				}
 				tableSchema := e.catalog.state.Get(table.Namespace()).Name()
-				sequence.ownedTable = catalog.QuoteIdentifier(tableSchema) + "." + catalog.QuoteIdentifier(table.Name())
+				entry.OwnedTable = catalog.QuoteIdentifier(tableSchema) + "." + catalog.QuoteIdentifier(table.Name())
 				for i, sub := range table.Attributes {
 					if sub == owned.SubID {
-						sequence.ownedColumn = table.Columns[i].Name
+						entry.OwnedColumn = table.Columns[i].Name
 						if r.Sequence.Identity {
-							sequence.divergent = identityDumpDivergent(*r.Sequence, table.Columns[i].Usage.Type.ID())
+							entry.Divergent = sequence.IdentityDumpDivergent(*r.Sequence, table.Columns[i].Usage.Type.ID())
 						}
 					}
 				}
 			}
-			sequences = append(sequences, sequence)
+			sequences = append(sequences, entry)
 			continue
 		}
 		stored := e.storage.Relations[a]
@@ -777,10 +778,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(combined)
 		}
 		tableIndices[oid] = len(tables)
-		linked := make(map[ids.ObjectAddress]dumpSequence, len(r.ColumnMeta.Identities))
+		linked := make(map[ids.ObjectAddress]sequence.Dump, len(r.ColumnMeta.Identities))
 		for _, identity := range r.ColumnMeta.Identities {
-			sequence := e.catalog.state.MustRelation(identity.Sequence)
-			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.storage.Sequences[identity.Sequence], comment: sequence.Comment}
+			relation := e.catalog.state.MustRelation(identity.Sequence)
+			linked[identity.Sequence] = sequence.Dump{Owner: principal.Name, Schema: ns.Name(), Name: relation.Name(), Options: *relation.Sequence, State: *e.storage.Sequences[identity.Sequence], Comment: relation.Comment}
 		}
 		var versions []storage.RowVersion
 		var ends *storage.DeletionRoot
@@ -1057,7 +1058,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
-	sequenceCreation, sequenceCompletion := sequenceDumpStatements(sequences)
+	sequenceCreation, sequenceCompletion := sequence.DumpStatements(sequences)
 	for _, line := range sequenceCreation {
 		if err := emit(line); err != nil {
 			return err
@@ -1375,10 +1376,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					if identity.Mode == parser.IdentityByDefault {
 						mode = "BY DEFAULT"
 					}
-					sequence := t.identitySequences[identity.Sequence]
-					line.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + catalog.QuoteIdentifier(sequence.schema) + "." + catalog.QuoteIdentifier(sequence.name))
-					if !identityDumpDivergent(sequence.options, c.Usage.Type.ID()) {
-						line.WriteString(" " + sequenceNumericSQL(sequence.options))
+					dumped := t.identitySequences[identity.Sequence]
+					line.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + catalog.QuoteIdentifier(dumped.Schema) + "." + catalog.QuoteIdentifier(dumped.Name))
+					if !sequence.IdentityDumpDivergent(dumped.Options, c.Usage.Type.ID()) {
+						line.WriteString(" " + sequence.NumericSQL(dumped.Options))
 					}
 					line.WriteString(")")
 				}
@@ -1977,7 +1978,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore accepts only deferred SET DEFAULT or inherited ONLY DEFAULT alterations")
 			}
 		case *parser.Select:
-			if !restoreSequenceState(s) {
+			if !sequence.RestoresState(s) {
 				return sqlError("0A000", "restore accepts only generated sequence state")
 			}
 		case *parser.Comment:
