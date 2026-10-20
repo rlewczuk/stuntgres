@@ -211,7 +211,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err = scope.reownDomainOverlayRows(stage, changes); err != nil {
 		return err
 	}
-	if r := stage.materializedReplacement; r != nil {
+	if r := stage.materializedOrZero().replacement; r != nil {
 		// A private CREATE WITH DATA has own rows on the old empty store.
 		// REFRESH replaces that complete target, not an append to those rows.
 		a := r.original.Address()
@@ -276,7 +276,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		}
 		changes.storage[a] = shape
 	}
-	if r := stage.materializedReplacement; r != nil {
+	if r := stage.materializedOrZero().replacement; r != nil {
 		a := r.original.Address()
 		shape, exists := changes.storage[a]
 		if !exists {

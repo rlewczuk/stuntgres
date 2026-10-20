@@ -99,7 +99,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		index, parent := capture.index, capture.parent
 		building := true
 		indexAuth := auth
-		if r := stage.materializedReplacement; r != nil && r.concurrent && r.original.Address() == parent.Address() {
+		if r := stage.materializedOrZero().replacement; r != nil && r.concurrent && r.original.Address() == parent.Address() {
 			building = false
 			indexAuth.State.CurrentUser = parent.Owner
 			if _, err := indexAuth.Roles.Descriptor(parent.Owner); err != nil {

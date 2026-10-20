@@ -164,7 +164,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 			}
 			// Replacement observes the existing complete index set; it does
 			// not request REINDEX or replace any index descriptor.
-			replacement := s.materializedReplacement
+			replacement := s.materializedOrZero().replacement
 			if indexes.rebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.Base.Get(address) != d) {
 				return catalog.Conflict{}
 			}

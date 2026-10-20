@@ -139,16 +139,16 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materializedReplacement.concurrent = true
+	stage.materialized().replacement.concurrent = true
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}
 	// Cancel inside the actual index candidate builder, before any install owner.
-	entries, err := buildIndexEntries(&EvalContext{evalStatement: evalStatement{Context: counting}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, stage.materializedReplacement.descriptor, index.SQLIndex, stage.materializedReplacement.storage, nil)
+	entries, err := buildIndexEntries(&EvalContext{evalStatement: evalStatement{Context: counting}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, stage.materializedOrZero().replacement.descriptor, index.SQLIndex, stage.materializedOrZero().replacement.storage, nil)
 	if entries != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("index preparation ignored cancellation", err)
 	}
-	if e.storage.Relations[d.Address()] != old || e.visibility.CommitSeq() != frontier || old.MaterializedLineage != nil || stage.materializedReplacement.storage.MaterializedLineage != nil {
+	if e.storage.Relations[d.Address()] != old || e.visibility.CommitSeq() != frontier || old.MaterializedLineage != nil || stage.materializedOrZero().replacement.storage.MaterializedLineage != nil {
 		t.Fatal("canceled index preparation published or stamped")
 	}
 }

@@ -18,7 +18,6 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -372,13 +371,12 @@ type CatalogStage struct {
 	terminalCleanup bool
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
-	initialTables           map[ids.ObjectAddress]*storage.Relation
-	initialTx               ids.TxRef
-	materializedReplacement *materializedReplacement
-	querySources            []catalog.Descriptor
-	materializedSourceView  *visibility.Data
-	likeSources             []catalog.Descriptor // CREATE-only exact descriptor captures, not dependencies.
-	indexesSlot             *indexStage
+	initialTables    map[ids.ObjectAddress]*storage.Relation
+	initialTx        ids.TxRef
+	querySources     []catalog.Descriptor
+	likeSources      []catalog.Descriptor // CREATE-only exact descriptor captures, not dependencies.
+	indexesSlot      *indexStage
+	materializedSlot *materializedStage
 }
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
@@ -681,7 +679,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 			return nil, catalog.Conflict{}
 		}
 	}
-	if r := s.materializedReplacement; r != nil {
+	if r := s.materializedOrZero().replacement; r != nil {
 		if err := s.materializedReplacementCurrent(e.stageCatalogBaseLocked(s), e.stageStorageLocked(s, r.original.Address())); err != nil {
 			e.mu.Unlock()
 			return nil, err
@@ -798,7 +796,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			return ChangeSet{}, err
 		}
 		for _, source := range s.querySources {
-			if !materializedSourceCurrent(s.materializedSourceView, source, current, currentStorage[source.Address()]) {
+			if !materializedSourceCurrent(s.materializedOrZero().sourceView, source, current, currentStorage[source.Address()]) {
 				e.mu.Unlock()
 				return ChangeSet{}, catalog.Conflict{}
 			}
@@ -879,7 +877,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				return ChangeSet{}, catalog.Conflict{}
 			}
 		}
-		if r := s.materializedReplacement; r != nil {
+		if r := s.materializedOrZero().replacement; r != nil {
 			if err := s.materializedReplacementCurrent(current, currentStorage[r.original.Address()]); err != nil {
 				e.mu.Unlock()
 				return ChangeSet{}, err
@@ -970,7 +968,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, shape := range s.rowShapes {
 			relations[a] = shape.replacement
 		}
-		if replacement := s.materializedReplacement; replacement != nil {
+		if replacement := s.materializedOrZero().replacement; replacement != nil {
 			relations[replacement.original.Address()] = replacement.storage
 		}
 		for k, a := range s.Names() {
@@ -984,7 +982,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		buildStores := indexStores
 		candidateStores := false
 		var rebuildIndexes map[ids.ObjectAddress]bool
-		if len(indexStores) > 0 && (len(s.rowShapes) > 0 || s.materializedReplacement != nil) {
+		if len(indexStores) > 0 && (len(s.rowShapes) > 0 || s.materializedOrZero().replacement != nil) {
 			buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores))
 			for a, store := range indexStores {
 				buildStores[a] = store
@@ -995,7 +993,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				buildStores[a] = shape.replacement
 				rebuildIndexes[a] = true
 			}
-			if replacement := s.materializedReplacement; replacement != nil {
+			if replacement := s.materializedOrZero().replacement; replacement != nil {
 				buildStores[replacement.original.Address()] = replacement.storage
 				rebuildIndexes[replacement.original.Address()] = true
 			}
@@ -1032,7 +1030,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
-		if r := s.materializedReplacement; r != nil && r.concurrent {
+		if r := s.materializedOrZero().replacement; r != nil && r.concurrent {
 			runtimeOwners = map[ids.ObjectAddress]authorization.PrincipalRef{r.original.Address(): r.original.Owner}
 		}
 		evaluation := EvalContext{evalStatement: evalStatement{Context: p.ctx, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
@@ -1133,7 +1131,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				return ChangeSet{}, catalog.Conflict{}
 			}
 		}
-		if r := s.materializedReplacement; r != nil {
+		if r := s.materializedOrZero().replacement; r != nil {
 			if err := s.materializedReplacementCurrent(e.catalog.state, e.storage.Relations[r.original.Address()]); err != nil {
 				if op != nil {
 					op.session.mu.Unlock()
@@ -1185,12 +1183,12 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				err = fmt.Errorf("stuntgres: authorization changed before publication")
 			}
 		}
-		if err == nil && s.materializedReplacement != nil && s.authSession != nil {
+		if err == nil && s.materializedOrZero().replacement != nil && s.authSession != nil {
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
 			auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.authorization.state}, engine: e}
-			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
+			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedOrZero().replacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}
@@ -1210,7 +1208,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				err = next.AdvanceNamespaceGeneration()
 			}
 		}
-		if err == nil && (len(s.initialTables) != 0 || s.materializedReplacement != nil) && e.visibility.CommitSeq() == ids.CommitSeq(math.MaxUint64) {
+		if err == nil && (len(s.initialTables) != 0 || s.materializedOrZero().replacement != nil) && e.visibility.CommitSeq() == ids.CommitSeq(math.MaxUint64) {
 			err = fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
 		if err == nil && s.initialTx != (ids.TxRef{}) {
@@ -1230,7 +1228,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			for _, d := range s.Descriptors() {
 				nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, d)
 			}
-			if len(s.initialTables) != 0 || s.materializedReplacement != nil {
+			if len(s.initialTables) != 0 || s.materializedOrZero().replacement != nil {
 				frontier := e.visibility.CommitSeq() + 1
 				for _, initial := range s.initialTables {
 					for i := range initial.Versions {
@@ -1238,7 +1236,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 					}
 					initial.Generation = 1
 				}
-				if replacement := s.materializedReplacement; replacement != nil {
+				if replacement := s.materializedOrZero().replacement; replacement != nil {
 					for i := range replacement.storage.Versions {
 						replacement.storage.Versions[i].Born = frontier
 					}

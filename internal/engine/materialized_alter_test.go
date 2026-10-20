@@ -358,7 +358,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 		if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, count), count != 0, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
-		candidate := stage.materializedReplacement.storage
+		candidate := stage.materializedOrZero().replacement.storage
 		queryCreatePublish(t, e, stage)
 		d = e.catalog.state.MustRelation(d.Address())
 		next := e.storage.IndexRoots[index.Address()]

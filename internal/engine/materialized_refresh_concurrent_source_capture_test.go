@@ -167,7 +167,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	stage.querySources = scope.materializedOrZero().sources
-	stage.materializedSourceView = snapshot
+	stage.materialized().sourceView = snapshot
 	provider := stage.Base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.RowType)})
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
@@ -176,7 +176,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materializedReplacement.concurrent = true
+	stage.materialized().replacement.concurrent = true
 	changes := newCatalogChanges()
 	e.mu.Lock()
 	defer e.mu.Unlock()

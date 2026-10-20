@@ -17,7 +17,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 		previous := original
 		for i, concurrent := range sequence {
 			replacement := &storage.Relation{Generation: previous.Generation + 1}
-			stage := &CatalogStage{materializedReplacement: &materializedReplacement{original: d, descriptor: d, predecessor: previous, storage: replacement, generation: previous.Generation, ends: previous.Ends, concurrent: concurrent}}
+			stage := &CatalogStage{materializedSlot: &materializedStage{replacement: &materializedReplacement{original: d, descriptor: d, predecessor: previous, storage: replacement, generation: previous.Generation, ends: previous.Ends, concurrent: concurrent}}}
 			e.mu.Lock()
 			e.stageCatalogChangesLocked(stage, changes)
 			e.mu.Unlock()
@@ -40,7 +40,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	private := &storage.Relation{}
 	changes := newCatalogChanges()
 	changes.storage[d.Address()] = catalogStorageChange{replacement: private, relation: d}
-	stage := &CatalogStage{materializedReplacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &storage.Relation{}, concurrent: true}}
+	stage := &CatalogStage{materializedSlot: &materializedStage{replacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &storage.Relation{}, concurrent: true}}}
 	e.mu.Lock()
 	e.stageCatalogChangesLocked(stage, changes)
 	e.mu.Unlock()
