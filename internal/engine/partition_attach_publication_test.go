@@ -110,7 +110,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			child = e.catalog.state.MustRelation(child.Address())
 			stage := partitionAttachUnitStage(t, e, e.CatalogRead(), parent, child)
 			store := e.storage.Relations[child.Address()]
-			stage.partitionReads = []partitionReadFence{{address: child.Address(), storage: store, length: len(store.Versions), ends: store.Ends, generation: store.Generation}}
+			stage.storageReads = []storageReadFence{{address: child.Address(), storage: store, length: len(store.Versions), ends: store.Ends, generation: store.Generation}}
 			// A real captured type provider is an exact publication predecessor.
 			providerAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
 			stage.domainBases = append(stage.domainBases, e.catalog.state.Get(providerAddress))

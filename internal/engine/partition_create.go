@@ -12,8 +12,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -121,7 +119,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 				if storage == nil {
 					return ids.ErrCatalogReplaced
 				}
-				stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: leaf.Address(), storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
+				stage.storageReads = append(stage.storageReads, storageReadFence{address: leaf.Address(), storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
 				return nil
 			})
 			if err != nil {
@@ -272,34 +270,6 @@ func partitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (str
 		}
 	}
 	return text.String(), nil
-}
-
-type partitionReadFence struct {
-	address    ids.ObjectAddress
-	storage    *storage.Relation
-	length     int
-	ends       *storage.DeletionRoot
-	generation uint64
-}
-
-func (partitionReadFence) Kind() session.FenceKind { return fenceStorageRead }
-
-func (f partitionReadFence) currentLocked(e *Engine, _ *session.Journal) error {
-	s := e.storage.Relations[f.address]
-	if s != f.storage || s != nil && (len(s.Versions) != f.length || s.Ends != f.ends || s.Generation != f.generation) {
-		return catalog.Conflict{}
-	}
-	return nil
-}
-
-func (e *Engine) partitionReadsValidLocked(stage *CatalogStage) bool {
-	for _, read := range stage.partitionReads {
-		current := e.stageStorageLocked(stage, read.address)
-		if current != read.storage || current == nil || len(current.Versions) != read.length || current.Ends != read.ends || current.Generation != read.generation {
-			return false
-		}
-	}
-	return true
 }
 
 // Both CREATE and ATTACH use the same typed deciding-component diagnostic.

@@ -87,7 +87,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		snapshot.IndexSource = store.IndexIdentity()
 		captures = append(captures, catalogOverlayIndex{index: index, parent: parent, store: snapshot})
 		committed := e.storage.Relations[parent.Address()]
-		fence := partitionReadFence{address: parent.Address(), storage: committed}
+		fence := storageReadFence{address: parent.Address(), storage: committed}
 		if committed != nil {
 			fence.length = len(committed.Versions)
 			fence.ends = committed.Ends

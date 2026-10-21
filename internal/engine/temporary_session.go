@@ -246,7 +246,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 			}
 		}
 	}
-	return !e.partitionReadsValidLocked(stage)
+	return !e.storageReadsValidLocked(stage)
 }
 
 // The whole-root fence includes replacement predecessors and newly introduced
