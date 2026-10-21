@@ -242,7 +242,10 @@ this file. Start from this sketch.
 **Host sketch (`dml.Host`).** It embeds the write-side interfaces the
 upper features exported (`index.WriteHost` for unique and exclusion
 checks, the `table` row-constraint and FK validation interface, the
-`partition` routing interface, the `view` write and RLS interface, the
+`partition` routing functions (25c decided `partition` exports no write
+host: routing builds on `InsertGroup`, `RowKey`, `Contains` and
+`EvaluateRecipe`, and the child selection of `validatePartitionInsert` may
+move into `partition` as a pure core), the `view` write and RLS interface, the
 `fdw` modification interface) and adds:
 - **Write stage:** `Writes()`, `ApplyValidated(...)`, `ReplaceRows(...)`,
   `Delete(...)`.

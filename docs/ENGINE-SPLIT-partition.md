@@ -298,29 +298,208 @@ Questions to settle in 25c:
    (used by 17 table, inheritance and type Restore files) wait for the
    Restore hook table of step 30 (item 111), and which move here.
 
+**25c refine (approved; measured at `116432550`).** `frontier` over the 17
+root `partition_*.go` files left after 25b (output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-PARTITION-REFINE/frontier-partition.txt`): 56
+declarations, about 120 engine edges. `schemaPartitionTableLocked`,
+`schemaPartitionChildLocked`, `bindPartitionKeys`, the
+`pendingPartitionDefinition` methods, `attachPartitionLocked` with its scan,
+`detachPartitionLocked`, `stagePartitionDetach`,
+`executePartitionExclusionAddLocked` and the replay begin/allowed functions
+were read directly. Findings:
+
+- **Most decisions run with nothing held.** Only the CREATE side runs under
+  `Engine.mu` (`schemaPartitionTableLocked`, the child, key binding, inside
+  `createTableLocked`'s window). `pendingPartitionDefinition.finish`, ATTACH
+  and DETACH run unlocked: `bindPartitionDatum` takes `Engine.mu` once per
+  datum, bound evaluation runs after it releases and may wait (sequence
+  calls keep their admission), `validateBounds`, `checkOverlap`,
+  `checkHashOverlap` and the default-row scan take no lock, and
+  `stagePartitionDetach` replaces on the private stage without one. Only the
+  index-children window (`finish`, ATTACH) takes `Engine.mu` again. The
+  sketch's "every method under `Engine.mu`" therefore fits the CREATE side
+  only; the other decisions need no host.
+- **The child needs exactly the 24c CREATE set.** Every edge of
+  `schemaPartitionChildLocked` is on `table.Host` or a 24d.1 function:
+  `displaceAssociatedArrayLocked` (`DisplaceAssociatedArray`), `CanUse`
+  (`AccessView`), `domainBases` (`AddDomainBase`),
+  `newTableDescriptorLocked` (`table.NewRelation`), `creationACL`
+  (`CreationACL`), `stageRowTypeLocked` (`StageRowType`),
+  `stageCreateIdentities` (`table.StageCreateIdentities`), `bindCreateDefaults`
+  (`BindColumnDefaults`, zero token), `bindCreateGenerations`
+  (`BindGenerations`), `bindCreateChecks` (`BindChecks`),
+  `assignDefinitionOIDsLocked` (`table.AssignDefinitionOIDs`),
+  `captureLikeSource` (`(*table.Stage).CaptureLikeSource` over
+  `TableStage()`), the inherited CHECK rendering (`ACLOutput` is not used:
+  the renderer takes the statement authority's owner and roles, both on
+  `AccessView(auth)`), `index.StageCreateUniques`/`StageCreateExclusions`.
+- **Partition keys bind unlike index keys.** `bindPartitionKeys` binds with
+  its own consumer name, no parameters, no `SimplifyConditional` or recipe
+  flags, its own 42P17 texts, and renders with the statement authority, so
+  `index.Host.BindIndexExpression` cannot serve it. The operator class
+  binding is already `index.BindKey` over `index.KeyHost`.
+- **Index children.** `ddlHost.ValidityTarget()` builds the same drop
+  provider as `stagePartitionIndexValidity` (both `context.Background()`),
+  so the index edges reach `index.StagePartitionIndexChild` and
+  `index.PartitionIndexValidity` through `index.Host` (embedded through
+  `table.Host`).
+- **Not needed** (the sketch had them): `Evaluation() exec.Context` (the
+  root builds the evaluation context from the scope and passes it as a
+  value to functions that run unlocked); `RecordStorageRead` (fences stay in
+  the root); `BindPartitionBound` (decision 2).
+
+Decisions:
+
+1. **`partition.Host` = `table.Host` plus one method**, on the shared
+   `ddlHost` (new root `partition_host.go`, `var _ partition.Host =
+   ddlHost{}`). Every method runs with `Engine.mu` held, never takes or
+   releases it, and never waits:
+   - `BindKeyExpression(auth ddl.Authority, relation *catalog.Relation, raw
+     parser.Expr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey,
+     []int, error)`: builds the binder (rule 6), binds with the
+     "partition key expression" consumer and no parameters, preflights, and
+     returns the key with `Definition`, `Execution` and `Attributes` set,
+     plus the source's used slots. The volatility, constant and
+     generated-column checks and the `stored.ScalarRenderer` label move to
+     `partition` (owner and roles from `AccessView(auth)`), in today's
+     order.
+2. **`partition.BoundBinder`**, self-locking like `index.WriteHost`:
+   `BindBound(datum parser.PartitionDatum, key catalog.PartitionKeyEntry)
+   (expr.Expr, error)`. Callers hold nothing; it takes `Engine.mu` for one
+   window (the authorization epoch and revision recheck, the binder, the
+   storage coercion), releases it, and never waits. A root adapter over the
+   scope and the pending definition implements it
+   (`bindPartitionDatum`'s body). `EvaluateBounds` evaluates the result
+   after it returns, unlocked, as today.
+3. **Embed, no callback** (question 2). `partition.Host` embeds
+   `table.Host`; the child calls the 24d.1 functions directly.
+4. **Attach scans** (question 1). `partitionAttachFrontier` (lock waits
+   between proofs) and `partitionAttachCapture` (`Engine.mu`, fences,
+   validation views) stay in the root and produce the jobs. The row checks
+   take no lock and never wait, so they move: `ValidateAttachRows` (from
+   `partitionAttachValidateRows`) and CREATE's default-row check
+   (`CheckDefaultRows`, from `finish`), both over a root-built
+   `*exec.Context` and the captured `*visibility.View`.
+5. **Restore** (question 3). The trust checks read the engine's Restore and
+   role state (`importTargets`, `roles.published`, `catalog.state`,
+   `engineOf`, the operation replay slot) and stay in the root for control
+   30: `partitionConstraintReplayImport`, `partitionDefaultReplayAllowed`,
+   `partitionAttachAuthorization`, `partitionParentAuthorization`. The
+   begin and `*Allowed` functions stay root hook wrappers. Their pure
+   cores move, as table 24c decision 7 did: `CaptureUniqueReplay(view
+   catalog.Read, raw *parser.AlterTable, table *catalog.Relation)
+   (*UniqueReplay, error)` (`beginPartitionUniqueReplay` after resolution),
+   `(*UniqueReplay).Matches(view, raw, table) bool`,
+   `CaptureUsingIndexReplay(view, raw, table) *UsingIndexReplay`,
+   `(*UsingIndexReplay).Matches(view, raw, table) bool` and
+   `CheckReplayTarget(view, d) bool` (the CHECK replay shape). The
+   teardown capture and validation stay whole: they read storage.
+6. **What moves in 25d** is listed below. One sub-step (about 1.0k lines);
+   no split.
+7. **Hand-offs.** DML 29b/29c: `partition` exports no write-side host;
+   routing execution moves to `dml` on top of `InsertGroup`, `RowKey`,
+   `Contains` and `EvaluateRecipe` (`RecipeHost`), and the child selection
+   loop of `validatePartitionInsert` is a pure core that step 29 can move
+   into `partition`. Control 30: the four trust checks of decision 5 repeat
+   one test and are one root helper candidate.
+
 ### 25d — Move the handler decisions (linear item 93)
 
-Follow 25c. The decisions that move:
+Follow the 25c refine above. Needs 92, 89a and 89b (`table.Host`,
+`StageCreateTable`, `NewRelation`, `StageCreateIdentities` and the CREATE
+binders on `ddlHost`). Moved names are capitalized; no aliases.
 
-- CREATE TABLE ... PARTITION BY / PARTITION OF: the definition checks of
-  `pendingPartitionDefinition` (`validateBounds`, `checkOverlap`,
-  `checkHashOverlap`, `evaluateBounds`, the decisions of `finish`) and the
-  descriptor decisions of `schemaPartitionTableLocked` and
-  `schemaPartitionChildLocked`;
-- ATTACH PARTITION: eligibility, the schema check, proof or scan, the
-  partitioned-index attach (through `index`);
-- DETACH PARTITION: `stagePartitionDetach`'s membership and constraint
-  decisions;
-- partition constraints added by ALTER TABLE
-  (`executePartitionExclusionAddLocked`'s decisions).
+**Move set.** Into `partition`:
 
-**Stays in the root:** the orchestration of `attachPartitionLocked` and
-`detachPartitionLocked` (`Engine.mu` windows, lock waits, scans,
-publication); lock admission (`partition_locks.go`,
-`partitionConsumerBoundary`); the authorization captures
-(`partitionAttachAuthorization`, `partitionParentAuthorization`); the
-storage-read fences; `dropProvider.removePartitionHierarchyLocked`; INSERT
-routing execution until step 29; the Restore executors until step 30.
+- `host.go`: `Host`, `BoundBinder`.
+- `definition.go`: the record `Definition` (`Parent`, `Child`, `Bound`,
+  `Raw`, `DefaultLeaves []ids.ObjectRef`, `Unsupported`); the root
+  `pendingPartitionDefinition` embeds it and keeps the stage, the
+  authorization and the data view. `WithChild(parent, child
+  ids.ObjectAddress, defaultBound bool) (*catalog.Relation, error)` and
+  `WithoutChild(parent, child)` (the edge edit and revision bump shared by
+  `finish`, ATTACH, DETACH and `removePartitionHierarchyLocked`);
+  `CheckDefaultConflict(view, parent, bound, name, pos)` (shared by CREATE
+  and ATTACH); `CheckSupported(*Definition) error` (the 0A000).
+- `create.go` (under `Engine.mu`): `RejectForeignKeys(*parser.CreateTable)`
+  (the first 0A000); `StageCreate(h Host, auth ddl.Authority, s
+  *parser.CreateTable, namespace ids.ObjectAddress, parent
+  *catalog.Relation, owner authorization.PrincipalRef, input
+  sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) (*Definition,
+  error)`: the "is not partitioned" 42P17, the child (unexported
+  `stageChild`, from `schemaPartitionChildLocked`) or
+  `table.StageCreateTable`, the stage lookup, `Recapture` over `StageRead`,
+  `BindKeys`, the NO INHERIT 42P16, `PrepareBounds`, the parent and default
+  leaves through `AddDomainBase`, the default conflict, the unsupported
+  flag. `BindKeys(h Host, auth, relation, raw *parser.PartitionKey, input)
+  (*catalog.PartitionDefinition, error)` (from `bindPartitionKeys`, over
+  `BindKeyExpression` and `index.BindKey`).
+- `bounds.go`/`hash_bounds.go` (nothing held): `EvaluateBounds(ctx,
+  *Definition, BoundBinder, *exec.Context) error`, `ValidateBounds(ctx,
+  input, *Definition) error`, `CheckOverlap(ctx, input, base catalog.Read,
+  *Definition) error` (range and hash), `CheckCoverage(stage ddl.Stage,
+  child *catalog.Relation) error` (the unique and exclusion coverage of
+  `finish`), `CheckDefaultRows(ctx, *exec.Context, rows *visibility.View,
+  base catalog.Read, *Definition) error`.
+- `attach.go`: `CheckAttachTarget(parent, replay bool) error` (kind error,
+  then the hash 0A000), `ValidateAttachRows(ctx, *exec.Context, rows
+  *visibility.View, view catalog.Read, parent, bound, jobs []AttachScan)
+  error`, `AttachDescriptors(parent, child, bound) (nextParent, nextChild
+  *catalog.Relation, error)`; `StageIndexChildren(h index.Host, parent
+  *catalog.Relation, child ids.ObjectAddress, attach bool) error` (under
+  `Engine.mu`: the declaration-order loop over `StageBase()`, re-reading the
+  child through `StageRead()`; CREATE allows incomplete virtual children,
+  ATTACH does not and runs `index.PartitionIndexValidity` over
+  `ValidityTarget()`).
+- `detach.go` (nothing held): `StageDetach(stage ddl.Stage, base
+  catalog.Read, parent, child *catalog.Relation) error`.
+- `exclusion.go` (under `Engine.mu`): `StageExclusions(h index.Host, auth
+  ddl.Authority, input sqltype.InputEnvironment, table *catalog.Relation,
+  raw *parser.AlterTable) error` (the clone, `Revision()` and the
+  `index.StageExclusion` loop).
+- `replay.go`: the cores of decision 5.
+
+**Stays in the root:** `createTableLocked`'s window and the root `finish`,
+which sequences the moved checks in today's order (coverage, the
+parent-less 0A000, evaluation, bounds, overlap, 0A000, default rows, 0A000,
+revision, `Replace`, index children); the parent resolution, Restore
+parent authority, locked-identity and owner checks before `StageCreate`,
+and the `DefaultLeaves` fences and data views after it; the orchestration
+of `attachPartitionLocked` and `detachPartitionLocked` (`Engine.mu`
+windows, lock waits, frontier, capture, stage `Replace`, validation and
+publication); `executePartitionExclusionAddLocked`'s windows; lock
+admission (`partition_locks.go`, `partitionConsumerBoundary`); the
+authorization captures and trust checks; the storage-read fences;
+`dropProvider.removePartitionHierarchyLocked` (calls `WithoutChild`);
+INSERT routing until step 29; the Restore executors, teardown and
+`repairRemappedHashPartitions` until step 30. The root wrapper
+`stagePartitionIndexChild` is deleted; `stagePartitionIndexChildren` stays
+for the unique-replay executor.
+
+**Commit sequence.**
+
+1. Pure helpers: `Definition` (the root struct embeds it), `WithChild`,
+   `WithoutChild`, `CheckDefaultConflict`, `CheckSupported`.
+2. Seam: `partition.Host`, `BoundBinder`; root `partition_host.go` with the
+   assertion, `BindKeyExpression` and the bound-binder adapter. Unit test
+   first, observed failing: `BindKeyExpression` through the host returns
+   the derived key and used slots that today's expression branch builds,
+   and rejects a volatile key with the same 42P17.
+3. Port in place: root functions over the host, the records and plain
+   values for the decisions above, naming no `Engine`, `CatalogStage`,
+   `AuthorizationView` or `StatementScope`; the old entry points become
+   the orchestration listed under "Stays".
+4. Move into `partition` with `movex` and qualify; no aliases. Tests follow
+   the code (`partition_detach_test.go` calls `partition.StageDetach`).
+5. Docs: the `partition` README (host, entry points, lock contracts, what
+   stays), this Status, the §8 row, the status page; `AGENTS.md` unchanged.
+
+Proof: the engine units of "Targeted tests"
+(`partition_attach_transaction_test.go` and
+`partition_detach_transaction_test.go` also with `RACE=1`), the reference
+selections in quick and `REFERENCE=1` mode, and quickcheck. Check that the
+first-error order of CREATE ... PARTITION OF and ATTACH is unchanged on the
+reference cases.
 
 ## Invariants
 
@@ -470,7 +649,17 @@ too; the root keeps only the orchestration listed above. The checks in
     `partition_routine_authority_test.go` renamed one local `partition` to
     `part`. The `TestPartitionRoutineOriginalAuthority` selectors moved from
     `internal/engine/README.md` to the package README.
-- [ ] 25c — Host refined (docs only; linear item 92)
+- [x] 25c — Host refined (docs only; linear item 92) (the docs commit) ·
+  docs only, no checks needed
+  - Measured at `116432550` (see the 25c refine above): only the CREATE
+    side runs under `Engine.mu`; `finish`, ATTACH and DETACH decisions run
+    with nothing held.
+  - `partition.Host` = `table.Host` + `BindKeyExpression`, on `ddlHost`;
+    the self-locking `BoundBinder` for bound datums; the sketch's
+    `Evaluation()`, `RecordStorageRead` and `BindPartitionBound` are not
+    needed. Attach frontier and capture stay root, row checks move; the
+    trust checks stay root for control 30, the replay cores move. 25d stays
+    one sub-step.
 - [ ] 25d — Handler decisions moved (linear item 93)
 
 Outstanding aliases: none (25a and 25b added none).
@@ -491,6 +680,14 @@ Outstanding aliases: none (25a and 25b added none).
 - Step 30 (`control`) owns the Restore executors left in the root
   (`begin*Replay`, `executePartitionUniqueReplayLocked`,
   `repairRemappedHashPartitions`, the teardown capture and validation).
+- Step 29 (`dml`), from 25c: `partition` exports no write-side host. The
+  child selection loop of `validatePartitionInsert` (non-default children
+  through `Contains`, then the default child, then `missingPartition`) is a
+  pure core 29b/29c can move into `partition` next to `InsertGroup`.
+- Step 30 (`control`), from 25c: `partitionConstraintReplayImport`,
+  `partitionDefaultReplayAllowed`, `partitionAttachAuthorization` and
+  `partitionParentAuthorization` repeat one bootstrap-superuser trust test
+  over the engine's Restore state; 30b can fold them into one root helper.
 - Catalog 5i: `relationDefiningAuthorityCompatible`
   (`materialized_refresh.go`) is a pure catalog comparison used by
   `partition_locks.go` and `relation_scope.go`; it belongs in `catalog`.

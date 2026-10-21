@@ -70,7 +70,13 @@ executors (`begin*Replay`, `repairRemappedHashPartitions`, the teardown
 capture), `dropProvider.removePartitionHierarchyLocked`, the storage-read
 fences (`storage_read_fence.go`), and INSERT routing execution with
 `partitionInsertState` (it holds an `AuthorizationView`; step 29 moves
-it). 25c/25d move the handler decisions behind a `partition.Host`.
+it). 25c refined the host: `partition.Host` (on the root `ddlHost`) is
+`table.Host` plus `BindKeyExpression`, every method under `Engine.mu` and
+never waiting, for the CREATE side; bound datums bind through the
+self-locking `BoundBinder`; the `finish`, ATTACH and DETACH decisions run
+with nothing held and move as plain functions. 25d moves them (see
+[ENGINE-SPLIT-partition.md](../../../docs/ENGINE-SPLIT-partition.md) Part
+B); the orchestration, waits, fences and trust checks above stay.
 
 ## Invariants
 
