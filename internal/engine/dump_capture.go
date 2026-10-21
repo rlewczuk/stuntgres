@@ -68,12 +68,12 @@ type dumpCapture struct {
 // dumpSource is the engine state the collectors read. It is valid only
 // while captureDumpLocked holds Engine.mu.
 type dumpSource struct {
-	state             *catalog.State
-	relations         map[ids.ObjectAddress]*storage.Relation
-	sequences         map[ids.ObjectAddress]*storage.SequenceGenerator
-	frontier          ids.CommitSeq
-	bootstrap         authorization.PrincipalRef
-	foreignNamespaces map[ids.ObjectAddress]string
+	state     *catalog.State
+	relations map[ids.ObjectAddress]*storage.Relation
+	sequences map[ids.ObjectAddress]*storage.SequenceGenerator
+	frontier  ids.CommitSeq
+	bootstrap authorization.PrincipalRef
+	foreign   foreignRegistry
 }
 
 // dumpCollection is one locked collection pass: the capture the collectors
@@ -112,7 +112,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err
 	}
-	for address, name := range e.foreignNamespaces {
+	for address, name := range e.foreign.namespaceEntries() {
 		ns, ok := state.Namespace(address)
 		if !ok || ns.Name() != name {
 			return nil, fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")
@@ -140,12 +140,12 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 			graph:            make(dump.Graph),
 		},
 		source: dumpSource{
-			state:             state,
-			relations:         e.storage.Relations,
-			sequences:         e.storage.Sequences,
-			frontier:          e.visibility.CommitSeq(),
-			bootstrap:         e.roles.domain.Principal(authorization.BootstrapPrincipalID),
-			foreignNamespaces: e.foreignNamespaces,
+			state:     state,
+			relations: e.storage.Relations,
+			sequences: e.storage.Sequences,
+			frontier:  e.visibility.CommitSeq(),
+			bootstrap: e.roles.domain.Principal(authorization.BootstrapPrincipalID),
+			foreign:   e.foreign,
 		},
 	}
 	for a, d := range state.Descriptors() {

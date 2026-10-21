@@ -288,7 +288,7 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 		if err != nil {
 			return err
 		}
-		_, configured := c.source.foreignNamespaces[a]
+		_, configured := c.source.foreign.namespaceName(a)
 		c.schemas = append(c.schemas, dumpSchema{name: ns.Name(), owner: role.Name, configured: configured})
 	}
 	return nil

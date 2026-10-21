@@ -57,10 +57,11 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	if e.foreignValueImporter == nil || e.foreignValueExporter == nil {
+	importer, exporter, ok := e.foreign.codecs()
+	if !ok {
 		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
 	}
-	f := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request, Columns: slices.Clone(relation.Columns), ImportValue: e.foreignValueImporter, ExportValue: e.foreignValueExporter}
+	f := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request, Columns: slices.Clone(relation.Columns), ImportValue: importer, ExportValue: exporter}
 	scope.ownForeignSource(f)
 	return &exec.Source{Ref: ref, Anonymous: [][]sqltype.Value{}, Foreign: f}, nil
 }

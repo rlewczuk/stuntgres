@@ -2,6 +2,8 @@ package engine
 
 import (
 	"errors"
+	"iter"
+	"maps"
 	"reflect"
 	"strings"
 	"unicode/utf8"
@@ -59,14 +61,67 @@ func ValidateForeignValidator(def ForeignValidatorDefinition) (ForeignValidatorD
 	return def, nil
 }
 
+// foreignRegistry holds the wrappers, validators and value codecs the driver
+// installs, and the namespaces installation created. Engine.mu guards it. It
+// is written only by InstallForeignDefinitions before the Engine is
+// reachable; afterwards the namespace map is never mutated, only replaced
+// whole by a Restore publication.
+type foreignRegistry struct {
+	wrappers    []ForeignDataWrapperDefinition
+	validators  []ForeignValidatorDefinition
+	namespaces  map[ids.ObjectAddress]string // Immutable auto-installed namespace identities.
+	importValue exec.ForeignValueImporter
+	exportValue exec.ForeignValueExporter
+}
+
+// install records private copies of the definitions and the value codecs.
+func (r *foreignRegistry) install(wrappers []ForeignDataWrapperDefinition, validators []ForeignValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) {
+	r.importValue = importer
+	r.exportValue = exporter
+	r.wrappers = append([]ForeignDataWrapperDefinition(nil), wrappers...)
+	r.validators = append([]ForeignValidatorDefinition(nil), validators...)
+}
+
+// definitions returns the installed definitions in InstallForeignDefinitions'
+// argument order, for re-installing them into a fresh Engine.
+func (r *foreignRegistry) definitions() ([]ForeignDataWrapperDefinition, []ForeignValidatorDefinition, exec.ForeignValueImporter, exec.ForeignValueExporter) {
+	return r.wrappers, r.validators, r.importValue, r.exportValue
+}
+
+// addNamespace records a namespace that installation created. It runs only
+// during installation, before the map is published.
+func (r *foreignRegistry) addNamespace(address ids.ObjectAddress, name string) {
+	if r.namespaces == nil {
+		r.namespaces = make(map[ids.ObjectAddress]string)
+	}
+	r.namespaces[address] = name
+}
+
+// adoptNamespaces replaces the namespace map with from's. The Restore
+// publication calls it in the same step that replaces the catalog state.
+func (r *foreignRegistry) adoptNamespaces(from foreignRegistry) { r.namespaces = from.namespaces }
+
+// namespaceName reports the configured name of an installed namespace.
+func (r *foreignRegistry) namespaceName(address ids.ObjectAddress) (string, bool) {
+	name, ok := r.namespaces[address]
+	return name, ok
+}
+
+// namespaceEntries yields every installed namespace and its configured name.
+func (r *foreignRegistry) namespaceEntries() iter.Seq2[ids.ObjectAddress, string] {
+	return maps.All(r.namespaces)
+}
+
+// codecs returns the driver value codecs; ok is false until both are installed.
+func (r *foreignRegistry) codecs() (exec.ForeignValueImporter, exec.ForeignValueExporter, bool) {
+	return r.importValue, r.exportValue, r.importValue != nil && r.exportValue != nil
+}
+
 // InstallForeignDefinitions runs only before an Engine becomes reachable from
 // its Driver. It never invokes application code. Later catalog publication uses
 // immutable procedure tokens, not a mutable name-to-callback fallback.
 func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefinition, validators []ForeignValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) error {
-	e.foreignValueImporter = importer
-	e.foreignValueExporter = exporter
-	e.foreignWrappers = append([]ForeignDataWrapperDefinition(nil), wrappers...)
-	e.foreignValidators = append([]ForeignValidatorDefinition(nil), validators...)
+	e.foreign.install(wrappers, validators, importer, exporter)
 	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	install := func(name catalog.ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
 		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
@@ -79,10 +134,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 			ns := &catalog.Namespace{ObjectAddress: namespace, ObjectName: name.Schema, ObjectRevision: 1, Owner: owner}
 			e.catalog.state.SetDescriptor(namespace, ns)
 			e.catalog.state.BindName(catalog.DescriptorNameKey(ns), namespace)
-			if e.foreignNamespaces == nil {
-				e.foreignNamespaces = make(map[ids.ObjectAddress]string)
-			}
-			e.foreignNamespaces[namespace] = name.Schema
+			e.foreign.addNamespace(namespace, name.Schema)
 		}
 		key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: name.Name, Signature: string(signature)}
 		if e.catalog.state.NameAddress(key) != (ids.ObjectAddress{}) {
