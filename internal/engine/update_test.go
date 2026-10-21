@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
@@ -155,7 +156,7 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	source, err := captureQuerySource(op.Context(), view, bound.Ref)
+	source, err := exec.CaptureSource(op.Context(), view, bound.Ref)
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)

@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -13,7 +15,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
@@ -149,7 +150,7 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	if err := validator.validate(row, &eval); err != nil {
 		t.Fatal("physical NULL rejected logical nine", err)
 	}
-	detail, err := failingRowDetail(row, sqltype.OutputEnvironment{}, nil, nil, d)
+	detail, err := exec.FailingRowDetail(row, sqltype.OutputEnvironment{}, nil, nil, d)
 	if err != nil || detail != "Failing row contains (9, virtual)." {
 		t.Fatal(detail, err)
 	}

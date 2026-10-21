@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -28,7 +29,7 @@ func capturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View
 		if err != nil {
 			return err
 		}
-		child, err := captureQueryPrefix(view, childRef)
+		child, err := exec.CapturePrefix(view, childRef)
 		if err != nil {
 			return err
 		}

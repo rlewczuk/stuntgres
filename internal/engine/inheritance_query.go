@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -11,7 +12,7 @@ import (
 
 func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf exec.Leaf, token ids.SessionToken) (*exec.Source, error) {
 	if leaf.Only || !catalog.InheritanceHasChildren(catalogView, leaf.Ref.Address) {
-		return captureQueryPrefix(view, leaf.Ref)
+		return exec.CapturePrefix(view, leaf.Ref)
 	}
 	pin := view.Retain()
 	if pin == nil {
@@ -26,7 +27,7 @@ func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.Vi
 		if err != nil {
 			return err
 		}
-		prefix, err := captureQueryPrefix(view, child.Ref)
+		prefix, err := exec.CapturePrefix(view, child.Ref)
 		if err != nil {
 			return err
 		}

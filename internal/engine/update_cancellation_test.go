@@ -3,6 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -10,8 +13,6 @@ import (
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 // Reuse the real binder, admission and view; only the existing evaluator seam
@@ -50,7 +51,7 @@ func updateBoundSource(t *testing.T, e *Engine, s *session.Session, ctx context.
 	if err != nil {
 		fail(err)
 	}
-	source, err := captureQuerySource(op.Context(), view, b.Ref)
+	source, err := exec.CaptureSource(op.Context(), view, b.Ref)
 	if err != nil {
 		fail(err)
 	}

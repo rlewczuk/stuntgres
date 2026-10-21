@@ -23,7 +23,7 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 		t.Fatal("FETCH retained admission or lost physical occurrence", c)
 	}
 	ref := catalogRef(t, engineOf(s), engineOf(s).CatalogRead(), "unit_rows")
-	row := cursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
+	row := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
 	engineOf(s).mu.Lock()
 	want := engineOf(s).storage.Relations[ref.Address].Versions[1].Row
 	engineOf(s).mu.Unlock()
@@ -31,7 +31,7 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 		t.Fatal("last returned occurrence is not physical row2", row.Row, want)
 	}
 	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
-	if cursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks).Row != want {
+	if exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks).Row != want {
 		t.Fatal("DELETE moves or clears current identity")
 	}
 	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 0)
@@ -52,21 +52,21 @@ func TestDeleteCurrentOfOccurrenceVersions(t *testing.T) {
 	locks := &exec.LockContext{Leaves: make([]exec.QueryLockLeaf, 3)}
 	locks.Leaves[2].Source = leaf
 	materialized := &exec.Source{Materialized: true, Occurrences: []int{1, 2}, Provenance: []int{-1, 0}, Versions: []storage.RowVersion{{}, effective}}
-	if got := cursorOccurrenceVersion(materialized, 0, 2, locks); got.Row != effective.Row || got.Version != effective.Version {
+	if got := exec.CursorOccurrenceVersion(materialized, 0, 2, locks); got.Row != effective.Row || got.Version != effective.Version {
 		t.Fatal("effective rowmark version lost", got)
 	}
 	bridge := &exec.Source{Lineage: &exec.QueryLockLineage{Stage: materialized, Selection: []int{0}}}
-	if got := cursorOccurrenceVersion(bridge, 0, 2, locks); got.Version != effective.Version {
+	if got := exec.CursorOccurrenceVersion(bridge, 0, 2, locks); got.Version != effective.Version {
 		t.Fatal("lineage version lost", got)
 	}
 	materialized.VersionValid = []bool{false}
-	if got := cursorOccurrenceVersion(bridge, 0, 2, locks); got.Version != old.Version {
+	if got := exec.CursorOccurrenceVersion(bridge, 0, 2, locks); got.Version != old.Version {
 		t.Fatal("sparse cache did not use physical provenance", got)
 	}
-	if got := cursorOccurrenceVersion(materialized, 0, 1, locks); got.Row != 0 {
+	if got := exec.CursorOccurrenceVersion(materialized, 0, 1, locks); got.Row != 0 {
 		t.Fatal("absent occurrence substituted another leaf", got)
 	}
-	if got := cursorOccurrenceVersion(bridge, exec.AbsentQueryIndex, 2, locks); got.Row != 0 {
+	if got := exec.CursorOccurrenceVersion(bridge, exec.AbsentQueryIndex, 2, locks); got.Row != 0 {
 		t.Fatal("absent bridge gained identity", got)
 	}
 }
@@ -75,16 +75,16 @@ func TestDeleteCurrentOfEligibility(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM (SELECT i FROM unit_rows) d")
 	c := payloadOf(s).cursors.entries["c"]
-	scan := cursorSimpleScan(c.root, c.source)
+	scan := exec.CursorSimpleScan(c.root, c.source)
 	if scan == nil || scan.View == nil || scan.Ref.Address != c.locks.Leaves[0].Leaf.Ref.Address {
 		t.Fatal("transparent derived query loses physical scan")
 	}
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(1)}})
-	if got := cursorOccurrenceVersion(c.currentSource, c.currentIndex, scan.Occurrence, c.locks); got.Row == 0 {
+	if got := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, scan.Occurrence, c.locks); got.Row == 0 {
 		t.Fatal("unlocked derived lineage lost identity")
 	}
 	for _, node := range []plan.Node{&plan.SortNode{Child: c.root}, &plan.AggregateNode{Child: c.root}, &plan.JoinNode{}, &plan.SetNode{}, &plan.DistinctNode{}, &plan.SingletonNode{}} {
-		if cursorSimpleScan(node, c.source) != nil {
+		if exec.CursorSimpleScan(node, c.source) != nil {
 			t.Fatalf("identity-losing %T accepted", node)
 		}
 	}
@@ -152,7 +152,7 @@ func TestDeleteCurrentOfArbitration(t *testing.T) {
 	sessionSQL(t, worker, "DECLARE c CURSOR FOR SELECT 99 FROM t")
 	cursorUnitBatch(t, worker, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
 	cursor := payloadOf(worker).cursors.entries["c"]
-	identity := cursorOccurrenceVersion(cursor.currentSource, cursor.currentIndex, 0, cursor.locks)
+	identity := exec.CursorOccurrenceVersion(cursor.currentSource, cursor.currentIndex, 0, cursor.locks)
 	tx := transactionBegin(t, holder)
 	deleteCount(t, holder, "DELETE FROM t WHERE v=7", 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -286,7 +286,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 					}
 				}
 			} else {
-				scan := cursorSimpleScan(c.root, c.source)
+				scan := exec.CursorSimpleScan(c.root, c.source)
 				if scan == nil {
 					t.Fatal("identity-only transparent scan lost eligibility")
 				}
@@ -296,7 +296,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 				t.Fatal("physical target occurrence missing")
 			}
 			leaf := c.locks.Leaves[occurrence]
-			row := cursorOccurrenceVersion(c.currentSource, c.currentIndex, occurrence, c.locks)
+			row := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, occurrence, c.locks)
 			engineOf(s).mu.Lock()
 			want := engineOf(s).storage.Relations[leaf.Leaf.Ref.Address].Versions[1].Row
 			engineOf(s).mu.Unlock()

@@ -1,12 +1,13 @@
 package engine
 
 import (
+	"testing"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
-	"testing"
 )
 
 func TestRLSBaseDeniedTargetHistory(t *testing.T) {
@@ -121,7 +122,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 			t.Fatal("denied close changed shared roots/generation")
 		}
 	}
-	ordinary, err := captureQuerySource(op.Ctx, view, leaf.Ref)
+	ordinary, err := exec.CaptureSource(op.Ctx, view, leaf.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

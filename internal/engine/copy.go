@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -447,7 +448,7 @@ func (s *StatementScope) copyTableRows(b analyze.Binding, auth AuthorizationView
 	if err != nil {
 		return nil, err
 	}
-	source, err := captureQueryPrefix(view, b.Ref)
+	source, err := exec.CapturePrefix(view, b.Ref)
 	if err != nil {
 		return nil, err
 	}

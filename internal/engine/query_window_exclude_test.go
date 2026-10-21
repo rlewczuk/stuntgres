@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -14,7 +16,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestQueryWindowExcludeMask(t *testing.T) {
@@ -229,7 +230,7 @@ func TestQueryWindowExcludeCancellation(t *testing.T) {
 		for _, phase := range []string{"CompareWindowRows", "WindowFrameCount", "IntegralSum.Init", "IntegralSum.Advance", "IntegralSum.Finalize", "ColumnExpr.Eval", "sum-output", "sum-publication"} {
 			t.Run(phase+exclusion, func(t *testing.T) {
 				_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,sum(v) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"+exclusion+")")
-				continuation, err := captureQuerySource(context.Background(), source.View, source.Ref)
+				continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 				if err != nil {
 					t.Fatal(err)
 				}

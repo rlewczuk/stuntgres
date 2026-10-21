@@ -196,7 +196,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 			if layout != nil {
 				mapping.Scratch = make([]sqltype.Value, len(layout))
 			}
-			source, err := captureQuerySource(ctx, p.view, ref)
+			source, err := exec.CaptureSource(ctx, p.view, ref)
 			if err != nil {
 				return err
 			}

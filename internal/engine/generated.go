@@ -306,7 +306,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 					return err
 				}
 				if value.IsNull() {
-					detail, err := failingRowDetail(row, eval.Output, nil, nil, descriptor)
+					detail, err := exec.FailingRowDetail(row, eval.Output, nil, nil, descriptor)
 					if err != nil {
 						return err
 					}

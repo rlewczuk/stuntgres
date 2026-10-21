@@ -80,7 +80,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *session.Session, c
 		view, err = scope.acquireDataViewLocked(e, b.Ref)
 	}
 	if err == nil {
-		source, err = captureQuerySource(op.Ctx, view, b.Ref)
+		source, err = exec.CaptureSource(op.Ctx, view, b.Ref)
 	}
 	if err == nil {
 		from, err = e.captureQuerySourcesLocked(scope, b.QuerySources, false)
