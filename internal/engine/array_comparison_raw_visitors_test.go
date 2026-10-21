@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/parser"
 )
 
@@ -31,10 +32,10 @@ func TestArrayCompareVisitorsRawEngine(t *testing.T) {
 				t.Fatal("spurious SUM analysis")
 			}
 			for _, stored := range []bool{false, true} {
-				if err := restoreScalar(form.make(literal), stored); err != nil {
+				if err := dump.RestoreScalar(form.make(literal), stored); err != nil {
 					t.Fatal(err)
 				}
-				if err := restoreScalar(form.make(parser.ParameterExpr{Number: 1}), stored); err == nil {
+				if err := dump.RestoreScalar(form.make(parser.ParameterExpr{Number: 1}), stored); err == nil {
 					t.Fatal("restore parameter child lost", stored)
 				}
 			}

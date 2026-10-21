@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -51,10 +52,10 @@ func inheritedForeignKeyDescendant(view catalog.Read, target *catalog.Relation, 
 	return walk(target)
 }
 
-func inheritedForeignKeyEvents(view catalog.Read, graph map[dumpEventKey][]dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
+func inheritedForeignKeyEvents(view catalog.Read, graph dump.Graph, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dump.Event, bool, error)) error {
 	for i := range tables {
 		source := tables[i].descriptor
-		event := dumpEventKey{oid: source.Address().ObjectID, phase: dumpInheritedForeignKeys}
+		event := dump.Event{OID: source.Address().ObjectID, Phase: dump.InheritedForeignKeys}
 		for i := range source.Constraints.ForeignKeys {
 			foreign := &source.Constraints.ForeignKeys[i]
 			if !inheritedForeignKeyDeferred(view, source, foreign) {
@@ -67,11 +68,11 @@ func inheritedForeignKeyEvents(view catalog.Read, graph map[dumpEventKey][]dumpE
 			if !present {
 				return fmt.Errorf("stuntgres: missing inherited foreign-key replay provider")
 			}
-			addDumpDependency(graph, event, dumpEventKey{oid: source.Address().ObjectID, phase: dumpRows})
-			addDumpDependency(graph, event, dumpEventKey{oid: foreign.Target.ObjectID, phase: dumpRows})
-			addDumpDependency(graph, event, dumpEventKey{oid: foreign.Target.ObjectID, phase: dumpTableCompletion})
-			addDumpDependency(graph, event, provider)
-			addDumpDependency(graph, dumpEventKey{oid: source.Address().ObjectID, phase: dumpTableCompletion}, event)
+			graph.Add(event, dump.Event{OID: source.Address().ObjectID, Phase: dump.Rows})
+			graph.Add(event, dump.Event{OID: foreign.Target.ObjectID, Phase: dump.Rows})
+			graph.Add(event, dump.Event{OID: foreign.Target.ObjectID, Phase: dump.TableCompletion})
+			graph.Add(event, provider)
+			graph.Add(dump.Event{OID: source.Address().ObjectID, Phase: dump.TableCompletion}, event)
 		}
 	}
 	return nil

@@ -127,7 +127,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 				if len(groups) != 1 {
 					t.Fatalf("exported rule groups=%d want 1", len(groups))
 				}
-				parsed, err := parser.Parse(groups[0].sql)
+				parsed, err := parser.Parse(groups[0].SQL)
 				if err != nil || len(parsed) != 1 {
 					t.Fatalf("actual exported declaration cannot reparse: %v", err)
 				}
@@ -143,7 +143,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 				_, err = e.Execute(op, parsed[0], 0, nil)
 				op.Done()
 				if err != nil {
-					t.Fatalf("exported rule reanalysis: %v\n%s", err, groups[0].sql)
+					t.Fatalf("exported rule reanalysis: %v\n%s", err, groups[0].SQL)
 				}
 				reboundView := e.CatalogRead()
 				rebound := rulesOf(reboundView.MustRelation(srcRef.Address))[0]

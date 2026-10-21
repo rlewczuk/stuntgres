@@ -7,47 +7,46 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/typedef"
 )
 
-type dumpDomain struct{ owner, sql string }
-
-func domainDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *typedef.DomainReplayNames) (dumpDomain, error) {
+func domainDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *typedef.DomainReplayNames) (dump.Statement, error) {
 	if err := ctx.Err(); err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	if !typedef.DefaultDomainACL(d) {
-		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
+		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
 	}
 	qualified, err := catalogTypeDeclaration(view, d.SQLType.Usage())
 	if err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	owner, err := roles.Descriptor(d.Owner)
 	if err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	if d.SQLType.IsEnum() {
 		labels := d.SQLType.EnumLabels()
 		for i, label := range labels {
 			labels[i] = "'" + strings.ReplaceAll(label, "'", "''") + "'"
 		}
-		return dumpDomain{owner.Name, "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"}, nil
+		return dump.Statement{Owner: owner.Name, SQL: "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"}, nil
 	}
 	base := d.SQLType.DomainBase()
 	declaration, err := catalogTypeDeclaration(view, base)
 	if err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	if base.Type.IsArray() {
 		if d.Dimensions == 0 {
 			key, exists := replayNames.Names[base.Type.ID()]
 			if !exists || replayNames.Arrays[base.Type.Element().ID()] != base.Type.ID() {
-				return dumpDomain{}, fmt.Errorf("stuntgres: missing domain replay array identity")
+				return dump.Statement{}, fmt.Errorf("stuntgres: missing domain replay array identity")
 			}
 			namespace, exists := view.Descriptor(key.Namespace)
 			if !exists {
-				return dumpDomain{}, fmt.Errorf("stuntgres: missing domain replay array namespace")
+				return dump.Statement{}, fmt.Errorf("stuntgres: missing domain replay array namespace")
 			}
 			declaration = catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(key.Name)
 		} else {
@@ -58,7 +57,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	if base.Collation != base.Type.Usage().Collation {
 		name := typedef.CollationSQLName(view, base.Collation.ID)
 		if name == "" {
-			return dumpDomain{}, fmt.Errorf("stuntgres: unsupported domain collation")
+			return dump.Statement{}, fmt.Errorf("stuntgres: unsupported domain collation")
 		}
 		collation = " COLLATE " + name
 	}
@@ -66,7 +65,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	if d.DomainDefaultOwn {
 		text, err := (scalarRenderer{currentRowShape: true}).sql(ctx, view, d.DomainDefault.Expression)
 		if err != nil {
-			return dumpDomain{}, err
+			return dump.Statement{}, err
 		}
 		checks.WriteString(" DEFAULT " + text)
 	}
@@ -79,9 +78,9 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 		}
 		text, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.Expression)
 		if err != nil {
-			return dumpDomain{}, err
+			return dump.Statement{}, err
 		}
 		checks.WriteString(" CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + text + ")")
 	}
-	return dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
+	return dump.Statement{Owner: owner.Name, SQL: "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
 }

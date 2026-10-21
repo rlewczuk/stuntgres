@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 )
@@ -14,7 +15,7 @@ import (
 // Multiple defaults in one namespace are legal after SET SCHEMA, but cannot be
 // directly CREATED there. Only additional defaults use a collision-free helper
 // schema, which is created before owner groups and removed by the same replay.
-func conversionDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Conversion) (statements []dumpDomain, schemas []string, err error) {
+func conversionDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Conversion) (statements []dump.Statement, schemas []string, err error) {
 	if len(definitions) == 0 {
 		return
 	}
@@ -71,7 +72,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 		if d.DefaultConversion {
 			occupiedPairs[key] = true
 		}
-		statements = append(statements, dumpDomain{owner: owner.Name, sql: definition})
+		statements = append(statements, dump.Statement{Owner: owner.Name, SQL: definition})
 	}
 	return
 }

@@ -8,14 +8,15 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/typedef"
 )
 
-func collationDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Collation) ([]dumpDomain, error) {
+func collationDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Collation) ([]dump.Statement, error) {
 	sort.Slice(definitions, func(i, j int) bool {
 		return typedef.CollationSQLName(view, uint32(definitions[i].OID)) < typedef.CollationSQLName(view, uint32(definitions[j].OID))
 	})
-	statements := make([]dumpDomain, 0, len(definitions))
+	statements := make([]dump.Statement, 0, len(definitions))
 	literal := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 	for _, d := range definitions {
 		if err := ctx.Err(); err != nil {
@@ -79,7 +80,7 @@ func collationDumpStatements(ctx context.Context, view catalog.Read, roles autho
 			}
 			definition.WriteString(");\n")
 		}
-		statements = append(statements, dumpDomain{owner: owner.Name, sql: definition.String()})
+		statements = append(statements, dump.Statement{Owner: owner.Name, SQL: definition.String()})
 	}
 	return statements, nil
 }

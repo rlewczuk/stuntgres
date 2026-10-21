@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -128,7 +129,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			}
 			rawArgs[slot] = parser.ParameterExpr{Number: 1}
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: rawArgs}
-			if err := restoreScalar(raw, false); err == nil {
+			if err := dump.RestoreScalar(raw, false); err == nil {
 				t.Fatal(name, slot, "Restore accepted parameter")
 			}
 		}

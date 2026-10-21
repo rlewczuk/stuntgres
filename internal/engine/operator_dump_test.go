@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -23,7 +24,7 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 			{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, ObjectName: "#@#", Function: 65, Result: 16, Commutator: c, Negator: c},
 		}
 		before := make([]catalog.Operator, len(operators))
-		graph := make(map[dumpEventKey][]dumpEventKey)
+		graph := make(dump.Graph)
 		for i, op := range operators {
 			op.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 			op.ObjectRevision = 1
@@ -34,48 +35,48 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 				t.Fatal(err)
 			}
 			before[i] = *op
-			graph[dumpEventKey{oid: op.Address().ObjectID}] = nil
+			graph[dump.Event{OID: op.Address().ObjectID}] = nil
 		}
 		view := e.stageRead(stage)
-		consumer := dumpEventKey{oid: 91000}
-		graph[consumer] = []dumpEventKey{{oid: c}, {oid: b}, {oid: c}}
+		consumer := dump.Event{OID: 91000}
+		graph[consumer] = []dump.Event{{OID: c}, {OID: b}, {OID: c}}
 		operatorDumpEvents(view, operators, graph)
 		normalizeOperatorDumpPredecessors(view, graph)
-		order, err := dumpOrder(context.Background(), graph, nil)
+		order, err := dump.Order(context.Background(), graph, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		positions := make(map[dumpEventKey]int)
+		positions := make(map[dump.Event]int)
 		for i, event := range order {
 			positions[event] = i
 		}
-		precedes := func(first, last dumpEventKey) {
+		precedes := func(first, last dump.Event) {
 			t.Helper()
 			if positions[first] >= positions[last] {
 				t.Fatalf("%v must precede %v: %v", first, last, order)
 			}
 		}
-		precedes(dumpEventKey{oid: d}, dumpEventKey{oid: c})
-		precedes(dumpEventKey{oid: a}, dumpEventKey{oid: b})
+		precedes(dump.Event{OID: d}, dump.Event{OID: c})
+		precedes(dump.Event{OID: a}, dump.Event{OID: b})
 		for _, source := range []ids.OID{b, c} {
-			completion := dumpEventKey{oid: source, phase: dumpOperatorLinks}
-			precedes(dumpEventKey{oid: b}, completion)
-			precedes(dumpEventKey{oid: c}, completion)
+			completion := dump.Event{OID: source, Phase: dump.OperatorLinks}
+			precedes(dump.Event{OID: b}, completion)
+			precedes(dump.Event{OID: c}, completion)
 			precedes(completion, consumer)
 		}
-		saved := make(map[dumpEventKey][]dumpEventKey)
+		saved := make(dump.Graph)
 		for key, edges := range graph {
-			saved[key] = append([]dumpEventKey(nil), edges...)
+			saved[key] = append([]dump.Event(nil), edges...)
 		}
 		normalizeOperatorDumpPredecessors(view, graph)
 		if !reflect.DeepEqual(saved, graph) {
 			t.Fatal("normalization is not idempotent")
 		}
 		// Retry/expansion can restore raw dependencies and introduce new phases.
-		graph[consumer] = []dumpEventKey{{oid: b}, {oid: b}, {oid: 92000, phase: dumpRows}}
-		graph[dumpEventKey{oid: 92000, phase: dumpRows}] = nil
+		graph[consumer] = []dump.Event{{OID: b}, {OID: b}, {OID: 92000, Phase: dump.Rows}}
+		graph[dump.Event{OID: 92000, Phase: dump.Rows}] = nil
 		normalizeOperatorDumpPredecessors(view, graph)
-		want := []dumpEventKey{{oid: b, phase: dumpOperatorLinks}, {oid: 92000, phase: dumpRows}}
+		want := []dump.Event{{OID: b, Phase: dump.OperatorLinks}, {OID: 92000, Phase: dump.Rows}}
 		if !reflect.DeepEqual(graph[consumer], want) {
 			t.Fatal("expanded semantic prerequisites", graph[consumer])
 		}
@@ -109,38 +110,38 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 	}
 	view := e.stageRead(stage)
 	x, y := ids.OID(90002), ids.OID(90004)
-	graph := map[dumpEventKey][]dumpEventKey{
-		{oid: a}: nil,
-		{oid: x}: nil,
-		{oid: b}: {{oid: x}},
-		{oid: y}: nil,
+	graph := dump.Graph{
+		{OID: a}: nil,
+		{OID: x}: nil,
+		{OID: b}: {{OID: x}},
+		{OID: y}: nil,
 	}
 	operatorDumpEvents(view, operators, graph)
-	declarations := dumpDeclarationEvents([]ids.OID{a, x, b, y})
+	declarations := dump.DeclarationEvents([]ids.OID{a, x, b, y})
 	replay := &partitionConstraintReplay{original: view}
 	if err := partitionDumpEvents(context.Background(), view, graph, declarations, nil, nil, replay, false); err != nil {
 		t.Fatal(err)
 	}
 	normalizeOperatorDumpPredecessors(view, graph)
-	order, err := dumpOrder(context.Background(), graph, nil)
+	order, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	positions := make(map[dumpEventKey]int)
+	positions := make(map[dump.Event]int)
 	for i, event := range order {
 		positions[event] = i
 	}
-	for _, edge := range [][2]dumpEventKey{
-		{{oid: x}, {oid: b}},
-		{{oid: x}, {oid: y}},
-		{{oid: b}, {oid: a, phase: dumpOperatorLinks}},
-		{{oid: a}, {oid: b, phase: dumpOperatorLinks}},
+	for _, edge := range [][2]dump.Event{
+		{{OID: x}, {OID: b}},
+		{{OID: x}, {OID: y}},
+		{{OID: b}, {OID: a, Phase: dump.OperatorLinks}},
+		{{OID: a}, {OID: b, Phase: dump.OperatorLinks}},
 	} {
 		if positions[edge[0]] >= positions[edge[1]] {
 			t.Fatalf("lost real prerequisite/nonoperator ordering %v: %v", edge, order)
 		}
 	}
-	if len(graph[dumpEventKey{oid: x}]) != 0 {
+	if len(graph[dump.Event{OID: x}]) != 0 {
 		t.Fatal("unrelated type acquired operator completion prerequisite")
 	}
 }

@@ -137,7 +137,7 @@ func TestCollationDumpLosslessBootstrapSelection(t *testing.T) {
 		}
 		snapshot := e.stageRead(stage)
 		statements, err := collationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{d})
-		if err != nil || len(statements) != 1 || !strings.Contains(statements[0].sql, tc.fragment) {
+		if err != nil || len(statements) != 1 || !strings.Contains(statements[0].SQL, tc.fragment) {
 			t.Fatal(tc, statements, err)
 		}
 		bad := *d

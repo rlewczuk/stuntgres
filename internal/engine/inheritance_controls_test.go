@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -85,8 +86,8 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	order, err := dumpOrder(context.Background(), map[dumpEventKey][]dumpEventKey{{oid: child.Address().ObjectID}: {{oid: predecessor}}, {oid: mapped.ObjectID}: nil}, nil)
-	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{mapped.ObjectID, child.Address().ObjectID}) {
+	order, err := dump.Order(context.Background(), dump.Graph{{OID: child.Address().ObjectID}: {{OID: predecessor}}, {OID: mapped.ObjectID}: nil}, nil)
+	if err != nil || !reflect.DeepEqual(dump.DeclarationIDs(order), []ids.OID{mapped.ObjectID, child.Address().ObjectID}) {
 		t.Fatal(order, err)
 	}
 }

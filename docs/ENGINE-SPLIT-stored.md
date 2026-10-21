@@ -74,7 +74,7 @@ top-level declarations with their methods: about 10.2k lines in 67 files,
 | Edge | Owner after the prerequisite |
 |---|---|
 | reg* spellings, dump outputs, remap and walker helpers, `catalogTypeDeclaration*`, `catalogLiteral*`, `catalogRegclassOutput`, `catalogRoutineOutput`, `catalogRegtypeOutput`, `aclItemContextFormatter`, `aclItemValidationOutput` (its `owner` field), `containsEmptyACL`, `regroleContextFormatter` | `regobj` (21b) |
-| `commentLiteral` (`dump_restore_scalar.go`, used by `cycleConstantSQL`) | `dump.CommentLiteral` (18b) |
+| `commentLiteral` (used by `cycleConstantSQL`) | `dump.CommentLiteral` (done in 18b) |
 | `pgIdentifier` (`deparse_renderer.go`) | `catalog.Identifier` (done in 21a) |
 | `sqlError` | the package's own `errors.go` |
 
@@ -142,7 +142,8 @@ are used only by `expression_retag.go`; they move here, not to `exec`.
 - `deparse_tree.go` (node-tree output) moved to `plan` in 10e
   (`plan/node_tree.go`: `BoundTree`, `AppendBoundTree`, `CatalogTree`).
 - Type declarations, literals and reg* code go to `regobj` (21).
-- `domainDumpStatement` and `dumpDomain` go to `dump`/`typedef` (18, 15e).
+- `dumpDomain` is `dump.Statement` (18b); `domainDumpStatement` goes to
+  `typedef` (15e).
 - The rule payload and its rendering are 22c.
 - View, rule and policy DDL, view-write lowering, rule rewriting and
   materialized refresh are step 27.

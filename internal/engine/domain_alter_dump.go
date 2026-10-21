@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -14,21 +15,21 @@ import (
 
 // Invalid domain CHECKs are post-data events. Their providers do not constrain
 // CREATE DOMAIN, which would invent cycles through a later table/derived type.
-func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpEventKey][]dumpEventKey, domains map[ids.OID]*catalog.Type) error {
-	var data []dumpEventKey
+func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph dump.Graph, domains map[ids.OID]*catalog.Type) error {
+	var data []dump.Event
 	for event := range graph {
-		if event.phase == dumpTableCompletion {
+		if event.Phase == dump.TableCompletion {
 			data = append(data, event)
 		}
 	}
 	for oid, domain := range domains {
-		event := dumpEventKey{oid: oid, phase: dumpDomainChecks}
+		event := dump.Event{OID: oid, Phase: dump.DomainChecks}
 		for _, check := range domain.DomainChecks {
 			if !check.NotValid {
 				continue
 			}
 			if _, exists := graph[event]; !exists {
-				graph[event] = append([]dumpEventKey{{oid: oid}}, data...)
+				graph[event] = append([]dump.Event{{OID: oid}}, data...)
 			}
 			add := func(address ids.ObjectAddress) error {
 				predecessor, err := dumpPredecessor(view, address, ids.ObjectAddress{})
@@ -36,7 +37,7 @@ func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph map[d
 					return err
 				}
 				if predecessor != 0 {
-					addDumpDependency(graph, event, dumpEventKey{oid: predecessor})
+					graph.Add(event, dump.Event{OID: predecessor})
 				}
 				return nil
 			}
@@ -80,7 +81,7 @@ func restoreDomainAlter(raw *parser.AlterDomain) error {
 	if raw == nil || raw.Action != parser.DomainAddCheck || raw.Check == nil || !raw.Check.NotValid || raw.Check.NoInherit || raw.Check.Name.Text == "" || raw.Constraint != raw.Check.Name || raw.IfExists || raw.Mode != 0 || len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(raw.Name.Parts[0].Text, "pg_temp_") {
 		return sqlError("0A000", "restore accepts only qualified named NOT VALID domain CHECK additions")
 	}
-	return restoreScalar(raw.Check.Expression, true)
+	return dump.RestoreScalar(raw.Check.Expression, true)
 }
 
 // Only the constructor's actual fresh ref, immediately after the captured owner

@@ -6,13 +6,14 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
-func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, events map[dumpEventKey][]dumpEventKey) error {
+func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, events dump.Graph) error {
 	for _, d := range routines {
-		key := dumpEventKey{oid: d.Address().ObjectID}
+		key := dump.Event{OID: d.Address().ObjectID}
 		events[key] = nil
 		for i := range len(d.SQL.Inputs) + 1 {
 			usage := d.SQL.Result
@@ -24,24 +25,24 @@ func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, even
 				return err
 			}
 			if predecessor != 0 {
-				events[key] = append(events[key], dumpEventKey{oid: predecessor})
+				events[key] = append(events[key], dump.Event{OID: predecessor})
 			}
 		}
 	}
 	return nil
 }
 
-func sqlRoutineDumpStatement(view catalog.Read, roles authorization.Read, d *catalog.Procedure) (dumpDomain, error) {
+func sqlRoutineDumpStatement(view catalog.Read, roles authorization.Read, d *catalog.Procedure) (dump.Statement, error) {
 	owner, err := roles.Descriptor(d.Owner)
 	if err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	namespace, ok := view.Namespace(d.Namespace())
 	if !ok {
-		return dumpDomain{}, fmt.Errorf("missing SQL routine namespace")
+		return dump.Statement{}, fmt.Errorf("missing SQL routine namespace")
 	}
 	if d.ACL.Explicit {
-		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
+		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 	}
 	var sql strings.Builder
 	sql.WriteString("CREATE FUNCTION " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(d.Name()) + "(")
@@ -51,16 +52,16 @@ func sqlRoutineDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 		}
 		name, err := catalogColumnDeclaration(view, catalog.Column{Usage: input})
 		if err != nil {
-			return dumpDomain{}, err
+			return dump.Statement{}, err
 		}
 		sql.WriteString(name)
 	}
 	result, err := catalogColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
 	if err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
-	sql.WriteString(") RETURNS " + result + " LANGUAGE SQL AS " + commentLiteral(d.SQL.Source) + ";\n")
-	return dumpDomain{owner.Name, sql.String()}, nil
+	sql.WriteString(") RETURNS " + result + " LANGUAGE SQL AS " + dump.CommentLiteral(d.SQL.Source) + ";\n")
+	return dump.Statement{Owner: owner.Name, SQL: sql.String()}, nil
 }
 
 func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *session.Operation) error {

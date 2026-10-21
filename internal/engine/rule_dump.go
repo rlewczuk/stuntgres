@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -503,8 +504,8 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 	return sql.String(), nil
 }
 
-func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dumpPolicyGroup, error) {
-	var groups []dumpPolicyGroup
+func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dump.Group, error) {
+	var groups []dump.Group
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(rulesOf(d)) == 0 {
@@ -580,8 +581,8 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			}
 			sql.WriteString(";\n")
 		}
-		groups = append(groups, dumpPolicyGroup{owner: owner.Name, table: table, sql: sql.String()})
+		groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String()})
 	}
-	slices.SortFunc(groups, func(a, b dumpPolicyGroup) int { return strings.Compare(a.table, b.table) })
+	slices.SortFunc(groups, func(a, b dump.Group) int { return strings.Compare(a.Table, b.Table) })
 	return groups, nil
 }

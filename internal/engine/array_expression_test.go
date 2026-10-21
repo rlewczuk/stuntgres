@@ -244,29 +244,6 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	}
 }
 
-func TestArrayExpressionRestoreVisitorModes(t *testing.T) {
-	column := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "a"}}}}
-	bound := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "abs"}}}, Args: []parser.Expr{arrayUnitInteger(1)}}
-	raw := parser.SubscriptExpr{Base: column, Subscripts: []parser.ArraySubscript{{Upper: bound}}}
-	if err := restoreScalar(raw, true); err != nil {
-		t.Fatal("stored binder must retain column/function admission", err)
-	}
-	if err := restoreScalar(raw, false); err == nil {
-		t.Fatal("INSERT Restore whitelist expanded")
-	}
-	position := parser.Position{Character: 49}
-	bound.Args = []parser.Expr{parser.ParameterExpr{Number: 1, Pos: position}}
-	raw.Subscripts[0].Upper = bound
-	err := restoreScalar(raw, true)
-	var diagnostic interface{ SQLState() string }
-	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "42P02" {
-		t.Fatal(err)
-	}
-	state, ok := err.(*sqlstate.Error)
-	if !ok || state.Message != "parameters are not allowed in restore" || state.Position != "49" {
-		t.Fatal(err)
-	}
-}
 
 func TestArrayExpressionNullCountComposition(t *testing.T) {
 	e := New()

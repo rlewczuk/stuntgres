@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -191,7 +192,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	if err != nil || provider != local.Address().ObjectID {
 		t.Fatal("subordinate provider is not the real ADD", provider, err)
 	}
-	graph := make(map[dumpEventKey][]dumpEventKey)
+	graph := make(dump.Graph)
 	var tables []dumpRelation
 	indices := make(map[ids.OID]int)
 	for _, descriptor := range view.Descriptors() {
@@ -200,17 +201,17 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 			continue
 		}
 		if r.SQLIndex == nil {
-			graph[dumpEventKey{oid: r.Address().ObjectID}] = nil
+			graph[dump.Event{OID: r.Address().ObjectID}] = nil
 			if r.Membership != nil {
-				graph[dumpEventKey{oid: r.Address().ObjectID}] = []dumpEventKey{{oid: r.Membership.Parent.ObjectID}}
+				graph[dump.Event{OID: r.Address().ObjectID}] = []dump.Event{{OID: r.Membership.Parent.ObjectID}}
 			}
 			tables = append(tables, dumpRelation{descriptor: r})
 		} else {
-			graph[dumpEventKey{oid: r.Address().ObjectID}] = []dumpEventKey{{oid: r.SQLIndex.Parent.ObjectID}}
+			graph[dump.Event{OID: r.Address().ObjectID}] = []dump.Event{{OID: r.SQLIndex.Parent.ObjectID}}
 			indices[r.Address().ObjectID] = len(indices)
 		}
 	}
-	graph[dumpEventKey{oid: local.Address().ObjectID}] = []dumpEventKey{{oid: mid.Address().ObjectID}}
+	graph[dump.Event{OID: local.Address().ObjectID}] = []dump.Event{{OID: mid.Address().ObjectID}}
 	indices[local.Address().ObjectID] = len(indices)
 	regclass := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
 	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
@@ -223,9 +224,9 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	}
 	state.SetDescriptor(consumer.Address(), consumer)
 	view = view.WithState(&state)
-	graph[dumpEventKey{oid: consumer.Address().ObjectID}] = []dumpEventKey{{oid: local.Address().ObjectID}}
+	graph[dump.Event{OID: consumer.Address().ObjectID}] = []dump.Event{{OID: local.Address().ObjectID}}
 	tables = append(tables, dumpRelation{descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value, leafValue}}}})
-	declarations, err := dumpOrder(context.Background(), graph, nil)
+	declarations, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,22 +235,22 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	partitionInvalidDumpEvents(view, graph, indices)
-	order, err := dumpOrder(context.Background(), graph, nil)
+	order, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal("virtual definition closes initial membership cycle", err)
 	}
-	before := func(a, b dumpEventKey) {
+	before := func(a, b dump.Event) {
 		t.Helper()
 		i, j := slices.Index(order, a), slices.Index(order, b)
 		if i < 0 || j < 0 || i >= j {
 			t.Fatal("wrong real definition/name lifetime", a, b, order)
 		}
 	}
-	before(dumpEventKey{oid: 47200, phase: dumpInvalidIndexCompletion}, dumpEventKey{oid: local.Address().ObjectID})
-	before(dumpEventKey{oid: local.Address().ObjectID}, dumpEventKey{oid: child.Address().ObjectID, phase: dumpRename})
-	before(dumpEventKey{oid: consumer.Address().ObjectID}, dumpEventKey{oid: local.Address().ObjectID, phase: dumpRename})
-	before(dumpEventKey{oid: local.Address().ObjectID, phase: dumpRename}, dumpEventKey{oid: consumer.Address().ObjectID, phase: dumpRows})
-	before(dumpEventKey{oid: child.Address().ObjectID, phase: dumpRename}, dumpEventKey{oid: consumer.Address().ObjectID, phase: dumpRows})
+	before(dump.Event{OID: 47200, Phase: dump.InvalidIndexCompletion}, dump.Event{OID: local.Address().ObjectID})
+	before(dump.Event{OID: local.Address().ObjectID}, dump.Event{OID: child.Address().ObjectID, Phase: dump.Rename})
+	before(dump.Event{OID: consumer.Address().ObjectID}, dump.Event{OID: local.Address().ObjectID, Phase: dump.Rename})
+	before(dump.Event{OID: local.Address().ObjectID, Phase: dump.Rename}, dump.Event{OID: consumer.Address().ObjectID, Phase: dump.Rows})
+	before(dump.Event{OID: child.Address().ObjectID, Phase: dump.Rename}, dump.Event{OID: consumer.Address().ObjectID, Phase: dump.Rows})
 	if len(mid.Constraints.NotNull) != 1 || len(leaf.Constraints.NotNull) != 1 {
 		t.Fatal("graph erased NN provenance")
 	}

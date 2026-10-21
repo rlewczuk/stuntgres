@@ -374,7 +374,7 @@ import graph measured at `c154e14fb` (§2.7); steps 18–30 are planned.
 ```text
  L1   engine/settings    setting definitions, values, validation (sqltype, sqlstate)           step 8
  L3.5 engine/dump        dump graph records, ordering, Presenter/Resolver capabilities
-                         (ids, catalog, parser, expr)                                          step 18
+                         (ids, catalog, parser, expr, functions, sqltype)                      step 18
  L4   engine/copyfmt     COPY text, CSV and binary codecs and options (catalog, parser, sqltype) step 19
  L5   engine/pgcatalog   system relation producers (catalog, authorization, lock, expr)        step 9
  L6   engine/plan        plan IR and concrete expression node types (expr, functions, catalog, lock) step 10
@@ -1454,9 +1454,11 @@ snapshot capture and emission sequence) and `dumpPredecessor`.
 **Unblocks** the collation and conversion dumps at once, and the operator,
 SQL routine, composite and domain dumps with `Presenter` (14e, 15e).
 
-**Done when** `dump` imports only `ids`, `catalog`, `parser`, `expr` and the
-standard library (or also `plan`, if 18b lets `Presenter` take stored
-literals), and Dump output is byte-identical. Prompt file:
+**Done when** `dump` imports only `ids`, `catalog`, `parser`, `expr`,
+`functions` (the Restore regexp and POSIX operator rules), `sqltype` and the
+standard library, and Dump output is byte-identical. 18b settled the
+`plan` question: no dump producer renders stored literals yet, so
+`Presenter` has no `Literal` method and `dump` stays at L3.5. Prompt file:
 [ENGINE-SPLIT-dump.md](ENGINE-SPLIT-dump.md).
 
 ### Step 19 — `engine/copyfmt`: COPY codecs
@@ -1589,7 +1591,7 @@ set (`Sources`, `Dependencies`, `Invoker`, `RuleOID`, `References`,
 methods. They shrink to forwarders, because those interfaces' packages sit
 below `stored`.
 
-22b needs `regobj` (21b), F6, `dump` 18b (`commentLiteral`) and analyze
+22b needs `regobj` (21b), F6, `dump` 18b (`dump.CommentLiteral`) and analyze
 12f (the query-graph helpers it reads).
 
 **Done when** `stored` imports nothing above `analyze` (plus `regobj`), and
@@ -2035,7 +2037,7 @@ package-specific scope. This section holds the rules every session follows.
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c refined (`typedef.StageHost` on 14c's `schemaHost`, authority as a value; stage handlers move, executors stay); 15d done (stage handlers and the ALTER ENUM/DOMAIN staging cores moved behind `StageHost` on `typedefHost`; racecheck/finalcheck skipped at user request) |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c refined (providers own staging behind `extension.Stage`, handler decisions behind `extension.Host`, one root adapter); 16d done: 16d.1 providers stage themselves, 16d.2 handler decisions moved behind `extension.Host` (racecheck/finalcheck skipped at user request) |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c refined (decisions move, orchestration stays; no `sequence.Host`); 17d done (handler, identity, serial, prepared-literal, call and Control decisions and the stage slot moved; orchestration stays in the root) (racecheck/finalcheck skipped at user request) |
-| 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b–18c planned |
+| 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b done (`dump` created: event graph, `Order`, `Statement`, `Group`, Restore scalar validators, `Resolver`/`Presenter` with root adapters; no aliases; racecheck/finalcheck skipped at user request); 18c planned |
 | 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | 19a done (cursors split in place: `copyLineReader` and `copyBinaryReader` hold the codec; racecheck/finalcheck skipped at user request); 19b planned |
 | 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b–20d planned |
 | 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | 21a done in place (regclass, literal, namespace-visibility and identity files; `pgIdentifier` is `catalog.Identifier`; racecheck/finalcheck skipped at user request); 21b–21c planned |

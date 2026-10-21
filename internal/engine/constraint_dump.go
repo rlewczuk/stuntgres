@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/parser"
 )
 
@@ -86,18 +87,18 @@ func restoreAlterConstraints(raw *parser.AlterTable) error {
 				return sqlError("0A000", "restore accepts only captured private ONLY exclusion definitions")
 			}
 			for _, key := range action.Exclusion.Index.Keys {
-				if err := restoreScalar(key.Expression, true); err != nil {
+				if err := dump.RestoreScalar(key.Expression, true); err != nil {
 					return err
 				}
 			}
-			if err := restoreScalar(action.Exclusion.Index.Predicate, true); err != nil {
+			if err := dump.RestoreScalar(action.Exclusion.Index.Predicate, true); err != nil {
 				return err
 			}
 		case parser.SetExpression:
 			if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || action.Generation == nil {
 				return sqlError("0A000", "restore accepts only inherited ONLY generation repairs")
 			}
-			if err := restoreScalar(action.Generation.Expression, true); err != nil {
+			if err := dump.RestoreScalar(action.Generation.Expression, true); err != nil {
 				return err
 			}
 		case parser.SetNotNull:
@@ -112,7 +113,7 @@ func restoreAlterConstraints(raw *parser.AlterTable) error {
 			if action.Check == nil || !action.Check.NotValid {
 				return sqlError("0A000", "restore accepts only existing-index or NOT VALID constraint attachments")
 			}
-			if err := restoreScalar(action.Check.Expression, true); err != nil {
+			if err := dump.RestoreScalar(action.Check.Expression, true); err != nil {
 				return err
 			}
 		case parser.AddForeignKey:

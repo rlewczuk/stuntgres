@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -40,13 +41,13 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		{"array_to_string", "2,1", []parser.Expr{arrayInspectUnitArray("{2,1}"), text(",")}},
 	} {
 		raw := arrayInspectUnitRaw(tc.name, tc.args...)
-		if err := restoreScalar(raw, false); err != nil {
+		if err := dump.RestoreScalar(raw, false); err != nil {
 			t.Fatal(tc.name, "restore INSERT admission", err)
 		}
 		withParameter := raw
 		withParameter.Args = append([]parser.Expr(nil), raw.Args...)
 		withParameter.Args[0] = parser.ParameterExpr{Number: 1}
-		if err := restoreScalar(withParameter, false); err == nil {
+		if err := dump.RestoreScalar(withParameter, false); err == nil {
 			t.Fatal(tc.name, "restore admitted nested parameter")
 		}
 		node, err := b.BindFunctionProvider(raw)

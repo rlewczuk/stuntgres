@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -88,7 +89,7 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 			}
 			rawArgs[slot] = parser.ParameterExpr{Number: 1}
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "jsonb_object"}}}, Args: rawArgs}
-			if err := restoreScalar(raw, false); err == nil {
+			if err := dump.RestoreScalar(raw, false); err == nil {
 				t.Fatal("Restore admitted parameter", slot)
 			}
 		}
