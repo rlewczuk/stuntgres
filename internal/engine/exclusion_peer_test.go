@@ -63,7 +63,7 @@ func TestExclusionEagerPeerOutcome(t *testing.T) {
 				} else {
 					exclusionInsertAwait(t, done, 1, "")
 				}
-				if len(e.exclusionPending) != 0 {
+				if len(e.exclusions.pending) != 0 {
 					t.Fatal("peer outcome retained dirty membership")
 				}
 				uniqueClaimsEmpty(t, e)
@@ -89,7 +89,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					ar := transactionBegin(t, a)
 					sessionSQL(t, a, "DELETE FROM t")
 					at := a.Transactions.Ticket
-					projection := e.exclusionPending[at]
+					projection := e.exclusions.pending[at]
 					parent := roleTableRef(t, e, "public.t")
 					index := e.catalog.state.MustRelation(parent.Address).Constraints.Exclusion[0].Index
 					if projection == nil || len(projection.ended[parent.Address]) != 1 {
@@ -120,7 +120,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					} else {
 						exclusionInsertAwait(t, done, 0, "23P01")
 					}
-					if len(e.exclusionPending) != 0 {
+					if len(e.exclusions.pending) != 0 {
 						t.Fatal("provisional deletion retained a completed ticket")
 					}
 					uniqueClaimsEmpty(t, e)
@@ -170,7 +170,7 @@ func TestExclusionCompletionDeadlock(t *testing.T) {
 	if !errors.As(victim, &diagnostic) || diagnostic.Code != "40P01" {
 		t.Fatal("completion cycle did not use existing deadlock authority", victim)
 	}
-	if len(e.exclusionPending) != 0 {
+	if len(e.exclusions.pending) != 0 {
 		t.Fatal("resolved deadlock retained dirty owners")
 	}
 	btreeWantKeys(t, e, "ex", "1", "2")

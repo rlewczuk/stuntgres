@@ -398,7 +398,7 @@ func TestConcurrentIndexU7OlderAdmissionEpochFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	fenced := len(e.indexBuildWaits) == 0
+	fenced := len(e.indexWaits.waits) == 0
 	e.mu.Unlock()
 	if !fenced {
 		t.Fatal("replacement retained an older-cohort observation")

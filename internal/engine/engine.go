@@ -31,22 +31,21 @@ type Engine struct {
 	analysis      bindingHost                                // Binding host without an operation; immutable after New.
 	notifications map[ids.SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
-	replacementMu       replacementAdmission
-	catalog             catalogStore
-	databaseName        string
-	databaseNameError   error
-	storage             storage.Store
-	sessionMu           sync.Mutex
-	sessions            map[ids.SessionToken]*session.Session
-	settings            settings.Registry // Immutable, initialized once before publication.
-	visibility          visibility.Registry
-	indexBuildWaits     map[ids.ObjectAddress]indexBuildWait
-	exclusionPending    map[*lock.Ticket]*exclusionProjection
-	exclusionGeneration uint64
-	prepared            map[string]*preparedTransaction
-	roles               roleStore
-	importTargets       map[authorization.PrincipalRef]authorization.PrincipalRef
-	foreign             foreignRegistry
+	replacementMu     replacementAdmission
+	catalog           catalogStore
+	databaseName      string
+	databaseNameError error
+	storage           storage.Store
+	sessionMu         sync.Mutex
+	sessions          map[ids.SessionToken]*session.Session
+	settings          settings.Registry // Immutable, initialized once before publication.
+	visibility        visibility.Registry
+	indexWaits        indexWaitRegistry
+	exclusions        exclusionRegistry
+	prepared          map[string]*preparedTransaction
+	roles             roleStore
+	importTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
+	foreign           foreignRegistry
 }
 type Result struct {
 	CommandTag string

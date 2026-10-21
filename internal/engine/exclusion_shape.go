@@ -77,7 +77,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 		return ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
-	p := cloneExclusionProjection(e.exclusionPending[s.ticket])
+	p := e.exclusions.projectionLocked(s.ticket)
 	for _, c := range original.Constraints.Exclusion {
 		delete(p.entries, c.Index)
 	}

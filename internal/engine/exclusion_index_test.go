@@ -56,7 +56,7 @@ func TestExclusionIndexRoots(t *testing.T) {
 			if err := validateExclusions(e.CatalogRead(), parent, make(map[string]bool)); err != nil {
 				t.Fatal(err)
 			}
-			if len(e.exclusionPending) != 0 {
+			if len(e.exclusions.pending) != 0 {
 				t.Fatal("implicit publication retained dirty rows")
 			}
 			uniqueClaimsEmpty(t, e)
@@ -198,7 +198,7 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 					t.Fatal("wrong HASH first-index membership", count)
 				}
 			}
-			if len(e.exclusionPending) != 0 {
+			if len(e.exclusions.pending) != 0 {
 				t.Fatal("ALTER publication retained dirty ownership")
 			}
 			uniqueClaimsEmpty(t, e)
