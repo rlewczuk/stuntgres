@@ -1,15 +1,13 @@
-package engine
+package table
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +18,7 @@ func ownedSequenceName(relation, column string, used func(string) bool) string {
 // StageCreateIdentities stages the sequence of every identity column of
 // CREATE TABLE syntax. Both reciprocal descriptors and the initial generator
 // belong to one CREATE stage.
-func StageCreateIdentities(h table.Host, auth ddl.Authority, relation *catalog.Relation, syntax *parser.CreateTable) error {
+func StageCreateIdentities(h Host, auth ddl.Authority, relation *catalog.Relation, syntax *parser.CreateTable) error {
 	for _, element := range syntax.Elements {
 		if element.Column == nil {
 			continue
@@ -83,7 +81,7 @@ func StageCreateIdentities(h table.Host, auth ddl.Authority, relation *catalog.R
 // StageIdentitySequence stages the sequence of an identity column of
 // relation's slot: its OID, then its revision, its creation ACL and its
 // initial generator.
-func StageIdentitySequence(h table.Host, relation *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error {
+func StageIdentitySequence(h Host, relation *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error {
 	namespace := h.StageBase().Get(relation.Namespace())
 	if staged := h.Stage().Get(relation.Namespace()); staged != nil {
 		namespace = staged
@@ -113,47 +111,5 @@ func StageIdentitySequence(h table.Host, relation *catalog.Relation, slot int, n
 	}
 	relation.ColumnMeta.Identities[relation.Attributes[slot]] = catalog.ColumnIdentity{Mode: mode, Sequence: address}
 	h.SequenceStage().SetGenerator(address, sequence.InitialGenerator(options, restart, rev))
-	return nil
-}
-
-// StageCreateSerials stages the owned sequence of every serial column and
-// gives the column its nextval DEFAULT.
-func StageCreateSerials(h table.Host, relation *catalog.Relation, declarations []analyze.ColumnDeclaration) error {
-	for slot, declaration := range declarations {
-		if !declaration.Serial {
-			continue
-		}
-		options, err := sequence.SerialOptions(relation.Columns[slot].Usage.Type.ID())
-		if err != nil {
-			return err
-		}
-		read := h.StageRead()
-		if read.MustNamespace(relation.Namespace()).Temporary != (ids.SessionToken{}) {
-			options.Persistence = "temporary"
-		}
-		name := ownedSequenceName(relation.Name(), relation.Columns[slot].Name, func(name string) bool {
-			return name == relation.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: relation.Namespace(), Name: name})) != 0
-		})
-		oid, err := h.AllocateOID()
-		if err != nil {
-			return err
-		}
-		revision, err := h.Revision()
-		if err != nil {
-			return err
-		}
-		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-		options.Owned = relation.Address()
-		options.Owned.SubID = relation.Attributes[slot]
-		d := sequence.NewRelation(sequence.RelationSpec{Address: address, Namespace: relation.Namespace(), Name: name, Revision: revision, Owner: relation.Owner, Columns: h.SequenceColumns(), Options: options})
-		d.Security.ACL = h.CreationACL(relation.Owner, relation.Namespace(), authorization.DefaultSequences)
-		if err := h.Stage().Create(d); err != nil {
-			return err
-		}
-		h.SequenceStage().SetGenerator(address, sequence.InitialGenerator(options, nil, revision))
-		// Route synthetic syntax through the same closed default binder as Restore.
-		namespace, _ := read.Descriptor(relation.Namespace())
-		declarations[slot].DefaultExpr = sequence.SerialDefault(namespace.Name(), name)
-	}
 	return nil
 }

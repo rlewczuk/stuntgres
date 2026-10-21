@@ -2,11 +2,14 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Called under Engine.mu. Every return releases it, like the existing DDL path.
@@ -179,4 +182,10 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 		return Result{}, err
 	}
 	return Result{created: created}, nil
+}
+
+// schemaTableLocked stages CREATE TABLE s without a PARTITION clause; see
+// table.StageCreateTable. Called under Engine.mu.
+func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
+	return table.StageCreateTable(ddlHost{e: e, op: op, stage: stage}, auth, s, ns, owner, input, foreignTargets)
 }

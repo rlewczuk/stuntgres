@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -33,7 +34,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
 		column := &parser.Column{Name: action.Column.Text, Constraints: []parser.ColumnConstraint{{Identity: action.Identity}}}
 		e.mu.Lock()
-		err := StageCreateIdentities(ddlHost{e: e, stage: stage}, auth, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
+		err := table.StageCreateIdentities(ddlHost{e: e, stage: stage}, auth, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
 		e.mu.Unlock()
 		if err != nil {
 			return old, err

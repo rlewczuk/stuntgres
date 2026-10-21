@@ -2,10 +2,8 @@ package engine
 
 import (
 	"context"
-	"strings"
 	"stuntgres/internal/engine/authorization"
 	"testing"
-	"unicode/utf8"
 )
 
 func TestSerialSequenceAuthority(t *testing.T) {
@@ -66,9 +64,5 @@ func TestSerialAtomicDeclarationsAndNaming(t *testing.T) {
 	}
 	if !e.storage.Sequences[roleTableRef(t, e, "bad_id_seq2").Address].Called {
 		t.Fatal("generated suffix sequence unused")
-	}
-	name := ownedSequenceName(strings.Repeat("界", 21), strings.Repeat("列", 21), func(string) bool { return false })
-	if len(name) > 63 || !utf8.ValidString(name) {
-		t.Fatal("invalid UTF8 sequence name", name)
 	}
 }

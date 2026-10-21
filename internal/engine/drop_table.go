@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -19,7 +20,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: invalid table drop")
 	}
-	refs, notices, err := DropTargets(ddlHost{e: e, op: op}, auth, s)
+	refs, notices, err := table.DropTargets(ddlHost{e: e, op: op}, auth, s)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

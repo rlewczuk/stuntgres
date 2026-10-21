@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -50,7 +51,7 @@ func truncateUnitFK(t *testing.T, e *Engine, parent, child ids.ObjectRef) {
 	next.ObjectRevision++
 	raw := parser.ForeignKeyConstraint{Columns: []parser.Identifier{{Text: "id"}}, Referenced: []parser.Identifier{{Text: "id"}}, Target: parser.ObjectName{Parts: []parser.Identifier{{Text: "p"}}}}
 	e.mu.Lock()
-	err := StageForeignKey(ddlHost{e: e, stage: stage}, catalogAuthorization(e, base), &next, raw, parent.Address, ids.ObjectAddress{})
+	err := table.StageForeignKey(ddlHost{e: e, stage: stage}, catalogAuthorization(e, base), &next, raw, parent.Address, ids.ObjectAddress{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

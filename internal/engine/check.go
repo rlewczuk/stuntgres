@@ -18,7 +18,7 @@ import (
 )
 
 func (e *Engine) bindCreateChecks(op *session.Operation, auth AuthorizationView, syntax *parser.CreateTable, d *catalog.Relation, input sqltype.InputEnvironment, inherited map[string]catalog.CheckConstraint) error {
-	return e.bindColumnChecks(op, auth, CreateCheckSyntax(syntax), d, input, false, inherited)
+	return e.bindColumnChecks(op, auth, table.CreateCheckSyntax(syntax), d, input, false, inherited)
 }
 
 func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *catalog.Relation, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error {

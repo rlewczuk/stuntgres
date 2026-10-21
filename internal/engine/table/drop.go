@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -15,7 +14,7 @@ import (
 // duplicates: a missing table or schema is a NOTICE under IF EXISTS, a
 // relation of another kind is 42809 with the right DROP hint, and the
 // table's or its schema's owner may drop it.
-func DropTargets(h table.Resolver, auth ddl.Authority, s *parser.DropTable) ([]ids.ObjectRef, []sqlstate.Error, error) {
+func DropTargets(h Resolver, auth ddl.Authority, s *parser.DropTable) ([]ids.ObjectRef, []sqlstate.Error, error) {
 	view := h.AccessView(auth)
 	refs := make([]ids.ObjectRef, 0, len(s.Names))
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))

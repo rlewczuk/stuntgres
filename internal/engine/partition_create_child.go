@@ -103,7 +103,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			}
 		}
 	}
-	if err = StageCreateIdentities(ddlHost{e: e, op: op, stage: stage}, auth, d, syntax); err != nil {
+	if err = table.StageCreateIdentities(ddlHost{e: e, op: op, stage: stage}, auth, d, syntax); err != nil {
 		return nil, err
 	}
 	auth.Catalog = e.stageRead(stage)

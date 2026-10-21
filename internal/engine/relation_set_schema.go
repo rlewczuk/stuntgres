@@ -75,7 +75,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		e.mu.Unlock()
 		return Result{}, nil
 	}
-	owned := SetSchemaOwned(auth.Catalog, old)
+	owned := table.SetSchemaOwned(auth.Catalog, old)
 	e.mu.Unlock()
 	for _, r := range owned {
 		if r.SQLIndex != nil {
@@ -116,11 +116,11 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 	if err = auth.CheckCreate(destination); err != nil {
 		return fail(err)
 	}
-	group, err := SetSchemaGroup(auth.Catalog, old, owned)
+	group, err := table.SetSchemaGroup(auth.Catalog, old, owned)
 	if err != nil {
 		return fail(err)
 	}
-	next, err := SetSchemaCandidates(auth.Catalog, group, destination.Address, s.Schema.Text)
+	next, err := table.SetSchemaCandidates(auth.Catalog, group, destination.Address, s.Schema.Text)
 	if err != nil {
 		return fail(err)
 	}
@@ -141,7 +141,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		e.mu.Lock()
 		current := e.stageCatalogBaseLocked(stage)
 		if current.Epoch() == ref.Epoch {
-			if collision := SetSchemaConflict(e.catalog.read(current), group, destination.Address, s.Schema.Text); collision != nil {
+			if collision := table.SetSchemaConflict(e.catalog.read(current), group, destination.Address, s.Schema.Text); collision != nil {
 				err = collision
 			}
 		}

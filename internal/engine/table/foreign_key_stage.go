@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -7,13 +7,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
 // StageForeignKey stages one FOREIGN KEY of child; a zero target resolves
 // raw's, a zero supporting index looks one up.
-func StageForeignKey(h table.Host, auth ddl.Authority, child *catalog.Relation, raw parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) error {
+func StageForeignKey(h Host, auth ddl.Authority, child *catalog.Relation, raw parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) error {
 	view := h.StageRead()
 	auth = h.Recapture(auth, view)
 	ref := view.Owner().Domain.Ref(view.Epoch(), target)
@@ -45,11 +44,11 @@ func StageForeignKey(h table.Host, auth ddl.Authority, child *catalog.Relation, 
 	if childTemp != parentTemp {
 		return ids.ErrCatalogReplaced
 	}
-	local, err := table.ForeignKeyAttributes(child, raw.Columns)
+	local, err := ForeignKeyAttributes(child, raw.Columns)
 	if err != nil {
 		return err
 	}
-	deleteAttributes, err := table.ForeignKeyAttributes(child, raw.DeleteColumns)
+	deleteAttributes, err := ForeignKeyAttributes(child, raw.DeleteColumns)
 	if err != nil {
 		return err
 	}
@@ -86,7 +85,7 @@ func StageForeignKey(h table.Host, auth ddl.Authority, child *catalog.Relation, 
 			return sqlError("42704", fmt.Sprintf(`there is no primary key for referenced table "%s"`, parent.Name()))
 		}
 	} else {
-		referenced, err = table.ForeignKeyAttributes(parent, raw.Referenced)
+		referenced, err = ForeignKeyAttributes(parent, raw.Referenced)
 		if err != nil {
 			return err
 		}
@@ -101,7 +100,7 @@ func StageForeignKey(h table.Host, auth ddl.Authority, child *catalog.Relation, 
 	}
 	var index *catalog.Relation
 	if supporting == (ids.ObjectAddress{}) {
-		index, err = table.ForeignKeyIndex(view, parent, referenced)
+		index, err = ForeignKeyIndex(view, parent, referenced)
 	} else {
 		var ok bool
 		index, ok = view.Relation(supporting)
@@ -109,7 +108,7 @@ func StageForeignKey(h table.Host, auth ddl.Authority, child *catalog.Relation, 
 			return ids.ErrCatalogReplaced
 		}
 		var eligible bool
-		eligible, err = table.ForeignKeyIndexEligible(parent, index, referenced)
+		eligible, err = ForeignKeyIndexEligible(parent, index, referenced)
 		if err == nil && !eligible {
 			return ids.ErrCatalogReplaced
 		}
@@ -117,7 +116,7 @@ func StageForeignKey(h table.Host, auth ddl.Authority, child *catalog.Relation, 
 	if err != nil {
 		return err
 	}
-	if err := table.ForeignKeyReferencesAllowed(h.AccessView(auth), auth, parent, referenced); err != nil {
+	if err := ForeignKeyReferencesAllowed(h.AccessView(auth), auth, parent, referenced); err != nil {
 		return err
 	}
 	used := catalog.ConstraintNames(view, child.Namespace(), child)
@@ -133,7 +132,7 @@ func StageForeignKey(h table.Host, auth ddl.Authority, child *catalog.Relation, 
 		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.Name()))
 	}
 	f := catalog.ForeignKeyConstraint{Name: name, Attributes: local, Target: parent.Address(), Referenced: referenced, Index: index.Address(), Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid}
-	if _, err := table.BindForeignKeyComparison(view, child, parent, index, f); err != nil {
+	if _, err := BindForeignKeyComparison(view, child, parent, index, f); err != nil {
 		return err
 	}
 	f.OID, err = h.AllocateOID()
@@ -148,8 +147,8 @@ func StageForeignKey(h table.Host, auth ddl.Authority, child *catalog.Relation, 
 // StageCreateForeignKeys stages the FOREIGN KEYs of CREATE TABLE s;
 // targets, when given, are the parents analysis resolved, one per
 // declaration (zero for a self-reference).
-func StageCreateForeignKeys(h table.Host, auth ddl.Authority, child *catalog.Relation, s *parser.CreateTable, targets []ids.ObjectRef) error {
-	declarations := table.ForeignKeyDeclarations(s)
+func StageCreateForeignKeys(h Host, auth ddl.Authority, child *catalog.Relation, s *parser.CreateTable, targets []ids.ObjectRef) error {
+	declarations := ForeignKeyDeclarations(s)
 	if len(targets) != 0 && len(targets) != len(declarations) {
 		return fmt.Errorf("stuntgres: invalid foreign-key creation authority")
 	}

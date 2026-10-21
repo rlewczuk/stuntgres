@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -10,14 +10,13 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 )
 
 // StageInheritance records the INHERITS parents of the new table d: column,
 // NOT NULL and CHECK provenance, the inherited defaults and generations, and
 // the merged CHECK set.
-func StageInheritance(h table.Host, auth ddl.Authority, d *catalog.Relation, b analyze.Binding) error {
+func StageInheritance(h Host, auth ddl.Authority, d *catalog.Relation, b analyze.Binding) error {
 	view := h.AccessView(auth)
 	if len(b.Create.Inheritance) == 0 {
 		return nil
@@ -73,7 +72,7 @@ func StageInheritance(h table.Host, auth ddl.Authority, d *catalog.Relation, b a
 				}
 				copied := old
 				copied.OID = 0
-				if err := table.ValidateCookedDefaultTemporary(copied.Expression, view.Catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
+				if err := ValidateCookedDefaultTemporary(copied.Expression, view.Catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
 					return err
 				}
 				if d.ColumnMeta.Defaults == nil {
@@ -106,7 +105,7 @@ func StageInheritance(h table.Host, auth ddl.Authority, d *catalog.Relation, b a
 				d.ColumnMeta.Generations[target] = copied
 			}
 		}
-		for _, old := range table.OrderedChecks(in.Source) {
+		for _, old := range OrderedChecks(in.Source) {
 			if old.NoInherit {
 				continue
 			}

@@ -56,7 +56,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	if !available {
 		return nil, nil, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
 	}
-	columns, names, bases, err := QueryTableColumns(auth.View, auth, s, b)
+	columns, names, bases, err := table.QueryTableColumns(auth.View, auth, s, b)
 	if err != nil {
 		return nil, nil, false, err
 	}
