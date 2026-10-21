@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `a8f6930c8` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111 and 112). Steps 8–17 were
+Last verified against `master` at `2f96d483d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,7 +16,6 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **DML and Dump/Restore:** 113 (control 30c).
 - **Upper features, decisions:** 89b (table 24d.2), 89c (table 24d.3).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -120,6 +119,10 @@ for 89b, and DML 29c (item 109) for 89b, 93 and 102. 89a did not move
 `creationError`; view 27d (item 102) moves it to `ddl`.
 Item 102 (view 27d) is done and closes step 27; it moved `creationError`
 to `ddl.CreationError`. DML 29c (item 109) still waits for 89b and 93.
+Item 113 (control 30c) is done and closes step 30; the end-state review
+(item 114) still waits for 89c, 98 and 110. 30c moved
+`physicalNotNullDumpDependencies` into `table`, so table 24d.3 (item 89c)
+skips it.
 
 ## Task tree
 
@@ -598,14 +601,16 @@ to `ddl.CreationError`. DML 29c (item 109) still waits for 89b and 93.
     (`8b336c6c1`, `280456a1b`, `c69b2ba66`, `92fe07400`, `bb16abdca`, then the docs commit)
   - [ ] 29c — Host refined (docs only)
   - [ ] 29d — Executors moved
-- [ ] **Step 30 — `control`** ([prompt](ENGINE-SPLIT-control.md); 30a needs
+- [x] **Step 30 — `control`** ([prompt](ENGINE-SPLIT-control.md); 30a needs
   18c; 30b needs the Part A moves and 14e, 15e)
   - [x] 30a — Restore hook table replaces the statement switch, in place
     (`dc839f171`, `192993651`, `fbcdc7fc9`, `22ef19659`, `6dc277b11`,
     `2eb9396e7`, `ba1fc1495`, `c22c9b9fb`, `80cc70d38`, `050e10e07`,
     `26ecb355d`, then the docs commit)
   - [x] 30b — Host refined (docs only) (docs)
-  - [ ] 30c — `control` created and drivers moved
+  - [x] 30c — `control` created and drivers moved (`5be23f127`,
+    `6bd6f8e1c`, `a1316f97b`, `c1ffde11b`, `c4d6f2924`, `51b38752f`,
+    `6493a12a6`, then the docs commit)
 - [x] **Second-round follow-ups in existing packages** (each in its step's
   prompt file; F6 is listed under step 3)
   - [x] 5i — Pure helpers moved into `catalog` ([catalog](ENGINE-SPLIT-catalog.md))
@@ -1448,8 +1453,20 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      `restoreRun`, every hook body, `restore_replay.go`, the stage and the
      publication stay root; 30c move set and commit sequence written ·
      docs only, no checks needed
-113. [ ] Control 30c: `control` created, drivers moved —
-     [control](ENGINE-SPLIT-control.md) 30c · needs 112
+113. [x] Control 30c: `control` created, drivers moved —
+     [control](ENGINE-SPLIT-control.md) 30c · needs 112 (`5be23f127`,
+     `6bd6f8e1c`, `a1316f97b`, `c1ffde11b`, `c4d6f2924`, `51b38752f`,
+     `6493a12a6`, then the docs commit) · `control.Dump` over the
+     handed-over `control.Capture` (script, sections and Emit table moved;
+     the Collect tables and the lock window stay root); `Resolver`,
+     `ColumnPredecessors`, `Presenter`; `control.Restore[R]` over
+     `control.Host` on the root `restoreHost` with `Hook`, `Admission`,
+     `Outcome` and the walkers; `table.PhysicalNotNullDumpDependencies`
+     and `regobj.DomainInvalidDumpEvents` (not `typedef`: `regobj` imports
+     it); `control.go` 225 → 59 lines; no aliases · byte-identical dump
+     smoke, targeted units, `RACE=1` Control, quickcheck and `REFERENCE=1`
+     Control and round-trip selections passed; racecheck/finalcheck
+     skipped at user request
 
 ### Group L — closing
 

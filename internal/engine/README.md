@@ -1127,17 +1127,10 @@ These units supplement the public routine definitions in
 native capability witnesses in the owning reference packages; they do not replace
 selected dual-mode verification.
 
-### Native Restore hook table
+### Native Dump and Restore
 
-`Engine.Restore` walks the ordered `restoreHooks` table (`restore_hooks.go`)
-for each phase: comment decoders, before, admit (the statement allow-list),
-prepare, after and finish, stopping at the first error. Entries share state
-only through `restoreRun`, so their order is part of the contract; every
-entry runs on the private restore stage, never on the target engine. Unit
-tests pin the walkers' semantics; Dump/Restore behavior lives in
-`reference/`.
-
-```sh
-make check RUN='^TestRestore(Hooks.*|AdmitsInsertTargetIndirection)$'
-make check RUN='^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)|^TestReferenceControl'
-```
+The Dump and Restore drivers, the Emit table and the hook table entry types
+live in [`control`](control/README.md). The root keeps the `Engine.mu`
+window and the Collect tables of the Dump capture, the restore stage,
+`restoreRun` with the `restoreHooks` table and every entry, and the atomic
+`replaceCatalog`; the `control` README lists the selectors.

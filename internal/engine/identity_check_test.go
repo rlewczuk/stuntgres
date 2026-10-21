@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -222,7 +223,7 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 		{sequence, consumer, owner.ObjectID}, {sequence, view, owner.ObjectID},
 		{sequence, owner, 0}, {ordinary, consumer, 0},
 	} {
-		got, err := dumpPredecessor(read, tc.provider, tc.consumer)
+		got, err := control.Resolver{}.Predecessor(read, tc.provider, tc.consumer)
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}
@@ -234,7 +235,7 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	bad.Sequence = &options
 	stage := e.BeginCatalogStage(read)
 	stage.UpdateDescriptor(&bad)
-	if _, err := dumpPredecessor(e.stageRead(stage), sequence, consumer); err == nil {
+	if _, err := (control.Resolver{}).Predecessor(e.stageRead(stage), sequence, consumer); err == nil {
 		t.Fatal("invalid reciprocal identity silently lost predecessor")
 	}
 	var dump bytes.Buffer

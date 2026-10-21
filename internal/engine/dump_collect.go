@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -123,7 +125,7 @@ func collectParameterDump(context.Context, *dumpCollection, ids.ObjectAddress, c
 
 func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Tablespace)
-	if err := (catalog.TablespaceProvider{}).Validate(c.catalogView, t); err != nil {
+	if err := (catalog.TablespaceProvider{}).Validate(c.CatalogView, t); err != nil {
 		return err
 	}
 	if t.Owner != c.source.bootstrap || t.ACL.Explicit {
@@ -134,9 +136,9 @@ func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 
 func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Operator)
-	dumped, err := routine.OperatorDumped(c.catalogView, t)
+	dumped, err := routine.OperatorDumped(c.CatalogView, t)
 	if dumped {
-		c.operators = append(c.operators, t)
+		c.Operators = append(c.Operators, t)
 	}
 	return err
 }
@@ -144,16 +146,16 @@ func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddre
 func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Procedure)
 	if t.SQL != nil {
-		if err := (stored.ProcedureProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		c.sqlRoutines = append(c.sqlRoutines, t)
+		c.SQLRoutines = append(c.SQLRoutines, t)
 		return nil
 	}
 	// Native foreign and conversion capabilities belong to the bootstrap
 	// principal (10).
 	if t.Foreign != nil {
-		if err := (stored.ProcedureProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
 		if t.ACL.Explicit || t.Owner != c.source.bootstrap {
@@ -162,7 +164,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		return nil
 	}
 	if t.Builtin != nil {
-		if err := (stored.ProcedureProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
 		if t.Owner != c.source.bootstrap || t.ACL.Explicit {
@@ -171,7 +173,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		return nil
 	}
 	if t.Conversion.Name() != "" {
-		if err := (stored.ProcedureProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
 		if t.Owner != c.source.bootstrap || t.ACL.Explicit {
@@ -197,25 +199,25 @@ func collectTextSearchDump(_ context.Context, _ *dumpCollection, _ ids.ObjectAdd
 
 func collectExtensionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Extension)
-	if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(c.catalogView, t); err != nil {
+	if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(c.CatalogView, t); err != nil {
 		return err
 	}
-	ns := c.catalogView.MustNamespace(t.TargetNamespace)
+	ns := c.CatalogView.MustNamespace(t.TargetNamespace)
 	if ns.Temporary != (ids.SessionToken{}) {
 		return fmt.Errorf("stuntgres: temporary extension installation is not portable")
 	}
-	principal, err := c.domainRoles.Descriptor(t.Owner)
+	principal, err := c.DomainRoles.Descriptor(t.Owner)
 	if err != nil {
 		return err
 	}
-	metadata, err := extension.OwnerMetadata(c.catalogView, c.domainRoles, t)
+	metadata, err := extension.OwnerMetadata(c.CatalogView, c.DomainRoles, t)
 	if err != nil {
 		return err
 	}
 	text := "CREATE EXTENSION " + catalog.QuoteIdentifier(t.Name()) + " WITH SCHEMA " + catalog.QuoteIdentifier(ns.Name()) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
-	c.graph[dump.Event{OID: t.Address().ObjectID}] = nil
-	c.viewIndices[t.Address().ObjectID] = len(c.views)
-	c.views = append(c.views, dumpView{principal.Name, text})
+	c.Graph[dump.Event{OID: t.Address().ObjectID}] = nil
+	c.ViewIndices[t.Address().ObjectID] = len(c.Views)
+	c.Views = append(c.Views, control.OwnedStatement{principal.Name, text})
 	return nil
 }
 
@@ -233,12 +235,12 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 		return fmt.Errorf("%s", message)
 	}
 	if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.Extension != (ids.ObjectAddress{}) {
-		return (typeProvider{}).Validate(c.catalogView, t)
+		return (typeProvider{}).Validate(c.CatalogView, t)
 	}
 	if t.SQLType.IsUserDefined() && !t.SQLType.IsComposite() {
-		c.domains = append(c.domains, t)
+		c.Domains = append(c.Domains, t)
 	} else if t.SQLType.IsArray() {
-		if err := (typeProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (typeProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
 	} else if t.Namespace().ObjectID != ids.PGCatalogNamespaceOID && t.Namespace().ObjectID != 13229 && t.OwningRelation == (ids.ObjectAddress{}) {
@@ -249,22 +251,22 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 
 func collectCollationDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Collation)
-	if err := (catalog.CollationProvider{}).Validate(c.catalogView, t); err != nil {
+	if err := (catalog.CollationProvider{}).Validate(c.CatalogView, t); err != nil {
 		return err
 	}
 	if !t.Seeded() {
-		c.collations = append(c.collations, t)
+		c.Collations = append(c.Collations, t)
 	}
 	return nil
 }
 
 func collectConversionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Conversion)
-	if err := (catalog.ConversionProvider{}).Validate(c.catalogView, t); err != nil {
+	if err := (catalog.ConversionProvider{}).Validate(c.CatalogView, t); err != nil {
 		return err
 	}
 	if !t.Seeded() {
-		c.conversions = append(c.conversions, t)
+		c.Conversions = append(c.Conversions, t)
 	}
 	return nil
 }
@@ -275,7 +277,7 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 		return nil
 	}
 	if valid && ns.Comment != catalog.NamespaceCommentBaseline(a.ObjectID) {
-		c.schemaComments = append(c.schemaComments, dumpComment{ns.Name(), ns.Comment})
+		c.SchemaComments = append(c.SchemaComments, control.SchemaComment{ns.Name(), ns.Comment})
 	}
 	if valid && (a.ObjectID == ids.PublicNamespaceOID || a.ObjectID == ids.PGCatalogNamespaceOID || a.ObjectID == ids.PGToastNamespaceOID || a.ObjectID == 13229) &&
 		!bootstrapNamespaceDumpable(ns) {
@@ -285,12 +287,45 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 		if ns.ACL.Explicit {
 			return fmt.Errorf("stuntgres: dump cannot serialize explicit namespace ACL")
 		}
-		role, err := c.domainRoles.Descriptor(ns.Owner)
+		role, err := c.DomainRoles.Descriptor(ns.Owner)
 		if err != nil {
 			return err
 		}
 		_, configured := c.source.foreign.NamespaceName(a)
-		c.schemas = append(c.schemas, dumpSchema{name: ns.Name(), owner: role.Name, configured: configured})
+		c.Schemas = append(c.Schemas, control.Schema{Name: ns.Name(), Owner: role.Name, Configured: configured})
 	}
 	return nil
+}
+
+// Namespace ACL entry order and split entries do not affect reproducibility.
+// Principal/grantor references do: losing them would change DROP dependencies.
+func bootstrapNamespaceDumpable(d *catalog.Namespace) bool {
+	if d.Address().ObjectID == ids.PGToastNamespaceOID {
+		return !d.ACL.Explicit && len(d.ACL.Entries) == 0
+	}
+	if !d.ACL.Explicit {
+		return false
+	}
+	publicRights := authorization.UsagePrivilege
+	var publicUse, publicOptions, ownerUse, ownerOptions authorization.Privileges
+	for _, entry := range d.ACL.Entries {
+		if entry.Grantor != d.Owner {
+			return false
+		}
+		if entry.Grantee.Public {
+			if entry.Grantee.Role != (authorization.PrincipalRef{}) {
+				return false
+			}
+			publicUse |= entry.Privileges
+			publicOptions |= entry.GrantOptions
+		} else {
+			if entry.Grantee.Role != d.Owner {
+				return false
+			}
+			ownerUse |= entry.Privileges
+			ownerOptions |= entry.GrantOptions
+		}
+	}
+	return publicUse == publicRights && publicOptions == 0 &&
+		ownerUse == authorization.UsagePrivilege|authorization.CreatePrivilege && ownerOptions == 0
 }

@@ -49,7 +49,11 @@ feature. Only the upper features, `stored` and the engine import it; never
   `regtype_persistence.go`): `DumpOperatorOutput`, `DumpTextSearchOutput`,
   `DumpAliasOutput`; `OperatorLiteral`, `RoutineLiteral`;
   `Walk{Routine,Operator,TextSearch}References(At)`,
-  `ClassReplayReferences`; `Remap{Class,Routine,Operator,TextSearch,Alias}Datum`.
+  `ClassReplayReferences`; `Remap{Class,Routine,Operator,TextSearch,Alias}Datum`;
+  `DomainInvalidDumpEvents` (`domain_invalid_dump.go`), the dump graph
+  events of NOT VALID domain CHECKs over a `dump.Resolver` (here, not in
+  `typedef`, because it walks `ClassReplayReferences` and `regobj` imports
+  `typedef`).
 - **Type declarations and literals** (`catalog_literal.go`):
   `TypeDeclaration(At)`, `ColumnDeclaration`, `Literal`,
   `LiteralWithACL(At)`, `ConstantLiteral`.
@@ -113,8 +117,10 @@ their lower-case names.
 - `statementHost.TypeNameNotice`, the `NoticeHost` implementation.
 - `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
   prepared-statement regtype analysis cell is statement state, not SQL text.
-- `preflightACLItemDump` (Dump/Restore, step 30), `aclitem_remap.go` and
-  `principal_remap.go` (Restore, step 30). The scalar renderer and its
+- `preflightACLItemDump` (part of the locked Dump capture),
+  `aclitem_remap.go` and `principal_remap.go` (the Restore stage and
+  publication); they stay in the root after step 30 (see the
+  [`control` README](../control/README.md)). The scalar renderer and its
   `record*` methods are `stored.ScalarRenderer` since 22b.
 
 ## Testing

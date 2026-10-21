@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/control"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -36,7 +37,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				}
 			}
 			view := e.catalog.read(state)
-			_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, view)
+			_, replay := partition.ConstraintDumpCatalog(control.Resolver{}, view)
 			// Exact ordinals, not just uniqueness, define canonical table allocation.
 			for i, index := range indexes {
 				want := fmt.Sprintf("__stuntgres_partition_key_%d", i+1)

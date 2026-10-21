@@ -1,4 +1,4 @@
-package engine
+package control
 
 import (
 	"fmt"
@@ -12,19 +12,21 @@ import (
 	"stuntgres/internal/engine/table"
 )
 
-// dumpResolver is the root's dump.Resolver.
-type dumpResolver struct{}
+// Resolver is Dump's dump.Resolver: it maps a dependency to the dump event
+// that must precede its consumer. It reads only its arguments.
+type Resolver struct{}
 
-var _ dump.Resolver = dumpResolver{}
+var _ dump.Resolver = Resolver{}
 
-func (dumpResolver) Predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
-	return dumpPredecessor(view, address, consumer)
+// Predecessor returns the OID of the dump event address waits for, or 0.
+func (Resolver) Predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
+	return predecessor(view, address, consumer)
 }
 
 // Standalone sequences are emitted before this graph. An identity sequence is
 // instead created by its owning table's inline declaration, so dependencies on
 // it must wait for that exact reciprocal owner, even after address remapping.
-func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
+func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
 	address.SubID = 0
 	if address.ClassID == ids.ProcedureClassID {
 		if _, builtin := catalog.BuiltinRoutineIdentityByOID(address.ObjectID); builtin {
@@ -65,14 +67,14 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		return ext.Address().ObjectID, nil
 	}
 	if dictionary, ok := object.(*catalog.TSDictionary); ok {
-		return dumpPredecessor(view, dictionary.Extension, consumer)
+		return predecessor(view, dictionary.Extension, consumer)
 	}
 	if typ, ok := object.(*catalog.Type); ok {
 		if typ.SQLType.IsArray() {
-			return dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.Element().ID())}, consumer)
+			return predecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.Element().ID())}, consumer)
 		}
 		if typ.Extension != (ids.ObjectAddress{}) {
-			return dumpPredecessor(view, typ.Extension, consumer)
+			return predecessor(view, typ.Extension, consumer)
 		}
 		if typ.OwningRelation == (ids.ObjectAddress{}) && typ.SQLType.IsUserDefined() {
 			return typ.Address().ObjectID, nil
@@ -133,9 +135,11 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 	return source.Address().ObjectID, nil
 }
 
-func dumpColumnPredecessors(view catalog.Read, relation *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
+// ColumnPredecessors adds the predecessors of relation's row type and column
+// types to predecessors.
+func ColumnPredecessors(view catalog.Read, relation *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
 	if relation.OfType != (ids.ObjectAddress{}) {
-		id, err := dumpPredecessor(view, relation.OfType, relation.Address())
+		id, err := predecessor(view, relation.OfType, relation.Address())
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +148,7 @@ func dumpColumnPredecessors(view catalog.Read, relation *catalog.Relation, prede
 		}
 	}
 	for _, column := range relation.Columns {
-		id, err := dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, relation.Address())
+		id, err := predecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, relation.Address())
 		if err != nil {
 			return nil, err
 		}

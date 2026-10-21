@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -7,12 +7,12 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/table"
 )
 
-// Track only actual moved providers in the existing event graph. Consumers do
+// PhysicalNotNullDumpDependencies adds the dump graph edges of moved physical
+// NOT NULL providers. Track only actual moved providers in the existing event graph. Consumers do
 // not wait for unrelated keys, omitted TEMP objects, or synthetic catalog nodes.
-func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error {
+func PhysicalNotNullDumpDependencies(r dump.Resolver, view catalog.Read, graph dump.Graph) error {
 	var deferred map[ids.ObjectAddress]*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
@@ -50,12 +50,12 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 			continue
 		}
 		if relation.SQLIndex != nil {
-			producer, moved, err := table.PhysicalCompetingIndexSource(view, relation)
+			producer, moved, err := PhysicalCompetingIndexSource(view, relation)
 			if err != nil {
 				return err
 			}
 			if moved {
-				oid, err := dumpPredecessor(view, producer.Address(), ids.ObjectAddress{})
+				oid, err := r.Predecessor(view, producer.Address(), ids.ObjectAddress{})
 				if err != nil {
 					return err
 				}
@@ -102,7 +102,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 				if !ok {
 					return fmt.Errorf("stuntgres: missing physical foreign-key provider")
 				}
-				_, moved, err := table.PhysicalCompetingIndexSource(view, index)
+				_, moved, err := PhysicalCompetingIndexSource(view, index)
 				if err != nil {
 					return err
 				}
@@ -110,7 +110,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 					continue
 				}
 			}
-			oid, err := dumpPredecessor(view, foreign.Index, relation.Address())
+			oid, err := r.Predecessor(view, foreign.Index, relation.Address())
 			if err != nil {
 				return err
 			}

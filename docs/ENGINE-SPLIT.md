@@ -1448,7 +1448,8 @@ the root composes in today's order; feature packages later export their
 entries.
 
 **Stays in the root** until step 30: `Dump` itself (its `Engine.mu` window,
-snapshot capture and emission sequence) and `dumpPredecessor`.
+snapshot capture and emission sequence) and `dumpPredecessor`. 30c moved
+the emission and `dumpPredecessor` (`control.Resolver`) into `control`.
 `dumpRelation` moves with `table`.
 
 **Unblocks** the collation and conversion dumps at once, and the operator,
@@ -1838,9 +1839,10 @@ admit, before, after, finish), with today's order. Together with 18c,
 to `control.Dump` and needs no host; Restore runs over `control.Host`
 (`Begin`, `Start`, `Statement`, `Execute`, `Publish`) and the
 root-composed `[]control.Hook[*restoreRun]`, whose bodies stay root
-methods. 30c creates `control` and moves the drivers: the Dump graph
+methods. 30c created `control` and moved the drivers: the Dump graph
 assembly and emission, the dump resolver and presenter, the Restore loop
-and its walkers.
+and its walkers. The domain graph helper went to `regobj`, not `typedef`
+(`regobj` imports `typedef`).
 
 **Stays in the root.** `Engine.mu` and the snapshot capture (catalog state,
 roles, row versions, frontier, sequences, foreign namespaces), the private
@@ -2068,8 +2070,9 @@ exist. Each item is a new sub-step in that package's prompt file.
     their own table after a shared prelude; the Emit table is indexed by
     `dump.Phase`, each entry an `owner` rule (nil: the emitter switches
     itself) and an `emit(ctx, *dumpScript, *dumpWriter, event)`; the
-    whole script is an ordered `dumpSections` list (see the `dump`
-    README).
+    whole script is an ordered `dumpSections` list. Settled by 30c: the
+    Emit table and sections are `control`'s own; the Collect tables stay
+    root (see the `control` README).
 16. **One DDL contract.** One `ddl.Authority` and `ddl.Stage` for every
     package that stages catalog changes, with one root staging adapter
     (20a, 20b). Settled by 20a: the per-package markers went; one
@@ -2120,7 +2123,7 @@ package-specific scope. This section holds the rules every session follows.
 | 27 | [`ENGINE-SPLIT-view.md`](ENGINE-SPLIT-view.md) | 27b: 22c, 24b; 27c: 20b | 27a done in place (dead code, drop diagnostics split, `dropCascadeNames`, view-write lowering and rule expansion off `Engine`, opaque rule authority, access helpers over `access.View`, RLS and rule-action value groups; racecheck/finalcheck skipped at user request); 27b done (`view` created: rule rewriting and programs, view-write lowering and binding slots, stored-projection demand, view options, policy and RLS helpers, concurrent refresh and the snapshot codec; no aliases; broad; racecheck/finalcheck skipped at user request); 27c refined (docs only: `view.Host` and `view.StageHost` on `ddlHost`; handler decisions move as plans the root stages, the skeletons, waits and publication stay; RLS selection to `view.RowSecurity`; `creationError` to `ddl`); 27d done (CREATE OR REPLACE VIEW, ALTER VIEW, DROP VIEW targets, RULE and POLICY plans as a `RelationChange`, the freezers, `view.RowSecurity` with its selection, the REFRESH replacement and dependents cores in `view` behind `view.Host`/`view.StageHost` on `ddlHost`; `ddl.CreationError`; no aliases; racecheck/finalcheck skipped at user request) |
 | 28 | [`ENGINE-SPLIT-role.md`](ENGINE-SPLIT-role.md) | 28b: 21b, B6; 28c: 20b | 28a done in place (renames, `access.View` cuts, ownership stage interfaces, grant, default-privilege and owned plans split; racecheck/finalcheck skipped at user request); 28b done (`role` created: grant, default-privilege and owned plans, ownership and DROP OWNED staging over `OwnerStage`/`OwnedCleanupStage`, role diagnostics; `GrantWarning` to `authorization`; `PlanOwned` takes a describer; no aliases; racecheck/finalcheck skipped at user request); 28c refined (`role.Host` for stage-less lookups and `role.StageHost` for owned staging, both on `ddlHost`; foreign ownership eligibility to `access`, the tablespace lookup to `ddl`; decisions move, orchestration stays); 28d done (GRANT targets, database GRANT, SET ROLE/SESSION AUTHORIZATION targets, DROP ROLE, ALTER OWNER checks and REASSIGN/DROP OWNED staging in `role` behind `role.Host`/`role.StageHost` on `ddlHost`; `access.ForeignOwnershipEligibility`, `ddl.TablespaceRef`; no aliases; racecheck/finalcheck skipped at user request) |
 | 29 | [`ENGINE-SPLIT-dml.md`](ENGINE-SPLIT-dml.md) | 29a: 23a, 24a; 29b: Part A of 19, 23–27; 29c: Part B of 23–27 | 29a done in place (`executeInsertLocked` in `insert.go`, misplaced helpers to their owners' files, executors as functions over the scope, `statementMutation` value groups; racecheck/finalcheck skipped at user request); 29b done (`dml` created: ON CONFLICT state and predicate proofs, write overlay, RETURNING outputs, MERGE/UPDATE/DELETE records, inheritance target helpers, TRUNCATE and FK action records, COPY insertion batching; the record-running functions, COPY cursors, truncate fence and `statementMutation` groups stay in the root; no aliases; racecheck/finalcheck skipped at user request); 29c–29d planned |
-| 30 | [`ENGINE-SPLIT-control.md`](ENGINE-SPLIT-control.md) | 30a: 18c; 30b: 22d, 21b, 14e, 15e, Part A of 23–27 | 30a done in place (`restoreRun` run state; ordered `restoreHooks` table with decode, before, admit, prepare, after and finish entries; switch #3 is one admit entry per statement kind; racecheck/finalcheck skipped at user request); 30b refined (docs only: `control.Dump` over a handed-over `control.Capture`, no Dump host; `control.Restore` over a five-method `control.Host` on a root `restoreHost` and the root-composed `[]control.Hook[*restoreRun]`; resolver and presenter to `control`, two graph helpers to `table` and `typedef`; `restoreRun` and every hook body stay root); 30c planned |
+| 30 | [`ENGINE-SPLIT-control.md`](ENGINE-SPLIT-control.md) | 30a: 18c; 30b: 22d, 21b, 14e, 15e, Part A of 23–27 | 30a done in place (`restoreRun` run state; ordered `restoreHooks` table with decode, before, admit, prepare, after and finish entries; switch #3 is one admit entry per statement kind; racecheck/finalcheck skipped at user request); 30b refined (docs only: `control.Dump` over a handed-over `control.Capture`, no Dump host; `control.Restore` over a five-method `control.Host` on a root `restoreHost` and the root-composed `[]control.Hook[*restoreRun]`; resolver and presenter to `control`, two graph helpers to `table` and `typedef`; `restoreRun` and every hook body stay root); 30c done (`control` created: `control.Dump` over the handed-over `control.Capture` with the script, sections and Emit table; `Resolver`, `ColumnPredecessors`, `Presenter`; `control.Restore[R]` over `control.Host` on the root `restoreHost` with `Hook`, `Admission`, `Outcome` and the walkers; `table.PhysicalNotNullDumpDependencies`, `regobj.DomainInvalidDumpEvents`; no aliases; racecheck/finalcheck skipped at user request) |
 
 The follow-ups of §6 (F6, 5i, 5j, 10e, 11e, 11f, 12f, 13f, B6, 14e, 15e)
 are sub-steps of the existing prompt files above.

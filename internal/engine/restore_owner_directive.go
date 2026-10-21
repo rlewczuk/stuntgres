@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
@@ -26,7 +27,7 @@ func beforeRestoreOwnerSnapshot(r *restoreRun, _ *session.Operation, _ parser.St
 
 // afterRestoreOwnerDirective records the principal an owner directive
 // switched to, and the create owner it implies.
-func afterRestoreOwnerDirective(r *restoreRun, op *session.Operation, stmt parser.Statement, _ Result) error {
+func afterRestoreOwnerDirective(r *restoreRun, op *session.Operation, stmt parser.Statement, _ control.Outcome) error {
 	directive, ok := stmt.(*parser.SessionAuthorization)
 	if !ok || !directive.OwnerDirective || directive.Default {
 		return nil

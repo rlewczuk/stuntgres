@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -84,7 +85,7 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	if child.Inheritance.Parents[0] != parent.Address() || imported == child {
 		t.Fatal("source graph mutated")
 	}
-	predecessor, err := dumpPredecessor(e.catalog.read(next), mapped, child.Address())
+	predecessor, err := control.Resolver{}.Predecessor(e.catalog.read(next), mapped, child.Address())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -136,9 +136,10 @@ enum journal updates; `type_generation.go` and `enum_generation.go`
 TEMP collation cleanup and `collationCreationNamespaceLocked`
 (`collation_temporary.go`); `conversionCheckCreate`
 (`conversion_create_check.go`, shared with `routine.DDLHost`); the dump
-graph edges of type declarations (`dumpColumnPredecessors`,
-`domainInvalidDumpEvents`), the domain owner transfer in
-`emitDumpStatement` and the `dump.Presenter` adapter `dumpPresenter`;
+graph edges of type declarations are `control.ColumnPredecessors` and
+`regobj.DomainInvalidDumpEvents` (it needs `regobj.ClassReplayReferences`,
+and `regobj` imports `typedef`), and the domain owner transfer in
+`emitDumpStatement` and the `dump.Presenter` adapter are `control`'s;
 `typeProvider`
 (its `Validate` reaches the expression binder); domain check programs and
 evaluation; `reownCatalogScalarTypes`; the typed

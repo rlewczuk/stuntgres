@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/sequence"
@@ -13,71 +14,71 @@ import (
 )
 
 // Restore's statement allow-list: one admit entry per statement kind. A
-// kind no entry admits is rejected with restoreRejection.
+// kind no entry admits is rejected with control's rejection text.
 
-type restoreAdmitFunc = func(*restoreRun, *session.Operation, parser.Statement) (restoreAdmission, error)
+type restoreAdmitFunc = func(*restoreRun, *session.Operation, parser.Statement) (control.Admission, error)
 
 // restoreAdmitKind admits every statement of kind T unchecked.
-func restoreAdmitKind[T parser.Statement](_ *restoreRun, _ *session.Operation, stmt parser.Statement) (restoreAdmission, error) {
+func restoreAdmitKind[T parser.Statement](_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
 	if _, ok := stmt.(T); ok {
-		return restoreAdmitted, nil
+		return control.Admitted, nil
 	}
-	return restoreNotHandled, nil
+	return control.NotHandled, nil
 }
 
 // restoreAdmitChecked admits a statement of kind T that check accepts.
 func restoreAdmitChecked[T parser.Statement](check func(*restoreRun, *session.Operation, T) error) restoreAdmitFunc {
-	return func(r *restoreRun, op *session.Operation, stmt parser.Statement) (restoreAdmission, error) {
+	return func(r *restoreRun, op *session.Operation, stmt parser.Statement) (control.Admission, error) {
 		s, ok := stmt.(T)
 		if !ok {
-			return restoreNotHandled, nil
+			return control.NotHandled, nil
 		}
 		if err := check(r, op, s); err != nil {
-			return restoreNotHandled, err
+			return control.NotHandled, err
 		}
-		return restoreAdmitted, nil
+		return control.Admitted, nil
 	}
 }
 
 // restoreAdmitReplayed consumes a statement of kind T that replay applied
 // itself; it does not execute.
 func restoreAdmitReplayed[T parser.Statement](replay func(*restoreRun, *session.Operation, T) error) restoreAdmitFunc {
-	return func(r *restoreRun, op *session.Operation, stmt parser.Statement) (restoreAdmission, error) {
+	return func(r *restoreRun, op *session.Operation, stmt parser.Statement) (control.Admission, error) {
 		s, ok := stmt.(T)
 		if !ok {
-			return restoreNotHandled, nil
+			return control.NotHandled, nil
 		}
 		if err := replay(r, op, s); err != nil {
-			return restoreNotHandled, err
+			return control.NotHandled, err
 		}
-		return restoreConsumed, nil
+		return control.Consumed, nil
 	}
 }
 
 // restoreAdmitSchemaObject admits the schema-level object DDL.
-func restoreAdmitSchemaObject(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (restoreAdmission, error) {
+func restoreAdmitSchemaObject(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
 	switch stmt.(type) {
 	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
-		return restoreAdmitted, nil
+		return control.Admitted, nil
 	}
-	return restoreNotHandled, nil
+	return control.NotHandled, nil
 }
 
 // restoreAdmitOperator admits operator DDL.
-func restoreAdmitOperator(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (restoreAdmission, error) {
+func restoreAdmitOperator(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
 	switch stmt.(type) {
 	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
-		return restoreAdmitted, nil
+		return control.Admitted, nil
 	}
-	return restoreNotHandled, nil
+	return control.NotHandled, nil
 }
 
 // restoreRejectForeignDDL rejects SQL/MED metadata.
-func restoreRejectForeignDDL(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (restoreAdmission, error) {
+func restoreRejectForeignDDL(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
 	if _, ok := stmt.(*parser.ForeignDDL); ok {
-		return restoreNotHandled, sqlError("0A000", "restore cannot replay SQL/MED foreign metadata")
+		return control.NotHandled, sqlError("0A000", "restore cannot replay SQL/MED foreign metadata")
 	}
-	return restoreNotHandled, nil
+	return control.NotHandled, nil
 }
 
 // restoreStagesTemporary reports a TEMPORARY or pg_temp-qualified relation,

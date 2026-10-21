@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/control"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -40,7 +41,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 			tables := []table.DumpRelation{{Descriptor: f.root}, {Descriptor: f.leaf}}
 			indices := map[ids.OID]int{pi: 0, ci: 1}
 			replay := &partition.ConstraintReplay{Original: f.view, Temporary: map[ids.ObjectAddress]string{}}
-			if err := partition.DumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
+			if err := partition.DumpEvents(context.Background(), control.Resolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
 			plans := partition.InvalidDumpEvents(f.view, graph, indices)
@@ -122,7 +123,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	consumer.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 46902, Expression: plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage()}, Value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
 	f.view.State().SetDescriptor(consumer.Address(), consumer)
 	f.view.State().BindName(catalog.DescriptorNameKey(consumer), consumer.Address())
-	provider, err := dumpPredecessor(f.view, consumer.ColumnMeta.Defaults[1].Dependencies[0].Address, consumer.Address())
+	provider, err := control.Resolver{}.Predecessor(f.view, consumer.ColumnMeta.Defaults[1].Dependencies[0].Address, consumer.Address())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,8 +136,8 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	// rename barrier. Stored REGCLASS data must wait for that original identity.
 	tables := []table.DumpRelation{{Descriptor: f.root}, {Descriptor: f.leaf}, {Descriptor: consumer, Columns: consumer.Columns, Attributes: consumer.Attributes, Defaults: consumer.ColumnMeta.Defaults, Versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value}}}}}
 	indices := map[ids.OID]int{pi: 0, ci: 1, li: 2}
-	_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, f.view)
-	if err := partition.DumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
+	_, replay := partition.ConstraintDumpCatalog(control.Resolver{}, f.view)
+	if err := partition.DumpEvents(context.Background(), control.Resolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 		t.Fatal(err)
 	}
 	partition.InvalidDumpEvents(f.view, graph, indices)
