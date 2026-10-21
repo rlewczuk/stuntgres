@@ -5,7 +5,6 @@ import (
 	"strings"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
@@ -66,7 +65,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			switch d.(type) {
 			case *catalog.ForeignObject:
 				foreign := d.(*catalog.ForeignObject)
-				err = fdw.OwnershipEligibility(auth.View, auth, foreign, target)
+				err = access.ForeignOwnershipEligibility(auth.View, auth, foreign, target)
 				if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
 					stage.domainBases = append(stage.domainBases, auth.Catalog.Get(foreign.Wrapper))
 				}

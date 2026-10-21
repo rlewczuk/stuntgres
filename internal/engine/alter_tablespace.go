@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -55,11 +56,11 @@ func (e *Engine) alterAllTablespaceLocked(scope *StatementScope, auth Authorizat
 			return Result{}, err
 		}
 	}
-	source, err := resolveGrantTablespace(auth, s.Source.Text)
+	source, err := ddl.TablespaceRef(auth.View, s.Source.Text)
 	if err != nil {
 		return Result{}, err
 	}
-	destination, err := resolveGrantTablespace(auth, s.Destination.Text)
+	destination, err := ddl.TablespaceRef(auth.View, s.Destination.Text)
 	if err != nil {
 		return Result{}, err
 	}

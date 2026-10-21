@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -15,7 +16,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 		return e.resolveRelationReference(v, name, true)
 	}
 	if kind == "tablespace" {
-		return resolveGrantTablespace(v, catalog.ObjectNameText(name))
+		return ddl.TablespaceRef(v.View, catalog.ObjectNameText(name))
 	}
 	var address ids.ObjectAddress
 	if kind == "schema" {
