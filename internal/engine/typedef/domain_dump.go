@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"context"
@@ -8,14 +8,13 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
-	"stuntgres/internal/engine/typedef"
 )
 
-func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *typedef.DomainReplayNames) (dump.Statement, error) {
+func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *DomainReplayNames) (dump.Statement, error) {
 	if err := ctx.Err(); err != nil {
 		return dump.Statement{}, err
 	}
-	if !typedef.DefaultDomainACL(d) {
+	if !DefaultDomainACL(d) {
 		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
 	}
 	qualified, err := p.TypeDeclaration(view, nil, d.SQLType.Usage())
@@ -55,7 +54,7 @@ func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Rea
 	}
 	collation := ""
 	if base.Collation != base.Type.Usage().Collation {
-		name := typedef.CollationSQLName(view, base.Collation.ID)
+		name := CollationSQLName(view, base.Collation.ID)
 		if name == "" {
 			return dump.Statement{}, fmt.Errorf("stuntgres: unsupported domain collation")
 		}
@@ -85,7 +84,7 @@ func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Rea
 	return dump.Statement{Owner: owner.Name, SQL: "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
 }
 
-func domainInvalidDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, domain *catalog.Type) (string, error) {
+func DomainInvalidDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, domain *catalog.Type) (string, error) {
 	qualified, err := p.TypeDeclaration(view, nil, domain.SQLType.Usage())
 	if err != nil {
 		return "", err

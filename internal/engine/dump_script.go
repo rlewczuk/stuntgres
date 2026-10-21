@@ -158,13 +158,13 @@ func (s *dumpScript) addDeclarationEdges() error {
 // the seeded ones a changed catalog must recreate.
 func (s *dumpScript) renderTypeStatements(ctx context.Context) error {
 	var err error
-	if s.collationStatements, err = collationDumpStatements(ctx, s.catalogView, s.domainRoles, s.collations); err != nil {
+	if s.collationStatements, err = typedef.CollationDumpStatements(ctx, s.catalogView, s.domainRoles, s.collations); err != nil {
 		return err
 	}
 	if s.seedStatements, err = typedef.CollationSeedDumpStatements(ctx, s.catalogView, s.domainRoles); err != nil {
 		return err
 	}
-	if s.conversionStatements, s.conversionSchemas, err = conversionDumpStatements(ctx, s.catalogView, s.domainRoles, s.conversions); err != nil {
+	if s.conversionStatements, s.conversionSchemas, err = typedef.ConversionDumpStatements(ctx, s.catalogView, s.domainRoles, s.conversions); err != nil {
 		return err
 	}
 	s.conversionSeeds, err = typedef.ConversionSeedDumpStatements(ctx, s.catalogView, s.domainRoles)
@@ -233,7 +233,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 // declarations and the operators' deferred link statements.
 func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID) error {
 	var err error
-	if s.declarations, err = mixedDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, viewOrder, s.domainNodes, s.composites); err != nil {
+	if s.declarations, err = typedef.MixedDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, viewOrder, s.domainNodes, s.composites); err != nil {
 		return err
 	}
 	for _, d := range s.sqlRoutines {

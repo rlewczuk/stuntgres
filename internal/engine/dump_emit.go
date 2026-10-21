@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 )
 
 // dumpWriter writes one Dump script and tracks the session authority the
@@ -192,7 +193,7 @@ func emitDumpRetiredConstraints(_ context.Context, s *dumpScript, w *dumpWriter,
 }
 
 func emitDumpDomainChecks(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	text, err := domainInvalidDumpStatement(ctx, dumpPresenter{}, s.catalogView, s.domainNodes[event.OID])
+	text, err := typedef.DomainInvalidDumpStatement(ctx, dumpPresenter{}, s.catalogView, s.domainNodes[event.OID])
 	if err != nil {
 		return err
 	}

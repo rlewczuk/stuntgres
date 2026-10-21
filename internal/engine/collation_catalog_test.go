@@ -136,18 +136,18 @@ func TestCollationDumpLosslessBootstrapSelection(t *testing.T) {
 			t.Fatal(err)
 		}
 		snapshot := e.stageRead(stage)
-		statements, err := collationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{d})
+		statements, err := typedef.CollationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{d})
 		if err != nil || len(statements) != 1 || !strings.Contains(statements[0].SQL, tc.fragment) {
 			t.Fatal(tc, statements, err)
 		}
 		bad := *d
 		bad.Encoding = 7
-		if _, err = collationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{&bad}); err == nil {
+		if _, err = typedef.CollationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{&bad}); err == nil {
 			t.Fatal("lossy encoding accepted")
 		}
 		if tc.provider == "b" && tc.locale != "C" {
 			bad.Encoding = -1
-			if _, err = collationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{&bad}); err == nil {
+			if _, err = typedef.CollationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{&bad}); err == nil {
 				t.Fatal("Unicode provider encoding cannot be reproduced", tc)
 			}
 		}
