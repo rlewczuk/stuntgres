@@ -199,6 +199,6 @@ func StageDropConversionLocked(h StageHost, auth ddl.Authority, s *parser.DropCo
 			h.DropTarget(d.Address())
 		}
 	}
-	h.RecordDependencyPath(auth)
+	_ = h.RecordDependencyPath(auth)
 	return nil
 }

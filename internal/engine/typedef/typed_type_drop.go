@@ -39,6 +39,6 @@ func StageDropCompositeLocked(h StageHost, auth ddl.Authority, s *parser.DropCom
 			h.DropTarget(ref.Address)
 		}
 	}
-	h.RecordDependencyPath(auth)
+	_ = h.RecordDependencyPath(auth)
 	return nil
 }

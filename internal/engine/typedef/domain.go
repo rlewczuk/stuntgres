@@ -171,6 +171,6 @@ func StageDropDomainLocked(h StageHost, auth ddl.Authority, s *parser.DropDomain
 		seen[ref.Address] = true
 		h.DropTarget(ref.Address)
 	}
-	h.RecordDependencyPath(auth)
+	_ = h.RecordDependencyPath(auth)
 	return nil
 }

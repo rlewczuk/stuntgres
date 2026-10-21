@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -33,7 +34,7 @@ func TestTablespaceExecutorNoPublication(t *testing.T) {
 		stmt          parser.CreateTablespace
 		code, message string
 	}{
-		{parser.CreateTablespace{Name: parser.Identifier{Text: "ordinary"}, Location: "/valid"}, "0A000", tablespacePhysicalUnsupported},
+		{parser.CreateTablespace{Name: parser.Identifier{Text: "ordinary"}, Location: "/valid"}, "0A000", ddl.TablespacePhysicalUnsupported},
 		{parser.CreateTablespace{Name: parser.Identifier{Text: "ordinary"}, Location: "relative"}, "42P17", "tablespace location must be an absolute path"},
 		{parser.CreateTablespace{Name: parser.Identifier{Text: "ordinary"}, Owner: &parser.RoleSpec{Name: "missing"}, Location: "relative"}, "42704", "role \"missing\" does not exist"},
 	} {

@@ -7,8 +7,8 @@ holds them once, and the feature hosts embed them. It sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 above `session` (it names `session.NoticeLevel`), below the feature packages.
 It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
-`session`, `sqlstate` and the standard library, and never `analyze`, a
-feature package or the engine. See
+`session`, `sqlstate`, `sqltype` and the standard library, and never
+`analyze`, a feature package or the engine. See
 [ENGINE-SPLIT-ddl.md](../../../docs/ENGINE-SPLIT-ddl.md).
 
 ## What it owns
@@ -33,6 +33,23 @@ feature package or the engine. See
 - **Helpers**: `Check(h, auth, req)` pairs a view with its own authority as
   the environment, `ObjectRef(h, auth, a)` stamps a reference with the
   view's catalog epoch, and `Notice(h, code, message)` emits a NOTICE.
+- **`SchemaHost`**: `Host` plus what CREATE and DROP SCHEMA need:
+  `StageSchemaTable` (one `CREATE TABLE` element, analyzed as the schema
+  owner with the new namespace first in the path, on the host's own copy of
+  the authority), `StageSchemaDependents` (the dependency closure of dropped
+  schemas), `RemoveObject`, `AddCascadeNotice` and `RelationDiagnostic`.
+  `Host.RecordDependencyPath` records the path and returns its error; DROP
+  SCHEMA stops on it, the other handlers ignore it.
+- **Schema-level DDL**: `StageCreateSchema`, `StageAlterSchema` (needs only
+  `Host`) and `StageDropSchema` hold every decision of those statements:
+  owners, the database CREATE gate, the SET ROLE rule, reserved `pg_`
+  names, duplicates and IF [NOT] EXISTS notices, the namespace descriptor
+  and ACL, element checks, dependent classification, the 2BP01 diagnostic,
+  cascade notices and removals, in PostgreSQL's order. Each returns
+  `(staged, err)`; `false, nil` means there is nothing to publish.
+  `CreateTablespace(ctx, view, s)` validates CREATE TABLESPACE over the
+  `access.View` and always fails (0A000 `TablespacePhysicalUnsupported`
+  once valid); it never stages.
 
 ## Lock rule
 
@@ -63,7 +80,14 @@ and none waits on the lock manager. The package adds no mutex.
 
 `Engine.mu`, authority capture, stage begin and publication, namespace
 lookup and search paths (they need `analyze`), and the schema statement
-dispatch (`schema.go`).
+dispatch (`schema.go`): `executeSchema` (partition 0A000 pre-checks, locks,
+publication and the cascade notice), `stageSchemaLocked` (capture, the early
+actor read that gates every staged statement, one call per statement),
+`schemaTableLocked` and `newTableDescriptorLocked`
+(`create_table_stage.go`, step 24), `stageSchemaDomainsLocked`, `relationDiagnosticKind`/`Name` and
+`schemaNotice` (the fdw DDL still uses it). `ddlHost` implements
+`SchemaHost` in `schema_host.go`. `executeCreateTablespace` keeps the
+argument count check, the lock and the authority capture.
 
 ## Testing
 
@@ -82,4 +106,15 @@ package (`ddl_host_test.go`):
 
 ```sh
 timeout 900s make check RUN='^TestDDLHost'
+```
+
+`TestDDLHostStageSchemaTableKeepsAuthority` (`schema_host_test.go`) pins
+that `StageSchemaTable` leaves the caller's authority unchanged and stages
+the table owned by the given owner in the given namespace;
+`TestTablespaceExecutorNoPublication` pins CREATE TABLESPACE. The public
+schema and tablespace behavior is in the dual-mode reference tests:
+
+```sh
+timeout 900s make check RUN='^TestReference((Alter)?Schema|.*Tablespace)'
+timeout 900s make check REFERENCE=1 RUN='^TestReference((Alter)?Schema|.*Tablespace)'
 ```

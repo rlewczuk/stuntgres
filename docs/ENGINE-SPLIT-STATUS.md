@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `c02c9d97e` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 86, 90 and 94). Steps 8–17 were
+Last verified against `master` at `ca2167c7c` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 86, 90 and 94). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,7 +18,7 @@ as another broad item (§8); only 68 is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 63 (ddl 20d), 66 (regobj 21c), 111 (control 30a).
+- **Seams:** 66 (regobj 21c), 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
 - **Upper features, in place:** 82 (index 23a), 99 (view 27a), 103
   (role 28a).
@@ -55,6 +55,8 @@ and DML 29a (item 107) for 82. Item 94 (fdw 26a) is done, so fdw 26b
 (item 95) is ready; fdw 26c (item 96) then needs 95 and 61.
 Item 90 (partition 25a) is done; partition 25b (item 91) still waits
 for table 24b (item 87).
+Item 63 (ddl 20d) is done and closes step 20; only the end-state review
+(item 114) needs it.
 
 ## Task tree
 
@@ -434,12 +436,13 @@ for table 24b (item 87).
     (`b2d22701d`, `50cc79234`, `decb25737`, `9118a9cf0`, then the docs commit)
   - [x] 19b — `copyfmt` created and codecs moved (`9e19cdd1a`, `644babd76`, `3b0f57c68`,
     then the docs commit)
-- [ ] **Step 20 — `ddl`** ([prompt](ENGINE-SPLIT-ddl.md); needs —)
+- [x] **Step 20 — `ddl`** ([prompt](ENGINE-SPLIT-ddl.md); needs —)
   - [x] 20a — One `Authority`, `Stage` and `Host` contract
   - [x] 20b — One root staging adapter (`b0d3e53b7`, `d25058ea5`, then the
     docs commit)
   - [x] 20c — Schema-level DDL host refined (docs only; the docs commit)
-  - [ ] 20d — Schema and tablespace decisions moved
+  - [x] 20d — Schema and tablespace decisions moved (`77b3fabf1`, `40deebd48`, `c8167af8d`, `4d5daf404`, then the
+    docs commit)
 - [ ] **Step 21 — `regobj`** ([prompt](ENGINE-SPLIT-regobj.md); 21b needs
   5j)
   - [x] 21a — In place: regclass and visibility files, renderer split
@@ -917,8 +920,13 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `RecordDependencyPath` returns its error; CREATE TABLESPACE over
     `access.View`; seed comments to `catalog`; 20d move set and commit
     sequence written · docs only, no checks needed
-63. [ ] DDL 20d: schema and tablespace decisions moved —
-    [ddl](ENGINE-SPLIT-ddl.md) 20d · needs 62
+63. [x] DDL 20d: schema and tablespace decisions moved —
+    [ddl](ENGINE-SPLIT-ddl.md) 20d · needs 62 (`77b3fabf1`, `40deebd48`, `c8167af8d`, `4d5daf404`,
+    then the docs commit) · `ddl.SchemaHost` on `ddlHost`;
+    `StageCreateSchema`/`StageAlterSchema`/`StageDropSchema` and
+    `CreateTablespace` in `ddl`; seed comments in `catalog`; no aliases ·
+    selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 64. [x] regobj 21a: in place — [regobj](ENGINE-SPLIT-regobj.md) 21a · needs —
     (`faabae6f1` … `46a317e4d`, then the docs commit) · regclass, literal,
     namespace-visibility, identity and presentation files gathered;

@@ -350,6 +350,6 @@ func StageDropOperator(h DDLHost, auth ddl.Authority, s *parser.DropOperator) er
 			h.DropTarget(d.Address())
 		}
 	}
-	h.RecordDependencyPath(auth)
+	_ = h.RecordDependencyPath(auth)
 	return nil
 }
