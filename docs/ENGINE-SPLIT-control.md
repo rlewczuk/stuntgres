@@ -576,9 +576,69 @@ stage and the atomic replacement. The checks in §8.3 pass.
   root-composed `[]control.Hook[*restoreRun]`; `restoreRun`, every hook
   body, `restore_replay.go`, the stage and the publication stay in the
   root. Docs only, no checks needed.
-- [ ] 30c — `control` created and the drivers moved
+- [x] 30c — `control` created and the drivers moved (`5be23f127`,
+  `6bd6f8e1c`, `a1316f97b`, `c1ffde11b`, `c4d6f2924`, `51b38752f`,
+  `6493a12a6`, then the docs commit). Re-measured at `949c682a1`: none of
+  the moving files had changed since the 30b measurement; rebased onto
+  `a8f6930c8` (table 24d.1) and `2f96d483d` (view 27d).
+  - **Dump** (`control/dump.go`, `script.go`, `emit.go`,
+    `emit_declaration.go`, `sections.go`): `Capture`, `Schema`,
+    `OwnedStatement`, `SchemaComment` and `Dump(ctx, capture, dst)`; the
+    script, sections, Emit table and writer are unexported. The capture
+    fields were renamed type-checked (a multi-field `fieldrn`,
+    `.cswd/tmp/PG18-ENGINE-SPLIT-CONTROL-PACKAGE/fieldsrn`).
+    `recipePlan` moved off the capture into the root `dumpCollection`.
+    `Engine.Dump` keeps the nil-writer and context checks and the lock
+    window.
+  - **Resolver and presenter** (`resolver.go`, `presenter.go`):
+    `Resolver` (`Predecessor`; the body is the unexported `predecessor`),
+    `ColumnPredecessors`, `Presenter`.
+  - **Restore** (`restore.go`, `hooks.go`): `Restore[R]`, `Host`,
+    `Outcome{Created}`, `contextReader`, `Hook[R]` (`Name`, `Decode`,
+    `Before`, `Admit`, `Prepare`, `After`, `Finish`), `Admission`
+    (`NotHandled`, `Admitted`, `Consumed`), the rejection text and the
+    walkers; `errors.go` holds `sqlError`. The root `restoreHost`
+    (`restore_run.go`) implements `Host`; `restoreRun.execute` moved beside
+    it and returns `control.Outcome`. `restore_hooks.go` holds only
+    `restoreHooks` (`[]control.Hook[*restoreRun]`, order unchanged).
+    `Engine.Restore` keeps the nil-reader and context checks and builds the
+    stage before the input is read.
+  - **Graph helpers**: `table.PhysicalNotNullDumpDependencies`
+    (`table/physical_not_null_dump_graph.go`; 89c no longer moves it) and
+    `regobj.DomainInvalidDumpEvents` (`regobj/domain_invalid_dump.go`).
+  - **Corrections to the 30b plan.** The domain helper went to `regobj`,
+    not `typedef`: it walks `regobj.ClassReplayReferences`, and `regobj`
+    imports `typedef`, so `typedef` cannot call it back. `control` also
+    imports `authorization` (the capture's role reads), which decision 7
+    left out; it still imports no `extension`, `fdw` or `exec`.
+    `bootstrapNamespaceDumpable` moved to `dump_collect.go`; `control.go`
+    is 59 lines (`Reset` and the two wrappers).
+  - **Tests.** New: `control/restore_test.go` (driver order with a fake
+    `Host`: per-statement order, consumed before and admit, a failing
+    after or execute skips `Publish` but runs `end`, a failing `Publish`,
+    rejection of an unhandled statement, and no host call after a start,
+    parse or context failure), written first and observed failing to
+    compile. Moved: the five walker tests of `restore_hooks_test.go` to
+    `control/hooks_test.go` over a synthetic run (names unchanged).
+    Adapted: `TestRestoreAdmitsInsertTargetIndirection` stays root and
+    calls `restoreAdmitChecked(admitRestoreInsert)` directly; about 14 root
+    tests name `control.Resolver{}`, `control.ColumnPredecessors`,
+    `control.Presenter` or `regobj.DomainInvalidDumpEvents`. None deleted.
+  - **Verification**: after every commit and after the rebase, the
+    byte-identity smoke (the 30a `dumpsmoke`, baseline on the starting
+    master, re-taken and unchanged on each new master), the 30a targeted
+    engine units plus the `control` tests, the tests of every touched test
+    file, and quick `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)`
+    and `^TestReferenceControl`; `RACE=1` for `^TestReferenceControl`, the
+    control-transaction, publication, catalog-replacement and hook units;
+    quickcheck; `REFERENCE=1` for `^TestReferenceControl`,
+    `TestReferenceDumpRoundTrip`, `TestReferenceTypeCoreDumpRoundTrip`,
+    `TestReferenceCollationSeedNativeReplay` and
+    `TestReferenceCompositeAlterDumpReplay`; `go list` shows only the root
+    imports `control`; `make deps` clean. racecheck/finalcheck skipped at
+    user request.
 
-Outstanding aliases: none (30a added none).
+Outstanding aliases: none (30a and 30c added none).
 
 ### Notes for later steps
 
@@ -589,9 +649,9 @@ Outstanding aliases: none (30a added none).
   archive high water) and `Publish`; every entry still runs on the stage.
 - Table 24d.3 (item 89c) changes the types of `restoreRun` fields
   (`restoredPhysicalNotNull`, `restoredPhysicalForeignKeyProvider` become
-  `table` records) without touching `control`, which never names them;
-  whichever of 30c and 89c lands second does not move
-  `physicalNotNullDumpDependencies` again.
+  `table` records) without touching `control`, which never names them.
+  30c landed first and moved `physicalNotNullDumpDependencies`
+  (`table.PhysicalNotNullDumpDependencies`); 89c skips it.
 - The hook bodies stay root `Engine` methods for good, reached through the
   table (decision 6 of 30b); table 24d.3 moves only their cores into
   `table`, and partition 25d (item 93) only the replay capture and match

@@ -67,7 +67,9 @@ admission and DML expansion goes to `dml`.
   `domain_default_restore.go`): `DumpRelation` and all its emitters,
   `RestoredNotNull`, `RestoreAttributeRankSyntax`,
   `RestoreAlterConstraints`, the retired-constraint and inherited
-  recipe/owner/FK repair records.
+  recipe/owner/FK repair records, and `PhysicalNotNullDumpDependencies`
+  (`physical_not_null_dump_graph.go`), the dump graph edges of moved
+  physical NOT NULL providers over a `dump.Resolver`.
 - **Inheritance** (`inheritance_*.go`, `typed_inheritance.go`): the recursion
   plan record `InheritanceAlterPlan` (the root holder
   `inheritanceAlterState` adds the stage, journal and prepared nodes),
@@ -142,8 +144,7 @@ Also in the root: the binder bodies behind the host (`bindCreateDefaults`,
 `bindCreateGenerations`, `bindColumnChecks`),
 `projectColumnShapeRoots`, `alterTableActionKind` (it calls the SET
 TABLESPACE check), `inheritanceQueryLeaves` and the inheritance query
-scope methods (query admission), `physicalNotNullDumpDependencies` (the
-dump driver), and `validateRestoredInheritedForeignKey`. FK write-time
+scope methods (query admission), and `validateRestoredInheritedForeignKey`. FK write-time
 enforcement and FK actions (`foreignKeyJob`, `foreign_action*.go`) and
 `mutation_targets.go` go to `dml`; the materialized snapshot codec is in `view`.
 24c refined the hosts: `table.Host` (on the root `ddlHost`) and

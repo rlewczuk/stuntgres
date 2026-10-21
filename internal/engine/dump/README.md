@@ -43,36 +43,27 @@ callback. Step 18 of the split created it; see
     lock; the expression methods also honor cancellation. Methods are
     added with their first caller.
 
-## What stays in the engine
+## Where Dump runs
 
-`Engine.Dump` (its `Engine.mu` window, the snapshot capture and the
-emission sequence) and `Engine.Restore` until step 30. `dumpPredecessor`
-(`dump_resolver.go`) reaches partition, operator-shell and competing-index
-helpers, so it stays in the root behind the `dumpResolver` adapter.
-`dumpPresenter` (`dump_presenter.go`) forwards type, column and routine
-presentation to `regobj` and the domain expressions to the root's
-`stored.ScalarRenderer` (`stored`, step 22). The
-root passes both adapters to the feature dump functions; `routine` (14e)
-and `typedef` (15e) call them. The table dump record is
+The Dump driver is in [`control`](../control/README.md) (step 30): the
+script build, the section list and the Emit table, and the
+`control.Resolver` and `control.Presenter` adapters. `control.Resolver`
+reaches partition, operator-shell and competing-index helpers; the
+presenter forwards type, column and routine presentation to `regobj` and
+the domain expressions to `stored.ScalarRenderer`. The feature dump
+functions that `routine` (14e), `typedef` (15e), `partition` (25b),
+`table` (`PhysicalNotNullDumpDependencies`) and `regobj`
+(`DomainInvalidDumpEvents`) export take them as `Resolver` and
+`Presenter`. The table dump record is
 `table.DumpRelation` (step 24b).
 
-### How `Engine.Dump` runs (root)
+### The capture (root)
 
-`Engine.Dump` has three stages, each in its own root file:
-
-1. **Capture** (`dump_capture.go`). Dump takes `Engine.mu`, calls
-   `captureDumpLocked` and unlocks once. The capture checks portability,
-   builds the builtin-schema preamble and passes every descriptor to the
-   Collect tables. It returns a `dumpCapture`; nothing after the unlock
-   reads engine state.
-2. **Build** (`dump_script.go`). `buildDumpScript` renders the groups and
-   statements, completes the event graph, decides default deferral and
-   orders the events with `Order`.
-3. **Emit** (`dump_sections.go`, `dump_emit.go`,
-   `dump_emit_declaration.go`). `dumpSections` is the whole script in
-   order; its `events` section writes each ordered event through the Emit
-   table. `dumpWriter` writes text and tracks the `SET SESSION
-   AUTHORIZATION` owner.
+`Engine.Dump` takes `Engine.mu`, calls `captureDumpLocked`
+(`dump_capture.go`) and unlocks once. The capture checks portability,
+builds the builtin-schema preamble and passes every descriptor to the
+Collect tables. It returns a `control.Capture` and hands it to
+`control.Dump`; nothing after the unlock reads engine state.
 
 **Collect tables** (`dump_collect.go`, `dump_collect_relation.go`).
 `dumpCollectors` is an ordered list of
@@ -84,23 +75,11 @@ entry runs the checks shared by every relation, then
 `dumpRelationCollectors` (composite, index, view, sequence, table) in the
 same first-match way. Entries fill the capture and read locked engine
 state only through `dumpCollection.source`, which never outlives
-`Engine.mu`. Order is error precedence: keep it when adding an entry.
-
-**Emit table** (`dump_emit.go`). `dumpPhaseEmitters` is indexed by
-`Phase`. Each entry has an `owner` the event loop sets before the entry
-runs (`nil`: the emitter sets it, as `Declaration` and `DomainChecks` do;
-domain checks render before the owner switch so an error writes nothing)
-and an `emit`; an empty entry (`TableCompletion`) writes nothing. Table
-phases emit a copy of the captured `table.DumpRelation`.
-
-A feature package takes over an entry when its dump code moves (14e, 15e,
-23b, 24b, 25b, 27b): it exports the entry's function, and the root table
-names it in the same position. The entry types stay in the root until
-step 30 (`control`) declares them. Because the entry signatures name root
-types, the root entry stays a thin wrapper over the package's decision:
-`collectOperatorDump` calls `routine.OperatorDumped`, and
-`emitDumpOperatorLinks` writes the text `routine.OperatorDumpStatements`
-rendered. `collectProcedureDump` stays in the root; it validates through
+`Engine.mu`; the generation recipe plan they share is
+`dumpCollection.recipePlan`. Order is error precedence: keep it when
+adding an entry. A feature package takes over a Collect entry's decision
+when its dump code moves: `collectOperatorDump` calls
+`routine.OperatorDumped`; `collectProcedureDump` validates through
 `stored.ProcedureProvider` (moved in 22b).
 
 ## Testing
@@ -117,7 +96,8 @@ Engine witnesses that build dump graphs or call the validators:
 make check RUN='^Test(PartitionAttachDumpPhaseDependencies|UserOperatorDump|PartitionDetach(Replay|UniqueReplay)|InheritanceControls|InheritanceGraph|DomainAlterConstraint|RegTS|PartitionConstraints|IndexPropertyDump)'
 ```
 
-The root presenter's domain expression methods:
+The presenter's domain expression methods (an engine witness of
+`control.Presenter`):
 
 ```sh
 make check RUN='^TestDumpPresenterDomainExpressions$'
@@ -131,7 +111,7 @@ make check RUN='^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)'
 make check RUN='^TestReferenceControl'
 ```
 
-Changes to the root Collect or Emit tables, or to the `Engine.mu` window,
-also need `make check RACE=1 RUN='^TestReferenceControl'` and a dump,
-restore and re-dump comparison against a `master` baseline (see 18b and 18c
+Changes to the root Collect tables, `control`'s Emit table or the
+`Engine.mu` window also need `make check RACE=1 RUN='^TestReferenceControl'`
+and a dump, restore and re-dump comparison against a `master` baseline (see 18b and 18c
 in [ENGINE-SPLIT-dump.md](../../../docs/ENGINE-SPLIT-dump.md)).

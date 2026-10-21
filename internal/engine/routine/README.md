@@ -124,10 +124,10 @@ The `ddlHost` adapter and the schema statement dispatch (`ddl_host.go`,
 inquiry admission (`routine_inquiry.go`), `dropProvider.clearOperatorLinks`,
 `procedureReturnsSet` (it needs the intagg extension provider, step 16;
 `exec` reaches it through `Preparation.ReturnsSet`), and the Dump
-orchestration: the Collect and Emit table entries (`collectOperatorDump`,
-`collectProcedureDump`, which validates through `stored.ProcedureProvider`, and
-`emitDumpOperatorLinks`), the `dumpPresenter` and `dumpResolver` adapters
-and the calls in `dump_script.go`.
+capture: the Collect entries `collectOperatorDump` and
+`collectProcedureDump` (it validates through `stored.ProcedureProvider`).
+The Emit entry `emitDumpOperatorLinks`, the `control.Presenter` and
+`control.Resolver` adapters and the script calls are in `control` (step 30).
 
 ## Testing
 
