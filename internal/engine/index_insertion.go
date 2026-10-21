@@ -6,8 +6,8 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-// Catalog-drift staging can refresh grants and immutable providers, but cannot
-// manufacture a new checked insertion occurrence after the producer finished.
+// revalidateIndexRows rebinds after a stale unique binding, readmits the
+// statement's programs and reprobes every row of batch.
 func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
 	prior := s.UniqueBinding
 	if prior != nil && prior.Ref != ref {
@@ -25,28 +25,8 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 		}
 	}
 	if prior != nil {
-		e := s.engine()
-		e.mu.Lock()
-		auth, captureErr := s.writeAuthorizationLocked(e)
-		if captureErr == nil && s.foreignActionAuth == nil {
-			auth = s.routineAuth // Rule relation ownership is not routine authority.
-		}
-		if captureErr == nil {
-			auth.Recapture(e.catalog.read(binding.Catalog))
-		}
-		e.mu.Unlock()
-		if captureErr != nil {
-			return captureErr
-		}
-		// Reconciliation checks actual surviving and folded calls, even when
-		// a false predicate never initialized the executable key graph.
-		if err := s.readmitPreparedPrograms(auth); err != nil {
+		if err := s.writeHost().ReadmitRevalidation(prior, binding); err != nil {
 			return err
-		}
-		if s.IndexBindings[prior.Ref.Address] != prior {
-			if err := prior.ReadmitPrograms(routineAccessOf(auth)); err != nil {
-				return err
-			}
 		}
 	}
 	for i := range batch.Values {

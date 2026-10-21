@@ -3,9 +3,11 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -36,8 +38,24 @@ func (h *statementHost) Snapshot() (bool, ids.CommitSeq) {
 func (h *statementHost) UniqueJournal() lock.UniqueJournal { return h.scope().uniqueJournal() }
 func (h *statementHost) QueryAuthority() *exec.Authority   { return h.authority }
 
-func (h *statementHost) ForeignActions() *dml.ForeignActionScope {
-	return h.scope().foreignActions()
+func (h *statementHost) ForeignActions(allocate bool) *dml.ForeignActionScope {
+	if allocate {
+		return h.scope().foreignActions()
+	}
+	return h.foreignActionsSlot
+}
+
+func (h *statementHost) IndexScope(allocate bool) *index.Scope {
+	if allocate {
+		return h.scope().indexes()
+	}
+	return h.indexesSlot
+}
+
+func (h *statementHost) Ticket() *lock.Ticket { return h.ticket }
+
+func (h *statementHost) CatalogRead(state *catalog.State) catalog.Read {
+	return h.scope().engine().catalog.read(state)
 }
 
 func (h *statementHost) PositionedRow(b analyze.Binding) (dml.MutationRowIdentity, error) {

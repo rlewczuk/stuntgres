@@ -50,9 +50,16 @@ type Statement interface {
 	// QueryAuthority is the statement's query authority, for frozen view
 	// write sources.
 	QueryAuthority() *exec.Authority
-	// ForeignActions is the statement's FK action scope, allocated on first
-	// use.
-	ForeignActions() *ForeignActionScope
+	// ForeignActions is the statement's FK action scope. With allocate it is
+	// allocated on first use; without, it is nil until then.
+	ForeignActions(allocate bool) *ForeignActionScope
+	// IndexScope is the statement's index scope (existing-row outputs and
+	// the exclusion projection modes), allocated like ForeignActions.
+	IndexScope(allocate bool) *index.Scope
+	// Ticket is the statement's transaction lock ticket.
+	Ticket() *lock.Ticket
+	// CatalogRead is a read of state owned by the engine's catalog store.
+	CatalogRead(state *catalog.State) catalog.Read
 	// PositionedRow is the row WHERE CURRENT OF names in b, read from the
 	// session's cursor registry.
 	PositionedRow(b analyze.Binding) (MutationRowIdentity, error)
@@ -84,6 +91,14 @@ type PrivateRows struct {
 // candidate validation and revalidation after a stale binding) is the
 // caller's.
 type Stage interface {
+	// Active fails once the statement has finished or its operation is no
+	// longer current. It takes no engine lock.
+	Active() error
+	// ReadmitRevalidation recaptures the statement's write authority on
+	// current's catalog under Engine.mu, then readmits the prepared programs
+	// and prior's index programs unlocked, before rows staged under prior
+	// are revalidated. Never waits.
+	ReadmitRevalidation(prior, current *index.UniqueWriteBinding) error
 	// PrepareReplacement checks the stage authority, the active statement,
 	// inherited replacements and an internal FK action's admission and row
 	// grants, in that order, before a replacement.

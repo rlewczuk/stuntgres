@@ -20,6 +20,44 @@ import (
 // update_versions.go, transaction.go and insert_returning.go keep the work
 // around them.
 
+// Active is the statement's activity check, before any candidate
+// validation or window.
+func (h *statementHost) Active() error { return h.scope().active() }
+
+// ReadmitRevalidation is the authority step of a revalidation after a stale
+// unique binding: one Engine.mu window captures the write authority (the
+// routine authority unless an FK action acts) on current's catalog, then the
+// prepared and prior's index programs are readmitted unlocked. Catalog-drift
+// staging can refresh grants and immutable providers, but cannot
+// manufacture a new checked insertion occurrence after the producer finished.
+func (h *statementHost) ReadmitRevalidation(prior, current *index.UniqueWriteBinding) error {
+	s := h.scope()
+	e := s.engine()
+	e.mu.Lock()
+	auth, captureErr := s.writeAuthorizationLocked(e)
+	if captureErr == nil && s.foreignActionAuth == nil {
+		auth = s.routineAuth // Rule relation ownership is not routine authority.
+	}
+	if captureErr == nil {
+		auth.Recapture(e.catalog.read(current.Catalog))
+	}
+	e.mu.Unlock()
+	if captureErr != nil {
+		return captureErr
+	}
+	// Reconciliation checks actual surviving and folded calls, even when
+	// a false predicate never initialized the executable key graph.
+	if err := s.readmitPreparedPrograms(auth); err != nil {
+		return err
+	}
+	if s.IndexBindings[prior.Ref.Address] != prior {
+		if err := prior.ReadmitPrograms(routineAccessOf(auth)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // PrepareReplacement checks the stage authority, the active statement,
 // inherited replacements and an internal FK action's admission and row
 // grants before a replacement. It takes no engine lock.

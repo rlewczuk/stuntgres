@@ -1,13 +1,13 @@
 package index
 
 import (
+	"context"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -42,7 +42,7 @@ type ExclusionVisit struct {
 // committed root and every owner's pending projection in scan. It asks op for
 // its context at each key comparison, as that context can change while COPY
 // input is held.
-func VisitExclusion(op *session.Operation, evaluation *exec.Context, scan *ExclusionScan, ticket *lock.Ticket, parent ids.ObjectAddress, bound *UniqueBoundKey, current ExclusionEntry, purpose ProbePurpose) (ExclusionVisit, error) {
+func VisitExclusion(op interface{ Context() context.Context }, evaluation *exec.Context, scan *ExclusionScan, ticket *lock.Ticket, parent ids.ObjectAddress, bound *UniqueBoundKey, current ExclusionEntry, purpose ProbePurpose) (ExclusionVisit, error) {
 	idx := bound.Index
 	own := scan.Pending[ticket]
 	var v ExclusionVisit
