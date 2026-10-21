@@ -339,20 +339,6 @@ func (r *restoreRun) inlinePrepare2(op *session.Operation, stmt parser.Statement
 	_, replayDefault := stmt.(*parser.AlterTableDefault)
 	operationReplay(op).defaultReplay = replayDefault
 	_, operationReplay(op).partitionAttach = stmt.(*parser.AlterTableAttachPartition)
-	if alteration, ok := stmt.(*parser.AlterTable); ok {
-		if err := r.stage.beginPartitionCheckReplay(op, alteration); err != nil {
-			return err
-		}
-		if err := r.stage.beginPartitionUsingIndexReplay(op, alteration); err != nil {
-			return err
-		}
-		if err := r.stage.beginPartitionUniqueReplay(op, alteration); err != nil {
-			return err
-		}
-		if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && operationReplayOrZero(op).partitionUnique == nil && r.cur.physicalConstructor == nil {
-			return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
-		}
-	}
 	return nil
 }
 

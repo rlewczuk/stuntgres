@@ -148,6 +148,9 @@ var restoreHooks = []restoreHook{
 	{name: "table: NOT NULL pair", prepare: prepareRestoreNotNullPair},
 	{name: "inheritance: generation pair", prepare: prepareRestoreGenerationPair},
 	{name: "inline prepare 2", prepare: (*restoreRun).inlinePrepare2},
+	{name: "partition: CHECK replay", prepare: prepareRestorePartitionCheck},
+	{name: "partition: USING INDEX replay", prepare: prepareRestorePartitionUsingIndex},
+	{name: "partition: UNIQUE replay", prepare: prepareRestorePartitionUnique},
 
 	// After execution.
 	{name: "table: physical NOT NULL constructor capture", after: afterRestorePhysicalConstructor},
