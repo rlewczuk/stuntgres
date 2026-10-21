@@ -8,9 +8,11 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -176,7 +178,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 			priorities[address.ObjectID] = priority
 		}
 	}
-	if err := physicalNotNullDumpDependencies(s.originalCatalog, s.graph); err != nil {
+	if err := table.PhysicalNotNullDumpDependencies(dumpResolver{}, s.originalCatalog, s.graph); err != nil {
 		return nil, err
 	}
 	routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
@@ -185,7 +187,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		for oid, predecessors := range s.inlinePredecessors {
 			s.graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
 		}
-		if err := physicalNotNullDumpDependencies(s.originalCatalog, s.graph); err != nil {
+		if err := table.PhysicalNotNullDumpDependencies(dumpResolver{}, s.originalCatalog, s.graph); err != nil {
 			return nil, err
 		}
 		routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
@@ -205,7 +207,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		return nil, err
 	}
 	s.invalidReplay = partition.InvalidDumpEvents(s.originalCatalog, s.graph, s.indexIndices)
-	if err := domainInvalidDumpEvents(ctx, s.catalogView, s.graph, s.domainNodes); err != nil {
+	if err := regobj.DomainInvalidDumpEvents(ctx, dumpResolver{}, s.catalogView, s.graph, s.domainNodes); err != nil {
 		return nil, err
 	}
 	routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
