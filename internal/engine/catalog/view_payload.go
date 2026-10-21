@@ -7,8 +7,8 @@ import (
 // ViewPayload is the frozen stored-SQL presentation of a view or
 // materialized view, as Relation.View holds it. It exposes only
 // what catalog code needs: the rewrite rule identity, dependencies, temporary
-// ownership, options and validation. The concrete *viewDefinition, which
-// holds plan IR, stays in the engine behind viewOf.
+// ownership, options and validation. The concrete *stored.View, which
+// holds plan IR, sits above catalog behind stored.ViewOf.
 type ViewPayload interface {
 	// RuleOID returns the pg_rewrite identity of the view's _RETURN rule.
 	RuleOID() ids.OID

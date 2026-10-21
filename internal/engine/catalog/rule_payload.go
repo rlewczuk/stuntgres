@@ -4,8 +4,8 @@ import "stuntgres/internal/engine/ids"
 
 // RulesPayload is a relation's ordered rewrite rules, as
 // Relation.Rules holds them. Catalog code validates them and reads their
-// facts; the concrete ruleDefinition, with its condition and action bindings
-// (cuts 8 and 9), stays in the engine behind rulesOf.
+// facts; the concrete stored.Rule, with its condition and action bindings
+// (cuts 8 and 9), sits above catalog behind stored.RulesOf.
 type RulesPayload interface {
 	// Validate checks the rules against the relation that owns them.
 	Validate(v Read, owner *Relation) error

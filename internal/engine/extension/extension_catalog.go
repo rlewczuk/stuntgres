@@ -10,7 +10,7 @@ import (
 
 // CatalogProvider validates extensions, their text search template
 // and dictionary, and installed member procedures. The procedure class is
-// registered as procedureProvider, which delegates members here.
+// registered as stored.ProcedureProvider, which delegates members here.
 type CatalogProvider struct{ Class ids.OID }
 
 func (p CatalogProvider) ClassID() ids.OID { return p.Class }
