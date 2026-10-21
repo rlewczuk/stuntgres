@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -22,6 +23,7 @@ type dumpScript struct {
 	collationStatements, conversionStatements []dump.Statement
 	seedStatements, conversionSeeds           []string
 	conversionSchemas                         []string
+	sequenceCreation, sequenceCompletion      []string
 	invalidReplay                             map[ids.OID]partitionInvalidReplay
 	eventOrder                                []dump.Event
 	declarations                              map[ids.OID]dump.Statement
@@ -55,6 +57,7 @@ func buildDumpScript(ctx context.Context, capture *dumpCapture) (*dumpScript, er
 	if err := s.renderDeclarations(ctx, viewOrder); err != nil {
 		return nil, err
 	}
+	s.sequenceCreation, s.sequenceCompletion = sequence.DumpStatements(s.sequences)
 	return s, nil
 }
 

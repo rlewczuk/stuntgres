@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"sort"
 	"strings"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/extension"
@@ -68,6 +67,11 @@ func bootstrapNamespaceDumpable(d *catalog.Namespace) bool {
 // Dump emits replayable logical definitions and rows, including renamed,
 // manual, partial and nested partitioned key/index trees. Virtual indexes have
 // no physical roots; their actual ancestry and incomplete validity are retained.
+//
+// Dump reads engine state only in captureDumpLocked, under Engine.mu, through
+// the Collect tables (dumpCollectors). It then orders the captured graph and
+// writes dumpSections, whose event section uses the Emit table
+// (dumpPhaseEmitters).
 func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if dst == nil {
 		return fmt.Errorf("stuntgres: nil dump writer")
@@ -87,145 +91,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return err
 	}
 	w := &dumpWriter{ctx: ctx, dst: dst}
-	if len(script.sqlRoutines) != 0 {
-		if err := w.emit(routine.RestoreDirective + "\n"); err != nil {
+	for _, section := range dumpSections {
+		if err := section.emit(ctx, script, w); err != nil {
 			return err
-		}
-	}
-	for _, line := range script.preamble {
-		if err := w.emit(line); err != nil {
-			return err
-		}
-	}
-	sort.Slice(script.schemas, func(i, j int) bool { return script.schemas[i].name < script.schemas[j].name })
-	for _, s := range script.schemas {
-		prefix := "CREATE SCHEMA "
-		if s.configured {
-			prefix += "IF NOT EXISTS "
-		}
-		if err := w.emit(prefix + catalog.QuoteIdentifier(s.name) + " AUTHORIZATION " + catalog.QuoteIdentifier(s.owner) + ";\n"); err != nil {
-			return err
-		}
-		if s.configured && s.owner != "postgres" {
-			if err := w.emit("ALTER SCHEMA " + catalog.QuoteIdentifier(s.name) + " OWNER TO " + catalog.QuoteIdentifier(s.owner) + ";\n"); err != nil {
-				return err
-			}
-		}
-	}
-	for _, line := range script.conversionSchemas {
-		if err := w.emit(line); err != nil {
-			return err
-		}
-	}
-	for _, line := range script.seedStatements {
-		if err := w.emit(line); err != nil {
-			return err
-		}
-	}
-	for _, line := range script.conversionSeeds {
-		if err := w.emit(line); err != nil {
-			return err
-		}
-	}
-	sort.Slice(script.schemaComments, func(i, j int) bool { return script.schemaComments[i].name < script.schemaComments[j].name })
-	for _, c := range script.schemaComments {
-		literal := "NULL"
-		if c.text != "" {
-			literal = dump.CommentLiteral(c.text)
-		}
-		if err := w.emit("COMMENT ON SCHEMA " + catalog.QuoteIdentifier(c.name) + " IS " + literal + ";\n"); err != nil {
-			return err
-		}
-	}
-	sequenceCreation, sequenceCompletion := sequence.DumpStatements(script.sequences)
-	for _, line := range sequenceCreation {
-		if err := w.emit(line); err != nil {
-			return err
-		}
-	}
-	for _, statements := range [2][]dump.Statement{script.collationStatements, script.conversionStatements} {
-		for _, declaration := range statements {
-			if err := w.setOwner(declaration.Owner); err != nil {
-				return err
-			}
-			if err := w.emit(declaration.SQL); err != nil {
-				return err
-			}
-		}
-	}
-	if err := emitDumpEvents(ctx, script, w); err != nil {
-		return err
-	}
-	for _, line := range sequenceCompletion {
-		if err := w.emit(line); err != nil {
-			return err
-		}
-	}
-	slices.SortFunc(script.materialized, func(a, b dumpRelation) int {
-		if order := strings.Compare(a.schema, b.schema); order != 0 {
-			return order
-		}
-		return strings.Compare(a.name, b.name)
-	})
-	for i := range script.materialized {
-		if err := script.materialized[i].emitMaterializedSnapshot(ctx, script.originalCatalog, w.emit); err != nil {
-			return err
-		}
-	}
-	for _, group := range script.policyGroups {
-		if err := w.setOwner(group.Owner); err != nil {
-			return err
-		}
-		if err := w.emit(group.SQL); err != nil {
-			return err
-		}
-	}
-	for _, group := range script.securityGroups {
-		if err := w.setOwner(group.Owner); err != nil {
-			return err
-		}
-		if err := w.emit(group.SQL); err != nil {
-			return err
-		}
-	}
-	// User rules are post-data: importing ordinary INSERT rows must not rewrite
-	// fixture data before every relation and original stored row exists.
-	for _, group := range script.ruleGroups {
-		if err := w.setOwner(group.Owner); err != nil {
-			return err
-		}
-		if err := w.emit(group.SQL); err != nil {
-			return err
-		}
-	}
-	// INHERITS reconstructs every inherited/merged declaration with rank zero.
-	// Repair only the lost metadata after all owner SQL, as genuine PostgreSQL
-	// catalog SQL under the authenticated administrator, not as replay comments.
-	rankAuthority := false
-	for _, event := range script.eventOrder {
-		index, exists := script.tableIndices[event.OID]
-		if event.Phase != dump.Declaration || !exists {
-			continue
-		}
-		table := script.tables[index]
-		inheritance := table.descriptor.Inheritance
-		if inheritance == nil {
-			continue
-		}
-		for i, column := range table.columns {
-			if column.DeclaredDimensions == 0 || len(inheritance.Columns[table.attributes[i]].Origins) == 0 {
-				continue
-			}
-			if !rankAuthority {
-				if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
-					return err
-				}
-				rankAuthority = true
-			}
-			qualified := catalog.QuoteIdentifier(script.catalogView.Get(table.descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.name)
-			if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, dump.CommentLiteral(qualified), dump.CommentLiteral(column.Name))); err != nil {
-				return err
-			}
 		}
 	}
 	return ctx.Err()
