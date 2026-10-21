@@ -53,7 +53,7 @@ func TestCopyCSVFraming(t *testing.T) {
 		{"\"a\r\nb\"\r\nc\r\n", []string{"\"a\r\nb\"", "c"}},
 		{"\"" + strings.Repeat("é", 40000) + "\"", []string{"\"" + strings.Repeat("é", 40000) + "\""}},
 	} {
-		c := copyCursor{options: copyOptions{format: copyFormatCSV, quote: '"', escape: '"'}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
+		c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: '"', escape: '"'}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
 		var got []string
 		for {
 			present, err := c.readLine()
@@ -70,7 +70,7 @@ func TestCopyCSVFraming(t *testing.T) {
 		}
 	}
 	t.Run("EstablishedCRLeavesLF", func(t *testing.T) {
-		c := copyCursor{options: copyOptions{format: copyFormatCSV, quote: '"', escape: '"'}, reader: bufio.NewReaderSize(strings.NewReader("1,ok\r2,x\r\n"), 16)}
+		c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: '"', escape: '"'}, reader: bufio.NewReaderSize(strings.NewReader("1,ok\r2,x\r\n"), 16)}
 		for i, want := range []string{"1,ok", "2,x"} {
 			present, err := c.readLine()
 			if err != nil || !present || string(c.line) != want || c.number != int64(i+1) {
@@ -96,7 +96,7 @@ func TestCopyCSVFraming(t *testing.T) {
 			{"\"bad\n\nvalue\",x\n", '\n', []int64{1}},
 			{"1,ok\n2,\"good\n\nvalue\"\nbad,x\n", '\n', []int64{1, 4, 5}},
 		} {
-			c := copyCursor{options: copyOptions{format: copyFormatCSV, quote: '"', escape: tc.escape}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
+			c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: '"', escape: tc.escape}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
 			for _, line := range tc.lines {
 				present, err := c.readLine()
 				if err != nil || !present || c.number != line {
@@ -117,7 +117,7 @@ func TestCopyCSVFraming(t *testing.T) {
 			{'\r', "\rbad\r\rvalue\r", "\rbad", 2},
 			{'\n', "\nbad\n\nvalue\n", "\nbad", 1},
 		} {
-			c := copyCursor{options: copyOptions{format: copyFormatCSV, quote: tc.quote, escape: tc.quote}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
+			c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: tc.quote, escape: tc.quote}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
 			present, err := c.readLine()
 			if err != nil || !present || string(c.line) != tc.raw || c.number != tc.line {
 				t.Fatalf("quote %q raw %q line %d present %v err %v", tc.quote, c.line, c.number, present, err)
@@ -135,7 +135,7 @@ func TestCopyCSVFraming(t *testing.T) {
 			{"'a!!!!',tail\n", "a!!"},
 			{"'a!x'b,tail\n", "a!xb"},
 		} {
-			c := copyCursor{options: copyOptions{format: copyFormatCSV, quote: '\'', escape: '!', delimiter: ','}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16), targets: make([]copyTarget, 2)}
+			c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: '\'', escape: '!', delimiter: ','}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16), targets: make([]copyTarget, 2)}
 			present, err := c.readLine()
 			if err != nil || !present || string(c.line) != strings.TrimSuffix(tc.input, "\n") {
 				t.Fatalf("raw %q present %v err %v", c.line, present, err)
@@ -159,7 +159,7 @@ func TestCopyCSVFields(t *testing.T) {
 		{"\"a\"\"b\",\\n", []string{"a\"b", `\n`}, []bool{true, false}, []bool{false, false}},
 		{"\"" + strings.Repeat("x", 90000) + "\",tail", []string{strings.Repeat("x", 90000), "tail"}, []bool{true, false}, []bool{false, false}},
 	} {
-		c := copyCursor{options: copyOptions{format: copyFormatCSV, delimiter: ',', quote: '"', escape: '"'}, line: []byte(tc.input), targets: make([]copyTarget, len(tc.want))}
+		c := copyLineReader{options: copyOptions{format: copyFormatCSV, delimiter: ',', quote: '"', escape: '"'}, line: []byte(tc.input), targets: make([]copyTarget, len(tc.want))}
 		if err := c.split(true); err != nil {
 			t.Fatal(err)
 		}
