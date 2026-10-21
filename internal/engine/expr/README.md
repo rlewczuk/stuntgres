@@ -224,14 +224,14 @@ without a hook gets the switch's previous generic behavior:
 Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
 (`joinExpressionSides`), planned volatility, generated admission
 (`plan.GenerationImmutable`, `plan.GenerationHasTableOID`, `validateGenerationPlan`),
-conditional planning (`simplifyConditionalNode`, `conditionalConstantInputs`),
+conditional planning (`exec`'s `simplifyConditionalNode`, `ConditionalConstantInputs`),
 retag (`mapBoundExpressionReader`), remap (`remapScalarExpression`), node-tree
 output (`plan.AppendBoundTree`), SQL deparse (`pgRenderer.sql`, interpreted in
 `deparse_rendering.go`), stored scalar SQL (`scalarRenderer.sql` and
 `scalarFunctionSQL`, interpreted in `scalar_rendering.go`), grouping identity
 (`sameGroupExpressionIn`), the grouping rewrite (`rewriteGroup`), aggregate
-occurrence (`aggregateOccurrence`), preflight (`preflightCoercionNode`,
-interpreted in `preflight_composite.go`), index key display
+occurrence (`aggregateOccurrence`), preflight (`exec`'s `preflightCoercionNode`,
+interpreted in `exec/preflight_composite.go`), index key display
 (`pgIndexFunctionExpression`) and the closed-DEFAULT checks. The walk, the
 grouping rewrite and aggregate occurrence keep one explicit `Timezone` case:
 they visit the value before the zone, unlike PostgreSQL, a divergence kept

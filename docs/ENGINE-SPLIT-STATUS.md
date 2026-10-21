@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `8b70be811` (items 55, 56, 57, 58, 59, 60, 61, 64, 67, 71, 72, 73, 74 and 75). Steps 8–17 were
+Last verified against `master` at `8cf863131` (items 55, 56, 57, 58, 59, 60, 61, 64, 67, 71, 72, 73, 74, 75 and 76). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,8 +20,8 @@ after each lands.
 
 - **Seams:** 62 (ddl 20c, docs only), 65 (regobj 21b), 111 (control 30a).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
-- **Follow-ups in existing packages:** 76 (exec 11f),
-  77 (analyze 12f), 78 (session 13f), 79 (access B6).
+- **Follow-ups in existing packages:** 77 (analyze 12f),
+  78 (session 13f), 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
@@ -42,7 +42,8 @@ and 105) still wait for their own earlier items. Item 59 (copyfmt 19b) is
 done and closes step 19; DML 29b (item 108) still waits for 107, 83, 87,
 91, 95 and 100. Item 57 (dump 18c) is done and closes step 18, so control
 30a (item 111) is ready; control 30b (item 112) still waits for 111 and the
-Part A moves.
+Part A moves. Item 76 (exec 11f) is done; only the end-state review
+(item 114) needs it, and that still waits for its other items.
 
 ## Task tree
 
@@ -506,7 +507,8 @@ Part A moves.
     ([exec](ENGINE-SPLIT-exec.md); `cee6f2c90`, `ce43a2044`, `674032f28`,
     `239a13dc5`, `61f0e8305`, docs) *(racecheck/finalcheck skipped at user
     request)*
-  - [ ] 11f — Preflight moved ([exec](ENGINE-SPLIT-exec.md))
+  - [x] 11f — Preflight moved ([exec](ENGINE-SPLIT-exec.md); `78e557fef`, `f1287c2c4`, `013311667`,
+    docs) *(racecheck/finalcheck skipped at user request)*
   - [ ] 12f — Query legality helpers moved ([analyze](ENGINE-SPLIT-analyze.md))
   - [ ] 13f — Notification records, isolation text and owner handles moved
     ([session](ENGINE-SPLIT-session.md))
@@ -956,7 +958,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `StoredReferenceValid` hooks, `ViewPayload.Dependencies` ·
     selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-76. [ ] Exec 11f: preflight — [exec](ENGINE-SPLIT-exec.md) 11f · needs 75
+76. [x] Exec 11f: preflight — [exec](ENGINE-SPLIT-exec.md) 11f · needs 75
+    (`78e557fef`, `f1287c2c4`, `013311667`, then the docs commit) · the expression
+    preflight family, array/UPDATE value preflight, string variadic folding
+    and the OVERLAPS route and cost model in `exec`; `Preparation` gains
+    `PreflightQuery`, `PrepareDomainConversion` and
+    `SpecializeRuleParameters` and drops the coercion methods; query
+    preflight, rule parameter specialization and the domain programme stay
+    in the root · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 77. [ ] Analyze 12f: query legality helpers —
     [analyze](ENGINE-SPLIT-analyze.md) 12f · needs —
 78. [ ] Session 13f: notification records, isolation text, owner handles —

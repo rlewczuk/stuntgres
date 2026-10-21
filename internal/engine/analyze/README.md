@@ -107,13 +107,14 @@ engine or `session`. See
   `SameStatementUsage`, `SameStatementResultUsage` and `RefreshableTemporal`
   (which captured temporals a refresh re-inputs) belong to it.
 - **Shared analysis helpers** (`coercion.go`, `errors.go`, `record_types.go`,
-  `overlaps.go`, `operator_signature.go`): coercion properties and Info,
+  `operator_signature.go`): coercion properties and Info,
   collation derivation (`CollatedInfo`), the domain-cast annotation pair
   (`DomainCoercionInput`, `RestoreDomainCastCollations`), storage
   destinations, `ComparisonOperator`, literal and reg* input error positions
-  (`InputErrorAt`, `RegtypeInputError`), `RecordTypeMapper`, the OVERLAPS
-  inline cost model and `OperatorSignature`. Engine DDL, retag, remap and
-  preflight code call them too; they read only their arguments.
+  (`InputErrorAt`, `RegtypeInputError`), `RecordTypeMapper` and
+  `OperatorSignature`. Engine DDL, retag, remap and preflight code call them
+  too; they read only their arguments. The OVERLAPS inline cost model is
+  `exec.OverlapsInlineSafe`, shared with preflight.
 - **Row-lock admission** (`lock_admission.go`): `LockAdmission`, computed
   by `NewLockAdmission` from a statement's syntax before binding (the row
   marks of each SELECT level, the locked table occurrences as
@@ -186,8 +187,8 @@ expressions); the authority adapters (`analysis_authority.go`:
 (`expected_inputs.go`), `signatureOf`/`checkStatementSignature` (the
 `StatementDescription` wrappers of `CheckSignature`), the retag walker the
 host lends the binder (`MapBoundExpression`, `MapBoundQueryExpression`),
-preflight
-(`expression_preflight.go`) and the captured input
+query preflight (`query_preflight.go`; expression preflight is in `exec`)
+and the captured input
 resolvers with their retarget methods (`captured_input_target.go`); stored
 view definitions, which the binder reads only through the host's
 `StoredViewVolatile`, `CaptureRetainedViewInput` and `ValidateViewReadGraph`

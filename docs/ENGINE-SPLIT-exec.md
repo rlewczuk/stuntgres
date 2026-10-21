@@ -266,6 +266,11 @@ the view, the environment and the statement context.
 
 ### 11f — Preflight (linear item 76)
 
+Done; see "11f result" in Status (query preflight, rule parameter
+specialization and the domain programme stay in the root behind three
+`Preparation` hooks; the OVERLAPS cost model moved down from `analyze`).
+The plan below is kept as the record.
+
 After 11e the expression preflight files are dirty only through routine
 admission: `expression_preflight.go`, `preflight_composite.go`,
 `conditional_plan.go` and `conditional_fold.go`. (11e moved routine
@@ -289,7 +294,8 @@ that can move with the family.)
 
 `executeStatement`, `executeBoundLocked`, `executeBoundCommandLocked`,
 `executePreparedCommandLocked` (statement dispatch); query admission and
-capture; preflight; the join legality checks; the DML executors (`insert_*`,
+capture; query preflight (expression preflight is in `exec` since 11f);
+the join legality checks; the DML executors (`insert_*`,
 `update*`, `delete*`, `merge*`, `copy*`; postponed `dml` package), which
 call `exec.OpenNode` for their inputs; data-modifying CTE execution; CREATE
 TABLE AS; SQL cursors and protocol portals (step 13); rule execution;
@@ -356,7 +362,9 @@ names no `exec.Context` internals: DML executors open their inputs through
   (linear item 75) (`cee6f2c90`, `ce43a2044`, `674032f28`, `239a13dc5`,
   `61f0e8305`, then the docs commit) *(racecheck/finalcheck skipped at
   user request)*
-- [ ] 11f — Preflight moved (linear item 76)
+- [x] 11f — Preflight moved (linear item 76) (`78e557fef`, `f1287c2c4`,
+  `013311667`, then the docs commit) *(racecheck/finalcheck skipped at
+  user request)*
 
 Outstanding aliases: none. The engine, the root driver and `cmd/stuntgres`
 name the `exec` types directly.
@@ -817,3 +825,91 @@ Notes for later steps:
 - `admitQueryGroupings` can join `exec` once `analyze.PrivateTreeGrouping`
   (six `sqltype`-only lines) moves below `exec`, or go to `analyze` with
   12f.
+
+### 11f result
+
+Measured and built at `205d59485`, rebased onto `8cf863131` (items 57, 59
+and 61 landed meanwhile, overlapping only in `copy.go` and the plan docs).
+Tools and scripts: `.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-PREFLIGHT/` (`c3.sh`, `c3.spec`,
+`c3-post.py`, `sel.txt`), over the 12d.3 `mvpkg.sh`/`movedecl`/`movex`/`impfix`
+pipeline, the 12d.4 `frontier` and the 11a `reach`.
+
+- **Measurement.** `reach` over the four named files and
+  `strict_parameter_null.go` found one dirty path:
+  `prepareDomainConversion → domainCatalog/prepareOwnDomainChecks →
+  StatementScope` (the scope's domain programme, `routineAuth` and
+  `foreignActionAuth`). `frontier` with the clean helpers the family calls
+  (`bitwise_preflight.go`, `view_write_predicate.go`,
+  `array_assignment_preflight.go`, `datetime_overlaps_context.go`,
+  `quoteOriginOf`/`foldStringVariadic`, `preflightUpdateExpression`) left
+  three root functions in OUT: `prepareDomainConversion`, `preflightQuery`
+  and `specializeRuleParameterExpression` (it maps through
+  `rewriteViewExpression`, the retag walker).
+- **Seam** (`78e557fef`): `exec.Preparation` gains `PreflightQuery`,
+  `PrepareDomainConversion` and `SpecializeRuleParameters` (failing stubs,
+  forwarders; `TestMissingPreparationFailsLoudly` and
+  `TestInstallPreparation` gained the routes first and were observed
+  failing). The family called the forwarders, and `frontier` OUT was empty.
+- **OVERLAPS cost down** (`f1287c2c4`): `OverlapsInlineSafe`,
+  `OverlapsNodeCost` and `OverlapsTreeCost` (`analyze/overlaps.go`, which
+  imports only `exec`, `expr`, `functions`, `plan`, `parser` and `sqltype`)
+  moved to `exec/overlaps_cost.go`; `analyze/function.go` and the root call
+  `exec`. Without it `simplifyOverlapsRoute` could not move.
+- **Move** (`013311667`): one `mvpkg.sh` call, then `movedecl` split the
+  staging file into `exec/expression_preflight.go`,
+  `preflight_composite.go`, `conditional_plan.go`, `conditional_fold.go`,
+  `strict_parameter_null.go`, `bitwise_preflight.go`,
+  `view_qualification.go`, `array_assignment_preflight.go` (with
+  `PreflightUpdateExpression` from `update.go`), `string_variadic_fold.go`
+  and `datetime_overlaps_route.go`. `exec` owns `PreflightCoercions` and
+  `PreflightCoercionsWithPolicy`, so `Preparation` lost both methods (the
+  join opener calls the function); the three new forwarders are
+  package-private. 16 names exported (`c3.spec`), six of them only for
+  engine units. `pruneQuoteCaptures` (stored view readers) stays in
+  `string_variadic_capture.go`. String literals unchanged apart from the two
+  removed stubs' panics and their test route names.
+- **Query preflight stays in the root.** `query_preflight.go` and
+  `query_set_preflight.go` fit neither package yet: besides the
+  `analyze` set helpers they reach `mapBoundExpressionReader` (retag and the
+  installed-node validators), `ruleQueryProducerDemand`
+  (`storedProjectionDemand*`, headed for `stored`) and `pruneProjectWindows`
+  (12f). `analyze` cannot call the root, so they wait for 12f and 22b.
+  Rule parameter specialization (`rule_parameter_preflight.go`) and the
+  domain CHECK programme (`domain_check.go`) stay for the reasons above;
+  `strict_parameter_null.go` moved whole (11e had already moved its
+  `procedureReturnsSet` users).
+- **Tests.** None moved or deleted: every unit of the moved code binds
+  through an `Engine` (`newTestExpressionBinder`), so they were
+  requalified (`exec.PreflightCoercions`, `exec.SimplifyConditional`, ...).
+  `TestInstallPreparation` lost its `PreflightCoercionsWithPolicy`
+  forwarder check (the forwarder is gone; the function is now `exec`'s own).
+- **Verification.** `make build`, the compile of every engine test package
+  and the targeted selection (`sel.txt`: cast, conditional, composite,
+  domain demand, strict parameter NULL, string variadic, OVERLAPS, rule and
+  UPDATE preflight units plus the preparation seam) after every commit;
+  each rebased commit built on its own. `make quickcheck` passed before and
+  after the rebase. `REFERENCE=1` passed for conditionals, OVERLAPS, domain
+  CHECK demand, planning, conversions, recipe initialization, truth and
+  stored demand, string variadic calls, rule RETURNING, explicit-cast
+  preflight, array expression assignments and UPDATE scalar assignments.
+  `make bench` at load ~100: 2.7–2.9 ms/op on both this branch and master
+  (interleaved test binaries; the machine was saturated by other sessions)
+  and 5,031–5,034 allocs/op on both, so no regression; the <1 ms target was
+  last met unloaded in 11e. `make deps`: module paths only. `exec` imports
+  no new package. No reference fixture names a moved frame. AGENTS.md: 99
+  lines, untouched. racecheck/finalcheck skipped at user request.
+
+Notes for later steps:
+
+- 12f/22b: `query_preflight.go` and `query_set_preflight.go` can follow
+  once `pruneProjectWindows` (12f), `ruleQueryProducerDemand` and
+  `storedProjectionDemand*` (22b) and `mapBoundExpressionReader` (retag)
+  have owners that `analyze` can call; until then `exec` reaches them
+  through `Preparation.PreflightQuery`.
+- `prepareDomainConversion` stays because `prepareOwnDomainChecks` keeps its
+  phases in the statement scope's domain state and reads `routineAuth` and
+  `foreignActionAuth`; moving it needs those behind a host or slot.
+- 27a/22b: `mapViewQualification` is `exec.MapViewQualification`;
+  `pruneQuoteCaptures` (`string_variadic_capture.go`) still reads
+  `viewOf` and the view definition's quote revision, so it goes with
+  `stored`.

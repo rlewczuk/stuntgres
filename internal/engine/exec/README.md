@@ -92,23 +92,41 @@ statement scope holds an untyped nil host (`LiveHost` never returns a typed
 nil); the `Context` forwarders keep their prologue first and then the
 nil-host diagnostic, so error order is unchanged.
 
+## Expression preflight
+
+`exec` owns the expression preflight that runs before execution:
+`PreflightCoercions` and `PreflightCoercionsWithPolicy` (the coercion
+preflight; the policy form plans decisive constants for consumed stored
+defaults, CHECK rows and standalone recipes), conditional planning and
+folding (`SimplifyConditional`, `conditional_plan.go`,
+`conditional_fold.go`, `preflight_composite.go`), strict parameter NULL
+folding (`FoldStrictParameterNull`, `ExecutionKnownNullArgument`), the
+array assignment and UPDATE value preflight (`PreflightArrayTargets*`,
+`PreflightUpdateExpression`), string variadic folding (`FoldStringVariadic`,
+`QuoteOriginOf`), view qualification mapping (`MapViewQualification`) and the
+OVERLAPS route with its inline cost model (`SimplifyOverlapsRoute`,
+`OverlapsInlineSafe`, `overlaps_cost.go`). The join opener re-runs
+`PreflightCoercions` on its predicate. Preflight never reads a statement
+scope directly: it reaches the engine only through `Preparation`.
+
 ## Preparation
 
-Domain checks and preflight coercions also run in contexts with no
-statement scope (generated columns, index expressions and predicates,
-partition admission, temporary commit, concurrent refresh), so they cannot
-hang off a nil-able host. `Preparation` is one stateless package value:
-`PreflightCoercions` (the join opener re-runs it on its predicate),
-`PreflightCoercionsWithPolicy` and `AdmitExpression` (the coercion preflight
-with the decisive-defaults policy and planning-time execution admission;
-index, table and partition evaluation code calls them through the package
-forwarders of the same names), `CheckDomain`, `DomainCatalog` (the catalog a
-domain check reads), `ReturnsSet` (set-returning, including the installed
-intagg enumerator), `StoredReferenceValid` (the stored-reference epoch
-bridge of a TEMP owner) and `ValidInstalledText` (the installed text call's
-provider check). The engine
-installs its implementation from `init` with `InstallPreparation`; until
-then every method panics with `exec: preparation not installed`.
+Domain checks and preflight also run in contexts with no statement scope
+(generated columns, index expressions and predicates, partition admission,
+temporary commit, concurrent refresh), so they cannot hang off a nil-able
+host. `Preparation` is one stateless package value: `AdmitExpression`
+(planning-time execution admission; index, table and partition evaluation
+code calls it through the package forwarder of the same name),
+`PreflightQuery` (a subquery's plan-tree preflight), `PrepareDomainConversion`
+(the domain CHECK programmes of a conversion, kept in the statement's
+domain state), `SpecializeRuleParameters` (a rule action's parameters
+replaced through the view rewriter), `CheckDomain`, `DomainCatalog` (the
+catalog a domain check reads), `ReturnsSet` (set-returning, including the
+installed intagg enumerator), `StoredReferenceValid` (the stored-reference
+epoch bridge of a TEMP owner) and `ValidInstalledText` (the installed text
+call's provider check). The engine installs its implementation from `init`
+with `InstallPreparation`; until then every method panics with
+`exec: preparation not installed`.
 
 ## Invariants
 
@@ -140,8 +158,13 @@ then every method panics with `exec: preparation not installed`.
 
 Statement dispatch (`executeStatement`, `executeBoundLocked`, ...); query
 admission and capture (`query_admission.go`, `query_lock_admission.go`,
-`captureQuerySources*`, the view row-lock legality checks); preflight
-(`query_preflight.go` and the `preflightCoercions` family); the binder
+`captureQuerySources*`, the view row-lock legality checks); query preflight
+(`query_preflight.go`, `query_set_preflight.go`: they reach the retag
+walker, rule producer demand and window pruning), rule parameter
+specialization (`rule_parameter_preflight.go`, through the view rewriter),
+the domain CHECK programme preparation (`prepareDomainConversion`, which
+keeps its phases in the statement scope) and `pruneQuoteCaptures` (stored
+view definitions); the binder
 methods in the `query_*_bind.go` files; the join legality checks; the DML
 executors, which open their inputs with `exec.OpenNode`; data-modifying CTE
 execution (`completeCTEMutation`); CREATE TABLE AS; SQL cursors and protocol
@@ -157,8 +180,8 @@ The engine, the root driver and `cmd/stuntgres` name these types directly
 
 ## Testing
 
-Package unit tests (the preparation install seam and the ordered-aggregate
-sort cancellation):
+Package unit tests (the preparation install seam, including the preflight
+hooks, and the ordered-aggregate sort cancellation):
 
 ```sh
 make check RUN='^(TestMissingPreparationFailsLoudly|TestInstallPreparation|TestSortOrderedAggregateCancellation)$'
@@ -179,6 +202,14 @@ stays unexported, and the recursive union stage keeps the unexported defined
 type `recursiveUnionStage`, which `exec` names as the alias
 `RecursiveUnionStage` (`TestReferenceQueryCycleLifecycle`). Renaming either
 makes that test's unbounded query run until it exhausts memory.
+
+Expression preflight is pinned by engine units that bind through an
+`Engine` (grep `internal/engine/*_test.go` for `exec.PreflightCoercions`,
+`exec.SimplifyConditional` and `exec.OverlapsInlineSafe`), for example:
+
+```sh
+make check RUN='^Test(CastCoercion.*Preflight.*|Conditional.*|StrictParameterNull.*|StringVariadic.*|DatetimeOverlaps.*|DomainCheckPreflightDemandInternal|RuleStaticOperatorPreflight|UpdateCoreRecursivePreflight.*)$'
+```
 
 The executor's unit tests still live in the engine, because they build
 statements through an `Engine` and `Session`: grep

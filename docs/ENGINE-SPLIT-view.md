@@ -133,8 +133,8 @@ They are not part of this step. What is left for `view`:
   `view_composite_validation.go`, the `viewDefinition` methods and
   `validateViewLeaves`/`validateStoredSetNode` of `view_dependencies.go`,
   `rewriteViewExpression`, `viewDirectColumn`, `viewWriteShape`,
-  `sameViewRelation` (`view_write.go`), `mapViewQualification`,
-  `mapRuleAssignmentTargets`, the rule and policy payloads and dumps, and
+  `sameViewRelation` (`view_write.go`), `mapRuleAssignmentTargets`
+  (`mapViewQualification` is `exec.MapViewQualification` since 11f), the rule and policy payloads and dumps, and
   the payload remap: `rule_remap.go` (`remapRules`, `remapRuleBinding*`,
   `remapRuleConstraintIdentities`), `policy_remap.go` (`remapPolicies`)
   and `catalogExpressionTypesChanged` (`expression_remap.go`). The remap goes
