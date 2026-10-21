@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"stuntgres/internal/engine/catalog"
@@ -38,6 +39,15 @@ func (h *statementHost) scope() *StatementScope { return (*StatementScope)(h) }
 func (h *statementHost) Context() context.Context { return h.op.Context() }
 func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment) {
 	return h.input, h.output
+}
+
+// RoutineAdmission is the statement's routine admission authority and its
+// original dependency manifest; it fails once the statement has finished.
+func (h *statementHost) RoutineAdmission() (exec.RoutineAccess, []catalog.ExpressionDependency, error) {
+	if h.finished {
+		return exec.RoutineAccess{}, nil, fmt.Errorf("stuntgres: ended routine admission authority")
+	}
+	return h.routineAuth.routineAccess(), h.routineDependencies, nil
 }
 
 func (h *statementHost) StatementStart() time.Time          { return h.statementStart }

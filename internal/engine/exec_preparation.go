@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 )
 
@@ -16,8 +17,22 @@ func (enginePreparation) PreflightCoercions(c *exec.Context, e expr.Expr) (expr.
 	return preflightCoercions(c, e)
 }
 
+func (enginePreparation) PreflightCoercionsWithPolicy(c *exec.Context, e expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+	return preflightCoercionsWithPolicy(c, e, decisiveDefaults)
+}
+
+func (enginePreparation) AdmitExpression(c *exec.Context, e expr.Expr, view catalog.Read) error {
+	return validateExpressionJoinExecution(c, e, view)
+}
+
 func (enginePreparation) DomainCatalog(c *exec.Context) catalog.Read {
 	return domainCatalog(c)
+}
+
+func (enginePreparation) ReturnsSet(d *catalog.Procedure) bool { return procedureReturnsSet(d) }
+
+func (enginePreparation) StoredReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
+	return storedReferenceEpochValid(view, consumer, ref)
 }
 
 func (enginePreparation) ValidInstalledText(n plan.InstalledTextExpr) bool {

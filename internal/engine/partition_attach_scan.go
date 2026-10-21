@@ -150,7 +150,7 @@ func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, paren
 			}
 		}
 		ref := view.Owner().Domain.Ref(view.Epoch(), job.leaf.Address())
-		source, err := captureQuerySource(ctx, scope.partitionsOrZero().validationView, ref)
+		source, err := exec.CaptureSource(ctx, scope.partitionsOrZero().validationView, ref)
 		if err != nil {
 			return err
 		}

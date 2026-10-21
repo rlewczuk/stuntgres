@@ -87,7 +87,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 			return err
 		}
 		if s.indexBindings[prior.ref.Address] != prior {
-			if err := prior.readmitPrograms(auth); err != nil {
+			if err := prior.readmitPrograms(routineAccessOf(auth)); err != nil {
 				return err
 			}
 		}
@@ -127,9 +127,9 @@ func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row 
 // Existing command-private insertion records own the consumed graph. Reuse it
 // before discarding/rebinding a catalog-drifted binding; cooked values alone
 // cannot certify the original call after a wait.
-func (b *uniqueWriteBinding) readmitPrograms(auth AuthorizationView) error {
+func (b *uniqueWriteBinding) readmitPrograms(auth exec.RoutineAccess) error {
 	for i := range b.keys {
-		if err := b.keys[i].preparation.admission.readmit(auth); err != nil {
+		if err := b.keys[i].preparation.admission.Readmit(auth); err != nil {
 			return err
 		}
 	}
@@ -137,7 +137,7 @@ func (b *uniqueWriteBinding) readmitPrograms(auth AuthorizationView) error {
 		if b.insertion[i].unique != nil {
 			continue
 		}
-		if err := b.insertion[i].preparation.admission.readmit(auth); err != nil {
+		if err := b.insertion[i].preparation.admission.Readmit(auth); err != nil {
 			return err
 		}
 	}

@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
@@ -359,31 +358,4 @@ func (s *StatementScope) latestDeleteRow(candidate visibility.DeleteCandidate) (
 		return storage.RowVersion{}, false, err
 	}
 	return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[candidate.Ref.Address]), nil
-}
-
-// The nil selection path remains allocation-free for undeleted prefixes.
-func captureQuerySource(ctx context.Context, view *visibility.View, ref ids.ObjectRef) (*exec.Source, error) {
-	source, err := captureQueryPrefix(view, ref)
-	if err != nil {
-		return nil, err
-	}
-	data := source.View.Data()
-	return exec.SelectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
-}
-
-func captureQueryPrefix(view *visibility.View, ref ids.ObjectRef) (*exec.Source, error) {
-	pin := view.Retain()
-	if pin == nil {
-		return nil, errors.New("stuntgres: visibility view is released")
-	}
-	data := pin.Data()
-	if data.Catalog.Owner() == nil {
-		pin.Release()
-		return nil, errors.New("stuntgres: invalid visibility catalog")
-	}
-	if _, ok := data.Committed[ref.Address]; !ok || ref.Domain() != data.Catalog.Owner().Domain || ref.Epoch != data.Catalog.Epoch() {
-		pin.Release()
-		return nil, errors.New("stuntgres: invalid visibility target")
-	}
-	return &exec.Source{View: pin, Ref: ref, Committed: data.Committed[ref.Address], Own: data.Own[ref.Address], NeedsBirthFilter: data.NeedsBirthFilterAt(ref.Address)}, nil
 }

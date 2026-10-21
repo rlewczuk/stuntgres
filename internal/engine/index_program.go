@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -9,12 +10,12 @@ import (
 // must retain the established non-call rebind behavior.
 func (b *uniqueWriteBinding) hasConsumedPrograms() bool {
 	for i := range b.keys {
-		if len(b.keys[i].preparation.admission.calls) != 0 {
+		if len(b.keys[i].preparation.admission.Calls) != 0 {
 			return true
 		}
 	}
 	for i := range b.insertion {
-		if b.insertion[i].unique == nil && len(b.insertion[i].preparation.admission.calls) != 0 {
+		if b.insertion[i].unique == nil && len(b.insertion[i].preparation.admission.Calls) != 0 {
 			return true
 		}
 	}
@@ -54,8 +55,8 @@ func (b *uniqueWriteBinding) inheritConsumedPrograms(old *uniqueWriteBinding) er
 	return nil
 }
 
-func (b *uniqueWriteBinding) inheritIndexProgram(original *catalog.State, index *catalog.Relation, programme *routineAdmissionProgram) error {
-	if len(programme.calls) == 0 {
+func (b *uniqueWriteBinding) inheritIndexProgram(original *catalog.State, index *catalog.Relation, programme *exec.RoutineProgram) error {
+	if len(programme.Calls) == 0 {
 		return nil
 	}
 	if index == nil || original.Get(index.Address()) != index {
@@ -67,13 +68,13 @@ func (b *uniqueWriteBinding) inheritIndexProgram(original *catalog.State, index 
 	}
 	for i := range b.keys {
 		if b.keys[i].index == current {
-			b.keys[i].preparation.admission.include(programme)
+			b.keys[i].preparation.admission.Include(programme)
 			return nil
 		}
 	}
 	for i := range b.insertion {
 		if b.insertion[i].unique == nil && b.insertion[i].index == current {
-			b.insertion[i].preparation.admission.include(programme)
+			b.insertion[i].preparation.admission.Include(programme)
 			return nil
 		}
 	}

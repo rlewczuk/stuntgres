@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -65,7 +66,7 @@ func partitionAttachUnitWrite(t *testing.T, e *Engine, session *session.Session,
 
 func partitionAttachUnitValues(t *testing.T, view *visibility.View, ref ids.ObjectRef) []int64 {
 	t.Helper()
-	source, err := captureQuerySource(context.Background(), view, ref)
+	source, err := exec.CaptureSource(context.Background(), view, ref)
 	if err != nil {
 		t.Fatal(err)
 	}

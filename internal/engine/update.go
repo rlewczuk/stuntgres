@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
@@ -552,7 +553,7 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *analyze.Binding, row 
 		return "", err
 	}
 	if whole&authorization.SelectPrivilege != 0 {
-		return failingRowDetail(row, s.output, nil, nil, b.Relation)
+		return exec.FailingRowDetail(row, s.output, nil, nil, b.Relation)
 	}
 	// Preserve the small/wide supplied-column manifest convention. Assignment
 	// order can differ from physical order, which governs diagnostic disclosure.
@@ -593,5 +594,5 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *analyze.Binding, row 
 	if suppressEmpty && len(visible) == 0 {
 		return "", nil
 	}
-	return failingRowDetail(row, s.output, b.Relation.Columns, visible, b.Relation)
+	return exec.FailingRowDetail(row, s.output, b.Relation.Columns, visible, b.Relation)
 }

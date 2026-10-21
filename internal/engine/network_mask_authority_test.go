@@ -3,16 +3,16 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestNetworkMaskOriginalAuthority(t *testing.T) {
@@ -45,7 +45,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			outer, err := routine.ExpressionRoutineDescriptor(node)
+			outer, err := exec.ExpressionRoutineDescriptor(node)
 			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing selected routine", err)
 			}
@@ -63,7 +63,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 				t.Fatal("wrong dependency identities", found)
 			}
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}
 			foreign := New()
@@ -83,7 +83,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 					checks = append(checks, dep)
 				}
 				evaluation.RoutineChecks = checks
-				if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
+				if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 					t.Fatal("invalid selected authority", mode)
 				}
 			}
@@ -105,11 +105,11 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 				}
 			}
 			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
-			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("retag fabricated authority")
 			}
 			evaluation.RoutineChecks = binder.Dependencies
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority changed", err)
 			}
 		})

@@ -1,22 +1,11 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
-
-// PostgreSQL leaves RECORD calls unreduced so their concrete tuple description
-// survives, even for a strict known-NULL input (evaluate_function, REL_18_0).
-// Scalar calls may disappear in either target or FROM position; SRFs may not.
-func strictScalarRoutine(routine *catalog.Procedure) bool {
-	return routine != nil && routine.Strict && routine.RoutineKind == catalog.FunctionRoutine &&
-		routine.Result != 2249 && !procedureReturnsSet(routine)
-}
 
 // Child preflight has already preserved ordinary constant errors and parameter
 // input validation. A NULL proof cannot cross a domain conversion in that
@@ -33,16 +22,16 @@ func foldStrictParameterNull(c *exec.Context, node expr.Expr) (expr.Expr, bool, 
 		// making the whole NULL-aware or multi-comparison expression strict.
 		return node, false, nil
 	}
-	selected, err := routine.ExpressionRoutineDescriptor(node)
+	selected, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil {
 		return nil, false, err
 	}
-	if !strictScalarRoutine(selected) {
+	if !exec.StrictScalarRoutine(selected) {
 		return node, false, nil
 	}
 	null := false
 	var failure error
-	strictRoutineArguments(node, func(argument expr.Expr) {
+	exec.StrictRoutineArguments(node, func(argument expr.Expr) {
 		if null || failure != nil {
 			return
 		}
@@ -56,16 +45,6 @@ func foldStrictParameterNull(c *exec.Context, node expr.Expr) (expr.Expr, bool, 
 	}
 	info := foldedExpressionInfo(node)
 	return plan.LiteralExpr{Info: info, Value: sqltype.ResultNull(info.Usage)}, true, nil
-}
-
-// Expanded variadic path elements form one non-NULL array argument. A NULL
-// element is not a NULL formal; explicit VARIADIC retains the array child.
-func strictRoutineArguments(node expr.Expr, visit func(expr.Expr)) {
-	if expression, ok := node.(functions.JSONExtract); ok && !expression.Variadic {
-		visit(expression.Args[0])
-		return
-	}
-	plan.ExpressionChildren(node, visit)
 }
 
 func executionKnownNullArgument(c *exec.Context, node expr.Expr) (bool, error) {

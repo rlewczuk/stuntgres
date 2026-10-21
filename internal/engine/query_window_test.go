@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
@@ -17,7 +19,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Observe real operations on the window stack and invoke an ordinary CancelFunc.
@@ -119,7 +120,7 @@ func TestQueryWindowActualPhaseCancellation(t *testing.T) {
 				q = "SELECT count(*) OVER(ORDER BY id RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t"
 			}
 			_, query, source := queryCoreFixture(t, q)
-			continuation, err := captureQuerySource(context.Background(), source.View, source.Ref)
+			continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}

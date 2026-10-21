@@ -2,10 +2,12 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
@@ -91,25 +93,25 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	importer := scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{actual}}, true)
 	formal := analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, sqltype.Int4)}}
 	frame := make([]sqltype.Value, 1)
-	var original []routineAdmission
+	var original []exec.RoutineCall
 	for i := range 32 {
 		if commandErr = importer(op.Context(), formal, frame, scope.input); commandErr != nil {
 			t.Fatal(commandErr)
 		}
 		clear(frame)
-		if len(scope.routinePrograms) != 1 || len(scope.routinePrograms[0].admission.calls) == 0 {
+		if len(scope.routinePrograms) != 1 || len(scope.routinePrograms[0].admission.Calls) == 0 {
 			t.Fatal("actual invocations did not retain one consumed authority graph")
 		}
-		calls := scope.routinePrograms[0].admission.calls
+		calls := scope.routinePrograms[0].admission.Calls
 		if i == 0 {
-			original = append([]routineAdmission(nil), calls...)
+			original = append([]exec.RoutineCall(nil), calls...)
 		}
 		if len(calls) != len(original) {
 			t.Fatal("repeated actuals retained a hop-sized history")
 		}
 		for j, call := range calls {
 			old := original[j]
-			if call.reference != old.reference || call.routine != old.routine || call.consumer != old.consumer || call.actor != old.actor {
+			if call.Reference != old.Reference || call.Routine != old.Routine || call.Consumer != old.Consumer || call.Actor != old.Actor {
 				t.Fatal("coalescing replaced original consumed-call ownership")
 			}
 		}
@@ -124,7 +126,7 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	if authErr != nil {
 		t.Fatal(authErr)
 	}
-	if err := scope.routinePrograms[0].admission.readmit(auth); err == nil {
+	if err := scope.routinePrograms[0].admission.Readmit(routineAccessOf(auth)); err == nil {
 		t.Fatal("coalesced consumed calls accepted a foreign authority")
 	}
 }

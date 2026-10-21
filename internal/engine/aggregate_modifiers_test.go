@@ -5,6 +5,8 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -13,7 +15,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestAggregateModifiersTupleDistinct(t *testing.T) {
@@ -369,7 +370,7 @@ func TestAggregateModifiersExecutionStateIsolation(t *testing.T) {
 		if execution > 0 {
 			snapshot := run(t, e, "SELECT * FROM t").Rows.(*exec.FinalRows)
 			var err error
-			source, err = captureQuerySource(context.Background(), snapshot.Source.View, snapshot.Source.Ref)
+			source, err = exec.CaptureSource(context.Background(), snapshot.Source.View, snapshot.Source.Ref)
 			snapshot.Close()
 			if err != nil {
 				t.Fatal(err)

@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 )
 
 // Reuse the persisted recipe's actual reference when validating it. COW ACL and
@@ -27,16 +27,16 @@ func (r scalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) e
 			}
 		}
 	}
-	captured, err := routine.ExpressionRoutineDescriptor(node)
+	captured, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil || captured == nil {
 		return err
 	}
 	if err := r.recordStoredRoutineDescriptor(view, captured); err != nil {
 		return err
 	}
-	return routine.WalkRoutineBody(captured, node, func(body *catalog.Procedure) error {
+	return exec.WalkRoutineBody(captured, node, func(body *catalog.Procedure) error {
 		current, ok := r.descriptor(view, body.Address()).(*catalog.Procedure)
-		if !ok || !routine.SameRoutineDeclaration(current, body) {
+		if !ok || !exec.SameRoutineDeclaration(current, body) {
 			return fmt.Errorf("stuntgres: stale stored SQL body declaration")
 		}
 		// Body links describe immutable declarations; only this renderer's
@@ -46,7 +46,7 @@ func (r scalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) e
 }
 
 func (r scalarRenderer) recordStoredRoutineDescriptor(view catalog.Read, captured *catalog.Procedure) error {
-	current, err := routine.ValidateStoredRoutineDescriptor(view, captured)
+	current, err := exec.ValidateStoredRoutineDescriptor(view, captured)
 	if err != nil {
 		return err
 	}

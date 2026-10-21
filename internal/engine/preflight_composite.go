@@ -83,7 +83,7 @@ func preflightComposite(c *exec.Context, node expr.Composite, decisiveDefaults b
 func preflightEvaluate(c *exec.Context, node expr.Expr, changed bool) (expr.Expr, bool, error) {
 	p := node.Properties()
 	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-		value, err := evaluatePlanningExpression(c, node)
+		value, err := exec.EvaluatePlanningExpression(c, node)
 		return preflightValue(c, expr.InfoOf(node), value, err)
 	}
 	return node, changed, nil

@@ -39,6 +39,11 @@ type Host interface {
 	TouchForeignScan(ctx context.Context, source *ForeignQuerySource) error
 	EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
 
+	// Admission: the statement's routine admission authority and its
+	// original dependency manifest. Reads statement-owned fields only; fails
+	// once the statement has finished.
+	RoutineAdmission() (RoutineAccess, []catalog.ExpressionDependency, error)
+
 	// Sequences: acquires the sequence lock, then reads the generator under
 	// Engine.mu.
 	CompletePGSequence(ctx context.Context, ref ids.ObjectRef, row []sqltype.Value) error

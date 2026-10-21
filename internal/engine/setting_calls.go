@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -109,7 +110,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		invoke = !knownNull
 	}
 	if invoke {
-		if err := admitRoutineReference(&evaluation, binding.routine, "function"); err != nil {
+		if err := exec.AdmitRoutineReference(&evaluation, binding.routine, "function"); err != nil {
 			return Result{}, err
 		}
 	}
@@ -132,7 +133,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	evaluation.RoutineAuthority = &current
 	if invoke {
-		if err := admitRoutineReference(&evaluation, binding.routine, "function"); err != nil {
+		if err := exec.AdmitRoutineReference(&evaluation, binding.routine, "function"); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

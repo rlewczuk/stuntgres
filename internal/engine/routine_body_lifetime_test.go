@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +42,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	}
 	original := binder.Dependencies
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: original}}
-	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("genuine original body authority", err)
 	}
 	var missing []catalog.ExpressionDependency
@@ -53,11 +52,11 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 		}
 	}
 	evaluation.RoutineChecks = missing
-	if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
+	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("body acquired lifetime from raw OID after its original ref was removed")
 	}
 	evaluation.RoutineChecks = []catalog.ExpressionDependency{}
-	if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
+	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("empty owning recipe borrowed another manifest")
 	}
 
@@ -75,7 +74,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	}
 	evaluation.RoutineAuthority = &foreign
 	evaluation.RoutineChecks = original
-	if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
+	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("foreign original body accepted")
 	}
 	remapped, _, err := retagBoundTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -88,12 +87,12 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
+	if err := exec.AdmitRoutineCall(&evaluation, remapped, true, false); err == nil {
 		t.Fatal("retag manufactured destination lifetime from descriptor addresses")
 	}
 	evaluation.RoutineAuthority = &auth
 	evaluation.RoutineChecks = original
-	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("negative probes changed source recipe", err)
 	}
 }
@@ -138,7 +137,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	// no reconstructed/grafted expected recipe substitutes for the stored one.
 	originalRefs := append([]ids.ObjectRef(nil), original[0].refs...)
 	originalChecks := append([]catalog.ExpressionDependency(nil), original[1].checks...)
-	sourceCall, err := routine.ExpressionRoutineDescriptor(original[0].node)
+	sourceCall, err := exec.ExpressionRoutineDescriptor(original[0].node)
 	if err != nil || sourceCall == nil {
 		t.Fatal("missing original DEFAULT routine carrier", err)
 	}
@@ -163,7 +162,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		if item.consumer == original[i].consumer || item.consumer.Owner != target.roles.domain.Principal(item.consumer.Owner.ID()) {
 			t.Fatal("stored consumer retained source ownership", i)
 		}
-		call, err := routine.ExpressionRoutineDescriptor(item.node)
+		call, err := exec.ExpressionRoutineDescriptor(item.node)
 		if err != nil || call == nil || call.Address() != sourceCall.Address() || call == sourceCall ||
 			call.Owner != target.roles.domain.Principal(call.Owner.ID()) || call.Revision() == 0 {
 			t.Fatal("stored call lost destination declaration provenance", i, err)
@@ -178,7 +177,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 				RoutineChecks:     item.checks,
 			},
 		}
-		if err := admitRoutineCall(&evaluation, item.node, true, false); err != nil {
+		if err := exec.AdmitRoutineCall(&evaluation, item.node, true, false); err != nil {
 			t.Fatal("remapped original recipe admission", i, err)
 		}
 		// The released TEXT wrapper calls octet_length(text), then int4mul.
@@ -226,18 +225,18 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			if err := target.ValidateObjectRef(current, selected); err != nil {
 				t.Fatal("remapped original ref invalid", err)
 			}
-			if err := admitRoutineCall(&probe, item.node, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, item.node, true, false); err == nil {
 				t.Fatal("missing original body ref was rescued", i, id)
 			}
 		}
 		foreign := evaluation
 		foreign.RoutineAuthority = &sourceAuth
-		if err := admitRoutineCall(&foreign, item.node, true, false); err == nil {
+		if err := exec.AdmitRoutineCall(&foreign, item.node, true, false); err == nil {
 			t.Fatal("destination recipe borrowed source authority", i)
 		}
 		old := evaluation
 		old.RoutineReferences, old.RoutineChecks = original[i].refs, original[i].checks
-		if err := admitRoutineCall(&old, item.node, true, false); err == nil {
+		if err := exec.AdmitRoutineCall(&old, item.node, true, false); err == nil {
 			t.Fatal("destination recipe borrowed same-address source manifest", i)
 		}
 		if i == 1 {
@@ -248,7 +247,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 					stale.RoutineChecks[j].Revision++
 				}
 			}
-			if err := admitRoutineCall(&stale, item.node, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&stale, item.node, true, false); err == nil {
 				t.Fatal("view accepted mismatched original routine revision")
 			}
 		}
@@ -272,7 +271,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 				RoutineChecks:     item.checks,
 			},
 		}
-		if err := admitRoutineCall(&evaluation, item.node, true, false); err != nil {
+		if err := exec.AdmitRoutineCall(&evaluation, item.node, true, false); err != nil {
 			t.Fatal("source original recipe lost admission", i, err)
 		}
 	}
@@ -333,12 +332,12 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual provider selection", err)
 			}
-			outer, err := routine.ExpressionRoutineDescriptor(node)
+			outer, err := exec.ExpressionRoutineDescriptor(node)
 			if err != nil || outer == nil || outer.Address().ObjectID != test.id {
 				t.Fatal("selected released root", outer, err)
 			}
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original body admission", err)
 			}
 			for _, id := range test.calls {
@@ -350,7 +349,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 					}
 				}
 				evaluation.RoutineChecks = missing
-				if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
+				if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 					t.Fatal("selected body lifetime was manufactured or omitted", id)
 				}
 			}

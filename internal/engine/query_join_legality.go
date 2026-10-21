@@ -2,13 +2,13 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -129,13 +129,13 @@ func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 	if expression == nil {
 		return nil
 	}
-	recipe, err := routine.ExpressionRecipeDescriptor(expression)
+	recipe, err := exec.ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return err
 	}
 	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
 		local := *c
-		if err := selectExpressionRecipe(&local, recipe); err != nil {
+		if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
 			return err
 		}
 		c = &local
@@ -143,7 +143,7 @@ func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 	if err := c.Context.Err(); err != nil {
 		return err
 	}
-	if err := admitRoutineCall(c, expression, true, false); err != nil {
+	if err := exec.AdmitRoutineCall(c, expression, true, false); err != nil {
 		return err
 	}
 	if column, ok := expression.(plan.ColumnExpr); ok && column.Virtual != nil {
@@ -226,7 +226,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				return err
 			}
 			for _, call := range n.Calls {
-				if err := admitRoutineReference(c, call.Routine, "aggregate"); err != nil {
+				if err := exec.AdmitRoutineReference(c, call.Routine, "aggregate"); err != nil {
 					return err
 				}
 				if len(call.Distinct) > 1 {
@@ -242,7 +242,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 			if call.AnalysisOnly {
 				continue
 			}
-			if err := admitRoutineReference(c, call.Routine, "function"); err != nil {
+			if err := exec.AdmitRoutineReference(c, call.Routine, "function"); err != nil {
 				return err
 			}
 		}
@@ -257,7 +257,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				if analyze.PrivateTreeGrouping(key.Expression.ResultUsage().Type) {
 					continue
 				}
-				if err := admitRoutineReference(c, key.EqualityRoutine, "function"); err != nil {
+				if err := exec.AdmitRoutineReference(c, key.EqualityRoutine, "function"); err != nil {
 					return err
 				}
 			}
@@ -268,7 +268,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				if n.ScalarNull != nil && n.ScalarNull[i] {
 					continue
 				}
-				if err := admitRoutineCall(c, call, false, false); err != nil {
+				if err := exec.AdmitRoutineCall(c, call, false, false); err != nil {
 					return err
 				}
 			}
@@ -276,7 +276,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	case *plan.SetProjectNode:
 		// Target calls initialize even when the child's FROM input is dead.
 		for _, call := range n.Calls {
-			if err := admitRoutineCall(c, call, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(c, call, false, false); err != nil {
 				return err
 			}
 		}
@@ -631,4 +631,28 @@ func fullJoinComparisonOperator(operator string, negate bool) string {
 		return "<"
 	}
 	return ""
+}
+
+// Query equality is caller-checked; index/hash support and native semantic-tree
+// grouping are deliberately not callable PostgreSQL routines.
+func admitQueryGroupings(c *exec.Context, groups []plan.Grouping, keys []expr.Expr) error {
+	if len(groups) != len(keys) {
+		return fmt.Errorf("stuntgres: missing query grouping identity")
+	}
+	for i, group := range groups {
+		private := analyze.PrivateTreeGrouping(keys[i].ResultUsage().Type)
+		if private != group.PrivateTree {
+			return fmt.Errorf("stuntgres: changed query grouping capability")
+		}
+		if private {
+			if group.Routine.Address.ObjectID != 0 {
+				return fmt.Errorf("stuntgres: native tree grouping has a callable identity")
+			}
+			continue
+		}
+		if err := exec.AdmitRoutineReference(c, group.Routine, "function"); err != nil {
+			return err
+		}
+	}
+	return nil
 }

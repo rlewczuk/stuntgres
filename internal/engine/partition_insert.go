@@ -252,7 +252,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 			label = catalog.Identifier(label)
 		}
 		names.WriteString(label)
-		if err := writeDiagnosticValue(ctx, &values, key[i].Value, output); err != nil {
+		if err := exec.WriteDiagnosticValue(ctx, &values, key[i].Value, output); err != nil {
 			return err
 		}
 	}

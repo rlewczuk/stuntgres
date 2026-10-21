@@ -5,11 +5,12 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
-	"testing"
 )
 
 func truncateUnitError(t *testing.T, e *Engine, s *session.Session, q, code string) {
@@ -196,7 +197,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		filter bool
 		count  int
 	}{{p, true, 0}, {q, false, 1}} {
-		source, err := captureQueryPrefix(scope.view, test.ref)
+		source, err := exec.CapturePrefix(scope.view, test.ref)
 		if err != nil {
 			t.Fatal(err)
 		}

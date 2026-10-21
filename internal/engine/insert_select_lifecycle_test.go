@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestInsertSelectSourceTimeoutPosition(t *testing.T) {
@@ -101,7 +102,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Unlock()
-			source, err := captureQuerySource(op.Ctx, view, b.QuerySources[0].Ref)
+			source, err := exec.CaptureSource(op.Ctx, view, b.QuerySources[0].Ref)
 			if err != nil {
 				t.Fatal(err)
 			}

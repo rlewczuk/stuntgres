@@ -38,7 +38,9 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   `ViewPayload`, `RulesPayload`, `PolicyPayload` and
   `ExtensionImplementation`. Expression payloads hold `expr.Expr`. The
   readers `RulesPayload.Len`/`Visit` (ordered `RuleFact`s: OID, name, event
-  code, INSTEAD, references), `ViewPayload.Options` and
+  code, INSTEAD, references), `ViewPayload.Options`,
+  `ViewPayload.Dependencies` (the frozen dependency manifest that `exec`
+  routine admission reads for a grafted recipe) and
   `PolicyPayload.VisitExpression` serve `analyze`, `pgcatalog` and the
   object-identity helpers; the nil-safe `Relation.HasRules`,
   `Relation.VisitRules` and `PolicyDefinition.VisitExpressions` (USING, then

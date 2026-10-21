@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -132,7 +133,7 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 		return captureDeniedQuerySource(view, b.Ref)
 	}
 	if len(s.inheritedTargets) == 0 {
-		return captureQuerySource(ctx, view, b.Ref)
+		return exec.CaptureSource(ctx, view, b.Ref)
 	}
 	pin := view.Retain()
 	if pin == nil {
@@ -150,7 +151,7 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 			source.Close()
 			return nil, err
 		}
-		prefix, err := captureQuerySource(ctx, view, target.Ref)
+		prefix, err := exec.CaptureSource(ctx, view, target.Ref)
 		if err != nil {
 			source.Close()
 			return nil, err

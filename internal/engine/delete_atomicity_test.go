@@ -37,7 +37,7 @@ func deleteProbeScope(t *testing.T, s *session.Session) (*StatementScope, analyz
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	source, err := captureQuerySource(op.Context(), view, ref)
+	source, err := exec.CaptureSource(op.Context(), view, ref)
 	if err != nil {
 		_ = scope.Finish(err)
 		t.Fatal(err)
@@ -360,7 +360,7 @@ func TestDeleteCoreDeletedScanCancellation(t *testing.T) {
 	root := e.storage.Relations[scope.lockedRef.Address].Ends
 	target := scope.lockedRef // Finish retires admission; retain the exact witness.
 	frontier := e.visibility.CommitSeq()
-	source, err := captureQuerySource(ctx, view, scope.lockedRef)
+	source, err := exec.CaptureSource(ctx, view, scope.lockedRef)
 	if source != nil || !errors.Is(err, context.Canceled) || ctx.checks.Load() != 2 {
 		_ = scope.Finish(err)
 		t.Fatal(source, err, ctx.checks.Load())

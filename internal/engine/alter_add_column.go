@@ -158,11 +158,11 @@ func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32
 			recipe := evaluation
 			recipe.RoutineRecipe, recipe.RoutineGraft = true, false
 			recipe.RoutineReferences, recipe.RoutineConsumer = added.dependencies, added.consumer
-			planned, _, err := preflightCoercionsWithPolicy(&recipe, added.expression, true)
+			planned, _, err := exec.PreflightCoercionsWithPolicy(&recipe, added.expression, true)
 			if err != nil {
 				return nil, false, alterCookingError(err)
 			}
-			if err := validateExpressionJoinExecution(&recipe, planned, recipe.Catalog); err != nil {
+			if err := exec.AdmitExpression(&recipe, planned, recipe.Catalog); err != nil {
 				return nil, false, alterCookingError(err)
 			}
 			added.expression = planned

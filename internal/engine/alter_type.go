@@ -433,12 +433,12 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 					recipe := evaluation
 					recipe.RoutineRecipe, recipe.RoutineGraft = true, false
 					recipe.RoutineChecks = transform.dependencies
-					node, changed, err := preflightCoercionsWithPolicy(&recipe, transform.expression, true)
+					node, changed, err := exec.PreflightCoercionsWithPolicy(&recipe, transform.expression, true)
 					evaluation.PreparedDomainChecks = recipe.PreparedDomainChecks
 					if err != nil {
 						return nil, err
 					}
-					if err := validateExpressionJoinExecution(&recipe, node, recipe.Catalog); err != nil {
+					if err := exec.AdmitExpression(&recipe, node, recipe.Catalog); err != nil {
 						return nil, err
 					}
 					if changed {

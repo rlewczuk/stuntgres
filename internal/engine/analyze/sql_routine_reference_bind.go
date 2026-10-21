@@ -3,8 +3,8 @@ package analyze
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 )
 
 func (b *Binder) captureSQLRoutineReference(path ViewLiteralPath, n plan.SQLRoutineExpr) error {
@@ -15,7 +15,7 @@ func (b *Binder) captureSQLRoutineReference(path ViewLiteralPath, n plan.SQLRout
 	if n.Ref != b.Host.CatalogOwner().Domain.Ref(read.Epoch(), n.Procedure.Address()) {
 		return fmt.Errorf("stuntgres: invalid frozen SQL routine reference")
 	}
-	if _, err := routine.ValidateStoredRoutineDescriptor(read, n.Procedure); err != nil {
+	if _, err := exec.ValidateStoredRoutineDescriptor(read, n.Procedure); err != nil {
 		return err
 	}
 	return b.Capture.CaptureRoutineReference(path, n.Ref)

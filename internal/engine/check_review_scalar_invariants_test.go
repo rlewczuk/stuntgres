@@ -167,7 +167,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	evaluation.RoutineRecipe = true
 	evaluation.RoutineChecks = relation.Constraints.Check[0].Dependencies
 	evaluation.RoutineConsumer = relation
-	if err := admitRoutineCall(&evaluation, inquiry, true, false); err != nil {
+	if err := exec.AdmitRoutineCall(&evaluation, inquiry, true, false); err != nil {
 		t.Fatal(err)
 	}
 	value, err := inquiry.Eval(&evaluation)

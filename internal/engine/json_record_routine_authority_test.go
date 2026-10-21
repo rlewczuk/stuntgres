@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -93,7 +92,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if call.Args[jsonIndex].ResultUsage().Type.ID() != sqltype.JSON || tc.anonymous != call.ResultUsage().Type.IsDeferredRecord() {
 				t.Fatal("SQL-order JSON/base and physical result usages", call)
 			}
-			captured, err := routine.ExpressionRoutineDescriptor(call)
+			captured, err := exec.ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
@@ -159,7 +158,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			// Use real source/project admission, not scalar-planning's SRF skip.
-			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original source/project admission", err)
 			}
 			missing := make([]catalog.ExpressionDependency, 0, len(original))
@@ -171,7 +170,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.RoutineChecks = manifest
-				if err := admitRoutineCall(&probe, call, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("missing original authority repaired from equal OID")
 				}
 			}
@@ -188,13 +187,13 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 				probe := evaluation
 				probe.RoutineChecks = stale
-				if err := admitRoutineCall(&probe, call, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("stale epoch/revision admitted")
 				}
 			}
 			probe := evaluation
 			probe.RoutineAuthority = foreign.RoutineAuthority
-			if err := admitRoutineCall(&probe, call, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
 			}
 			remapped, _, err := retagBoundTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -213,7 +212,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
 				probe.RoutineChecks = manifest
-				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("foreign retag manufactured original destination manifest")
 				}
 			}
@@ -224,18 +223,18 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.RoutineAuthority = &changed
-			if err := admitRoutineCall(&probe, call, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("incompatible declaration replacement admitted")
 			}
 			invalid := call
 			invalid.Info.RoutineReference = (*catalog.Procedure)(nil)
-			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed nil routine carrier admitted")
 			}
 			if !reflect.DeepEqual(call, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("completion/probes mutated original node or manifest")
 			}
-			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original authority changed after negative probes", err)
 			}
 		})
@@ -300,7 +299,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if next.Info != expectedInfo || next.Defined != expectedDefined || next.Plan.Name() != call.Plan.Name() || next.Plan.ResultUsage() != next.ResultUsage() || next.Plan.BaseIndex() != -1 || !reflect.DeepEqual(next.Args, expectedGraft.Args) {
 				t.Fatal("completion/reconstruction/retag lost original routine/recipe/physical call", next)
 			}
-			if err := admitRoutineCall(&evaluation, retained, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, retained, false, false); err != nil {
 				t.Fatal("actual original stored recipe admission", err)
 			}
 		}

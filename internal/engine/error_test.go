@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestSQLDiagnosticSeverityAndRowDetail(t *testing.T) {
 		{[]sqltype.Value{sqltype.String(text, strings.Repeat("x", 65))}, "Failing row contains (" + strings.Repeat("x", 64) + "...)."},
 		{[]sqltype.Value{sqltype.String(text, strings.Repeat("x", 63)+"é")}, "Failing row contains (" + strings.Repeat("x", 63) + "...)."},
 	} {
-		if detail, err := failingRowDetail(tc.row, sqltype.OutputEnvironment{}, nil, nil, nil); err != nil || detail != tc.want {
+		if detail, err := exec.FailingRowDetail(tc.row, sqltype.OutputEnvironment{}, nil, nil, nil); err != nil || detail != tc.want {
 			t.Errorf("detail = %q, want %q", detail, tc.want)
 		}
 	}

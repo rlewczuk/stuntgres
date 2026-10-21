@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -18,7 +19,7 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	c := payloadOf(s).cursors.entries["c"]
 	source, index, root := c.currentSource, c.currentIndex, c.root
 	ref := catalogRef(t, engineOf(s), engineOf(s).CatalogRead(), "unit_rows")
-	identity := cursorOccurrenceVersion(source, index, 0, c.locks)
+	identity := exec.CursorOccurrenceVersion(source, index, 0, c.locks)
 	engineOf(s).mu.Lock()
 	want := engineOf(s).storage.Relations[ref.Address].Versions[1].Row
 	engineOf(s).mu.Unlock()
@@ -27,7 +28,7 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	}
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
-	if c.currentSource != source || c.currentIndex != index || c.root != root || c.position != cursorOn || c.authority.Host != nil || cursorOccurrenceVersion(source, index, 0, c.locks).Row != want {
+	if c.currentSource != source || c.currentIndex != index || c.root != root || c.position != cursorOn || c.authority.Host != nil || exec.CursorOccurrenceVersion(source, index, 0, c.locks).Row != want {
 		t.Fatal("UPDATE consumed or replaced borrowed cursor authority")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 3, 22)
@@ -46,7 +47,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 	sessionSQL(t, s, "SAVEPOINT recover")
 	c := payloadOf(s).cursors.entries["c"]
-	identity := cursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
+	identity := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, err := s.Acquire(ctx)
@@ -126,7 +127,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 FROM keyed WHERE id=1 FOR KEY SHARE")
 		cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
 		c := payloadOf(s).cursors.entries["c"]
-		identity := cursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
+		identity := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
 		ref := catalogRef(t, e, e.CatalogRead(), "keyed")
 		deleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
 		lockState := e.locks.Inspect()
@@ -153,7 +154,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	sessionSQL(t, worker, "DECLARE c CURSOR FOR SELECT 99 FROM t")
 	cursorUnitBatch(t, worker, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
 	c := payloadOf(worker).cursors.entries["c"]
-	identity := cursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
+	identity := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
 	tx := transactionBegin(t, holder)
 	deleteCount(t, holder, "UPDATE t SET v=8 WHERE v=7", 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

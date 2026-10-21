@@ -29,7 +29,7 @@ func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, 
 		local.DomainPhase = ids.CommandIdentity{Transaction: scope.txRef, Command: scope.command}
 		local.PreparedDomainChecks = scope.domains.preparedChecks
 	}
-	auth, _, err := routineAdmissionAuthority(&local)
+	auth, _, err := exec.RoutineAdmissionAuthority(&local)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -42,7 +42,7 @@ func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, 
 		expressions = scope.partitionsOrZero().programs[identity]
 	}
 	if expressions == nil {
-		var admission routineAdmissionProgram
+		var admission exec.RoutineProgram
 		expressions = make([]expr.Expr, len(owner.Partition.Keys))
 		for i, entry := range owner.Partition.Keys {
 			if entry.Derived == nil {
@@ -60,8 +60,8 @@ func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, 
 			}
 			scope.partitions().programs[identity] = expressions
 			scope.routinePrograms = append(scope.routinePrograms, commandRoutineProgram{admission: admission})
-		} else if program := routineProgramOf(&local); program != nil {
-			program.include(&admission)
+		} else if program := local.RoutineProgram; program != nil {
+			program.Include(&admission)
 		}
 	}
 	// Keep this key's manifest selected during lazy SQL-body evaluation too.

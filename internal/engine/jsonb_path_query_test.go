@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -45,7 +44,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if uint32(call.ResultUsage().Type.ID()) != tc.result || call.Properties().Volatility != expr.Immutable || exec.SourceReturnsSet(call) != tc.set {
 				t.Fatal("typed immutable consumer contract", call)
 			}
-			captured, err := routine.ExpressionRoutineDescriptor(call)
+			captured, err := exec.ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing actual bound declaration", captured, err)
 			}
@@ -85,10 +84,10 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := admitRoutineDescriptor(auth, b.Dependencies, captured, nil); err != nil {
+			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 				t.Fatal("original lifetime", err)
 			}
-			if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), nil, captured, nil); err == nil {
 				t.Fatal("repaired missing manifest")
 			}
 			checks := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -97,7 +96,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 					checks[i].Revision++
 				}
 			}
-			if err := admitRoutineDescriptor(auth, checks, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), checks, captured, nil); err == nil {
 				t.Fatal("admitted stale declaration")
 			}
 			if tc.set {

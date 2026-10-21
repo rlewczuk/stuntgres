@@ -2,9 +2,9 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/sqltype"
 )
@@ -132,7 +132,7 @@ func storedViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref
 		}
 		return ok && old.Address() == address && old.Revision() != 0 &&
 			old.Owner.ID() != 0 && old.Owner == view.Owner().Principals.Principal(old.Owner.ID()) &&
-			routine.SameRoutineDeclaration(actual, old)
+			exec.SameRoutineDeclaration(actual, old)
 	}
 	return false
 }

@@ -3,15 +3,15 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
-	"testing"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -37,7 +37,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if !ok || len(carrier.Args) != tc.arity || !exec.SourceAdmitted(carrier) || !binder.Clause.QueryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
-			captured, err := routine.ExpressionRoutineDescriptor(node)
+			captured, err := exec.ExpressionRoutineDescriptor(node)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
@@ -75,7 +75,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			before.Args = append([]expr.Expr(nil), carrier.Args...)
 			// false is the real source/project admission mode. Scalar planning
 			// intentionally skips SRFs and cannot prove any negative below.
-			if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 				t.Fatal("original source/project admission", err)
 			}
 			missing := make([]catalog.ExpressionDependency, 0, len(original))
@@ -87,7 +87,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.RoutineChecks = manifest
-				if err := admitRoutineCall(&probe, node, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 					t.Fatal("source/project admission repaired absent original authority from OID")
 				}
 			}
@@ -104,14 +104,14 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				}
 				probe := evaluation
 				probe.RoutineChecks = stale
-				if err := admitRoutineCall(&probe, node, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 					t.Fatal("stale original source/project manifest admitted")
 				}
 			}
 			probe := evaluation
 			foreignAuth := *routineAuthorityView(&foreign)
 			probe.RoutineAuthority = &foreignAuth
-			if err := admitRoutineCall(&probe, node, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
 			}
 			remapped, _, err := retagBoundTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -127,7 +127,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if len(remapped.(plan.SeriesExpr).Args) != tc.arity {
 				t.Fatal("retag expanded omitted step into a third formal")
 			}
-			if err := admitRoutineCall(&probe, remapped, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, remapped, false, false); err == nil {
 				t.Fatal("foreign retag manufactured original authority")
 			}
 			changed := *routineAuthorityView(&evaluation)
@@ -137,7 +137,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.RoutineAuthority = &changed
-			if err := admitRoutineCall(&probe, node, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("incompatible selected declaration replacement admitted")
 			}
 			// Rendering/rebinding must preserve the short declaration, not emit a
@@ -147,17 +147,17 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("render original carrier", err)
 			}
 			rebound, _, reboundEvaluation := strictNullUnitBind(t, e, op, scope, text)
-			reboundDescriptor, err := routine.ExpressionRoutineDescriptor(rebound)
+			reboundDescriptor, err := exec.ExpressionRoutineDescriptor(rebound)
 			if err != nil || reboundDescriptor != captured || len(rebound.(plan.SeriesExpr).Args) != tc.arity {
 				t.Fatal("render/rebind lost original full-IN declaration", reboundDescriptor, err)
 			}
-			if err := admitRoutineCall(&reboundEvaluation, rebound, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&reboundEvaluation, rebound, false, false); err != nil {
 				t.Fatal("genuine rebound source/project admission", err)
 			}
 			if !reflect.DeepEqual(carrier, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("probes mutated original args/info/reference/manifest")
 			}
-			if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 				t.Fatal("original authority lost after probes", err)
 			}
 		})

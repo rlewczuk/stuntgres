@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
@@ -12,7 +14,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
@@ -136,7 +137,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				source, err := captureQuerySource(op.Ctx, view, b.QuerySources[0].Ref)
+				source, err := exec.CaptureSource(op.Ctx, view, b.QuerySources[0].Ref)
 				if err != nil {
 					t.Fatal(err)
 				}

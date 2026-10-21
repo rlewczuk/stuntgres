@@ -1,4 +1,4 @@
-package routine
+package exec
 
 import (
 	"fmt"
@@ -6,7 +6,9 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 // The cross-package interface is an identity carrier, not catalog authority.
@@ -83,4 +85,47 @@ func ExpressionRecipeDescriptor(node any) (*catalog.Relation, error) {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
 	return recipe, nil
+}
+
+func PolymorphicBodyArgument(node expr.Expr, id ids.OID) expr.Expr {
+	switch n := node.(type) {
+	case functions.StringVariadic:
+		if (id == 1285 || id == 1290) && len(n.Args) == 1 {
+			return n.Args[0]
+		}
+	case functions.String:
+		if id == 2003 && len(n.Args) == 2 {
+			return n.Args[1]
+		}
+		if id == 2004 && len(n.Args) == 2 {
+			return n.Args[0]
+		}
+	}
+	return nil
+}
+
+func BodyCastMatches(edge catalog.RoutineBodyEdge, argument expr.Expr) bool {
+	if argument == nil {
+		return false
+	}
+	id := argument.ResultUsage().Type.BaseType().ID()
+	return edge.Demand == catalog.BodyBooleanText && id == sqltype.Bool || edge.Demand == catalog.BodyNetworkText && (id == sqltype.Inet || id == sqltype.Cidr)
+}
+
+// Lifetime capture is conservative even where strict NULL later removes actual
+// invocation. Only instance-selected polymorphic cast identities participate.
+func WalkRoutineBody(outer *catalog.Procedure, node expr.Expr, visit func(*catalog.Procedure) error) error {
+	argument := PolymorphicBodyArgument(node, outer.Address().ObjectID)
+	for _, edge := range outer.Body {
+		if (edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText) && !BodyCastMatches(edge, argument) {
+			continue
+		}
+		if err := visit(edge.Routine); err != nil {
+			return err
+		}
+		if err := WalkRoutineBody(edge.Routine, nil, visit); err != nil {
+			return err
+		}
+	}
+	return nil
 }

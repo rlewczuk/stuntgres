@@ -3,10 +3,10 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -79,7 +79,7 @@ func queryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 	changed := false
 	plan.QueryExpressions(node, func(expression expr.Expr) {
 		plan.WalkExpression(expression, func(expression expr.Expr) {
-			captured, err := routine.ExpressionRoutineDescriptor(expression)
+			captured, err := exec.ExpressionRoutineDescriptor(expression)
 			if err != nil || captured != nil && view.Get(captured.Address()) != captured {
 				changed = true
 			}

@@ -219,9 +219,9 @@ the DML files call the routing methods; `relationDefiningAuthorityCompatible`
    small root interface with one method each (for example
    `partitionRecipeHost`), implement it on `statementHost`, and recover it
    from `local.LiveHost()` with one checked type assertion, as
-   `scopeOf` does today. The routine admission part of the function
-   (`routineAdmissionAuthority`) becomes clean with 11e (item 75); until
-   then it stays dirty.
+   `scopeOf` does today. The routine admission part of the function is
+   clean since 11e (item 75): it calls `exec.RoutineAdmissionAuthority`
+   and records into an `exec.RoutineProgram`.
 4. **Renames** (one commit, moving whole declarations only):
    - `partitionReadFence` → `storageReadFence` and
      `CatalogStage.partitionReads` → `storageReads`; `partitionReadsValidLocked`

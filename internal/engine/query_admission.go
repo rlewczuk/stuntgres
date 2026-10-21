@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -307,7 +308,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				if !leaf.Relation.Populated {
 					err = materializedViewReadError(leaf.Relation)
 				} else {
-					source, err = captureQueryPrefix(view, leaf.Ref)
+					source, err = exec.CapturePrefix(view, leaf.Ref)
 				}
 			case catalog.PartitionedRelation:
 				if mark.Mode != 0 {

@@ -120,7 +120,7 @@ func TestQueryWindowRankCancellation(t *testing.T) {
 	for _, phase := range []string{"sort", "peer"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT rank() OVER w,dense_rank() OVER w,percent_rank() OVER w,cume_dist() OVER w FROM t WINDOW w AS(ORDER BY v ROWS CURRENT ROW)")
-			continuation, err := captureQuerySource(context.Background(), source.View, source.Ref)
+			continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}

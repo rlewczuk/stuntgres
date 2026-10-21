@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -40,14 +39,14 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 	if err := exec.EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
-	recipe, err := routine.ExpressionRecipeDescriptor(expression)
+	recipe, err := exec.ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return nil, false, err
 	}
 	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
 		parent := c
 		local := *c
-		if err := selectExpressionRecipe(&local, recipe); err != nil {
+		if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
 			return nil, false, err
 		}
 		c = &local
@@ -300,7 +299,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		}
 		p := e.Properties()
 		if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := evaluatePlanningExpression(c, e)
+			value, err := exec.EvaluatePlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		return e, elements != nil, nil
@@ -335,7 +334,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		}
 		p := e.Properties()
 		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := evaluatePlanningExpression(c, e)
+			value, err := exec.EvaluatePlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		if changed {
@@ -356,7 +355,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		}
 		p := e.Properties()
 		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := evaluatePlanningExpression(c, e)
+			value, err := exec.EvaluatePlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		return e, lc || rc, nil
@@ -394,7 +393,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			return nil, false, err
 		}
 		if decisiveDefaults && conditionalConstantInputs(next) {
-			value, err := evaluatePlanningExpression(c, next)
+			value, err := exec.EvaluatePlanningExpression(c, next)
 			return preflightValue(c, next.Info, value, err)
 		}
 		if changed {
@@ -414,7 +413,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			_, rightConstant := right.(plan.LiteralExpr)
 			if leftConstant && rightConstant {
 				e.Left, e.Right = left, right
-				value, err := evaluatePlanningExpression(c, e)
+				value, err := exec.EvaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -445,7 +444,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			if folded, changed, err := foldStrictParameterNull(c, e); err != nil || changed {
 				return folded, changed, err
 			}
-			value, err := evaluatePlanningExpression(c, e)
+			value, err := exec.EvaluatePlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		if decisiveDefaults || e.Usage.Type.ID() == sqltype.Bit {
@@ -453,7 +452,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			_, r := right.(plan.LiteralExpr)
 			p := e.Properties()
 			if l && (right == nil || r) && p == (expr.Properties{}) {
-				v, err := evaluatePlanningExpression(c, e)
+				v, err := exec.EvaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, v, err)
 			}
 		}
@@ -490,7 +489,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			if folded, changed, err := foldStrictParameterNull(c, e); err != nil || changed {
 				return folded, changed, err
 			}
-			value, err := evaluatePlanningExpression(c, e)
+			value, err := exec.EvaluatePlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		if decisiveDefaults || c.PlanStaticOperators {
@@ -498,7 +497,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			// cast may now be a literal without making its parameter static.
 			p := expression.Properties()
 			if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && conditionalConstantInputs(e) {
-				value, err := evaluatePlanningExpression(c, e)
+				value, err := exec.EvaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -514,7 +513,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		if decisiveDefaults {
 			if _, constant := child.(plan.LiteralExpr); constant {
 				e.Child = child
-				value, err := evaluatePlanningExpression(c, e)
+				value, err := exec.EvaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -530,7 +529,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		if decisiveDefaults {
 			if _, constant := child.(plan.LiteralExpr); constant {
 				e.Child = child
-				value, err := evaluatePlanningExpression(c, e)
+				value, err := exec.EvaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -552,7 +551,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			_, rightConstant := right.(plan.LiteralExpr)
 			if leftConstant && rightConstant {
 				e.Left, e.Right = left, right
-				value, err := evaluatePlanningExpression(c, e)
+				value, err := exec.EvaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -589,7 +588,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			_, rightConstant := right.(plan.LiteralExpr)
 			if e.Op == parser.LogicalNot || rightConstant {
 				e.Left, e.Right = left, right
-				value, err := evaluatePlanningExpression(c, e)
+				value, err := exec.EvaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}

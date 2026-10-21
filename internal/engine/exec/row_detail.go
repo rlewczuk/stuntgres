@@ -1,4 +1,4 @@
-package engine
+package exec
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []catalog.Column, visible []int, relation *catalog.Relation) (string, error) {
+func FailingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []catalog.Column, visible []int, relation *catalog.Relation) (string, error) {
 	var b strings.Builder
 	b.WriteString("Failing row contains (")
 	if columns != nil {
@@ -40,7 +40,7 @@ func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, col
 				continue
 			}
 		}
-		if err := writeDiagnosticValue(context.Background(), &b, value, output); err != nil {
+		if err := WriteDiagnosticValue(context.Background(), &b, value, output); err != nil {
 			return "", err
 		}
 	}
@@ -48,7 +48,7 @@ func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, col
 	return b.String(), nil
 }
 
-func writeDiagnosticValue(ctx context.Context, b *strings.Builder, value sqltype.Value, output sqltype.OutputEnvironment) error {
+func WriteDiagnosticValue(ctx context.Context, b *strings.Builder, value sqltype.Value, output sqltype.OutputEnvironment) error {
 	if value.IsNull() {
 		b.WriteString("null")
 		return nil

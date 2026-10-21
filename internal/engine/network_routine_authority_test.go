@@ -3,15 +3,15 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
-	"testing"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -56,7 +56,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual network operator selection", err)
 			}
-			outer, err := routine.ExpressionRoutineDescriptor(node)
+			outer, err := exec.ExpressionRoutineDescriptor(node)
 			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing selected declaration", outer, err)
 			}
@@ -86,7 +86,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("exact original routine manifest", found, want)
 			}
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority", err)
 			}
 			foreign := New()
@@ -107,7 +107,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 						checks = append(checks, dependency)
 					}
 					evaluation.RoutineChecks = checks
-					if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
+					if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 						t.Fatal("accepted invalid original routine lifetime", id, mode)
 					}
 				}
@@ -120,11 +120,11 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
-			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("foreign retag manufactured original lifetime")
 			}
 			evaluation.RoutineChecks = binder.Dependencies
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("negative probes changed source authority", err)
 			}
 		})

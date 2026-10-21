@@ -32,7 +32,7 @@ func parallelTransactionOccurrences(t *testing.T) {
 				want = map[int64]int{7: 1, 8: 1}
 			}
 			captured := sessionSQL(t, s, "SELECT id FROM t").Rows.(*exec.FinalRows)
-			input, err := captureQuerySource(context.Background(), captured.Source.View, captured.Source.Ref)
+			input, err := exec.CaptureSource(context.Background(), captured.Source.View, captured.Source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
@@ -43,7 +44,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source, err := captureQueryPrefix(view, ref)
+		source, err := exec.CapturePrefix(view, ref)
 		if err != nil {
 			t.Fatal(err)
 		}

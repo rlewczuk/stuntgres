@@ -5,6 +5,8 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
@@ -14,7 +16,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestQueryWindowGroupsEndpoints(t *testing.T) {
@@ -170,7 +171,7 @@ func TestQueryWindowGroupsCancellation(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			q := "SELECT id,row_number() OVER(PARTITION BY v ORDER BY id),count(*) OVER(PARTITION BY v ORDER BY id GROUPS BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t"
 			_, query, source := queryCoreFixture(t, q)
-			continuation, err := captureQuerySource(context.Background(), source.View, source.Ref)
+			continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}

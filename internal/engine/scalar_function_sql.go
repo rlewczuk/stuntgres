@@ -6,10 +6,10 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 )
 
 // The common sql entry validates provenance and records dependencies once.
@@ -23,7 +23,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine reference")
 		}
 		procedure, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
-		if !ok || !routine.SameRoutineDeclaration(procedure, n.Procedure) {
+		if !ok || !exec.SameRoutineDeclaration(procedure, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine declaration")
 		}
 		namespace, ok := r.descriptor(view, procedure.Namespace()).(*catalog.Namespace)

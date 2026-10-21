@@ -3,13 +3,14 @@ package exec
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"time"
 )
 
 // Context is the per-evaluation state that engine expression nodes recover
@@ -98,7 +99,7 @@ type EvalAdmission struct {
 	RoutineChecks      []catalog.ExpressionDependency
 	RoutineReferences  []ids.ObjectRef
 	RoutineConsumer    *catalog.Relation
-	RoutineProgram     AdmissionProgram // Borrowed serial preparation footprint, never row-owned.
+	RoutineProgram     *RoutineProgram // Borrowed serial preparation footprint, never row-owned.
 	RoutineBodyContext RoutineBodyContext
 	DomainPhase        ids.CommandIdentity // Existing transaction/command identity, not a permission result.
 }

@@ -318,7 +318,7 @@ func TestQueryWindowValueOutputPublicationCancellation(t *testing.T) {
 	for _, phase := range []string{"output", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT nth_value(v,id) OVER w,count(*) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW)")
-			continuation, err := captureQuerySource(context.Background(), source.View, source.Ref)
+			continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -305,7 +306,7 @@ func (b *Binder) BindSelectedOperatorRoutine(d *catalog.Procedure, args []expr.E
 	if err != nil {
 		return nil, err
 	}
-	actual, err := routine.ExpressionRoutineDescriptor(node)
+	actual, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil {
 		return nil, err
 	}

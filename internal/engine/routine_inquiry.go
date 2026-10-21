@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/routine"
 )
 
 // All SQL query/cursor evaluation borrowing exec.Authority is serialized by the
@@ -20,7 +19,7 @@ type commandRoutineProgram struct {
 	outer     *catalog.Procedure
 	consumer  *catalog.Relation
 	ri        bool
-	admission routineAdmissionProgram
+	admission exec.RoutineProgram
 }
 
 func admitInquiryBody(c *exec.Context, node expr.Info) error {
@@ -29,28 +28,28 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 		return nil
 	} // Legitimate standalone internal provider fixtures.
 	local := *c
-	recipe, err := routine.ExpressionRecipeDescriptor(node)
+	recipe, err := exec.ExpressionRecipeDescriptor(node)
 	if err != nil {
 		return err
 	}
 	if recipe != nil && (!local.RoutineGraft || local.RoutineConsumer != recipe) || recipe == nil && local.RoutineGraft {
-		if err = selectExpressionRecipe(&local, recipe); err != nil {
+		if err = exec.SelectExpressionRecipe(&local, recipe); err != nil {
 			return err
 		}
 	}
-	outer, err := routine.ExpressionRoutineDescriptor(node)
+	outer, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil || outer == nil {
 		return err
 	}
-	auth, dependencies, err := routineAdmissionAuthority(&local)
-	if err != nil || auth.engine == nil {
+	auth, dependencies, err := exec.RoutineAdmissionAuthority(&local)
+	if err != nil || !auth.Live() {
 		return err
 	}
 	ri := scope.foreignActionAuth != nil && scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	for _, programme := range scope.routinePrograms {
 		if programme.outer == outer && programme.consumer == local.RoutineConsumer &&
-			programme.ri == ri && len(programme.admission.calls) != 0 &&
-			programme.admission.calls[0].actor == auth.State.CurrentUser {
+			programme.ri == ri && len(programme.admission.Calls) != 0 &&
+			programme.admission.Calls[0].Actor == auth.State.CurrentUser {
 			return nil
 		}
 	}
@@ -59,14 +58,14 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 	// The outer call has already passed executable-graph admission. Retain
 	// that actual first entry too, so later readmission preserves outer-before-
 	// body diagnostics without another permission check at each row.
-	if err := programme.admission.record(&local, dependencies, outer); err != nil {
+	if err := programme.admission.Record(&local, dependencies, outer); err != nil {
 		return err
 	}
 	local.RoutineBodyContext = exec.RoutineBodyContext{Outer: outer, Statement: true}
 	for _, edge := range outer.Body {
-		body, err := bodyRoutineDescriptor(&local, auth, dependencies, edge)
+		body, err := exec.BodyRoutineDescriptor(&local, auth, dependencies, edge)
 		if err == nil {
-			err = admitRecipeRoutineDescriptor(&local, auth, dependencies, body)
+			err = exec.AdmitRecipeRoutineDescriptor(&local, auth, dependencies, body)
 		}
 		if err != nil {
 			return local.RoutineBodyContext.Annotate(err)
@@ -78,9 +77,9 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 	return nil
 }
 
-func (s *StatementScope) readmitRoutinePrograms(auth AuthorizationView) error {
+func (s *StatementScope) readmitRoutinePrograms(auth exec.RoutineAccess) error {
 	for i := range s.routinePrograms {
-		if err := s.routinePrograms[i].admission.readmit(auth); err != nil {
+		if err := s.routinePrograms[i].admission.Readmit(auth); err != nil {
 			return err
 		}
 	}

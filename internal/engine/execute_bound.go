@@ -458,7 +458,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if scope.rlsTargetDenied {
 			target, err = captureDeniedQuerySource(view, b.Ref)
 		} else {
-			target, err = captureQuerySource(ctx, view, b.Ref)
+			target, err = exec.CaptureSource(ctx, view, b.Ref)
 		}
 		if err != nil {
 			e.mu.Unlock()

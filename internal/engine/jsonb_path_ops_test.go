@@ -2,15 +2,16 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestJSONBPathOpsBinding(t *testing.T) {
@@ -40,7 +41,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if !ok || len(binary.Args) != 2 || binary.ResultUsage().Type.ID() != sqltype.Bool || binary.Properties().Volatility != expr.Immutable || binary.LooksLikeFunction() {
 				t.Fatal("selected scalar contract", call)
 			}
-			captured, err := routine.ExpressionRoutineDescriptor(call)
+			captured, err := exec.ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing executable authority", captured, err)
 			}
@@ -65,10 +66,10 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := admitRoutineDescriptor(auth, b.Dependencies, captured, nil); err != nil {
+			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 				t.Fatal("actual admission", err)
 			}
-			if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), nil, captured, nil); err == nil {
 				t.Fatal("missing dependency repaired")
 			}
 			stale := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -77,7 +78,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 					stale[i].Revision++
 				}
 			}
-			if err := admitRoutineDescriptor(auth, stale, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), stale, captured, nil); err == nil {
 				t.Fatal("stale declaration admitted")
 			}
 			// Reuse the actual routine through the existing custom-operator seam.
@@ -85,7 +86,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			actual, err := routine.ExpressionRoutineDescriptor(alias)
+			actual, err := exec.ExpressionRoutineDescriptor(alias)
 			if err != nil || actual != captured {
 				t.Fatal("alias lost genuine provider", actual, err)
 			}

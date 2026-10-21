@@ -80,7 +80,7 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 | Declarations (file) | Owner | When |
 |---|---|---|
 | `unique_dml.go` (611): `uniqueWriteBinding`, `uniqueBoundKey`, `bindUniqueWrite`, `checkUniqueRow`, `claimUniqueRow`, `probeUniqueRow` | `index` | 23a renames it `index_unique_binding.go` |
-| `captureQuerySource`, `captureQueryPrefix` (`delete.go`), `cursorSimpleScan`, `cursorOccurrenceVersion`, `cursorOccurrencePhysicalRow` (`current_of.go`) | `exec` | 11e |
+| `captureQuerySource`, `captureQueryPrefix` (`delete.go`), `cursorSimpleScan`, `cursorOccurrenceVersion`, `cursorOccurrencePhysicalRow` (`current_of.go`) | `exec` | done in 11e |
 | `mergeDeletions` (`delete.go`), `mergePrivateRows` (`update_versions.go`): write-set helpers, also used by `transaction_finish.go` | root, beside `WriteStage` | 29a |
 | `rowByID` (`update_versions.go`) | `storage` (`storage.RowByID`) | index 23a |
 | `ruleUpdateAssignmentsSQL` (`update_row_dump.go`) | `stored` (rule rendering) | 22c |
@@ -187,7 +187,8 @@ their union plus about ten write-stage and row-lock methods (§7 decision
      `queryTableRefsLocked` to `query_table_refs.go`;
    - `physical_row_events.go` merges into `statement_host_row_lock.go`;
    - `captureQuerySource`, `captureQueryPrefix` and the `cursor*` helpers:
-     leave them if 11e (item 75) has not moved them to `exec`.
+     11e (item 75) moved them to `exec` (`exec.CaptureSource`,
+     `exec.CapturePrefix`, `exec.Cursor*`).
 4. **One receiver style.** `executeUpdate` and `executeMerge` are
    `Engine` methods, `executeDelete` a scope method. Make the three
    statement executors the same kind (prefer functions over the scope and

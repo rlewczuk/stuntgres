@@ -26,9 +26,10 @@ or the engine. Step 14 of the split moves it here; see
   `IdentityDefaults` (`identity_defaults.go`) counts a builtin identity's
   defaulted arguments, including lookup-only ones.
 - **Routine bodies** (`body.go`): the builtin SQL-body edges, resolved once
-  per process and attached to fresh descriptors by `BuiltinProcedures`; `WalkRoutineBody`, `BodyCastMatches`,
-  `PolymorphicBodyArgument` and `EmbeddedCastOID` for body admission and
-  capture.
+  per process and attached to fresh descriptors by `BuiltinProcedures`, and
+  `EmbeddedCastOID` for body capture. The instance-selected body walk
+  (`WalkRoutineBody`, `BodyCastMatches`, `PolymorphicBodyArgument`) lives in
+  `exec` with call admission.
 - **Operator inventory** (`operator_inventory.go`, `operator_routines.go`,
   `operator_routine_index.go`, `operator_names.go`): released operator
   identities (`BuiltinOperatorCount`), their routine associations
@@ -52,10 +53,6 @@ or the engine. Step 14 of the split moves it here; see
   helpers `RestoreDirective`, `ReplayDirective` and `RebindSQLDefinitions`.
 - **Operator dependencies** (`operator_dependencies.go`):
   `OperatorDependencyAddresses` and `OperatorDependsOn`.
-- **Routine descriptors** (`descriptor.go`): carrier extraction
-  (`ExpressionRoutineDescriptor`, `ExpressionRecipeDescriptor`) and
-  revalidation against the current catalog (`ValidateRoutineDescriptor`,
-  `ValidateStoredRoutineDescriptor`, `SameRoutineDeclaration`).
 - **Small helpers**: `GrantRoutineKindMatches` (`grant_kind.go`) and
   `ObjectRoutineKind` (`address_kind.go`).
 
@@ -109,10 +106,9 @@ The `schemaHost` adapter and the schema statement dispatch (`schema_host.go`,
 `sql_routine_scope.go`), the catalog writes that install the seed
 (`builtin_catalog.go`), call resolution (`function*.go`,
 `operator_binding.go`, `operator_routine_binding.go`; step 12), routine call
-admission (`routine_admission.go`, `routine_body_admission.go`,
-`routine_program.go`, `routine_inquiry.go`; step 11),
-`selectExpressionRecipe`, `dropProvider.clearOperatorLinks`,
-`procedureReturnsSet` (it needs the intagg extension provider, step 16), and
+inquiry admission (`routine_inquiry.go`), `dropProvider.clearOperatorLinks`,
+`procedureReturnsSet` (it needs the intagg extension provider, step 16;
+`exec` reaches it through `Preparation.ReturnsSet`), and
 operator dump rendering (`operator_dump.go`), which needs the engine's dump
 graph and type-declaration rendering until a dump seam exists; the SQL
 routine dumps wait for the same seam.

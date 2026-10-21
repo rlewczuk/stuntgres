@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -121,7 +122,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 					return nil, err
 				}
 			}
-			detail := func() (string, error) { return failingRowDetail(values, evaluation.Output, nil, nil, destination) }
+			detail := func() (string, error) { return exec.FailingRowDetail(values, evaluation.Output, nil, nil, destination) }
 			schema := view.Get(destination.Namespace()).Name()
 			if err := validatePhysicalRowConstraints(validation, schema, values, evaluation, detail); err != nil {
 				return nil, err

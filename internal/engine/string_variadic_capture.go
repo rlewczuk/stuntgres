@@ -21,7 +21,7 @@ func foldStringVariadic(c *exec.Context, e functions.StringVariadic) (expr.Expr,
 	if e.IntrinsicStable() || p.Volatility != expr.Immutable || !conditionalConstantInputs(e) {
 		return e, false, nil
 	}
-	if err := admitRoutineCall(c, e, true, true); err != nil {
+	if err := exec.AdmitRoutineCall(c, e, true, true); err != nil {
 		return nil, false, err
 	}
 	retained := c.QuoteCaptures != nil && !p.RowDependent && !p.ParameterDependent && !p.StageDependent
