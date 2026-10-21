@@ -14,6 +14,8 @@ constraints, verification, documentation and report.
 - **Effort:** xhigh for 9a (dispatch precedence and catalog provenance); high
   for 9b; medium for 9c.
 - **Session size:** one sub-step per session.
+- **Second round (planned at `c154e14fb`):** No new sub-step; catalog 5j
+  (linear item 74) changes `Runtime` (see "Second-round notes").
 
 ## Goal
 
@@ -208,6 +210,23 @@ the docs commit). Differences from the list above, found by re-measuring:
 
 Use the alias tool of 5f/6c. Expect few aliases: most moved code is
 functions.
+
+### Second-round notes (no new sub-step)
+
+Added when the postponed packages were planned (measured at `c154e14fb`):
+
+- Catalog 5j (linear item 74) removes `Runtime.HasRules`, `VisitRules`,
+  `ViewOptions` and `VisitPolicyExpressions`: producers read the payload
+  interfaces directly, and `RuleFact` moves to `catalog`.
+- `Runtime`'s definition and reference methods (`ViewDefinition`,
+  `IndexDefinition`, `ExpressionTree`, `ExpressionReferences`,
+  `ViewReferences`, `IndexReferences`, `PartitionReferences`) stay: `stored`
+  (step 22) sits above `pgcatalog`, so their root bodies become forwarders
+  to it.
+- `string_view_sources.go` is `viewRenderer` code and moves with `stored`;
+  `catalog_source_runtime.go`, `catalog_source_capture.go`,
+  `catalog_sources.go`, `pg_locks_capture.go` and `pg_sequences.go` stay
+  in the root (see "Stays in the engine").
 
 ## Stays in the engine
 

@@ -16,6 +16,8 @@ constraints, verification, documentation and report.
   for 11c and 11d.
 - **Session size:** one sub-step per session. 11c and 11d are broad
   rewrites.
+- **Second round (planned at `c154e14fb`):** 11e (linear item 75) needs
+  nothing; 11f (item 76) needs 11e; `index` 23b needs 11e.
 
 ## Goal
 
@@ -223,6 +225,55 @@ tool, including `engine.RowCursor`/`RowResult`: the driver (`rows.go`,
 `conn.go`, tests) and `cmd/stuntgres` import `exec` directly (§7 decision
 11).
 
+### 11e — Expression-preparation seam and routine admission (linear item 75)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+Index, table and partition evaluation code (key programs, CHECK rows,
+generated columns, partition recipes; steps 23–25) is dirty only because it
+calls root helpers to prepare and admit expressions: `preflightCoercions`
+with a policy, `validateExpressionJoinExecution`, `admitRoutineCall`,
+`routineAdmissionAuthority` and `scopeOf`. Give them one seam:
+
+1. `exec.Preparation` gains coercion preflight with a policy and
+   expression execution admission (names settled in the session, for
+   example `PreflightCoercionsWithPolicy` and `AdmitExpression`). Cutting
+   only `validateExpressionJoinExecution` cleans nothing in the index
+   files: the seam must also cover `preflightCoercionsWithPolicy`, which
+   reaches `prepareDomainConversion` and `selectExpressionRecipe`.
+   `missingPreparation` gets the matching failing stubs and
+   `enginePreparation` (`domain_check.go`) implements them.
+2. The routine admission files (`routine_admission.go`,
+   `routine_body_admission.go`, `routine_program.go`) are dirty only
+   through `routineAdmissionAuthority`, which returns an
+   `AuthorizationView`. Make it return the `access.View` and
+   `access.Environment` the checks read, then move the admission decisions
+   into `exec` (step 14 assigned call admission to `exec`).
+   `routineAdmissionProgram` becomes an `exec` record.
+3. Move with them: the constraint-violation DETAIL helpers
+   (`failingRowDetail`, `writeDiagnosticValue` in `value.go`), the generic
+   source capture (`captureQuerySource`, `captureQueryPrefix` in
+   `delete.go`) and the cursor scan helpers (`cursorSimpleScan`,
+   `cursorOccurrenceVersion`, `cursorOccurrencePhysicalRow` in
+   `current_of.go`).
+
+Measure first: `reach -files 'routine_(admission|body_admission|program)\.go'`
+and `frontier` over the set. Stop and report if admission needs more than
+the view, the environment and the statement context.
+
+### 11f — Preflight (linear item 76)
+
+After 11e the expression preflight files are dirty only through routine
+admission: `expression_preflight.go`, `preflight_composite.go`,
+`conditional_plan.go` and `conditional_fold.go`. Re-measure, then move them
+into `exec` and update the `analyze` and `exec` READMEs, which list
+preflight as engine-owned. `query_preflight.go` and `query_set_preflight.go`
+name `analyze` symbols, so they cannot move to `exec` as they are: measure
+whether they fit `analyze` (it imports `exec`) or stay, and record why.
+`preflightReturning` (`returning_preflight.go`) stays with `dml`.
+`strict_parameter_null.go` goes with them only if `procedureReturnsSet`
+no longer needs the intagg extension provider; otherwise it stays and the
+Status record says why.
+
 ## Stays in the engine
 
 `executeStatement`, `executeBoundLocked`, `executeBoundCommandLocked`,
@@ -290,6 +341,9 @@ names no `exec.Context` internals: DML executors open their inputs through
 - [x] 11d — Aliases removed (`4d4e0942e`, `4acc2dac9`, `17fc012f5`,
   `7d6ffd65a`, then the docs commit) *(racecheck/finalcheck skipped at user
   request)*
+- [ ] 11e — Expression-preparation seam; routine admission moved
+  (linear item 75)
+- [ ] 11f — Preflight moved (linear item 76)
 
 Outstanding aliases: none. The engine, the root driver and `cmd/stuntgres`
 name the `exec` types directly.

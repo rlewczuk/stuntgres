@@ -14,6 +14,8 @@ constraints, verification, documentation and report.
   5c.
 - **Session size:** one sub-step per session. 5b may take two sessions:
   accessors and script first, then cut 1.
+- **Second round (planned at `c154e14fb`):** 5i (linear item 72) and 5j (item
+  74) need nothing; steps 20 and 23–25 need 5i, `stored` 22c needs 5j.
 
 ## Goal
 
@@ -137,6 +139,58 @@ The relation, type, extension, operator and parameter validators that 5e
 left in the engine stay until a stored-SQL rendering seam exists (step 12
 and the postponed `view` package); see the notes for later steps.
 
+### 5i — Pure helpers move down (linear item 72)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+Steps 20 and 23–25 need these clean root helpers below them. Each reads
+only catalog records (`reach`: clean). Move them into `catalog` with
+exported names and qualify the callers; no aliases.
+
+| Root file | Declarations | New home |
+|---|---|---|
+| `physical_not_null.go` | `physicalNotNullOriginValid`, `physicalPrimarySupportValid`, `validatePhysicalNotNull`, `physicalPrimaryForAttribute`, `capturePhysicalPrimarySupport` | `catalog/physical_not_null.go` (exists) |
+| `table_inheritance.go`, `inheritance_alter.go`, `inheritance_query.go`, `partition.go`, `partition_attach_schema.go` | `inheritanceChildren`, `inheritanceHasChildren`, `inheritanceParticipant`, `cloneInheritance`, `inheritanceQueryLayout`, `hierarchyRelation`, `samePartitionColumnUsage` | `catalog/inheritance.go` |
+| `not_null_binding.go` | `constraintNames`, `relationConstraintNameExists`, `generatedConstraintName` | `catalog/constraint_names.go` |
+| `relation_scope.go` | `sameRelationRowShape` | `catalog` |
+| `deparse_renderer.go` | `pgIdentifier` (quotes a name when `parser.IdentifierNeedsQuotes` says so; 52 uses in 16 files) | `catalog/diagnostic_names.go` as `catalog.Identifier` (regobj 21a does it if this item has not run) |
+| `materialized_refresh.go` | `relationDefiningAuthorityCompatible` (compares two `catalog.Relation` values) | `catalog` |
+| `definition_identity.go` | `definitionOIDUsed`, `reserveDefinitionOIDs`, `validateDefinitionOIDs`, `structuralNull` | `catalog/definition_identity.go` |
+| `namespace_children.go` | `namespaceChildren` | `catalog` |
+| `tablespace.go` | `tablespaceLocation`, `tablespaceName` | `catalog`, next to the tablespace validator |
+
+Then extract the descriptor-kind switch of `Engine.remapPreparedCatalog`
+(`principal_remap.go`) into a catalog function over the state, the
+principal mapping and the ACL remap (for example
+`catalog.RemapPrincipals`). The mapper construction and the Restore stage
+stay in the root.
+
+Re-run `frontier` on the set before moving: OUT may name only `catalog`,
+lower packages and `sqlError` (use the catalog copy). Engine tests that
+call these helpers are rewritten to the new names; they never keep a
+helper in the root.
+
+### 5j — Payload accessors (linear item 74)
+
+Five host and runtime methods exist only because their callers cannot read
+the opaque payloads (§3 rule 7). Give the payload interfaces in
+`catalog/view_payload.go` the methods the callers need:
+
+| Method today | Caller | Replacement |
+|---|---|---|
+| `analyze.Host.RelationHasRules` | `analyze/cte_mutation_bind.go` | `RulesPayload.Len()` |
+| `pgcatalog.Runtime.HasRules` | `pgcatalog/pg_class.go` | the same `Len()` |
+| `pgcatalog.Runtime.VisitRules` | `pg_depend.go`, `catalog_relation_sources.go` | a `RulesPayload` visitor; `pgcatalog.RuleFact` moves to `catalog` |
+| (no method today) `rulesOf(d)` loops in `object_address_lookup.go` | `ownedAddressByName`, `ownedAddressName` | the same visitor, giving each rule's OID and name, so `regobj` 21b names no root rule type |
+| `pgcatalog.Runtime.ViewOptions` | `pg_class.go` | `ViewPayload.Options() []string` |
+| `pgcatalog.Runtime.VisitPolicyExpressions` | `pg_depend.go` | a `PolicyPayload` expression visitor |
+
+Implement the methods on the root payload types (`ruleList`,
+`*viewDefinition`, `*policyExpression`), switch the callers, then delete
+the five interface methods and their root bodies (`analysis_host.go`,
+`catalog_source_runtime.go`). Visitors keep today's order and errors.
+Steps 21b (`regobj`, rule identity) and 22c (the payloads move to
+`stored`) need this item.
+
 ## Invariants
 
 - Published `State` values stay immutable. Publication stays atomic across
@@ -217,6 +271,9 @@ startup regression. 5f completes the step; optional 5g is done too.
 - [x] 5h — One revision-frontier helper; private `Candidate` overlay methods
   (the commit that records this status) *(quickcheck passed; further racecheck
   and finalcheck skipped at user request)*
+- [ ] 5i — Pure helpers moved into `catalog` (linear item 72)
+- [ ] 5j — Payload accessors replace five host and runtime methods
+  (linear item 74)
 
 Exported names chosen (5d; applied by 5e's move, with engine aliases):
 

@@ -13,6 +13,8 @@ constraints, verification, documentation and report.
 - **Session size:** F1 and F3 take one session each. F2 takes one or two
   sessions. F4/F5 cover one large family or a few small ones per session.
   This step spans many sessions; the Status section tracks where to resume.
+- **Second round (planned at `c154e14fb`):** F6 (linear item 71) needs
+  nothing; run it before `stored` 22b (item 68).
 
 ## Goal
 
@@ -143,6 +145,41 @@ existing parser predicates. The datetime registry owns age/isfinite; XID age
 constructs its node from the already analyzed/coerced operand, without the old
 engine builder callback. Item8's source/unit cutover and proof status are below.
 
+### F6 — Close step 3 (linear item 71)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+Step 3 is done when central switches list no function nodes and the Tier A
+and Tier B glue files have left the engine. One switch and some glue
+remain:
+
+1. **The aggregate provider remap.** `view_remap.go` (about lines 705–840)
+   remaps stored aggregate calls with a type switch over about 29 provider
+   types, from `functions.IntegralSum` to `functions.RangeAggregateProvider`.
+   Give the aggregate providers a remap hook in `functions` (for example a
+   method taking a small `functions.ProviderRemap` value with the usage and
+   type mappers and the comparison binders the cases call today) and
+   replace the switch with one call. Keep the error texts and the order of
+   the binder calls. Do this before 22b moves `view_remap.go` into
+   `stored` (linear item 68 needs this item).
+2. **Switches over constants stay.** The other `case functions.` matches
+   in the root and in `analyze` switch over operation constants or
+   argument intents (`comment_inquiry.go`, `session_identity.go`,
+   `default.go`, `composite_render.go`, `analyze/expression.go` and
+   others). They are binder vocabulary, not node operations. List them in
+   the Status record, one line per file.
+3. **Glue that stays, and why.** The `statementHost` capability bodies
+   (`advisory_runtime.go`, `blocking_runtime.go`, `acl_runtime.go`,
+   `catalog_inquiry_runtime.go`, `session_inquiry_runtime.go`,
+   `transaction_inquiry_runtime.go`, `setting_calls.go`,
+   `statement_host_function.go`) implement `functions` capabilities over
+   engine state: they stay in the root by design. The installed-node
+   validators (`validateInstalled*`) and the function deparse helpers
+   (`sqljson_deparse.go`, `subscripts_deparse.go`,
+   `datetime_overlaps_render.go`, `datetime_zone_deparse.go`,
+   `intagg_presentation.go`) move with `stored` (step 22). Say so in the
+   README's "What stays in the engine".
+4. Tick F2 and step 3 here and in `ENGINE-SPLIT-STATUS.md`.
+
 ## Invariants
 
 - Results, errors, SQLSTATEs, positions, notices, volatility and
@@ -256,6 +293,8 @@ Tier C has a refined plan.
   record below) [x] transaction identity and commit timestamps
   [x] advisory locks (with blocking inquiry; integrated as `a85e7d747`)
   [x] sequence calls (Group A Item 10, record below)
+- [ ] F6 — Step 3 closed: aggregate provider remap hook, remaining glue
+  recorded, F2 and step 3 ticked (linear item 71)
 
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
 pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it

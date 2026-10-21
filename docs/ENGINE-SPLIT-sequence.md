@@ -548,3 +548,12 @@ set referenced only `sqlError` and `commentLiteral` in the engine.
 - `catalogChanges.generators` is core journal state (13b keeps it), not a
   sequence slot.
 - `journalOf` stays in the engine; `sequence.JournalIdentity` moved in 17b.
+- Second round (planned at `c154e14fb`; no new sub-step, step 17 is
+  complete). The identity and serial staging on `CatalogStage`
+  (`stageCreateIdentities`, `stageIdentitySequence`, `identity_alter.go`,
+  `stageCreateSerials`) and the identity DROP flow
+  (`identity_drop_definition.go`) are table DDL and move with `table`
+  (24d, linear item 89). `relationDiagnosticKind` goes with `table` too.
+  Regclass output (`sequence_output.go`) is reg* code: `regobj` 21a renames
+  it `regclass_output.go` and 21b moves it. The orchestration in
+  `sequence.go` and `sequence_comment.go` stays in the root.

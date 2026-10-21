@@ -15,6 +15,8 @@ constraints, verification, documentation and report.
   session.
 - **Session size:** one sub-step per session; 12d spans several sessions (one
   area each). 12a, 12b and 12d are broad rewrites.
+- **Second round (planned at `c154e14fb`):** 12f (linear item 77) needs
+  nothing.
 
 ## Goal
 
@@ -1094,6 +1096,35 @@ the dry run found no shadowed site, so no rename was needed first.
   subpackage imports the root. `AGENTS.md`: 100 lines before and after.
   racecheck/finalcheck skipped at user request.
 
+### 12f — Query legality helpers (linear item 77)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+These clean root declarations walk the plan IR and the analyzed query and
+need nothing from the root except `sqlError`:
+
+- `query_graph.go` (190 lines): `collectQueryFrames`,
+  `queryDescriptorsChanged`, `queryExecutionSourceReads`,
+  `queryRoutineCarriersChanged`, `querySourceReadUses`;
+- `query_window_prune.go`: `pruneProjectWindows`;
+- `query_join_legality.go`, clean part: `firstNullableQueryMark`,
+  `fullJoinComparisonOperator`, `fullJoinCondition`, `fullJoinFacts`,
+  `fullJoinKey`, `nullableQueryRowMark`;
+- `query_lock_admission.go`, clean part: `queryHasSetOutput`,
+  `queryOccurrenceMark`, `queryRootRowMode`, `queryRowLockLegality`,
+  `queryRowMarkReachesSource`, `stringInheritedRowMark`;
+- `serial.go`: `closedRegclassDefault` (it walks plan nodes; it belongs
+  next to `analyze.ClosedSequenceDefault`, sequence notes).
+
+`stored` 22b (item 68) needs this item: it reads the `query_graph.go`
+helpers under their `analyze` names.
+
+Move them into `analyze`, exported where the root still calls them. Not
+here: `cteStoredViewVolatile`, `viewHasStoredRowMarks` and
+`viewLeafRowMark` read the stored view payload and move with `stored`
+(22b); `expectedOf` names `StatementDescription` and stays until that type
+moves; the column-default builders already moved
+(`analyze/column_defaults.go`).
+
 ## Stays in the engine
 
 Statement dispatch; rule rewriting (`rule_*.go`, which produce and transform
@@ -1213,6 +1244,7 @@ in §8.3 pass.
   the docs commit; see the 12e result). quickcheck and the selected
   `REFERENCE=1` run passed; racecheck and finalcheck skipped at user
   request.
+- [ ] 12f — Query legality helpers moved (linear item 77)
 
 Outstanding aliases: none. 12e removed the 60 aliases of
 `analyze_aliases.go`; the driver names `analyze.ParameterInfo`.

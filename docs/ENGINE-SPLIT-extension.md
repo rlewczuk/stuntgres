@@ -594,3 +594,11 @@ Notes for later steps:
   work: `reference/type_resolution/comparison-ledger.md` cites
   `internal/engine/intarray_provider.go:47`, now
   `internal/engine/extension/intarray_provider.go`.
+- Second round (planned at `c154e14fb`; no new sub-step, step 16 is
+  complete). `procedureProvider` (`procedure_provider.go`) imports
+  `routine` and `extension`, so it moves with `stored` (22b), not into
+  either. `namespaceChildren` moves to `catalog` (5i). The installed-node
+  validators (`validateInstalled*`) move with `stored`. The Restore-side
+  owner decoding (`extension.DecodeOwners` in `control.go`) becomes a
+  Restore hook entry (`control` 30a). The handler orchestration listed in
+  the README stays in the root.
