@@ -1,0 +1,344 @@
+# Engine split, step 29: `internal/engine/dml`
+
+Session prompt. Start a fresh session with "Implement
+`docs/ENGINE-SPLIT-dml.md`." Follow the shared rules in
+[ENGINE-SPLIT.md §8](ENGINE-SPLIT.md#8-implementation-sessions): protocol,
+constraints, verification, documentation and report.
+
+- **Plan:** [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 step 29; §3 (L13, rule
+  6: `dml` may import `analyze` payload types and every upper feature);
+  §4.1 patterns 2, 3, 4 and 6; §7 decision 17.
+- **Needs:**
+  - 29a (linear item 107): index 23a (item 82) and table 24a (item 86),
+    because their renames touch the same files.
+  - 29b (item 108): 29a, plus the Part A moves it imports or shares files
+    with: `copyfmt` 19b (59), `index` 23b (83), `table` 24b (87),
+    `partition` 25b (91), `fdw` 26b (95), `view` 27b (100).
+  - 29c (item 109): 29b, plus every upper feature's Part B: 23d (85), 24d
+    (89), 25d (93), 26d (97), 27d (102). Their write-side host interfaces
+    are what 29c composes.
+  - 29d (item 110): 29c.
+- **Effort:** high for 29a and 29b; xhigh for 29c (docs only, host
+  design); xhigh for 29d.
+- **Session size:** one sub-step per session; 29d may split into one
+  session per statement kind if 29c says so (add lettered items then).
+- **Linear items:** 29a = 107, 29b = 108, 29c = 109, 29d = 110.
+- **Tools:** `reach` (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach
+  -dir . -files '<regexp>'`) and `frontier`
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/frontier/frontier -dir .
+  -files a.go,b.go [-decls X,Y]`), run from the worktree root; never pipe
+  them into `head`. Moves: `movex`, `keylit`, `unalias`, `shadowrn` in
+  `.cswd/tmp/PG18-ENGINE-SPLIT-PLAN-ALIASES/`; `meth2fn` (pointer
+  receivers) in `.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-PACKAGE/`.
+
+## Goal
+
+INSERT, UPDATE, DELETE, MERGE, TRUNCATE, COPY execution, RETURNING,
+writable CTEs and WHERE CURRENT OF are executed by `StatementScope` and
+`Engine` methods spread over about 50 root files. Their code calls into
+almost every other area: unique and exclusion checks (index), row
+constraints (table), FK enforcement, partition routing, inheritance
+targets, view writes and row-level security, foreign tables. That is why
+`dml` goes last.
+
+`dml` becomes the package of the write executors. It sits at L13: it
+consumes the bound statements of `analyze` (`analyze.Binding`, the INSERT
+conflict, RETURNING, UPDATE and MERGE payloads) and may import every upper
+feature (`index`, `table`, `partition`, `fdw`, `view`). Nothing below it
+imports it; `analyze` never does. It never builds a binder.
+
+The root keeps statement dispatch, source capture under `Engine.mu`,
+`WriteStage` and row publication, writable-CTE orchestration and the COPY
+protocol. The COPY codecs are in `copyfmt` (step 19).
+
+## Inventory (measured at `c154e14fb`)
+
+`reach` over the files below (including `execute_bound.go`, `fdw_*.go`
+DML and the FK files): about 2.4k clean and 8.7k dirty lines. The
+dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
+
+| Statement | Entry point (receiver) | Files (lines) |
+|---|---|---|
+| INSERT VALUES | inline in `executePreparedCommandLocked` (`Engine`), the `*parser.Insert` case, `execute_bound.go:525-693` (about 170 lines) | `execute_bound.go` (772), `insert_returning.go` (213), `insert_write_overlay.go` (129) |
+| INSERT ... SELECT | `evaluateInsertQuery`, `assembleInsertRows` | `insert_query.go` (222) |
+| ON CONFLICT | `newInsertConflictState`, `normalizeConflictPredicate`, `insertConflictState.selectArbiters`; arbiter probing through `StatementScope.probeUniqueRow` | `insert_conflict.go` (142), `insert_conflict_predicate.go` (384, all clean), `insert_conflict_admission.go` (119), `insert_conflict_update.go` (269) |
+| UPDATE | `Engine.executeUpdate` | `update.go` (597), `update_versions.go` (258), `update_assignment_eval.go` (58), `update_from_admission.go` (165) |
+| DELETE | `StatementScope.executeDelete` | `delete.go` (389), `delete_using.go` (165) |
+| MERGE | `Engine.executeMerge` | `merge.go` (221), `merge_rows.go` (546), `merge_returning_output.go` (54) |
+| RETURNING | `beginInsertReturning`, `projectInsertReturning`, `finishInsertReturning` (scope), `newMergeReturningOutput`, `preflightReturning` | `insert_returning.go`, `merge_returning_output.go`, `returning_preflight.go` (37) |
+| Writable CTEs | `executeCTECommandsLocked`, `prepareCTECommandsLocked`, `executePreparedCTECommandsLocked` (`Engine`), `StatementScope.activateMutation` | `cte_mutation_execute.go` (323), `cte_mutation_scope.go` (177) |
+| WHERE CURRENT OF | `StatementScope.positionedMutationRow` | `current_of.go` (181) |
+| TRUNCATE | `acquireTruncate`, `stageTruncate`, `stageTruncateSequences` (scope) | `truncate.go` (325), `truncate_storage.go` (225), `truncate_sequence.go` (129), `fdw_truncate.go` (64) |
+| COPY execution | `Engine.bindCopyLocked`, `Engine.initCopyInputLocked`, `StatementScope.copyTableRows`, `copyInsertionState` | `copy.go` (471), `copy_insertion.go` (129); codecs and protocol below |
+| FK enforcement | `StatementScope.checkForeignKeys` (at Finish) | `foreign_key_writes.go` (435) |
+| FK actions | `settleForeignActions`, `planForeignAction`, `applyForeignAction` (scope) | `foreign_actions.go` (270), `foreign_action_admission.go` (272), `foreign_action_apply.go` (467) |
+| Inheritance targets | `captureMutationSource`, `mutationStorage` (scope), `validateInheritedMutationRow` | `inheritance_dml.go` (237), `inheritance_dml_authority.go` (50) |
+| Foreign DML | `Engine.executeForeignCommandLocked` | `fdw_execute.go` (505) |
+
+**Not dml, but filed with it:**
+
+| Declarations (file) | Owner | When |
+|---|---|---|
+| `unique_dml.go` (611): `uniqueWriteBinding`, `uniqueBoundKey`, `bindUniqueWrite`, `checkUniqueRow`, `claimUniqueRow`, `probeUniqueRow` | `index` | 23a renames it `index_unique_binding.go` |
+| `captureQuerySource`, `captureQueryPrefix` (`delete.go`), `cursorSimpleScan`, `cursorOccurrenceVersion`, `cursorOccurrencePhysicalRow` (`current_of.go`) | `exec` | 11e |
+| `mergeDeletions` (`delete.go`), `mergePrivateRows` (`update_versions.go`): write-set helpers, also used by `transaction_finish.go` | root, beside `WriteStage` | 29a |
+| `rowByID` (`update_versions.go`) | `storage` (`storage.RowByID`) | index 23a |
+| `ruleUpdateAssignmentsSQL` (`update_row_dump.go`) | `stored` (rule rendering) | 22c |
+| `validateRuleNewUpdateOutput` (`update_row_rule.go`) | `view` (rules) | 29a renames, 27b moves |
+| `checkTemporaryStorageAccess` (`update_from_admission.go`) | root (`temporary_access.go`) | 29a |
+| `Engine.queryTableRefsLocked` (`update_from_admission.go`) | root query admission | 29a |
+| `physicalRowEvent`, `flushPhysicalEvents` (`physical_row_events.go`) | root row-lock area (`statement_host_row_lock.go`) | 29a |
+| FK probe records (`foreign_key_probe.go`: `findForeignKeyParent`, `prepareForeignKeyChild`, `foreignKeyRows`, `probeForeignKeyIndex`); also used by `foreign_key_restore.go` | `table` | 24b; `dml` imports them |
+| `inheritance_query*.go` (`captureInheritanceQueryPrefix`, `inheritanceQueryClosure`, `inheritanceQueryLeaves`, `sourceOnly`); also used by SELECT admission (`query_admission.go`) | `table` (clean helpers, 24b); the scope methods stay with root query admission | 24b |
+| COPY codecs (`copy_options.go`, `copy_force.go`, `copy_text.go`, `copy_csv.go`, `copy_binary.go`) | `copyfmt` | 19 |
+| COPY protocol and reservation (`copy_admission.go`, `protocol_copy.go`, `protocol_copy_query.go`, `CopyBoundary`, `StatementScope.Copy`/`CopyProtocol`) | root (public facade) | — |
+
+**`statementMutation`** (`cte_mutation_scope.go:16`) is the per-command
+state embedded in `StatementScope`; `activateMutation` swaps it by value
+between the commands of a writable CTE. Its fields, by owner:
+- target and lock: `statement`, `lockedRef`, `lockedDescriptor`,
+  `lockedStorage`, `lockedIdentityOnly`, `admittedTargetName`,
+  `admittedTargetLexical`, `routineDependencies` (dml);
+- `inheritedTargets` (table/dml), `viewWrite` (view);
+- `uniqueBinding`, `indexBindings` (index);
+- `insertConflict`, `insertReturning` (dml);
+- `partitionInsert`, `partitionRelations` (partition);
+- `rlsTargetDenied`, `rlsProposal`, `rlsMergeUpdate`, `rlsMergeInsert`,
+  `rlsProposalTable` (view; 27a slots them).
+
+**Clean set** (2.4k lines, by real owner): dml keeps about 1.0k (the ON
+CONFLICT state and the whole of `insert_conflict_predicate.go`,
+`bindingForConflict`, `conflictUpdateCardinalityError`,
+`insertReturningOutput`, the MERGE records `mergeRows`, `mergeActionRow`,
+`mergeCandidate`, `mergeMatches`, `selectMergeArm`,
+`mergeCardinalityError`, `mergeOnTruth`, `mergeHasVirtualReads`,
+`mergeReturningOutput`, `updateCandidate`, `evaluateUpdateAssignments`,
+`deleteUsingCandidate`, `completeCTEMutation`, `statementCTERoot`, the
+TRUNCATE records `truncateScope`, `truncateRelation`,
+`truncateReferencer(s)`, `compareTruncateAddress`,
+`truncateForeignKeyError`, `truncateOtherTemporary`, `truncateOwnsSequence`,
+`truncateSequence`, `truncateName`, `truncateGraphFence`, the FK records
+`foreignKeyJob`, `foreignActionScope`, `foreignActionTransition`,
+`foreignActionPlan`, `foreignActionQuery`, and the inheritance target
+helpers `mutationRowIdentity`, `scatterMutationRow`, `mutationPhysicalRow`,
+`versionRows`, and COPY's `copyInsertion*` records and `copyTargets`,
+`copyRelationKind`); about 0.5k goes to `copyfmt`; the rest to the owners
+in the table above. Measurement dumps:
+`.cswd/tmp/ENGINE-SPLIT-POSTPONED-PLAN/dml/`.
+
+**The host problem.** A flat `dml.Host` would need about 55 root methods
+of eight owners:
+- write stage: `StatementScope.Writes`, `WriteStage.applyValidated`,
+  `replace`, `replaceRows`, `Delete`, `stageDeletionLocked`, the partition
+  wrapper `StatementScope.applyInsertValidated`;
+- row locks and versions: `acquireRow`, `acquireUpdateRow`,
+  `acquireUpdateRowMode`, `mergeFollowChainStrong`, `physicalRowEvent`,
+  `flushPhysicalEvents`, `repeatableConflict`, `latestUpdateRow`,
+  `latestDeleteRow`, `latestMergeRow`, `latestConflictUpdateRow`;
+- index: `bindUniqueWrite`, `checkUniqueRow`, `claimUniqueRow`,
+  `probeUniqueRow`, `uniqueKeyChanged`, `discardExclusionCandidate`,
+  `projectExclusionDeletionLocked`, `validateIndexCandidates`,
+  `revalidateIndexRows`, `insertOwnRow`;
+- table: `validateInsertRow`, `validatePhysicalInsertRow`,
+  `validateMutationRow`, `rowConstraintError`, `rowConstraintDetail`,
+  `rowDiagnosticDetail`;
+- FK actions: `validateForeignActionLocked`,
+  `recordForeignActionReplacement`, `foreignActionsOrZero`,
+  `writeAuthorizationLocked`;
+- partition: `capturePartitionInsertLocked`, `checkInsertUniqueRow`,
+  `partitionStoredRow`, `partitionReturningGroup`,
+  `acquirePartitionAncestors`;
+- inheritance and views: `captureMutationSource`, `mutationStorage`,
+  `inheritanceRead`, `validateInheritedMutationRow`,
+  `validateInheritedReplacements`, `checkViewRow`, `freezeViewWriteSources`;
+- engine state: `privateCatalogLocked`, `privateStorageLocked`,
+  `serializableWriteLocked`, `visibilityWriteLocked`,
+  `markTemporaryAccessLocked`, `authorizationLocked`,
+  `statementAuthorizationLocked`, `validateLockedRelation`,
+  `refreshRelationGrantsLocked`, `captureRegclassOutput`,
+  `captureRegtypeInput`, `captureOperatorInput`.
+
+That would be a service locator (§4.1 pattern 3 forbids it). By the time
+29c runs, `index`, `table`, `partition`, `fdw` and `view` each export a
+narrow write-side interface (their Part B, items 85–102); the `dml` host is
+their union plus about ten write-stage and row-lock methods (§7 decision
+17).
+
+## Part A
+
+### 29a — In place (linear item 107)
+
+1. Re-measure with `reach` and `frontier` over the files in the
+   inventory. If 23a or 24a have not landed, stop: their renames touch the
+   same files.
+2. **Extract INSERT** (one commit): the `*parser.Insert` case of
+   `executePreparedCommandLocked` becomes
+   `Engine.executeInsertValuesLocked` in a new `insert.go`, called from the
+   same place with the same arguments. Keep the per-row `ctx.Err()` check
+   and the call order (`validateInsertRow`, `admitInsertProducer`,
+   `checkViewRow`, `applyInsertValidated`).
+3. **Send misplaced code to its owners** (file moves only, one commit):
+   - `mergeDeletions` and `mergePrivateRows` to `write_set.go` (root, next
+     to `WriteStage`); `rowByID` is `storage.RowByID` after index 23a;
+   - `validateRuleNewUpdateOutput` to `rule_update_output.go` (view area);
+     `ruleUpdateAssignmentsSQL` goes with the rule rendering to `stored`
+     (22c), so leave it unless 22c has not run;
+   - `checkTemporaryStorageAccess` into `temporary_access.go`;
+     `queryTableRefsLocked` to `query_table_refs.go`;
+   - `physical_row_events.go` merges into `statement_host_row_lock.go`;
+   - `captureQuerySource`, `captureQueryPrefix` and the `cursor*` helpers:
+     leave them if 11e (item 75) has not moved them to `exec`.
+4. **One receiver style.** `executeUpdate` and `executeMerge` are
+   `Engine` methods, `executeDelete` a scope method. Make the three
+   statement executors the same kind (prefer functions over the scope and
+   engine that 29c can retarget onto a host; use `meth2fn`). The duplicate
+   names `StatementScope.applyInsertValidated` (`partition_insert.go`) and
+   `WriteStage.applyInsertValidated` (`insert_conflict_admission.go`) get
+   distinct names.
+5. **Group `statementMutation` by owner** (pattern 2, value groups): a
+   target group (lock fields, admitted name, routine dependencies), an
+   index group (`uniqueBinding`, `indexBindings`), a partition group, and
+   the ON CONFLICT/RETURNING pointers. It stays a value struct, because
+   `activateMutation` copies it whole; the RLS fields are 27a's slot.
+6. **FK runtime.** FK enforcement (`foreign_key_writes.go`) and FK actions
+   (`foreign_action*.go`, `foreign_actions.go`) are dml; FK DDL, validation
+   scans, dump and the probe records stay with `table`. No rename needed
+   once 26a has given the FDW files the `fdw_` prefix.
+
+Open questions for 29a (stop and ask if unsure):
+- Settled during planning: `inheritance_dml*.go` goes to `dml` (29b);
+  `inheritance_query*.go`'s clean helpers go to `table` (24b), which both
+  root query admission and `dml` import; its scope methods stay in the
+  root.
+- `preflightReturning` names `analyze.Returning`, so it cannot move to
+  `exec` with 11f; it stays with `dml`.
+
+### 29b — Create `dml` and move the clean set (linear item 108)
+
+1. Confirm 29a and the listed Part A moves have landed (`go list` shows
+   `index`, `table`, `partition`, `fdw`, `view` and `copyfmt`).
+2. Create `internal/engine/dml` and move the measured clean set: ON
+   CONFLICT state and arbiter inference, MERGE and UPDATE records,
+   RETURNING output records, TRUNCATE records and the truncate fence, FK
+   job and action records, inheritance target helpers, COPY insertion
+   records.
+3. `truncateGraphFence` implements a `session` fence kind; the kind
+   constant stays declared in `catalog_fence.go` (publication owns fence
+   order; 13b note).
+4. Give `dml` its own `errors.go` (`sqlError`, `insertError` copies).
+5. Check imports: `analyze` (payload types and pure functions only), the
+   upper features, `exec`, `storage`, `visibility`, `lock`, `catalog` and
+   lower; never the root.
+
+## Part B
+
+### 29c — Refine the host (docs only; linear item 109)
+
+Re-measure after every upper feature's Part B. Then write the host into
+this file. Start from this sketch.
+
+**Host sketch (`dml.Host`).** It embeds the write-side interfaces the
+upper features exported (`index.WriteHost` for unique and exclusion
+checks, the `table` row-constraint and FK validation interface, the
+`partition` routing interface, the `view` write and RLS interface, the
+`fdw` modification interface) and adds:
+- **Write stage:** `Writes()`, `ApplyValidated(...)`, `ReplaceRows(...)`,
+  `Delete(...)`.
+- **Row locks and versions:** `AcquireRow`, `AcquireUpdateRow(mode)`,
+  `FollowUpdateChain`, `PhysicalRowEvent`, `FlushPhysicalEvents`,
+  `RepeatableConflict`, and one `LatestRow(kind)` replacing the four
+  `latest*Row` methods. These may wait: document "caller holds no
+  `Engine.mu`".
+- **Statement state:** the authority for writes, `ValidateLockedRelation`,
+  `RefreshRelationGrants`, presentation captures.
+
+Settle in 29c: which executor keeps a root skeleton (writable CTEs re-enter
+dispatch, so their orchestration stays root); whether COPY execution moves
+in 29d or stays next to the protocol; one session per statement kind or one
+for all. Write the method list with signatures and lock contracts, the move
+set, the commit sequence, then wait for approval.
+
+### 29d — Move the executors (linear item 110)
+
+Follow 29c: seam on `statementHost` (seam tests first), port each executor
+in place over `dml.Host`, move with `movex`, unexport, docs.
+
+## Invariants
+
+- **Locks.** Executors run after `Engine.mu` is released; the `latest*Row`
+  reads take it again briefly. Row-lock waits never happen under
+  `Engine.mu`. `copyIO` releases the owner admission and `replacementMu`
+  around every read and write and re-checks the lease, `txRef` and command.
+  Foreign callbacks run outside `Engine.mu`.
+- **Cancellation.** The INSERT loop checks `ctx.Err()` per row. COPY keeps
+  `op.CopyInput`, `PendingProtocolUserCancel`, `PendingCopyInputError` and
+  the 57014/FATAL mapping. Foreign rollback uses `context.WithoutCancel`.
+- **Publication.** Finish keeps its order: exclusion events, FK actions,
+  exclusion events again, FK checks, row publication, catalog preflight,
+  index publication. Fence kinds stay declared in `catalog_fence.go`.
+  `commitForeign` runs after the fences pass, before local install, and a
+  failed remote commit is never retried.
+- **Diagnostics.** Messages, details, SQLSTATEs and the first-error choice
+  are unchanged, including COPY's "line N" context and MERGE cardinality
+  errors.
+- **Writable CTEs.** `activateMutation` swaps `statementMutation` by value;
+  nothing else resets a slot.
+
+## Targeted tests
+
+- Tests follow the code (ENGINE-SPLIT §4): units of moved pure code (ON
+  CONFLICT predicate proofs, MERGE arm selection, truncate graphs) move into
+  `dml`; engine-fixture tests are rewritten to the new names. Never modify
+  `reference/` or `smoke/`.
+- Engine units: grep `*_test.go` for `insertConflict`, `conflictPredicate`,
+  `selectMergeArm`, `mergeRows`, `truncateScope`, `foreignAction`,
+  `checkForeignKeys`, `positionedMutationRow`, `executeCTECommands`,
+  `copyInsertion`. `RACE=1` for COPY cancellation, row-lock waits and FK
+  actions.
+- Reference selections (`make check RUN='...'`, then `REFERENCE=1`):
+  `^TestReference(Insert|Update|Delete|Merge|Copy|Truncate)` (about 600
+  tests; split into batches), `^TestReferenceCTE`, `CurrentOf`,
+  `^TestReferenceForeign(Key|Action)`, `Returning`. Some `REFERENCE=1`
+  selections drift on master too (oracle drift, for example MERGE under
+  REPEATABLE READ and DELETE RETURNING boundaries): compare with master
+  before blaming the change.
+- `make bench` is not needed: startup is not touched.
+
+## Documentation
+
+- Create `internal/engine/dml/README.md` (29b): the executors, the lock
+  and cancellation contract, what stays in the root, `## Testing`.
+- Update the `exec` README ("What stays in the engine" lists the DML
+  executors), the `analyze` README (ON CONFLICT execution state) and the
+  root README's DML test selectors.
+- `AGENTS.md`: add `dml` to the brace list. The file must not grow.
+
+## Done when
+
+Part A: the executors' records and pure algorithms live in `dml`, and every
+misplaced declaration lives with its owner. Part B: the INSERT, UPDATE,
+DELETE, MERGE, TRUNCATE and COPY executors and the FK actions live there
+too, behind a host composed from the upper features' write interfaces;
+dispatch, source capture, writable-CTE orchestration, `WriteStage` and
+publication stay in the root. The checks in §8.3 pass.
+
+## Status
+
+- [ ] 29a — In place (INSERT extracted, misplaced code to owners, one
+  receiver style, `statementMutation` grouped)
+- [ ] 29b — `dml` created and clean set moved
+- [ ] 29c — Host refined (docs only)
+- [ ] 29d — Executors moved
+
+Outstanding aliases: none yet.
+
+### Notes for later steps
+
+- `insert_write_overlay.go` stays with `dml` (the INSERT write overlay that
+  unique probing consults); its key overlay uses `index`'s `uniqueBoundKey`.
+- The `exec` 11f preflight move: `query_preflight.go` and
+  `query_set_preflight.go` name `analyze` symbols, so they cannot go to
+  `exec` as they are; `preflightReturning` stays here.
+- `fdw_execute.go`'s foreign DML (`executeForeignCommandLocked`,
+  `projectForeignReturning`) moves here in 29d; its callback protocol
+  (`fdw_modify.go`) belongs to `fdw`.

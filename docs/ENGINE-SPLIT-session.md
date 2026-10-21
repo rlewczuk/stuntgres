@@ -14,6 +14,8 @@ constraints, verification, documentation and report.
   high for 13d.
 - **Session size:** one sub-step per session; 13d spans several sessions.
   13a, 13b and 13d are broad rewrites.
+- **Second round (planned at `c154e14fb`):** 13f (linear item 78) needs
+  nothing.
 
 ## Goal
 
@@ -776,6 +778,27 @@ alias file.
   `analyze`, feature package or root engine. `AGENTS.md`: 100 lines before
   and after. racecheck/finalcheck skipped at user request.
 
+### 13f — Notification records, isolation text and owner handles (linear item 78)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+Clean root declarations that belong with the session state:
+
+- `notifications.go`: `notificationFIFO` (with `append` and `normalize`),
+  `notificationLink`, `notificationState`, `reverseNotificationLinks`,
+  `appendNotificationEvents` and `filterNotificationBatch`. The `Engine`
+  methods (`pollNotification`, `WaitForNotification`,
+  `PollProtocolNotification`) and `StatementScope.executeNotification`
+  stay in the root.
+- `transaction_isolation.go`: `isolationFromText` and `isolationText`.
+- `owner_handles.go`: `txOwnerOf`, `privateSessionOf`, `txOwnerAttached`
+  and `sessionTokenAttached`, the checked helpers that recover session
+  types from the `ids` owner interfaces.
+
+`explicitUtility`, `earlyIndexUtility` and `modifyingTag` classify utility
+statements for read-only execution (`AGENTS.md`) and stay with the
+dispatch. Re-run `frontier` on the set: OUT may name only `session`, lower
+packages and `sqlError`.
+
 ## Stays in the engine
 
 `executeStatement` and the statement-kind dispatch, feature handlers until
@@ -890,6 +913,8 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
   `99a56020a`, then the docs commit; see the 13e result) *(selected
   unit/`RACE=1` and dual-mode proof and quickcheck passed; bench unchanged;
   racecheck/finalcheck skipped at user request)*
+- [ ] 13f — Notification records, isolation text and owner handles moved
+  (linear item 78)
 
 Outstanding aliases: none. 13e removed the 46 aliases of
 `session_aliases.go` (24 type, 22 constant); the driver and `cmd/stuntgres`

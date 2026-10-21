@@ -11,6 +11,8 @@ constraints, verification, documentation and report.
   each other. Part B: 13d.
 - **Effort:** high for 15a and 15b; xhigh for 15c; high for 15d.
 - **Session size:** one sub-step per session.
+- **Second round (planned at `c154e14fb`):** 15e (linear item 81) needs `dump`
+  18b and `stored` 22a (items 56, 67).
 
 ## Goal
 
@@ -337,6 +339,31 @@ units; the 625-test 15a reference selection in quick mode and with
 `REFERENCE=1`; `make quickcheck`; `make deps`; the `go list` layering check.
 No bench: startup is not touched.
 
+### 15e — Type dump statements (linear item 81)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+The dump seam the 15c notes waited for is step 18 (`dump`):
+
+1. With `dump.Statement` (after 18b), `collationDumpStatements`
+   (`collation_dump.go`) and `conversionDumpStatements`
+   (`conversion_dump.go`) move into `typedef`; they need nothing else.
+2. With `dump.Presenter`, `compositeDumpStatement` (`composite_dump.go`)
+   and `domainDumpStatement` (`domain_dump.go`) move too; the presenter
+   gives them type declarations and literals. `domainDumpStatement` also
+   renders domain checks through `scalarRenderer`: add a check-rendering
+   `Presenter` method here (the dump prompt leaves it to this item).
+3. Dump output stays byte-identical: run the Dump/Restore reference
+   selections in both modes.
+
+Not here: type-declaration and literal rendering
+(`catalogTypeDeclaration*`, `catalogColumnDeclaration`, `catalogLiteral*`)
+goes to `regobj` (step 21); `domain_remap.go`, `composite_render.go`,
+`collation_display.go`, `collation_validation.go` and `record_shape.go`
+are presentation and go to `stored` (22b); `typed_inheritance.go` and
+`typed_mutation.go` use ALTER TABLE records and go with `table` (step
+24); `domain_alter_indexes.go` and `domain_alter_index_outputs.go` go with
+`index` (step 23).
+
 ## Invariants
 
 - Type OIDs, array types, enum sort orders, domain check order and messages,
@@ -569,6 +596,7 @@ Part B: the type DDL handlers live in `typedef`. The checks in §8.3 pass.
     `TestReferenceCompositeExprCorrelatedReturning/postgres` fail (as in 15a
     and 15b; every stuntgres subtest passes). No bench: startup is not
     touched. Racecheck and finalcheck skipped at user request.
+- [ ] 15e — Type dump statements moved (linear item 81)
 
 Outstanding aliases: none (15b qualified every reference; no type aliases).
 

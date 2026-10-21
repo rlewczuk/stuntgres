@@ -6,30 +6,29 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `3c6a855bc`. The later-wave plans
-(steps 8–17) were measured at `75fe0d710`.
+Last verified against `master` at `c154e14fb`. Steps 8–17 were planned at
+`75fe0d710`; steps 18–30 and the second-round follow-ups (items 55–114) at
+`c154e14fb`.
 
 ## Next ready sub-steps
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8).
+as another broad item (§8); none of these is broad. They touch different
+files, so they may run in parallel on separate branches; rebase the others
+after each lands.
 
-- **Postponed packages** — planning round (item 54; docs only).
+- **Seams, in place:** 55 (dump 18a), 58 (copyfmt 19a), 60 (ddl 20a),
+  64 (regobj 21a), 67 (stored 22a).
+- **Follow-ups in existing packages:** 71 (functions F6), 72 (catalog 5i),
+  73 (plan 10e), 74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f),
+  78 (session 13f), 79 (access B6).
+- **Upper features, in place:** 82 (index 23a), 90 (partition 25a),
+  94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
-Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
-(item 45): the session aliases are gone. Part A of steps 14–17 is done;
-with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
-16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b);
-16d.1 (item 51a) is done: the providers stage themselves.
-16d.2 (item 51b) is done: step 16 is complete; the handler decisions sit
-behind `extension.Host` on the root `extensionHost`. Steps 14–17 are done;
-only the planning round of the postponed packages (item 54) remains.
-14d (item 47) is done: step 14 is complete.
-17d (item 53) is done: step 17 is complete.
-15d (item 49) is done: step 15 is complete; the type stage handlers sit
-behind `typedef.StageHost` on `typedefHost`, a defined type over
-`schemaHost`'s fields.
+Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
+planning round: steps 18–30 and the follow-ups have prompt files. Step 3
+stays open until F6 (item 71) closes F2.
 
 ## Task tree
 
@@ -151,6 +150,8 @@ behind `typedef.StageHost` on `typedefHost`, a defined type over
       quickcheck-only waiver; synchronized proof, review and integration pending)*
     - [x] sequence calls *(Group A Item 10; selected dual-mode, quickcheck and
       byte-identical public probe passed; racecheck/finalcheck skipped at user request)*
+  - [ ] F6 — Step 3 closed: aggregate provider remap hook, remaining glue
+    recorded; ticks F2 and step 3 (second round, item 71)
 - [x] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
     (`78265dd49`, `d4a96abb9`, `e9c2356cd`, docs `ad4693205`)
@@ -199,7 +200,9 @@ behind `typedef.StageHost` on `typedefHost`, a defined type over
   - [x] 6c — Aliases removed (`518fd7141`, `4c9a2a229`, `33c1b6f43`,
     `a57f5648e`, then the docs commit) *(racecheck skipped at user
     request)*
-  - [ ] 6d — Optional: store map writes confined to methods
+  - [x] 6d — Optional: store map writes confined to methods *(selected
+    dual-mode/race proof and quickcheck passed; full racecheck/finalcheck
+    waived by user; see the storage prompt Status)*
 - [x] **Step 7 — `visibility`** ([prompt](ENGINE-SPLIT-visibility.md); needs
   4 and 6 complete)
   - [x] 7a — `visibilityRegistry` state ownership (`f556f670c`,
@@ -386,9 +389,98 @@ behind `typedef.StageHost` on `typedefHost`, a defined type over
   - [x] 17d — Handler decisions moved (`10d8611a9`, `f5f7d1354`,
     `4be715db5`, `f66434ed1`, `468bb3ade`, then the docs commit)
     *(racecheck/finalcheck skipped at user request)*
-- [ ] **Postponed packages** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#postponed-packages);
-  no prompt files yet): `index`, `partition`, `inheritance`, `table`,
-  `view`, `fdw`, `dml`, `control`
+- [x] **Postponed packages** — planned in the second round (item 54): steps
+  18–30 below. `inheritance` is part of step 24 (`table`); schema-level DDL
+  is split between step 20 (`ddl`), `catalog` 5i, `regobj` and `table`
+  ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#steps-1830--the-postponed-packages-and-their-seams)).
+- [ ] **Step 18 — `dump`** ([prompt](ENGINE-SPLIT-dump.md); needs —)
+  - [ ] 18a — In place: `dump_graph.go`, snapshot functions
+  - [ ] 18b — `dump` created and graph records moved
+  - [ ] 18c — Collect/Emit provider tables replace Dump switches #1 and #2
+- [ ] **Step 19 — `copyfmt`** ([prompt](ENGINE-SPLIT-copyfmt.md); needs —)
+  - [ ] 19a — COPY cursors split into codec and DML parts, in place
+  - [ ] 19b — `copyfmt` created and codecs moved
+- [ ] **Step 20 — `ddl`** ([prompt](ENGINE-SPLIT-ddl.md); needs —)
+  - [ ] 20a — One `Authority`, `Stage` and `Host` contract
+  - [ ] 20b — One root staging adapter
+  - [ ] 20c — Schema-level DDL host refined (docs only)
+  - [ ] 20d — Schema and tablespace decisions moved
+- [ ] **Step 21 — `regobj`** ([prompt](ENGINE-SPLIT-regobj.md); 21b needs
+  5j)
+  - [ ] 21a — In place: regclass and visibility files, renderer split
+  - [ ] 21b — `regobj` created and clean set moved
+  - [ ] 21c — Captured input resolvers moved
+- [ ] **Step 22 — `stored`** ([prompt](ENGINE-SPLIT-stored.md); 22b needs
+  21b, F6, 18b and 12f, 22c needs 5j)
+  - [ ] 22a — In place: coverage cut, freeze cuts, accessors, renames
+  - [ ] 22b — `stored` created, presentation set moved with aliases *(broad)*
+  - [ ] 22c — Rule and policy payloads, remap protocol
+  - [ ] 22d — Aliases removed *(broad)*
+- [ ] **Step 23 — `index`** ([prompt](ENGINE-SPLIT-index.md); 23b needs 22b,
+  5i, 10e, 11e)
+  - [ ] 23a — In place: renames, wait and exclusion registries, cuts
+  - [ ] 23b — `index` created and clean set moved
+  - [ ] 23c — Host refined (docs only)
+  - [ ] 23d — Handler decisions moved
+- [ ] **Step 24 — `table`**, with inheritance ([prompt](ENGINE-SPLIT-table.md);
+  24a needs 5i, 24b needs 23b, 18b, B6)
+  - [ ] 24a — In place: renames, slots, cuts
+  - [ ] 24b — `table` created and clean set moved *(broad)*
+  - [ ] 24c — Host refined (docs only)
+  - [ ] 24d — Handler decisions moved
+- [ ] **Step 25 — `partition`** ([prompt](ENGINE-SPLIT-partition.md); 25b
+  needs 24b)
+  - [ ] 25a — In place: proof inputs, storage-read fences, renames
+  - [ ] 25b — `partition` created and clean set moved
+  - [ ] 25c — Host refined (docs only)
+  - [ ] 25d — Handler decisions moved
+- [ ] **Step 26 — `fdw`** ([prompt](ENGINE-SPLIT-fdw.md); 26e needs 24d)
+  - [ ] 26a — In place: `fdw_` files, `foreignRegistry`, cuts
+  - [ ] 26b — `fdw` created and clean set moved
+  - [ ] 26c — Host refined (docs only)
+  - [ ] 26d — Wrapper, server, mapping, import and grant decisions moved
+  - [ ] 26e — Foreign-table decisions moved
+- [ ] **Step 27 — `view`** ([prompt](ENGINE-SPLIT-view.md); 27b needs 22c,
+  24b)
+  - [ ] 27a — In place: `access.View` cuts, slots, renames, dead code
+  - [ ] 27b — `view` created and clean set moved *(broad)*
+  - [ ] 27c — Host refined (docs only)
+  - [ ] 27d — Handler decisions moved
+- [ ] **Step 28 — `role`** ([prompt](ENGINE-SPLIT-role.md); 28b needs 21b,
+  B6) *(lower priority)*
+  - [ ] 28a — In place: renames
+  - [ ] 28b — `role` created and clean set moved
+  - [ ] 28c — Host refined (docs only)
+  - [ ] 28d — Handler decisions moved
+- [ ] **Step 29 — `dml`** ([prompt](ENGINE-SPLIT-dml.md); 29b needs Part A of
+  19 and 23–27, 29c needs Part B of 23–27)
+  - [ ] 29a — In place: `insert.go`, misplaced code to owners, receivers
+  - [ ] 29b — `dml` created and clean set moved
+  - [ ] 29c — Host refined (docs only)
+  - [ ] 29d — Executors moved
+- [ ] **Step 30 — `control`** ([prompt](ENGINE-SPLIT-control.md); 30a needs
+  18c; 30b needs the Part A moves and 14e, 15e)
+  - [ ] 30a — Restore hook table replaces the statement switch, in place
+  - [ ] 30b — Host refined (docs only)
+  - [ ] 30c — `control` created and drivers moved
+- [ ] **Second-round follow-ups in existing packages** (each in its step's
+  prompt file; F6 is listed under step 3)
+  - [ ] 5i — Pure helpers moved into `catalog` ([catalog](ENGINE-SPLIT-catalog.md))
+  - [ ] 5j — Payload accessors replace five host and runtime methods
+    ([catalog](ENGINE-SPLIT-catalog.md))
+  - [ ] 10e — Node-tree output and generation helpers moved
+    ([plan](ENGINE-SPLIT-plan.md))
+  - [ ] 11e — Expression-preparation seam; routine admission moved
+    ([exec](ENGINE-SPLIT-exec.md))
+  - [ ] 11f — Preflight moved ([exec](ENGINE-SPLIT-exec.md))
+  - [ ] 12f — Query legality helpers moved ([analyze](ENGINE-SPLIT-analyze.md))
+  - [ ] 13f — Notification records, isolation text and owner handles moved
+    ([session](ENGINE-SPLIT-session.md))
+  - [ ] B6 — Ownership helpers and RLS action rules moved into `access`
+    ([authorization](ENGINE-SPLIT-authorization.md))
+  - [ ] 14e — Operator and SQL routine dumps moved
+    ([routine](ENGINE-SPLIT-routine.md))
+  - [ ] 15e — Type dump statements moved ([typedef](ENGINE-SPLIT-typedef.md))
 
 `access` is tracked under Part B above, not under the later waves.
 
@@ -704,10 +796,147 @@ in the prompt file's Status section.
 
 ### Group G — next planning round
 
-54. [ ] Plan the postponed packages (docs only, like this round): prompt
+54. [x] Plan the postponed packages (docs only, like this round): prompt
     files for `index`, `partition`, `inheritance`, `table`, `view`, `fdw`,
     `dml` and `control` — [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 "Postponed
-    packages" · needs 44
+    packages" · needs 44 · (the docs commit; measured at `c154e14fb`) ·
+    steps 18–30 and the follow-ups below; `inheritance` folded into
+    `table`; seams `dump`, `copyfmt`, `ddl`, `regobj`, `stored` and `role`
+    added
+
+The items below come from the second planning round. Each is one session
+unless its prompt file says otherwise; the list is flat on purpose: when an
+item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
+
+### Group H — shared seams (steps 18–22)
+
+55. [ ] Dump 18a: in place — [dump](ENGINE-SPLIT-dump.md) 18a · needs —
+56. [ ] Dump 18b: `dump` created, graph records moved —
+    [dump](ENGINE-SPLIT-dump.md) 18b · needs 55
+57. [ ] Dump 18c: Collect/Emit provider tables, in place —
+    [dump](ENGINE-SPLIT-dump.md) 18c · needs 56
+58. [ ] COPY codecs 19a: cursors split, in place —
+    [copyfmt](ENGINE-SPLIT-copyfmt.md) 19a · needs —
+59. [ ] COPY codecs 19b: `copyfmt` created, codecs moved —
+    [copyfmt](ENGINE-SPLIT-copyfmt.md) 19b · needs 58
+60. [ ] DDL 20a: one `Authority`, `Stage` and `Host` contract —
+    [ddl](ENGINE-SPLIT-ddl.md) 20a · needs —
+61. [ ] DDL 20b: one root staging adapter — [ddl](ENGINE-SPLIT-ddl.md) 20b ·
+    needs 60
+62. [ ] DDL 20c: schema-level DDL host refined (docs only) —
+    [ddl](ENGINE-SPLIT-ddl.md) 20c · needs 61
+63. [ ] DDL 20d: schema and tablespace decisions moved —
+    [ddl](ENGINE-SPLIT-ddl.md) 20d · needs 62
+64. [ ] regobj 21a: in place — [regobj](ENGINE-SPLIT-regobj.md) 21a · needs —
+65. [ ] regobj 21b: `regobj` created, clean set moved —
+    [regobj](ENGINE-SPLIT-regobj.md) 21b · needs 64, 74
+66. [ ] regobj 21c: captured input resolvers moved —
+    [regobj](ENGINE-SPLIT-regobj.md) 21c · needs 65
+67. [ ] stored 22a: in place (coverage cut, freeze cuts, accessors,
+    renames) — [stored](ENGINE-SPLIT-stored.md) 22a · needs —
+68. [ ] stored 22b: `stored` created, presentation set moved with aliases —
+    [stored](ENGINE-SPLIT-stored.md) 22b · needs 67, 65, 71, 56, 77 ·
+    **broad**
+69. [ ] stored 22c: rule and policy payloads, remap protocol —
+    [stored](ENGINE-SPLIT-stored.md) 22c · needs 68, 74
+70. [ ] stored 22d: aliases removed — [stored](ENGINE-SPLIT-stored.md) 22d ·
+    needs 69 · **broad**
+
+### Group I — follow-ups in existing packages
+
+71. [ ] Functions F6: step 3 closed — [functions](ENGINE-SPLIT-functions.md)
+    F6 · needs —
+72. [ ] Catalog 5i: pure helpers moved down —
+    [catalog](ENGINE-SPLIT-catalog.md) 5i · needs —
+73. [ ] Plan 10e: node-tree output and generation helpers —
+    [plan](ENGINE-SPLIT-plan.md) 10e · needs —
+74. [ ] Catalog 5j: payload accessors — [catalog](ENGINE-SPLIT-catalog.md) 5j ·
+    needs —
+75. [ ] Exec 11e: expression-preparation seam, routine admission —
+    [exec](ENGINE-SPLIT-exec.md) 11e · needs —
+76. [ ] Exec 11f: preflight — [exec](ENGINE-SPLIT-exec.md) 11f · needs 75
+77. [ ] Analyze 12f: query legality helpers —
+    [analyze](ENGINE-SPLIT-analyze.md) 12f · needs —
+78. [ ] Session 13f: notification records, isolation text, owner handles —
+    [session](ENGINE-SPLIT-session.md) 13f · needs —
+79. [ ] Access B6: ownership helpers and RLS action rules —
+    [authorization](ENGINE-SPLIT-authorization.md) B6 · needs —
+80. [ ] Routine 14e: operator and SQL routine dumps —
+    [routine](ENGINE-SPLIT-routine.md) 14e · needs 56, 67
+81. [ ] Typedef 15e: type dump statements —
+    [typedef](ENGINE-SPLIT-typedef.md) 15e · needs 56, 67
+
+### Group J — upper features (steps 23–28)
+
+82. [ ] Index 23a: in place — [index](ENGINE-SPLIT-index.md) 23a · needs —
+83. [ ] Index 23b: `index` created, clean set moved —
+    [index](ENGINE-SPLIT-index.md) 23b · needs 82, 68, 72, 75, 73
+84. [ ] Index 23c: host refined (docs only) — [index](ENGINE-SPLIT-index.md)
+    23c · needs 83, 61
+85. [ ] Index 23d: handler decisions moved — [index](ENGINE-SPLIT-index.md)
+    23d · needs 84
+86. [ ] Table 24a: in place — [table](ENGINE-SPLIT-table.md) 24a · needs 72
+87. [ ] Table 24b: `table` created, clean set moved (with inheritance) —
+    [table](ENGINE-SPLIT-table.md) 24b · needs 86, 83, 56, 79 · **broad**
+88. [ ] Table 24c: host refined (docs only) — [table](ENGINE-SPLIT-table.md)
+    24c · needs 87, 84
+89. [ ] Table 24d: handler decisions moved — [table](ENGINE-SPLIT-table.md)
+    24d · needs 88, 85
+90. [ ] Partition 25a: in place — [partition](ENGINE-SPLIT-partition.md) 25a ·
+    needs —
+91. [ ] Partition 25b: `partition` created, clean set moved —
+    [partition](ENGINE-SPLIT-partition.md) 25b · needs 90, 87
+92. [ ] Partition 25c: host refined (docs only) —
+    [partition](ENGINE-SPLIT-partition.md) 25c · needs 91, 88
+93. [ ] Partition 25d: handler decisions moved —
+    [partition](ENGINE-SPLIT-partition.md) 25d · needs 92, 89
+94. [ ] FDW 26a: in place — [fdw](ENGINE-SPLIT-fdw.md) 26a · needs —
+95. [ ] FDW 26b: `fdw` created, clean set moved — [fdw](ENGINE-SPLIT-fdw.md)
+    26b · needs 94
+96. [ ] FDW 26c: host refined (docs only) — [fdw](ENGINE-SPLIT-fdw.md) 26c ·
+    needs 95, 61
+97. [ ] FDW 26d: wrapper, server, mapping, import and grant decisions —
+    [fdw](ENGINE-SPLIT-fdw.md) 26d · needs 96
+98. [ ] FDW 26e: foreign-table decisions — [fdw](ENGINE-SPLIT-fdw.md) 26e ·
+    needs 97, 89
+99. [ ] View 27a: in place — [view](ENGINE-SPLIT-view.md) 27a · needs —
+100. [ ] View 27b: `view` created, clean set moved —
+     [view](ENGINE-SPLIT-view.md) 27b · needs 99, 69, 87 · **broad**
+101. [ ] View 27c: host refined (docs only) — [view](ENGINE-SPLIT-view.md)
+     27c · needs 100, 61
+102. [ ] View 27d: handler decisions moved — [view](ENGINE-SPLIT-view.md)
+     27d · needs 101
+103. [ ] Role 28a: in place — [role](ENGINE-SPLIT-role.md) 28a · needs —
+104. [ ] Role 28b: `role` created, clean set moved —
+     [role](ENGINE-SPLIT-role.md) 28b · needs 103, 65, 79
+105. [ ] Role 28c: host refined (docs only) — [role](ENGINE-SPLIT-role.md)
+     28c · needs 104, 61
+106. [ ] Role 28d: handler decisions moved — [role](ENGINE-SPLIT-role.md)
+     28d · needs 105
+
+### Group K — DML and Dump/Restore (steps 29–30)
+
+107. [ ] DML 29a: in place — [dml](ENGINE-SPLIT-dml.md) 29a · needs 82, 86
+108. [ ] DML 29b: `dml` created, clean set moved — [dml](ENGINE-SPLIT-dml.md)
+     29b · needs 107, 59, 83, 87, 91, 95, 100
+109. [ ] DML 29c: host refined (docs only) — [dml](ENGINE-SPLIT-dml.md) 29c ·
+     needs 108, 85, 89, 93, 97, 102
+110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109
+111. [ ] Control 30a: Restore hook table, in place —
+     [control](ENGINE-SPLIT-control.md) 30a · needs 57
+112. [ ] Control 30b: host refined (docs only) —
+     [control](ENGINE-SPLIT-control.md) 30b · needs 111, 70, 83, 87, 91, 95,
+     100, 65, 80, 81
+113. [ ] Control 30c: `control` created, drivers moved —
+     [control](ENGINE-SPLIT-control.md) 30c · needs 112
+
+### Group L — closing
+
+114. [ ] End-state review (docs only): re-measure the root, update
+     ENGINE-SPLIT.md §2 and §3, record what stays in the root and why, and
+     decide whether a third round is needed —
+     [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 63, 66, 73, 76, 77, 78,
+     80, 81, 98, 106, 110, 113
 
 ## Updating this file
 
@@ -732,7 +961,8 @@ section, in the same commit that records the sub-step (§8.4).
    - F3 names its pilot family in place of `(name)`;
    - B0 replaces or refines the B1–B4 items it rewrote;
    - Tier C refinement adds its items under "Tier C refined";
-   - a refine sub-step (11a, 12c, 13c, 14c–17c) adds or splits the items it
+   - a refine sub-step (11a, 12c, 13c, 14c–17c, and the docs-only `c`
+     sub-steps of steps 20 and 23–29 and 30b) adds or splits the items it
      planned, in the tree and in the linear plan;
    - a later wave that gets a prompt file gets a link and its sub-steps here.
    Do not add items that are not in a prompt file or in ENGINE-SPLIT.md.

@@ -16,6 +16,8 @@ constraints, verification, documentation and report.
   10d.
 - **Session size:** one sub-step per session. 10a, 10c and 10d are broad
   rewrites (§8): never in parallel with another broad rewrite.
+- **Second round (planned at `c154e14fb`):** 10e (linear item 73) needs
+  nothing.
 
 ## Goal
 
@@ -206,6 +208,22 @@ change).
 Use the 5f/6c alias tool. First audit locals named `plan` that would shadow
 the package (`LookupParent` at every rewritten use).
 
+### 10e — Node-tree output and generation helpers (linear item 73)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+Two clean root pieces only walk the plan IR; `frontier` reports no root
+declaration they use:
+
+1. `deparse_tree.go` (232 lines): `boundTree`, `appendBoundTree` and
+   `catalogTree`, the `pg_node_tree` output of plan nodes. Export them
+   (for example `plan.BoundTree`); `DeparseInquiry` and the catalog
+   producers call them through the root today.
+2. `generated.go`: `generationHasTableOID` and `generationImmutable`, which
+   index, table and partition code use (steps 23–25).
+
+Move them with qualified callers, no aliases. Engine tests that call them
+are rewritten to the new names.
+
 ## Stays in the engine (for step 11)
 
 `EvalContext` and the `Eval*` bodies; `openQueryNode` and the node openers;
@@ -268,6 +286,7 @@ names `*EvalContext`. `EvalContext` is three documented groups. The checks in
 - [x] 10d — Aliases removed, plus the three 10c follow-ups (`fb6c19185`,
   `367313c0d`, `3860f511e`, `9ba165e93`, `3f66996a4`, `50e07094a`, then the
   docs commit) *(racecheck/finalcheck skipped at user request)*
+- [ ] 10e — Node-tree output and generation helpers moved (linear item 73)
 
 Outstanding aliases: none. 10d deleted `plan_aliases.go` (90 aliases).
 

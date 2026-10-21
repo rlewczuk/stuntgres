@@ -11,6 +11,8 @@ constraints, verification, documentation and report.
 - **Effort:** high for Part A; xhigh for B0; high for B1–B4.
 - **Session size:** Part A takes one session. Part B takes one sub-step per
   session.
+- **Second round (planned at `c154e14fb`):** B6 (linear item 79) needs
+  nothing; `role` 28b needs it.
 
 ## Background
 
@@ -210,6 +212,24 @@ moved `binding` into `analyze` and step 10c the row marks into `plan`:
 3. Keep privilege decisions, error order and messages identical; run the
    reference selections listed under "Targeted tests" with `REFERENCE=1`.
 
+### B6 — Ownership helpers and RLS action rules (linear item 79)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+Clean root helpers that import only `catalog` and `authorization` and fit
+the `access` README's ownership and row-security sections:
+
+- `ownershipRoot` (`ownership.go`), `ownedRoots` and
+  `ownershipRelationLocks` (`owned_roles.go`), `ownedPolicies` and
+  `ownedMembershipCandidate` (`owned_roles_cleanup.go`);
+- `rowSecurityAction`, `rowSecurityActions`, `rowSecurityFlags`,
+  `rowSecurityKind` and `rowSecurityActionLabel` (`rls_base.go`).
+
+Move them into `access` with exported names; no aliases. View capture,
+role DDL, GRANT/REVOKE, ALTER DEFAULT PRIVILEGES and the ownership
+statements stay in the root as the README says; their decisions move to
+`role` (step 28, which needs this item). The aclitem I/O moves to `regobj`
+(step 21).
+
 ## Invariants
 
 - Privilege decisions, SQLSTATEs, messages, notice order and grantor
@@ -291,6 +311,8 @@ moved `binding` into `analyze` and step 10c the row marks into `plan`:
 - [x] B5 — Binding walkers moved next to `binding` in `analyze`
   (`76039ffea`, `4748b28ca`, then the commit that records this status)
   *(racecheck/finalcheck skipped at user request)*
+- [ ] B6 — Ownership helpers and RLS action rules moved into `access`
+  (linear item 79)
 
 No aliases remain: B4 removed the nine B3 aliases and deleted
 `internal/engine/access_aliases.go`. Part A, B1 and B2 added none.

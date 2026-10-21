@@ -14,6 +14,8 @@ constraints, verification, documentation and report.
   the `functions` call shapes. Part B: step 13d.
 - **Effort:** high for 14a and 14b; xhigh for 14c; high for 14d.
 - **Session size:** one sub-step per session.
+- **Second round (planned at `c154e14fb`):** 14e (linear item 80) needs `dump`
+  18b and `stored` 22a (items 56, 67).
 
 ## Goal
 
@@ -289,6 +291,27 @@ package. Verify with build, the targeted units, the 14a reference selection
 in quick mode and with `REFERENCE=1`, quickcheck and deps. The change is off
 the startup path; run `make bench` only if seeding code changes.
 
+### 14e — Operator and SQL routine dumps (linear item 80)
+
+Added when the postponed packages were planned (measured at `c154e14fb`).
+The dump seam the 14b and 14c notes waited for is step 18 (`dump`):
+
+1. After 18b, `operator_dump.go` (292 clean lines), `sqlRoutineDumpEvents`
+   and `sqlRoutineDumpStatement` (`sql_routine_dump.go`) move into
+   `routine`. They take `dump.Event`, `dump.Statement` and a
+   `dump.Presenter` (type declarations, routine identity) instead of the
+   root's `dumpEventKey`, `dumpDomain`, `catalogTypeDeclaration` and
+   `routineIdentityByOID`.
+2. The root passes its presenter (after step 21, the one in `regobj`).
+3. Dump output stays byte-identical: run the Dump/Restore reference
+   selections in both modes.
+
+Not here: `routine_dependencies.go`, `routine_presentation.go` and
+`scalar_function_sql.go` hold `scalarRenderer` and `viewRenderer` methods
+and move with `stored` (22b); `procedureProvider` imports `routine` and
+`extension` and goes with `stored` too; the routine admission files go to
+`exec` (11e).
+
 ## Invariants
 
 - Builtin OIDs, names, signatures, provider assignments, operator metadata
@@ -473,6 +496,7 @@ seam (14c). The checks in §8.3 pass.
     quick mode and with `REFERENCE=1`, `make quickcheck` and `make deps`
     passed. No `make bench`: seeding and startup are untouched. Racecheck
     and finalcheck skipped at user request.
+- [ ] 14e — Operator and SQL routine dumps moved (linear item 80)
 
 Outstanding aliases: none (14b qualified every reference; no type aliases;
 14d moved only functions).
