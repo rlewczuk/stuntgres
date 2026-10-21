@@ -242,7 +242,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 		t.Fatal("idle poll acquired SQL activity lease")
 	}
 	e.mu.Lock()
-	payloadOf(s).notifications.state = &notificationState{ready: notificationFIFO{}.append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
+	payloadOf(s).notifications.state = &session.NotificationState{Ready: session.NotificationFIFO{}.Append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
 	payloadOf(s).notifications.signalLocked()
 	e.mu.Unlock()
 	select {

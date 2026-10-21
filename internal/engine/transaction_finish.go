@@ -137,7 +137,7 @@ func (s *StatementScope) Finish(err error) error {
 				} else {
 					notificationActions = append(notificationActions, s.notificationActions...)
 				}
-				notificationEvents := appendNotificationEvents(t.NotificationEvents, s.notificationEvents)
+				notificationEvents := session.AppendNotificationEvents(t.NotificationEvents, s.notificationEvents)
 				session := s.op.Session
 			privateForeignFence:
 				e.mu.Lock()
