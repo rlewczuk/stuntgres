@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
@@ -294,4 +295,37 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 		c.Schemas = append(c.Schemas, control.Schema{Name: ns.Name(), Owner: role.Name, Configured: configured})
 	}
 	return nil
+}
+
+// Namespace ACL entry order and split entries do not affect reproducibility.
+// Principal/grantor references do: losing them would change DROP dependencies.
+func bootstrapNamespaceDumpable(d *catalog.Namespace) bool {
+	if d.Address().ObjectID == ids.PGToastNamespaceOID {
+		return !d.ACL.Explicit && len(d.ACL.Entries) == 0
+	}
+	if !d.ACL.Explicit {
+		return false
+	}
+	publicRights := authorization.UsagePrivilege
+	var publicUse, publicOptions, ownerUse, ownerOptions authorization.Privileges
+	for _, entry := range d.ACL.Entries {
+		if entry.Grantor != d.Owner {
+			return false
+		}
+		if entry.Grantee.Public {
+			if entry.Grantee.Role != (authorization.PrincipalRef{}) {
+				return false
+			}
+			publicUse |= entry.Privileges
+			publicOptions |= entry.GrantOptions
+		} else {
+			if entry.Grantee.Role != d.Owner {
+				return false
+			}
+			ownerUse |= entry.Privileges
+			ownerOptions |= entry.GrantOptions
+		}
+	}
+	return publicUse == publicRights && publicOptions == 0 &&
+		ownerUse == authorization.UsagePrivilege|authorization.CreatePrivilege && ownerOptions == 0
 }
