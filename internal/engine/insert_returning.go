@@ -176,15 +176,15 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 }
 func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partition.InsertGroup {
 	state := s.partitionInsert
-	address := state.destination.Address()
-	group := state.groups[address]
+	address := state.Destination.Address()
+	group := state.Groups[address]
 	if group == nil {
 		group = &partition.InsertGroup{Ref: ref.Domain().Ref(ref.Epoch, address)}
-		if state.groups == nil {
-			state.groups = make(map[ids.ObjectAddress]*partition.InsertGroup)
+		if state.Groups == nil {
+			state.Groups = make(map[ids.ObjectAddress]*partition.InsertGroup)
 		}
-		state.groups[address] = group
-		state.order = append(state.order, group)
+		state.Groups[address] = group
+		state.Order = append(state.Order, group)
 	}
 	s.uniqueBinding = group.Unique
 	return group

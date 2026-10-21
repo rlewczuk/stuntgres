@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -53,7 +54,7 @@ type mutationInsert struct {
 
 // mutationPartition holds INSERT partition routing (partition).
 type mutationPartition struct {
-	partitionInsert    *partitionInsertState
+	partitionInsert    *partition.InsertState
 	partitionRelations map[ids.ObjectAddress]*catalog.Relation
 }
 

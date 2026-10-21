@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
@@ -107,7 +108,7 @@ type uniqueConflict struct {
 	parent, index *catalog.Relation
 	key           []sqltype.Value
 	existing      []sqltype.Value
-	auth          AuthorizationView
+	auth          access.View
 	view          catalog.Read
 	schema        string
 	row           storage.RowVersion
@@ -115,8 +116,19 @@ type uniqueConflict struct {
 	position      int
 }
 
+// disclosureEnv is the access environment of the statement's operation over
+// v, for key disclosure decisions. It never locks.
+func (s *StatementScope) disclosureEnv(v access.View) access.Environment {
+	return s.engine().operationAuthority(s.op, v)
+}
+
+// checkWriteBinding is the ON CONFLICT binding check over v. It never locks.
+func (s *StatementScope) checkWriteBinding(v access.View, b analyze.Binding) error {
+	return analyze.CheckBinding(s.engine().operationAuthority(s.op, v), b, &parser.Insert{})
+}
+
 func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error {
-	allowed, err := index.UniqueKeyDetailAllowed(c.auth.View, c.auth, ref, c.index.SQLIndex.Keys)
+	allowed, err := index.UniqueKeyDetailAllowed(c.auth, s.disclosureEnv(c.auth), ref, c.index.SQLIndex.Keys)
 	if err != nil {
 		return err
 	}
@@ -210,7 +222,7 @@ retry:
 			return uniqueConflict{}, err
 		}
 		heads := action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || idx.SQLIndex.HasRuntimeDomainKeyConversion())
-		probe, auth, err := s.writeHost().captureUniqueProbe(ref, binding, idx, heads)
+		probe, err := s.writeHost().CaptureUniqueProbe(ref, binding, idx, heads)
 		if err != nil {
 			return uniqueConflict{}, err
 		}
@@ -221,14 +233,14 @@ retry:
 		parent, idx = probe.Parent, probe.Index
 		current, root, versions := probe.View, probe.Root, probe.Versions
 		if check := s.insertConflict; check != nil {
-			if err := analyze.CheckBinding(auth, dml.BindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
+			if err := s.checkWriteBinding(probe.Authority, dml.BindingForConflict(ref, parent, check)); err != nil {
 				return uniqueConflict{}, err
 			}
 		}
 		if root == nil {
 			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
-		outcome := uniqueConflict{parent: parent, index: idx, key: key, auth: auth, view: current, schema: probe.Schema}
+		outcome := uniqueConflict{parent: parent, index: idx, key: key, auth: probe.Authority, view: current, schema: probe.Schema}
 		lo, err := index.UniqueRootStart(ctx, &bound.Ordering, root.Entries, key)
 		if err != nil {
 			return uniqueConflict{}, err

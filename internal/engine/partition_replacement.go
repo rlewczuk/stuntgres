@@ -81,8 +81,8 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 					selected = view.MustRelation(destination.Partition.DefaultChild)
 				}
 				if selected == nil {
-					state := partitionInsertState{catalog: view, auth: auth, target: root}
-					return nil, state.missingPartition(ctx, destination, key.Values, evaluation.Output)
+					state := partition.InsertState{Catalog: view, Authority: auth.View, Env: auth, Target: root}
+					return nil, state.MissingPartition(ctx, destination, key.Values, evaluation.Output)
 				}
 				destination = selected
 			}

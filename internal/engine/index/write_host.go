@@ -1,6 +1,7 @@
 package index
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -31,7 +32,8 @@ type WriteHost interface {
 	// WaitTransaction waits for owner's completion. Waits; the caller holds
 	// nothing.
 	WaitTransaction(owner *lock.Ticket, purpose lock.CompletionPurpose) error
-	// CaptureUniqueProbe captures one coherent probe of idx for ref. heads
+	// CaptureUniqueProbe captures one coherent probe of idx for ref, with
+	// the statement's write authority recaptured on the probe's view. heads
 	// asks for the parent's head versions too. Locks, never waits.
 	CaptureUniqueProbe(ref ids.ObjectRef, b *UniqueWriteBinding, idx *catalog.Relation, heads bool) (UniqueProbe, error)
 	// ExistingIndexRoot returns idx's committed or private root, failing with
@@ -39,7 +41,8 @@ type WriteHost interface {
 	// waits.
 	ExistingIndexRoot(idx *catalog.Relation) (*storage.IndexRoot, error)
 	// CaptureExclusionScan captures one coherent exclusion scan of idx for
-	// ref. Locks, never waits.
+	// ref, with the statement's write authority (acting as a mutating FK
+	// action's owner) recaptured on the scan's view. Locks, never waits.
 	CaptureExclusionScan(ref ids.ObjectRef, b *UniqueWriteBinding, idx *catalog.Relation) (ExclusionScan, error)
 	// ExclusionScanCurrent reports whether nothing scan captured for idx
 	// changed since. Locks, never waits.
@@ -57,6 +60,10 @@ type WriteHost interface {
 	// AdmitExclusion marks version's entries on idx admitted. Locks, never
 	// waits; like today it checks no epoch.
 	AdmitExclusion(idx ids.ObjectAddress, version ids.VersionID)
+	// EndExclusionRow projects the end of version of row on ref's exclusion
+	// constraints, for a deletion staged outside the write stage. Locks,
+	// never waits.
+	EndExclusionRow(ref ids.ObjectRef, row ids.RowID, version ids.VersionID)
 }
 
 // UniqueProbe is one coherent capture of a unique index for a probe. Stale
@@ -70,6 +77,7 @@ type UniqueProbe struct {
 	Schema        string
 	Root          *storage.IndexRoot
 	Versions      []storage.RowVersion
+	Authority     access.View // for the ON CONFLICT check and key disclosure
 }
 
 // ExclusionScan is one coherent capture of an exclusion index, the private
@@ -85,6 +93,7 @@ type ExclusionScan struct {
 	StoreGeneration uint64
 	Versions        []storage.RowVersion
 	Ends            *storage.DeletionRoot
+	Authority       access.View // for the conflict's key disclosure
 }
 
 // ExclusionEdit is the projection change of one exclusion admission: the

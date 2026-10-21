@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
@@ -35,7 +36,7 @@ type ruleCommandScratch struct {
 	unique     *index.UniqueWriteBinding
 	conflict   *dml.InsertConflictState
 	returning  *dml.InsertReturningOutput
-	partition  *partitionInsertState
+	partition  *partition.InsertState
 	locks      *exec.LockContext
 	admission  analyze.LockAdmission
 	ruleAction ruleActionScope

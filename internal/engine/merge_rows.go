@@ -353,11 +353,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		*excluded = append(*excluded, old)
 		// Retire exclusion authority in actual action order before later admission.
 		// Canonical Delete still validates the original captured provenance at stage.
-		projected := deletion
-		projected.Version = old.Version
-		e.mu.Lock()
-		scope.projectExclusionDeletionLocked(e, projected)
-		e.mu.Unlock()
+		scope.writeHost().EndExclusionRow(deletion.Ref, deletion.Row, old.Version)
 		accepted[old.Row] = true
 		result.Actions = append(result.Actions, dml.MergeActionRow{Action: arm.Action, Deletion: deletion})
 		return nil
