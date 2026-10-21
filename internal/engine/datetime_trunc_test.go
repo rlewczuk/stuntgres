@@ -34,7 +34,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 			t.Fatal(tc, err)
 		}
 		e := node.(functions.DatetimeTrunc)
-		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
+		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || plan.GenerationImmutable(e) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, e.Properties(), e.ResultUsage())
 		}
 		if tc.typ == "time" && e.Args[1].ResultUsage().Type.ID() != sqltype.Time {
@@ -82,7 +82,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 		n := e
 		n.Args[i] = plan.LiteralExpr{Info: b.Info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(n.Args[i].ResultUsage().Type)}
 		simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, n, false)
-		if err != nil || !changed || exec.PlannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
+		if err != nil || !changed || exec.PlannedVolatility(simplified) != expr.Immutable || !plan.GenerationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)
 		}
 	}

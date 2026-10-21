@@ -72,7 +72,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: transaction}, Host: hostOf(&StatementScope{statementStart: statement})}}
 	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeTransaction, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {
 		leaf := transactionTimeUnitLeaf(t, binder, kind)
-		if leaf.Usage.Type.ID() != kind.Type() || leaf.Usage.Typmod != -1 || leaf.Properties() != expr.IntrinsicProperties(kind.IntrinsicRule()) || exec.PlannedVolatility(leaf) != leaf.Property.Volatility || generationImmutable(leaf) {
+		if leaf.Usage.Type.ID() != kind.Type() || leaf.Usage.Typmod != -1 || leaf.Properties() != expr.IntrinsicProperties(kind.IntrinsicRule()) || exec.PlannedVolatility(leaf) != leaf.Property.Volatility || plan.GenerationImmutable(leaf) {
 			t.Fatal("type/volatility", leaf)
 		}
 		if _, err := leaf.Eval((*exec.Context)(nil)); err == nil {

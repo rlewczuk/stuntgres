@@ -149,7 +149,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+	if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || plan.GenerationImmutable(n) {
 		t.Fatal("volatile flag child hidden", n.Properties())
 	}
 }

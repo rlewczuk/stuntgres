@@ -35,7 +35,7 @@ func TestDatetimeArithmeticBindingAndPhysicalVolatility(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		if node.ResultUsage().Type != b.Type(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
+		if node.ResultUsage().Type != b.Type(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || plan.GenerationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node, node.Properties())
 		}
 		folded, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node, false)
@@ -68,7 +68,7 @@ func TestDatetimeArithmeticDependenceAndVolatileDominance(t *testing.T) {
 		} else {
 			n.Right = child
 		}
-		if exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+		if exec.PlannedVolatility(n) != expr.Volatile || plan.GenerationImmutable(n) {
 			t.Fatal("intrinsic stable suppressed child", n)
 		}
 	}

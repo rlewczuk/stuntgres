@@ -56,7 +56,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if declaration.Identity.ID != tc.oid || declaration.Identity.Signature != "" || declaration.Kind != catalog.FunctionRoutine || declaration.Result != 25 || !declaration.Strict || declaration.Parallel != 's' || declaration.Volatility != tc.volatility || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 {
 			t.Fatalf("incorrect declaration %#v", declaration)
 		}
-		if exec.PlannedVolatility(leaf) != tc.volatility || generationImmutable(leaf) != (tc.volatility == expr.Immutable) {
+		if exec.PlannedVolatility(leaf) != tc.volatility || plan.GenerationImmutable(leaf) != (tc.volatility == expr.Immutable) {
 			t.Error("lost immutable/stable boundary")
 		}
 		if sides, err := plan.JoinExpressionSides(leaf, 0, 0); err != nil || sides != 0 {

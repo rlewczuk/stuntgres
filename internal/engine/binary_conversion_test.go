@@ -101,7 +101,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				observed := arg.(mathObservedArgument)
 				args[i] = plan.LiteralExpr{Info: observed.Info, Value: observed.value}
 			}
-			if generationImmutable(bound) != (tc.volatility == expr.Immutable) {
+			if plan.GenerationImmutable(bound) != (tc.volatility == expr.Immutable) {
 				t.Fatal("generation intrinsic volatility lost")
 			}
 			rebound, changed, err := retagBoundTypes(New().CatalogRead(), bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })

@@ -129,7 +129,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := functions.Enum{Info: expr.Info{Usage: result}, Plan: provider, Args: arguments, EnumName: "mood"}
-		if generationImmutable(call) || exec.PlannedVolatility(call) != expr.Stable {
+		if plan.GenerationImmutable(call) || exec.PlannedVolatility(call) != expr.Stable {
 			t.Fatalf("%s/%d lost intrinsic STABLE admission", signature.name, signature.arity)
 		}
 	}

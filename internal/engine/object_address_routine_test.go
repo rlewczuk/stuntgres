@@ -48,7 +48,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released declaration", captured)
 			}
-			if carrier.Properties().Volatility != expr.Stable || generationImmutable(carrier) {
+			if carrier.Properties().Volatility != expr.Stable || plan.GenerationImmutable(carrier) {
 				t.Fatal("address inquiry lost STABLE boundary")
 			}
 			owned, ok := evaluation.Catalog.Procedure(address)

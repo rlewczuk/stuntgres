@@ -452,7 +452,7 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 	call, c := arrayRelationalUnitCall(t, "array_sample", "{1,2}", 1)
 	visits := 0
 	plan.ExpressionChildren(call, func(expr.Expr) { visits++ })
-	if visits != 2 || exec.PlannedPhysicalVolatility(call, false) != expr.Volatile || generationImmutable(call) || !analyze.ClosedTransactionTimeDefault(call) || !analyze.ClosedUUIDDefault(call) {
+	if visits != 2 || exec.PlannedPhysicalVolatility(call, false) != expr.Volatile || plan.GenerationImmutable(call) || !analyze.ClosedTransactionTimeDefault(call) || !analyze.ClosedUUIDDefault(call) {
 		t.Fatal("missing closed owner")
 	}
 	qualified := call

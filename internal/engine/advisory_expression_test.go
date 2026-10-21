@@ -46,7 +46,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if name == "pg_advisory_lock" || name == "pg_advisory_lock_shared" || name == "pg_advisory_unlock_all" {
 					id = sqltype.Void
 				}
-				if node.ResultUsage().Type.ID() != id || node.Properties().Volatility != expr.Volatile || generationImmutable(node) || !pgIndexFunctionExpression(node) {
+				if node.ResultUsage().Type.ID() != id || node.Properties().Volatility != expr.Volatile || plan.GenerationImmutable(node) || !pgIndexFunctionExpression(node) {
 					t.Fatal("fixed identity/volatility", node.ResultUsage(), node.Properties())
 				}
 				if !node.ValidStored() {
@@ -131,7 +131,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			} else {
 				folded, changed, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
 			}
-			if err != nil || !changed || !generationImmutable(folded) {
+			if err != nil || !changed || !plan.GenerationImmutable(folded) {
 				t.Fatal("literal NULL fold", folded, changed, err)
 			}
 			v, err := folded.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})

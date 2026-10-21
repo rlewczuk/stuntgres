@@ -31,7 +31,7 @@ func TestArrayGeneratedPhysicalIOImmutability(t *testing.T) {
 				t.Fatal(err)
 			}
 			identity := plan.CoercionExpr{Info: expr.Info{Usage: descriptor.Usage()}, Child: leaf, Plan: identityPlan, Mode: sqltype.Explicit}
-			if !generationImmutable(identity) {
+			if !plan.GenerationImmutable(identity) {
 				t.Fatal("array identity coercion rejected", descriptor.Name())
 			}
 			for _, input := range []bool{false, true} {
@@ -45,13 +45,13 @@ func TestArrayGeneratedPhysicalIOImmutability(t *testing.T) {
 				}
 				child := plan.ColumnExpr{Info: expr.Info{Usage: from, Property: expr.Properties{RowDependent: true}}}
 				cast := plan.CoercionExpr{Info: expr.Info{Usage: to}, Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}
-				if generationImmutable(cast) {
+				if plan.GenerationImmutable(cast) {
 					t.Fatal("surviving array IO accepted as immutable", descriptor.Name(), input)
 				}
 				// The existing consumer follows surviving providers, not inherited
 				// volatility from a removed CASE branch. No blanket array ban.
 				pruned := plan.CaseExpr{Info: expr.Info{Usage: descriptor.Usage(), Property: expr.Properties{Volatility: expr.Stable, RowDependent: true}}, Otherwise: leaf}
-				if !generationImmutable(pruned) {
+				if !plan.GenerationImmutable(pruned) {
 					t.Fatal("pruned IO volatility rejected immutable survivor")
 				}
 			}

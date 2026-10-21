@@ -52,7 +52,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 			}
 			e := node.(functions.DatetimeOverlaps)
 			stable := typ == "timestamptz" && mask != 0
-			if e.ResultUsage().Type.ID() != sqltype.Bool || e.ResultUsage().Typmod != -1 || (e.Properties().Volatility == expr.Stable) != stable || (exec.PlannedVolatility(e) == expr.Stable) != stable || generationImmutable(e) != !stable {
+			if e.ResultUsage().Type.ID() != sqltype.Bool || e.ResultUsage().Typmod != -1 || (e.Properties().Volatility == expr.Stable) != stable || (exec.PlannedVolatility(e) == expr.Stable) != stable || plan.GenerationImmutable(e) != !stable {
 				t.Fatal(typ, mask, e.Properties())
 			}
 			if !b.SameGroupExpression(e, e) {

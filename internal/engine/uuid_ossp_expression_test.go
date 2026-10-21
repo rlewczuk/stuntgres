@@ -37,10 +37,10 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
-	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Volatile || !analyze.ValidInstalledUUIDOsspShape(n) || !analyze.ClosedUUIDDefault(n) || generationImmutable(n) {
+	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Volatile || !analyze.ValidInstalledUUIDOsspShape(n) || !analyze.ClosedUUIDDefault(n) || plan.GenerationImmutable(n) {
 		t.Fatal("installed UUID shape/properties", n)
 	}
-	if generationHasTableOID(n) {
+	if plan.GenerationHasTableOID(n) {
 		t.Fatal("zero-child UUID leaf acquired a tableoid dependency")
 	}
 	if err := validateGenerationPlan(view, nil, n); err != nil {

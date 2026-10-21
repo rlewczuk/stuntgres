@@ -50,7 +50,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		if node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
+		if node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || plan.GenerationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node.ResultUsage(), node.Properties())
 		}
 		v, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
@@ -115,7 +115,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 			null := e
 			null.Args[i] = plan.LiteralExpr{Info: b.Info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(e.Args[i].ResultUsage().Type)}
 			simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, null, false)
-			if err != nil || !changed || !generationImmutable(simplified) {
+			if err != nil || !changed || !plan.GenerationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
 			}
 		}
@@ -128,7 +128,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := volatile.Properties()
-	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Volatile || exec.PlannedVolatility(volatile) != expr.Volatile || generationImmutable(volatile) {
+	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Volatile || exec.PlannedVolatility(volatile) != expr.Volatile || plan.GenerationImmutable(volatile) {
 		t.Fatal(p)
 	}
 	flags.Clause.AggregateClause = "SELECT"

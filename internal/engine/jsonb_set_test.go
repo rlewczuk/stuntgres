@@ -61,7 +61,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(slot, err)
 		}
-		if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+		if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || plan.GenerationImmutable(n) {
 			t.Fatal("hidden volatile child", slot, n.Properties())
 		}
 	}

@@ -7,15 +7,16 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 )
 
 func indexHasTableOID(index *catalog.IndexDefinition) bool {
-	if predicate := index.Predicate; predicate != nil && (generationHasTableOID(predicate.Definition) || generationHasTableOID(predicate.Execution)) {
+	if predicate := index.Predicate; predicate != nil && (plan.GenerationHasTableOID(predicate.Definition) || plan.GenerationHasTableOID(predicate.Execution)) {
 		return true
 	}
 	for _, key := range index.Keys {
-		if key.Derived != nil && (generationHasTableOID(key.Derived.Definition) || generationHasTableOID(key.Derived.Execution)) {
+		if key.Derived != nil && (plan.GenerationHasTableOID(key.Derived.Definition) || plan.GenerationHasTableOID(key.Derived.Execution)) {
 			return true
 		}
 	}
@@ -51,7 +52,7 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalog.State) map[ids.O
 			continue
 		}
 		for attribute, generation := range parent.ColumnMeta.Generations {
-			if generation.Kind != catalog.GenerationStored || !generationHasTableOID(generation.Planned) || !indexAttributeAffected(source.index.SQLIndex, attribute) {
+			if generation.Kind != catalog.GenerationStored || !plan.GenerationHasTableOID(generation.Planned) || !indexAttributeAffected(source.index.SQLIndex, attribute) {
 				continue
 			}
 			if changed == nil {

@@ -37,7 +37,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 			plan.LiteralExpr{Info: expr.Info{Usage: source.Usage()}, Value: sqltype.Null(source)},
 			plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, template)},
 		}}
-		if exec.PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
+		if exec.PlannedVolatility(node) != expr.Stable || plan.GenerationImmutable(node) {
 			t.Fatal("lost intrinsic STABLE classification", signature)
 		}
 		if !b.SameGroupExpression(node, node) {
