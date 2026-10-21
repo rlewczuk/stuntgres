@@ -125,8 +125,8 @@ enum journal updates; `type_generation.go` and `enum_generation.go`
 TEMP collation cleanup and `collationCreationNamespaceLocked`
 (`collation_temporary.go`); `conversionCheckCreate`
 (`conversion_create_check.go`, shared with `routine.DDLHost`); the dump
-statements that produce the engine's
-dump-graph record `dumpDomain` (`collationDumpStatements`,
+statements that produce the dump record
+`dump.Statement` (`collationDumpStatements`,
 `conversionDumpStatements`, `compositeDumpStatement`); type-declaration
 and literal rendering (`catalogTypeDeclaration*`, `catalogLiteral*`), which
 use the engine's definition reader and reg* formatters; `typeProvider`

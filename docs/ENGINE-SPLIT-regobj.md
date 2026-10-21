@@ -79,7 +79,7 @@ Imports of the set: `analyze` (`NamespaceSelection`, the lookup kinds,
 |---|---:|---:|---|
 | `object_identity.go` | 446 | 431 | — |
 | `regproc_persistence.go` | 268 | 249 | `scalarRenderer.recordRoutineReferences` (21a moves it to the renderer) |
-| `domain_dump.go` | 316 | 221 | `domainDumpStatement`, `dumpDomain` (steps 18 and 15e) |
+| `domain_dump.go` | 316 | 221 | `domainDumpStatement` (15e); `dumpDomain` is `dump.Statement` (18b) |
 | `object_address_lookup.go` | 556 | 168 | `lookupObjectAddress`, `objectLookupDescriptor`, `objectLookupPath` |
 | `regproc_output.go` | 190 | 121 | `StatementScope.FormatRegproc`, `FormatRegprocedure`, `presentation`, `presentationOrZero`, and the slot type `presentationCaches` (21a) |
 | `regproc_lookup.go` | 125 | 117 | — |
@@ -161,7 +161,8 @@ One commit per item; `make build` and the targeted units after each.
      `catalogColumnDeclaration`, `catalogLiteralSQL`, `catalogLiteralWithACL`
      and `catalogLiteralWithACLAt` from `domain_dump.go`, and `literalSQL`
      from `scalar_function_sql.go`, into a new `catalog_literal.go`.
-     `domain_dump.go` keeps only `domainDumpStatement` and `dumpDomain`.
+     `domain_dump.go` keeps only `domainDumpStatement` (`dumpDomain` is
+     `dump.Statement` since 18b).
    - Move `namedObjectVisible`, `namedObjectVisibleAt` (from
      `visibility_inquiry.go`) and the whole of `visibility_metadata.go`
      (`collationCandidate`, `selectCollation`, `visibleCollation`) into a

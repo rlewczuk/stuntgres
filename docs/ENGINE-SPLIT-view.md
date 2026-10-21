@@ -140,8 +140,8 @@ They are not part of this step. What is left for `view`:
   and `catalogExpressionTypesChanged` (`expression_remap.go`). The remap goes
   with the catalog-wide reowner (`reownCatalogExpressions`, 22c), which
   calls it outside Restore too.
-- To `dump` (step 18): the dump-graph records of `dump_graph.go`
-  (`dumpPhase`, `dumpEventKey`, `dumpDeclaration*`, `dumpOrder`, ...).
+- To `dump` (step 18, done in 18b): the dump-graph records (`dump.Phase`,
+  `dump.Event`, `dump.DeclarationEvents`, `dump.Order`, ...).
 - To `access` (B6): the RLS action rules of `rls_base.go`
   (`rowSecurityAction`, `rowSecurityActionLabel`, `rowSecurityActions`,
   `rowSecurityFlags`, `rowSecurityKind`). Only ALTER TABLE code uses them.

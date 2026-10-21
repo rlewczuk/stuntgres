@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `5730323ee` (items 55, 58, 60, 64, 67, 71, 73 and 74). Steps 8–17 were
+Last verified against `master` at `0053d0111` (items 55, 56, 58, 60, 64, 67, 71, 73 and 74). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,8 +18,9 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 61 (ddl 20b),
+- **Seams:** 57 (dump 18c), 59 (copyfmt 19b), 61 (ddl 20b),
   65 (regobj 21b).
+- **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
 - **Follow-ups in existing packages:** 72 (catalog 5i), 75 (exec 11e),
   77 (analyze 12f), 78 (session 13f), 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 90 (partition 25a),
@@ -31,7 +32,9 @@ planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Item 74
 (catalog 5j) is done, so regobj 21b (item 65) is ready; stored 22c
 (item 69) still waits for 22b (item 68). Item 73 (plan 10e) is done;
-index 23b (item 83) still waits for 82, 68, 72 and 75.
+index 23b (item 83) still waits for 82, 68, 72 and 75. Item 56 (dump
+18b) is done, so dump 18c (item 57), routine 14e (item 80) and typedef 15e
+(item 81) are ready; stored 22b (item 68) still waits for 65 and 77.
 
 ## Task tree
 
@@ -401,7 +404,8 @@ index 23b (item 83) still waits for 82, 68, 72 and 75.
 - [ ] **Step 18 — `dump`** ([prompt](ENGINE-SPLIT-dump.md); needs —)
   - [x] 18a — In place: `dump_graph.go`, snapshot functions (`35544f886`,
     `c201b0a69`, then the docs commit)
-  - [ ] 18b — `dump` created and graph records moved
+  - [x] 18b — `dump` created and graph records moved (`fd27cb76f`,
+    `6d4ca83c9`, `929c3a8d0`, `4fced3bba`, then the docs commit)
   - [ ] 18c — Collect/Emit provider tables replace Dump switches #1 and #2
 - [ ] **Step 19 — `copyfmt`** ([prompt](ENGINE-SPLIT-copyfmt.md); needs —)
   - [x] 19a — COPY cursors split into codec and DML parts, in place
@@ -828,8 +832,13 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `dump_restore_scalar.go`, ACL preflight as a function · selected unit
     and dual-mode proof and quickcheck passed; racecheck/finalcheck skipped
     at user request
-56. [ ] Dump 18b: `dump` created, graph records moved —
-    [dump](ENGINE-SPLIT-dump.md) 18b · needs 55
+56. [x] Dump 18b: `dump` created, graph records moved —
+    [dump](ENGINE-SPLIT-dump.md) 18b · needs 55 (`fd27cb76f`, `6d4ca83c9`,
+    `929c3a8d0`, `4fced3bba`, then the docs commit) · event graph, `Order`,
+    `Statement`, `Group`, Restore scalar validators, `Resolver`/`Presenter`
+    with root adapters; no `plan` import, no aliases · selected unit and
+    dual-mode proof, byte-identical dump smoke and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 57. [ ] Dump 18c: Collect/Emit provider tables, in place —
     [dump](ENGINE-SPLIT-dump.md) 18c · needs 56
 58. [x] COPY codecs 19a: cursors split, in place —

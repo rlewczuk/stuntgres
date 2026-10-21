@@ -309,7 +309,10 @@ names.
   `TestReferenceCompositeAlterDumpReplay`. A `REFERENCE=1` failure that
   also fails on a `master` snapshot is oracle drift, not a regression;
   report it.
-- **Byte-identity smoke** (required for 18b and 18c). Write a small
+- **Byte-identity smoke** (required for 18b and 18c). 18b wrote one:
+  `.cswd/tmp/PG18-ENGINE-SPLIT-DUMP-PACKAGE/dumpsmoke/` (point its
+  `go.mod` replace at your worktree; run it before the first edit to get
+  the baseline). Otherwise write a small
   program under `.cswd/tmp/<task>/dumpsmoke/` (model:
   `.cswd/tmp/PG18-ENGINE-SPLIT-PGCATALOG-MOVE/smoke/main.go`) that opens a
   database with the root driver, runs a fixed corpus (schemas, enums,
@@ -359,10 +362,52 @@ place. Dump output is byte-identical and the checks in §8.3 pass.
   and `^TestReferenceControl`, `REFERENCE=1` for the five tests named under
   Targeted tests plus `TestReferenceACLItemDumpSnapshot`, and quickcheck
   passed; racecheck/finalcheck skipped at user request.
-- [ ] 18b — `dump` created; records, order and capabilities moved
+- [x] 18b — `dump` created; records, order and capabilities moved
+  (`fd27cb76f`, `6d4ca83c9`, `929c3a8d0`, `4fced3bba`, then the docs
+  commit). Re-measured at `b5cdd1efe`: every primitive still clean.
+  `dump` owns `Phase` (same numeric order), `Event{OID, Phase}`, `Graph`
+  with `Add`/`DependsOn` (were `addDumpDependency`/`dumpEventDependsOn`),
+  `DeclarationEvents`/`DeclarationIDs`, `Order`, `Statement{Owner, SQL}`,
+  `Group{Owner, Table, SQL}`, `CommentLiteral`, `RestoreScalar`,
+  `RestoreSQLJSONQuery`, `Resolver` and `Presenter`
+  (`TypeDeclaration`, `ColumnDeclaration`, `RoutineIdentity`). Root
+  adapters: `dumpResolver` in `dump_resolver.go` (was `dump_graph.go`;
+  it keeps `dumpPredecessor`) and `dumpPresenter` in
+  `dump_presenter.go`. Field renames were type-checked (`fieldrn`); the
+  34 spelled-out graph maps are `dump.Graph`. No aliases.
+  - Open questions settled: no dump producer moving in 14e/15e calls
+    `catalogLiteralSQL`, so `Presenter` has no `Literal` method yet and
+    `dump` does not import `plan` (it stays at L3.5); 15e adds
+    `Literal(ctx, view, value, usage)` if it needs one. The check-rendering
+    method stays with 15e.
+  - Deviations: `dump` imports `functions` (L3; `RestoreScalar` uses
+    `RegexpSignature` and `PosixName`) and `sqltype` (the `Presenter`
+    signatures), not `sqlstate`; no `errors.go`, because nothing in `dump`
+    builds an SQLSTATE error of its own (`RestoreScalar` uses
+    `expr.ErrorAt`), so a private `sqlError` copy would be dead code.
+  - Tests moved into `dump`: `TestPartitionAttachDumpPhaseScheduler` →
+    `TestOrderPhaseScheduler`, `TestArrayExpressionRestoreVisitorModes` →
+    `TestRestoreScalarSubscriptModes`,
+    `TestQueryTableCreateRestoreReferenceLiteralBoundary` →
+    `TestRestoreScalarReferenceLiteralBoundary`,
+    `TestCastRestoreRecursiveParameterGuard` →
+    `TestRestoreScalarCastParameterGuard` (bodies unchanged apart from
+    names and an inline parser helper). Engine tests adapted (names only):
+    16 files.
+  - Verification: targeted units after each commit; the byte-identity
+    smoke (`.cswd/tmp/PG18-ENGINE-SPLIT-DUMP-PACKAGE/dumpsmoke`: five
+    scenarios covering types, domains, collations, conversions, SQL
+    functions, operators, tables with identity, generated, CHECK, FK and
+    NOT NULL, indexes, inheritance, partitions, views, matviews, rules,
+    policies and comments, each dumped, restored and dumped again)
+    matched the pre-change baseline byte for byte after every commit;
+    quick-mode `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)`
+    and `^TestReferenceControl`, `REFERENCE=1` for the six tests named
+    under 18a, and quickcheck passed; racecheck/finalcheck skipped at
+    user request.
 - [ ] 18c — Collect and Emit tables in `Engine.Dump`
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (18b added none).
 
 ### Notes for later steps
 

@@ -351,7 +351,11 @@ The dump seam the 15c notes waited for is step 18 (`dump`):
    and `domainDumpStatement` (`domain_dump.go`) move too; the presenter
    gives them type declarations and literals. `domainDumpStatement` also
    renders domain checks through `scalarRenderer`: add a check-rendering
-   `Presenter` method here (the dump prompt leaves it to this item).
+   `Presenter` method here (the dump prompt leaves it to this item). 18b
+   left `Presenter.Literal` out because no dump producer called
+   `catalogLiteralSQL`; add it here if one of these needs it, as
+   `Literal(ctx, view, value sqltype.Value, usage sqltype.Usage)` with the
+   root adapter rebuilding the `plan.LiteralExpr`.
 3. Dump output stays byte-identical: run the Dump/Restore reference
    selections in both modes.
 
