@@ -1291,8 +1291,8 @@ seeding becomes pure constructors that the engine installs.
 **Part B (14c, 14d)** after step 13: CREATE/ALTER/DROP OPERATOR staging and
 the SQL routine DDL that `PG18-ROUTINE-CORE` adds (CREATE FUNCTION staging),
 behind `routine.DDLHost` on the root `schemaHost` (14c refine, moved by
-14d). The operator and SQL routine dumps stay in the root until the dump
-graph has a seam (postponed `control`).
+14d; `ddlHost` since 20b). The operator and SQL routine dumps stay in the
+root until the dump graph has a seam (postponed `control`).
 
 **Stays elsewhere.** Call resolution belongs to `analyze` (step 12), routine
 call admission (`routine_admission.go`, `routine_body_admission.go`,
@@ -1498,7 +1498,9 @@ package-specific methods. The prompt file tabulates what differs today
 `schemaHost` and `typedefHost`. `extensionHost` stays a separate type (it
 captures one view and wraps the stage, 16c) and reuses the shared root
 functions. This answers the typedef note: one `Authority` and `Stage`, not
-a third copy.
+a third copy. Done: `ddlHost` implements `ddl.Host` (`ddl_host.go`),
+`routine.DDLHost` (`routine_host.go`) and `typedef.StageHost`
+(`typedef_host.go`).
 
 **Schema-level DDL (20c, 20d).** The decisions of CREATE/ALTER/DROP SCHEMA
 and CREATE TABLESPACE (about 0.3k lines) move behind the shared host.
@@ -1958,7 +1960,8 @@ exist. Each item is a new sub-step in that package's prompt file.
    opaque per-call `typedef.Authority` value, as in 14c. 15d implements it
    on `typedefHost`, a defined type over `schemaHost`'s fields, because the
    two hosts' same-named methods take each package's own `Authority` and
-   `Stage`.
+   `Stage`. 20a gave both one `ddl.Authority` and `ddl.Stage`, and 20b
+   merged them into one adapter, `ddlHost`.
 9. **Where `Eval` lives.** Step 10 keeps node types and `Eval` in `plan`,
    with engine state behind a node runtime capability; the alternative is to
    keep `Eval` for frame-reading nodes in `exec`. Settled in 10b: `Eval`
@@ -2054,7 +2057,7 @@ package-specific scope. This section holds the rules every session follows.
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c refined (decisions move, orchestration stays; no `sequence.Host`); 17d done (handler, identity, serial, prepared-literal, call and Control decisions and the stage slot moved; orchestration stays in the root) (racecheck/finalcheck skipped at user request) |
 | 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b done (`dump` created: event graph, `Order`, `Statement`, `Group`, Restore scalar validators, `Resolver`/`Presenter` with root adapters; no aliases; racecheck/finalcheck skipped at user request); 18c planned |
 | 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | 19a done (cursors split in place: `copyLineReader` and `copyBinaryReader` hold the codec; racecheck/finalcheck skipped at user request); 19b planned |
-| 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b–20d planned |
+| 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b done (one root staging adapter `ddlHost`; racecheck/finalcheck skipped at user request); 20c–20d planned |
 | 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | 21a done in place (regclass, literal, namespace-visibility and identity files; `pgIdentifier` is `catalog.Identifier`; racecheck/finalcheck skipped at user request); 21b–21c planned |
 | 22 | [`ENGINE-SPLIT-stored.md`](ENGINE-SPLIT-stored.md) | 22b: 21b, F6, 18b, 12f; 22c: 5j | 22a done in place (coverage and freeze cuts, `viewDefinition` read accessors, renames, name `stored` settled; racecheck/finalcheck skipped at user request); 22b–22d planned |
 | 23 | [`ENGINE-SPLIT-index.md`](ENGINE-SPLIT-index.md) | 23b: 22b, 5i, 10e, 11e; 23c: 20b | planned (23a–23d) |

@@ -66,10 +66,9 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
 The stage handlers run under `Engine.mu` without a statement scope, and
 reach the engine only through `StageHost` (`stage_host.go`), which embeds
 the shared [`ddl.Host`](../ddl/README.md) and `ddl.TypeStaging` and adds the
-type methods. The engine implements it on `typedefHost`, a defined type over
-the root `schemaHost` (engine, operation, catalog stage) that also backs
-`routine.DDLHost`; its `ddl.Host` methods delegate to `schemaHost`, and step
-20b merges the two adapters.
+type methods. The engine implements it on its one staging adapter,
+`ddlHost` (engine, operation, catalog stage), which also backs
+`routine.DDLHost`; the type methods are in `typedef_host.go`.
 
 - **`ddl.Authority`** is the statement authority as an opaque value
   (`access.Environment` plus the `DDLAuthority` marker). Handlers keep it by
@@ -114,7 +113,7 @@ the root `schemaHost` (engine, operation, catalog stage) that also backs
 
 ## What stays in the engine
 
-The `typedefHost` adapter (`typedef_host.go`) and the schema statement
+The `ddlHost` type methods (`typedef_host.go`) and the schema statement
 dispatch (`schema.go`); the self-orchestrating executors (`executeEnumDDL`,
 `executeAlterDomain`, `executeAlterComposite`, `alterTableOfLocked`) and the
 resolvers `resolveAlterEnumLocked`/`resolveAlterDomainLocked`, which hold
@@ -144,10 +143,10 @@ Package seams:
 make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds|TestDomainDefaultReplayPairingInternal|TestPGEnumSortInsertion)$'
 ```
 
-The engine side of the stage host (`typedefHost`):
+The engine side of the stage host (`ddlHost`):
 
 ```sh
-make check RUN='^Test(TypedefHost|SchemaHostRecaptureLeavesArgument)'
+make check RUN='^TestDDLHost'
 ```
 
 Engine witnesses that call the stage handlers or run their executors:

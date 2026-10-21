@@ -77,8 +77,9 @@ The handlers run under `Engine.mu` without a statement scope. They reach the
 engine only through `DDLHost` (`host.go`), which embeds the shared
 [`ddl.Host`](../ddl/README.md) and adds the routine methods
 (`DefinitionType`, `DefinitionLookup`, `SelectFunction`, `ResolveRegtype`,
-`BindSQLRoutine`). The engine implements it on one scope-free adapter,
-`schemaHost`, built once per schema statement:
+`BindSQLRoutine`). The engine implements it on its one scope-free staging
+adapter, `ddlHost`, built once per DDL statement (the routine methods are in
+`routine_host.go`):
 
 - **`ddl.Authority`** is the statement authority as an opaque value
   (`access.Environment` plus the `DDLAuthority` marker). Handlers keep it by
@@ -98,8 +99,8 @@ engine only through `DDLHost` (`host.go`), which embeds the shared
 
 ## What stays in the engine
 
-The `schemaHost` adapter and the schema statement dispatch (`schema_host.go`,
-`schema.go`), SQL routine binding (`sql_routine_binding.go`:
+The `ddlHost` adapter and the schema statement dispatch (`ddl_host.go`,
+`routine_host.go`, `schema.go`), SQL routine binding (`sql_routine_binding.go`:
 `executeCreateFunction`, `bindSQLRoutineLocked`,
 `validateSQLRoutineResult`), SQL routine dumps and Restore validation
 (`sql_routine_dump.go`) and SQL routine invocation (`sql_routine.go`,
@@ -122,7 +123,7 @@ make check RUN='^Test(BuiltinRoutineLookup|OperatorRoutineLookup|SeededOperatorN
 ```
 
 Engine witnesses that exercise the package through the catalog seed and
-the DDL handlers behind `schemaHost`:
+the DDL handlers behind `ddlHost`:
 
 ```sh
 make check RUN='^Test(BuiltinCatalogValidatesForEveryEngineConfiguration|BuiltinProcedureNamesMatchSeed|PGOperatorProviderAgreement|OperatorDependsOnMatchesDependencyAddresses|UserOperator|SQLRoutine)'

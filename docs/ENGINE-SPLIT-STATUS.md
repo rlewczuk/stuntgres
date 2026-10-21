@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `919735684` (items 55, 56, 58, 60, 64, 67, 71, 72, 73, 74 and 75). Steps 8–17 were
+Last verified against `master` at `205d59485` (items 55, 56, 58, 60, 61, 64, 67, 71, 72, 73, 74 and 75). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,7 +18,7 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 57 (dump 18c), 59 (copyfmt 19b), 61 (ddl 20b),
+- **Seams:** 57 (dump 18c), 59 (copyfmt 19b), 62 (ddl 20c, docs only),
   65 (regobj 21b).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
 - **Follow-ups in existing packages:** 76 (exec 11f),
@@ -37,7 +37,9 @@ index 23b (item 83) still waits for 82 and 68. Item 56 (dump
 (item 81) are ready; stored 22b (item 68) still waits for 65 and 77.
 Item 72 (catalog 5i) is done, so table 24a (item 86) is ready.
 Item 75 (exec 11e) is done, so exec 11f (item 76) is ready; index 23b
-(item 83) still waits for 82 and 68.
+(item 83) still waits for 82 and 68. Item 61 (ddl 20b) is done, so ddl 20c
+(item 62) is ready; the Part B refines that build on it (items 84, 96, 101
+and 105) still wait for their own earlier items.
 
 ## Task tree
 
@@ -416,7 +418,8 @@ Item 75 (exec 11e) is done, so exec 11f (item 76) is ready; index 23b
   - [ ] 19b — `copyfmt` created and codecs moved
 - [ ] **Step 20 — `ddl`** ([prompt](ENGINE-SPLIT-ddl.md); needs —)
   - [x] 20a — One `Authority`, `Stage` and `Host` contract
-  - [ ] 20b — One root staging adapter
+  - [x] 20b — One root staging adapter (`b0d3e53b7`, `d25058ea5`, then the
+    docs commit)
   - [ ] 20c — Schema-level DDL host refined (docs only)
   - [ ] 20d — Schema and tablespace decisions moved
 - [ ] **Step 21 — `regobj`** ([prompt](ENGINE-SPLIT-regobj.md); 21b needs
@@ -863,8 +866,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     and `extension` adopt `ddl.Authority`/`Stage`/`Host`; one
     `DDLAuthority` marker · selected unit and dual-mode proof and
     quickcheck passed; racecheck/finalcheck skipped at user request
-61. [ ] DDL 20b: one root staging adapter — [ddl](ENGINE-SPLIT-ddl.md) 20b ·
-    needs 60
+61. [x] DDL 20b: one root staging adapter — [ddl](ENGINE-SPLIT-ddl.md) 20b ·
+    needs 60 (`b0d3e53b7`, `d25058ea5`, then the docs commit) · `ddlHost`
+    replaces `schemaHost` and `typedefHost`; consumer methods in
+    `routine_host.go` and `typedef_host.go`; `extensionHost` unchanged; no
+    aliases · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 62. [ ] DDL 20c: schema-level DDL host refined (docs only) —
     [ddl](ENGINE-SPLIT-ddl.md) 20c · needs 61
 63. [ ] DDL 20d: schema and tablespace decisions moved —
