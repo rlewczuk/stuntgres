@@ -70,16 +70,3 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	}
 	return &catalog.Parameter{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: oid}, ObjectRevision: revision, ObjectName: key, Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}, nil
 }
-
-// installParameterGrant changes only the detached central catalog candidate.
-// Both the descriptor and name entry disappear when the ACL returns to sA for
-// the owner alone. Explicit empty ACLs are not the default baseline.
-func installParameterGrant(candidate *catalog.State, d *catalog.Parameter) {
-	if !d.ACL.Explicit || authorization.MatchesDefaultBaseline(d.ACL, d.Owner, authorization.DefaultParameters, false) {
-		candidate.RemoveDescriptor(d.Address())
-		candidate.UnbindName(catalog.DescriptorNameKey(d))
-		return
-	}
-	candidate.SetDescriptor(d.Address(), d)
-	candidate.BindName(catalog.DescriptorNameKey(d), d.Address())
-}

@@ -237,7 +237,7 @@ func (e *Engine) objectGrantLocked(op *session.Operation, v AuthorizationView, s
 					candidate = catalog.CloneState(v.Catalog.State())
 				}
 				if parameter, ok := next.(*catalog.Parameter); ok {
-					installParameterGrant(candidate, parameter)
+					catalog.InstallParameterGrant(candidate, parameter)
 					if candidate.Get(address) == nil {
 						changed[address] = objectGrantChange{}
 					}

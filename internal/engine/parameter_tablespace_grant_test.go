@@ -102,13 +102,13 @@ func TestObjectGrantParameterExplicitEmpty(t *testing.T) {
 	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
 	d := &catalog.Parameter{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: 900003}, ObjectRevision: 2, ObjectName: "lc_messages", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}
 	candidate := catalog.CloneState(e.catalog.state)
-	installParameterGrant(candidate, d)
+	catalog.InstallParameterGrant(candidate, d)
 	if candidate.Get(d.Address()) != d || candidate.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
 		t.Fatal("explicit empty parameter ACL collapsed to absent")
 	}
 	n := *d
 	n.ACL = authorization.DefaultBaseline(owner, authorization.DefaultParameters, false)
-	installParameterGrant(candidate, &n)
+	catalog.InstallParameterGrant(candidate, &n)
 	if _, exists := candidate.Find(d.Address()); exists || candidate.NameAddress(catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) || !d.ACL.Explicit || len(d.ACL.Entries) != 0 {
 		t.Fatal("baseline deletion mutated empty ACL or retained row")
 	}
