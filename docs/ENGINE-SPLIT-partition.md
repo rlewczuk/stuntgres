@@ -472,7 +472,7 @@ admission (`partition_locks.go`, `partitionConsumerBoundary`); the
 authorization captures and trust checks; the storage-read fences;
 `dropProvider.removePartitionHierarchyLocked` (calls `WithoutChild`);
 INSERT routing until step 29; the Restore executors, teardown and
-`repairRemappedHashPartitions` until step 30. The root wrapper
+`repairRemappedHashPartitions` (they stay root; control 30b). The root wrapper
 `stagePartitionIndexChild` is deleted; `stagePartitionIndexChildren` stays
 for the unique-replay executor.
 
@@ -677,9 +677,11 @@ Outstanding aliases: none (25a and 25b added none).
   renamed the shadowed `WriteStage.applyInsertValidated` to
   `applyInsertBatch`; the router `StatementScope.applyInsertValidated`
   (`partition_insert.go`) kept its name.
-- Step 30 (`control`) owns the Restore executors left in the root
-  (`begin*Replay`, `executePartitionUniqueReplayLocked`,
-  `repairRemappedHashPartitions`, the teardown capture and validation).
+- The Restore executors left in the root (`begin*Replay`,
+  `executePartitionUniqueReplayLocked`, `repairRemappedHashPartitions`,
+  the teardown capture and validation) stay root `Engine` methods for
+  good: control 30b keeps every Restore hook body in the root, reached
+  through the hook table.
 - Step 29 (`dml`), from 25c: `partition` exports no write-side host. The
   child selection loop of `validatePartitionInsert` (non-default children
   through `Contains`, then the default child, then `missingPartition`) is a
@@ -688,6 +690,8 @@ Outstanding aliases: none (25a and 25b added none).
   `partitionDefaultReplayAllowed`, `partitionAttachAuthorization` and
   `partitionParentAuthorization` repeat one bootstrap-superuser trust test
   over the engine's Restore state; 30b can fold them into one root helper.
+  Control 30b: they stay root and the fold is a separate root cleanup,
+  not part of 30c.
 - Catalog 5i: `relationDefiningAuthorityCompatible`
   (`materialized_refresh.go`) is a pure catalog comparison used by
   `partition_locks.go` and `relation_scope.go`; it belongs in `catalog`.

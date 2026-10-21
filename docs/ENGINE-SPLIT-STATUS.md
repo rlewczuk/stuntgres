@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `116432550` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
+Last verified against `master` at `a57b52753` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 103, 104, 105, 106, 107, 111 and 112). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -17,7 +17,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now.
 
 - **Upper features, refined:** 101 (view 27c, docs only).
-- **DML and Dump/Restore:** 108 (DML 29b), 112 (control 30b, docs only).
+- **DML and Dump/Restore:** 108 (DML 29b), 113 (control 30c).
 - **Upper features, decisions:** 85b (index 23d.2), 89a (table 24d.1).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -106,6 +106,8 @@ Item 100 (view 27b, broad) is done, so view 27c (item 101, docs only),
 DML 29b (item 108) and control 30b (item 112) are ready.
 Item 92 (partition 25c, docs only) is done; partition 25d (item 93)
 still waits for table 24d.1 and 24d.2 (items 89a and 89b).
+Item 112 (control 30b, docs only) is done, so control 30c (item 113) is
+ready; the end-state review (item 114) still waits for 98, 110 and 113.
 
 ## Task tree
 
@@ -587,7 +589,7 @@ still waits for table 24d.1 and 24d.2 (items 89a and 89b).
     (`dc839f171`, `192993651`, `fbcdc7fc9`, `22ef19659`, `6dc277b11`,
     `2eb9396e7`, `ba1fc1495`, `c22c9b9fb`, `80cc70d38`, `050e10e07`,
     `26ecb355d`, then the docs commit)
-  - [ ] 30b — Host refined (docs only)
+  - [x] 30b — Host refined (docs only) (docs)
   - [ ] 30c — `control` created and drivers moved
 - [x] **Second-round follow-ups in existing packages** (each in its step's
   prompt file; F6 is listed under step 3)
@@ -1373,9 +1375,19 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      `control.go` 731 → 225 lines · byte-identical dump smoke, selected
      unit, `RACE=1` Control and dual-mode proof and quickcheck passed;
      racecheck/finalcheck skipped at user request
-112. [ ] Control 30b: host refined (docs only) —
+112. [x] Control 30b: host refined (docs only) —
      [control](ENGINE-SPLIT-control.md) 30b · needs 111, 70, 83, 87, 91, 95,
-     100, 65, 80, 81
+     100, 65, 80, 81 (the docs commit) · Dump gets no host: the root
+     hands a `control.Capture` to `control.Dump`, and the Emit table and
+     sections become `control`'s own; `Resolver`, `ColumnPredecessors` and
+     `Presenter` move to `control`, `physicalNotNullDumpDependencies` to
+     `table` and `domainInvalidDumpEvents` to `typedef` (both over a
+     `dump.Resolver`); Restore runs over `control.Host` (`Begin`, `Start`,
+     `Statement`, `Execute`, `Publish`) on a root `restoreHost`, with the
+     root-composed `[]control.Hook[*restoreRun]` and `Outcome{Created}`;
+     `restoreRun`, every hook body, `restore_replay.go`, the stage and the
+     publication stay root; 30c move set and commit sequence written ·
+     docs only, no checks needed
 113. [ ] Control 30c: `control` created, drivers moved —
      [control](ENGINE-SPLIT-control.md) 30c · needs 112
 

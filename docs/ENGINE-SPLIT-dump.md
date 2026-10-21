@@ -99,7 +99,7 @@ until its owner's Part B.
 |---|---:|---|
 | `view_dump.go` | 244 (118/112) | 18 (records); `dumpPredecessor` stays |
 | `control.go` | 2,517 (281/2,213) | 18 (`commentLiteral`, `restoreScalar`), 18c and 30a (tables), 30c (drivers) |
-| `restore_replay.go` | 45 (35/0) | root `Operation` slot; 30b decides |
+| `restore_replay.go` | 45 (35/0) | root `Operation` slot; stays in the root (30b) |
 | `sqljson_restore.go` | 15 (9/0) | 18 |
 | `collation_dump.go`, `conversion_dump.go` | 85 (73/0), 77 (62/0) | typedef 15e (item 81) |
 | `composite_dump.go`, `domain_alter_dump.go` | 110 (75/22), 156 (30/111) | typedef 15e; dirty parts are hooks |
@@ -492,10 +492,12 @@ Outstanding aliases: none (18b and 18c added none).
   files with the drivers, while `captureDumpLocked` and `dumpSource` stay
   in the root.
 - `validateTemporaryCollationDump` stays in the root until the domain
-  dependency closure gets a reader (pattern 6); 30b decides.
+  dependency closure gets a reader (pattern 6). 30b: it stays with the
+  locked capture, which never moves, so it needs no reader cut.
 - Restore uses the same records; its statement switch (#3) and hooks are
   step 30 (30a).
 - `dumpPredecessor` reaches partition, operator-shell and competing-index
   helpers and `routine.OperatorSeeded`, so it can never move into `dump`
   (L3.5 is below `routine`). After 22a re-run `reach` on it: if it is
   clean, it can move with `control` (30c) as the root's `Resolver`.
+  30b: it is clean and moves as `control.Resolver`.

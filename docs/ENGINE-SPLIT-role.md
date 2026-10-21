@@ -578,4 +578,5 @@ Outstanding aliases: none (28b added none).
   (fdw 26c refine): the role, database and FDW grants share it, and `fdw`
   cannot import `role`. Done in 28b.
 - `principal_remap.go` is Restore: its descriptor switch goes to `catalog`
-  (5i) and the rest to `control` (step 30).
+  (5i); control 30b keeps the rest (`restoreStage` and the principal
+  mapper of `replaceCatalog`) in the root.

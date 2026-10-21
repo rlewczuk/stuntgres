@@ -671,5 +671,5 @@ Outstanding aliases: none yet.
   one way only.
 - `view` (27) opens foreign scans through `captureForeignSourceLocked`
   (`view_source.go:31`); that stays a root method.
-- `importTargets` is Restore state; `control` (step 30) owns it, not
-  `fdw`.
+- `importTargets` is Restore state, not `fdw`'s; control 30b keeps it a
+  root `Engine` field on the restore stage.
