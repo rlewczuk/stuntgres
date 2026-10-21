@@ -129,9 +129,37 @@ var restoreHooks = []restoreHook{
 	{name: "extension: owner records", decode: decodeRestoreExtensionOwners},
 	{name: "view: materialized snapshots", decode: decodeRestoreMaterializedSnapshot},
 
+	// Before admission.
 	{name: "inline before", before: (*restoreRun).inlineBefore},
+	{name: "table: physical NOT NULL boundary", before: beforeRestorePhysicalBoundary},
+	{name: "table: physical NOT NULL constructor", before: beforeRestorePhysicalConstructor},
+	{name: "table: deferred physical primary owner", before: beforeRestoreDeferredPhysicalOwner},
+	{name: "table: physical import index base", before: beforeRestorePhysicalIndexBase},
+	{name: "inline before 2", before: (*restoreRun).inlineBefore2},
+	{name: "table: physical self foreign key", before: beforeRestorePhysicalSelfForeignKey},
+
+	// Admission.
 	{name: "inline admit", admit: (*restoreRun).inlineAdmit},
+
+	// After admission, before execution.
 	{name: "inline prepare", prepare: (*restoreRun).inlinePrepare},
+	{name: "table: NOT NULL pair reset", prepare: prepareRestoreNotNullPairReset},
+	{name: "table: NOT NULL pair", prepare: prepareRestoreNotNullPair},
+	{name: "inline prepare 2", prepare: (*restoreRun).inlinePrepare2},
+
+	// After execution.
+	{name: "table: physical NOT NULL constructor capture", after: afterRestorePhysicalConstructor},
+	{name: "table: physical foreign key provider", after: afterRestorePhysicalForeignKeyProvider},
+	{name: "table: physical import index", after: afterRestorePhysicalImportIndex},
 	{name: "inline after", after: (*restoreRun).inlineAfter},
+	{name: "table: NOT NULL origins", after: afterRestoreNotNullOrigins},
+	{name: "inline after 2", after: (*restoreRun).inlineAfter2},
+	{name: "table: foreign key targets", after: afterRestoreForeignKeys},
+	{name: "table: deferred default", after: afterRestoreDefault},
+	{name: "inline after 3", after: (*restoreRun).inlineAfter3},
+
+	// After the last statement.
+	{name: "table: physical NOT NULL boundary at end", finish: finishRestorePhysicalBoundary},
+	{name: "table: foreign keys", finish: finishRestoreForeignKeys},
 	{name: "inline finish", finish: (*restoreRun).inlineFinish},
 }

@@ -20,34 +20,14 @@ import (
 // table entries, in their original order.
 
 func (r *restoreRun) inlineBefore(op *session.Operation, stmt parser.Statement) (bool, error) {
-	var err error
 	if routine.ReplayDirective(r.source, stmt) {
 		operationReplay(op).sqlBodies = true
 		return true, nil
 	}
-	if r.pairedPhysical != nil && !r.pairedPhysical.admits(stmt) {
-		return false, sqlError("0A000", restorePhysicalNotNullBoundary)
-	}
-	if alteration, ok := stmt.(*parser.AlterTable); ok {
-		r.cur.physicalConstructor, err = r.stage.preparePhysicalNotNullConstructor(op, alteration, physicalNotNullFollowing(r.statements, r.cur.index), r.historicalRefs)
-		if err != nil {
-			return false, err
-		}
-		if r.cur.physicalConstructor == nil {
-			r.cur.physicalConstructor, err = r.stage.prepareDeferredPhysicalPrimary(op, alteration, r.deferredPhysical, r.historicalRefs)
-			if err != nil {
-				return false, err
-			}
-		}
-	}
-	if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && r.deferredPhysical != nil && !r.deferredPhysical.ownerDirective {
-		r.deferredPhysical.ownerDirective = true
-	} else {
-		r.deferredPhysical = nil
-	}
-	if _, ok := stmt.(*parser.CreateIndex); ok {
-		r.cur.physicalIndexBase = r.stage.CatalogRead()
-	}
+	return false, nil
+}
+
+func (r *restoreRun) inlineBefore2(op *session.Operation, stmt parser.Statement) (bool, error) {
 	r.cur.priorAuthorization, r.cur.ownerForCreate, r.cur.ownerPair = r.lastAuthorization, r.createOwner, r.pairedOwner
 	r.cur.domainOwnerPair = r.pairedDomainOwner
 	r.pairedDomainOwner = typedef.RestoredDomainOwner{}
@@ -65,31 +45,7 @@ func (r *restoreRun) inlineBefore(op *session.Operation, stmt parser.Statement) 
 			return true, nil
 		}
 	}
-	if r.physicalForeignProvider != nil {
-		if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && !r.physicalForeignProvider.ownerDirective {
-			r.physicalForeignProvider.ownerDirective = true
-		} else if alteration, ok := stmt.(*parser.AlterTable); ok {
-			declaration, admitted, captureErr := r.stage.capturePhysicalSelfForeignKey(op, alteration, r.physicalForeignProvider, r.historicalRefs)
-			if captureErr != nil {
-				return false, captureErr
-			}
-			if admitted {
-				r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
-				r.pairedNotNull = restoredNotNull{}
-				return true, nil
-			}
-			r.cur.physicalConstructor, err = r.stage.preparePhysicalCompetingUnique(op, alteration, r.physicalForeignProvider, r.historicalRefs)
-			if err != nil {
-				return false, err
-			}
-			if r.cur.physicalConstructor == nil {
-				r.physicalForeignProvider = nil
-			}
-		} else {
-			r.physicalForeignProvider = nil
-		}
-	}
-	return false, err
+	return false, nil
 }
 
 func (r *restoreRun) inlineAdmit(op *session.Operation, stmt parser.Statement) (restoreAdmission, error) {
@@ -343,15 +299,10 @@ func (r *restoreRun) inlinePrepare(op *session.Operation, stmt parser.Statement)
 			return err
 		}
 	}
-	if _, ownerDirective := stmt.(*parser.SessionAuthorization); !ownerDirective {
-		r.pairedNotNull = restoredNotNull{}
-	}
-	if alteration, ok := stmt.(*parser.AlterTable); r.cur.physicalConstructor == nil && ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetNotNull {
-		r.pairedNotNull, err = r.stage.pairRestoredNotNull(op, alteration, r.notNullOrigins)
-		if err != nil {
-			return err
-		}
-	}
+	return nil
+}
+
+func (r *restoreRun) inlinePrepare2(op *session.Operation, stmt parser.Statement) error {
 	if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetExpression {
 		if err := r.stage.pairRestoredGeneration(op, alteration, r.placeholderOrigins); err != nil {
 			return err
@@ -431,31 +382,11 @@ func (r *restoreRun) inlinePrepare(op *session.Operation, stmt parser.Statement)
 			return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
 		}
 	}
-	return err
+	return nil
 }
 
 func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, result Result) error {
 	var err error
-	if r.cur.physicalConstructor != nil {
-		r.pairedPhysical, err = r.stage.capturePhysicalNotNullConstructor(op, r.cur.physicalConstructor, r.physicalIndexes)
-		if err != nil {
-			return err
-		}
-	}
-	if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && r.pairedPhysical == nil && (alteration.Actions[0].Action == parser.AddUnique || alteration.Actions[0].Action == parser.AddUsingIndex) {
-		r.physicalForeignProvider, err = r.stage.capturePhysicalForeignKeyProvider(op, alteration.Name, r.historicalRefs)
-		if err != nil {
-			return err
-		}
-		if r.physicalForeignProvider != nil && r.cur.physicalConstructor != nil && r.cur.physicalConstructor.competing {
-			r.physicalForeignProvider.permuted = true
-		}
-	}
-	if creation, ok := stmt.(*parser.CreateIndex); ok {
-		if index := r.stage.capturePhysicalImportIndex(r.cur.physicalIndexBase, creation, r.historicalRefs); index != nil {
-			r.physicalIndexes[index.Address()] = index
-		}
-	}
 	if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default {
 		auth, authErr := operationAuthorization(op)
 		if authErr != nil {
@@ -476,10 +407,16 @@ func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, r
 			return err
 		}
 	}
-	if creation, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
+	if _, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
 		r.historicalRefs[result.created.Address] = result.created
 		captureHistoricalRelation(r.stage.CatalogRead(), result.created, r.historicalAuthority.facts)
-		r.stage.captureRestoredNotNulls(result.created, creation, r.notNullOrigins)
+	}
+	return nil
+}
+
+func (r *restoreRun) inlineAfter2(op *session.Operation, stmt parser.Statement, result Result) error {
+	var err error
+	if creation, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
 		r.stage.captureRestoredPlaceholders(result.created, creation, r.placeholderOrigins)
 		if r.cur.ownerForCreate != (authorization.PrincipalRef{}) && len(creation.Parents) != 0 {
 			r.pairedOwner, err = r.stage.captureInheritedOwner(op, result.created, r.cur.ownerForCreate)
@@ -493,18 +430,10 @@ func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, r
 	}) {
 		r.stage.captureHistoricalFacts(r.historicalRefs, r.historicalAuthority.facts)
 	}
-	if result.created != (ids.ObjectRef{}) && len(r.cur.pending.definitions) != 0 {
-		r.cur.pending.child = result.created
-		if err := r.stage.resolveRestoredForeignKeyTargets(&r.cur.pending); err != nil {
-			return err
-		}
-		r.pendingForeignKeys = append(r.pendingForeignKeys, r.cur.pending)
-	}
-	if alteration, ok := stmt.(*parser.AlterTableDefault); ok {
-		if err := r.stage.validateRestoredDefault(op, alteration); err != nil {
-			return err
-		}
-	}
+	return err
+}
+
+func (r *restoreRun) inlineAfter3(op *session.Operation, stmt parser.Statement, result Result) error {
 	if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetExpression {
 		record, captureErr := r.stage.captureRestoredGeneration(op, alteration)
 		if captureErr != nil {
@@ -513,16 +442,10 @@ func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, r
 		r.generationRepairs = append(r.generationRepairs, record)
 		delete(r.placeholderOrigins, restoredGenerationKey{record.ref.Address, record.attribute})
 	}
-	return err
+	return nil
 }
 
 func (r *restoreRun) inlineFinish(ctx context.Context, op *session.Operation) error {
-	if r.pairedPhysical != nil {
-		return sqlError("0A000", restorePhysicalNotNullBoundary)
-	}
-	if err := r.stage.bindRestoredForeignKeys(ctx, op, r.pendingForeignKeys); err != nil {
-		return err
-	}
 	if err := r.stage.importExtensionOwners(ctx, op, r.extensionOwners); err != nil {
 		return err
 	}
