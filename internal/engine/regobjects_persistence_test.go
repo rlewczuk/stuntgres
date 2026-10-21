@@ -20,7 +20,7 @@ func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	r := capturedRegObjectInput{auth: AuthorizationView{View: access.View{Catalog: view}}, path: []ids.ObjectAddress{catalog}}
+	r := capturedRegObjectInput{capture: regobj.InputCapture{Authority: regobj.Authority{View: access.View{Catalog: view}}, Path: []ids.ObjectAddress{catalog}}}
 	if id, err := r.ResolveRegnamespace(context.Background(), " PG_CATALOG "); err != nil || id != 11 {
 		t.Fatal("namespace catalog lookup", id, err)
 	}
@@ -34,7 +34,7 @@ func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	c, _ := sqltype.RegObjectValue(collation, 950)
 	n, _ := sqltype.RegObjectValue(namespace, 950)
 	for _, value := range []sqltype.Value{c, n} {
-		if err := regobj.CaptureObjectOutputValue(rows, view, r.path, value); err != nil {
+		if err := regobj.CaptureObjectOutputValue(rows, view, r.capture.Path, value); err != nil {
 			t.Fatal(err)
 		}
 	}

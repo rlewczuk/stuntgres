@@ -130,8 +130,9 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 				t.Fatal(schema)
 			}
 			captured, ok := c.Input.Regtype.(capturedRegtypeInput)
-			if !ok || captured.auth.State.CurrentUser != owner || captured.auth.State.SessionUser != caller || !captured.auth.materializedPopulation ||
-				!slices.Equal(captured.path, []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}) ||
+			env, _ := captured.capture.Authority.Environment.(AuthorizationView)
+			if !ok || captured.capture.Authority.View.State.CurrentUser != owner || captured.capture.Authority.View.State.SessionUser != caller || !env.materializedPopulation ||
+				!slices.Equal(captured.capture.Path, []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}) ||
 				c.Input.Regclass == nil || c.Input.Regrole == nil || c.Input.Operator == nil || c.Input.Regproc == nil ||
 				c.Input.TypeDiagnosticName != nil || !c.Input.ExactSnapshot {
 				t.Fatal("population did not recapture coherent restricted input", c.Input)
@@ -166,7 +167,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		}
 		restored := scope.input.Regtype.(capturedRegtypeInput)
 		before := beforeInput.Regtype.(capturedRegtypeInput)
-		if restored.auth.State != before.auth.State || !slices.Equal(restored.path, before.path) ||
+		if restored.capture.Authority.View.State != before.capture.Authority.View.State || !slices.Equal(restored.capture.Path, before.capture.Path) ||
 			scope.input.TypeDiagnosticName == nil || scope.input.TypeDiagnosticName(sqltype.Regprocedure) != "caller-naming" ||
 			scope.input.ExactSnapshot != beforeInput.ExactSnapshot {
 			t.Fatal("population leaked input context")

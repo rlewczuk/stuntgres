@@ -13,30 +13,7 @@ import (
 
 // Namespace input uses only catalog names. Collation input additionally owns an
 // immutable collation path, database name and qualified-schema authorization.
-type capturedRegObjectInput struct {
-	auth      AuthorizationView
-	path      []ids.ObjectAddress
-	database  string
-	temporary ids.ObjectAddress
-	token     ids.SessionToken
-}
-
-func (e *Engine) captureRegObjectInput(auth AuthorizationView) (capturedRegObjectInput, error) {
-	path, err := e.lookupPath(auth, analyze.CollationLookup)
-	if err != nil {
-		return capturedRegObjectInput{}, err
-	}
-	return captureRegObjectsOnPath(auth, path), nil
-}
-
-func captureRegObjectsOnPath(auth AuthorizationView, path []ids.ObjectAddress) capturedRegObjectInput {
-	r := capturedRegObjectInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
-	if auth.session != nil {
-		r.database, r.token = auth.session.DatabaseName, auth.session.SessionToken
-	}
-	r.auth.session, r.auth.settings = nil, nil
-	return r
-}
+type capturedRegObjectInput struct{ capture regobj.InputCapture }
 
 func (r capturedRegObjectInput) ResolveRegnamespace(ctx context.Context, input string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
@@ -47,8 +24,9 @@ func (r capturedRegObjectInput) ResolveRegnamespace(ctx context.Context, input s
 		return 0, sqlError("42602", "invalid name syntax")
 	}
 	name := parts.Parts[0].Text
-	address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
-	if _, exists := r.auth.definitionNamespace(address); !exists {
+	a := r.capture.Authority
+	address := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
+	if _, exists := catalog.DefinitionNamespaceAt(a.View.Catalog, a.Definitions, address); !exists {
 		return 0, sqlError("3F000", `schema "`+name+`" does not exist`)
 	}
 	return uint32(address.ObjectID), nil
@@ -62,6 +40,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 	if err != nil {
 		return 0, sqlError("42602", "invalid name syntax")
 	}
+	a := r.capture.Authority
 	parts := raw.Parts
 	spelling := func() string {
 		if len(raw.Parts) == 1 {
@@ -80,7 +59,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		return 0, sqlError("42601", "improper qualified name (too many dotted names): "+spelling())
 	}
 	if len(parts) == 3 {
-		if parts[0].Text != r.database {
+		if parts[0].Text != r.capture.Database {
 			return 0, sqlError("0A000", "cross-database references are not implemented: "+spelling())
 		}
 		parts = parts[1:]
@@ -88,30 +67,30 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 	missing := func() (uint32, error) {
 		return 0, sqlError("42704", `collation "`+spelling()+`" for encoding "UTF8" does not exist`)
 	}
-	path := analyze.NamespaceSelection{Path: r.path}
+	path := analyze.NamespaceSelection{Path: r.capture.Path}
 	if len(parts) == 2 {
-		namespace := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
+		namespace := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
-			namespace = r.temporary
+			namespace = r.capture.Temporary
 		}
-		ns, exists := r.auth.definitionNamespace(namespace)
+		ns, exists := catalog.DefinitionNamespaceAt(a.View.Catalog, a.Definitions, namespace)
 		if !exists {
 			return missing()
 		}
-		if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != r.token {
-			actor, exists := r.auth.Roles.Find(r.auth.State.CurrentUser)
+		if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != r.capture.Token {
+			actor, exists := a.View.Roles.Find(a.View.State.CurrentUser)
 			if !exists || !actor.Superuser {
 				return 0, sqlError("42501", "permission denied for schema "+ns.Name())
 			}
 		}
-		if err := r.auth.CanUse(r.auth.Ref(namespace)); err != nil {
+		if err := a.View.CanUse(a.Environment, a.View.Ref(namespace)); err != nil {
 			return 0, err
 		}
 		path = analyze.NamespaceSelection{Qualified: namespace}
 	}
 	for i := range path.Count() {
-		address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: parts[len(parts)-1].Text})
-		descriptor, _ := r.auth.definitionDescriptor(address)
+		address := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: parts[len(parts)-1].Text})
+		descriptor, _ := catalog.DescriptorAt(a.View.Catalog, a.Definitions, address)
 		if d, exists := descriptor.(*catalog.Collation); exists {
 			one := [1]regobj.CollationCandidate{{Address: address, Encoding: d.Encoding}}
 			if regobj.SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {

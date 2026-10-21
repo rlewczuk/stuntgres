@@ -36,34 +36,14 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 
 // Element input retains the statement's immutable authority, including its
 // already-selected relation path. It never locks or consults a later catalog.
-type capturedRegclassInput struct {
-	auth      AuthorizationView
-	path      []ids.ObjectAddress
-	temporary ids.ObjectAddress
-	token     ids.SessionToken
-	database  string
-}
-
-func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassResolver, error) {
-	path, err := e.referencePath(auth)
-	if err != nil {
-		return nil, err
-	}
-	input := capturedRegclassInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
-	if auth.session != nil {
-		input.token = auth.session.SessionToken
-		input.database = auth.session.DatabaseName
-	}
-	input.auth.session = nil
-	input.auth.settings = nil
-	return input, nil
-}
+type capturedRegclassInput struct{ capture regobj.InputCapture }
 
 func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	typ, _ := r.auth.definitionType(sqltype.Oid)
+	a := r.capture.Authority
+	typ, _ := catalog.DefinitionTypeAt(a.View.Catalog, a.Definitions, sqltype.Oid)
 	if oid, numeric, err := regobj.ClassNumeric(text, typ); numeric {
 		return oid, err
 	}
@@ -71,32 +51,32 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	if err != nil {
 		return 0, sqlError("42602", "invalid name syntax")
 	}
-	name, err = regobj.ClassQualifiedName(name, text, r.database)
+	name, err = regobj.ClassQualifiedName(name, text, r.capture.Database)
 	if err != nil {
 		return 0, err
 	}
-	path := r.path
+	path := r.capture.Path
 	if len(name.Parts) == 2 {
-		ns := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
+		ns := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
-			ns = r.temporary
+			ns = r.capture.Temporary
 		}
 		if ns == (ids.ObjectAddress{}) {
 			path = nil
 		} else {
-			namespace, _ := r.auth.definitionNamespace(ns)
-			if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
+			namespace, _ := catalog.DefinitionNamespaceAt(a.View.Catalog, a.Definitions, ns)
+			if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.capture.Token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.Name()))
 			}
-			if err := r.auth.CanUse(r.auth.Ref(ns)); err != nil {
+			if err := a.View.CanUse(a.Environment, a.View.Ref(ns)); err != nil {
 				return 0, err
 			}
 			path = []ids.ObjectAddress{ns}
 		}
 	}
 	for _, ns := range path {
-		if address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}); address != (ids.ObjectAddress{}) {
-			descriptor, _ := r.auth.definitionDescriptor(address)
+		if address := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}); address != (ids.ObjectAddress{}) {
+			descriptor, _ := catalog.DescriptorAt(a.View.Catalog, a.Definitions, address)
 			if _, ok := descriptor.(*catalog.Relation); !ok {
 				return 0, fmt.Errorf("stuntgres: invalid relation descriptor")
 			}
