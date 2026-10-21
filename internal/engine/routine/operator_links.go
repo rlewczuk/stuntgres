@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -27,7 +28,7 @@ func stageOperatorDescriptor(h DDLHost, d *catalog.Operator) error {
 
 // resolveOperatorLink captures an exact peer once, including shell/owner checks.
 // Only CREATE may create a shell here; ALTER resolution never changes the stage.
-func resolveOperatorLink(h DDLHost, auth Authority, d *catalog.Operator, name parser.ObjectName, negator, allowShell bool) (*catalog.Operator, error) {
+func resolveOperatorLink(h DDLHost, auth ddl.Authority, d *catalog.Operator, name parser.ObjectName, negator, allowShell bool) (*catalog.Operator, error) {
 	if len(name.Parts) == 0 {
 		return nil, nil
 	}
@@ -39,7 +40,7 @@ func resolveOperatorLink(h DDLHost, auth Authority, d *catalog.Operator, name pa
 	if negator {
 		left, right = d.Left, d.Right
 	}
-	path, err := h.OperatorNamespaces(auth, name)
+	path, err := h.SearchNamespaces(auth, name, ids.OperatorClassID)
 	if err != nil {
 		// CREATE's catalog peer lookup has no expression error location.
 		// Keep ALTER's existing reference diagnostic context unchanged.
@@ -95,7 +96,7 @@ func resolveOperatorLink(h DDLHost, auth Authority, d *catalog.Operator, name pa
 		}
 	} else if peer.Address() != d.Address() {
 		peerAuth := h.Recapture(auth, view)
-		if err = ddlCheck(h, peerAuth, access.Requirement{Object: ddlRef(h, auth, peer.Address()), OwnerOnly: true}); err != nil {
+		if err = ddl.Check(h, peerAuth, access.Requirement{Object: ddl.ObjectRef(h, auth, peer.Address()), OwnerOnly: true}); err != nil {
 			return nil, err
 		}
 	}

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 
 // collectOperatorOptions resolves surviving estimators and collects link names.
 // It changes only the caller's private descriptor, never the catalog stage.
-func collectOperatorOptions(h DDLHost, auth Authority, d *catalog.Operator, options []parser.OperatorOption, alter bool) (parser.ObjectName, parser.ObjectName, error) {
+func collectOperatorOptions(h DDLHost, auth ddl.Authority, d *catalog.Operator, options []parser.OperatorOption, alter bool) (parser.ObjectName, parser.ObjectName, error) {
 	var comm, neg parser.ObjectName
 	var restriction, join *parser.OperatorOption
 	for i := range options {
@@ -80,7 +81,7 @@ func collectOperatorOptions(h DDLHost, auth Authority, d *catalog.Operator, opti
 
 // StageCreateOperator stages CREATE OPERATOR, with forward shells for its
 // commutator and negator.
-func StageCreateOperator(h DDLHost, auth Authority, s *parser.CreateOperator) error {
+func StageCreateOperator(h DDLHost, auth ddl.Authority, s *parser.CreateOperator) error {
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -114,13 +115,13 @@ func StageCreateOperator(h DDLHost, auth Authority, s *parser.CreateOperator) er
 	}
 	var l, r ids.OID
 	if hasLeft {
-		l, err = h.ResolveType(auth, left)
+		l, err = h.ResolveRegtype(auth, left)
 		if err != nil {
 			return err
 		}
 	}
 	if hasRight {
-		r, err = h.ResolveType(auth, right)
+		r, err = h.ResolveRegtype(auth, right)
 		if err != nil {
 			return err
 		}
@@ -146,7 +147,7 @@ func StageCreateOperator(h DDLHost, auth Authority, s *parser.CreateOperator) er
 		return err
 	}
 	view := h.AccessView(auth)
-	if err = view.CanUse(auth, ddlRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: implementation.Result})); err != nil {
+	if err = view.CanUse(auth, ddl.ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: implementation.Result})); err != nil {
 		return err
 	}
 	symbol := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -168,7 +169,7 @@ func StageCreateOperator(h DDLHost, auth Authority, s *parser.CreateOperator) er
 		if old.Function != 0 {
 			return sqlError("42723", "operator "+symbol+" already exists")
 		}
-		if err = ddlCheck(h, auth, access.Requirement{Object: ddlRef(h, auth, old.Address()), OwnerOnly: true}); err != nil {
+		if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, old.Address()), OwnerOnly: true}); err != nil {
 			return err
 		}
 		next.ObjectAddress = old.Address()
@@ -215,7 +216,7 @@ func StageCreateOperator(h DDLHost, auth Authority, s *parser.CreateOperator) er
 
 // StageAlterOperator stages ALTER OPERATOR OWNER TO, SET SCHEMA and SET
 // (options). Links to missing or shell operators are errors.
-func StageAlterOperator(h DDLHost, auth Authority, s *parser.AlterOperator) error {
+func StageAlterOperator(h DDLHost, auth ddl.Authority, s *parser.AlterOperator) error {
 	d, err := findUtilityOperator(h, auth, s.Signature)
 	if err != nil {
 		return err
@@ -243,7 +244,7 @@ func StageAlterOperator(h DDLHost, auth Authority, s *parser.AlterOperator) erro
 		}
 		next.ObjectNamespace = ns.Address
 	}
-	if err = ddlCheck(h, auth, access.Requirement{Object: ddlRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
+	if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
 		return err
 	}
 	if OperatorSeeded(d) {
@@ -316,7 +317,7 @@ func StageAlterOperator(h DDLHost, auth Authority, s *parser.AlterOperator) erro
 
 // StageDropOperator records the DROP OPERATOR targets and the dependency path
 // for the engine's drop orchestration.
-func StageDropOperator(h DDLHost, auth Authority, s *parser.DropOperator) error {
+func StageDropOperator(h DDLHost, auth ddl.Authority, s *parser.DropOperator) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Signatures))
 	for _, sig := range s.Signatures {
 		d, err := findUtilityOperator(h, auth, sig)
@@ -331,9 +332,9 @@ func StageDropOperator(h DDLHost, auth Authority, s *parser.DropOperator) error 
 			}
 			return err
 		}
-		namespaceOwner := ddlCheck(h, auth, access.Requirement{Object: ddlRef(h, auth, d.Namespace()), OwnerOnly: true}) == nil
+		namespaceOwner := ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Namespace()), OwnerOnly: true}) == nil
 		if !namespaceOwner {
-			if err = ddlCheck(h, auth, access.Requirement{Object: ddlRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
+			if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
 				if diag, ok := err.(*sqlstate.Error); ok && diag.Code == "42501" {
 					return sqlError("42501", "must be owner of operator "+catalog.ObjectNameText(sig.Name))
 				}
@@ -341,7 +342,8 @@ func StageDropOperator(h DDLHost, auth Authority, s *parser.DropOperator) error 
 			}
 		}
 		if OperatorSeeded(d) {
-			return sqlError("2BP01", "cannot drop "+h.DependencyObject(auth, d.Address())+" because it is required by the database system")
+			object, _ := h.DependencyObject(auth, d.Address())
+			return sqlError("2BP01", "cannot drop "+object+" because it is required by the database system")
 		}
 		if !seen[d.Address()] {
 			seen[d.Address()] = true
