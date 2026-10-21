@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
 func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
@@ -66,9 +67,9 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			ct := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ct"})
 			mv := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "mv"})
 			seq := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "batch_s"})
-			index := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ci"})
-			if c == nil || ct == (ids.ObjectAddress{}) || mv == (ids.ObjectAddress{}) || seq == (ids.ObjectAddress{}) || index == (ids.ObjectAddress{}) || c.Generators[seq] == nil || c.Storage[ct].Original != nil || c.Storage[mv].Original != nil || len(c.Storage[ct].Replacement.Versions) != 0 || len(c.Storage[mv].Replacement.Versions) != 0 || len(writes[ct]) != 1 || len(writes[mv]) != 1 || len(journalIndexesOrZero(c).uniqueRoots[index].Entries) != 0 || calls == 0 {
-				t.Fatalf("catalog stage fields or initial rows omitted: ct=%v mv=%v sequence=%v index=%v generator=%v ctShape=%+v mvShape=%+v ctWrites=%d mvWrites=%d indexRoot=%v calls=%d", ct, mv, seq, index, c.Generators[seq], c.Storage[ct], c.Storage[mv], len(writes[ct]), len(writes[mv]), journalIndexesOrZero(c).uniqueRoots[index], calls)
+			idx := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ci"})
+			if c == nil || ct == (ids.ObjectAddress{}) || mv == (ids.ObjectAddress{}) || seq == (ids.ObjectAddress{}) || idx == (ids.ObjectAddress{}) || c.Generators[seq] == nil || c.Storage[ct].Original != nil || c.Storage[mv].Original != nil || len(c.Storage[ct].Replacement.Versions) != 0 || len(c.Storage[mv].Replacement.Versions) != 0 || len(writes[ct]) != 1 || len(writes[mv]) != 1 || len(index.JournalIndexesOrZero(c).UniqueRoots[idx].Entries) != 0 || calls == 0 {
+				t.Fatalf("catalog stage fields or initial rows omitted: ct=%v mv=%v sequence=%v index=%v generator=%v ctShape=%+v mvShape=%+v ctWrites=%d mvWrites=%d indexRoot=%v calls=%d", ct, mv, seq, idx, c.Generators[seq], c.Storage[ct], c.Storage[mv], len(writes[ct]), len(writes[mv]), index.JournalIndexesOrZero(c).UniqueRoots[idx], calls)
 			}
 			// CREATE of one index on a private parent captures committed storage
 			// absence, not REINDEX TABLE's committed membership-set authority.
@@ -102,13 +103,13 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 				t.Fatal("private initial rows and row-shape result", got)
 			}
 			if commit {
-				if e.visibility.CommitSeq() != frontier+1 || len(e.storage.Relations[ct].Versions) != 1 || len(e.storage.Relations[mv].Versions) != 1 || e.storage.Sequences[seq] == nil || len(e.storage.IndexRoots[index].Entries) != 1 {
+				if e.visibility.CommitSeq() != frontier+1 || len(e.storage.Relations[ct].Versions) != 1 || len(e.storage.Relations[mv].Versions) != 1 || e.storage.Sequences[seq] == nil || len(e.storage.IndexRoots[idx].Entries) != 1 {
 					t.Fatal("joint initial rows/shape/sequence/index installation")
 				}
 				transactionRows(t, s, "SELECT x FROM ct", 5)
 				transactionRows(t, s, "SELECT x FROM mv", 5)
 			} else {
-				if e.catalog.state != before || e.visibility.CommitSeq() != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil || e.storage.IndexRoots[index] != nil {
+				if e.catalog.state != before || e.visibility.CommitSeq() != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil || e.storage.IndexRoots[idx] != nil {
 					t.Fatal("initial table or provider result escaped rollback")
 				}
 			}

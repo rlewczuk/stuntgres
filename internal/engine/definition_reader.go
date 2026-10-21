@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqltype"
 )
 
@@ -140,8 +141,8 @@ func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*catal
 	return catalog.DefinitionRelationAt(a.Catalog, a.definition, address)
 }
 
-func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
-	lineage, ok := r.stage.indexesOrZero().layouts[address]
+func (r stageDefinitionReader) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
+	lineage, ok := r.stage.indexesOrZero().Layouts[address]
 	return lineage, ok
 }
 

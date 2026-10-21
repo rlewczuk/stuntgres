@@ -148,7 +148,7 @@ reuse their descriptors. Prior catalogs, rows, roots, masks and eager cursor
 metadata remain immutable.
 Partial UNIQUE composes this membership contract with the existing unique owner:
 candidate/old-row reservations and private/staged/prefix comparisons qualify
-membership first. Rebuild-only and merged roots share newLogicalIndexRoot;
+membership first. Rebuild-only and merged roots share index.NewLogicalIndexRoot;
 immutable predicate pointer identity fences root reuse and afterwait admission.
 Combined publication validates rebuilt predecessor uniqueness before applying
 delta, in both validation-only and materialized modes. Only the latter creates

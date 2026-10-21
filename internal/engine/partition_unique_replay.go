@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -60,17 +61,17 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 		return err
 	}
 	parent := auth.Catalog.MustRelation(table.Membership.Parent)
-	chosen := partitionPreservedReplayChild(auth.Catalog, parent)
+	chosen := index.PartitionPreservedReplayChild(auth.Catalog, parent)
 	if chosen == nil || chosen.Address() != table.Address() {
 		return nil
 	}
 	var selected *catalog.Relation
 	for _, descriptor := range auth.Catalog.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !partitionIndexPreservedInvalid(auth.Catalog, index) {
+		idx, ok := descriptor.(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Parent != parent.Address() || !index.PartitionIndexPreservedInvalid(auth.Catalog, idx) {
 			continue
 		}
-		child := partitionDumpIndexBacking(auth.Catalog, index.Address(), table.Address())
+		child := index.PartitionDumpIndexBacking(auth.Catalog, idx.Address(), table.Address())
 		if child == nil || child.SQLIndex.Constraint != nil || child.SQLIndex.Predicate != nil || len(child.SQLIndex.Include) != 0 || child.SQLIndex.NullsNotDistinct != bound.NullsNotDistinct || len(child.SQLIndex.Keys) != len(bound.Attributes) {
 			continue
 		}
@@ -79,7 +80,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 			match = match && key.Derived == nil && key.Attribute == bound.Attributes[i]
 		}
 		if match {
-			selected = index
+			selected = idx
 			break
 		}
 	}
@@ -167,7 +168,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
-	stage.indexes().output = scope.output
+	stage.indexes().Output = scope.output
 	for _, descriptor := range origin.descriptors {
 		stage.domainBases = append(stage.domainBases, descriptor)
 	}
@@ -177,12 +178,12 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 	if err != nil {
 		return Result{}, err
 	}
-	index := e.stageRead(stage).MustRelation(next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
-	if err = partitionUniqueCoverage(next, index.SQLIndex); err != nil {
+	idx := e.stageRead(stage).MustRelation(next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
+	if err = index.PartitionUniqueCoverage(next, idx.SQLIndex); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()
-	err = e.stagePartitionIndexChildren(op, stage, next, index, true)
+	err = e.stagePartitionIndexChildren(op, stage, next, idx, true)
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err

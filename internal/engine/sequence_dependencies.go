@@ -62,11 +62,11 @@ func stageOwnedSequenceDependencies(stage *CatalogStage, targets []ids.ObjectAdd
 }
 
 func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepare func(ids.ObjectRef) error) error {
-	for a, d := range provider.inputDescriptors() {
-		if provider.removed(a) {
+	for a, d := range provider.InputDescriptors() {
+		if provider.Removed(a) {
 			continue
 		}
-		if replacement := provider.replacement(a); replacement != nil {
+		if replacement := provider.Replacement(a); replacement != nil {
 			d = replacement
 		}
 		r, ok := d.(*catalog.Relation)

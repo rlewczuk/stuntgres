@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -114,7 +115,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			if exists {
 				current, ok := e.catalog.state.Relation(ref.Address)
 				live := e.storage.Relations[ref.Address]
-				if !ok || !sameRelationRowShape(root.Relation, current) {
+				if !ok || !index.SameRelationRowShape(root.Relation, current) {
 					return nil, ids.ErrCatalogReplaced
 				}
 				if root.Storage == live {

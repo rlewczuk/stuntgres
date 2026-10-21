@@ -166,7 +166,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 		t.Fatal(prepared, err)
 	}
 	for _, captured := range prepared.types {
-		if captured.usage.Type.ID() != sqltype.Int8 || captured.transformation.attribute != old.Attributes[0] || captured.transformation.expression == nil || !captured.transformation.rewrite {
+		if captured.usage.Type.ID() != sqltype.Int8 || captured.transformation.Attribute != old.Attributes[0] || captured.transformation.Expression == nil || !captured.transformation.Rewrite {
 			t.Fatal("incomplete TYPE capture", captured)
 		}
 	}
@@ -198,7 +198,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 	assertRootOrigin := func(captured alterTypePreparation) {
 		t.Helper()
 		columns := 0
-		plan.WalkExpression(captured.transformation.expression, func(expression expr.Expr) {
+		plan.WalkExpression(captured.transformation.Expression, func(expression expr.Expr) {
 			if column, ok := expression.(plan.ColumnExpr); ok {
 				columns++
 				if column.Origin != rootColumn || column.Slot != 0 || column.ResultUsage().Type.ID() != sqltype.Int4 {
@@ -206,7 +206,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 				}
 			}
 		})
-		if columns != 1 || captured.transformation.attribute != parent.Attributes[0] {
+		if columns != 1 || captured.transformation.Attribute != parent.Attributes[0] {
 			t.Fatal("root capture missing original attribute", columns, captured)
 		}
 	}

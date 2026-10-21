@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 // whether a key is an attribute or an indexprs entry. Do not strip coercions or
 // use execution simplification: native execution/original trees stay untouched.
 // Both catalog projection and compact index deparsing use this one decision.
-func indexCatalogKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {
+func CatalogKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {
 	if key.Derived == nil {
 		if !parent.HasAttribute(key.Attribute) {
 			return 0, nil, fmt.Errorf("stuntgres: index attribute is missing")

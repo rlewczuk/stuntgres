@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
@@ -193,19 +194,19 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		}
 	}
 	stageIndexes := s.indexesOrZero()
-	for a, d := range stageIndexes.parents {
+	for a, d := range stageIndexes.Parents {
 		if err := observe(a, d); err != nil {
 			return err
 		}
 	}
-	for a, d := range stageIndexes.rebuilds {
+	for a, d := range stageIndexes.Rebuilds {
 		if err := observe(a, d); err != nil {
 			return err
 		}
-		if journalIndexesOrZero(c).rebuilds == nil {
-			journalIndexes(c).rebuilds = map[ids.ObjectAddress]*catalog.Relation{}
+		if index.JournalIndexesOrZero(c).Rebuilds == nil {
+			index.JournalIndexes(c).Rebuilds = map[ids.ObjectAddress]*catalog.Relation{}
 		}
-		journalIndexes(c).rebuilds[a] = d
+		index.JournalIndexes(c).Rebuilds[a] = d
 	}
 	for k, a := range s.Touched() {
 		if current.NameAddress(k) != a {
@@ -215,7 +216,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			c.Names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
-	for parent := range stageIndexes.sets {
+	for parent := range stageIndexes.Sets {
 		for address, descriptor := range current.Descriptors() {
 			index, ok := descriptor.(*catalog.Relation)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
@@ -257,10 +258,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	for _, f := range s.storageReads {
 		captureStorage(f.address)
 	}
-	for _, d := range stageIndexes.parents {
+	for _, d := range stageIndexes.Parents {
 		captureStorage(d.Address())
 	}
-	for a, candidate := range stageIndexes.candidates {
+	for a, candidate := range stageIndexes.Candidates {
 		index, ok := s.Get(a).(*catalog.Relation)
 		if !ok {
 			index, ok = current.Relation(a)
@@ -280,7 +281,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			// roots belong to this stage's destination heap, not c's predecessor.
 			store = shape.replacement
 		}
-		if !candidate.matchesIndex(index, store) {
+		if !candidate.MatchesIndex(index, store) {
 			return catalog.Conflict{}
 		}
 		captureStorage(index.SQLIndex.Parent)

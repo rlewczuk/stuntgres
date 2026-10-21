@@ -5,41 +5,9 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 )
-
-// A supplied phase root is a detached candidate fenced against its exact source.
-// Catalog publication alone owns installation, revision and root-map authority.
-type indexRootCandidate struct {
-	root       *storage.IndexRoot
-	index      *catalog.Relation
-	storage    *storage.Relation
-	generation uint64
-	ends       *storage.DeletionRoot
-	length     int
-}
-
-func (c indexRootCandidate) matches(store *storage.Relation) bool {
-	return store == c.storage && store != nil && store.Generation == c.generation && store.Ends == c.ends && len(store.Versions) == c.length
-}
-
-func (c indexRootCandidate) matchesIndex(index *catalog.Relation, store *storage.Relation) bool {
-	return store != nil && c.index != nil && sameIndexKeySemantics(c.index, index) && c.matches(store.IndexIdentity())
-}
-
-func simpleConcurrentIndex(parent *catalog.Relation, definition *catalog.IndexDefinition) (bool, error) {
-	for _, key := range definition.Keys {
-		_, node, err := indexCatalogKey(parent, key)
-		if err != nil {
-			return false, err
-		}
-		if node != nil {
-			return false, nil
-		}
-	}
-	return true, nil
-}
 
 func (e *Engine) executeConcurrentIndex(scope *StatementScope, syntax *parser.CreateIndex, initial *catalog.Relation) (Result, error) {
 	if err := scope.waitIndexWriters(initial.Address()); err != nil {
@@ -93,12 +61,12 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress, first bool) (uint64, error) {
 	for {
 		e.mu.Lock()
-		index, parent, auth, err := e.concurrentIndexAuthorityLocked(scope, syntax, address)
+		idx, parent, auth, err := e.concurrentIndexAuthorityLocked(scope, syntax, address)
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
 		}
-		if index.SQLIndex.Valid || !index.SQLIndex.Live || index.SQLIndex.Ready == first {
+		if idx.SQLIndex.Valid || !idx.SQLIndex.Live || idx.SQLIndex.Ready == first {
 			e.mu.Unlock()
 			return 0, fmt.Errorf("stuntgres: invalid concurrent index phase")
 		}
@@ -108,7 +76,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		// Every retry captures snapshot ownership with the actual immutable row root.
 		e.visibility.WithdrawSnapshotLocked(scope.txRef)
-		safe, err := simpleConcurrentIndex(parent, index.SQLIndex)
+		safe, err := index.SimpleConcurrentIndex(parent, idx.SQLIndex)
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
@@ -124,7 +92,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			return 0, ids.ErrCatalogReplaced
 		}
 		snapshot := *store
-		next, definition := *index, *index.SQLIndex
+		next, definition := *idx, *idx.SQLIndex
 		definition.Ready = true
 		next.SQLIndex = &definition
 		next.ObjectRevision, err = e.catalog.revisionLocked()
@@ -134,20 +102,20 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, scope.op.Session)
-		stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+		stage.indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		namespace := auth.Catalog.Get(parent.Namespace()).Name()
 		e.mu.Unlock()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
-		root, err := buildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
+		root, err := index.BuildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
 		if err == nil {
-			err = validateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth.View, disclosureEnv(&auth), first)
+			err = index.ValidateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth.View, disclosureEnv(&auth), first)
 		}
 		if err != nil {
 			e.DiscardCatalogStage(stage)
 			return 0, err
 		}
-		stage.indexes().candidates = map[ids.ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.Generation, ends: snapshot.Ends, length: len(snapshot.Versions)}}
+		stage.indexes().Candidates = map[ids.ObjectAddress]index.RootCandidate{address: {Root: root, Index: &next, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
 		err = stage.Replace(&next)
 		if err == nil {
 			var prepared *PreparedCatalogPublication
@@ -201,7 +169,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		}
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, scope.op.Session)
-		stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+		stage.indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		e.mu.Unlock()
 		err = stage.Replace(&next)
 		if err == nil {

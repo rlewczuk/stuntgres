@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -25,7 +26,7 @@ type mergeActionRow struct {
 	updateMode lock.MultiMode
 }
 type mergeRows struct {
-	indexWriteBatch
+	index.WriteBatch
 	predecessors []storage.RowVersion
 	actions      []mergeActionRow
 	returning    *exec.FinalRows
@@ -48,11 +49,11 @@ func (rows *mergeRows) stage(w *WriteStage, ref ids.ObjectRef) error {
 		first, last := action.payload, rows.actions[end-1].payload+1
 		var err error
 		if action.action == parser.MergeUpdateAction {
-			batch := rows.indexWriteBatch.slice(first, last)
-			batch.actionMode = action.updateMode
+			batch := rows.WriteBatch.Slice(first, last)
+			batch.ActionMode = action.updateMode
 			err = w.replace(ref, rows.predecessors[first:last], batch)
 		} else {
-			err = w.applyValidated(ref, rows.indexWriteBatch.slice(first, last))
+			err = w.applyValidated(ref, rows.WriteBatch.Slice(first, last))
 		}
 		if err != nil {
 			return err
@@ -330,7 +331,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 					actualOld := old.Values
 					var row []sqltype.Value
 					if arm.Action != parser.MergeDeleteAction {
-						row = result.values[len(result.values)-1]
+						row = result.Values[len(result.Values)-1]
 					}
 					if arm.Action == parser.MergeInsertAction {
 						actualOld = nil
@@ -454,18 +455,18 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		*excluded = append(*excluded, old)
 		predecessor = old
 	}
-	candidate := indexWriteCandidate{values: row}
+	candidate := index.WriteCandidate{Values: row}
 	if unique {
-		if err := scope.checkUniqueRow(b.Ref, &candidate, *excluded, result.indexWriteBatch); err != nil {
+		if err := scope.checkUniqueRow(b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
 			return err
 		}
 	}
 	if arm.Action == parser.MergeUpdateAction {
 		accepted[old.Row] = true
 	}
-	result.actions = append(result.actions, mergeActionRow{action: arm.Action, payload: len(result.values), updateMode: actionMode})
+	result.actions = append(result.actions, mergeActionRow{action: arm.Action, payload: len(result.Values), updateMode: actionMode})
 	result.predecessors = append(result.predecessors, predecessor)
-	result.append(candidate)
+	result.Append(candidate)
 	return nil
 }
 
@@ -503,7 +504,7 @@ func (s *StatementScope) mergeFollowChainStrong(b analyze.Binding) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	for _, key := range unique.keySlots {
+	for _, key := range unique.KeySlots {
 		for _, target := range b.Merge.UpdateTargets {
 			if key == target {
 				return true, nil

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -160,39 +161,39 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)")
 	ref := roleTableRef(t, e, "t")
 	parent := e.catalog.state.MustRelation(ref.Address)
-	index := parent.Constraints.Unique[0].Index
-	if e.storage.Relations[ref.Address] == nil || e.storage.IndexRoots[index] == nil || len(e.storage.IndexRoots[index].Entries) != 0 {
+	idx := parent.Constraints.Unique[0].Index
+	if e.storage.Relations[ref.Address] == nil || e.storage.IndexRoots[idx] == nil || len(e.storage.IndexRoots[idx].Entries) != 0 {
 		t.Fatal("co-created parent and empty backing root did not publish together")
 	}
-	captured := captureIndexStores(e.storage.Relations, e.catalog.state)
-	if !indexStoresUnchanged(e.storage.Relations, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
+	captured := index.CaptureIndexStores(e.storage.Relations, e.catalog.state)
+	if !index.StoresUnchanged(e.storage.Relations, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("unchanged existing parent failed its storage fence")
 	}
-	if indexStoresUnchanged(nil, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
+	if index.StoresUnchanged(nil, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("existing parent disappearance passed its storage fence")
 	}
 	absent := &catalog.State{}
-	if !indexStoresUnchanged(nil, nil, absent, e.catalog.state, e.storage.IndexRoots, nil) {
+	if !index.StoresUnchanged(nil, nil, absent, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("new parent must fence committed absence, not its candidate store")
 	}
-	if indexStoresUnchanged(e.storage.Relations, nil, absent, e.catalog.state, e.storage.IndexRoots, nil) ||
-		indexStoresUnchanged(nil, captured, absent, e.catalog.state, e.storage.IndexRoots, nil) {
+	if index.StoresUnchanged(e.storage.Relations, nil, absent, e.catalog.state, e.storage.IndexRoots, nil) ||
+		index.StoresUnchanged(nil, captured, absent, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("new-parent fence accepted committed or captured incumbent storage")
 	}
 	changed := *e.storage.Relations[ref.Address]
 	changed.Generation++
-	if indexStoresUnchanged(map[ids.ObjectAddress]*storage.Relation{ref.Address: &changed}, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
+	if index.StoresUnchanged(map[ids.ObjectAddress]*storage.Relation{ref.Address: &changed}, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("existing parent generation change passed its storage fence")
 	}
-	before, root, stores := e.catalog.state, e.storage.IndexRoots[index], len(e.storage.Relations)
+	before, root, stores := e.catalog.state, e.storage.IndexRoots[idx], len(e.storage.Relations)
 	_, err := testExecute(e, context.Background(), statement(t, "CREATE TABLE other(k INT CONSTRAINT u UNIQUE)"), nil)
-	if err == nil || e.catalog.state != before || len(e.storage.Relations) != stores || e.storage.IndexRoots[index] != root {
+	if err == nil || e.catalog.state != before || len(e.storage.Relations) != stores || e.storage.IndexRoots[idx] != root {
 		t.Fatal("failed backing-name reservation partially published a new parent", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err = testExecute(e, ctx, statement(t, "CREATE TABLE canceled(k INT UNIQUE)"), nil)
-	if !errors.Is(err, context.Canceled) || e.catalog.state != before || len(e.storage.Relations) != stores || e.storage.IndexRoots[index] != root {
+	if !errors.Is(err, context.Canceled) || e.catalog.state != before || len(e.storage.Relations) != stores || e.storage.IndexRoots[idx] != root {
 		t.Fatal("canceled atomic parent/backing publication changed state", err)
 	}
 }

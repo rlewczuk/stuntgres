@@ -232,7 +232,7 @@ output (`plan.AppendBoundTree`), SQL deparse (`stored.Deparser.SQL`, interpreted
 (`sameGroupExpressionIn`), the grouping rewrite (`rewriteGroup`), aggregate
 occurrence (`aggregateOccurrence`), preflight (`exec`'s `preflightCoercionNode`,
 interpreted in `exec/preflight_composite.go`), index key display
-(`pgIndexFunctionExpression`) and the closed-DEFAULT checks. The walk, the
+(`index.PGIndexFunctionExpression`) and the closed-DEFAULT checks. The walk, the
 grouping rewrite and aggregate occurrence keep one explicit `Timezone` case:
 they visit the value before the zone, unlike PostgreSQL, a divergence kept
 until a compatibility fix. The uuid closed-DEFAULT check keeps explicit cases

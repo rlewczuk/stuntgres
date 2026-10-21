@@ -9,21 +9,22 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
 
 func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
-	index := e.catalog.state.MustRelation(ref.Address)
+	idx := e.catalog.state.MustRelation(ref.Address)
 	root := e.storage.IndexRoots[ref.Address]
-	if index.RelationKind != catalog.IndexRelation || index.SQLIndex == nil || root == nil || e.storage.Relations[ref.Address] != nil {
-		t.Fatal("not a substantive index", index, root)
+	if idx.RelationKind != catalog.IndexRelation || idx.SQLIndex == nil || root == nil || e.storage.Relations[ref.Address] != nil {
+		t.Fatal("not a substantive index", idx, root)
 	}
-	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
+	if err := index.ValidateIndexDefinition(e.CatalogRead(), idx); err != nil {
 		t.Fatal(err)
 	}
-	return index, root
+	return idx, root
 }
 func btreeKeys(t *testing.T, root *storage.IndexRoot) []string {
 	t.Helper()

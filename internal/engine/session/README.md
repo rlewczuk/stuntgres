@@ -116,8 +116,8 @@ so either import would form a cycle.
   recording order.
 - **Slot rules.** A nil slot means "none". Owners store and recover a slot
   with one checked helper each (`enumSlotOf`/`enumJournalOf`,
-  `domainSlotOf`/`domainJournalOf`, `indexSlotOf`/`indexJournalOf` in the
-  root) and never store a typed nil. A slot owner that writes in place (the
+  `domainSlotOf`/`domainJournalOf` in the root, `index.SlotOf`/`index.JournalOf`
+  for the index journal, `index.Journal`) and never store a typed nil. A slot owner that writes in place (the
   index journal) deep-copies in `Clone`; the typedef slots are replaced
   before a write (`domainWritable`, `enumWritable`).
 - **Root slot allocation.** The root allocates a session, its payload and its

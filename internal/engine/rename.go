@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -105,7 +106,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	if !columnRename && old.SQLIndex != nil && old.SQLIndex.Constraint != nil {
-		if err = stageBackingIndexRename(stage, &next); err != nil {
+		if err = index.StageBackingIndexRename(stage, &next); err != nil {
 			e.mu.Unlock()
 			e.DiscardCatalogStage(stage)
 			return Result{}, err

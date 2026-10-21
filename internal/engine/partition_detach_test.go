@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
@@ -116,8 +117,8 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			childKey := catalog.UniqueConstraint{OID: 46601, Name: f.child.Name(), Index: f.child.Address(), Attributes: []int32{22, 11}, Parent: rootKey.OID}
 			f.root.Constraints.Unique = []catalog.UniqueConstraint{rootKey}
 			f.leaf.Constraints.Unique = []catalog.UniqueConstraint{childKey}
-			f.parent.SQLIndex.Constraint = uniqueBacking(&rootKey)
-			f.child.SQLIndex.Constraint = uniqueBacking(&childKey)
+			f.parent.SQLIndex.Constraint = index.UniqueBacking(&rootKey)
+			f.child.SQLIndex.Constraint = index.UniqueBacking(&childKey)
 			f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
 			stage := f.e.BeginCatalogStage(f.view)
 			defer f.e.DiscardCatalogStage(stage)
@@ -125,9 +126,9 @@ func TestPartitionDetachDependencies(t *testing.T) {
 				t.Fatal(err)
 			}
 			view := f.e.stageRead(stage)
-			index := view.MustRelation(f.child.Address())
+			idx := view.MustRelation(f.child.Address())
 			table := view.MustRelation(f.leaf.Address())
-			if index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || index.SQLIndex.Constraint != f.child.SQLIndex.Constraint || index.SQLIndex.Valid != f.child.SQLIndex.Valid || table.Constraints.Unique[0].Parent != 0 || !table.Constraints.Unique[0].IsLocal || !table.Constraints.NotNull[0].PartitionLocal {
+			if idx.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || idx.SQLIndex.Constraint != f.child.SQLIndex.Constraint || idx.SQLIndex.Valid != f.child.SQLIndex.Valid || table.Constraints.Unique[0].Parent != 0 || !table.Constraints.Unique[0].IsLocal || !table.Constraints.NotNull[0].PartitionLocal {
 				t.Fatal("top edge/provenance/backing identity wrong")
 			}
 			if table.Constraints.Unique[0].OID != childKey.OID || table.Constraints.NotNull[0].OID != 46602 || f.leaf.Constraints.Unique[0].Parent != rootKey.OID || f.child.SQLIndex.PartitionParent != f.parent.Address() {
@@ -136,13 +137,13 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			if view.Get(f.parent.Address()) != f.parent || f.parent.SQLIndex.Valid != valid {
 				t.Fatal("detach promoted or replaced former parent index")
 			}
-			if err := validatePartitionIndex(view, f.parent, view.MustRelation(f.root.Address())); err != nil {
+			if err := index.ValidatePartitionIndex(view, f.parent, view.MustRelation(f.root.Address())); err != nil {
 				t.Fatal("invalid-complete must be admitted", err)
 			}
-			if err := validateIndexDefinition(view, index); err != nil {
+			if err := index.ValidateIndexDefinition(view, idx); err != nil {
 				t.Fatal(err)
 			}
-			if !sameIndexKeySemantics(f.child, index) {
+			if !index.SameIndexKeySemantics(f.child, idx) {
 				t.Fatal("metadata-only detach would rebuild physical keys")
 			}
 		})

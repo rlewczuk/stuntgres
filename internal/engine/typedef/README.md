@@ -131,7 +131,8 @@ resolvers `resolveAlterEnumLocked`/`resolveAlterDomainLocked`, which hold
 the lock windows, lock-manager waits, row validation and publication; the
 enum journal updates; `type_generation.go` and `enum_generation.go`
 (publication-time reownership); domain index generations
-(`domain_alter_indexes.go`); journal capture (`domain_alter_message.go`);
+(`domain_alter_indexes.go`; the output reownership they call is
+`index.ReownDomainIndexOutputs`); journal capture (`domain_alter_message.go`);
 TEMP collation cleanup and `collationCreationNamespaceLocked`
 (`collation_temporary.go`); `conversionCheckCreate`
 (`conversion_create_check.go`, shared with `routine.DDLHost`); the dump

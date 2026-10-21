@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -53,10 +54,10 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 			}
 			rows, err := assembleInsertRows(scope.op.Context(), b, cursor, count, "public", scope.input, scope.output, scope, true, nil, nil)
 			if failure == "none" {
-				if err != nil || len(rows.values) != 2 || cursor.position != 3 {
-					t.Fatal("consumed vs admitted", count, len(rows.values), cursor.position, err)
+				if err != nil || len(rows.Values) != 2 || cursor.position != 3 {
+					t.Fatal("consumed vs admitted", count, len(rows.Values), cursor.position, err)
 				}
-			} else if !errors.Is(err, injected) || rows.values != nil {
+			} else if !errors.Is(err, injected) || rows.Values != nil {
 				t.Fatal("failure did not veto batch", rows, err)
 			}
 			if cursor.closes != 1 {
@@ -77,7 +78,7 @@ func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	}
 	// The mark is deliberately unique-only. Real row/relation/completion ownership
 	// must survive even though a new unique-key reservation is discarded.
-	admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
+	admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
@@ -168,10 +169,10 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	}
 	manager.RestoreUnique(session.Advisory.Ticket, mark)
 	row := insertConflictUnitRow(t, f, 20)
-	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: row}, indexWriteBatch{}, nil); err != nil || !admitted {
+	if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
+	if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
 	if got := advisoryUnitHold(session, key); got != want {

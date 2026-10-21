@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
@@ -92,20 +93,20 @@ func (c *insertConflictState) selectArbiters(ctx *exec.Context, parent *catalog.
 	return nil
 }
 
-func (c *insertConflictState) matches(parent *catalog.Relation, index *catalog.IndexDefinition) (bool, error) {
+func (c *insertConflictState) matches(parent *catalog.Relation, idx *catalog.IndexDefinition) (bool, error) {
 	// Both directions compare sets, not key order/multiplicity. Decorations
 	// restrict a matching key occurrence without changing the expression set.
 	for _, target := range c.Keys {
 		found := false
-		for _, key := range index.Keys {
-			attribute, expression, err := indexCatalogKey(parent, key)
+		for _, key := range idx.Keys {
+			attribute, expression, err := index.CatalogKey(parent, key)
 			if err != nil {
 				return false, err
 			}
 			if target.Attribute != attribute || !analyze.SameGroupExpression(target.Expression, expression) {
 				continue
 			}
-			usage, err := indexKeyUsage(parent, key)
+			usage, err := index.KeyUsage(parent, key)
 			if err != nil {
 				return false, err
 			}
@@ -122,8 +123,8 @@ func (c *insertConflictState) matches(parent *catalog.Relation, index *catalog.I
 			return false, nil
 		}
 	}
-	for _, key := range index.Keys {
-		attribute, expression, err := indexCatalogKey(parent, key)
+	for _, key := range idx.Keys {
+		attribute, expression, err := index.CatalogKey(parent, key)
 		if err != nil {
 			return false, err
 		}

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -161,10 +162,10 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 			return reject()
 		}
 		attribute := current.Attributes[slot]
-		index := slices.IndexFunc(current.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
+		idx := slices.IndexFunc(current.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
 			return c.Attribute == attribute && c.OID != 0 && !c.NotValid && !c.NoInherit
 		})
-		if index < 0 {
+		if idx < 0 {
 			return reject()
 		}
 		if graph := current.Inheritance; graph != nil {
@@ -173,7 +174,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 				return reject()
 			}
 		}
-		pair.facts[i] = restoredPhysicalNotNullFact{attribute: attribute, oid: current.Constraints.NotNull[index].OID, usage: current.Columns[slot].Usage}
+		pair.facts[i] = restoredPhysicalNotNullFact{attribute: attribute, oid: current.Constraints.NotNull[idx].OID, usage: current.Columns[slot].Usage}
 		primary := catalog.PhysicalPrimaryForAttribute(current, attribute)
 		if repair.primary == "" {
 			if slices.ContainsFunc(current.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
@@ -190,7 +191,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 			}
 			if pair.primary == nil {
 				pair.primary = catalog.CapturePhysicalPrimarySupport(current, primary)
-				if !physicalPrimarySupportValid(auth.Catalog, current, primary, pair.primary) {
+				if !index.PhysicalPrimarySupportValid(auth.Catalog, current, primary, pair.primary) {
 					return reject()
 				}
 				if constructor.indexName != "" && !physicalImportedIndexMatches(indexes[primary.Index], constructor, current, primary) {
@@ -254,10 +255,10 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 	}
 	fact := pair.facts[pair.position]
 	slot := old.IndexForAttribute(fact.attribute)
-	index := slices.IndexFunc(old.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
+	idx := slices.IndexFunc(old.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
 		return c.OID == fact.oid && c.Attribute == fact.attribute && !c.NotValid && !c.NoInherit
 	})
-	if slot < 0 || old.Columns[slot].Name != repair.column || old.Columns[slot].Usage != fact.usage || old.Columns[slot].Nullable || !old.Columns[slot].NullabilityKnown || index < 0 {
+	if slot < 0 || old.Columns[slot].Name != repair.column || old.Columns[slot].Usage != fact.usage || old.Columns[slot].Nullable || !old.Columns[slot].NullabilityKnown || idx < 0 {
 		e.mu.Unlock()
 		return reject()
 	}
@@ -274,7 +275,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 			e.mu.Unlock()
 			return reject()
 		}
-	} else if !physicalPrimarySupportValid(auth.Catalog, old, primary, pair.primary) {
+	} else if !index.PhysicalPrimarySupportValid(auth.Catalog, old, primary, pair.primary) {
 		e.mu.Unlock()
 		return reject()
 	}
@@ -288,7 +289,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 	if old.Inheritance != nil {
 		next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 	}
-	removeDetachedNotNullMetadata(&next, old.Constraints.NotNull[index])
+	removeDetachedNotNullMetadata(&next, old.Constraints.NotNull[idx])
 	cause := &catalog.PhysicalNotNullCause{Kind: catalog.PhysicalNotNullImportFlag, Ref: ref, Origin: ref, Attribute: fact.attribute, RemovedNN: fact.oid, Usage: fact.usage}
 	if pair.primary != nil {
 		cause.Kind = catalog.PhysicalNotNullImportCleanup

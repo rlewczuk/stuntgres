@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -43,7 +44,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 		if partitionExclusionAddActions(s) {
 			return nil
 		}
-		if partitionConstraintDropActions(d, s.Actions) {
+		if index.PartitionConstraintDropActions(d, s.Actions) {
 			return nil
 		}
 		if partitionCheckReplayAllowed(op, auth, s, d) || partitionUsingIndexReplayAllowed(op, auth, s, d) || partitionUniqueReplayAllowed(op, auth, s, d) {

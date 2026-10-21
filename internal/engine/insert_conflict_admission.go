@@ -5,13 +5,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
 
 func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *insertConflictState) analyze.Binding {
 	return analyze.Binding{Ref: ref, Relation: parent, Targets: action.Targets, Insert: analyze.InsertBinding{Conflict: action.InsertConflict}, QuerySources: action.Sources, Returning: action.Returning}
 }
-func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *exec.Context) (bool, error) {
+func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch, evaluation *exec.Context) (bool, error) {
 	action := s.insertConflict
 	if action == nil {
 		return true, s.checkInsertUniqueRow(ref, candidate, prefix)
@@ -19,10 +20,10 @@ func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWrite
 	if action.Update != nil {
 		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
 	}
-	return s.admitInsertConflictRow(ref, candidate, prefix, indexProbeRuntime)
+	return s.admitInsertConflictRow(ref, candidate, prefix, index.ProbeRuntime)
 }
 
-func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, purpose indexProbePurpose) (bool, error) {
+func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch, purpose index.ProbePurpose) (bool, error) {
 	action := s.insertConflict
 	manager := s.engine().locks
 	if action.statementKeys == nil {
@@ -48,7 +49,7 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 		}
 		// A provider publication during the unselected probe invalidates the first
 		// pass; recapture selected arbiters before treating any hit as a violation.
-		if s.uniqueBinding != nil && action.catalog != s.uniqueBinding.catalog {
+		if s.uniqueBinding != nil && action.catalog != s.uniqueBinding.Catalog {
 			continue
 		}
 		if other.index != nil {
@@ -64,8 +65,8 @@ func (s *StatementScope) insertConflictVisible(row storage.RowVersion, committed
 	return nil
 }
 
-func (w *WriteStage) applyInsertBatch(ref ids.ObjectRef, rows indexWriteBatch) (int, error) {
-	count := len(rows.values)
+func (w *WriteStage) applyInsertBatch(ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
+	count := len(rows.Values)
 	if action := w.scope.insertConflict; action != nil && action.Update != nil {
 		return action.affected, nil
 	}
@@ -81,39 +82,39 @@ func (w *WriteStage) applyInsertBatch(ref ids.ObjectRef, rows indexWriteBatch) (
 	}
 	return count, nil
 }
-func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWriteBatch) (indexWriteBatch, error) {
+func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows index.WriteBatch) (index.WriteBatch, error) {
 	prior := s.uniqueBinding
 	s.engine().locks.RestoreUnique(s.ticket, s.insertConflict.statementKeys)
 	s.uniqueBinding = nil
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
-		return indexWriteBatch{}, err
+		return index.WriteBatch{}, err
 	}
-	purpose := indexProbeRuntime
-	if binding.checked || prior != nil && prior.checked {
-		purpose = indexProbeRevalidation
-		if prior != nil && !sameRelationRowShape(prior.parent, binding.parent) {
-			return indexWriteBatch{}, ids.ErrCatalogReplaced
+	purpose := index.ProbeRuntime
+	if binding.Checked || prior != nil && prior.Checked {
+		purpose = index.ProbeRevalidation
+		if prior != nil && !index.SameRelationRowShape(prior.Parent, binding.Parent) {
+			return index.WriteBatch{}, ids.ErrCatalogReplaced
 		}
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output}}
-	if err := s.insertConflict.selectArbiters(&evaluation, binding.parent, s.engine().catalog.read(binding.catalog)); err != nil {
-		return indexWriteBatch{}, err
+	if err := s.insertConflict.selectArbiters(&evaluation, binding.Parent, s.engine().catalog.read(binding.Catalog)); err != nil {
+		return index.WriteBatch{}, err
 	}
-	accepted := rows.prefix(0)
-	for i := range rows.values {
-		row := rows.candidate(i)
+	accepted := rows.Prefix(0)
+	for i := range rows.Values {
+		row := rows.Candidate(i)
 		admitted, err := s.admitInsertConflictRow(ref, &row, accepted, purpose)
 		if err != nil {
-			return indexWriteBatch{}, err
+			return index.WriteBatch{}, err
 		}
 		if admitted {
-			accepted.append(row)
+			accepted.Append(row)
 		}
 	}
-	clear(rows.values[len(accepted.values):])
-	if rows.states != nil {
-		clear(rows.states[len(accepted.values):])
+	clear(rows.Values[len(accepted.Values):])
+	if rows.States != nil {
+		clear(rows.States[len(accepted.Values):])
 	}
 	return accepted, nil
 }

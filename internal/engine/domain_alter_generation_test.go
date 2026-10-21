@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -30,8 +31,8 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			d := domainUnitType(t, view, "d")
 			sequence := roleTableRef(t, e, "steps").Address
 			parent := roleTableRef(t, e, "subject").Address
-			index := roleTableRef(t, e, "checked_idx").Address
-			store, root := e.storage.Relations[parent], e.storage.IndexRoots[index]
+			idx := roleTableRef(t, e, "checked_idx").Address
+			store, root := e.storage.Relations[parent], e.storage.IndexRoots[idx]
 			beforeRows := slices.Clone(store.Versions)
 			beforeCount := e.storage.Sequences[sequence].Last
 			if beforeCount != 2 {
@@ -83,7 +84,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 					t.Fatal("physical version identity/order changed")
 				}
 			}
-			currentIndex := e.catalog.state.MustRelation(index)
+			currentIndex := e.catalog.state.MustRelation(idx)
 			currentParent := e.catalog.state.MustRelation(parent)
 			sameKey := func(old, current sqltype.Value, position int) {
 				t.Helper()
@@ -95,12 +96,12 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				if err != nil || before != after {
 					t.Fatal("index scalar payload changed", before, after, err)
 				}
-				usage, err := indexKeyUsage(currentParent, currentIndex.SQLIndex.Keys[position])
+				usage, err := index.KeyUsage(currentParent, currentIndex.SQLIndex.Keys[position])
 				if err != nil || current.Type() != usage.Type {
 					t.Fatal("index key retained stale logical conversion authority", err)
 				}
 			}
-			newRoot := e.storage.IndexRoots[index]
+			newRoot := e.storage.IndexRoots[idx]
 			if root.Hash == nil {
 				if len(newRoot.Entries) != len(root.Entries) {
 					t.Fatal("B-tree membership changed")
@@ -118,16 +119,16 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				if newRoot.Hash.Storage != current {
 					t.Fatal("hash storage identity changed")
 				}
-				entries := make(map[indexRowIdentity]storage.HashEntry)
+				entries := make(map[index.RowIdentity]storage.HashEntry)
 				for _, bucket := range newRoot.Hash.Buckets {
 					for _, entry := range bucket {
-						entries[indexRowIdentity{row: entry.Row, version: entry.Version}] = entry
+						entries[index.RowIdentity{Row: entry.Row, Version: entry.Version}] = entry
 					}
 				}
 				count := 0
 				for _, bucket := range root.Hash.Buckets {
 					for _, entry := range bucket {
-						next, ok := entries[indexRowIdentity{row: entry.Row, version: entry.Version}]
+						next, ok := entries[index.RowIdentity{Row: entry.Row, Version: entry.Version}]
 						if !ok || next.Position != entry.Position {
 							t.Fatal("hash row membership changed")
 						}

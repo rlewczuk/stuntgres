@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -147,8 +148,8 @@ func (f *generatedRepairFixture) run(ctx context.Context) <-chan error {
 		defer f.target.mu.Unlock()
 		_, err := f.target.repairRemappedGenerationsLocked(ctx, f.next, f.storage, f.sequences, f.mapping, f.op, nil)
 		if err == nil {
-			var prepared remintedIndexStorage
-			prepared, err = f.target.prepareForeignIndexStorage(ctx, f.next, f.storage, &indexSnapshot{})
+			var prepared index.RemintedIndexStorage
+			prepared, err = f.target.prepareForeignIndexStorage(ctx, f.next, f.storage, &index.Snapshot{})
 			if err == nil {
 				err = f.target.installForeignCatalogLocked(ctx, f.next, f.storage, f.sequences, f.target.catalog.nextRevision, prepared)
 			}

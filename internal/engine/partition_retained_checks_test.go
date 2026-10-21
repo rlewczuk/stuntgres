@@ -59,20 +59,20 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.sources) != 0 || len(snapshot.partitionRows) != 1 {
+	if len(snapshot.Sources) != 0 || len(snapshot.PartitionRows) != 1 {
 		t.Fatal("unindexed CHECK history was not captured", snapshot)
 	}
-	history := snapshot.partitionRows[leaf.Address()]
-	if &history.store.Versions[0] != &store.Versions[0] {
+	history := snapshot.PartitionRows[leaf.Address()]
+	if &history.Store.Versions[0] != &store.Versions[0] {
 		t.Fatal("original immutable versions were needlessly copied")
 	}
 	position := 0
-	before, err := history.nextRow(context.Background(), &position, live)
+	before, err := history.NextRow(context.Background(), &position, live)
 	if err != nil || position != 2 || before[0] != oldValues[0] {
 		t.Fatal("deleted source version changed old-row matching", position, before, err)
 	}
 	position = 0
-	if _, err := history.nextRow(context.Background(), &position, storage.RowVersion{Row: 9, Version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := history.NextRow(context.Background(), &position, storage.RowVersion{Row: 9, Version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("mismatched source identity accepted", err)
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
@@ -134,7 +134,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	virtualCheck.Expression = virtualExpression
 	virtualLeaf.Constraints.Check = []catalog.CheckConstraint{virtualCheck}
 	virtualHistory := history
-	virtualHistory.relation = &virtualLeaf
+	virtualHistory.Relation = &virtualLeaf
 	virtualBefore := []sqltype.Value{integer(1), sqltype.Null(typ)}
 	virtualAfter := []sqltype.Value{integer(2), sqltype.Null(typ)}
 	var virtualPolicy partitionRetainedChecks
@@ -209,8 +209,8 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// Mapping changes the candidate lookup key, not its immutable original row authority.
 	destination := leaf.Address()
 	destination.ObjectID = 27000
-	snapshot.captureMapping(map[ids.ObjectAddress]ids.ObjectAddress{leaf.Address(): destination}, nil)
-	if snapshot.partitionRows[destination].relation != leaf || snapshot.partitionRows[leaf.Address()].relation != nil {
+	snapshot.CaptureMapping(map[ids.ObjectAddress]ids.ObjectAddress{leaf.Address(): destination}, nil)
+	if snapshot.PartitionRows[destination].Relation != leaf || snapshot.PartitionRows[leaf.Address()].Relation != nil {
 		t.Fatal("row history address mapping lost provenance")
 	}
 }

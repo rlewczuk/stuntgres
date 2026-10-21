@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -132,7 +133,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
-	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
+	idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.catalog.state.MustRelation(d.Address())
 	old := e.storage.Relations[d.Address()]
 	frontier := e.visibility.CommitSeq()
@@ -146,7 +147,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}
 	// Cancel inside the actual index candidate builder, before any install owner.
-	entries, err := buildIndexEntries(&exec.Context{EvalStatement: exec.EvalStatement{Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage.materializedOrZero().replacement.descriptor, index.SQLIndex, stage.materializedOrZero().replacement.storage, nil)
+	entries, err := index.BuildIndexEntries(&exec.Context{EvalStatement: exec.EvalStatement{Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage.materializedOrZero().replacement.descriptor, idx.SQLIndex, stage.materializedOrZero().replacement.storage, nil)
 	if entries != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("index preparation ignored cancellation", err)
 	}

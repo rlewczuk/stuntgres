@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -100,7 +101,7 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 			}
 			return nil, err
 		}
-		key.Usage = indexKeyCollation(usage, bound)
+		key.Usage = index.KeyCollation(usage, bound)
 		key.Class, key.Collation, key.ExplicitClass = bound.Class, bound.Collation, bound.ExplicitClass
 		if raw.Strategy == parser.PartitionHash {
 			key.Hash, err = sqltype.BindPartitionHash(key.Usage, key.Class)

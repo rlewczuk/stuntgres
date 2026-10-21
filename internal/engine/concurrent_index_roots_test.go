@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -73,14 +74,14 @@ func concurrentUnitError(t *testing.T, s *session.Session, query, code string) e
 	return err
 }
 
-func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, index *catalog.Relation) {
+func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, idx *catalog.Relation) {
 	t.Helper()
 	e.mu.Lock()
-	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
+	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
 	snapshot := *e.storage.Relations[parent.Address()]
-	root := e.storage.IndexRoots[index.Address()]
+	root := e.storage.IndexRoots[idx.Address()]
 	e.mu.Unlock()
-	expected, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, &snapshot, nil)
+	expected, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, idx.SQLIndex, &snapshot, nil)
 	if err != nil || !reflect.DeepEqual(root, expected) {
 		t.Fatalf("installed logical root differs from actual live row-version build: %v", err)
 	}

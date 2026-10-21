@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ type ruleCommandScratch struct {
 	storage    *storage.Relation
 	viewWrite  *viewWrite
 	sources    []exec.Leaf
-	unique     *uniqueWriteBinding
+	unique     *index.UniqueWriteBinding
 	conflict   *insertConflictState
 	returning  *insertReturningOutput
 	partition  *partitionInsertState

@@ -68,8 +68,8 @@ that consult the transaction catalog journal (`privateStorageLocked`,
 `sequenceGeneratorLocked`, `domainStageIndexRootLocked`), DML candidate
 building, index builds and maintenance orchestration, Restore, Dump and
 replacement, and sequence DDL and transactional sequence metadata. Session
-sequence memories belong to [`sequence`](../sequence/README.md). `indexOutputMatches` stays in the engine because it
-compares index key semantics. The transaction-private deletion overlay and
+sequence memories belong to [`sequence`](../sequence/README.md). Index key comparison
+(`index.OutputMatches`) belongs to [`index`](../index/README.md). The transaction-private deletion overlay and
 `LiveVersion` belong to [`visibility`](../visibility/README.md).
 
 ## Testing

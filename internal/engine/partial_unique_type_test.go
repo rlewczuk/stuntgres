@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -42,7 +43,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				writes = []storage.RowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
-			roots, err := validateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.auth.View, disclosureEnv(&f.auth), f.auth.Catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.Attributes[3], rewrite: true}}, nil, nil, true)
+			roots, err := index.ValidateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.auth.View, disclosureEnv(&f.auth), f.auth.Catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []index.ColumnTransformation{{Attribute: f.parent.Attributes[3], Rewrite: true}}, nil, nil, true)
 			if overlay == "none" || overlay == "member_successor" {
 				if roots != nil {
 					t.Fatal("failed TYPE returned baseline")
@@ -53,10 +54,10 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 			}
 			if err == nil {
 				build := roots[f.index.Name()]
-				if build == nil || build.root == nil || build.store == &store {
+				if build == nil || build.Root == nil || build.Store == &store {
 					t.Fatal("successful overlay lost its produced root or compact layout", build)
 				}
-				for _, entry := range build.root.Entries {
+				for _, entry := range build.Root.Entries {
 					if entry.Row == store.Versions[2].Row {
 						t.Fatal("owner-invisible predecessor/excluded successor became an index member", entry)
 					}
@@ -81,10 +82,10 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	definition.Predicate = &predicate
 	next.SQLIndex = &definition
 	changes := &session.Journal{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{next.Address(): &next}, Originals: map[ids.ObjectAddress]catalog.Descriptor{next.Address(): f.index}}
-	if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, changes, f.auth.Catalog, f.parent, &baseline, nil, false); err != nil {
+	if err := index.PrepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, changes, f.auth.Catalog, f.parent, &baseline, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	root := journalIndexesOrZero(changes).uniqueRoots[next.Address()]
+	root := index.JournalIndexesOrZero(changes).UniqueRoots[next.Address()]
 	if root == nil || root == f.roots[next.Address()] {
 		t.Fatal("private baseline borrowed committed root")
 	}
@@ -93,19 +94,19 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 		t.Fatal("private TYPE membership", root)
 	}
 	cloned := changes.Clone()
-	if journalIndexesOrZero(cloned).uniqueRoots[next.Address()] != root {
+	if index.JournalIndexesOrZero(cloned).UniqueRoots[next.Address()] != root {
 		t.Fatal("savepoint clone lost immutable baseline")
 	}
-	delete(journalIndexesOrZero(cloned).uniqueRoots, next.Address())
-	if journalIndexesOrZero(changes).uniqueRoots[next.Address()] != root {
+	delete(index.JournalIndexesOrZero(cloned).UniqueRoots, next.Address())
+	if index.JournalIndexesOrZero(changes).UniqueRoots[next.Address()] != root {
 		t.Fatal("savepoint map aliases private owner")
 	}
-	validated := map[string]*alterIndexBuild{next.Name(): {index: &next, root: root, store: &baseline}}
+	validated := map[string]*index.AlterIndexBuild{next.Name(): {Index: &next, Root: root, Store: &baseline}}
 	other := &session.Journal{Descriptors: changes.Descriptors, Originals: changes.Originals}
-	if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, other, f.auth.Catalog, f.parent, &baseline, validated, false); err != nil {
+	if err := index.PrepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, other, f.auth.Catalog, f.parent, &baseline, validated, false); err != nil {
 		t.Fatal(err)
 	}
-	if journalIndexesOrZero(other).uniqueRoots[next.Address()] != root {
+	if index.JournalIndexesOrZero(other).UniqueRoots[next.Address()] != root {
 		t.Fatal("validated immutable baseline not reused")
 	}
 	f.unchanged(t)

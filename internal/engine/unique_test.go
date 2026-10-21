@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -79,15 +80,15 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	if err := scope.gate(statement(t, "INSERT INTO t VALUES(1)")); err != nil {
 		t.Fatal(err)
 	}
-	index, _ := btreeRoot(t, e, "u")
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), index.Address())
-	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	ordering, err := bindIndexOrdering(parent, index.SQLIndex)
+	idx, _ := btreeRoot(t, e, "u")
+	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), idx.Address())
+	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
+	ordering, err := index.BindIndexOrdering(parent, idx.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
-	typ := index.Columns[0].Usage.Type
-	group, err := sqltype.BindGrouping(index.Columns[0].Usage)
+	typ := idx.Columns[0].Usage.Type
+	group, err := sqltype.BindGrouping(idx.Columns[0].Usage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,11 +108,11 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	// A legitimate hash-collision candidate interned first sits ahead of the
 	// real key in its bucket. Hash alone must not grant equality, and provider
 	// comparison must pass over the collision to find the real key.
-	hash, err := uniqueKeyHash(context.Background(), ordering, grouping, []sqltype.Value{one})
+	hash, err := index.UniqueKeyHash(context.Background(), ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
-	collision, releaseCollision, err := e.locks.PinUniqueKey(context.Background(), scope.ticket, ref, hash, &uniqueKeyValues{ordering: ordering, values: []sqltype.Value{two}})
+	collision, releaseCollision, err := e.locks.PinUniqueKey(context.Background(), scope.ticket, ref, hash, &index.UniqueKeyValues{Ordering: ordering, Values: []sqltype.Value{two}})
 	if err != nil {
 		t.Fatal(err)
 	}

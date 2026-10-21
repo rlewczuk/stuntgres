@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -133,7 +134,7 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 					return err
 				}
 				for i, key := range old.Keys {
-					attribute, expression, keyErr := indexCatalogKey(in.Source, key)
+					attribute, expression, keyErr := index.CatalogKey(in.Source, key)
 					if keyErr != nil || expression != nil {
 						return fmt.Errorf("stuntgres: invalid LIKE unique key")
 					}
@@ -143,17 +144,17 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 					}
 				}
 				destination.Constraints.Unique = append(destination.Constraints.Unique, c)
-				definition.Constraint = uniqueBacking(&c)
+				definition.Constraint = index.UniqueBacking(&c)
 			}
 			if old.IsExclusion() {
-				original := exclusionDefinition(in.Source, source)
+				original := index.ExclusionDefinition(in.Source, source)
 				if original == nil {
 					return fmt.Errorf("stuntgres: missing inherited exclusion owner")
 				}
 				c := *original
 				c.Name, c.Index = name, address
 				c.Parent, c.IsLocal = 0, true
-				definition.Exclusion, err = rebindExclusionOperators(destination, &definition)
+				definition.Exclusion, err = index.RebindExclusionOperators(destination, &definition)
 				if err != nil {
 					return err
 				}
@@ -163,7 +164,7 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 					return err
 				}
 				destination.Constraints.Exclusion = append(destination.Constraints.Exclusion, c)
-				definition.Constraint = exclusionBacking(&c)
+				definition.Constraint = index.ExclusionBacking(&c)
 			}
 			columns := slices.Clone(source.Columns)
 			lookup := make(map[string]int, len(columns))

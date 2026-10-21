@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -149,7 +150,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		}
 		return transformed, nil
 	}}
-	transforms := []columnTransformation{{attribute: 1, expression: transform, rewrite: true}}
+	transforms := []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}
 	replacement, own, deleted, err := rewriteTypeRows(scope, scope.op, old, &next, store, 2, transforms, additions, nil, newAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(own) != 2 || deleted != nil {
 		t.Fatal(replacement, own, calls, err)

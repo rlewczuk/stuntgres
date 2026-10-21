@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -31,13 +32,13 @@ func TestExclusionPublication(t *testing.T) {
 				storeBefore := uniquePublicationStore(store)
 				row, version := e.storage.RowFrontier(), e.storage.VersionFrontier()
 				writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
-				publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.Versions, ends: store.Ends, generation: store.Generation, writes: writes, singleSlot: -1}
+				publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
 				if materialize {
 					if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 						t.Fatal(err)
 					}
 				}
-				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 				var diagnostic *sqlstate.Error
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" || diagnostic.Constraint != "ex" {
 					t.Fatal("publication omitted the actual exclusion integrity veto", materialize, roots, err)
@@ -69,11 +70,11 @@ func TestExclusionPublication(t *testing.T) {
 				storeBefore := uniquePublicationStore(store)
 				row, version := e.storage.RowFrontier(), e.storage.VersionFrontier()
 				writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{overflow}}}
-				publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.Versions, ends: store.Ends, generation: store.Generation, writes: writes, singleSlot: -1}
+				publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
 				if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 					t.Fatal(err)
 				}
-				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []rowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 				if !called || roots != nil {
 					t.Fatal("derived failure did not veto outside-lock root preparation", called, roots, err)
 				}
@@ -111,13 +112,13 @@ func TestExclusionPublication(t *testing.T) {
 					storeBefore := uniquePublicationStore(store)
 					row, version := e.storage.RowFrontier(), e.storage.VersionFrontier()
 					writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
-					publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.Versions, ends: store.Ends, generation: store.Generation, writes: writes, singleSlot: -1}
+					publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
 					if materialize {
 						if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 							t.Fatal(err)
 						}
 					}
-					roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+					roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 					if roots != nil {
 						t.Fatal("integrity veto returned publication roots", roots)
 					}

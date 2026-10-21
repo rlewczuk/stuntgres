@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -144,7 +145,7 @@ func (c *hashMergeCancellationContext) Err() error {
 	frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs[:])])
 	for {
 		frame, more := frames.Next()
-		if strings.HasSuffix(frame.Function, ".mergeHashIndexRoot") {
+		if strings.HasSuffix(frame.Function, ".MergeHashIndexRoot") {
 			return c.cancelAtErrCheck.Err()
 		}
 		if !more {
@@ -159,8 +160,8 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(1),(2),(2),(3),(NULL)", "CREATE INDEX hn ON t USING hash(n)"} {
 		run(t, e, q)
 	}
-	index, old := hashRoot(t, e, "hn")
-	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
+	idx, old := hashRoot(t, e, "hn")
+	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
 	store := e.storage.Relations[parent.Address()]
 	writer := sessionStart(t, e, nil)
 	ref := transactionBegin(t, writer)
@@ -185,19 +186,19 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	// Dry preparation uses the same real private batch and slot/end owner as
 	// publication. Its final pre-return poll follows touched-bucket copying;
 	// cancel at the immediately preceding bucket-entry poll in the real owner.
-	p := rowPublication{address: parent.Address(), store: store, original: store, originalRelation: parent, relation: parent, root: store.Versions, writes: writes[parent.Address()], ends: store.Ends, deletion: deletes[parent.Address()], generation: store.Generation, singleSlot: -1}
+	p := index.RowPublication{Address: parent.Address(), Store: store, Original: store, OriginalRelation: parent, Relation: parent, Root: store.Versions, Writes: writes[parent.Address()], Ends: store.Ends, Deletion: deletes[parent.Address()], Generation: store.Generation, SingleSlot: -1}
 	if err := e.prepareRowPublication(&p, ref, true); err != nil {
 		t.Fatal(err)
 	}
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := mergeHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index, e.storage.IndexRoots[index.Address()], &p, false, true)
+	candidate, err := index.MergeHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, idx, e.storage.IndexRoots[idx.Address()], &p, false, true)
 	if err != nil || candidate == nil || candidate.Hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.Hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}
 	polls := counting.checks.Load()
-	if polls <= int32(len(p.writes))+2 {
+	if polls <= int32(len(p.Writes))+2 {
 		t.Fatal("merge did not reach bucket copying", polls)
 	}
 	base, cancel := context.WithCancel(context.Background())

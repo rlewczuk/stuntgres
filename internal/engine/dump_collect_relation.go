@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
@@ -87,11 +88,11 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	// Key declarations and their table constraints must use the same
 	// captured private-name projection, including deferred local keys.
 	r = c.catalogView.MustRelation(r.Address())
-	virtual := partitionReplayVirtualUniqueRoot(c.catalogView, r)
+	virtual := index.PartitionReplayVirtualUniqueRoot(c.catalogView, r)
 	if virtual != nil && virtual.Address() != r.Address() {
 		return nil
 	}
-	if r.SQLIndex.Constraint != nil && !partitionReplaySeparateConstraint(c.catalogView, r) {
+	if r.SQLIndex.Constraint != nil && !index.PartitionReplaySeparateConstraint(c.catalogView, r) {
 		return nil
 	}
 	var sql string
@@ -99,13 +100,13 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	if virtual != nil {
 		sql, err = partitionVirtualUniqueDefinitionSQL(c.catalogView, r)
 	} else {
-		sql, err = indexDefinitionSQL(ctx, c.catalogView, r, indexPresentation{dump: true})
+		sql, err = index.DefinitionSQL(ctx, c.catalogView, r, index.Presentation{Dump: true})
 	}
 	if err != nil {
 		return err
 	}
 	oid := r.Address().ObjectID
-	if partitionReplayUsingIndex(c.catalogView, r) {
+	if index.PartitionReplayUsingIndex(c.catalogView, r) {
 		parent := c.catalogView.MustRelation(r.SQLIndex.Parent)
 		kind := "UNIQUE"
 		if r.SQLIndex.Constraint.Primary {

@@ -93,7 +93,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 			if err != nil {
 				return Result{}, err
 			}
-			rows = batch.values
+			rows = batch.Values
 		} else {
 			rows = make([][]sqltype.Value, 0, len(b.Insert.Rows))
 			for i, raw := range b.Insert.Rows {

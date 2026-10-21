@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -151,8 +152,8 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 		t.Fatal(err)
 	}
 	importer := target.aclItemImporter(source, source.Roles(), target.Roles(), nil)
-	snapshot := &indexSnapshot{}
-	mapped, err := snapshot.datum(composite, toComposite, nil, importer)
+	snapshot := &index.Snapshot{}
+	mapped, err := snapshot.Datum(composite, toComposite, nil, importer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +173,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	if array.ArrayElement(0) != value || composite.CompositeField(0).Type() != fromDomain {
 		t.Fatal("snapshot mutated source payload")
 	}
-	again, err := snapshot.datum(mapped, toComposite, nil, importer)
+	again, err := snapshot.Datum(mapped, toComposite, nil, importer)
 	if err != nil || again != mapped {
 		t.Fatal("destination-owned ACL copied/reimported", err)
 	}

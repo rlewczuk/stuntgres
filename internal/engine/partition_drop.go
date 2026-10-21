@@ -26,14 +26,14 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *catalog.R
 		return nil
 	}
 	address := relation.Membership.Parent
-	if provider.removed(address) {
+	if provider.Removed(address) {
 		return nil
 	}
 	parent, ok := provider.inputDescriptor(address).(*catalog.Relation)
 	if !ok || parent.Partition == nil {
 		return fmt.Errorf("stuntgres: missing partition parent")
 	}
-	if staged, ok := provider.replacement(address).(*catalog.Relation); ok {
+	if staged, ok := provider.Replacement(address).(*catalog.Relation); ok {
 		parent = staged
 	}
 	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
@@ -47,7 +47,7 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *catalog.R
 	}
 	next.Partition = &definition
 	next.ObjectRevision++
-	if err := provider.replace(&next); err != nil {
+	if err := provider.Replace(&next); err != nil {
 		return err
 	}
 	return provider.partitionIndexValidity(ids.ObjectAddress{})

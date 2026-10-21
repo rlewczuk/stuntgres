@@ -32,7 +32,7 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	next, transform, err := e.alterTypeCandidate(nil, op, auth, stage, source, source, ref, action, prepared)
-	if err != nil || next.Columns[1].Usage.Type.ID() != sqltype.Int4 || transform.expression != nil || source.Columns[1].Usage.Type.ID() != sqltype.Text {
+	if err != nil || next.Columns[1].Usage.Type.ID() != sqltype.Int4 || transform.Expression != nil || source.Columns[1].Usage.Type.ID() != sqltype.Text {
 		t.Fatal("descriptor-only conversion executed assignment or changed capture", err)
 	}
 	actions, _ := typedef.TypedShapeActions(source, source, table, map[int32]bool{source.Attributes[0]: true})

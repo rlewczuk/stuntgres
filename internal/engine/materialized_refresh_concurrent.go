@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -73,30 +74,30 @@ func materializedSameRow(a, b []sqltype.Value) bool {
 	return true
 }
 
-func materializedNewEntries(ctx context.Context, ordering indexOrdering, rows [][]sqltype.Value) ([]storage.IndexEntry, error) {
+func materializedNewEntries(ctx context.Context, ordering index.Ordering, rows [][]sqltype.Value) ([]storage.IndexEntry, error) {
 	entries := make([]storage.IndexEntry, len(rows))
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for i, values := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		entry, err := ordering.entry(storage.RowVersion{Values: values, Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1)}, &evaluation)
+		entry, err := ordering.Entry(storage.RowVersion{Values: values, Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1)}, &evaluation)
 		if err != nil {
 			return nil, err
 		}
 		entry.Position = i
 		entries[i] = entry
 	}
-	if err := ordering.sort(ctx, entries); err != nil {
+	if err := ordering.Sort(ctx, entries); err != nil {
 		return nil, err
 	}
 	return entries, nil
 }
 
-func materializedGroupEnd(ctx context.Context, ordering indexOrdering, entries []storage.IndexEntry, start int) (int, error) {
+func materializedGroupEnd(ctx context.Context, ordering index.Ordering, entries []storage.IndexEntry, start int) (int, error) {
 	end := start + 1
 	for end < len(entries) {
-		cmp, err := ordering.compareKeys(ctx, entries[start], entries[end])
+		cmp, err := ordering.CompareKeys(ctx, entries[start], entries[end])
 		if err != nil {
 			return 0, err
 		}
@@ -108,7 +109,7 @@ func materializedGroupEnd(ctx context.Context, ordering indexOrdering, entries [
 	return end, nil
 }
 
-func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, parent *catalog.Relation, ordering indexOrdering, entries []storage.IndexEntry, rows [][]sqltype.Value, output sqltype.OutputEnvironment) error {
+func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, parent *catalog.Relation, ordering index.Ordering, entries []storage.IndexEntry, rows [][]sqltype.Value, output sqltype.OutputEnvironment) error {
 	duplicate := len(rows)
 	for start := 0; start < len(entries) && duplicate != 0; {
 		end, err := materializedGroupEnd(ctx, ordering, entries, start)
@@ -117,7 +118,7 @@ func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, pare
 		}
 		for i := start; i < end && duplicate != 0; i++ {
 			a := entries[i].Position
-			if uniqueHasNull(rows[a]) {
+			if index.UniqueHasNull(rows[a]) {
 				continue
 			}
 			for j := i + 1; j < end && duplicate != 0; j++ {
@@ -151,14 +152,14 @@ func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, pare
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: fmt.Sprintf(`new data for materialized view "%s" contains duplicate rows without any null columns`, parent.Name()), Detail: "Row: " + text}
 }
 
-func materializedRowsMatch(ctx context.Context, orderings []indexOrdering, old, new []sqltype.Value) (bool, error) {
+func materializedRowsMatch(ctx context.Context, orderings []index.Ordering, old, new []sqltype.Value) (bool, error) {
 	for _, ordering := range orderings {
-		for i, slot := range ordering.slots {
+		for i, slot := range ordering.Slots {
 			a, b := old[slot], new[slot]
 			if a.IsNull() || b.IsNull() {
 				return false, nil
 			}
-			cmp, err := ordering.comparisons[i].Compare(ctx, a, b, sqltype.InputEnvironment{})
+			cmp, err := ordering.Comparisons[i].Compare(ctx, a, b, sqltype.InputEnvironment{})
 			if err != nil {
 				return false, err
 			}
@@ -181,10 +182,10 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	if len(indices) == 0 {
 		return nil, fmt.Errorf("stuntgres: concurrent materialized index authority is missing")
 	}
-	orderings := make([]indexOrdering, len(indices))
-	for i, index := range indices {
+	orderings := make([]index.Ordering, len(indices))
+	for i, idx := range indices {
 		var err error
-		orderings[i], err = bindIndexOrdering(parent, index.SQLIndex)
+		orderings[i], err = index.BindIndexOrdering(parent, idx.SQLIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +204,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	var matched []bool
 	var effective [][]sqltype.Value
 	for oldAt, newAt := 0, 0; oldAt < len(oldEntries) && newAt < len(entries); {
-		cmp, err := ordering.compareKeys(ctx, oldEntries[oldAt], entries[newAt])
+		cmp, err := ordering.CompareKeys(ctx, oldEntries[oldAt], entries[newAt])
 		if err != nil {
 			return nil, err
 		}
@@ -226,7 +227,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 		// SQL key equality never matches NULL, even for NULLS NOT DISTINCT.
 		// Equal selected-key groups share their NULL positions, so every old
 		// occurrence is deleted and every producer occurrence stays unmatched.
-		if uniqueHasNull(entries[newAt].Keys) {
+		if index.UniqueHasNull(entries[newAt].Keys) {
 			oldAt, newAt = oldEnd, newEnd
 			continue
 		}

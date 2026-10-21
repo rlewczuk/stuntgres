@@ -82,15 +82,15 @@ func stageDefaultDependents(stage *CatalogStage, targets []ids.ObjectAddress, mo
 
 func defaultDependents(provider dropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
 	var edges []defaultDependencyEdge
-	for address, descriptor := range provider.inputDescriptors() {
+	for address, descriptor := range provider.InputDescriptors() {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
-		if replacement, ok := provider.replacement(address).(*catalog.Relation); ok {
+		if replacement, ok := provider.Replacement(address).(*catalog.Relation); ok {
 			d = replacement
 		}
-		if provider.removed(address) {
+		if provider.Removed(address) {
 			continue
 		}
 		var removed []int32
@@ -144,7 +144,7 @@ func defaultDependents(provider dropDependencyReader, targets []ids.ObjectAddres
 			for _, attribute := range removed {
 				delete(copy.ColumnMeta.Defaults, attribute)
 			}
-			if err := provider.replace(&copy); err != nil {
+			if err := provider.Replace(&copy); err != nil {
 				return nil, err
 			}
 		}

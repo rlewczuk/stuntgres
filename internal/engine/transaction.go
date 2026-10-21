@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -53,7 +54,7 @@ func clearTransaction(t *session.TransactionOwner) {
 	clear(t.Savepoints)
 	t.Savepoints = nil
 	t.AccessedTemporary = false
-	ownerExtensionOf(t).exclusionModes = exclusionModes{}
+	ownerExtensionOf(t).exclusionModes = index.ExclusionModes{}
 }
 
 // transactionSessionEnd is the owner seen as its session's Transaction
@@ -271,7 +272,7 @@ type StatementScope struct {
 	foreignActionsSlot *foreignActionScope
 	viewCreationSlot   *viewCreationScope
 	materializedSlot   *materializedRefreshScope
-	indexesSlot        *indexScope
+	indexesSlot        *index.Scope
 	partitionsSlot     *partitionScope
 	foreignTablesSlot  *foreignTableScope
 }
@@ -465,21 +466,21 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	batch := indexWriteBatch{values: rows}
-	for i := range batch.values {
-		candidate := batch.candidate(i)
-		if err := s.checkUniqueRow(ref, &candidate, nil, batch.prefix(i)); err != nil {
+	batch := index.WriteBatch{Values: rows}
+	for i := range batch.Values {
+		candidate := batch.Candidate(i)
+		if err := s.checkUniqueRow(ref, &candidate, nil, batch.Prefix(i)); err != nil {
 			return err
 		}
-		batch.set(i, candidate)
+		batch.Set(i, candidate)
 	}
 	return w.applyValidated(ref, batch)
 }
 
 // SQL producers validate each accepted prefix before demanding the next row;
 // only this canonical staging method transfers the completed immutable batch.
-func (w *WriteStage) applyValidated(ref ids.ObjectRef, batch indexWriteBatch) error {
-	rows := batch.values
+func (w *WriteStage) applyValidated(ref ids.ObjectRef, batch index.WriteBatch) error {
+	rows := batch.Values
 	s := w.scope
 	if err := s.active(); err != nil {
 		return err
@@ -492,13 +493,13 @@ retry:
 	e := s.engine()
 	e.mu.Lock()
 	admission := e.privateCatalogLocked(s.owner.Catalog).State()
-	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
+	if binding := s.uniqueBinding; binding != nil && binding.Catalog != admission {
 		e.mu.Unlock()
 		s.owner.Mu.Unlock()
 		if s.insertConflict != nil && s.insertConflict.Update == nil {
 			var err error
 			batch, err = s.revalidateConflictRows(ref, batch)
-			rows = batch.values
+			rows = batch.Values
 			if err != nil {
 				return err
 			}
@@ -546,7 +547,7 @@ retry:
 	if len(relation.Constraints.Exclusion) != 0 {
 		versions = make([]storage.RowVersion, len(rows))
 		for i := range rows {
-			reserved := batch.candidate(i).exclusion
+			reserved := batch.Candidate(i).Exclusion
 			if reserved == nil {
 				return errors.New("stuntgres: exclusion row lost its admission identity")
 			}
@@ -559,9 +560,9 @@ retry:
 	if err != nil {
 		return err
 	}
-	if batch.states != nil {
+	if batch.States != nil {
 		for i := range versions {
-			versions[i].IndexOutputs = batch.states[i].indexes
+			versions[i].IndexOutputs = batch.States[i].Indexes
 		}
 	}
 	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {

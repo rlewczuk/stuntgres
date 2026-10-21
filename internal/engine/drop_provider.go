@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -42,7 +43,7 @@ type dropEffect struct {
 	identityRoots []ids.ObjectAddress
 	identityState *catalog.State
 	index         ids.ObjectAddress
-	layout        *indexLayoutLineage
+	layout        *index.LayoutLineage
 }
 
 // Slots index only real ordered effects, never a second descriptor/name catalog.
@@ -72,7 +73,7 @@ type preparedDrop struct {
 }
 
 type definitionIndexLayoutReader interface {
-	indexLayout(ids.ObjectAddress) (indexLayoutLineage, bool)
+	IndexLayout(ids.ObjectAddress) (index.LayoutLineage, bool)
 }
 
 func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error) *dropProvider {
@@ -87,9 +88,9 @@ func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *Statemen
 	return &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: ctx, scope: scope, changes: changes, project: project}
 }
 
-func (p *dropProvider) replacement(address ids.ObjectAddress) catalog.Descriptor {
+func (p *dropProvider) Replacement(address ids.ObjectAddress) catalog.Descriptor {
 	if p.stage != nil {
-		return p.stage.replacement(address)
+		return p.stage.Replacement(address)
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
 		if slot := prepared.slots[address]; slot.descriptor != 0 {
@@ -120,9 +121,9 @@ func (p *dropProvider) descriptor(address ids.ObjectAddress) catalog.Descriptor 
 	return p.projectedDescriptor(address)
 }
 
-func (p *dropProvider) removed(address ids.ObjectAddress) bool {
+func (p *dropProvider) Removed(address ids.ObjectAddress) bool {
 	if p.stage != nil {
-		return p.stage.removed(address)
+		return p.stage.Removed(address)
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
 		if prepared.slots[address].removed {
@@ -136,7 +137,7 @@ func (p *dropProvider) removed(address ids.ObjectAddress) bool {
 	return false
 }
 
-func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (p *dropProvider) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range p.base.Descriptors() {
 			if p.prepared != nil && p.prepared.input != nil {
@@ -165,7 +166,7 @@ func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descri
 	}
 }
 
-func (p *dropProvider) replace(d catalog.Descriptor) error {
+func (p *dropProvider) Replace(d catalog.Descriptor) error {
 	p.observe(d.Address())
 	if err := p.ctx.Err(); err != nil {
 		return err
@@ -240,7 +241,7 @@ func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, catalog
 			return
 		}
 		for address, descriptor := range p.base.Descriptors() {
-			if p.removed(address) && !yield(address, descriptor) {
+			if p.Removed(address) && !yield(address, descriptor) {
 				return
 			}
 		}
@@ -248,7 +249,7 @@ func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, catalog
 }
 
 func (p *dropProvider) inheritanceAlterGuard(relation *catalog.Relation) error {
-	return inheritanceDependencyAlterGuard(p.descriptors(), p.replacement, p.removed, relation)
+	return inheritanceDependencyAlterGuard(p.Descriptors(), p.Replacement, p.Removed, relation)
 }
 
 func (p *dropProvider) applyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
@@ -380,9 +381,9 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 
 func (p *dropProvider) replacePartitionDescriptor(d *catalog.Relation) error {
 	if p.stage != nil {
-		return stagePartitionDescriptor(p.stage, d)
+		return index.StagePartitionDescriptor(p.stage, d)
 	}
-	return p.replace(d)
+	return p.Replace(d)
 }
 
 func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
@@ -390,7 +391,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 		p.observe(old.Address())
 		if old.RelationKind != catalog.CompositeRelation && old.RelationKind != catalog.ForeignRelation {
 			p.owner.mu.Lock()
-			err := evolveIndexes(p, old.Address(), nil)
+			err := index.EvolveIndexes(p, old.Address(), nil)
 			p.owner.mu.Unlock()
 			if err != nil {
 				return err
@@ -624,7 +625,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 			}
 			stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{state, effect.identityRoots})
 		case effect.layout != nil:
-			provider.recordIndexLayout(effect.index, *effect.layout)
+			provider.RecordIndexLayout(effect.index, *effect.layout)
 		}
 	}
 	return prepared.next, nil
@@ -636,10 +637,10 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 // them and do not construct a catalog generation.
 func (prepared *preparedDrop) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	provider := &dropProvider{base: prepared.discovery, prepared: prepared}
-	if provider.removed(address) {
+	if provider.Removed(address) {
 		return nil, false
 	}
-	if descriptor := provider.replacement(address); descriptor != nil {
+	if descriptor := provider.Replacement(address); descriptor != nil {
 		return descriptor, true
 	}
 	descriptor := provider.readInputDescriptor(address)
@@ -663,7 +664,7 @@ func (prepared *preparedDrop) Lookup(key ids.NameKey) ids.ObjectAddress {
 func (prepared *preparedDrop) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		provider := &dropProvider{base: prepared.discovery, prepared: prepared}
-		for address := range provider.descriptors() {
+		for address := range provider.Descriptors() {
 			if descriptor, present := prepared.Descriptor(address); present && !yield(address, descriptor) {
 				return
 			}
@@ -709,28 +710,28 @@ func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name str
 
 // Some dependency passes retain retired providers for AUTO-edge discovery;
 // partition validity instead reads only the actual surviving projection.
-func (p *dropProvider) liveDescriptor(address ids.ObjectAddress) catalog.Descriptor {
-	if p.removed(address) {
+func (p *dropProvider) LiveDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+	if p.Removed(address) {
 		return nil
 	}
 	return p.projectedDescriptor(address)
 }
 
-// evolutionBase is the catalog the pass started from.
-func (p *dropProvider) evolutionBase() catalog.Read { return p.base }
+// EvolutionBase is the catalog the pass started from.
+func (p *dropProvider) EvolutionBase() catalog.Read { return p.base }
 
-// removeIndex removes the index at address from the pass.
-func (p *dropProvider) removeIndex(address ids.ObjectAddress) error {
+// RemoveIndex removes the index at address from the pass.
+func (p *dropProvider) RemoveIndex(address ids.ObjectAddress) error {
 	return p.removeObjectLocked(p.owner.catalog.Domain.Ref(p.base.Epoch(), address), false)
 }
 
-func (p *dropProvider) terminalCleanup() bool {
+func (p *dropProvider) TerminalCleanup() bool {
 	return p.stage != nil && p.stage.terminalCleanup
 }
 
-func (p *dropProvider) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+func (p *dropProvider) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	if p.stage != nil {
-		lineage, present := p.stage.indexesOrZero().layouts[address]
+		lineage, present := p.stage.indexesOrZero().Layouts[address]
 		return lineage, present
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
@@ -740,18 +741,18 @@ func (p *dropProvider) indexLayout(address ids.ObjectAddress) (indexLayoutLineag
 	}
 	if p.prepared != nil {
 		if input, present := p.prepared.input.(definitionIndexLayoutReader); present {
-			return input.indexLayout(address)
+			return input.IndexLayout(address)
 		}
 	}
-	return indexLayoutLineage{}, false
+	return index.LayoutLineage{}, false
 }
 
-func (p *dropProvider) recordIndexLayout(address ids.ObjectAddress, lineage indexLayoutLineage) {
+func (p *dropProvider) RecordIndexLayout(address ids.ObjectAddress, lineage index.LayoutLineage) {
 	if p.stage != nil {
-		if p.stage.indexesOrZero().layouts == nil {
-			p.stage.indexes().layouts = make(map[ids.ObjectAddress]indexLayoutLineage)
+		if p.stage.indexesOrZero().Layouts == nil {
+			p.stage.indexes().Layouts = make(map[ids.ObjectAddress]index.LayoutLineage)
 		}
-		p.stage.indexes().layouts[address] = lineage
+		p.stage.indexes().Layouts[address] = lineage
 		return
 	}
 	p.observe(address)
@@ -831,9 +832,9 @@ func (p *dropProvider) retirementDescriptor(address ids.ObjectAddress) catalog.D
 	return p.base.Get(address)
 }
 
-func (p *dropProvider) inputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (p *dropProvider) InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	if p.prepared != nil {
-		return p.descriptors()
+		return p.Descriptors()
 	}
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range p.base.Descriptors() {
@@ -846,8 +847,8 @@ func (p *dropProvider) inputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.D
 
 func (p *dropProvider) liveDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
-		for address := range p.descriptors() {
-			if descriptor := p.liveDescriptor(address); descriptor != nil && !yield(address, descriptor) {
+		for address := range p.Descriptors() {
+			if descriptor := p.LiveDescriptor(address); descriptor != nil && !yield(address, descriptor) {
 				return
 			}
 		}
@@ -864,15 +865,15 @@ func (p *dropProvider) policyDependentLabels(targets []ids.ObjectAddress) []supp
 // Catalog enumeration is discovery, not an observation of every unrelated
 // descriptor. Selected providers are captured by descriptor/effect/grant paths.
 func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.Descriptor {
-	if descriptor := p.replacement(address); descriptor != nil {
+	if descriptor := p.Replacement(address); descriptor != nil {
 		return descriptor
 	}
 	return p.readInputDescriptor(address)
 }
 
-func (prepared *preparedDrop) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+func (prepared *preparedDrop) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	provider := &dropProvider{base: prepared.base, prepared: prepared}
-	return provider.indexLayout(address)
+	return provider.IndexLayout(address)
 }
 
 // dropScope is the statement's DROP slot: prepared column drops already

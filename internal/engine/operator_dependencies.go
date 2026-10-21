@@ -7,10 +7,10 @@ import (
 func (p *dropProvider) clearOperatorLinks(d *catalog.Operator) error {
 	for address, descriptor := range p.base.Descriptors() {
 		peer, ok := descriptor.(*catalog.Operator)
-		if !ok || address == d.Address() || p.removed(address) {
+		if !ok || address == d.Address() || p.Removed(address) {
 			continue
 		}
-		if current, ok := p.replacement(address).(*catalog.Operator); ok {
+		if current, ok := p.Replacement(address).(*catalog.Operator); ok {
 			peer = current
 		}
 		if peer.Commutator != d.Address().ObjectID && peer.Negator != d.Address().ObjectID {
@@ -28,7 +28,7 @@ func (p *dropProvider) clearOperatorLinks(d *catalog.Operator) error {
 			return err
 		}
 		next.ObjectRevision = revision
-		if err = p.replace(&next); err != nil {
+		if err = p.Replace(&next); err != nil {
 			return err
 		}
 	}

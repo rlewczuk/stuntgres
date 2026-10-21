@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -41,7 +42,7 @@ func newCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyI
 	return state
 }
 
-func (state *copyInsertionState) record(s *StatementScope, b analyze.Binding, candidate *indexWriteCandidate, position int) {
+func (state *copyInsertionState) record(s *StatementScope, b analyze.Binding, candidate *index.WriteCandidate, position int) {
 	line, size := state.cursor.insertionOrigin()
 	state.lines = append(state.lines, line)
 	state.bytes += size
@@ -51,7 +52,7 @@ func (state *copyInsertionState) record(s *StatementScope, b analyze.Binding, ca
 	group := s.partitionInsertionGroup(b.Ref)
 	// Freeze the already-validated physical destination before the next input
 	// overwrites the current partition projection. No second generation Eval.
-	candidate.values = s.partitionStoredRow(candidate.values)
+	candidate.Values = s.partitionStoredRow(candidate.Values)
 	if state.groups == nil {
 		state.groups = make(map[*partitionInsertGroup]int)
 	}
@@ -68,28 +69,28 @@ func (state *copyInsertionState) full() bool {
 	return state.single || len(state.lines) >= 1000 || state.bytes >= 65535
 }
 
-func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, rows *indexWriteBatch, evaluation *exec.Context) error {
+func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
 	insert := func(position int, group *partitionInsertGroup) error {
-		candidate := rows.candidate(position)
+		candidate := rows.Candidate(position)
 		var err error
 		if group == nil {
-			_, err = s.admitInsertProducer(b, &candidate, rows.prefix(position), evaluation)
+			_, err = s.admitInsertProducer(b, &candidate, rows.Prefix(position), evaluation)
 		} else {
 			s.uniqueBinding = group.unique
 			err = s.checkUniqueRow(group.ref, &candidate, nil, group.rows)
 			group.unique = s.uniqueBinding
 			if err == nil {
-				group.rows.append(candidate)
+				group.rows.Append(candidate)
 			}
 		}
 		if err != nil {
 			return copyInsertionDiagnostic(s.copyCommandError(err), b.Relation.Name(), state.lines[position-state.first])
 		}
-		rows.set(position, candidate)
+		rows.Set(position, candidate)
 		return nil
 	}
 	if s.partitionInsert == nil {
-		for i := state.first; i < len(rows.values); i++ {
+		for i := state.first; i < len(rows.Values); i++ {
 			if err := insert(i, nil); err != nil {
 				return err
 			}
@@ -107,7 +108,7 @@ func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, row
 			buffer.positions = buffer.positions[:0]
 		}
 	}
-	state.first, state.bytes = len(rows.values), 0
+	state.first, state.bytes = len(rows.Values), 0
 	state.lines = state.lines[:0]
 	return nil
 }

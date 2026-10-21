@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
@@ -50,7 +51,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			var pinned []storage.RowVersion
 			for k := 1; k <= size*2; k++ {
 				proposal := []sqltype.Value{integer(int64(k)), integer(1)}
-				if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: proposal}, indexWriteBatch{}, &evaluation); admitted || err != nil {
+				if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
 					t.Fatal("distinct mixed effect", k, admitted, err)
 				}
 				stage := scope.stage.rows[ref.Address]
@@ -94,7 +95,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			}
 			var finishErr error
 			if duplicate {
-				_, finishErr = scope.admitInsertRow(ref, &indexWriteCandidate{values: []sqltype.Value{integer(1), integer(1)}}, indexWriteBatch{}, &evaluation)
+				_, finishErr = scope.admitInsertRow(ref, &index.WriteCandidate{Values: []sqltype.Value{integer(1), integer(1)}}, index.WriteBatch{}, &evaluation)
 				var d *sqlstate.Error
 				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.stage.rows[ref.Address]) != size*2 || scope.insertConflict.affected != size*2 {
 					t.Fatal("duplicate does not append or count", finishErr, scope.insertConflict.affected)
@@ -147,10 +148,10 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound := &binding.keys[0]
+	bound := &binding.Keys[0]
 	manager := f.e.locks
 	indexRef := ref
-	indexRef.Address = bound.index.Address()
+	indexRef.Address = bound.Index.Address()
 	oldKey := insertConflictUnitRow(t, f, 10)[:1]
 	newKey := insertConflictUnitRow(t, f, 20)[:1]
 	if err := scope.acquireUnique(indexRef, bound, oldKey); err != nil {

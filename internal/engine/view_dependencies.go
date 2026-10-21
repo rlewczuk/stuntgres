@@ -25,11 +25,11 @@ func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, st
 
 func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDependencyEdge {
 	var views []*catalog.Relation
-	for address, descriptor := range provider.descriptors() {
-		if provider.removed(address) {
+	for address, descriptor := range provider.Descriptors() {
+		if provider.Removed(address) {
 			continue
 		}
-		if replacement := provider.replacement(address); replacement != nil {
+		if replacement := provider.Replacement(address); replacement != nil {
 			descriptor = replacement
 		}
 		if d, ok := descriptor.(*catalog.Relation); ok && d.View != nil {
@@ -101,7 +101,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	activeEdges := edges[:0]
 	for _, edge := range edges {
 		d := edge.view
-		if provider.removed(d.Address()) {
+		if provider.Removed(d.Address()) {
 			continue
 		}
 		if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), d.Address()), false); err != nil {

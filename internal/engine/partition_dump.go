@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
@@ -270,8 +271,8 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		if constraint.Parent != 0 {
 			continue
 		}
-		index := catalogView.MustRelation(constraint.Index)
-		if partitionReplaySeparateConstraint(catalogView, index) {
+		idx := catalogView.MustRelation(constraint.Index)
+		if index.PartitionReplaySeparateConstraint(catalogView, idx) {
 			continue
 		}
 		definition, err := (pgRenderer{View: catalogView}).UniqueConstraintSQL(d, &constraint)
@@ -284,14 +285,14 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		if constraint.Parent != 0 {
 			continue
 		}
-		index, ok := catalogView.Relation(constraint.Index)
+		idx, ok := catalogView.Relation(constraint.Index)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing exclusion dump index")
 		}
-		if partitionReplaySeparateConstraint(catalogView, index) {
+		if index.PartitionReplaySeparateConstraint(catalogView, idx) {
 			continue
 		}
-		definition, err := indexDefinitionSQL(ctx, catalogView, index, indexPresentation{dump: true, exclusion: true})
+		definition, err := index.DefinitionSQL(ctx, catalogView, idx, index.Presentation{Dump: true, Exclusion: true})
 		if err != nil {
 			return "", err
 		}
@@ -345,18 +346,4 @@ func partitionTupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []cat
 
 func hashPartitionBoundSQL(bound *catalog.PartitionMembership) string {
 	return fmt.Sprintf(" FOR VALUES WITH (MODULUS %d, REMAINDER %d)", bound.Modulus, bound.Remainder)
-}
-
-// Replay identity-sensitive rows through their highest HASH ancestor; RANGE-only
-// trees preserve physical destinations. Parent insertion checks every ancestor.
-func partitionHashReplayTarget(catalog catalog.Read, d *catalog.Relation) *catalog.Relation {
-	target := d
-	for child := d; child.Membership != nil; {
-		parent := catalog.MustRelation(child.Membership.Parent)
-		if parent.Partition.Strategy == parser.PartitionHash {
-			target = parent
-		}
-		child = parent
-	}
-	return target
 }

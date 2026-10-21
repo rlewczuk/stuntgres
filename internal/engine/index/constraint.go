@@ -1,15 +1,15 @@
-package engine
+package index
 
 import "stuntgres/internal/engine/catalog"
 
-func uniqueBacking(c *catalog.UniqueConstraint) *catalog.BackingConstraint {
+func UniqueBacking(c *catalog.UniqueConstraint) *catalog.BackingConstraint {
 	return &catalog.BackingConstraint{OID: c.OID, Name: c.Name, Index: c.Index, Kind: catalog.UniqueBackingKind, Primary: c.Primary}
 }
-func exclusionBacking(c *catalog.ExclusionConstraint) *catalog.BackingConstraint {
+func ExclusionBacking(c *catalog.ExclusionConstraint) *catalog.BackingConstraint {
 	return &catalog.BackingConstraint{OID: c.OID, Name: c.Name, Index: c.Index, Kind: catalog.ExclusionBackingKind}
 }
 
-func backingConstraintPresent(parent *catalog.Relation, index *catalog.Relation) bool {
+func BackingConstraintPresent(parent *catalog.Relation, index *catalog.Relation) bool {
 	c := index.SQLIndex.Constraint
 	if c == nil {
 		return true

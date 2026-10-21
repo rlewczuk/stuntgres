@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -15,32 +16,32 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 	if len(original.Constraints.Exclusion)+len(parent.Constraints.Exclusion) == 0 {
 		return nil
 	}
-	entries := make(map[ids.ObjectAddress][]exclusionEntry, len(parent.Constraints.Exclusion))
+	entries := make(map[ids.ObjectAddress][]index.ExclusionEntry, len(parent.Constraints.Exclusion))
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for _, c := range parent.Constraints.Exclusion {
-		index, ok := view.Relation(c.Index)
+		idx, ok := view.Relation(c.Index)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing private exclusion index")
 		}
-		ordering, err := bindExclusionOrdering(parent, index.SQLIndex)
+		ordering, err := index.BindExclusionOrdering(parent, idx.SQLIndex)
 		if err != nil {
 			return err
 		}
-		var preparation indexExecutionPreparation
+		var preparation index.ExecutionPreparation
 		for _, row := range writes {
-			if uniqueRowDeleted(row.Row, deletes) {
+			if index.UniqueRowDeleted(row.Row, deletes) {
 				continue
 			}
 			var keys []sqltype.Value
-			if index.SQLIndex.RequiresInsertionOutput() {
-				output, ok := row.IndexOutputs[index.Address()]
-				if !ok || !indexOutputMatches(output, index) {
+			if idx.SQLIndex.RequiresInsertionOutput() {
+				output, ok := row.IndexOutputs[idx.Address()]
+				if !ok || !index.OutputMatches(output, idx) {
 					return fmt.Errorf("stuntgres: exclusion shape lost produced index output")
 				}
 				if !output.Member {
 					continue
 				}
-				if index.SQLIndex.Method == catalog.HashMethod {
+				if idx.SQLIndex.Method == catalog.HashMethod {
 					if output.Key.IsNull() {
 						continue
 					}
@@ -49,25 +50,25 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 					keys = output.Keys
 				}
 			} else {
-				matches, err := preparation.predicateMatches(&evaluation, parent, index.SQLIndex, row.Values, &ordering, nil)
+				matches, err := preparation.PredicateMatches(&evaluation, parent, idx.SQLIndex, row.Values, &ordering, nil)
 				if err != nil {
 					return err
 				}
 				if !matches {
 					continue
 				}
-				if err := preparation.prepareKeys(&evaluation, parent, index.SQLIndex, &ordering, nil); err != nil {
+				if err := preparation.PrepareKeys(&evaluation, parent, idx.SQLIndex, &ordering, nil); err != nil {
 					return err
 				}
-				keys = make([]sqltype.Value, len(index.SQLIndex.Keys))
-				if err := ordering.fillKeys(row.Values, keys, &evaluation); err != nil {
+				keys = make([]sqltype.Value, len(idx.SQLIndex.Keys))
+				if err := ordering.FillKeys(row.Values, keys, &evaluation); err != nil {
 					return err
 				}
 			}
-			if uniqueHasNull(keys) {
+			if index.UniqueHasNull(keys) {
 				continue
 			}
-			entries[index.Address()] = append(entries[index.Address()], exclusionEntry{row: row, keys: keys, admitted: true})
+			entries[idx.Address()] = append(entries[idx.Address()], index.ExclusionEntry{Row: row, Keys: keys, Admitted: true})
 		}
 	}
 	e := s.engine()
@@ -77,14 +78,14 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 		return ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
-	p := e.exclusions.projectionLocked(s.ticket)
+	p := e.exclusions.ProjectionLocked(s.ticket)
 	for _, c := range original.Constraints.Exclusion {
-		delete(p.entries, c.Index)
+		delete(p.Entries, c.Index)
 	}
 	for index, rows := range entries {
-		p.entries[index] = rows
+		p.Entries[index] = rows
 	}
-	ends := maps.Clone(p.ended[parent.Address()])
+	ends := maps.Clone(p.Ended[parent.Address()])
 	if ends == nil {
 		ends = make(map[ids.RowID]ids.VersionID)
 	}
@@ -98,7 +99,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 			ends[id] = candidate.Version
 		}
 	}
-	p.ended[parent.Address()] = ends
+	p.Ended[parent.Address()] = ends
 	s.installExclusionProjectionLocked(e, p)
 	return nil
 }

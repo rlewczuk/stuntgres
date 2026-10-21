@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
 func TestIndexPropertyDumpPredecessors(t *testing.T) {
@@ -17,15 +18,15 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	consumer := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	parent := &catalog.Relation{ObjectAddress: parentAddress, ObjectNamespace: namespace, RelationKind: catalog.TableRelation}
-	index := &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespace, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: parentAddress, Ready: true, Valid: true, Live: true}}
+	idx := &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespace, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: parentAddress, Ready: true, Valid: true, Live: true}}
 	view.State().SetDescriptor(parentAddress, parent)
-	view.State().SetDescriptor(indexAddress, index)
+	view.State().SetDescriptor(indexAddress, idx)
 	got, err := dumpPredecessor(view, indexAddress, consumer)
 	if err != nil || got != indexAddress.ObjectID {
 		t.Fatal("ordinary index lost exact predecessor", got, err)
 	}
 	constraint := catalog.UniqueConstraint{OID: 100020, Index: indexAddress}
-	index.SQLIndex.Unique, index.SQLIndex.Constraint = true, uniqueBacking(&constraint)
+	idx.SQLIndex.Unique, idx.SQLIndex.Constraint = true, index.UniqueBacking(&constraint)
 	parent.Constraints.Unique = []catalog.UniqueConstraint{constraint}
 	got, err = dumpPredecessor(view, indexAddress, consumer)
 	if err != nil || got != parentAddress.ObjectID {

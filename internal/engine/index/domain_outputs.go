@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/engine/typedef"
 )
 
-func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *storage.Relation) (*storage.Relation, error) {
+func ReownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *storage.Relation) (*storage.Relation, error) {
 	var versions []storage.RowVersion
 	for i, row := range original.Versions {
 		if err := ctx.Err(); err != nil {
@@ -24,7 +24,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, ori
 		for address, output := range row.IndexOutputs {
 			old, ok := base.Relation(address)
 			index, present := next.Relation(address)
-			if !ok || !present || !indexOutputMatches(output, old) {
+			if !ok || !present || !OutputMatches(output, old) {
 				continue
 			}
 			parent := next.MustRelation(index.SQLIndex.Parent)
@@ -32,7 +32,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, ori
 			mapped.Index = index
 			keysChanged := false
 			if output.Key.Type() != nil {
-				usage, err := indexKeyUsage(parent, index.SQLIndex.Keys[0])
+				usage, err := KeyUsage(parent, index.SQLIndex.Keys[0])
 				if err != nil {
 					return nil, err
 				}
@@ -42,7 +42,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, ori
 				}
 			}
 			for key, value := range output.Keys {
-				usage, err := indexKeyUsage(parent, index.SQLIndex.Keys[key])
+				usage, err := KeyUsage(parent, index.SQLIndex.Keys[key])
 				if err != nil {
 					return nil, err
 				}

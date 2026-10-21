@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -21,7 +22,7 @@ import (
 
 type alterTypePreparation struct {
 	usage              sqltype.Usage
-	transformation     columnTransformation
+	transformation     index.ColumnTransformation
 	declaredDimensions int16
 }
 
@@ -156,7 +157,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *session.Operati
 	if err != nil {
 		return fail(err)
 	}
-	prepared.transformation = columnTransformation{attribute: original.Attributes[source], expression: node, dependencies: dependencies}
+	prepared.transformation = index.ColumnTransformation{Attribute: original.Attributes[source], Expression: node, Dependencies: dependencies}
 	return prepared, nil
 }
 
@@ -169,7 +170,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 		return prepared, nil
 	}
 	usage := prepared.usage
-	node := prepared.transformation.expression
+	node := prepared.transformation.Expression
 	input, annotations := analyze.DomainCoercionInput(node, usage)
 	info, err := analyze.StorageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 	if err != nil {
@@ -209,15 +210,15 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	}
 	source := original.Index[a.Column.Text]
 	oldUsage := original.Columns[source].Usage
-	prepared.transformation.expression = node
-	prepared.transformation.rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
+	prepared.transformation.Expression = node
+	prepared.transformation.Rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
 	return prepared, nil
 }
 
 // Candidate-only mutation consumes the completed phase-one result.
-func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared alterTypePreparation) (*catalog.Relation, columnTransformation, error) {
-	fail := func(err error) (*catalog.Relation, columnTransformation, error) {
-		return nil, columnTransformation{}, err
+func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared alterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
+	fail := func(err error) (*catalog.Relation, index.ColumnTransformation, error) {
+		return nil, index.ColumnTransformation{}, err
 	}
 	slot, err := alterTypeColumn(next, a.Column.Text)
 	if err != nil {
@@ -291,13 +292,13 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 	usage := prepared.usage
 	if original.RelationKind == catalog.CompositeRelation {
 		if usage == current && next.Columns[slot].DeclaredDimensions == prepared.declaredDimensions {
-			return next, columnTransformation{}, nil
+			return next, index.ColumnTransformation{}, nil
 		}
 		replacement := *next
 		replacement.Columns = append([]catalog.Column(nil), next.Columns...)
 		replacement.Columns[slot].Usage = usage
 		replacement.Columns[slot].DeclaredDimensions = prepared.declaredDimensions
-		return &replacement, columnTransformation{}, nil
+		return &replacement, index.ColumnTransformation{}, nil
 	}
 	attribute := original.Attributes[source]
 	transformation := prepared.transformation
@@ -358,7 +359,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*storage.Relation, []storage.RowVersion, *visibility.PrivateDeletes, error) {
+func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, transforms []index.ColumnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*storage.Relation, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	if store.Generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
@@ -390,7 +391,7 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 	}
 	for i, transform := range transforms {
 		for slot, attribute := range next.Attributes {
-			if transform.attribute == attribute {
+			if transform.Attribute == attribute {
 				destinations[i] = slot
 				slots[slot] = -1
 				break
@@ -422,12 +423,12 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 			}
 			evaluation.Row = row.Values
 			if !preparedTransforms {
-				var private []columnTransformation
+				var private []index.ColumnTransformation
 				for i, transform := range transforms {
 					recipe := evaluation
 					recipe.RoutineRecipe, recipe.RoutineGraft = true, false
-					recipe.RoutineChecks = transform.dependencies
-					node, changed, err := exec.PreflightCoercionsWithPolicy(&recipe, transform.expression, true)
+					recipe.RoutineChecks = transform.Dependencies
+					node, changed, err := exec.PreflightCoercionsWithPolicy(&recipe, transform.Expression, true)
 					evaluation.PreparedDomainChecks = recipe.PreparedDomainChecks
 					if err != nil {
 						return nil, err
@@ -437,9 +438,9 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 					}
 					if changed {
 						if private == nil {
-							private = append([]columnTransformation(nil), transforms...)
+							private = append([]index.ColumnTransformation(nil), transforms...)
 						}
-						private[i].expression = node
+						private[i].Expression = node
 					}
 				}
 				if private != nil {
@@ -458,8 +459,8 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 				// manifest after preparation has returned.
 				recipe := evaluation
 				recipe.RoutineRecipe, recipe.RoutineGraft = true, false
-				recipe.RoutineChecks = transform.dependencies
-				v, err := transform.expression.Eval(&recipe)
+				recipe.RoutineChecks = transform.Dependencies
+				v, err := transform.Expression.Eval(&recipe)
 				evaluation.PreparedDomainChecks = recipe.PreparedDomainChecks
 				if err != nil {
 					return nil, err

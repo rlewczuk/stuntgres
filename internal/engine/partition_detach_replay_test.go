@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -104,12 +105,12 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	local.ObjectName = "unit_local_older"
 	definition.PartitionParent = ids.ObjectAddress{}
 	constraint := catalog.UniqueConstraint{OID: 46900, Name: local.Name(), Index: local.Address(), Attributes: []int32{22, 11}, IsLocal: true}
-	definition.Constraint = uniqueBacking(&constraint)
+	definition.Constraint = index.UniqueBacking(&constraint)
 	local.SQLIndex = &definition
 	f.leaf.Constraints.Unique = []catalog.UniqueConstraint{constraint}
 	f.view.State().SetDescriptor(local.Address(), &local)
 	f.view.State().BindName(catalog.DescriptorNameKey(&local), local.Address())
-	if !partitionReplayUsingIndex(f.view, &local) || usingIndexDump(&local) {
+	if !index.PartitionReplayUsingIndex(f.view, &local) || index.UsingIndexDump(&local) {
 		t.Fatal("local origin must be explicit only for this captured replay")
 	}
 	r, c, pi, ci, li := f.root.Address().ObjectID, f.leaf.Address().ObjectID, f.parent.Address().ObjectID, f.child.Address().ObjectID, local.Address().ObjectID

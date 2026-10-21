@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -65,7 +66,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 	}
 	e.mu.Unlock()
 	for _, address := range cleared {
-		if err := transportEmptyIndexStorage(op.Context(), base.State(), next, nil, address, next.Storage[address].Replacement); err != nil {
+		if err := index.TransportEmptyIndexStorage(op.Context(), base.State(), next, nil, address, next.Storage[address].Replacement); err != nil {
 			return nil, nil, nil, err
 		}
 	}

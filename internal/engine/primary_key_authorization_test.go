@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -14,7 +15,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 	for _, mode := range []string{"none", "partial", "keys", "table"} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(mode+map[bool]string{false: "/direct", true: "/held"}[prepared], func(t *testing.T) {
-				e, owner, parent, index := primaryKeyUnitFixture(t)
+				e, owner, parent, idx := primaryKeyUnitFixture(t)
 				actor, ok := e.Roles().Lookup("pk_owner")
 				if !ok || actor.Superuser || parent.Owner != actor.Ref {
 					t.Fatal(actor, parent.Owner)
@@ -59,11 +60,11 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				allowed, err := uniqueKeyDetailAllowed(auth.View, auth, e.catalog.Domain.Ref(view.Epoch(), parent.Address()), index.SQLIndex.Keys)
+				allowed, err := index.UniqueKeyDetailAllowed(auth.View, auth, e.catalog.Domain.Ref(view.Epoch(), parent.Address()), idx.SQLIndex.Keys)
 				if err != nil || allowed != (mode == "keys" || mode == "table") {
 					t.Fatal("actual current key disclosure authority", allowed, err)
 				}
-				before, store, root := e.catalog.state, e.storage.Relations[parent.Address()], e.storage.IndexRoots[index.Address()]
+				before, store, root := e.catalog.state, e.storage.Relations[parent.Address()], e.storage.IndexRoots[idx.Address()]
 				execute := func(ast parser.Statement, held *StatementDescription) (Result, error) {
 					if !prepared {
 						return e.Execute(owner, ast, 0, nil)
@@ -92,7 +93,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 					detail = "Key (a, b)=(0, protected) is duplicated."
 				}
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "pk"`, Detail: detail, Schema: "public", Table: "t", Constraint: "pk"})
-				if result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root || e.catalog.state.Get(parent.Address()) != current {
+				if result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[idx.Address()] != root || e.catalog.state.Get(parent.Address()) != current {
 					t.Fatal("failed runtime/TYPE disclosed or published protected state", result)
 				}
 				lockEmpty(t, e)

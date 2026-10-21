@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -32,14 +33,14 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 	}
 	renderer := pgRenderer{View: view, Pretty: pretty, Path: scope.inquiry.deparsePath,
 		Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
-	index := 1
+	idx := 1
 	if signature != functions.DeparseExpr && signature != functions.DeparseExprPretty {
-		index = 0
+		idx = 0
 	}
 	if signature >= functions.DeparseIndex {
 		return deparseRelation(c, signature, values, result, pretty)
 	}
-	id, err := values[index].OID()
+	id, err := values[idx].OID()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -128,11 +129,11 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 					continue
 				}
 				found = true
-				index, ok := view.Relation(def.Index)
+				idx, ok := view.Relation(def.Index)
 				if !ok {
 					return sqltype.Value{}, fmt.Errorf("stuntgres: missing exclusion backing index")
 				}
-				text, err = indexDefinitionSQL(c.Context, view, index, indexPresentation{exclusion: true, pretty: pretty, path: scope.inquiry.deparsePath, output: scope.output})
+				text, err = index.DefinitionSQL(c.Context, view, idx, index.Presentation{Exclusion: true, Pretty: pretty, Path: scope.inquiry.deparsePath, Output: scope.output})
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -213,7 +214,7 @@ func deparseRelation(c *exec.Context, signature functions.DeparseSignature, valu
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.inquiry.deparsePath, temporary: temporaryNamespace(scope.inquiry.deparseAuth), output: scope.output})
+		text, err = index.DefinitionSQL(c.Context, catalog, relation, index.Presentation{Column: column, Pretty: pretty, Path: scope.inquiry.deparsePath, Temporary: temporaryNamespace(scope.inquiry.deparseAuth), Output: scope.output})
 	} else {
 		if relation.View == nil {
 			return sqltype.Null(result), nil

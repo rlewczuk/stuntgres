@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -520,7 +521,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		err = s.observePartitionRelationLocked(e, ref)
 		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
 			d, exists := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-			partitionDrop = exists && catalog.HierarchyRelation(d) && partitionConstraintDropActions(d, action.Actions)
+			partitionDrop = exists && catalog.HierarchyRelation(d) && index.PartitionConstraintDropActions(d, action.Actions)
 		}
 	}
 	e.mu.Unlock()
@@ -733,7 +734,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	} else if s.lockedStorage != nil {
 		relation, ok := current.(*catalog.Relation)
 		captured, capturedOK := s.lockedDescriptor.(*catalog.Relation)
-		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.Catalog, s.lockedRef.Address) != s.lockedStorage || !sameRelationRowShape(captured, relation) {
+		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.Catalog, s.lockedRef.Address) != s.lockedStorage || !index.SameRelationRowShape(captured, relation) {
 			return ids.ErrCatalogReplaced
 		}
 	} else if current != s.lockedDescriptor {
@@ -753,28 +754,12 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	if s.viewWrite != nil {
 		for _, layer := range s.viewWrite.layers {
 			current, ok := view.Relation(layer.ref.Address)
-			if !ok || current.View != layer.relation.View || !sameRelationRowShape(current, layer.relation) {
+			if !ok || current.View != layer.relation.View || !index.SameRelationRowShape(current, layer.relation) {
 				return ids.ErrCatalogReplaced
 			}
 		}
 	}
 	return nil
-}
-
-func sameRelationRowShape(a, b *catalog.Relation) bool {
-	if a == b {
-		return true
-	}
-	if len(a.Columns) != len(b.Columns) || len(a.Attributes) != len(a.Columns) || len(b.Attributes) != len(b.Columns) {
-		return false
-	}
-	for i, column := range a.Columns {
-		other := b.Columns[i]
-		if a.Attributes[i] != b.Attributes[i] || column.Name != other.Name || !analyze.SameStatementUsage(column.Usage, other.Usage) || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
-			return false
-		}
-	}
-	return true
 }
 
 // Called under Engine.mu after partitionParentAuthorization validates any

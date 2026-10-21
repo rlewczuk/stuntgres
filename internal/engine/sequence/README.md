@@ -124,7 +124,7 @@ revision allocation, the journal and stage install, scope fields and
 notices), `ownedSequenceLocked`, `statementHost.Sequence`
 (`sequence_runtime.go`) and `clearPersistentSequenceMemoryLocked`;
 `StatementScope.acquireSequence` (the scope's object lock),
-`checkSequenceAny` and `relationDropOwner`; `sequenceEnvironmentLocked`,
+`checkSequenceAny` and `index.RelationDropOwner`; `sequenceEnvironmentLocked`,
 `journalOf` and `preparedDefinitionStamp`, shared with ordinary prepared SQL;
 identity and serial staging on `CatalogStage` and the identity DROP flow
 (table DDL); `CatalogStage.sequenceState`; regclass input and output; and the

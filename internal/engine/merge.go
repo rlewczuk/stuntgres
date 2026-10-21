@@ -190,7 +190,7 @@ func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 	if err != nil {
 		return Result{}, err
 	}
-	rows, err := e.assembleMergeRows(ctx, scope, b, target, &cursor, state, schema, len(unique.keys) != 0 || unique.checked)
+	rows, err := e.assembleMergeRows(ctx, scope, b, target, &cursor, state, schema, len(unique.Keys) != 0 || unique.Checked)
 	if err != nil {
 		return Result{}, err
 	}

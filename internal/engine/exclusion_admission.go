@@ -1,13 +1,13 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -15,119 +15,26 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// These immutable projections are visibility, not lock grants. Engine.mu owns
-// their ticket membership; all providers and completion waits run unlocked.
-type exclusionEntry struct {
-	row      storage.RowVersion
-	keys     []sqltype.Value
-	admitted bool
-}
-type exclusionProjection struct {
-	entries map[ids.ObjectAddress][]exclusionEntry
-	ended   map[ids.ObjectAddress]map[ids.RowID]ids.VersionID
-}
-type exclusionEvent struct {
-	parent, index ids.ObjectRef
-	constraint    ids.OID
-	row           ids.RowID
-	version       ids.VersionID
-}
-type exclusionModes struct {
-	allSet, allDeferred bool
-	byConstraint        map[ids.OID]bool
-	events              []exclusionEvent
-}
-
-// zero reports whether m is exactly the zero value: no flags, and a nil map
-// and event list (an empty non-nil one is not zero).
-func (m exclusionModes) zero() bool {
-	return !m.allSet && !m.allDeferred && m.byConstraint == nil && m.events == nil
-}
-
-func (m exclusionModes) deferred(c *catalog.ExclusionConstraint) bool {
-	if !c.Deferrable {
-		return false
-	}
-	if value, ok := m.byConstraint[c.OID]; ok {
-		return value
-	}
-	if m.allSet {
-		return m.allDeferred
-	}
-	return c.InitiallyDeferred
-}
-func exclusionDefinition(parent *catalog.Relation, index *catalog.Relation) *catalog.ExclusionConstraint {
-	for i := range parent.Constraints.Exclusion {
-		c := &parent.Constraints.Exclusion[i]
-		if c.Index == index.Address() && c.OID == index.SQLIndex.Constraint.OID {
-			return c
-		}
-	}
-	return nil
-}
-func bindExclusionOrdering(parent *catalog.Relation, d *catalog.IndexDefinition) (indexOrdering, error) {
-	if d.Method == catalog.GistMethod {
-		return bindLogicalExclusionKeys(parent, d)
-	}
-	if d.Method == catalog.BtreeMethod {
-		return bindIndexOrdering(parent, d)
-	}
-	// The supported HASH equality has the same concrete scalar comparison as
-	// its default Btree class. This is a comparator binding, not an index or a
-	// UNIQUE owner, and HASH storage continues to use its actual provider.
-	copy := *d
-	copy.Method = catalog.BtreeMethod
-	copy.Keys = slices.Clone(d.Keys)
-	for i, key := range copy.Keys {
-		u, err := indexKeyUsage(parent, key)
-		if err != nil {
-			return indexOrdering{}, err
-		}
-		class, ok := sqltype.DefaultIndexClass(u.Type)
-		if !ok {
-			return indexOrdering{}, fmt.Errorf("stuntgres: missing exclusion equality comparator")
-		}
-		copy.Keys[i].Class = class
-	}
-	return bindIndexOrdering(parent, &copy)
-}
-func exclusionKeysMatch(ctx context.Context, d *catalog.IndexDefinition, left, right []sqltype.Value) (bool, error) {
-	for i, operator := range d.Exclusion {
-		match, err := operator.Matches(ctx, left[i], right[i])
-		if err != nil || !match {
-			return false, err
-		}
-	}
-	return true, nil
-}
-func cloneExclusionProjection(old *exclusionProjection) *exclusionProjection {
-	p := &exclusionProjection{entries: make(map[ids.ObjectAddress][]exclusionEntry), ended: make(map[ids.ObjectAddress]map[ids.RowID]ids.VersionID)}
-	if old != nil {
-		p.entries = maps.Clone(old.entries)
-		p.ended = maps.Clone(old.ended)
-	}
-	return p
-}
 func (s *StatementScope) beginExclusionProjectionLocked(e *Engine) {
-	if s.indexesOrZero().exclusionStarted {
+	if s.indexesOrZero().ExclusionStarted {
 		return
 	}
-	s.indexes().exclusionStarted = true
-	s.indexes().exclusionModes = ownerExtensionOrZero(s.owner).exclusionModes
+	s.indexes().ExclusionStarted = true
+	s.indexes().ExclusionModes = ownerExtensionOrZero(s.owner).exclusionModes
 }
-func (s *StatementScope) installExclusionProjectionLocked(e *Engine, p *exclusionProjection) {
-	e.exclusions.installLocked(s.ticket, p)
+func (s *StatementScope) installExclusionProjectionLocked(e *Engine, p *index.ExclusionProjection) {
+	e.exclusions.InstallLocked(s.ticket, p)
 }
-func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWriteCandidate, excluded []storage.RowVersion, catalog *catalog.State) (storage.RowVersion, error) {
-	if proposal.exclusion != nil {
-		row := *proposal.exclusion
+func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *index.WriteCandidate, excluded []storage.RowVersion, catalog *catalog.State) (storage.RowVersion, error) {
+	if proposal.Exclusion != nil {
+		row := *proposal.Exclusion
 		row.IndexAdmission = catalog
 		return row, nil
 	}
 	if e.storage.VersionFrontier() == ^uint64(0) || len(excluded) == 0 && e.storage.RowFrontier() == ^uint64(0) {
 		return storage.RowVersion{}, fmt.Errorf("stuntgres: row identity exhausted")
 	}
-	row := storage.RowVersion{Version: e.storage.AllocateVersionLocked(), Values: proposal.values, IndexAdmission: catalog}
+	row := storage.RowVersion{Version: e.storage.AllocateVersionLocked(), Values: proposal.Values, IndexAdmission: catalog}
 	if len(excluded) == 0 {
 		row.Row = e.storage.AllocateRowLocked()
 	} else {
@@ -140,60 +47,60 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWrit
 	}
 	return row, nil
 }
-func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []storage.RowVersion, precheck bool, purpose indexProbePurpose) (storage.RowVersion, error) {
+func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, precheck bool, purpose index.ProbePurpose) (storage.RowVersion, error) {
 	e := s.engine()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: e.catalog.read(binding.catalog)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	if binding.typeName != nil {
-		evaluation.Input.TypeDiagnosticName = binding.typeName
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: e.catalog.read(binding.Catalog)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	if binding.TypeName != nil {
+		evaluation.Input.TypeDiagnosticName = binding.TypeName
 	}
-	definition := exclusionDefinition(binding.parent, bound.index)
+	definition := index.ExclusionDefinition(binding.Parent, bound.Index)
 	if definition == nil {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
-	member, keys, err := proposal.uniqueOutput(bound, &evaluation, precheck, purpose)
+	member, keys, err := proposal.UniqueOutput(bound, &evaluation, precheck, purpose)
 	if err != nil {
 		return storage.RowVersion{}, err
 	}
-	member = member && !uniqueHasNull(keys)
-	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() || bound.index.SQLIndex.Method == catalog.HashMethod) {
+	member = member && !index.UniqueHasNull(keys)
+	if member && (purpose == index.ProbeRuntime && !bound.Index.SQLIndex.HasRuntimeDomainConversion() || bound.Index.SQLIndex.Method == catalog.HashMethod) {
 		keys = slices.Clone(keys)
 	}
-	if purpose == indexProbeRevalidation && proposal.exclusion == nil {
+	if purpose == index.ProbeRevalidation && proposal.Exclusion == nil {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.state.Epoch() || e.privateCatalogLocked(s.owner.Catalog).State() != binding.catalog {
+	if ref.Epoch != e.catalog.state.Epoch() || e.privateCatalogLocked(s.owner.Catalog).State() != binding.Catalog {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
-	row, err := s.exclusionCandidateLocked(e, proposal, excluded, binding.catalog)
+	row, err := s.exclusionCandidateLocked(e, proposal, excluded, binding.Catalog)
 	if err != nil {
 		return storage.RowVersion{}, err
 	}
-	row.IndexOutputs = proposal.indexes
+	row.IndexOutputs = proposal.Indexes
 	if precheck {
-		row.IndexOutputs = proposal.precheck
-		proposal.sharedPrecheck = true
+		row.IndexOutputs = proposal.Precheck
+		proposal.SharedPrecheck = true
 	} else {
-		proposal.sharedIndexes = true
+		proposal.SharedIndexes = true
 	}
-	proposal.exclusion = &row
-	p := e.exclusions.projectionLocked(s.ticket)
-	entries := p.entries[definition.Index]
-	next := make([]exclusionEntry, 0, len(entries)+1)
+	proposal.Exclusion = &row
+	p := e.exclusions.ProjectionLocked(s.ticket)
+	entries := p.Entries[definition.Index]
+	next := make([]index.ExclusionEntry, 0, len(entries)+1)
 	for _, entry := range entries {
-		if entry.row.Row != row.Row {
+		if entry.Row.Row != row.Row {
 			next = append(next, entry)
 		}
 	}
 	if member {
-		next = append(next, exclusionEntry{row: row, keys: keys, admitted: definition.Deferrable})
+		next = append(next, index.ExclusionEntry{Row: row, Keys: keys, Admitted: definition.Deferrable})
 	}
 	// A later index insertion preserves the projections of earlier indexes.
-	p.entries[definition.Index] = next
+	p.Entries[definition.Index] = next
 	if len(excluded) != 0 {
-		ends := maps.Clone(p.ended[ref.Address])
+		ends := maps.Clone(p.Ended[ref.Address])
 		if ends == nil {
 			ends = make(map[ids.RowID]ids.VersionID)
 		}
@@ -203,35 +110,35 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 				ends[old.Row] = old.Base
 			}
 		}
-		p.ended[ref.Address] = ends
+		p.Ended[ref.Address] = ends
 	}
 	s.installExclusionProjectionLocked(e, p)
 	return row, nil
 }
-func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *indexWriteCandidate) {
+func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *index.WriteCandidate) {
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if proposal.exclusion == nil {
+	if proposal.Exclusion == nil {
 		return
 	}
-	version := proposal.exclusion.Version
-	proposal.exclusion = nil
+	version := proposal.Exclusion.Version
+	proposal.Exclusion = nil
 	if version == 0 {
 		return
 	}
-	p := e.exclusions.projectionLocked(s.ticket)
-	for index, entries := range p.entries {
-		if !slices.ContainsFunc(entries, func(e exclusionEntry) bool { return e.row.Version == version }) {
+	p := e.exclusions.ProjectionLocked(s.ticket)
+	for idx, entries := range p.Entries {
+		if !slices.ContainsFunc(entries, func(e index.ExclusionEntry) bool { return e.Row.Version == version }) {
 			continue
 		}
-		next := make([]exclusionEntry, 0, len(entries)-1)
+		next := make([]index.ExclusionEntry, 0, len(entries)-1)
 		for _, entry := range entries {
-			if entry.row.Version != version {
+			if entry.Row.Version != version {
 				next = append(next, entry)
 			}
 		}
-		p.entries[index] = next
+		p.Entries[idx] = next
 	}
 	s.installExclusionProjectionLocked(e, p)
 }
@@ -241,22 +148,22 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate vis
 		return
 	}
 	s.beginExclusionProjectionLocked(e)
-	p := e.exclusions.projectionLocked(s.ticket)
-	ends := maps.Clone(p.ended[candidate.Ref.Address])
+	p := e.exclusions.ProjectionLocked(s.ticket)
+	ends := maps.Clone(p.Ended[candidate.Ref.Address])
 	if ends == nil {
 		ends = make(map[ids.RowID]ids.VersionID)
 	}
 	ends[candidate.Row] = candidate.Version
-	p.ended[candidate.Ref.Address] = ends
+	p.Ended[candidate.Ref.Address] = ends
 	for _, c := range parent.Constraints.Exclusion {
-		entries := p.entries[c.Index]
-		next := make([]exclusionEntry, 0, len(entries))
+		entries := p.Entries[c.Index]
+		next := make([]index.ExclusionEntry, 0, len(entries))
 		for _, entry := range entries {
-			if entry.row.Row != candidate.Row {
+			if entry.Row.Row != candidate.Row {
 				next = append(next, entry)
 			}
 		}
-		p.entries[c.Index] = next
+		p.Entries[c.Index] = next
 	}
 	s.installExclusionProjectionLocked(e, p)
 }
@@ -264,7 +171,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate vis
 type exclusionScan struct {
 	generation      uint64
 	root            *storage.IndexRoot
-	pending         map[*lock.Ticket]*exclusionProjection
+	pending         map[*lock.Ticket]*index.ExclusionProjection
 	auth            AuthorizationView
 	view            catalog.Read
 	schema          string
@@ -275,12 +182,12 @@ type exclusionScan struct {
 	ends            *storage.DeletionRoot
 }
 
-func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *uniqueWriteBinding, index *catalog.Relation) (exclusionScan, error) {
+func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *index.UniqueWriteBinding, idx *catalog.Relation) (exclusionScan, error) {
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(s.owner.Catalog)
-	if ref.Epoch != e.catalog.state.Epoch() || view.State() != binding.catalog {
+	if ref.Epoch != e.catalog.state.Epoch() || view.State() != binding.Catalog {
 		return exclusionScan{}, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
@@ -292,49 +199,49 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	root := e.storage.IndexRoots[index.Address()]
+	root := e.storage.IndexRoots[idx.Address()]
 	if s.owner.Catalog != nil {
-		if private, ok := journalIndexesOrZero(s.owner.Catalog).uniqueRoots[index.Address()]; ok {
+		if private, ok := index.JournalIndexesOrZero(s.owner.Catalog).UniqueRoots[idx.Address()]; ok {
 			root = private
 		}
 	}
-	ns, ok := view.Namespace(binding.parent.Namespace())
+	ns, ok := view.Namespace(binding.Parent.Namespace())
 	if !ok {
 		return exclusionScan{}, fmt.Errorf("stuntgres: missing exclusion namespace")
 	}
-	store := e.privateStorageLocked(s.owner.Catalog, binding.parent.Address())
+	store := e.privateStorageLocked(s.owner.Catalog, binding.Parent.Address())
 	if store == nil {
 		return exclusionScan{}, fmt.Errorf("stuntgres: missing exclusion row storage")
 	}
-	generation, pending := e.exclusions.scanLocked()
-	return exclusionScan{generation: generation, root: root, pending: pending, auth: auth, view: view, schema: ns.Name(), parent: binding.parent.Address(), store: store, storeGeneration: store.Generation, versions: store.Versions, ends: store.Ends}, nil
+	generation, pending := e.exclusions.ScanLocked()
+	return exclusionScan{generation: generation, root: root, pending: pending, auth: auth, view: view, schema: ns.Name(), parent: binding.Parent.Address(), store: store, storeGeneration: store.Generation, versions: store.Versions, ends: store.Ends}, nil
 }
-func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ids.ObjectAddress) bool {
+func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, idx ids.ObjectAddress) bool {
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	root := e.storage.IndexRoots[index]
+	root := e.storage.IndexRoots[idx]
 	if s.owner.Catalog != nil {
-		if private, ok := journalIndexesOrZero(s.owner.Catalog).uniqueRoots[index]; ok {
+		if private, ok := index.JournalIndexesOrZero(s.owner.Catalog).UniqueRoots[idx]; ok {
 			root = private
 		}
 	}
 	store := e.privateStorageLocked(s.owner.Catalog, scan.parent)
-	return e.exclusions.currentLocked(scan.generation) && scan.view.State() == e.privateCatalogLocked(s.owner.Catalog).State() && scan.root == root && store == scan.store && store.Generation == scan.storeGeneration && len(store.Versions) == len(scan.versions) && store.Ends == scan.ends
+	return e.exclusions.CurrentLocked(scan.generation) && scan.view.State() == e.privateCatalogLocked(s.owner.Catalog).State() && scan.root == root && store == scan.store && store.Generation == scan.storeGeneration && len(store.Versions) == len(scan.versions) && store.Ends == scan.ends
 }
-func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, candidate storage.RowVersion, recheck bool, purpose indexProbePurpose) (uniqueConflict, bool, error) {
-	index := bound.index
+func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, candidate storage.RowVersion, recheck bool, purpose index.ProbePurpose) (uniqueConflict, bool, error) {
+	idx := bound.Index
 	for {
-		scan, err := s.captureExclusionScan(ref, binding, index)
+		scan, err := s.captureExclusionScan(ref, binding, idx)
 		if err != nil {
 			return uniqueConflict{}, false, err
 		}
 		own := scan.pending[s.ticket]
-		var current exclusionEntry
+		var current index.ExclusionEntry
 		found := false
 		if own != nil {
-			for _, entry := range own.entries[index.Address()] {
-				if entry.row.Row == candidate.Row && entry.row.Version == candidate.Version {
+			for _, entry := range own.Entries[idx.Address()] {
+				if entry.Row.Row == candidate.Row && entry.Row.Version == candidate.Version {
 					current = entry
 					found = true
 					break
@@ -345,38 +252,38 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			return uniqueConflict{}, false, nil
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: scan.view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if binding.typeName != nil {
-			evaluation.Input.TypeDiagnosticName = binding.typeName
+		if binding.TypeName != nil {
+			evaluation.Input.TypeDiagnosticName = binding.TypeName
 		}
 		potential := false
 		var wait *lock.Ticket
 		var hit uniqueConflict
-		visit := func(entry exclusionEntry, owner *lock.Ticket, committed bool) error {
-			if owner == s.ticket && entry.row.Row == candidate.Row {
+		visit := func(entry index.ExclusionEntry, owner *lock.Ticket, committed bool) error {
+			if owner == s.ticket && entry.Row.Row == candidate.Row {
 				return nil
 			}
-			if owner != nil && owner != s.ticket && !entry.admitted {
+			if owner != nil && owner != s.ticket && !entry.Admitted {
 				return nil
 			}
-			if own != nil && own.ended[ref.Address][entry.row.Row] == entry.row.Version && committed {
+			if own != nil && own.Ended[ref.Address][entry.Row.Row] == entry.Row.Version && committed {
 				return nil
 			}
-			match, err := exclusionKeysMatch(s.op.Context(), index.SQLIndex, current.keys, entry.keys)
+			match, err := index.ExclusionKeysMatch(s.op.Context(), idx.SQLIndex, current.Keys, entry.Keys)
 			if err != nil || !match {
 				return err
 			}
-			if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
-				if err := bound.ordering.fillKeys(entry.row.Values, bound.scratch, &evaluation); err != nil {
+			if purpose != index.ProbeRevalidation && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
+				if err := bound.Ordering.FillKeys(entry.Row.Values, bound.Scratch, &evaluation); err != nil {
 					return err
 				}
-				match, err = exclusionKeysMatch(s.op.Context(), index.SQLIndex, current.keys, bound.scratch)
+				match, err = index.ExclusionKeysMatch(s.op.Context(), idx.SQLIndex, current.Keys, bound.Scratch)
 				if err != nil || !match {
 					return err
 				}
 			}
 			if committed {
 				for ticket, p := range scan.pending {
-					if ticket != s.ticket && p.ended[ref.Address][entry.row.Row] == entry.row.Version {
+					if ticket != s.ticket && p.Ended[ref.Address][entry.Row.Row] == entry.Row.Version {
 						potential = true
 						wait = ticket
 						return nil
@@ -389,13 +296,13 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 				return nil
 			}
 			if hit.index == nil {
-				existing := entry.keys
-				if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
-					existing = slices.Clone(bound.scratch)
+				existing := entry.Keys
+				if purpose != index.ProbeRevalidation && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
+					existing = slices.Clone(bound.Scratch)
 				} else if committed && scan.root.Hash != nil {
 					existing = slices.Clone(existing)
 				}
-				hit = uniqueConflict{parent: binding.parent, index: index, key: current.keys, existing: existing, auth: scan.auth, view: scan.view, schema: scan.schema, row: entry.row, committed: committed}
+				hit = uniqueConflict{parent: binding.Parent, index: idx, key: current.Keys, existing: existing, auth: scan.auth, view: scan.view, schema: scan.schema, row: entry.Row, committed: committed}
 			}
 			return nil
 		}
@@ -404,39 +311,39 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 				var keys [1]sqltype.Value
 				for _, bucket := range scan.root.Hash.Buckets {
 					for _, entry := range bucket {
-						row, err := conflictEntryVersion(scan.versions, storage.IndexEntry{Row: entry.Row, Version: entry.Version, Position: entry.Position})
+						row, err := index.ConflictEntryVersion(scan.versions, storage.IndexEntry{Row: entry.Row, Version: entry.Version, Position: entry.Position})
 						if err != nil {
 							return uniqueConflict{}, false, err
 						}
 						keys[0] = entry.Key
-						if err := visit(exclusionEntry{row: row, keys: keys[:]}, nil, true); err != nil {
+						if err := visit(index.ExclusionEntry{Row: row, Keys: keys[:]}, nil, true); err != nil {
 							return uniqueConflict{}, false, err
 						}
 					}
 				}
 			} else {
 				for _, entry := range scan.root.Entries {
-					row, err := conflictEntryVersion(scan.versions, entry)
+					row, err := index.ConflictEntryVersion(scan.versions, entry)
 					if err != nil {
 						return uniqueConflict{}, false, err
 					}
-					if err := visit(exclusionEntry{row: row, keys: entry.Keys}, nil, true); err != nil {
+					if err := visit(index.ExclusionEntry{Row: row, Keys: entry.Keys}, nil, true); err != nil {
 						return uniqueConflict{}, false, err
 					}
 				}
 			}
 		}
 		for ticket, p := range scan.pending {
-			for _, entry := range p.entries[index.Address()] {
+			for _, entry := range p.Entries[idx.Address()] {
 				if err := visit(entry, ticket, false); err != nil {
 					return uniqueConflict{}, false, err
 				}
 			}
 		}
-		if !s.exclusionScanCurrent(scan, index.Address()) {
+		if !s.exclusionScanCurrent(scan, idx.Address()) {
 			continue
 		}
-		c := exclusionDefinition(binding.parent, index)
+		c := index.ExclusionDefinition(binding.Parent, idx)
 		if c == nil {
 			return uniqueConflict{}, false, ids.ErrCatalogReplaced
 		}
@@ -452,33 +359,33 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 		return hit, potential, nil
 	}
 }
-func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []storage.RowVersion, action *insertConflictState, purpose indexProbePurpose) (uniqueConflict, error) {
-	index := bound.index
-	if action != nil && !slices.Contains(action.selected, index.Address()) {
+func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, action *insertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
+	idx := bound.Index
+	if action != nil && !slices.Contains(action.selected, idx.Address()) {
 		return uniqueConflict{}, nil
 	}
 	candidate, err := s.publishExclusionCandidate(ref, binding, bound, proposal, excluded, action != nil, purpose)
 	if err != nil {
 		return uniqueConflict{}, err
 	}
-	c := exclusionDefinition(binding.parent, index)
+	c := index.ExclusionDefinition(binding.Parent, idx)
 	if c == nil {
 		return uniqueConflict{}, ids.ErrCatalogReplaced
 	}
 	if action != nil && c.Deferrable {
-		schema := binding.catalog.Get(binding.parent.Namespace()).Name()
-		return uniqueConflict{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters", Schema: schema, Table: binding.parent.Name(), Constraint: index.Name()}
+		schema := binding.Catalog.Get(binding.Parent.Namespace()).Name()
+		return uniqueConflict{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters", Schema: schema, Table: binding.Parent.Name(), Constraint: idx.Name()}
 	}
 	if !c.Deferrable {
 		// Existing exact-key grants serialize nondeferrable equal admissions.
 		p := s.engine()
 		p.mu.Lock()
-		projection := p.exclusions.ownLocked(s.ticket)
+		projection := p.exclusions.OwnLocked(s.ticket)
 		var keys []sqltype.Value
 		if projection != nil {
-			for _, entry := range projection.entries[index.Address()] {
-				if entry.row.Version == candidate.Version {
-					keys = entry.keys
+			for _, entry := range projection.Entries[idx.Address()] {
+				if entry.Row.Version == candidate.Version {
+					keys = entry.Keys
 					break
 				}
 			}
@@ -488,21 +395,21 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 			return uniqueConflict{}, nil
 		}
 		indexRef := ref
-		indexRef.Address = index.Address()
-		if index.SQLIndex.ExactEqualityClaims() {
+		indexRef.Address = idx.Address()
+		if idx.SQLIndex.ExactEqualityClaims() {
 			if err := s.acquireUnique(indexRef, bound, keys); err != nil {
 				return uniqueConflict{}, err
 			}
 		}
 		p.mu.Lock()
-		projected := p.exclusions.projectionLocked(s.ticket)
-		entries := slices.Clone(projected.entries[index.Address()])
+		projected := p.exclusions.ProjectionLocked(s.ticket)
+		entries := slices.Clone(projected.Entries[idx.Address()])
 		for at := range entries {
-			if entries[at].row.Version == candidate.Version {
-				entries[at].admitted = true
+			if entries[at].Row.Version == candidate.Version {
+				entries[at].Admitted = true
 			}
 		}
-		projected.entries[index.Address()] = entries
+		projected.Entries[idx.Address()] = entries
 		s.installExclusionProjectionLocked(p, projected)
 		p.mu.Unlock()
 	}
@@ -514,9 +421,9 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		return conflict, nil
 	}
 	if c.Deferrable && potential {
-		event := exclusionEvent{parent: ref, index: ref.Domain().Ref(ref.Epoch, index.Address()), constraint: c.OID, row: candidate.Row, version: candidate.Version}
-		if !slices.Contains(s.indexesOrZero().exclusionModes.events, event) {
-			s.indexes().exclusionModes.events = append(slices.Clone(s.indexesOrZero().exclusionModes.events), event)
+		event := index.ExclusionEvent{Parent: ref, Index: ref.Domain().Ref(ref.Epoch, idx.Address()), Constraint: c.OID, Row: candidate.Row, Version: candidate.Version}
+		if !slices.Contains(s.indexesOrZero().ExclusionModes.Events, event) {
+			s.indexes().ExclusionModes.Events = append(slices.Clone(s.indexesOrZero().ExclusionModes.Events), event)
 			if s.foreignActionsOrZero().settling {
 				s.foreignActions().exclusionAdded = true
 			}

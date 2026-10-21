@@ -41,7 +41,7 @@ func (s *StatementScope) readmitPreparedPrograms(view AuthorizationView) error {
 		return err
 	}
 	for _, binding := range s.indexBindings {
-		if err := binding.readmitPrograms(auth); err != nil {
+		if err := binding.ReadmitPrograms(auth); err != nil {
 			return err
 		}
 	}

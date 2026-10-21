@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -105,15 +106,15 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(n INT)")
 	run(t, e, "CREATE INDEX hn ON t USING hash(n)")
-	index, root := hashRoot(t, e, "hn")
+	idx, root := hashRoot(t, e, "hn")
 	if len(root.Buckets) != 0 {
 		t.Fatal(root)
 	}
-	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	bad := *index.SQLIndex
+	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
+	bad := *idx.SQLIndex
 	bad.Keys = append([]catalog.IndexKey(nil), bad.Keys...)
 	bad.Keys[0].Class, _ = sqltype.LookupHashIndexClass("int8_ops")
-	if _, err := buildHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
+	if _, err := index.BuildHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
 		t.Fatal("empty build did not eagerly reject provider")
 	}
 	run(t, e, "INSERT INTO t VALUES(NULL),(NULL)")
@@ -121,14 +122,14 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	if len(nulls.Buckets) != 0 {
 		t.Fatal("NULL indexed", nulls)
 	}
-	if _, err := buildHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
+	if _, err := index.BuildHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
 		t.Fatal("all-NULL build skipped provider admission")
 	}
 	run(t, e, "INSERT INTO t VALUES(2),(2),(3)")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	during := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 5}
-	if candidate, err := buildHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: during}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, e.storage.Relations[parent.Address()], true, nil); candidate != nil || !errors.Is(err, context.Canceled) {
+	if candidate, err := index.BuildHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: during}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, idx.SQLIndex, e.storage.Relations[parent.Address()], true, nil); candidate != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(candidate, err)
 	}
 	_, retained := hashRoot(t, e, "hn")
@@ -180,17 +181,17 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 	}{
 		{"hn", 2, 10020, 0, "CREATE INDEX hn ON public.t USING hash (n)"}, {"hs", 0, 10037, 100, "CREATE INDEX hs ON public.t USING hash (lower(s))"},
 	} {
-		index, _ := hashRoot(t, source, tc.name)
+		idx, _ := hashRoot(t, source, tc.name)
 		got, names := indexMaintenanceMetadata(t, source, source.CatalogRead(), tc.name)
-		want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 1)
+		want := indexMaintenanceMetadataFlags(idx.Address().ObjectID, idx.SQLIndex.Parent.ObjectID, 1)
 		want.IndKey = []int16{tc.attribute}
 		want.IndClass = []ids.OID{tc.class}
 		want.IndCollation = []ids.OID{tc.collation}
 		want.IndOption = []int16{0}
 		if tc.attribute == 0 {
-			want.IndexExpressions = []expr.Expr{index.SQLIndex.Keys[0].Derived.Definition}
+			want.IndexExpressions = []expr.Expr{idx.SQLIndex.Keys[0].Derived.Definition}
 		}
-		if !reflect.DeepEqual(got, want) || names != (indexesMetadata{SchemaName: "public", TableName: "t", IndexName: tc.name, IndexDef: tc.definition}) {
+		if !reflect.DeepEqual(got, want) || names != (index.IndexesMetadata{SchemaName: "public", TableName: "t", IndexName: tc.name, IndexDef: tc.definition}) {
 			t.Fatal(got, names, want)
 		}
 	}
@@ -244,8 +245,8 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(1),(2)", "CREATE INDEX hn ON t USING hash(n)"} {
 		run(t, e, q)
 	}
-	index, old := hashRoot(t, e, "hn")
-	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
+	idx, old := hashRoot(t, e, "hn")
+	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
 	store := e.storage.Relations[parent.Address()]
 	value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "3", -1)
 	if err != nil {
@@ -259,26 +260,26 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 	}
 	for _, rebuild := range []bool{false, true} {
 		for _, materialize := range []bool{false, true} {
-			p := rowPublication{address: parent.Address(), store: store, original: store, originalRelation: parent, relation: parent, root: store.Versions, writes: writes, ends: store.Ends, generation: store.Generation, singleSlot: -1}
+			p := index.RowPublication{Address: parent.Address(), Store: store, Original: store, OriginalRelation: parent, Relation: parent, Root: store.Versions, Writes: writes, Ends: store.Ends, Generation: store.Generation, SingleSlot: -1}
 			if err := e.prepareRowPublication(&p, ids.TxRef{}, materialize); err != nil {
 				t.Fatal(err)
 			}
 			var intents map[ids.ObjectAddress]*catalog.Relation
 			if rebuild {
-				intents = map[ids.ObjectAddress]*catalog.Relation{index.Address(): index}
+				intents = map[ids.ObjectAddress]*catalog.Relation{idx.Address(): idx}
 			}
-			roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+			roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, nil, intents, []index.RowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {
 				t.Fatal(rebuild, materialize, err)
 			}
 			if materialize {
-				if roots[index.Address()] == e.storage.IndexRoots[index.Address()] || roots[index.Address()].Hash == nil || !reflect.DeepEqual(hashKeys(t, roots[index.Address()].Hash), []string{"3", "3"}) {
+				if roots[idx.Address()] == e.storage.IndexRoots[idx.Address()] || roots[idx.Address()].Hash == nil || !reflect.DeepEqual(hashKeys(t, roots[idx.Address()].Hash), []string{"3", "3"}) {
 					t.Fatal("materializing phase lost hash updates", rebuild, roots)
 				}
-			} else if roots != nil || p.next != nil || p.nextEnds != nil || p.slots != nil || p.singleSlot != -1 {
+			} else if roots != nil || p.Next != nil || p.NextEnds != nil || p.Slots != nil || p.SingleSlot != -1 {
 				t.Fatal("validation phase constructed installation state", rebuild, roots, p)
 			}
-			if e.storage.IndexRoots[index.Address()].Hash != old || store.Generation != old.Generation || store.Ends != old.Ends || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2"}) || store.Versions[0].Values[0] == value || store.Versions[1].Values[0] == value {
+			if e.storage.IndexRoots[idx.Address()].Hash != old || store.Generation != old.Generation || store.Ends != old.Ends || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2"}) || store.Versions[0].Values[0] == value || store.Versions[1].Values[0] == value {
 				t.Fatal("preparation changed committed rows/root", rebuild, materialize)
 			}
 		}

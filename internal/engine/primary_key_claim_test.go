@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -21,9 +22,9 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 		}
 	})
 	for _, name := range []string{"ordinary_unique", "standalone_unique"} {
-		index := primaryKeyUnitRelation(t, e, name)
+		idx := primaryKeyUnitRelation(t, e, name)
 		view := e.CatalogRead()
-		metadata, _, err := projectIndexMetadata(context.Background(), view, e.catalog.Domain.Ref(view.Epoch(), index.Address()))
+		metadata, _, err := index.ProjectIndexMetadata(context.Background(), view, e.catalog.Domain.Ref(view.Epoch(), idx.Address()))
 		if err != nil || !metadata.IndIsUnique || metadata.IndIsPrimary || !metadata.IndImmediate {
 			t.Fatal("ordinary unique provider became primary", name, metadata, err)
 		}
@@ -46,8 +47,8 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	})
 	parent := primaryKeyUnitRelation(t, e, "typed")
 	constraint := parent.Constraints.Unique[0]
-	index := e.catalog.state.MustRelation(constraint.Index)
-	if !constraint.Primary || !index.SQLIndex.Constraint.Primary {
+	idx := e.catalog.state.MustRelation(constraint.Index)
+	if !constraint.Primary || !idx.SQLIndex.Constraint.Primary {
 		t.Fatal("claim fixture lacks real primary attachment")
 	}
 	ast := primaryKeyUnitInsert(1)
@@ -61,7 +62,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	if err := scope.gate(ast); err != nil {
 		t.Fatal(err)
 	}
-	ordering, err := bindIndexOrdering(parent, index.SQLIndex)
+	ordering, err := index.BindIndexOrdering(parent, idx.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), index.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), idx.Address())
 	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
 	if err != nil {
 		t.Fatal(err)

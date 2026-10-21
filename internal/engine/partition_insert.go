@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -31,8 +32,8 @@ type partitionInsertState struct {
 }
 type partitionInsertGroup struct {
 	ref    ids.ObjectRef
-	rows   indexWriteBatch
-	unique *uniqueWriteBinding
+	rows   index.WriteBatch
+	unique *index.UniqueWriteBinding
 }
 
 func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth AuthorizationView, target *catalog.Relation) error {
@@ -297,22 +298,22 @@ func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partitionIn
 	return group
 }
 
-func (s *StatementScope) checkInsertUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch) error {
+func (s *StatementScope) checkInsertUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch) error {
 	if s.partitionInsert == nil {
 		return s.checkUniqueRow(ref, candidate, nil, prefix)
 	}
 	group := s.partitionInsertionGroup(ref)
 	s.uniqueBinding = group.unique
-	candidate.values = s.partitionStoredRow(candidate.values)
+	candidate.Values = s.partitionStoredRow(candidate.Values)
 	if err := s.checkUniqueRow(group.ref, candidate, nil, group.rows); err != nil {
 		return err
 	}
 	group.unique = s.uniqueBinding
-	group.rows.append(*candidate)
+	group.rows.Append(*candidate)
 	return nil
 }
 
-func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows indexWriteBatch) (int, error) {
+func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
 	if s.partitionInsert == nil {
 		return s.Writes().applyInsertBatch(ref, rows)
 	}
@@ -322,7 +323,7 @@ func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows indexWrite
 		if err := s.Writes().applyValidated(group.ref, group.rows); err != nil {
 			return 0, err
 		}
-		count += len(group.rows.values)
+		count += len(group.rows.Values)
 	}
 	return count, nil
 }

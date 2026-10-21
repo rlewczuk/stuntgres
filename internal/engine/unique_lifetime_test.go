@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
@@ -238,7 +239,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	again, err := scope.bindUniqueWrite(parentRef)
-	if err != nil || first != again || first.keys[0].ordering.slots[0] != 1 {
+	if err != nil || first != again || first.Keys[0].Ordering.Slots[0] != 1 {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal("immutable binding not reused", err)
@@ -256,7 +257,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	changes := a.Transactions.Catalog
 	var rebuilt ids.ObjectAddress
 	var root *storage.IndexRoot
-	for address, candidate := range journalIndexesOrZero(changes).uniqueRoots {
+	for address, candidate := range index.JournalIndexesOrZero(changes).UniqueRoots {
 		rebuilt, root = address, candidate
 	}
 	if root == nil || len(root.Entries) != 1 || root == originalRoot {
@@ -264,14 +265,14 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	}
 	sessionSQL(t, a, "SAVEPOINT after_type")
 	sessionSQL(t, a, "ALTER TABLE t ALTER k TYPE TEXT USING k::text")
-	if journalIndexesOrZero(a.Transactions.Catalog).uniqueRoots[rebuilt] != nil {
+	if index.JournalIndexesOrZero(a.Transactions.Catalog).UniqueRoots[rebuilt] != nil {
 		t.Fatal("removed backing retained private baseline")
 	}
 	if len(root.Entries) != 1 || btreeKeys(t, root)[0] != "1" {
 		t.Fatal("retained private root mutated")
 	}
 	sessionSQL(t, a, "ROLLBACK TO after_type")
-	if journalIndexesOrZero(a.Transactions.Catalog).uniqueRoots[rebuilt] != root {
+	if index.JournalIndexesOrZero(a.Transactions.Catalog).UniqueRoots[rebuilt] != root {
 		t.Fatal("savepoint did not share/restore immutable baseline")
 	}
 	op, err = a.Acquire(context.Background())
@@ -289,7 +290,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	next, err := scope.bindUniqueWrite(parentRef)
-	if err != nil || next == first || next.keys[0].ordering.slots[0] != 0 {
+	if err != nil || next == first || next.Keys[0].Ordering.Slots[0] != 0 {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal("descriptor-changing operation reused stale slots", err)
@@ -300,7 +301,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	}
 	op.Done()
 	sessionSQL(t, a, "INSERT INTO t VALUES(3)")
-	if journalIndexesOrZero(a.Transactions.Catalog).uniqueRoots[rebuilt] != root || len(root.Entries) != 1 {
+	if index.JournalIndexesOrZero(a.Transactions.Catalog).UniqueRoots[rebuilt] != root || len(root.Entries) != 1 {
 		t.Fatal("DML rebuilt/modified baseline instead of overlaying effects")
 	}
 	transactionEnd(t, a, ar, false)

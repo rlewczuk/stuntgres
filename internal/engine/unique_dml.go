@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -29,48 +30,48 @@ func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*catalog.Relation, cat
 	return parent, view, nil
 }
 
-func (s *StatementScope) bindUniqueWrite(ref ids.ObjectRef) (*uniqueWriteBinding, error) {
+func (s *StatementScope) bindUniqueWrite(ref ids.ObjectRef) (*index.UniqueWriteBinding, error) {
 retry:
 	parent, view, err := s.uniqueParent(ref)
 	if err != nil {
 		return nil, err
 	}
-	if b := s.uniqueBinding; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.State() {
+	if b := s.uniqueBinding; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
 		return b, nil
 	}
-	if b := s.indexBindings[ref.Address]; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.State() {
+	if b := s.indexBindings[ref.Address]; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
 		s.uniqueBinding = b
 		return b, nil
 	}
-	if overlay := s.writeOverlay(); overlay != nil && s.uniqueBinding != nil && s.uniqueBinding.ref == ref {
+	if overlay := s.writeOverlay(); overlay != nil && s.uniqueBinding != nil && s.uniqueBinding.Ref == ref {
 		overlay.overlays = nil
 	}
-	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.State()}
+	b := &index.UniqueWriteBinding{Ref: ref, Parent: parent, Catalog: view.State()}
 	var indexes []*catalog.Relation
 	var checkedNonunique []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Live {
+		idx, ok := descriptor.(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Parent != parent.Address() || !idx.SQLIndex.Live {
 			continue
 		}
-		if index.SQLIndex.Ready && index.SQLIndex.RequiresInsertionOutput() {
-			b.checked = true
-			if !index.SQLIndex.Unique && !index.SQLIndex.IsExclusion() {
-				checkedNonunique = append(checkedNonunique, index)
+		if idx.SQLIndex.Ready && idx.SQLIndex.RequiresInsertionOutput() {
+			b.Checked = true
+			if !idx.SQLIndex.Unique && !idx.SQLIndex.IsExclusion() {
+				checkedNonunique = append(checkedNonunique, idx)
 			}
 		}
-		if !index.SQLIndex.Unique && !index.SQLIndex.IsExclusion() {
+		if !idx.SQLIndex.Unique && !idx.SQLIndex.IsExclusion() {
 			continue
 		}
 		// REL18 row-key eligibility is independent of readiness/validity.
 		// An expression anywhere excludes the whole index; INCLUDE is payload.
 		var slots [32]int
-		if len(index.SQLIndex.Keys) > len(slots) {
+		if len(idx.SQLIndex.Keys) > len(slots) {
 			return nil, errors.New("stuntgres: invalid unique index key count")
 		}
 		simple := true
-		for at, key := range index.SQLIndex.Keys {
-			attribute, node, err := indexCatalogKey(parent, key)
+		for at, key := range idx.SQLIndex.Keys {
+			attribute, node, err := index.CatalogKey(parent, key)
 			if err != nil {
 				return nil, err
 			}
@@ -80,15 +81,15 @@ retry:
 			}
 			slots[at] = slices.Index(parent.Attributes, attribute)
 		}
-		if index.SQLIndex.Unique && simple && index.SQLIndex.Predicate == nil {
-			for _, slot := range slots[:len(index.SQLIndex.Keys)] {
-				if !slices.Contains(b.keySlots, slot) {
-					b.keySlots = append(b.keySlots, slot)
+		if idx.SQLIndex.Unique && simple && idx.SQLIndex.Predicate == nil {
+			for _, slot := range slots[:len(idx.SQLIndex.Keys)] {
+				if !slices.Contains(b.KeySlots, slot) {
+					b.KeySlots = append(b.KeySlots, slot)
 				}
 			}
 		}
-		if index.SQLIndex.Ready {
-			indexes = append(indexes, index)
+		if idx.SQLIndex.Ready {
+			indexes = append(indexes, idx)
 		}
 	}
 	slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
@@ -100,30 +101,30 @@ retry:
 		}
 		return 0
 	})
-	b.keys = make([]uniqueBoundKey, len(indexes))
-	for i, index := range indexes {
-		bound := &b.keys[i]
-		bound.index = index
-		bound.parent = parent
-		if index.SQLIndex.IsExclusion() {
-			bound.ordering, err = bindExclusionOrdering(parent, index.SQLIndex)
+	b.Keys = make([]index.UniqueBoundKey, len(indexes))
+	for i, idx := range indexes {
+		bound := &b.Keys[i]
+		bound.Index = idx
+		bound.Parent = parent
+		if idx.SQLIndex.IsExclusion() {
+			bound.Ordering, err = index.BindExclusionOrdering(parent, idx.SQLIndex)
 		} else {
-			bound.ordering, err = bindIndexOrdering(parent, index.SQLIndex)
+			bound.Ordering, err = index.BindIndexOrdering(parent, idx.SQLIndex)
 		}
 		if err != nil {
 			return nil, err
 		}
-		n := len(index.SQLIndex.Keys)
-		if index.SQLIndex.Method != catalog.GistMethod {
-			bound.grouping = make([]sqltype.Grouping, n)
+		n := len(idx.SQLIndex.Keys)
+		if idx.SQLIndex.Method != catalog.GistMethod {
+			bound.Grouping = make([]sqltype.Grouping, n)
 		}
-		bound.key, bound.scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
-		for j, key := range index.SQLIndex.Keys {
-			usage, usageErr := indexKeyUsage(parent, key)
+		bound.Key, bound.Scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
+		for j, key := range idx.SQLIndex.Keys {
+			usage, usageErr := index.KeyUsage(parent, key)
 			if usageErr != nil {
 				return nil, usageErr
 			}
-			if index.SQLIndex.Method == catalog.GistMethod {
+			if idx.SQLIndex.Method == catalog.GistMethod {
 				continue
 			}
 			// network_ops owns typed comparison but not generic grouping. Its
@@ -131,44 +132,44 @@ retry:
 			if key.Class.Family == "network_ops" {
 				continue
 			}
-			bound.grouping[j], err = sqltype.BindGrouping(usage)
+			bound.Grouping[j], err = sqltype.BindGrouping(usage)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 	if len(checkedNonunique) != 0 {
-		b.insertion = make([]indexInsertionBinding, 0, len(b.keys)+len(checkedNonunique))
-		for i := range b.keys {
-			key := &b.keys[i]
-			b.insertion = append(b.insertion, indexInsertionBinding{index: key.index, unique: key})
+		b.Insertion = make([]index.InsertionBinding, 0, len(b.Keys)+len(checkedNonunique))
+		for i := range b.Keys {
+			key := &b.Keys[i]
+			b.Insertion = append(b.Insertion, index.InsertionBinding{Index: key.Index, Unique: key})
 		}
-		for _, index := range checkedNonunique {
-			bound := indexInsertionBinding{index: index, parent: parent}
-			if index.SQLIndex.Method == catalog.HashMethod {
-				bound.hash, err = bindHashIndex(parent, index.SQLIndex)
+		for _, idx := range checkedNonunique {
+			bound := index.InsertionBinding{Index: idx, Parent: parent}
+			if idx.SQLIndex.Method == catalog.HashMethod {
+				bound.Hash, err = index.BindHashIndex(parent, idx.SQLIndex)
 			} else {
-				bound.ordering, err = bindIndexKeys(parent, index.SQLIndex)
+				bound.Ordering, err = index.BindIndexKeys(parent, idx.SQLIndex)
 			}
 			if err != nil {
 				return nil, err
 			}
-			b.insertion = append(b.insertion, bound)
+			b.Insertion = append(b.Insertion, bound)
 		}
-		slices.SortFunc(b.insertion, func(a, b indexInsertionBinding) int {
-			if a.index.Address().ObjectID < b.index.Address().ObjectID {
+		slices.SortFunc(b.Insertion, func(a, b index.InsertionBinding) int {
+			if a.Index.Address().ObjectID < b.Index.Address().ObjectID {
 				return -1
 			}
-			if a.index.Address().ObjectID > b.index.Address().ObjectID {
+			if a.Index.Address().ObjectID > b.Index.Address().ObjectID {
 				return 1
 			}
 			return 0
 		})
 	}
-	if err := b.inheritConsumedPrograms(s.indexBindings[ref.Address]); err != nil {
+	if err := b.InheritConsumedPrograms(s.indexBindings[ref.Address]); err != nil {
 		return nil, err
 	}
-	if b.checked {
+	if b.Checked {
 		e := s.engine()
 		e.mu.Lock()
 		if e.privateCatalogLocked(s.owner.Catalog).State() != view.State() {
@@ -179,7 +180,7 @@ retry:
 		if captureErr == nil {
 			auth.Catalog = view
 			auth.Recapture(view)
-			b.typeName, captureErr = e.captureTypeDiagnosticName(auth)
+			b.TypeName, captureErr = e.captureTypeDiagnosticName(auth)
 		}
 		e.mu.Unlock()
 		if captureErr != nil {
@@ -190,9 +191,9 @@ retry:
 		}
 	}
 	s.uniqueBinding = b
-	if b.checked {
+	if b.Checked {
 		if s.indexBindings == nil {
-			s.indexBindings = make(map[ids.ObjectAddress]*uniqueWriteBinding)
+			s.indexBindings = make(map[ids.ObjectAddress]*index.UniqueWriteBinding)
 		}
 		s.indexBindings[ref.Address] = b
 	}
@@ -205,23 +206,23 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersio
 		return err
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.Catalog = s.engine().catalog.read(binding.catalog)
-	if binding.typeName != nil {
-		evaluation.Input.TypeDiagnosticName = binding.typeName
+	evaluation.Catalog = s.engine().catalog.read(binding.Catalog)
+	if binding.TypeName != nil {
+		evaluation.Input.TypeDiagnosticName = binding.TypeName
 	}
-	purpose := indexProbeRuntime
-	if binding.checked {
-		purpose = indexProbeTracked
+	purpose := index.ProbeRuntime
+	if binding.Checked {
+		purpose = index.ProbeTracked
 	}
-	for i := range binding.keys {
-		bound := &binding.keys[i]
-		index := bound.index
-		if index.SQLIndex.IsExclusion() {
-			c := exclusionDefinition(binding.parent, index)
+	for i := range binding.Keys {
+		bound := &binding.Keys[i]
+		idx := bound.Index
+		if idx.SQLIndex.IsExclusion() {
+			c := index.ExclusionDefinition(binding.Parent, idx)
 			if c == nil {
 				return ids.ErrCatalogReplaced
 			}
-			if c.Deferrable || !index.SQLIndex.ExactEqualityClaims() {
+			if c.Deferrable || !idx.SQLIndex.ExactEqualityClaims() {
 				continue
 			}
 		}
@@ -232,11 +233,11 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersio
 		if !member {
 			continue
 		}
-		if !index.SQLIndex.NullsNotDistinct && uniqueHasNull(key) {
+		if !idx.SQLIndex.NullsNotDistinct && index.UniqueHasNull(key) {
 			continue
 		}
 		indexRef := ref
-		indexRef.Address = index.Address()
+		indexRef.Address = idx.Address()
 		if err := s.acquireUnique(indexRef, bound, key); err != nil {
 			return err
 		}
@@ -259,17 +260,17 @@ type uniqueConflict struct {
 }
 
 func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error {
-	allowed, err := uniqueKeyDetailAllowed(c.auth.View, c.auth, ref, c.index.SQLIndex.Keys)
+	allowed, err := index.UniqueKeyDetailAllowed(c.auth.View, c.auth, ref, c.index.SQLIndex.Keys)
 	if err != nil {
 		return err
 	}
 	if c.index.SQLIndex.IsExclusion() {
-		return exclusionDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.existing, c.schema, s.output, allowed, false, c.view)
+		return index.ExclusionDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.existing, c.schema, s.output, allowed, false, c.view)
 	}
-	return uniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
+	return index.UniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
 }
-func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []storage.RowVersion, prefix indexWriteBatch) error {
-	conflict, err := s.probeUniqueRow(ref, candidate, excluded, prefix, nil, indexProbeRuntime)
+func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch) error {
+	conflict, err := s.probeUniqueRow(ref, candidate, excluded, prefix, nil, index.ProbeRuntime)
 	if err != nil {
 		return err
 	}
@@ -278,77 +279,77 @@ func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *indexWrite
 	}
 	return nil
 }
-func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []storage.RowVersion, prefix indexWriteBatch, action *insertConflictState, purpose indexProbePurpose) (uniqueConflict, error) {
-	row := candidate.values
+func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *insertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
+	row := candidate.Values
 retry:
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return uniqueConflict{}, err
 	}
-	if purpose == indexProbeRuntime && binding.checked {
-		purpose = indexProbeTracked
+	if purpose == index.ProbeRuntime && binding.Checked {
+		purpose = index.ProbeTracked
 	}
-	parent := binding.parent
+	parent := binding.Parent
 	if len(row) != len(parent.Columns) {
 		return uniqueConflict{}, errors.New("stuntgres: invalid staged row width")
 	}
 	e := s.engine()
 	ctx := s.op.Context()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.Catalog = e.catalog.read(binding.catalog)
-	if binding.typeName != nil {
-		evaluation.Input.TypeDiagnosticName = binding.typeName
+	evaluation.Catalog = e.catalog.read(binding.Catalog)
+	if binding.TypeName != nil {
+		evaluation.Input.TypeDiagnosticName = binding.TypeName
 	}
-	if action != nil && action.catalog != binding.catalog {
-		view := e.catalog.read(binding.catalog)
+	if action != nil && action.catalog != binding.Catalog {
+		view := e.catalog.read(binding.Catalog)
 		if err := action.selectArbiters(&evaluation, parent, view); err != nil {
 			return uniqueConflict{}, err
 		}
 	}
-	length := len(binding.keys)
-	if action == nil && binding.insertion != nil {
-		length = len(binding.insertion)
+	length := len(binding.Keys)
+	if action == nil && binding.Insertion != nil {
+		length = len(binding.Insertion)
 	}
 	for i := 0; i < length; i++ {
-		var bound *uniqueBoundKey
-		if action == nil && binding.insertion != nil {
-			insertion := &binding.insertion[i]
-			if insertion.unique == nil {
-				if purpose == indexProbeRevalidation {
-					if output, exists := candidate.indexes[insertion.index.Address()]; !exists || !indexOutputMatches(output, insertion.index) {
+		var bound *index.UniqueBoundKey
+		if action == nil && binding.Insertion != nil {
+			insertion := &binding.Insertion[i]
+			if insertion.Unique == nil {
+				if purpose == index.ProbeRevalidation {
+					if output, exists := candidate.Indexes[insertion.Index.Address()]; !exists || !index.OutputMatches(output, insertion.Index) {
 						return uniqueConflict{}, ids.ErrCatalogReplaced
 					}
-				} else if err := candidate.materializeInsertion(insertion, &evaluation); err != nil {
+				} else if err := candidate.MaterializeInsertion(insertion, &evaluation); err != nil {
 					return uniqueConflict{}, err
 				}
 				continue
 			}
-			bound = insertion.unique
+			bound = insertion.Unique
 		} else {
-			bound = &binding.keys[i]
+			bound = &binding.Keys[i]
 		}
-		index := bound.index
-		if index.SQLIndex.IsExclusion() {
+		idx := bound.Index
+		if idx.SQLIndex.IsExclusion() {
 			if conflict, err := s.probeExclusionRow(ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.index != nil {
 				return conflict, err
 			}
 			continue
 		}
-		if action != nil && !slices.Contains(action.selected, index.Address()) {
+		if action != nil && !slices.Contains(action.selected, idx.Address()) {
 			continue
 		}
-		member, key, err := candidate.uniqueOutput(bound, &evaluation, action != nil, purpose)
+		member, key, err := candidate.UniqueOutput(bound, &evaluation, action != nil, purpose)
 		if err != nil {
 			return uniqueConflict{}, err
 		}
 		if !member {
 			continue
 		}
-		if !index.SQLIndex.NullsNotDistinct && uniqueHasNull(key) {
+		if !idx.SQLIndex.NullsNotDistinct && index.UniqueHasNull(key) {
 			continue
 		}
 		indexRef := ref
-		indexRef.Address = index.Address()
+		indexRef.Address = idx.Address()
 		if err := s.acquireUnique(indexRef, bound, key); err != nil {
 			return uniqueConflict{}, err
 		}
@@ -358,30 +359,30 @@ retry:
 			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
 		current := e.privateCatalogLocked(s.owner.Catalog)
-		if current.State() != binding.catalog {
+		if current.State() != binding.Catalog {
 			e.mu.Unlock()
 			s.uniqueBinding = nil
 			goto retry
 		}
 		currentParent, parentOK := current.Relation(ref.Address)
-		currentIndex, indexOK := current.Relation(index.Address())
-		if !parentOK || !indexOK || currentParent.Revision() != parent.Revision() || !sameRelationRowShape(parent, currentParent) || currentIndex.Revision() != index.Revision() || !sameIndexKeySemantics(index, currentIndex) {
+		currentIndex, indexOK := current.Relation(idx.Address())
+		if !parentOK || !indexOK || currentParent.Revision() != parent.Revision() || !index.SameRelationRowShape(parent, currentParent) || currentIndex.Revision() != idx.Revision() || !index.SameIndexKeySemantics(idx, currentIndex) {
 			e.mu.Unlock()
 			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
-		parent, index = currentParent, currentIndex
+		parent, idx = currentParent, currentIndex
 		auth, err := s.writeAuthorizationLocked(e)
 		auth.Catalog = current
 		auth.Recapture(auth.Catalog)
 		namespace, _ := current.Namespace(parent.Namespace())
-		root := e.storage.IndexRoots[index.Address()]
+		root := e.storage.IndexRoots[idx.Address()]
 		if changes := s.owner.Catalog; changes != nil {
-			if private := journalIndexesOrZero(changes).uniqueRoots[index.Address()]; private != nil {
+			if private := index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()]; private != nil {
 				root = private
 			}
 		}
 		var versions []storage.RowVersion
-		if action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
+		if action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || idx.SQLIndex.HasRuntimeDomainKeyConversion()) {
 			if stored := e.privateStorageLocked(s.owner.Catalog, ref.Address); stored != nil {
 				versions = stored.Versions
 			}
@@ -401,11 +402,11 @@ retry:
 		if root == nil {
 			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
-		outcome := uniqueConflict{parent: parent, index: index, key: key, auth: auth, view: current, schema: namespace.Name()}
+		outcome := uniqueConflict{parent: parent, index: idx, key: key, auth: auth, view: current, schema: namespace.Name()}
 		lo, hi := 0, len(root.Entries)
 		for lo < hi {
 			mid := lo + (hi-lo)/2
-			cmp, err := bound.ordering.compareKeys(ctx, root.Entries[mid], storage.IndexEntry{Keys: key})
+			cmp, err := bound.Ordering.CompareKeys(ctx, root.Entries[mid], storage.IndexEntry{Keys: key})
 			if err != nil {
 				return uniqueConflict{}, err
 			}
@@ -417,14 +418,14 @@ retry:
 		}
 		for at := lo; at < len(root.Entries); at++ {
 			entry := root.Entries[at]
-			cmp, err := bound.ordering.compareKeys(ctx, entry, storage.IndexEntry{Keys: key})
+			cmp, err := bound.Ordering.CompareKeys(ctx, entry, storage.IndexEntry{Keys: key})
 			if err != nil {
 				return uniqueConflict{}, err
 			}
 			if cmp != 0 {
 				break
 			}
-			if uniqueRowExcluded(entry.Row, excluded) || uniqueRowDeleted(entry.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+			if index.UniqueRowExcluded(entry.Row, excluded) || index.UniqueRowDeleted(entry.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 				continue
 			}
 			replaced := false
@@ -450,13 +451,13 @@ retry:
 				}
 			}
 			if !replaced {
-				if action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
-					head, err := conflictEntryVersion(versions, entry)
+				if action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || idx.SQLIndex.HasRuntimeDomainKeyConversion()) {
+					head, err := index.ConflictEntryVersion(versions, entry)
 					if err != nil {
 						return uniqueConflict{}, err
 					}
-					if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
-						if err := bound.fillKeys(head.Values, bound.scratch, &evaluation); err != nil {
+					if purpose != index.ProbeRevalidation && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
+						if err := bound.FillKeys(head.Values, bound.Scratch, &evaluation); err != nil {
 							return uniqueConflict{}, err
 						}
 					}
@@ -473,8 +474,8 @@ retry:
 				return uniqueConflict{}, err
 			}
 			if found {
-				if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.HasRuntimeDomainKeyConversion() {
-					if err := bound.fillKeys(own.Values, bound.scratch, &evaluation); err != nil {
+				if purpose != index.ProbeRevalidation && action != nil && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
+					if err := bound.FillKeys(own.Values, bound.Scratch, &evaluation); err != nil {
 						return uniqueConflict{}, err
 					}
 				}
@@ -489,7 +490,7 @@ retry:
 							continue
 						}
 					}
-					if uniqueRowExcluded(own.Row, excluded) || uniqueRowDeleted(own.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+					if index.UniqueRowExcluded(own.Row, excluded) || index.UniqueRowDeleted(own.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 						continue
 					}
 					equal, err := s.matchesExistingUnique(bound, own, &evaluation, key, purpose)
@@ -497,8 +498,8 @@ retry:
 						return uniqueConflict{}, err
 					}
 					if equal {
-						if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.HasRuntimeDomainKeyConversion() {
-							if err := bound.fillKeys(own.Values, bound.scratch, &evaluation); err != nil {
+						if purpose != index.ProbeRevalidation && action != nil && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
+							if err := bound.FillKeys(own.Values, bound.Scratch, &evaluation); err != nil {
 								return uniqueConflict{}, err
 							}
 						}
@@ -509,9 +510,9 @@ retry:
 				}
 			}
 		}
-		for i := range prefix.values {
-			accepted := prefix.candidate(i)
-			equal, err := accepted.matchesUnique(bound, &evaluation, key)
+		for i := range prefix.Values {
+			accepted := prefix.Candidate(i)
+			equal, err := accepted.MatchesUnique(bound, &evaluation, key)
 			if err != nil {
 				return uniqueConflict{}, err
 			}
@@ -528,7 +529,7 @@ func (s *StatementScope) uniqueKeyChanged(ref ids.ObjectRef, old, next []sqltype
 	if err != nil {
 		return false, err
 	}
-	for _, slot := range binding.keySlots {
+	for _, slot := range binding.KeySlots {
 		if !sqltype.SameDatum(old[slot], next[slot]) {
 			return true, nil
 		}

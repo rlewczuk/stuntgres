@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -30,8 +31,8 @@ func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, own
 		if !physicalSelfForeignKeyDeferred(table, foreign) {
 			continue
 		}
-		index := view.MustRelation(foreign.Index)
-		if partitionReplaySeparateConstraint(view, index) != separate {
+		idx := view.MustRelation(foreign.Index)
+		if index.PartitionReplaySeparateConstraint(view, idx) != separate {
 			continue
 		}
 		primary := catalog.PhysicalPrimaryForAttribute(table, foreign.Referenced[0])
@@ -80,7 +81,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 		return nil, nil
 	}
 	for attribute, proof := range old.Constraints.PhysicalNotNull {
-		if !physicalNotNullOriginValid(auth.Catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
+		if !index.PhysicalNotNullOriginValid(auth.Catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 	}
@@ -90,7 +91,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 			continue
 		}
 		support := catalog.CapturePhysicalPrimarySupport(old, primary)
-		if !physicalPrimarySupportValid(auth.Catalog, old, primary, support) {
+		if !index.PhysicalPrimarySupportValid(auth.Catalog, old, primary, support) {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 		return &restoredPhysicalForeignKeyProvider{op: op, authority: auth, ref: ref, current: old, primary: support}, nil

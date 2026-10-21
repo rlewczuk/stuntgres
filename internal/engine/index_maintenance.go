@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -23,18 +23,18 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	if err != nil {
 		return fail(err)
 	}
-	g := scope.indexesOrZero().maintenance
+	g := scope.indexesOrZero().Maintenance
 	if g == nil {
 		return fail(fmt.Errorf("stuntgres: index utility has no relation admission"))
 	}
-	if err := g.check(auth.View, auth, stmt, true); err != nil {
+	if err := g.Check(auth.View, auth, stmt, true); err != nil {
 		return fail(err)
 	}
 	if err := scope.captureIdentityLocked(auth); err != nil {
 		return fail(err)
 	}
 	_, reindex := stmt.(*parser.Reindex)
-	if len(g.targets) == 0 || reindex && len(g.indexes) == 0 {
+	if len(g.Targets) == 0 || reindex && len(g.Indexes) == 0 {
 		scope.op.Session.Mu.Lock()
 		err := publicationOperationLocked(e, scope.op)
 		scope.op.Session.Mu.Unlock()
@@ -44,9 +44,9 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 		scope.completed = true
 		if reindex {
-			scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].Name())})
+			scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.Descriptors[g.Targets[0].Address].Name())})
 		}
-		for _, notice := range g.notices {
+		for _, notice := range g.Notices {
 			scope.op.EmitNotice(session.LevelNotice, notice)
 		}
 		return Result{}, nil
@@ -56,23 +56,23 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
-	stage.indexes().output = scope.output
-	stage.indexes().parents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.parents))
-	for _, ref := range g.parents {
-		stage.indexes().parents[ref.Address] = g.descriptors[ref.Address]
-		stage.domainBases = append(stage.domainBases, g.descriptors[ref.Address])
+	stage.indexes().Output = scope.output
+	stage.indexes().Parents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.Parents))
+	for _, ref := range g.Parents {
+		stage.indexes().Parents[ref.Address] = g.Descriptors[ref.Address]
+		stage.domainBases = append(stage.domainBases, g.Descriptors[ref.Address])
 	}
-	stage.indexes().sets = g.indexSets
-	for address, observed := range g.descriptors {
+	stage.indexes().Sets = g.IndexSets
+	for address, observed := range g.Descriptors {
 		if observed.SQLIndex != nil {
-			stage.domainBases = append(stage.domainBases, g.descriptors[address])
+			stage.domainBases = append(stage.domainBases, g.Descriptors[address])
 		}
 	}
 	if _, reindex := stmt.(*parser.Reindex); reindex {
-		stage.indexes().rebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(g.indexes))
-		for _, ref := range g.indexes {
-			stage.indexes().rebuilds[ref.Address] = g.descriptors[ref.Address]
-			original := g.descriptors[ref.Address]
+		stage.indexes().Rebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(g.Indexes))
+		for _, ref := range g.Indexes {
+			stage.indexes().Rebuilds[ref.Address] = g.Descriptors[ref.Address]
+			original := g.Descriptors[ref.Address]
 			if !original.SQLIndex.Ready || !original.SQLIndex.Valid || !original.SQLIndex.Live {
 				next, definition := *original, *original.SQLIndex
 				definition.Ready, definition.Valid, definition.Live = true, true, true
@@ -90,8 +90,8 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 	}
 	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "attach" {
-		parent := g.descriptors[g.targets[0].Address]
-		child := g.descriptors[g.attach.Address]
+		parent := g.Descriptors[g.Targets[0].Address]
+		child := g.Descriptors[g.Attach.Address]
 		if err := e.stagePartitionIndexAttach(scope.op, stage, parent, child); err != nil {
 			e.mu.Unlock()
 			e.DiscardCatalogStage(stage)
@@ -101,13 +101,13 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
-		for _, ref := range g.indexes {
-			if err := e.stagePartitionIndexDrop(stage, g.descriptors[ref.Address]); err != nil {
+		for _, ref := range g.Indexes {
+			if err := e.stagePartitionIndexDrop(stage, g.Descriptors[ref.Address]); err != nil {
 				return Result{}, err
 			}
 		}
-		roots := make([]ids.ObjectAddress, len(g.indexes))
-		for i, ref := range g.indexes {
+		roots := make([]ids.ObjectAddress, len(g.Indexes))
+		for i, ref := range g.Indexes {
 			roots[i] = ref.Address
 		}
 		stage.dependencyPath, _ = e.referencePath(auth)
@@ -133,7 +133,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		return Result{}, err
 	}
 	scope.completed = true
-	for _, notice := range g.notices {
+	for _, notice := range g.Notices {
 		scope.op.EmitNotice(session.LevelNotice, notice)
 	}
 	return Result{}, nil
@@ -143,20 +143,20 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 // work is prepared. The publication loop also fences that catalog at install.
 func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 	indexes := s.indexesOrZero()
-	if (len(indexes.parents) > 0 || len(indexes.rebuilds) > 0 || len(indexes.sets) > 0) && current.Epoch() != s.Base.Epoch() {
+	if (len(indexes.Parents) > 0 || len(indexes.Rebuilds) > 0 || len(indexes.Sets) > 0) && current.Epoch() != s.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	for address, observed := range indexes.parents {
+	for address, observed := range indexes.Parents {
 		if current.Get(address) != observed {
 			return catalog.Conflict{}
 		}
 	}
-	for address, observed := range indexes.rebuilds {
+	for address, observed := range indexes.Rebuilds {
 		if observed == nil || observed.SQLIndex == nil || current.Get(address) != observed || s.Base.Get(address) != observed {
 			return catalog.Conflict{}
 		}
 	}
-	for parent, count := range indexes.sets {
+	for parent, count := range indexes.Sets {
 		actual := 0
 		for address, descriptor := range current.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
@@ -166,7 +166,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 			// Replacement observes the existing complete index set; it does
 			// not request REINDEX or replace any index descriptor.
 			replacement := s.materializedOrZero().replacement
-			if indexes.rebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.Base.Get(address) != d) {
+			if indexes.Rebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.Base.Get(address) != d) {
 				return catalog.Conflict{}
 			}
 			actual++
@@ -178,36 +178,18 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 	return nil
 }
 
-// indexScope is the statement's index slot: the index maintenance grant,
-// index outputs retained for probes and the exclusion-constraint projection.
-type indexScope struct {
-	maintenance      *indexMaintenanceGrant
-	existingOutputs  map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
-	exclusionModes   exclusionModes
-	exclusionStarted bool
-}
-
 // indexes returns the statement's indexes slot, allocating it on first use.
-func (s *StatementScope) indexes() *indexScope {
+func (s *StatementScope) indexes() *index.Scope {
 	if s.indexesSlot == nil {
-		s.indexesSlot = new(indexScope)
+		s.indexesSlot = new(index.Scope)
 	}
 	return s.indexesSlot
 }
 
 // indexesOrZero reads the indexes slot; a nil slot reads as zero.
-func (s *StatementScope) indexesOrZero() indexScope {
+func (s *StatementScope) indexesOrZero() index.Scope {
 	if s.indexesSlot == nil {
-		return indexScope{}
+		return index.Scope{}
 	}
 	return *s.indexesSlot
-}
-
-// endStatement drops the index outputs retained for probes and the index
-// maintenance grant. Exclusion modes stay as the statement left them.
-func (x *indexScope) endStatement() {
-	if x == nil {
-		return
-	}
-	x.existingOutputs, x.maintenance = nil, nil
 }

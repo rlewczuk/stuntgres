@@ -63,7 +63,7 @@ func TestExclusionEagerPeerOutcome(t *testing.T) {
 				} else {
 					exclusionInsertAwait(t, done, 1, "")
 				}
-				if len(e.exclusions.pending) != 0 {
+				if e.exclusions.CountLocked() != 0 {
 					t.Fatal("peer outcome retained dirty membership")
 				}
 				uniqueClaimsEmpty(t, e)
@@ -89,10 +89,10 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					ar := transactionBegin(t, a)
 					sessionSQL(t, a, "DELETE FROM t")
 					at := a.Transactions.Ticket
-					projection := e.exclusions.pending[at]
+					projection := e.exclusions.OwnLocked(at)
 					parent := roleTableRef(t, e, "public.t")
 					index := e.catalog.state.MustRelation(parent.Address).Constraints.Exclusion[0].Index
-					if projection == nil || len(projection.ended[parent.Address]) != 1 {
+					if projection == nil || len(projection.Ended[parent.Address]) != 1 {
 						t.Fatal("provisional deletion lacks its actual ended version")
 					}
 					done, _ := uniqueAsyncUnit(t, b, "INSERT INTO t VALUES(1)")
@@ -120,7 +120,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					} else {
 						exclusionInsertAwait(t, done, 0, "23P01")
 					}
-					if len(e.exclusions.pending) != 0 {
+					if e.exclusions.CountLocked() != 0 {
 						t.Fatal("provisional deletion retained a completed ticket")
 					}
 					uniqueClaimsEmpty(t, e)
@@ -140,7 +140,7 @@ func TestExclusionCompletionDeadlock(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	at, bt := a.Transactions.Ticket, b.Transactions.Ticket
-	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.events) != 1 || len(ownerExtensionOrZero(b.Transactions).exclusionModes.events) != 1 {
+	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.Events) != 1 || len(ownerExtensionOrZero(b.Transactions).exclusionModes.Events) != 1 {
 		t.Fatal("crossed admissions must independently enlist both owners")
 	}
 	first := exclusionCommitWorker(t, a, ar)
@@ -170,7 +170,7 @@ func TestExclusionCompletionDeadlock(t *testing.T) {
 	if !errors.As(victim, &diagnostic) || diagnostic.Code != "40P01" {
 		t.Fatal("completion cycle did not use existing deadlock authority", victim)
 	}
-	if len(e.exclusions.pending) != 0 {
+	if e.exclusions.CountLocked() != 0 {
 		t.Fatal("resolved deadlock retained dirty owners")
 	}
 	btreeWantKeys(t, e, "ex", "1", "2")

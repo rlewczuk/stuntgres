@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -192,7 +193,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 		if _, exists := nextDeletes[a]; exists {
 			t.Fatal("removed closure retained private deletes", a)
 		}
-		if next.Storage[a].Replacement != nil || next.Generators[a] != nil || journalIndexesOrZero(next).uniqueRoots[a] != nil {
+		if next.Storage[a].Replacement != nil || next.Generators[a] != nil || index.JournalIndexesOrZero(next).UniqueRoots[a] != nil {
 			t.Fatal("removed closure retained staged storage/generator/index", a)
 		}
 	}

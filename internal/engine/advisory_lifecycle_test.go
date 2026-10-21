@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"testing"
@@ -103,7 +104,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 			nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, descriptor)
 		}
 		if err == nil {
-			var prepared remintedIndexStorage
+			var prepared index.RemintedIndexStorage
 			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
 				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared)

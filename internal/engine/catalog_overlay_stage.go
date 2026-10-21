@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -129,21 +130,21 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 			changes.Storage[a] = session.StorageChange{Replacement: &storage.Relation{}, Relation: table}
 		}
 	}
-	for address, candidate := range stage.indexesOrZero().candidates {
-		if journalIndexesOrZero(changes).candidates == nil {
-			journalIndexes(changes).candidates = make(map[ids.ObjectAddress]indexRootCandidate)
+	for address, candidate := range stage.indexesOrZero().Candidates {
+		if index.JournalIndexesOrZero(changes).Candidates == nil {
+			index.JournalIndexes(changes).Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
 		}
-		if journalIndexesOrZero(changes).uniqueRoots == nil {
-			journalIndexes(changes).uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
+		if index.JournalIndexesOrZero(changes).UniqueRoots == nil {
+			index.JournalIndexes(changes).UniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
-		journalIndexes(changes).candidates[address], journalIndexes(changes).uniqueRoots[address] = candidate, candidate.root
+		index.JournalIndexes(changes).Candidates[address], index.JournalIndexes(changes).UniqueRoots[address] = candidate, candidate.Root
 	}
 	for a := range stage.Removals() {
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.Generators, a)
 		delete(changes.Storage, a)
-		indexJournalOf(changes.Indexes).forget(a)
-		delete(journalIndexesOrZero(changes).rebuilds, a)
+		index.JournalOf(changes.Indexes).Forget(a)
+		delete(index.JournalIndexesOrZero(changes).Rebuilds, a)
 	}
 	for a, g := range stage.sequence.StagedGenerators() {
 		changes.Generators[a] = g

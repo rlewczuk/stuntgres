@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -68,7 +69,7 @@ func (r foreignKeyRows) previous(id ids.RowID) (storage.RowVersion, bool) {
 	return storage.RowVersion{}, false
 }
 
-func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.ObjectAddress) (foreignKeyRows, error) {
+func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, idx ids.ObjectAddress) (foreignKeyRows, error) {
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -84,11 +85,11 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
 	r := foreignKeyRows{storage: storage, committed: storage.Versions, ends: storage.Ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.visibility.CommitSeq()}
-	r.index = index
-	if index != (ids.ObjectAddress{}) {
-		r.root = e.storage.IndexRoots[index]
-		if changes != nil && journalIndexesOrZero(changes).uniqueRoots[index] != nil {
-			r.root = journalIndexesOrZero(changes).uniqueRoots[index]
+	r.index = idx
+	if idx != (ids.ObjectAddress{}) {
+		r.root = e.storage.IndexRoots[idx]
+		if changes != nil && index.JournalIndexesOrZero(changes).UniqueRoots[idx] != nil {
+			r.root = index.JournalIndexesOrZero(changes).UniqueRoots[idx]
 		}
 		if r.root == nil {
 			return foreignKeyRows{}, fmt.Errorf("stuntgres: ready foreign-key index root is missing")
@@ -425,8 +426,8 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	}
 	rows.committed, rows.ends, rows.frontier = storage.Versions, storage.Ends, e.visibility.CommitSeq()
 	rows.root = e.storage.IndexRoots[rows.index]
-	if changes != nil && journalIndexesOrZero(changes).uniqueRoots[rows.index] != nil {
-		rows.root = journalIndexesOrZero(changes).uniqueRoots[rows.index]
+	if changes != nil && index.JournalIndexesOrZero(changes).UniqueRoots[rows.index] != nil {
+		rows.root = index.JournalIndexesOrZero(changes).UniqueRoots[rows.index]
 	}
 	if rows.root == nil {
 		return fmt.Errorf("stuntgres: ready foreign-key index root is missing")

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -48,10 +49,10 @@ func logicalGiSTFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, fun
 }
 
 func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
-	parent, index, row := logicalGiSTFixture(t)
+	parent, idx, row := logicalGiSTFixture(t)
 	for _, middle := range []storage.RowVersion{row(2, "10.0.0.1", "empty"), row(2, "10.0.0.2", "[1,5)")} {
 		store := &storage.Relation{Versions: []storage.RowVersion{row(1, "10.0.0.1", "[1,5)"), middle, row(3, "10.0.0.1", "[3,7)")}}
-		root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, index.SQLIndex, store, nil)
+		root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, idx.SQLIndex, store, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -59,7 +60,7 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 			t.Fatal("membership reordered", root)
 		}
 		before := append([]storage.IndexEntry(nil), root.Entries...)
-		err = validateExclusionRoot(context.Background(), parent, index, root, "public", sqltype.OutputEnvironment{}, nil, nil, true)
+		err = index.ValidateExclusionRoot(context.Background(), parent, idx, root, "public", sqltype.OutputEnvironment{}, nil, nil, true)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 			t.Fatal("nonadjacent overlap not rejected", err)
@@ -71,16 +72,16 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 }
 
 func TestLogicalGiSTDeltaImmutable(t *testing.T) {
-	parent, index, row := logicalGiSTFixture(t)
+	parent, idx, row := logicalGiSTFixture(t)
 	store := &storage.Relation{Versions: []storage.RowVersion{row(1, "10.0.0.1", "[1,5)"), row(2, "10.0.0.2", "[1,5)")}}
 	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, store, nil)
+	root, err := index.BuildIndexRoot(evaluation, parent, idx.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	before := append([]storage.IndexEntry(nil), root.Entries...)
-	publication := &rowPublication{writes: []storage.RowVersion{row(3, "10.0.0.1", "[3,7)")}, singleSlot: -1}
-	_, err = mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
+	publication := &index.RowPublication{Writes: []storage.RowVersion{row(3, "10.0.0.1", "[3,7)")}, SingleSlot: -1}
+	_, err = index.MergeIndexRoot(evaluation, parent, idx, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 		t.Fatal("delta overlap not rejected", err)
@@ -88,14 +89,14 @@ func TestLogicalGiSTDeltaImmutable(t *testing.T) {
 	replacement := row(1, "10.0.0.1", "[5,8)")
 	replacement.Base = 1
 	replacement.Version = 4
-	publication.writes = []storage.RowVersion{replacement}
-	next, err := mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
+	publication.Writes = []storage.RowVersion{replacement}
+	next, err := index.MergeIndexRoot(evaluation, parent, idx, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil || next == nil || len(next.Entries) != 2 || next.Entries[1].Version != 4 {
 		t.Fatal("replacement", next, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = mergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
+	_, err = index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, parent, idx, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -108,30 +109,30 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 	for _, materialize := range []bool{false, true} {
 		t.Run(map[bool]string{false: "prepare", true: "materialize"}[materialize], func(t *testing.T) {
 			e := New()
-			parent, index, row := logicalGiSTFixture(t)
+			parent, idx, row := logicalGiSTFixture(t)
 			parent.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 			parent.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 			parent.RelationKind = catalog.TableRelation
-			index.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
-			index.ObjectNamespace = parent.Namespace()
-			index.RelationKind = catalog.IndexRelation
-			index.Columns = append([]catalog.Column(nil), parent.Columns...)
-			index.SQLIndex.Parent = parent.Address()
+			idx.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
+			idx.ObjectNamespace = parent.Namespace()
+			idx.RelationKind = catalog.IndexRelation
+			idx.Columns = append([]catalog.Column(nil), parent.Columns...)
+			idx.SQLIndex.Parent = parent.Address()
 			parent.Constraints.Exclusion = []catalog.ExclusionConstraint{{
-				OID: index.SQLIndex.Constraint.OID, Name: index.Name(), Index: index.Address(),
-				IsLocal: true, Operators: index.SQLIndex.Exclusion,
+				OID: idx.SQLIndex.Constraint.OID, Name: idx.Name(), Index: idx.Address(),
+				IsLocal: true, Operators: idx.SQLIndex.Exclusion,
 			}}
 			// All stored values and bound operators use the same descriptor
 			// authority; mixing a fresh Builtins set with engine-owned values
 			// would fail equality before reaching collection validation.
 			e.catalog.state = catalog.CloneState(e.catalog.state)
 			e.catalog.state.SetDescriptor(parent.Address(), parent)
-			e.catalog.state.SetDescriptor(index.Address(), index)
+			e.catalog.state.SetDescriptor(idx.Address(), idx)
 			store := &storage.Relation{Versions: []storage.RowVersion{
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),
 			}}
-			root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, index.SQLIndex, store, nil)
+			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, idx.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -139,7 +140,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			e.storage.InstallRelationLocked(parent.Address(), store)
 			e.mu.Unlock()
 			e.mu.Lock()
-			e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root})
+			e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): root})
 			e.mu.Unlock()
 			before := indexMaintenanceCapture(e)
 			storeBefore := uniquePublicationStore(store)
@@ -150,7 +151,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			rootBefore := *root
 			// The candidate extends the same typed private fixture, not a
 			// separately initialized SQL catalog.
-			captured := captureIndexStores(e.storage.Relations, e.catalog.state)
+			captured := index.CaptureIndexStores(e.storage.Relations, e.catalog.state)
 			candidate := captured[parent.Address()]
 			candidate.Versions = append(append([]storage.RowVersion(nil), candidate.Versions...), row(3, "10.0.0.1", "[3,7)"))
 			candidateBefore := uniquePublicationStore(candidate)
@@ -181,14 +182,14 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 func TestLogicalGiSTUnchangedPublicationNonadjacentOverlap(t *testing.T) {
 	for _, materialize := range []bool{false, true} {
 		t.Run(map[bool]string{false: "prepare", true: "materialize"}[materialize], func(t *testing.T) {
-			parent, index, row := logicalGiSTFixture(t)
+			parent, idx, row := logicalGiSTFixture(t)
 			store := &storage.Relation{Versions: []storage.RowVersion{
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),
 				row(3, "10.0.0.1", "[3,7)"),
 			}}
 			evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-			root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, store, nil)
+			root, err := index.BuildIndexRoot(evaluation, parent, idx.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -200,8 +201,8 @@ func TestLogicalGiSTUnchangedPublicationNonadjacentOverlap(t *testing.T) {
 			storeBefore := uniquePublicationStore(store)
 			// There are deliberately no writes or deletions: exercise the
 			// unchanged-membership validation entrance, not the GiST delta path.
-			publication := &rowPublication{singleSlot: -1}
-			next, err := mergeIndexRoot(evaluation, parent, index, root.Entries, publication, false, materialize, false, "public", sqltype.OutputEnvironment{}, nil, nil)
+			publication := &index.RowPublication{SingleSlot: -1}
+			next, err := index.MergeIndexRoot(evaluation, parent, idx, root.Entries, publication, false, materialize, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 			if !reflect.DeepEqual(*root, rootBefore) || !reflect.DeepEqual(root.Entries, entriesBefore) ||
 				!reflect.DeepEqual(*store, storeBefore) {
 				t.Fatal("unchanged publication mutated original root entries or storage")

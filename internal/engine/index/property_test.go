@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestIndexPropertyColumnCapabilityMatrix(t *testing.T) {
-	index := &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Desc: false, NullsFirst: true}, {Desc: true, NullsFirst: false}}, Include: []int32{3}, Ready: true, Valid: true, Live: true}
+	idx := &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Desc: false, NullsFirst: true}, {Desc: true, NullsFirst: false}}, Include: []int32{3}, Ready: true, Valid: true, Live: true}
 	for _, tc := range []struct {
 		ordinal     int64
 		property    string
@@ -20,7 +20,7 @@ func TestIndexPropertyColumnCapabilityMatrix(t *testing.T) {
 		{0, "asc", false, false}, {-1, "asc", false, false}, {4, "asc", false, false}, {2147483647, "asc", false, false},
 		{1, "index_scan", false, false}, {1, "can_order", false, false}, {1, "bogus", false, false},
 	} {
-		got, known := indexColumnCapability(index, tc.ordinal, tc.property)
+		got, known := ColumnCapability(idx, tc.ordinal, tc.property)
 		if got != tc.want || known != tc.known {
 			t.Fatal(tc, got, known)
 		}

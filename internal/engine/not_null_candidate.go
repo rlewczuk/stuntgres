@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -19,11 +20,11 @@ const (
 )
 
 func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion notNullRecursion) (*catalog.Relation, error) {
-	slot, index := -1, -1
+	slot, idx := -1, -1
 	if a.Action == parser.DropConstraint {
 		for i, c := range old.Constraints.NotNull {
 			if c.Name == a.Constraint.Text {
-				index = i
+				idx = i
 				for j, attr := range old.Attributes {
 					if attr == c.Attribute {
 						slot = j
@@ -50,11 +51,11 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 				if c.Parent != 0 {
 					return nil, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, old.Name()))
 				}
-				index, exists := view.Relation(c.Index)
+				idx, exists := view.Relation(c.Index)
 				if !exists {
 					return nil, ids.ErrCatalogReplaced
 				}
-				if err := partitionIndexDropDependency(view, index); err != nil {
+				if err := index.PartitionIndexDropDependency(view, idx); err != nil {
 					return nil, err
 				}
 				next := *old
@@ -107,13 +108,13 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 		}
 		for i, c := range old.Constraints.NotNull {
 			if c.Attribute == old.Attributes[slot] {
-				index = i
+				idx = i
 				break
 			}
 		}
 	}
 	adding := a.Action == parser.SetNotNull || a.Action == parser.AddNotNull
-	if a.Action == parser.DropNotNull && index < 0 {
+	if a.Action == parser.DropNotNull && idx < 0 {
 		if _, physical := old.Constraints.PhysicalNotNull[old.Attributes[slot]]; physical {
 			return nil, sqlError("XX000", fmt.Sprintf(`cache lookup failed for not-null constraint on column "%s" of relation "%s"`, old.Columns[slot].Name, old.Name()))
 		}
@@ -134,9 +135,9 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			return nil, sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, old.Columns[slot].Name, old.Name()))
 		}
 	}
-	if adding && index >= 0 {
+	if adding && idx >= 0 {
 		if a.Action == parser.AddNotNull {
-			constraint := old.Constraints.NotNull[index]
+			constraint := old.Constraints.NotNull[idx]
 			if constraint.NoInherit != a.NoInherit {
 				diagnostic := sqlError("55000", fmt.Sprintf(`cannot change NO INHERIT status of NOT NULL constraint "%s" on relation "%s"`, constraint.Name, old.Name())).(*sqlstate.Error)
 				diagnostic.Hint = "You might need to make the existing constraint inheritable using ALTER TABLE ... ALTER CONSTRAINT ... INHERIT."
@@ -155,7 +156,7 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			}
 		}
 		if a.Action == parser.SetNotNull {
-			constraint := old.Constraints.NotNull[index]
+			constraint := old.Constraints.NotNull[idx]
 			if constraint.NoInherit && !a.NoInherit {
 				return nil, sqlError("0A000", fmt.Sprintf(`cannot change NO INHERIT status of NOT NULL constraint "%s" on relation "%s"`, constraint.Name, old.Name()))
 			}
@@ -176,18 +177,18 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 				return nil, sqlError("42P16", "constraint must be validated on child tables too")
 			}
 		}
-		if !old.Constraints.NotNull[index].NotValid || a.NotValid {
+		if !old.Constraints.NotNull[idx].NotValid || a.NotValid {
 			return old, nil
 		}
 		if a.Action == parser.AddNotNull {
-			return nil, incompatibleNotValid(old.Constraints.NotNull[index].Name, old.Name())
+			return nil, incompatibleNotValid(old.Constraints.NotNull[idx].Name, old.Name())
 		}
 		next := *old
 		next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
-		next.Constraints.NotNull[index].NotValid = false
+		next.Constraints.NotNull[idx].NotValid = false
 		return &next, nil
 	}
-	if !adding && index < 0 {
+	if !adding && idx < 0 {
 		return old, nil
 	}
 	name := a.Constraint.Text
@@ -208,8 +209,8 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 		next.Constraints.NotNull[len(old.Constraints.NotNull)] = catalog.NotNullConstraint{Name: name, Attribute: old.Attributes[slot], NotValid: a.NotValid, NoInherit: a.NoInherit}
 	} else {
 		next.Constraints.NotNull = make([]catalog.NotNullConstraint, 0, len(old.Constraints.NotNull)-1)
-		next.Constraints.NotNull = append(next.Constraints.NotNull, old.Constraints.NotNull[:index]...)
-		next.Constraints.NotNull = append(next.Constraints.NotNull, old.Constraints.NotNull[index+1:]...)
+		next.Constraints.NotNull = append(next.Constraints.NotNull, old.Constraints.NotNull[:idx]...)
+		next.Constraints.NotNull = append(next.Constraints.NotNull, old.Constraints.NotNull[idx+1:]...)
 	}
 	transitionPhysicalNotNull(old, &next)
 	return &next, nil
@@ -224,15 +225,15 @@ func incompatibleNotValid(name, table string) error {
 // This is the incumbent USING INDEX NN constructor, shared by admission and
 // ordinary staging. Only actual eligible KEY attributes participate; INCLUDE
 // attributes and the physical index/constraint are never propagated.
-func usingIndexNotNullCandidate(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
-	if !captured.syntax.Primary {
+func usingIndexNotNullCandidate(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured index.UsingIndexAttachment) (*catalog.Relation, error) {
+	if !captured.Syntax.Primary {
 		return parent, nil
 	}
 	previous := op.Definition
 	op.Definition = reader
 	defer func() { op.Definition = previous }()
 	next := parent
-	for _, attribute := range captured.attributes {
+	for _, attribute := range captured.Attributes {
 		slot := next.IndexForAttribute(attribute)
 		if slot < 0 {
 			return nil, ids.ErrCatalogReplaced

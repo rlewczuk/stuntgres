@@ -101,7 +101,7 @@ func TestMergeNothingPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(rows.actions) != 0 || len(rows.values) != 0 || len(rows.predecessors) != 0 || rows.returning == nil || rows.returning.Count != 0 {
+			if len(rows.actions) != 0 || len(rows.Values) != 0 || len(rows.predecessors) != 0 || rows.returning == nil || rows.returning.Count != 0 {
 				t.Fatal("omission assembled mutation/output", rows)
 			}
 			defer rows.returning.Close()

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -21,7 +22,7 @@ func captureSavepoint(t *session.TransactionOwner, name string) session.Savepoin
 	}
 	e := engineOf(t.Session)
 	e.mu.Lock()
-	projection := e.exclusions.ownLocked(t.Ticket)
+	projection := e.exclusions.OwnLocked(t.Ticket)
 	e.mu.Unlock()
 	t.Session.Mu.Lock()
 	identity := t.Session.Authorization.State
@@ -42,7 +43,7 @@ func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, s
 	e.mu.Lock()
 	exclusion := exclusionMarkOrZero(mark.Exclusion)
 	ownerExtensionOf(t).exclusionModes = exclusion.modes
-	e.exclusions.restoreLocked(t.Ticket, exclusion.projection)
+	e.exclusions.RestoreLocked(t.Ticket, exclusion.projection)
 	e.reconcileSerializableWritesLocked(t)
 	e.mu.Unlock()
 }
@@ -176,7 +177,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.Session.Settings.CurrentDeferrable = t.Deferrable
 			exclusion := exclusionMarkOrZero(mark.Exclusion)
 			ownerExtensionOf(t).exclusionModes = exclusion.modes
-			e.exclusions.restoreLocked(t.Ticket, exclusion.projection)
+			e.exclusions.RestoreLocked(t.Ticket, exclusion.projection)
 			e.reconcileSerializableWritesLocked(t)
 			e.enrollSerializableLocked(t.Ref, t.Isolation)
 			t.TruncateSavepoints(index + 1)
@@ -203,17 +204,17 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 // exclusionMark is the exclusion constraint state a savepoint captured: the
 // owner's exclusion modes and the engine's pending exclusion projection.
 type exclusionMark struct {
-	modes      exclusionModes
-	projection *exclusionProjection
+	modes      index.ExclusionModes
+	projection *index.ExclusionProjection
 }
 
 func (*exclusionMark) ExclusionMarkSlot() {}
 
 // exclusionMarkSlotOf stores modes and projection. Exactly zero state (see
-// exclusionModes.zero, nil projection) stays a nil slot, so restoring it
+// index.ExclusionModes.Zero, nil projection) stays a nil slot, so restoring it
 // reproduces the captured value.
-func exclusionMarkSlotOf(modes exclusionModes, projection *exclusionProjection) session.ExclusionMarkSlot {
-	if projection == nil && modes.zero() {
+func exclusionMarkSlotOf(modes index.ExclusionModes, projection *index.ExclusionProjection) session.ExclusionMarkSlot {
+	if projection == nil && modes.Zero() {
 		return nil
 	}
 	return &exclusionMark{modes: modes, projection: projection}

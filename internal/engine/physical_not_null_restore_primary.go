@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -42,7 +43,7 @@ func physicalImportedIndexMatches(source *catalog.Relation, constructor *physica
 		return false
 	}
 	for i, attribute := range primary.Attributes {
-		key, expression, err := indexCatalogKey(constructor.before, source.SQLIndex.Keys[i])
+		key, expression, err := index.CatalogKey(constructor.before, source.SQLIndex.Keys[i])
 		slot := current.IndexForAttribute(attribute)
 		if err != nil || expression != nil || key != attribute || slot < 0 || source.Columns[i].Usage != current.Columns[slot].Usage {
 			return false

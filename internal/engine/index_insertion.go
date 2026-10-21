@@ -1,69 +1,27 @@
 package engine
 
 import (
-	"maps"
-
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
-)
-
-// Only a target with checked nonunique indexes needs a mixed insertion lane.
-// Unique/exclusion bindings retain their existing ordered fast path otherwise.
-type indexInsertionBinding struct {
-	index       *catalog.Relation
-	parent      *catalog.Relation
-	preparation indexExecutionPreparation
-	unique      *uniqueBoundKey
-	ordering    indexOrdering
-	hash        storage.HashBinding
-}
-
-func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding, evaluation *exec.Context) error {
-	if output, exists := r.indexes[bound.index.Address()]; exists {
-		if !indexOutputMatches(output, bound.index) {
-			return ids.ErrCatalogReplaced
-		}
-		return nil
-	}
-	output, err := materializeIndexOutput(evaluation, &bound.preparation, bound.parent, bound.index, &bound.ordering, &bound.hash, r.values)
-	if err != nil {
-		return err
-	}
-	if r.indexes == nil {
-		r.indexes = make(map[ids.ObjectAddress]storage.IndexOutput)
-	} else if r.sharedIndexes {
-		r.indexes = maps.Clone(r.indexes)
-	}
-	r.sharedIndexes = false
-	r.indexes[bound.index.Address()] = output
-	return nil
-}
-
-type indexProbePurpose uint8
-
-const (
-	indexProbeRuntime indexProbePurpose = iota
-	indexProbeTracked
-	indexProbeRevalidation
 )
 
 // Catalog-drift staging can refresh grants and immutable providers, but cannot
 // manufacture a new checked insertion occurrence after the producer finished.
-func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *indexWriteBatch) error {
+func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
 	prior := s.uniqueBinding
-	if prior != nil && prior.ref != ref {
+	if prior != nil && prior.Ref != ref {
 		prior = s.indexBindings[ref.Address]
 	}
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return err
 	}
-	purpose := indexProbeRuntime
-	if binding.checked || prior != nil && prior.checked {
-		purpose = indexProbeRevalidation
-		if prior != nil && !sameRelationRowShape(prior.parent, binding.parent) {
+	purpose := index.ProbeRuntime
+	if binding.Checked || prior != nil && prior.Checked {
+		purpose = index.ProbeRevalidation
+		if prior != nil && !index.SameRelationRowShape(prior.Parent, binding.Parent) {
 			return ids.ErrCatalogReplaced
 		}
 	}
@@ -75,7 +33,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 			auth = s.routineAuth // Rule relation ownership is not routine authority.
 		}
 		if captureErr == nil {
-			auth.Recapture(e.catalog.read(binding.catalog))
+			auth.Recapture(e.catalog.read(binding.Catalog))
 		}
 		e.mu.Unlock()
 		if captureErr != nil {
@@ -86,62 +44,42 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 		if err := s.readmitPreparedPrograms(auth); err != nil {
 			return err
 		}
-		if s.indexBindings[prior.ref.Address] != prior {
-			if err := prior.readmitPrograms(routineAccessOf(auth)); err != nil {
+		if s.indexBindings[prior.Ref.Address] != prior {
+			if err := prior.ReadmitPrograms(routineAccessOf(auth)); err != nil {
 				return err
 			}
 		}
 	}
-	for i := range batch.values {
-		candidate := batch.candidate(i)
+	for i := range batch.Values {
+		candidate := batch.Candidate(i)
 		var excluded []storage.RowVersion
 		if old != nil {
 			excluded = old[:i+1]
 		}
-		conflict, err := s.probeUniqueRow(ref, &candidate, excluded, batch.prefix(i), nil, purpose)
+		conflict, err := s.probeUniqueRow(ref, &candidate, excluded, batch.Prefix(i), nil, purpose)
 		if err != nil {
 			return err
 		}
 		if conflict.index != nil {
 			return conflict.diagnostic(s, ref)
 		}
-		batch.set(i, candidate)
+		batch.Set(i, candidate)
 	}
 	return nil
 }
 
 // The mixed lane may need ordinary prior-own keys again after catalog drift.
 // Freeze actual probe data by immutable row/version, not CHECK truth or values.
-func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row storage.RowVersion, output storage.IndexOutput) {
-	if s.indexesOrZero().existingOutputs == nil {
-		s.indexes().existingOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput)
+func (s *StatementScope) retainExistingIndexOutput(idx *catalog.Relation, row storage.RowVersion, output storage.IndexOutput) {
+	if s.indexesOrZero().ExistingOutputs == nil {
+		s.indexes().ExistingOutputs = make(map[ids.ObjectAddress]map[index.RowIdentity]storage.IndexOutput)
 	}
-	outputs := s.indexesOrZero().existingOutputs[index.Address()]
+	outputs := s.indexesOrZero().ExistingOutputs[idx.Address()]
 	if outputs == nil {
-		outputs = make(map[indexRowIdentity]storage.IndexOutput)
-		s.indexes().existingOutputs[index.Address()] = outputs
+		outputs = make(map[index.RowIdentity]storage.IndexOutput)
+		s.indexes().ExistingOutputs[idx.Address()] = outputs
 	}
-	outputs[indexRowIdentity{row: row.Row, version: row.Version}] = output
-}
-
-// Existing command-private insertion records own the consumed graph. Reuse it
-// before discarding/rebinding a catalog-drifted binding; cooked values alone
-// cannot certify the original call after a wait.
-func (b *uniqueWriteBinding) readmitPrograms(auth exec.RoutineAccess) error {
-	for i := range b.keys {
-		if err := b.keys[i].preparation.admission.Readmit(auth); err != nil {
-			return err
-		}
-	}
-	for i := range b.insertion {
-		if b.insertion[i].unique != nil {
-			continue
-		}
-		if err := b.insertion[i].preparation.admission.Readmit(auth); err != nil {
-			return err
-		}
-	}
-	return nil
+	outputs[index.RowIdentity{Row: row.Row, Version: row.Version}] = output
 }
 
 // Only actual blocking-grant continuations call this, never a row Eval or an

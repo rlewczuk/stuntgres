@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"unicode/utf8"
@@ -157,7 +158,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		return fmt.Errorf("stuntgres: index definition requires an index relation")
 	}
 	if r.RelationKind == catalog.IndexRelation {
-		return validateIndexDefinition(v, r)
+		return index.ValidateIndexDefinition(v, r)
 	}
 	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.ForeignRelation && len(r.Constraints.Check) != 0 {
 		return fmt.Errorf("stuntgres: CHECK requires a table descriptor")
@@ -216,10 +217,10 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := validateChecks(v, r, names); err != nil {
 		return err
 	}
-	if err := validateUniques(v, r, names); err != nil {
+	if err := index.ValidateUniques(v, r, names); err != nil {
 		return err
 	}
-	if err := validateExclusions(v, r, names); err != nil {
+	if err := index.ValidateExclusions(v, r, names); err != nil {
 		return err
 	}
 	if err := validateForeignKeys(v, r, names); err != nil {
@@ -379,7 +380,7 @@ type CatalogStage struct {
 	initialTx        ids.TxRef
 	querySources     []catalog.Descriptor
 	tableSlot        *tableStage
-	indexesSlot      *indexStage
+	indexesSlot      *index.Stage
 	materializedSlot *materializedStage
 }
 
@@ -583,7 +584,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	// Provider/ref validation above belongs to the authentic predecessor.
 	// AUTO retirement below follows the actual metadata entering this phase.
 	d = provider.retirementDescriptor(ref.Address)
-	if provider.removed(ref.Address) {
+	if provider.Removed(ref.Address) {
 		return nil
 	}
 	if err := provider.recordRemoval(ref, namespace); err != nil {
@@ -888,7 +889,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 		}
 		stageIndexes := s.indexesOrZero()
-		for address, candidate := range stageIndexes.candidates {
+		for address, candidate := range stageIndexes.Candidates {
 			index, ok := s.Get(address).(*catalog.Relation)
 			if !ok {
 				index, ok = current.Relation(address)
@@ -903,12 +904,12 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			} else if initial := s.initialTables[index.SQLIndex.Parent]; initial != nil {
 				store = initial
 			}
-			if !candidate.matchesIndex(index, store) {
+			if !candidate.MatchesIndex(index, store) {
 				e.mu.Unlock()
 				return ChangeSet{}, catalog.Conflict{}
 			}
 		}
-		indexStores := captureIndexStores(currentStorage, current)
+		indexStores := index.CaptureIndexStores(currentStorage, current)
 		for _, d := range s.Descriptors() {
 			index, ok := d.(*catalog.Relation)
 			if !ok || index.SQLIndex == nil {
@@ -1024,13 +1025,13 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			buildStores[a] = relations[a]
 		}
 		sourceRoots := indexPredecessors
-		if len(stageIndexes.candidates) != 0 {
-			sourceRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(indexPredecessors)+len(stageIndexes.candidates))
+		if len(stageIndexes.Candidates) != 0 {
+			sourceRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(indexPredecessors)+len(stageIndexes.Candidates))
 			for a, root := range indexPredecessors {
 				sourceRoots[a] = root
 			}
-			for a, candidate := range stageIndexes.candidates {
-				sourceRoots[a] = candidate.root
+			for a, candidate := range stageIndexes.Candidates {
+				sourceRoots[a] = candidate.Root
 			}
 		}
 		var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
@@ -1043,7 +1044,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		} else if op != nil {
 			evaluation.Input, evaluation.Output = sessionPresentation(op.Session)
 		}
-		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, buildStores, sourceRoots, rebuildIndexes, stageIndexes.rebuilds, stageIndexes.output, disclosure, runtimeOwners, stageIndexes.candidates)
+		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, buildStores, sourceRoots, rebuildIndexes, stageIndexes.Rebuilds, stageIndexes.Output, disclosure, runtimeOwners, stageIndexes.Candidates)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}
@@ -1112,7 +1113,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.mu.Unlock()
 			continue
 		}
-		if !indexStoresUnchanged(e.storage.Relations, indexStores, current, next, indexRoots, indexPredecessors) {
+		if !index.StoresUnchanged(e.storage.Relations, indexStores, current, next, indexRoots, indexPredecessors) {
 			if op != nil {
 				op.Session.Mu.Unlock()
 			}
@@ -1260,7 +1261,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 			e.catalog.state = next
 			e.storage.ReplaceRelationsLocked(relations)
-			preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
+			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
 			e.storage.ReplaceIndexRootsLocked(indexRoots)
 			for a := range s.Removals() {
 				e.storage.RemoveSequenceLocked(a)
@@ -1355,7 +1356,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	}
 	relations := make(map[ids.ObjectAddress]*storage.Relation, len(relationAddresses))
 	var sequences map[ids.ObjectAddress]*storage.SequenceGenerator
-	var indexes *indexSnapshot
+	var indexes *index.Snapshot
 	copyRows := func(owner *Engine) error {
 		source, frontier := owner.storage.Relations, owner.visibility.CommitSeq()
 		for _, a := range relationAddresses {
@@ -1455,7 +1456,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		next.SetEpoch(e.catalog.state.Epoch() + 1)
 		e.catalog.state = next
 		e.storage.ReplaceRelationsLocked(relations)
-		e.exclusions.resetLocked()
+		e.exclusions.ResetLocked()
 		e.storage.ReplaceSequencesLocked(sequences)
 		e.clearPersistentSequenceMemoryLocked()
 		e.catalog.nextRevision = nextRevision
@@ -1544,20 +1545,20 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
-	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.storage.RowFrontier() || prepared.baseVersion != e.storage.VersionFrontier() || prepared.frontier != e.visibility.CommitSeq() {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage) error {
+	if prepared.Catalog != next || prepared.BaseCatalog != e.catalog.state || prepared.BaseRow != e.storage.RowFrontier() || prepared.BaseVersion != e.storage.VersionFrontier() || prepared.Frontier != e.visibility.CommitSeq() {
 		return ids.ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.storage.SetFrontierLocked(prepared.nextRow, prepared.nextVersion)
-	e.storage.ReplaceIndexRootsLocked(prepared.roots)
+	e.storage.SetFrontierLocked(prepared.NextRow, prepared.NextVersion)
+	e.storage.ReplaceIndexRootsLocked(prepared.Roots)
 	e.visibility.AdvanceCommitSeqLocked()
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
 	e.storage.ReplaceRelationsLocked(relations)
-	e.exclusions.resetLocked()
+	e.exclusions.ResetLocked()
 	e.storage.ReplaceSequencesLocked(sequences)
 	e.clearPersistentSequenceMemoryLocked()
 	e.catalog.nextRevision = nextRevision

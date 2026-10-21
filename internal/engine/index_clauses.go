@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -13,44 +14,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func indexKeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
-	if key.Collation != 0 {
-		u.Collation = sqltype.CollationRef{ID: key.Collation, Derivation: sqltype.Default}
-		if key.CollationRef.Valid() && key.CollationRef.ID == key.Collation {
-			u.Collation = key.CollationRef
-		}
-	}
-	return u
-}
-
-func reconstructIndexKey(key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, method catalog.IndexMethod) catalog.IndexKey {
-	oldDefault, _ := method.DefaultClass(oldUsage.Type)
-	if key.Class.Name == "" || key.Class == oldDefault {
-		key.Class, _ = method.DefaultClass(newUsage.Type)
-		key.ExplicitClass = false
-	}
-	if key.Collation == oldUsage.Collation.ID {
-		key.Collation = 0
-		key.CollationRef = sqltype.CollationRef{}
-	}
-	return key
-}
-
-// Release18 utility semantic errors have no expression/parser location. Keep
-// shared namespace lookup's authority but not its expression attribution.
-func indexSemanticError(err error) error {
-	if d, ok := err.(*sqlstate.Error); ok && d.Position != "" {
-		copy := *d
-		copy.Position = ""
-		return &copy
-	}
-	return err
-}
-
 func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
 	path, err := e.lookupNamespaces(auth, raw, analyze.OperatorLookup)
 	if err != nil {
-		return sqltype.IndexClass{}, indexSemanticError(err)
+		return sqltype.IndexClass{}, index.SemanticError(err)
 	}
 	for i := range path.Count() {
 		if path.At(i) == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
@@ -67,7 +34,7 @@ func (e *Engine) bindIndexKey(op *session.Operation, auth AuthorizationView, u s
 	if raw.Collation != nil {
 		id, err := e.lookupCollation(*raw.Collation, op)
 		if err != nil {
-			return key, indexSemanticError(err)
+			return key, index.SemanticError(err)
 		}
 		if u.Type.Usage().Collation.ID == 0 {
 			return key, sqlError("42804", "collations are not supported by type "+u.Type.DiagnosticName())
@@ -93,7 +60,7 @@ func (e *Engine) bindIndexKey(op *session.Operation, auth AuthorizationView, u s
 		exists = true
 	}
 	if !exists {
-		return key, indexDefaultClassError(u.Type.DiagnosticName(), method)
+		return key, index.DefaultClassError(u.Type.DiagnosticName(), method)
 	}
 	key.Class = c
 	if method == catalog.GistMethod {
@@ -103,20 +70,14 @@ func (e *Engine) bindIndexKey(op *session.Operation, auth AuthorizationView, u s
 		return key, nil
 	}
 	if method == catalog.HashMethod {
-		if err := validateHashKeyDirection(raw); err != nil {
+		if err := index.ValidateHashKeyDirection(raw); err != nil {
 			return key, err
 		}
-		_, err := sqltype.BindIndexHash(indexKeyCollation(u, key), c)
+		_, err := sqltype.BindIndexHash(index.KeyCollation(u, key), c)
 		return key, err
 	}
-	_, err := sqltype.BindIndexOrdering(indexKeyCollation(u, key), c)
+	_, err := sqltype.BindIndexOrdering(index.KeyCollation(u, key), c)
 	return key, err
-}
-
-func indexDefaultClassError(name string, method catalog.IndexMethod) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704",
-		Message: fmt.Sprintf("data type %s has no default operator class for access method %q", name, method.String()),
-		Hint:    "You must specify an operator class for the index or define a default operator class for the data type."}
 }
 
 // Validate released system attribute identity without manufacturing an owned
@@ -128,7 +89,7 @@ func (e *Engine) validateSystemIndexKey(op *session.Operation, auth Authorizatio
 		_, err := e.lookupCollation(*raw.Collation, op)
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); !ok || d.Code != "0A000" {
-				return indexSemanticError(err)
+				return index.SemanticError(err)
 			}
 		}
 		return sqlError("42804", "collations are not supported by type "+name)
@@ -142,85 +103,9 @@ func (e *Engine) validateSystemIndexKey(op *session.Operation, auth Authorizatio
 			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), name))
 		}
 	} else if _, exists := method.DefaultClassID(id); !exists {
-		return indexDefaultClassError(name, method)
+		return index.DefaultClassError(name, method)
 	}
 	return nil
-}
-
-func validateIndexInclude(raw parser.IndexKey) error {
-	switch {
-	case raw.Collation != nil:
-		return sqlError("42P17", "including column does not support a collation")
-	case raw.Opclass != nil:
-		return sqlError("42P17", "including column does not support an operator class")
-	case raw.DirectionExplicit:
-		return sqlError("42P17", "including column does not support ASC/DESC options")
-	case raw.Nulls != parser.NullsDefault:
-		return sqlError("42P17", "including column does not support NULLS FIRST/LAST options")
-	}
-	return nil
-}
-
-func validateHashKeyDirection(key parser.IndexKey) error {
-	if key.DirectionExplicit {
-		return sqlError("0A000", `access method "hash" does not support ASC/DESC options`)
-	}
-	if key.Nulls != parser.NullsDefault {
-		return sqlError("0A000", `access method "hash" does not support NULLS FIRST/LAST options`)
-	}
-	return nil
-}
-
-func validateIndexMethod(s *parser.CreateIndex) error {
-	switch s.Method {
-	case "btree":
-		return nil
-	case "hash":
-		if s.Unique {
-			return sqlError("0A000", `access method "hash" does not support unique indexes`)
-		}
-		if len(s.Include) > 0 {
-			return sqlError("0A000", `access method "hash" does not support included columns`)
-		}
-		if len(s.Keys) > 1 {
-			return sqlError("0A000", `access method "hash" does not support multicolumn indexes`)
-		}
-		if s.Predicate != nil {
-			return sqlError("0A000", "partial indexes are unsupported")
-		}
-		return nil
-	case "gist":
-		if s.Unique {
-			return sqlError("0A000", `access method "gist" does not support unique indexes`)
-		}
-		for _, key := range s.Keys {
-			if key.DirectionExplicit {
-				return sqlError("0A000", `access method "gist" does not support ASC/DESC options`)
-			}
-			if key.Nulls != parser.NullsDefault {
-				return sqlError("0A000", `access method "gist" does not support NULLS FIRST/LAST options`)
-			}
-		}
-		return nil
-	case "gin", "spgist", "brin":
-		if len(s.Include) > 0 && s.Method == "gin" {
-			return sqlError("0A000", `access method "gin" does not support included columns`)
-		}
-		if len(s.Keys) > 1 && s.Method == "spgist" {
-			return sqlError("0A000", `access method "spgist" does not support multicolumn indexes`)
-		}
-		for _, key := range s.Keys {
-			if key.DirectionExplicit {
-				return sqlError("0A000", fmt.Sprintf("access method %q does not support ASC/DESC options", s.Method))
-			}
-			if key.Nulls != parser.NullsDefault {
-				return sqlError("0A000", fmt.Sprintf("access method %q does not support NULLS FIRST/LAST options", s.Method))
-			}
-		}
-		return sqlError("0A000", "non-btree indexes are unsupported")
-	default:
-		return sqlError("42704", fmt.Sprintf(`access method "%s" does not exist`, s.Method))
-	}
 }
 
 func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
@@ -268,19 +153,19 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 				key.Derived = derived
 			}
 			d.Keys[i] = key
-			columns[i].Usage = indexKeyCollation(derived.Execution.ResultUsage(), key)
+			columns[i].Usage = index.KeyCollation(derived.Execution.ResultUsage(), key)
 		} else {
 			if catalog.IsSystemColumn(raw.Column.Text) {
 				system = true
 				if included {
-					if err := validateIndexInclude(raw); err != nil {
+					if err := index.ValidateIndexInclude(raw); err != nil {
 						return fail(err)
 					}
 				} else if err := e.validateSystemIndexKey(op, auth, raw, d.Method); err != nil {
 					return fail(err)
 				}
 				if !included && d.Method == catalog.HashMethod {
-					if err := validateHashKeyDirection(raw); err != nil {
+					if err := index.ValidateHashKeyDirection(raw); err != nil {
 						return fail(err)
 					}
 				}
@@ -295,7 +180,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 			}
 			columns[i] = parent.Columns[slot]
 			if included {
-				if err := validateIndexInclude(raw); err != nil {
+				if err := index.ValidateIndexInclude(raw); err != nil {
 					return fail(err)
 				}
 				d.Include[i-len(s.Keys)] = parent.Attributes[slot]
@@ -306,7 +191,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 				}
 				key.Attribute = parent.Attributes[slot]
 				d.Keys[i] = key
-				columns[i].Usage = indexKeyCollation(columns[i].Usage, key)
+				columns[i].Usage = index.KeyCollation(columns[i].Usage, key)
 			}
 		}
 		baseLabel := label
@@ -314,7 +199,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 			if _, exists := lookup[label]; !exists {
 				break
 			}
-			label = indexColumnLabel(baseLabel, suffix)
+			label = index.ColumnLabel(baseLabel, suffix)
 		}
 		columns[i].Name = label
 		lookup[label] = i

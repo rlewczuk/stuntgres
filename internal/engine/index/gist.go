@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"fmt"
@@ -10,13 +10,13 @@ import (
 
 // The shared extraction program owns keys, not an ordering. No comparator is
 // bound for logical GiST membership and callers must never sort these entries.
-func bindLogicalExclusionKeys(parent *catalog.Relation, d *catalog.IndexDefinition) (indexOrdering, error) {
+func bindLogicalExclusionKeys(parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
 	if d.Method != catalog.GistMethod || d.Unique {
-		return indexOrdering{}, fmt.Errorf("stuntgres: invalid logical GiST definition")
+		return Ordering{}, fmt.Errorf("stuntgres: invalid logical GiST definition")
 	}
-	o := indexOrdering{slots: make([]int, len(d.Keys)), keys: d.Keys}
+	o := Ordering{Slots: make([]int, len(d.Keys)), Keys: d.Keys}
 	for i, key := range d.Keys {
-		u, err := indexKeyUsage(parent, key)
+		u, err := KeyUsage(parent, key)
 		if err != nil {
 			return o, err
 		}
@@ -27,13 +27,13 @@ func bindLogicalExclusionKeys(parent *catalog.Relation, d *catalog.IndexDefiniti
 			if key.Derived.Definition == nil || key.Derived.Execution == nil {
 				return o, fmt.Errorf("stuntgres: missing logical GiST expression")
 			}
-			if o.derived == nil {
-				o.derived = make([]expr.Expr, len(d.Keys))
+			if o.Derived == nil {
+				o.Derived = make([]expr.Expr, len(d.Keys))
 			}
-			o.slots[i], o.derived[i] = -1, key.Derived.Execution
+			o.Slots[i], o.Derived[i] = -1, key.Derived.Execution
 		} else {
-			o.slots[i] = slices.Index(parent.Attributes, key.Attribute)
-			if o.slots[i] < 0 {
+			o.Slots[i] = slices.Index(parent.Attributes, key.Attribute)
+			if o.Slots[i] < 0 {
 				return o, fmt.Errorf("stuntgres: missing logical GiST attribute")
 			}
 		}
@@ -41,9 +41,9 @@ func bindLogicalExclusionKeys(parent *catalog.Relation, d *catalog.IndexDefiniti
 	return o, nil
 }
 
-func bindIndexKeys(parent *catalog.Relation, d *catalog.IndexDefinition) (indexOrdering, error) {
+func BindIndexKeys(parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
 	if d.Method == catalog.GistMethod {
 		return bindLogicalExclusionKeys(parent, d)
 	}
-	return bindIndexOrdering(parent, d)
+	return BindIndexOrdering(parent, d)
 }

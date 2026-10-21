@@ -86,7 +86,7 @@ provenance is separate from the frozen generation/prefix/end tuple: a root
 must prove the published storage identity rather than the detached copy's
 identity before the real query route may retain it.
 Batch merge derives exact predecessor endings and additions from the existing
-rowPublication. It copies the top-level map once when a bucket changes, shares
+index.RowPublication. It copies the top-level map once when a bucket changes, shares
 untouched immutable slices and copies each touched bucket once. NULL-only
 membership changes can share the entire immutable map. Replacement positions
 match the actual row publication's single-slot/slot-vector/append layout.
@@ -179,7 +179,7 @@ hash deduplicate_items; valid SET/RESET retains the existing physical exclusion.
 Dump and pg_get_indexdef render USING hash without B-tree ASC/NULLS decorations,
 with current names, expression trees, collation and genuine explicit class.
 Native emitted SQL is actually replayed on PG, not replaced by a handwritten
-oracle stream. Detached projectIndexMetadata supplies real hash OIDs, zero
+oracle stream. Detached index.ProjectIndexMetadata supplies real hash OIDs, zero
 IndOption and correct key/expression/parent identities on the existing carrier;
 no new SQL pg_class/pg_index/pg_opclass family is added.
 

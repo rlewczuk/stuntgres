@@ -135,7 +135,7 @@ reservation, declaration order and diagnostic contracts remain unchanged.
 UNIQUE/PRIMARY KEY backings owned by exactly an ordinary or partitioned table,
 matching `unique.go:28`. Materialized-view standalone indexes are not constraint
 owners. Keep actual descriptor resolution, reciprocal `unique.Index` and
-`backingConstraintPresent`, namespace/owner equality, persistent lifetime and the
+`index.BackingConstraintPresent`, namespace/owner equality, persistent lifetime and the
 existing INCLUDE-backed USING INDEX graph-node distinction. Do not exempt virtual
 indexes from validation or manufacture scalar DROP dependencies for opaque arrays.
 [PostgreSQL object identifier types](https://www.postgresql.org/docs/18/datatype-oid.html)

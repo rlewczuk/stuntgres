@@ -29,12 +29,12 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 			})
 			bound := analyze.Binding{Relation: relation, Query: query, Targets: []int{0}, Insert: analyze.InsertBinding{Defaults: []expr.Expr{nil, probe}}}
 			rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-			if err != nil || len(rows.values) != int(count) || calls != int(count) || source.View != nil {
+			if err != nil || len(rows.Values) != int(count) || calls != int(count) || source.View != nil {
 				t.Fatal(rows, err, calls, source.View)
 			}
 			if count != 0 {
-				id, _ := rows.values[0][0].Integer()
-				n, _ := rows.values[0][1].Integer()
+				id, _ := rows.Values[0][0].Integer()
+				n, _ := rows.Values[0][1].Integer()
 				if id != 2 || n != 7 {
 					t.Fatal(id, n)
 				}
@@ -64,7 +64,7 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 	rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	// One destination row was assembled before the next retained default
 	// failed. Neither that successful prefix nor the source pin may escape.
-	if rows.values != nil || err != failure || calls != 2 || source.View != nil || source.Committed != nil || source.Own != nil {
+	if rows.Values != nil || err != failure || calls != 2 || source.View != nil || source.Committed != nil || source.Own != nil {
 		t.Fatal(rows, err, calls, source.View, source.Committed, source.Own)
 	}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -20,7 +21,7 @@ type insertWriteKeyOverlay struct {
 type insertWriteOverlay struct {
 	affectedRows map[ids.RowID]int
 	ownRowSlots  map[ids.ObjectAddress]map[ids.RowID]int
-	overlays     map[*uniqueBoundKey]*insertWriteKeyOverlay
+	overlays     map[*index.UniqueBoundKey]*insertWriteKeyOverlay
 }
 
 func (s *StatementScope) writeOverlay() *insertWriteOverlay {
@@ -56,15 +57,15 @@ func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (storage.
 	return s.ownWrites[ref.Address][slot], true
 }
 
-func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose indexProbePurpose) error {
+func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *index.UniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose index.ProbePurpose) error {
 	member, keys, err := s.existingUniqueOutput(bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return err
 	}
-	if uniqueHasNull(keys) && !bound.index.SQLIndex.NullsNotDistinct {
+	if index.UniqueHasNull(keys) && !bound.Index.SQLIndex.NullsNotDistinct {
 		return nil
 	}
-	hash, err := uniqueKeyHash(evaluation.Context, bound.ordering, bound.grouping, keys)
+	hash, err := index.UniqueKeyHash(evaluation.Context, bound.Ordering, bound.Grouping, keys)
 	if err != nil {
 		return err
 	}
@@ -72,10 +73,10 @@ func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, ev
 	return nil
 }
 
-func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose indexProbePurpose) (storage.RowVersion, bool, error) {
+func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *index.UniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose index.ProbePurpose) (storage.RowVersion, bool, error) {
 	c := s.writeOverlay()
 	if c.overlays == nil {
-		c.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
+		c.overlays = make(map[*index.UniqueBoundKey]*insertWriteKeyOverlay)
 	}
 	o := c.overlays[bound]
 	if o == nil {
@@ -97,7 +98,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqu
 		}
 		o.stageCount++
 	}
-	hash, err := uniqueKeyHash(evaluation.Context, bound.ordering, bound.grouping, key)
+	hash, err := index.UniqueKeyHash(evaluation.Context, bound.Ordering, bound.Grouping, key)
 	if err != nil {
 		return storage.RowVersion{}, false, err
 	}
@@ -113,7 +114,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqu
 					continue
 				}
 			}
-			if uniqueRowExcluded(row.Row, excluded) || uniqueRowDeleted(row.Row, s.ownDeletes[ref.Address]) || uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address]) {
+			if index.UniqueRowExcluded(row.Row, excluded) || index.UniqueRowDeleted(row.Row, s.ownDeletes[ref.Address]) || index.UniqueRowDeleted(row.Row, s.stage.deletes[ref.Address]) {
 				continue
 			}
 			matches, err := s.matchesExistingUnique(bound, row, evaluation, key, purpose)

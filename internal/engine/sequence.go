@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -384,7 +385,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			e.mu.Unlock()
 			return Result{}, sequence.NotSequenceError(d)
 		}
-		if er = relationDropOwner(auth.View, auth, ref, d); er != nil {
+		if er = index.RelationDropOwner(auth.View, auth, ref, d); er != nil {
 			e.mu.Unlock()
 			return Result{}, er
 		}
@@ -462,7 +463,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if !ok {
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		if err = relationDropOwner(auth.View, auth, ref, d); err != nil {
+		if err = index.RelationDropOwner(auth.View, auth, ref, d); err != nil {
 			return Result{}, err
 		}
 		if d.Sequence.Identity {
@@ -493,22 +494,4 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil
-}
-func relationDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
-	err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
-	if err == nil {
-		return nil
-	}
-	if _, validationErr := view.Object(ref); validationErr != nil {
-		return validationErr
-	}
-	ns, ok := view.Catalog.Namespace(d.Namespace())
-	if !ok {
-		return fmt.Errorf("stuntgres: invalid sequence namespace")
-	}
-	namespace := ref.Domain().Ref(ref.Epoch, ns.Address())
-	if view.Check(env, access.Requirement{Object: namespace, OwnerOnly: true}) == nil {
-		return nil
-	}
-	return err
 }

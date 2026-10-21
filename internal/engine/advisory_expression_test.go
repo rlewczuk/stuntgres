@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -48,7 +49,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if name == "pg_advisory_lock" || name == "pg_advisory_lock_shared" || name == "pg_advisory_unlock_all" {
 					id = sqltype.Void
 				}
-				if node.ResultUsage().Type.ID() != id || node.Properties().Volatility != expr.Volatile || plan.GenerationImmutable(node) || !pgIndexFunctionExpression(node) {
+				if node.ResultUsage().Type.ID() != id || node.Properties().Volatility != expr.Volatile || plan.GenerationImmutable(node) || !index.PGIndexFunctionExpression(node) {
 					t.Fatal("fixed identity/volatility", node.ResultUsage(), node.Properties())
 				}
 				if !node.ValidStored() {

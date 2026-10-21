@@ -10,17 +10,18 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func indexMaintenanceMetadataFlags(index, parent ids.OID, n int16) indexMetadata {
-	return indexMetadata{IndexRelID: index, IndRelID: parent, IndNatts: n, IndNKeyAtts: n, IndImmediate: true, IndIsValid: true, IndIsReady: true, IndIsLive: true}
+func indexMaintenanceMetadataFlags(idx, parent ids.OID, n int16) index.Metadata {
+	return index.Metadata{IndexRelID: idx, IndRelID: parent, IndNatts: n, IndNKeyAtts: n, IndImmediate: true, IndIsValid: true, IndIsReady: true, IndIsLive: true}
 }
-func indexMaintenanceMetadata(t *testing.T, e *Engine, catalog catalog.Read, name string) (indexMetadata, indexesMetadata) {
+func indexMaintenanceMetadata(t *testing.T, e *Engine, catalog catalog.Read, name string) (index.Metadata, index.IndexesMetadata) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
-	m, n, err := projectIndexMetadata(context.Background(), catalog, ref)
+	m, n, err := index.ProjectIndexMetadata(context.Background(), catalog, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +42,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	want.IndClass = []ids.OID{1978, 1978, 1978, 1978}
 	want.IndCollation = []ids.OID{0, 0, 0, 0}
 	want.IndOption = []int16{0, 2, 1, 3}
-	if !reflect.DeepEqual(m, want) || n != (indexesMetadata{SchemaName: "public", TableName: "t", IndexName: "ni", IndexDef: "CREATE INDEX ni ON public.t USING btree (n, n NULLS FIRST, n DESC NULLS LAST, n DESC)"}) {
+	if !reflect.DeepEqual(m, want) || n != (index.IndexesMetadata{SchemaName: "public", TableName: "t", IndexName: "ni", IndexDef: "CREATE INDEX ni ON public.t USING btree (n, n NULLS FIRST, n DESC NULLS LAST, n DESC)"}) {
 		t.Fatal("complete simple metadata", m, n, want)
 	}
 	expressions, names := indexMaintenanceMetadata(t, e, capture, "ei")
@@ -89,7 +90,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	run(t, e, "ALTER INDEX ni RENAME TO renamed_ni")
 	run(t, e, "ALTER TABLE t RENAME COLUMN n TO renamed_n")
 	run(t, e, "ALTER TABLE t RENAME TO renamed_t")
-	old, oldNames, err := projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
+	old, oldNames, err := index.ProjectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) || oldNames.IndexName != "ni" || oldNames.TableName != "t" {
 		t.Fatal("historical capture consulted current catalog", old, oldNames, err)
 	}
@@ -98,7 +99,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 		t.Fatal("current names or stable attributes lost", current, currentNames)
 	}
 	run(t, e, "DROP INDEX renamed_ni")
-	records, _, err := indexCatalogMetadata(context.Background(), e.CatalogRead())
+	records, _, err := index.CatalogMetadata(context.Background(), e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +108,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 			t.Fatal("dropped metadata remained published")
 		}
 	}
-	old, _, err = projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
+	old, _, err = index.ProjectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) {
 		t.Fatal("drop mutated old capture", old, err)
 	}
@@ -211,9 +212,9 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	for _, q := range []string{"CREATE DOMAIN di AS INT", "CREATE DOMAIN ditwo AS di", "CREATE DOMAIN dt AS VARCHAR(4)", "CREATE TYPE mood AS ENUM('z','a')", "CREATE DOMAIN dm AS mood", "CREATE TABLE t(i ditwo,s dt,m dm)", "CREATE INDEX ix ON t(i,s,m)"} {
 		run(t, e, q)
 	}
-	index, _ := btreeRoot(t, e, "ix")
+	idx, _ := btreeRoot(t, e, "ix")
 	got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ix")
-	want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 3)
+	want := indexMaintenanceMetadataFlags(idx.Address().ObjectID, idx.SQLIndex.Parent.ObjectID, 3)
 	want.IndKey = []int16{1, 2, 3}
 	want.IndClass = []ids.OID{1978, 3126, 10069}
 	want.IndCollation = []ids.OID{0, 100, 0}
@@ -222,11 +223,11 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 		t.Fatal("domain/enum metadata substituted declared type OIDs", got, want)
 	}
 	// An explicit empty table ACL cannot hide a structural metadata record.
-	parent := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), index.SQLIndex.Parent)
+	parent := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), idx.SQLIndex.Parent)
 	if err := e.SetObjectACL(context.Background(), parent, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	records, names, err := indexCatalogMetadata(context.Background(), e.CatalogRead())
+	records, names, err := index.CatalogMetadata(context.Background(), e.CatalogRead())
 	if err != nil || len(records) != 1 || len(names) != 1 || !reflect.DeepEqual(records[0], want) {
 		t.Fatal("metadata enumeration filtered by ACL or mixed captures", records, names, err)
 	}
@@ -234,30 +235,30 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	records, _, err = indexCatalogMetadata(context.Background(), old)
+	records, _, err = index.CatalogMetadata(context.Background(), old)
 	if err != nil || len(records) != 1 || !reflect.DeepEqual(records[0], want) {
 		t.Fatal("old metadata capture became mutable after replacement", records, err)
 	}
-	empty, _, err := indexCatalogMetadata(context.Background(), e.CatalogRead())
+	empty, _, err := index.CatalogMetadata(context.Background(), e.CatalogRead())
 	if err != nil || len(empty) != 0 {
 		t.Fatal("replacement retained old published metadata", empty, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err := indexCatalogMetadata(canceled, old); !errors.Is(err, context.Canceled) {
+	if _, _, err := index.CatalogMetadata(canceled, old); !errors.Is(err, context.Canceled) {
 		t.Fatal("metadata ignored cancellation", err)
 	}
 	foreign := New()
-	if _, _, err := projectIndexMetadata(context.Background(), old, foreign.catalog.Domain.Ref(old.Epoch(), index.Address())); err == nil {
+	if _, _, err := index.ProjectIndexMetadata(context.Background(), old, foreign.catalog.Domain.Ref(old.Epoch(), idx.Address())); err == nil {
 		t.Fatal("foreign ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123456})); err == nil {
+	if _, _, err := index.ProjectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123456})); err == nil {
 		t.Fatal("missing ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), parent.Address)); err == nil {
+	if _, _, err := index.ProjectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), parent.Address)); err == nil {
 		t.Fatal("non-index ref accepted by capture")
 	}
-	if p, err := sqltype.BindOrdering(index.Columns[2].Usage); err != nil || p.DefaultBtreeOpclass() != 10069 {
+	if p, err := sqltype.BindOrdering(idx.Columns[2].Usage); err != nil || p.DefaultBtreeOpclass() != 10069 {
 		t.Fatal("enum central provider was not retained", p, err)
 	}
 }

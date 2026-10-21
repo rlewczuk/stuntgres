@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -285,7 +286,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 	type physicalBatch struct {
 		ref    ids.ObjectRef
 		old    []storage.RowVersion
-		rows   indexWriteBatch
+		rows   index.WriteBatch
 		staged int
 		prior  map[ids.RowID]struct{}
 	}
@@ -294,7 +295,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 	if len(s.inheritedTargets) == 0 {
 		capacity := min(len(candidates), source.Count())
 		single.old = make([]storage.RowVersion, 0, capacity)
-		single.rows.values = make([][]sqltype.Value, 0, capacity)
+		single.rows.Values = make([][]sqltype.Value, 0, capacity)
 	}
 	batches := []physicalBatch(nil)
 	if len(s.inheritedTargets) != 0 && len(candidates) != 0 {
@@ -306,7 +307,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		for i := range batches {
 			capacity := min(len(candidates), source.Inheritance[i].Prefix.Count())
 			batches[i].old = make([]storage.RowVersion, 0, capacity)
-			batches[i].rows.values = make([][]sqltype.Value, 0, capacity)
+			batches[i].rows.Values = make([][]sqltype.Value, 0, capacity)
 		}
 	}
 	var count int64
@@ -394,7 +395,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
 			return Result{}, err
 		}
-		proposal := indexWriteCandidate{values: physicalRow}
+		proposal := index.WriteCandidate{Values: physicalRow}
 		if err := s.checkUniqueRow(ref, &proposal, batch.old, batch.rows); err != nil {
 			return Result{}, err
 		}
@@ -406,9 +407,9 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 				row[i] = physicalRow[slot]
 			}
 		}
-		batch.rows.append(proposal)
-		one := batch.rows.slice(len(batch.old)-1, len(batch.old))
-		one.actionMode = actionMode
+		batch.rows.Append(proposal)
+		one := batch.rows.Slice(len(batch.old)-1, len(batch.old))
+		one.ActionMode = actionMode
 		// Other action producers can have staged this physical target already.
 		// Index only their prefix/additions; our accepted targets are distinct
 		// and appending never mutates a prefix retained by an earlier view.

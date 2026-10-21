@@ -176,8 +176,8 @@ func (s *StatementScope) Finish(err error) error {
 					t.Catalog = catalog
 					t.NotificationActions = notificationActions
 					t.NotificationEvents = notificationEvents
-					if s.indexesOrZero().exclusionStarted {
-						ownerExtensionOf(t).exclusionModes = s.indexesOrZero().exclusionModes
+					if s.indexesOrZero().ExclusionStarted {
+						ownerExtensionOf(t).exclusionModes = s.indexesOrZero().ExclusionModes
 					}
 					e.reconcileSerializableWritesLocked(t)
 				}
@@ -274,7 +274,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.multiEvents = nil
 	s.ownDeletes = nil
 	s.ownWrites = nil
-	s.indexesSlot.endStatement()
+	s.indexesSlot.EndStatement()
 	s.inheritance.endStatement()
 	s.ticket = nil
 	s.viewCreationSlot.endStatement()

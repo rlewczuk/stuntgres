@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -22,10 +23,10 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 		run(t, e, q)
 	}
 	capture := e.CatalogRead()
-	index, oldRoot := btreeRoot(t, e, "decorated")
+	idx, oldRoot := btreeRoot(t, e, "decorated")
 	plain, oldSibling := btreeRoot(t, e, "plain")
 	got, names := indexMaintenanceMetadata(t, e, capture, "decorated")
-	want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 2)
+	want := indexMaintenanceMetadataFlags(idx.Address().ObjectID, idx.SQLIndex.Parent.ObjectID, 2)
 	want.IndNatts = 5
 	want.IndKey = []int16{2, 3, 4, 4, 5}
 	want.IndClass = []ids.OID{1981, 10004}
@@ -39,17 +40,17 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	originalEntries := append([]storage.IndexEntry(nil), oldRoot.Entries...)
 	originalTuples := expressionRootTuples(t, oldRoot)
 	run(t, e, "ALTER INDEX decorated RENAME TO renamed")
-	if e.storage.IndexRoots[index.Address()] != oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {
+	if e.storage.IndexRoots[idx.Address()] != oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {
 		t.Fatal("decorated rename rebuilt substantive roots")
 	}
 	run(t, e, "REINDEX INDEX renamed")
-	if e.storage.IndexRoots[index.Address()] == oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {
+	if e.storage.IndexRoots[idx.Address()] == oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {
 		t.Fatal("selected decorated rebuild affected a sibling or did no real work")
 	}
 	expressionWantRoot(t, e, "renamed", tuples)
-	selected := e.storage.IndexRoots[index.Address()]
+	selected := e.storage.IndexRoots[idx.Address()]
 	run(t, e, "REINDEX TABLE t")
-	if e.storage.IndexRoots[index.Address()] == selected || e.storage.IndexRoots[plain.Address()] == oldSibling {
+	if e.storage.IndexRoots[idx.Address()] == selected || e.storage.IndexRoots[plain.Address()] == oldSibling {
 		t.Fatal("TABLE omitted an implemented root")
 	}
 	if !reflect.DeepEqual(oldRoot.Entries, originalEntries) || !reflect.DeepEqual(expressionRootTuples(t, oldRoot), originalTuples) {
@@ -60,20 +61,20 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	if !reflect.DeepEqual(current, want) || currentNames.IndexDef != `CREATE INDEX renamed ON public.t USING btree (n oid_ops DESC NULLS LAST, s COLLATE "C" bpchar_ops NULLS FIRST) INCLUDE (payload, payload, j)` {
 		t.Fatal("current include names/stable vector lost", current, currentNames)
 	}
-	old, oldNames, err := projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), index.Address()))
+	old, oldNames, err := index.ProjectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), idx.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) || oldNames != names {
 		t.Fatal("old decorated capture consulted current names", old, oldNames, err)
 	}
 	got.IndKey[2] = 0
 	detached, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "renamed")
-	if !reflect.DeepEqual(detached, want) || index.SQLIndex.Include[0] != 4 {
+	if !reflect.DeepEqual(detached, want) || idx.SQLIndex.Include[0] != 4 {
 		t.Fatal("include vector aliases immutable definition")
 	}
 	run(t, e, "UPDATE t SET payload='changed' WHERE n=2")
 	run(t, e, "REINDEX INDEX renamed")
 	expressionWantRoot(t, e, "renamed", tuples)
 	run(t, e, "DROP INDEX renamed,renamed")
-	if e.storage.IndexRoots[index.Address()] != nil || e.storage.IndexRoots[plain.Address()] == nil {
+	if e.storage.IndexRoots[idx.Address()] != nil || e.storage.IndexRoots[plain.Address()] == nil {
 		t.Fatal("decorated DROP removed a sibling or retained selected root")
 	}
 }
@@ -83,11 +84,11 @@ func TestIndexMaintenanceKeyEquivalenceDecorations(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE t(n INT,s TEXT,p TEXT,j JSON)", `CREATE INDEX ix ON t(n oid_ops,s COLLATE "C" bpchar_ops) INCLUDE(p,j)`, "CREATE INDEX plain ON t(n)"} {
 		run(t, e, q)
 	}
-	index, _ := btreeRoot(t, e, "ix")
+	idx, _ := btreeRoot(t, e, "ix")
 	for _, change := range []string{"include_order", "include_repeat", "include_removed", "class", "collation"} {
 		t.Run(change, func(t *testing.T) {
-			next := *index
-			definition := *index.SQLIndex
+			next := *idx
+			definition := *idx.SQLIndex
 			next.SQLIndex = &definition
 			definition.Keys = append([]catalog.IndexKey(nil), definition.Keys...)
 			definition.Include = append([]int32(nil), definition.Include...)
@@ -104,14 +105,14 @@ func TestIndexMaintenanceKeyEquivalenceDecorations(t *testing.T) {
 			case "collation":
 				definition.Keys[1].Collation = 951
 			}
-			if sameIndexKeySemantics(index, &next) {
+			if index.SameIndexKeySemantics(idx, &next) {
 				t.Fatal("changed actual decoration treated as name-only metadata", change)
 			}
 		})
 	}
-	next := *index
+	next := *idx
 	next.ObjectName = "renamed"
-	if !sameIndexKeySemantics(index, &next) {
+	if !index.SameIndexKeySemantics(idx, &next) {
 		t.Fatal("name-only metadata invalidated real key semantics")
 	}
 }

@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"context"
@@ -8,11 +8,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
-	if previous.Row == current.Row || uniqueHasNull(previous.Keys) || uniqueHasNull(current.Keys) {
+func ValidateExclusionPair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
+	if previous.Row == current.Row || UniqueHasNull(previous.Keys) || UniqueHasNull(current.Keys) {
 		return nil
 	}
-	match, err := exclusionKeysMatch(ctx, index.SQLIndex, previous.Keys, current.Keys)
+	match, err := ExclusionKeysMatch(ctx, index.SQLIndex, previous.Keys, current.Keys)
 	if err != nil || !match {
 		return err
 	}
@@ -22,7 +22,7 @@ func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation,
 		catalog = view.Catalog
 		if env != nil {
 			ref := catalog.Owner().Domain.Ref(catalog.Epoch(), parent.Address())
-			allowed, err = uniqueKeyDetailAllowed(*view, env, ref, index.SQLIndex.Keys)
+			allowed, err = UniqueKeyDetailAllowed(*view, env, ref, index.SQLIndex.Keys)
 			if err != nil {
 				return err
 			}
@@ -32,9 +32,9 @@ func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation,
 	if building {
 		key, existing = previous.Keys, current.Keys
 	}
-	return exclusionDiagnostic(ctx, parent, index, key, existing, schema, output, allowed, building, catalog)
+	return ExclusionDiagnostic(ctx, parent, index, key, existing, schema, output, allowed, building, catalog)
 }
-func validateExclusionRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
+func ValidateExclusionRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
 	if root == nil {
 		return ctx.Err()
 	}
@@ -49,7 +49,7 @@ func validateExclusionRoot(ctx context.Context, parent, index *catalog.Relation,
 			for _, prior := range bucket[:i] {
 				rightKey[0] = prior.Key
 				right := storage.IndexEntry{Row: prior.Row, Version: prior.Version, Keys: rightKey[:]}
-				if err := validateExclusionPair(ctx, parent, index, right, left, schema, output, view, env, building); err != nil {
+				if err := ValidateExclusionPair(ctx, parent, index, right, left, schema, output, view, env, building); err != nil {
 					return err
 				}
 			}
@@ -68,7 +68,7 @@ func validateExclusionEntries(ctx context.Context, parent, index *catalog.Relati
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if err := validateExclusionPair(ctx, parent, index, previous, current, schema, output, view, env, building); err != nil {
+			if err := ValidateExclusionPair(ctx, parent, index, previous, current, schema, output, view, env, building); err != nil {
 				return err
 			}
 		}

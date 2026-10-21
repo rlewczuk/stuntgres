@@ -93,25 +93,25 @@ func TestExclusionPeerCompletion(t *testing.T) {
 	ar, br := transactionBegin(t, a), transactionBegin(t, b)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	at := a.Transactions.Ticket
-	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.events) != 0 {
+	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.Events) != 0 {
 		t.Fatal("uncontested first admission invented a deferred obligation")
 	}
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	bt := b.Transactions.Ticket
-	if len(ownerExtensionOrZero(b.Transactions).exclusionModes.events) != 1 {
+	if len(ownerExtensionOrZero(b.Transactions).exclusionModes.Events) != 1 {
 		t.Fatal("peer admission did not enlist its actual row/version")
 	}
-	event := ownerExtensionOrZero(b.Transactions).exclusionModes.events[0]
-	projection := e.exclusions.pending[bt]
-	entries := projection.entries[event.index.Address]
-	if len(entries) != 1 || event.row != entries[0].row.Row || event.version != entries[0].row.Version {
+	event := ownerExtensionOrZero(b.Transactions).exclusionModes.Events[0]
+	projection := e.exclusions.OwnLocked(bt)
+	entries := projection.Entries[event.Index.Address]
+	if len(entries) != 1 || event.Row != entries[0].Row.Row || event.Version != entries[0].Row.Version {
 		t.Fatal("deferred event is not an exact admitted version", event)
 	}
 	done := exclusionCommitWorker(t, b, br)
 	exclusionCompletionQueued(t, e, at, bt, done)
 	transactionEnd(t, a, ar, false)
 	exclusionCommitAwait(t, done)
-	if len(e.exclusions.pending) != 0 {
+	if e.exclusions.CountLocked() != 0 {
 		t.Fatal("completed owners retained dirty projections")
 	}
 	uniqueClaimsEmpty(t, e)
@@ -124,20 +124,20 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 	transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	at := a.Transactions.Ticket
-	before := e.exclusions.pending[at]
+	before := e.exclusions.OwnLocked(at)
 	sessionSQL(t, a, "SAVEPOINT m")
 	sessionSQL(t, a, "SET CONSTRAINTS ex IMMEDIATE")
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
-	if e.exclusions.pending[at] == before {
+	if e.exclusions.OwnLocked(at) == before {
 		t.Fatal("dirty projection was mutated rather than replaced")
 	}
 	sessionSQL(t, a, "ROLLBACK TO m")
-	if e.exclusions.pending[at] != before || len(ownerExtensionOrZero(a.Transactions).exclusionModes.byConstraint) != 0 {
+	if e.exclusions.OwnLocked(at) != before || len(ownerExtensionOrZero(a.Transactions).exclusionModes.ByConstraint) != 0 {
 		t.Fatal("savepoint did not restore projection and constraint modes")
 	}
 	sessionSQL(t, a, "PREPARE TRANSACTION 'exclusion_unit'")
 	prepared := e.prepared["exclusion_unit"]
-	if prepared == nil || prepared.ticket != at || a.Transactions.Ticket != nil || e.exclusions.pending[at] != before {
+	if prepared == nil || prepared.ticket != at || a.Transactions.Ticket != nil || e.exclusions.OwnLocked(at) != before {
 		t.Fatal("PREPARE did not retain the detached dirty owner")
 	}
 	br := transactionBegin(t, b)
@@ -147,7 +147,7 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 	exclusionCompletionQueued(t, e, at, bt, done)
 	sessionSQL(t, a, "ROLLBACK PREPARED 'exclusion_unit'")
 	exclusionCommitAwait(t, done)
-	if len(e.exclusions.pending) != 0 || len(e.prepared) != 0 {
+	if e.exclusions.CountLocked() != 0 || len(e.prepared) != 0 {
 		t.Fatal("prepared completion retained exclusion ownership")
 	}
 	uniqueClaimsEmpty(t, e)
@@ -177,7 +177,7 @@ func TestExclusionEagerClaims(t *testing.T) {
 			deleteAwait(t, done, 0, context.Canceled)
 			lockPending(t, e, 0)
 			transactionEnd(t, a, ar, false)
-			if len(e.exclusions.pending) != 0 {
+			if e.exclusions.CountLocked() != 0 {
 				t.Fatal("cancelled eager admission retained dirty projection")
 			}
 			uniqueClaimsEmpty(t, e)

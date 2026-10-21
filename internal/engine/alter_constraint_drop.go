@@ -67,10 +67,10 @@ func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, 
 		if constraint == (ids.ObjectAddress{}) {
 			continue
 		}
-		if address != (ids.ObjectAddress{}) && provider.removed(address) {
+		if address != (ids.ObjectAddress{}) && provider.Removed(address) {
 			continue // An earlier real column drop can retire the same backing.
 		}
-		if err := provider.replace(next); err != nil {
+		if err := provider.Replace(next); err != nil {
 			return next, err
 		}
 		retired := [2]ids.ObjectAddress{constraint, address}

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
@@ -13,8 +14,8 @@ import (
 // whole-provider projection controller before the column's own pruning.
 func foreignKeyColumnDependencies(provider dropDependencyReader, target ids.ObjectAddress, mode parser.DropMode) ([]domainDependency, error) {
 	present := false
-	for address, descriptor := range provider.inputDescriptors() {
-		if replacement := provider.replacement(address); replacement != nil {
+	for address, descriptor := range provider.InputDescriptors() {
+		if replacement := provider.Replacement(address); replacement != nil {
 			descriptor = replacement
 		}
 		if d, ok := descriptor.(*catalog.Relation); ok && len(d.Constraints.ForeignKeys) != 0 {
@@ -83,11 +84,11 @@ func foreignKeyDependents(provider dropDependencyReader, edges []domainDependenc
 		if edge.address.ClassID != 2606 || edge.relation == nil {
 			continue
 		}
-		if provider.removed(edge.relation.Address()) {
+		if provider.Removed(edge.relation.Address()) {
 			continue
 		}
 		old := edge.relation
-		if replacement, ok := provider.replacement(old.Address()).(*catalog.Relation); ok {
+		if replacement, ok := provider.Replacement(old.Address()).(*catalog.Relation); ok {
 			old = replacement
 		}
 		for i, f := range old.Constraints.ForeignKeys {
@@ -103,7 +104,7 @@ func foreignKeyDependents(provider dropDependencyReader, edges []domainDependenc
 			if err != nil {
 				return err
 			}
-			if err := provider.replace(&next); err != nil {
+			if err := provider.Replace(&next); err != nil {
 				return err
 			}
 			break
@@ -112,7 +113,7 @@ func foreignKeyDependents(provider dropDependencyReader, edges []domainDependenc
 	return nil
 }
 
-func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *catalog.Relation, transformations []columnTransformation) (*catalog.Relation, error) {
+func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
 	if len(transformations) == 0 {
 		return parent, nil
 	}
@@ -126,7 +127,7 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *cata
 		for i, f := range old.Constraints.ForeignKeys {
 			affected := false
 			for _, change := range transformations {
-				affected = affected || (old.Address() == parent.Address() && slices.Contains(f.Attributes, change.attribute)) || (f.Target == parent.Address() && slices.Contains(f.Referenced, change.attribute))
+				affected = affected || (old.Address() == parent.Address() && slices.Contains(f.Attributes, change.Attribute)) || (f.Target == parent.Address() && slices.Contains(f.Referenced, change.Attribute))
 			}
 			if !affected {
 				continue

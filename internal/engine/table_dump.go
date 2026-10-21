@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
@@ -64,7 +65,7 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalogView cat
 }
 
 func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
-	destination := partitionHashReplayTarget(catalogView, t.descriptor)
+	destination := index.PartitionHashReplayTarget(catalogView, t.descriptor)
 	qualified := catalog.QuoteIdentifier(catalogView.Get(destination.Namespace()).Name()) + "." + catalog.QuoteIdentifier(destination.Name())
 	var line strings.Builder
 	for _, version := range t.versions {

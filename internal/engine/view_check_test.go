@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -218,7 +219,7 @@ func TestViewCheckAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if rows.values != nil || cursor.closes != 1 || calls != 2 || len(scope.stage.rows) != 0 || f.e.visibility.CommitSeq() != 1 {
+		if rows.Values != nil || cursor.closes != 1 || calls != 2 || len(scope.stage.rows) != 0 || f.e.visibility.CommitSeq() != 1 {
 			t.Fatal("prefix/close leak", rows, cursor.closes, calls)
 		}
 		if err := scope.Finish(err); err == nil {
@@ -234,7 +235,7 @@ func TestViewCheckCancellation(t *testing.T) {
 	originals := f.e.storage.Relations[f.base.Address()].Versions
 	row := append([]sqltype.Value(nil), originals[0].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[0]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
+	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[0]}, index.WriteBatch{Values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(scope.op.Context())
@@ -291,7 +292,7 @@ func TestViewCheckFinish(t *testing.T) {
 	if err := f.e.checkViewRow(scope, &b, row, &eval); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[0]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
+	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[0]}, index.WriteBatch{Values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
 	}
 	cancel()

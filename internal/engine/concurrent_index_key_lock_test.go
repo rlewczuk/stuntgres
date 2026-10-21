@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -47,7 +48,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				case "valid":
 					sessionSQL(t, builder, query)
 				}
-				index, _ := concurrentUnitIndex(t, e, "ui", phase != "nonready", phase == "valid")
+				idx, _ := concurrentUnitIndex(t, e, "ui", phase != "nonready", phase == "valid")
 				scope, op, _ := concurrentUnitSnapshotScope(t, e, consumer)
 				ref := roleTableRef(t, e, "t")
 				binding, err := scope.bindUniqueWrite(ref)
@@ -59,15 +60,15 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				if simple {
 					expected = []int{0}
 				}
-				if !reflect.DeepEqual(binding.keySlots, expected) {
-					t.Fatal("row-key bitmap conflated enforcement, INCLUDE or mixed expression keys", binding.keySlots, expected)
+				if !reflect.DeepEqual(binding.KeySlots, expected) {
+					t.Fatal("row-key bitmap conflated enforcement, INCLUDE or mixed expression keys", binding.KeySlots, expected)
 				}
 				wantedRules := 1
 				if phase == "nonready" {
 					wantedRules = 0
 				}
-				if len(binding.keys) != wantedRules {
-					t.Fatal("enforcement ignored Ready boundary", len(binding.keys), wantedRules)
+				if len(binding.Keys) != wantedRules {
+					t.Fatal("enforcement ignored Ready boundary", len(binding.Keys), wantedRules)
 				}
 				e.mu.Lock()
 				parent := e.catalog.state.MustRelation(ref.Address)
@@ -93,19 +94,19 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				}
 				// Key extraction still sees all expression/simple components independently
 				// of the native row-key bitmap classification.
-				ordering, err := bindIndexOrdering(parent, index.SQLIndex)
+				ordering, err := index.BindIndexOrdering(parent, idx.SQLIndex)
 				if err != nil {
 					t.Fatal(err)
 				}
-				before, err := ordering.entry(storage.RowVersion{Values: old}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}})
+				before, err := ordering.Entry(storage.RowVersion{Values: old}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}})
 				if err != nil {
 					t.Fatal(err)
 				}
-				after, err := ordering.entry(storage.RowVersion{Values: next}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}})
+				after, err := ordering.Entry(storage.RowVersion{Values: next}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}})
 				if err != nil {
 					t.Fatal(err)
 				}
-				comparison, err := ordering.compareKeys(context.Background(), before, after)
+				comparison, err := ordering.CompareKeys(context.Background(), before, after)
 				if err != nil || (comparison != 0) != (shape == "mixed") {
 					t.Fatal("actual tuple lost mixed key component", comparison, err)
 				}
