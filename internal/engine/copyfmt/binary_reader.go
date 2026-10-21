@@ -1,4 +1,4 @@
-package engine
+package copyfmt
 
 import (
 	"bufio"
@@ -8,12 +8,13 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-const copyBinarySignature = "PGCOPY\n\xff\r\n\x00"
+// BinarySignature starts every binary COPY file.
+const BinarySignature = "PGCOPY\n\xff\r\n\x00"
 
-// copyBinaryReader is the binary COPY codec: it checks the file header and
+// BinaryReader is the binary COPY codec: it checks the file header and
 // frames tuples and fields. It reuses its buffers across rows and knows
 // nothing of the statement executing the COPY.
-type copyBinaryReader struct {
+type BinaryReader struct {
 	reader        *bufio.Reader
 	scratch       [4096]byte
 	payload       []byte
@@ -21,20 +22,41 @@ type copyBinaryReader struct {
 	header, ended bool
 }
 
-func (r *copyBinaryReader) readFixed(n int) ([]byte, error) {
+// NewBinaryReader reads binary COPY data from reader.
+func NewBinaryReader(reader *bufio.Reader) BinaryReader {
+	return BinaryReader{reader: reader}
+}
+
+// HeaderDone reports whether ReadHeader has accepted the file header.
+func (r *BinaryReader) HeaderDone() bool { return r.header }
+
+// Number is the current tuple number, for the "COPY t, line N" context.
+func (r *BinaryReader) Number() int64 { return r.number }
+
+func (r *BinaryReader) readFixed(n int) ([]byte, error) {
 	_, err := io.ReadFull(r.reader, r.scratch[:n])
 	return r.scratch[:n], err
 }
 func binaryEOF(err error) bool { return err == io.EOF || err == io.ErrUnexpectedEOF }
-func (r *copyBinaryReader) headerInput() error {
-	p, err := r.readFixed(len(copyBinarySignature))
+
+// ReadHeader checks the file signature, flags and header extension, and
+// marks the header done when they are valid.
+func (r *BinaryReader) ReadHeader() error {
+	if err := r.readHeader(); err != nil {
+		return err
+	}
+	r.header = true
+	return nil
+}
+func (r *BinaryReader) readHeader() error {
+	p, err := r.readFixed(len(BinarySignature))
 	if err != nil {
 		if !binaryEOF(err) {
 			return err
 		}
 		return sqlError("22P04", "COPY file signature not recognized")
 	}
-	if string(p) != copyBinarySignature {
+	if string(p) != BinarySignature {
 		return sqlError("22P04", "COPY file signature not recognized")
 	}
 	p, err = r.readFixed(4)
@@ -75,9 +97,9 @@ func (r *copyBinaryReader) headerInput() error {
 	return nil
 }
 
-// row starts the next tuple and returns its field count, or ok=false at the
+// Row starts the next tuple and returns its field count, or ok=false at the
 // end of data. Every started tuple advances the line number.
-func (r *copyBinaryReader) row() (count int16, ok bool, err error) {
+func (r *BinaryReader) Row() (count int16, ok bool, err error) {
 	if r.ended {
 		return 0, false, nil
 	}
@@ -105,9 +127,9 @@ func (r *copyBinaryReader) row() (count int16, ok bool, err error) {
 	return 0, false, err
 }
 
-// field reads the next field of the tuple: its payload, valid until the next
+// Field reads the next field of the tuple: its payload, valid until the next
 // call, or null=true for a NULL.
-func (r *copyBinaryReader) field() (payload []byte, null bool, err error) {
+func (r *BinaryReader) Field() (payload []byte, null bool, err error) {
 	p, err := r.readFixed(4)
 	if err != nil {
 		if binaryEOF(err) {

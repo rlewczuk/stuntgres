@@ -11,6 +11,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -22,13 +23,13 @@ import (
 type copyBinaryCursor struct {
 	scope             *StatementScope
 	binding           analyze.Binding
-	in                copyBinaryReader
+	in                copyfmt.BinaryReader
 	defaults, omitted []bool
 	column            string
 }
 
 func newCopyBinaryCursor(s *StatementScope, b analyze.Binding, r io.Reader) *copyBinaryCursor {
-	c := &copyBinaryCursor{scope: s, binding: b, in: copyBinaryReader{reader: bufio.NewReader(copyReader{s, r})}, defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
+	c := &copyBinaryCursor{scope: s, binding: b, in: copyfmt.NewBinaryReader(bufio.NewReader(copyReader{s, r})), defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
@@ -46,7 +47,7 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 		ctx = c.scope.op.Context()
 	}
 	if err := ctx.Err(); err != nil {
-		if c.in.header && c.scope.op.CopyInput.Held() && session.PendingProtocolUserCancel(ctx) {
+		if c.in.HeaderDone() && c.scope.op.CopyInput.Held() && session.PendingProtocolUserCancel(ctx) {
 			// Refresh a context captured just before user cancellation only
 			// after binary startup has admitted the row-decoding phase.
 			ctx = c.scope.op.Context()
@@ -56,14 +57,13 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 			return false, c.diagnostic(err)
 		}
 	}
-	if !c.in.header {
-		if err := c.in.headerInput(); err != nil {
+	if !c.in.HeaderDone() {
+		if err := c.in.ReadHeader(); err != nil {
 			return false, c.diagnostic(err)
 		}
-		c.in.header = true
 	}
 	c.column = ""
-	count, ok, err := c.in.row()
+	count, ok, err := c.in.Row()
 	if err != nil {
 		return false, c.diagnostic(err)
 	}
@@ -77,7 +77,7 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 	for i, target := range c.binding.Targets {
 		column := c.binding.Relation.Columns[target]
 		c.column = column.Name
-		payload, null, err := c.in.field()
+		payload, null, err := c.in.Field()
 		if err != nil {
 			return false, c.diagnostic(err)
 		}
@@ -117,10 +117,10 @@ func (c *copyBinaryCursor) diagnostic(err error) error {
 	}
 	err = c.scope.copyCommandError(err)
 	var record *sqlstate.Error
-	if !errors.As(err, &record) || c.in.number == 0 {
+	if !errors.As(err, &record) || c.in.Number() == 0 {
 		return err
 	}
-	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.Relation.Name(), c.in.number)
+	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.Relation.Name(), c.in.Number())
 	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.Relation.Name())) {
 		return err
 	}
@@ -150,7 +150,7 @@ func (s *StatementScope) copyBinaryOutput(rows exec.RowResult, w io.Writer) (int
 	}
 	values := make([]sqltype.Value, len(schema))
 	buffer := make([]byte, 0, 4096)
-	buffer = append(buffer, copyBinarySignature...)
+	buffer = append(buffer, copyfmt.BinarySignature...)
 	buffer = binary.BigEndian.AppendUint32(buffer, 0)
 	buffer = binary.BigEndian.AppendUint32(buffer, 0)
 	writer := copyWriter{s, w}

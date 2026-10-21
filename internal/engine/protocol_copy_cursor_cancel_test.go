@@ -114,9 +114,15 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 			}
 			cursor = text
 			if binaryInput {
+				// Consume a valid file header (no flags, no extension) before
+				// Next, so the cursor starts at the tuple with its header done.
+				header := copyfmt.BinarySignature + "\x00\x00\x00\x00\x00\x00\x00\x00"
+				in := copyfmt.NewBinaryReader(bufio.NewReader(strings.NewReader(header + tc.input)))
+				if err := in.ReadHeader(); err != nil {
+					t.Fatal("binary header setup", err)
+				}
 				cursor = &copyBinaryCursor{
-					scope: scope, binding: text.binding,
-					in:       copyBinaryReader{header: true, reader: bufio.NewReader(strings.NewReader(tc.input))},
+					scope: scope, binding: text.binding, in: in,
 					defaults: make([]bool, 1), omitted: make([]bool, 1),
 				}
 			}
