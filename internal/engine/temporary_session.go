@@ -16,7 +16,7 @@ import (
 )
 
 func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
-	if auth.session == nil || auth.Catalog.State() == nil || auth.session.SessionToken == (ids.SessionToken{}) || auth.session.SessionToken.Domain() != domainOf(auth.engine) || privateSessionOf(auth.session.SessionToken) != nil {
+	if auth.session == nil || auth.Catalog.State() == nil || auth.session.SessionToken == (ids.SessionToken{}) || auth.session.SessionToken.Domain() != domainOf(auth.engine) || session.PrivateSessionOf(auth.session.SessionToken) != nil {
 		return ids.ObjectAddress{}
 	}
 	table := func(a ids.ObjectAddress) bool {
@@ -66,7 +66,7 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 
 // Engine.mu is held. The caller owns the candidate and its publication.
 func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *session.Journal) (ids.ObjectRef, error) {
-	if auth.session == nil || privateSessionOf(auth.session.SessionToken) != nil {
+	if auth.session == nil || session.PrivateSessionOf(auth.session.SessionToken) != nil {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: private maintenance cannot create a temporary namespace")
 	}
 	auth.session.Transactions.AccessedTemporary = true
@@ -146,7 +146,7 @@ func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef
 // physical backend exit preserves pg_namespace and cleans only temp relations.
 // Keep peer analysis generation/epoch unchanged, including at scalar exhaustion.
 func (e *Engine) endTemporarySession(s *session.Session) error {
-	if privateSessionOf(s.SessionToken) != nil {
+	if session.PrivateSessionOf(s.SessionToken) != nil {
 		return nil
 	}
 	for {

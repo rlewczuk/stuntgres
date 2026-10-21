@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
@@ -32,7 +33,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 func serializableUnitScope(node *visibility.SerializableTx) *StatementScope {
-	return &StatementScope{owner: txOwnerOf(node.Ref), txRef: node.Ref}
+	return &StatementScope{owner: session.TxOwnerOf(node.Ref), txRef: node.Ref}
 }
 func TestSerializableEvidenceEmptyReadAndAcceptedWrite(t *testing.T) {
 	e := New()
@@ -139,7 +140,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 		t.Fatal(err)
 	}
 	b.Doomed = true
-	e.reconcileSerializableWritesLocked(txOwnerOf(b.Ref))
+	e.reconcileSerializableWritesLocked(session.TxOwnerOf(b.Ref))
 	if len(b.Writes) != 0 || len(e.visibility.Serializable.Creators) != 0 || !b.DidWrite || !b.Doomed || len(b.Reads) != 1 || len(b.Incoming) != 1 {
 		t.Fatal("rollback erased top-level state or retained discarded payload identity")
 	}
@@ -181,7 +182,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	reader := serializableUnitNode(t, e, false)
 	writer := serializableUnitNode(t, e, false)
 	scope := serializableUnitScope(writer)
-	owner := txOwnerOf(writer.Ref)
+	owner := session.TxOwnerOf(writer.Ref)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	create := [1]visibility.SerializableWrite{{Row: 41, Version: 73}}

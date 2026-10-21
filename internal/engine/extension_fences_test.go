@@ -88,7 +88,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.mu.Lock()
-		private := e.privateCatalogLocked(txOwnerOf(tx).Catalog)
+		private := e.privateCatalogLocked(session.TxOwnerOf(tx).Catalog)
 		e.mu.Unlock()
 		a := private.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 		ext := private.MustExtension(a)
@@ -103,7 +103,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.mu.Lock()
-		private = e.privateCatalogLocked(txOwnerOf(tx).Catalog)
+		private = e.privateCatalogLocked(session.TxOwnerOf(tx).Catalog)
 		e.mu.Unlock()
 		for _, a := range ext.Members {
 			if private.Get(a) != nil {

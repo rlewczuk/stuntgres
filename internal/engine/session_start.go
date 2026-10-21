@@ -95,7 +95,7 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	}
 	if err == nil {
 		var ticket *lock.Ticket
-		if sessionTokenAttached(s.SessionToken) {
+		if session.TokenAttached(s.SessionToken) {
 			ticket, err = e.locks.RegisterSession(s.SessionToken)
 		} else {
 			err = errors.New("stuntgres: invalid advisory session")
