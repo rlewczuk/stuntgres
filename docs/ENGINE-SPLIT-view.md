@@ -530,6 +530,10 @@ Outstanding aliases: none yet.
 
 ### Notes for later steps
 
+- Role 28c, for 27b/27d: ALTER MATERIALIZED VIEW OWNER keeps its
+  `alterViewAuthority` call in the root's `executeRelationOwnership`,
+  before `role.PlanRelationOwnership`; moving `alterViewAuthority` only
+  renames that call. `role` never imports `view`.
 - 27a deviations from the plan above, for 27b:
   - Items 5 and 6 ran in the opposite order: rule expansion calls
     `bindViewWrite`, so the lowering became functions first.

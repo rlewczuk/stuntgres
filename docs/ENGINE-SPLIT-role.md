@@ -157,43 +157,211 @@ advance, journal or published state, `installOperationRolesLocked`; about
 
 ### 28c — Refine the host (docs only; linear item 105)
 
-Measure the remaining role handlers and write the host and move set into
-this file. Start from this sketch.
+Re-measure the role handlers left in the root, write the host interface,
+the move set and the commit sequence into this file, then wait for
+approval. The draft host embedded `ddl.Host` and added `RoleRecord`,
+`PrincipalCandidate`, `ReferencingFeatures`, `SessionCount`,
+`ResolveGrantObject`, `ResolveGrantRoutine` and the DROP/REASSIGN OWNED
+dependents.
 
-**Host sketch (`role.Host`).** It embeds `ddl.Host` for the catalog stage,
-authority views, OIDs, revisions and notices, plus:
-- **Roles:** `RoleRecord(Authority) access.RoleRecord` (the captured role
-  state), `PrincipalCandidate(...)` (`roleStore.principalCandidateLocked`),
-  `ReferencingFeatures(principal)` (`roleStore.referencingFeatures`).
-- **Sessions:** `SessionCount(principal) int` (connection limits;
-  `roleSessionCountLocked`).
-- **Grant targets:** `ResolveGrantObject`, `ResolveGrantRoutine` (they use
-  the search path and routine lookup, which stay in the root).
-- **Dependents:** the DROP OWNED and REASSIGN OWNED stage helpers
-  (`stageOwnedSequences`, `stageExpressionDependents`,
-  `stored.ReownExpressions`, `removeObjectLocked`): through the `ddl`
-  removal interface of 24c if it exists, otherwise as host methods.
+**28c refine (approved; measured at `42a45f774`).** The `frontier` tool
+over `roles.go`, `role_attributes.go`, `role_membership.go`,
+`role_connection_limit.go`, `role_grant.go`, `role_grant_objects.go`,
+`role_grant_routines.go`, `database_grant.go`,
+`default_privileges_execute.go`, `ownership.go`, `owned_roles.go` and
+`owned_roles_cleanup.go` (output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-ROLE-REFINE/frontier-role.txt`): 22
+declarations, 77 engine edges.
 
-**Decisions that move (28d):** role attribute validation, DROP ROLE
-dependency ordering and its messages, membership rules, GRANT/REVOKE
-request validation and change construction, default ACL change
-construction, ALTER OWNER rules per object kind, REASSIGN/DROP OWNED
-planning.
+- **Already decided below the root; nothing moves.** `executeRoleAttributes`
+  and `validateRoleAttributesLocked` call `authorization.ValidateRoleAttributes`,
+  `ApplyRoleOptions`, `AttributeCandidate` and `PrepareRolePassword`; what
+  is left is the two lock windows, typed input outside the lock and
+  `roleStore`. `membershipLocked` calls `authorization.MembershipCandidate`;
+  `initialRole` (session start) calls `authorization.ValidateInitialRole`.
+  ALTER DEFAULT PRIVILEGES: `DefaultPrivilegesPlan` moved in 28b; OID
+  reservation, the candidate role read, `ValidateDefaultACLs` and
+  installation stay in the root, as 28a decided. `roleSessionCountLocked`
+  is session admission.
+- **Decisions still in the root.** GRANT target resolution
+  (`objectGrantTargets`, `resolveGrantObject`, `resolveGrantRoutine`,
+  `resolveGrantTablespace`, the parameter targets); `executeDatabaseGrant`;
+  the SET ROLE and SESSION AUTHORIZATION target rules and the DROP ROLE gate
+  in `executeRole`; `dropRolesLocked` (dependencies, their order, the 2BP01
+  text); the ALTER OWNER checks for types, relations and databases; in
+  `executeOwned`, the REASSIGN eligibility and staging loop, the DROP OWNED
+  removal loop and the 2BP01 rewording.
+- **Not needed** (the draft had them): `RoleRecord` (already in
+  `access.View`); `PrincipalCandidate` and `SessionCount` (their callers
+  stay in the root); `ResolveGrantObject` and `ResolveGrantRoutine` (their
+  decisions move; only finer lookups stay behind the host); the dependents
+  (`stageExpressionDependents` and `stageOwnedSequences` run on the scope
+  after `Engine.mu` is released, so they stay orchestration).
+  `stored.ReownExpressions` is called directly: `role` (L12) may import
+  `stored`.
 
-**Stays in the root:** `Engine.mu` and its unlock/relock windows, lock
-waits (`acquireSequence`, `replacementMu`), `AuthorizationView` capture,
-`roleStore` publication and `installOperationRolesLocked`,
-`SetObjectACL`/`SetRoleReferences`, the catalog journal and published state
-updates, and dispatch in `execute.go`.
+Decisions:
 
-Write the method list with signatures, which handler uses each, the move
-set and the commit sequence, then wait for approval.
+1. **Two interfaces, both on `ddlHost`**, implemented directly in a new root
+   `role_host.go` with their assertions; no method body is copied (the ddl
+   hand-off rule).
+   - `role.Host` serves decisions made outside a catalog stage, under
+     `Engine.mu`. None of its methods reads the stage, so the root builds it
+     as `ddlHost{e: e, op: op}` with no stage; the `role_host.go` comment and
+     the seam test pin that. It declares again `Context()`,
+     `AccessView(ddl.Authority) access.View` and `SearchNamespaces(auth,
+     name, class)`, and adds:
+     - `ResolveRelation(auth ddl.Authority, name parser.ObjectName)
+       (ids.ObjectRef, error)`: `resolveRelationReference(v, name, true)`;
+     - `ArgumentTypes(auth ddl.Authority) (func(context.Context,
+       parser.TypeName) (uint32, error), error)`: `captureRegtypeInput` once,
+       then `ResolveParsedTypeName` bound to the operation; the capture error
+       keeps its place before the argument loop;
+     - `CanonicalParameter(name string) (string, error)` and
+       `GrantParameter(auth ddl.Authority, key string) (*catalog.Parameter,
+       error)` (`grantParameterDescriptorLocked`; it allocates only after the
+       duplicate check, as today);
+     - `ReferencingFeatures(authorization.PrincipalRef) []string`;
+     - `DescribeRoleDependency(auth ddl.Authority, dep access.RoleDependency)
+       string`. `dependencyDescription` stays in the root: it needs
+       `dependencyObject`, `relationDiagnosticKind`, `relationDiagnosticName`
+       and `fdw.Label`.
+   - `role.StageHost` serves REASSIGN and DROP OWNED staging: `ddl.Host` plus
+     `AddDomainBase(catalog.Descriptor)` and `RemoveObject(ids.ObjectRef,
+     bool) error` (both already on `ddlHost`) and `OwnerStage()
+     OwnedCleanupStage` (returns `h.stage`).
+   - `ddlHost.SearchNamespaces` also accepts `ids.ProcedureClassID`
+     (`analyze.FunctionLookup`); `role` wraps the result in
+     `analyze.NamespaceSelection{Path: ...}`, whose `Count` and `At` behave
+     the same for qualified names.
+   - The alternative, a separate `roleHost{e, op}` adapter, would copy the
+     `AccessView` and `SearchNamespaces` bodies, which the ddl rule forbids.
+2. **Shared needs go down** (§3 rule 6; the `GrantWarning` precedent):
+   - `fdw.OwnershipEligibility` → `access.ForeignOwnershipEligibility`. It is
+     pure over `access.View`; REASSIGN OWNED needs it and `role` cannot import
+     `fdw`. `fdw/stage.go` calls it there.
+   - `resolveGrantTablespace` → `ddl.TablespaceRef(view access.View, name
+     string) (ids.ObjectRef, error)`; `alter_tablespace.go` and
+     `alter_table_prepare.go` call it too.
+3. **GRANT targets.** `ObjectGrantRequest(h Host, auth ddl.Authority, s
+   *parser.ObjectGrant)` replaces the `resolve` callback and calls the
+   unexported `objectGrantTargets` at the same point, so error precedence is
+   unchanged: parameter dedup, ALL IN SCHEMA (USAGE, kind filter, OID sort),
+   `grantObject` (relation, tablespace, schema, type and domain; 3F000,
+   42704, 42809, 0LP01) and `grantRoutine` (54023, 42883, 42725, 0A000,
+   42809). `GrantRoutineArgumentDisplay` becomes unexported. The root
+   `objectGrantLocked` keeps emitting the warnings, the namespace
+   generation, the role advance, the journal or state install and
+   `installOperationRolesLocked`.
+4. **Database GRANT gets no host**, like `fdw.PlanGrant`:
+   `PlanDatabaseGrant(ctx context.Context, view access.View, s
+   *parser.ObjectGrant, database string, revision func()
+   (ids.DefinitionRevision, error)) (*catalog.Database, []sqlstate.Error,
+   error)`. A nil database means no change; the warning comes back together
+   with a later error. The root keeps the argument check, the lock,
+   `authorizationLocked`, emitting the warning, the journal clone,
+   `catalogChangeLocked` and the scope authority.
+5. **Role DDL.**
+   - `SetRoleTarget(view access.View, s *parser.RoleSelection)` and
+     `SessionAuthorizationTarget(view access.View, s
+     *parser.SessionAuthorization)` return `(authorization.PrincipalRef,
+     error)`.
+   - `PlanDropRoles(h Host, auth ddl.Authority, s *parser.DropRole)
+     (DropRolesPlan, error)`: the superuser gate, 42704 and 55006, the
+     predefined 2BP01, dependency collection and sort, the detail lines,
+     revision exhaustion and `Retire`. `DropRolesPlan` holds `Roles
+     *access.RoleRecord` and `Retired []authorization.PrincipalRef`.
+   - The root keeps the SET LOCAL warning, the session-mutex block (headroom,
+     `publicationOperationLocked`, `touchOperationIdentityLocked`,
+     `TouchRole`), the DROP ROLE install and `RetiredRoles`.
+6. **ALTER OWNER checks** (before the stage begins).
+   - `PlanTypeOwnership(h Host, auth ddl.Authority, s *parser.AlterOwner,
+     name string, identity bool)`, `PlanDatabaseOwnership(view access.View,
+     env access.Environment, s *parser.AlterOwner, name string, identity
+     bool)` and `PlanRelationOwnership(view access.View, env
+     access.Environment, old *catalog.Relation, ref ids.ObjectRef, kind,
+     name string, identity bool)` return `(OwnerChange, error)`;
+     `OwnerChange{Object catalog.Descriptor; Target
+     authorization.PrincipalRef}` with a nil `Object` means the owner is
+     unchanged.
+   - Relation ownership keeps, in the root and in this order,
+     `validateLockedRelation`, resolution with the IF EXISTS notice, the
+     `lockedRef` check and the materialized-view `alterViewAuthority` (step
+     27 owns it). `role` takes the rest unchanged: the view kind check,
+     `analyze.TableKindError`, the owner check, `access.SchemaOwner`, the
+     same-owner no-op, `sequence.LinkedError` and eligibility.
+   - The root keeps `ownershipStage`, `StageOwnership`, the lock waits, the
+     `replacementMu` release and `publishOwnership`.
+7. **REASSIGN and DROP OWNED.**
+   - `StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error`
+     runs under `Engine.mu` after the root's lock waits: for REASSIGN, the
+     per-kind eligibility, `StageOwnership`, the provider flag and
+     `stored.ReownExpressions` over `h.StageRead()` with the `Replace` loop;
+     for DROP, `RemoveObject` per root.
+   - `OwnedDependentsError(err error, primary string) error` rewords the
+     2BP01; the root renders `primary` with `dependencyObject`.
+   - The root keeps the `PlanOwned` call, the stage and its dependency path,
+     the lock waits, `StageOwnedCleanup`, the scope dependents, publication
+     and the cascade notice.
+8. **Errors and order.** Every message, SQLSTATE, hint, detail, notice and
+   warning stays identical and in the same order. Lock order is unchanged:
+   the decisions run under `Engine.mu` only.
+
+**Move set (28d; new names).** Into `role`:
+
+- `host.go`: `Host`, `StageHost`.
+- `grant_targets.go`: `objectGrantTargets`, `grantObject`, `grantRoutine`,
+  and `grantRoutineArgumentDisplay` from `grant_objects.go`.
+- `database_grant.go`: `PlanDatabaseGrant`.
+- `roles.go`: `SetRoleTarget`, `SessionAuthorizationTarget`,
+  `PlanDropRoles`, `DropRolesPlan`.
+- `ownership.go`: `PlanTypeOwnership`, `PlanDatabaseOwnership`,
+  `PlanRelationOwnership`, `OwnerChange`.
+- `owned_stage.go`: `StageOwned`, `OwnedDependentsError`.
+
+Into `access`: `ForeignOwnershipEligibility`. Into `ddl`: `TablespaceRef`.
+Root files deleted: `role_grant_objects.go`, `role_grant_routines.go`;
+`resolveGrantTablespace` leaves `tablespace_catalog.go`.
+
+**Stays in the root.** `Engine.mu`; `initialRole`, `executeRole` (dispatch,
+session mutation, DROP ROLE install), `dependencyDescription`,
+`executeRoleAttributes`, `validateRoleAttributesLocked`,
+`membershipLocked`, `roleSessionCountLocked`; `objectGrantLocked`,
+`executeDatabaseGrant` and `alterDefaultPrivilegesLocked` as described;
+`ownershipStage`, `publishOwnership` (also `extension_drop.go`'s), the three
+ALTER OWNER executors and `executeOwned` as orchestration; the
+`*CatalogStage` adapters (`owned_stage.go`), `roleStore`, `dependencyObject`.
+
+**Commit sequence (28d).**
+
+1. Shared needs go down: `access.ForeignOwnershipEligibility` (caller
+   `fdw/stage.go`, `owned_roles.go`) and `ddl.TablespaceRef` (callers
+   `role_grant_objects.go`, `alter_tablespace.go`, `alter_table_prepare.go`).
+2. Seam: `role.Host` and `role.StageHost`, root `role_host.go` with the
+   assertions, `SearchNamespaces` for procedures. Unit test first, observed
+   failing: a stage-less `ddlHost` as `role.Host` resolves a function path
+   and a grant parameter, and `OwnerStage` returns the stage.
+3. Port in place, as root functions over the hosts naming no `Engine`,
+   `AuthorizationView`, `CatalogStage` or `StatementScope`: 3a the grant
+   targets, database grant and role DDL; 3b the ownership checks and owned
+   staging.
+4. Move them into `role` with `movex`, export only the entry points; no
+   aliases.
+5. Docs: the `role`, `access`, `ddl` and `fdw` READMEs, this file's Status,
+   the §8 row and the status page; `AGENTS.md` unchanged (`role` is listed).
+
+Proof for 28d: the units
+`^Test(Role|ObjectGrant|ObjectRevoke|DefaultPrivileges|DropOwned|ReassignOwned|Membership|ObjectACL|DatabaseACL|Ownership|ParameterTablespaceGrant|FDW)`,
+with `RACE=1` for the role-switch, session-identity and connection-limit
+units; in quick and `REFERENCE=1` mode
+`^TestReference(Role|ObjectGrant|DefaultPrivilege|Reassign|DropOwned)|Ownership|Owned|^TestReferenceSchema(Owner|ACL|Authorization)|^TestReferenceDumpRoundTrip$|Tablespace|^TestReferenceFDW`
+(`ObjectACLDatabase` is order-dependent on `master` too: compare before
+reporting); quickcheck.
 
 ### 28d — Move the handler decisions (linear item 106)
 
-Follow 28c: seam (host on the root `ddlHost` or a role adapter embedding
-it; seam tests first), port each handler in place over `role.Host`, move
-with `movex`, unexport, docs.
+Follow 28c. The root keeps capture, the lock windows, lock waits, the stage
+lifecycle, role and catalog publication and dispatch.
 
 ## Invariants
 
@@ -306,7 +474,15 @@ root. The checks in §8.3 pass.
   `^TestReference(ObjectGrant|Role)|DefaultPrivilege|Ownership|Owned|Reassign`
   selection, `REFERENCE=1` over the 28a selection, and quickcheck;
   racecheck and finalcheck skipped at user request.
-- [ ] 28c — Host refined (docs only)
+- [x] 28c — Host refined (docs only) (the docs commit). Measured at
+  `42a45f774`: 22 declarations, 77 engine edges. `role.Host` (stage-less
+  lookups, parameter targets, role features and dependency text) and
+  `role.StageHost` (`ddl.Host` plus `AddDomainBase`, `RemoveObject`,
+  `OwnerStage`) on `ddlHost`; `fdw.OwnershipEligibility` goes down to
+  `access`, `resolveGrantTablespace` to `ddl.TablespaceRef`; role
+  attributes, membership and default-privilege installation stay as they
+  are; 28d move set and commit sequence written. Docs only, no checks
+  needed.
 - [ ] 28d — Handler decisions moved
 
 Outstanding aliases: none (28b added none).
@@ -316,9 +492,9 @@ Outstanding aliases: none (28b added none).
 - 28b, for 28c/28d and other steps:
   - `authorization.GrantWarning` is in place, so fdw 26d's first commit
     is done.
-  - The root keeps `objectGrantTargets` and the `resolve` callback;
+  - The root keeps `objectGrantTargets` and the `resolve` callback, and
     `GrantRoutineArgumentDisplay` is exported only for
-    `resolveGrantRoutine`, which 28c places.
+    `resolveGrantRoutine`; 28c moves both into `role` (28d unexports it).
   - `ownedSources` is exported only because `ownership_test.go` calls it.
 - 28a deviations from the plan above, for 28b:
   - `ddl.Stage` has no base catalog, cascade revisions, removals or default
@@ -341,11 +517,14 @@ Outstanding aliases: none (28b added none).
     with the error; the root emits them, then returns the error.
   - `executeOwned` keeps the REASSIGN OWNED eligibility and staging loop and
     the DROP OWNED removal loop: they take `Engine.mu` and the stage. 28c
-    decides whether they become host calls.
+    makes them `StageOwned` over `role.StageHost`.
 
 - `resolveGrantTablespace` (`tablespace_catalog.go`) and GRANT ON
-  PARAMETER (`parameter_catalog.go`) are grant target resolution; take them
-  in 28c if they fit the host, or leave them in the root.
+  PARAMETER (`parameter_catalog.go`) are grant target resolution. 28c: the
+  tablespace lookup goes down to `ddl.TablespaceRef` (ALTER TABLESPACE and
+  ALTER TABLE SET TABLESPACE share it); the parameter targets go through
+  `role.Host.CanonicalParameter` and `GrantParameter`, and
+  `parameter_catalog.go` stays in the root.
 - `fdw_grant.go` (GRANT on foreign data wrappers and servers) belongs to
   `fdw` (step 26d), not here.
 - `grantWarning` goes to `authorization` as `GrantWarning`, not to `role`
