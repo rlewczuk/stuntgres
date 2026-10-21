@@ -1,11 +1,11 @@
-package engine
+package dml
 
 import (
 	"errors"
 	"slices"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -13,7 +13,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func bindUniqueWrite(h dml.Host, ref ids.ObjectRef) (*index.UniqueWriteBinding, error) {
+// BindUniqueWrite returns the active command's unique write binding of ref,
+// reusing a current one or building it against the private catalog and
+// capturing its authority. It locks briefly and never waits; the caller
+// holds nothing.
+func BindUniqueWrite(h Host, ref ids.ObjectRef) (*index.UniqueWriteBinding, error) {
 	c := h.Command()
 retry:
 	parent, view, err := h.UniqueParent(ref)
@@ -58,7 +62,7 @@ retry:
 
 // bindingEvaluation is the evaluation context of b's key programs: the
 // statement's context and environments over b's catalog.
-func bindingEvaluation(h dml.Host, b *index.UniqueWriteBinding) exec.Context {
+func bindingEvaluation(h Host, b *index.UniqueWriteBinding) exec.Context {
 	input, output := h.Environments()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: h.Context(), Host: h, Input: input, Output: output, Catalog: h.CatalogRead(b.Catalog)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if b.TypeName != nil {
@@ -67,8 +71,11 @@ func bindingEvaluation(h dml.Host, b *index.UniqueWriteBinding) exec.Context {
 	return evaluation
 }
 
-func claimUniqueRow(h dml.Host, ref ids.ObjectRef, row storage.RowVersion) error {
-	binding, err := bindUniqueWrite(h, ref)
+// ClaimUniqueRow claims the unique keys row holds on ref's exact-equality
+// indexes, before the row is updated or deleted. It waits for conflicting
+// claims; the caller holds nothing.
+func ClaimUniqueRow(h Host, ref ids.ObjectRef, row storage.RowVersion) error {
+	binding, err := BindUniqueWrite(h, ref)
 	if err != nil {
 		return err
 	}
@@ -89,7 +96,7 @@ func claimUniqueRow(h dml.Host, ref ids.ObjectRef, row storage.RowVersion) error
 				continue
 			}
 		}
-		member, key, err := existingUniqueOutput(h, bound, row, &evaluation, purpose)
+		member, key, err := ExistingUniqueOutput(h, bound, row, &evaluation, purpose)
 		if err != nil {
 			return err
 		}
@@ -108,69 +115,84 @@ func claimUniqueRow(h dml.Host, ref ids.ObjectRef, row storage.RowVersion) error
 	return nil
 }
 
-// One real provider probe supplies ordinary violations, omission visibility and
+// UniqueConflict is a probe's first conflict; a zero Index means none. One
+// real provider probe supplies ordinary violations, omission visibility and
 // exact conflict-update identity without scanning committed table payloads.
-type uniqueConflict struct {
-	parent, index *catalog.Relation
-	key           []sqltype.Value
-	existing      []sqltype.Value
-	auth          access.View
-	view          catalog.Read
-	schema        string
-	row           storage.RowVersion
-	committed     bool
-	position      int
+// Row is the conflicting row's head when the probe asked for heads; Position
+// is its index position, or -1 for the statement's own row.
+type UniqueConflict struct {
+	Parent, Index *catalog.Relation
+	Key           []sqltype.Value
+	Existing      []sqltype.Value
+	Auth          access.View
+	View          catalog.Read
+	Schema        string
+	Row           storage.RowVersion
+	Committed     bool
+	Position      int
 }
 
-func (c *uniqueConflict) diagnostic(h dml.Host, ref ids.ObjectRef) error {
-	allowed, err := index.UniqueKeyDetailAllowed(c.auth, h.DisclosureEnv(c.auth), ref, c.index.SQLIndex.Keys)
+// Diagnostic is the conflict's unique or exclusion violation error, with the
+// key detail the actor may see.
+func (c *UniqueConflict) Diagnostic(h Host, ref ids.ObjectRef) error {
+	allowed, err := index.UniqueKeyDetailAllowed(c.Auth, h.DisclosureEnv(c.Auth), ref, c.Index.SQLIndex.Keys)
 	if err != nil {
 		return err
 	}
 	_, output := h.Environments()
-	if c.index.SQLIndex.IsExclusion() {
-		return index.ExclusionDiagnostic(h.Context(), c.parent, c.index, c.key, c.existing, c.schema, output, allowed, false, c.view)
+	if c.Index.SQLIndex.IsExclusion() {
+		return index.ExclusionDiagnostic(h.Context(), c.Parent, c.Index, c.Key, c.Existing, c.Schema, output, allowed, false, c.View)
 	}
-	return index.UniqueDiagnostic(h.Context(), c.parent, c.index, c.key, c.schema, output, allowed, false, c.view)
+	return index.UniqueDiagnostic(h.Context(), c.Parent, c.Index, c.Key, c.Schema, output, allowed, false, c.View)
 }
-func checkUniqueRow(h dml.Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch) error {
-	conflict, err := probeUniqueRow(h, ref, candidate, excluded, prefix, nil, index.ProbeRuntime)
+
+// CheckUniqueRow probes candidate against ref's unique and exclusion indexes
+// and returns the violation error of the first conflict. excluded are the
+// predecessors candidate replaces; prefix is the batch staged before it.
+// It may wait; the caller holds nothing.
+func CheckUniqueRow(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch) error {
+	conflict, err := ProbeUniqueRow(h, ref, candidate, excluded, prefix, nil, index.ProbeRuntime)
 	if err != nil {
 		return err
 	}
-	if conflict.index != nil {
-		return conflict.diagnostic(h, ref)
+	if conflict.Index != nil {
+		return conflict.Diagnostic(h, ref)
 	}
 	return nil
 }
 
 // snapshotStable reports whether the statement's isolation keeps one
 // snapshot (REPEATABLE READ or SERIALIZABLE).
-func snapshotStable(h dml.Host) bool {
+func snapshotStable(h Host) bool {
 	stable, _ := h.Snapshot()
 	return stable
 }
 
-func probeUniqueRow(h dml.Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *dml.InsertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
+// ProbeUniqueRow finds candidate's first conflict on ref: in the committed
+// index roots, the statement's own and staged rows (through the write overlay
+// when the command has one) and prefix. With action it probes only the ON
+// CONFLICT arbiters and reports the conflicting row's head. It claims keys and
+// may wait; the caller holds nothing.
+func ProbeUniqueRow(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *InsertConflictState, purpose index.ProbePurpose) (UniqueConflict, error) {
 	row := candidate.Values
 	c := h.Command()
 retry:
-	binding, err := bindUniqueWrite(h, ref)
+	binding, err := BindUniqueWrite(h, ref)
 	if err != nil {
-		return uniqueConflict{}, err
+		return UniqueConflict{}, err
 	}
 	if purpose == index.ProbeRuntime && binding.Checked {
 		purpose = index.ProbeTracked
 	}
 	parent := binding.Parent
 	if len(row) != len(parent.Columns) {
-		return uniqueConflict{}, errors.New("stuntgres: invalid staged row width")
+		return UniqueConflict{}, errors.New("stuntgres: invalid staged row width")
 	}
 	evaluation := bindingEvaluation(h, binding)
 	ctx := evaluation.Context
 	if action != nil && action.Catalog != binding.Catalog {
 		if err := action.SelectArbiters(&evaluation, parent, evaluation.Catalog); err != nil {
-			return uniqueConflict{}, err
+			return UniqueConflict{}, err
 		}
 	}
 	length := len(binding.Keys)
@@ -184,10 +206,10 @@ retry:
 			if insertion.Unique == nil {
 				if purpose == index.ProbeRevalidation {
 					if output, exists := candidate.Indexes[insertion.Index.Address()]; !exists || !index.OutputMatches(output, insertion.Index) {
-						return uniqueConflict{}, ids.ErrCatalogReplaced
+						return UniqueConflict{}, ids.ErrCatalogReplaced
 					}
 				} else if err := candidate.MaterializeInsertion(insertion, &evaluation); err != nil {
-					return uniqueConflict{}, err
+					return UniqueConflict{}, err
 				}
 				continue
 			}
@@ -197,7 +219,7 @@ retry:
 		}
 		idx := bound.Index
 		if idx.SQLIndex.IsExclusion() {
-			if conflict, err := probeExclusionRow(h, ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.index != nil {
+			if conflict, err := probeExclusionRow(h, ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.Index != nil {
 				return conflict, err
 			}
 			continue
@@ -207,7 +229,7 @@ retry:
 		}
 		member, key, err := candidate.UniqueOutput(bound, &evaluation, action != nil, purpose)
 		if err != nil {
-			return uniqueConflict{}, err
+			return UniqueConflict{}, err
 		}
 		if !member {
 			continue
@@ -218,12 +240,12 @@ retry:
 		indexRef := ref
 		indexRef.Address = idx.Address()
 		if err := h.ClaimUniqueKey(indexRef, bound, key); err != nil {
-			return uniqueConflict{}, err
+			return UniqueConflict{}, err
 		}
 		heads := action != nil && (action.Update != nil || snapshotStable(h) || idx.SQLIndex.HasRuntimeDomainKeyConversion())
 		probe, err := h.CaptureUniqueProbe(ref, binding, idx, heads)
 		if err != nil {
-			return uniqueConflict{}, err
+			return UniqueConflict{}, err
 		}
 		if probe.Stale {
 			c.UniqueBinding = nil
@@ -232,23 +254,23 @@ retry:
 		parent, idx = probe.Parent, probe.Index
 		current, root, versions := probe.View, probe.Root, probe.Versions
 		if check := c.InsertConflict; check != nil {
-			if err := h.CheckWriteBinding(probe.Authority, dml.BindingForConflict(ref, parent, check)); err != nil {
-				return uniqueConflict{}, err
+			if err := h.CheckWriteBinding(probe.Authority, BindingForConflict(ref, parent, check)); err != nil {
+				return UniqueConflict{}, err
 			}
 		}
 		if root == nil {
-			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
+			return UniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
-		outcome := uniqueConflict{parent: parent, index: idx, key: key, auth: probe.Authority, view: current, schema: probe.Schema}
+		outcome := UniqueConflict{Parent: parent, Index: idx, Key: key, Auth: probe.Authority, View: current, Schema: probe.Schema}
 		lo, err := index.UniqueRootStart(ctx, &bound.Ordering, root.Entries, key)
 		if err != nil {
-			return uniqueConflict{}, err
+			return UniqueConflict{}, err
 		}
 		for at := lo; at < len(root.Entries); at++ {
 			entry := root.Entries[at]
 			cmp, err := bound.Ordering.CompareKeys(ctx, entry, storage.IndexEntry{Keys: key})
 			if err != nil {
-				return uniqueConflict{}, err
+				return UniqueConflict{}, err
 			}
 			if cmp != 0 {
 				break
@@ -261,7 +283,7 @@ retry:
 			if overlay := c.WriteOverlay(); overlay != nil {
 				_, replaced = overlay.AffectedRows[entry.Row]
 				if !replaced {
-					_, replaced = insertOwnRow(h, ref, entry.Row)
+					_, replaced = InsertOwnRow(h, ref, entry.Row)
 				}
 			} else {
 				for _, own := range private.Own {
@@ -283,16 +305,16 @@ retry:
 				if heads {
 					head, err := index.ConflictEntryVersion(versions, entry)
 					if err != nil {
-						return uniqueConflict{}, err
+						return UniqueConflict{}, err
 					}
 					if purpose != index.ProbeRevalidation && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
 						if err := bound.FillKeys(head.Values, bound.Scratch, &evaluation); err != nil {
-							return uniqueConflict{}, err
+							return UniqueConflict{}, err
 						}
 					}
-					outcome.row = head
-					outcome.position = entry.Position
-					outcome.committed = head.Born != 0
+					outcome.Row = head
+					outcome.Position = entry.Position
+					outcome.Committed = head.Born != 0
 				}
 				return outcome, nil
 			}
@@ -300,15 +322,15 @@ retry:
 		if c.WriteOverlay() != nil {
 			own, found, err := probeInsertWriteOverlay(h, ref, bound, &evaluation, key, excluded, purpose)
 			if err != nil {
-				return uniqueConflict{}, err
+				return UniqueConflict{}, err
 			}
 			if found {
 				if purpose != index.ProbeRevalidation && action != nil && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
 					if err := bound.FillKeys(own.Values, bound.Scratch, &evaluation); err != nil {
-						return uniqueConflict{}, err
+						return UniqueConflict{}, err
 					}
 				}
-				outcome.row, outcome.position = own, -1
+				outcome.Row, outcome.Position = own, -1
 				return outcome, nil
 			}
 		} else {
@@ -326,16 +348,16 @@ retry:
 					}
 					equal, err := matchesExistingUnique(h, bound, own, &evaluation, key, purpose)
 					if err != nil {
-						return uniqueConflict{}, err
+						return UniqueConflict{}, err
 					}
 					if equal {
 						if purpose != index.ProbeRevalidation && action != nil && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
 							if err := bound.FillKeys(own.Values, bound.Scratch, &evaluation); err != nil {
-								return uniqueConflict{}, err
+								return UniqueConflict{}, err
 							}
 						}
-						outcome.row = own
-						outcome.position = -1
+						outcome.Row = own
+						outcome.Position = -1
 						return outcome, nil
 					}
 				}
@@ -345,18 +367,19 @@ retry:
 			accepted := prefix.Candidate(i)
 			equal, err := accepted.MatchesUnique(bound, &evaluation, key)
 			if err != nil {
-				return uniqueConflict{}, err
+				return UniqueConflict{}, err
 			}
 			if equal {
 				return outcome, nil
 			}
 		}
 	}
-	return uniqueConflict{}, nil
+	return UniqueConflict{}, nil
 }
 
-func uniqueKeyChanged(h dml.Host, ref ids.ObjectRef, old, next []sqltype.Value) (bool, error) {
-	binding, err := bindUniqueWrite(h, ref)
+// UniqueKeyChanged reports whether next changes any unique key column of old.
+func UniqueKeyChanged(h Host, ref ids.ObjectRef, old, next []sqltype.Value) (bool, error) {
+	binding, err := BindUniqueWrite(h, ref)
 	if err != nil {
 		return false, err
 	}

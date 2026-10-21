@@ -142,7 +142,7 @@ func (s *StatementScope) latestConflictUpdateRowLocked(e *Engine, r dml.RowReque
 			row, found = s.stage.rows[ref.Address][slot], true
 		}
 		if !found {
-			row, found = insertOwnRow(s.writeHost(), ref, r.Row)
+			row, found = dml.InsertOwnRow(s.writeHost(), ref, r.Row)
 		}
 	}
 	if !found {

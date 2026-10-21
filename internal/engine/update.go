@@ -330,7 +330,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := e.validateInheritedMutationRow(s, b, candidate.Physical, schema, physicalRow, &eval); err != nil {
 			return Result{}, err
 		}
-		keyChanged, err := uniqueKeyChanged(s.writeHost(), ref, old.Values, physicalRow)
+		keyChanged, err := dml.UniqueKeyChanged(s.writeHost(), ref, old.Values, physicalRow)
 		if err != nil {
 			return Result{}, err
 		}
@@ -344,7 +344,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 				continue
 			}
 		}
-		if err := claimUniqueRow(s.writeHost(), ref, old); err != nil {
+		if err := dml.ClaimUniqueRow(s.writeHost(), ref, old); err != nil {
 			return Result{}, err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -364,7 +364,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 			return Result{}, err
 		}
 		proposal := index.WriteCandidate{Values: physicalRow}
-		if err := checkUniqueRow(s.writeHost(), ref, &proposal, batch.old, batch.rows); err != nil {
+		if err := dml.CheckUniqueRow(s.writeHost(), ref, &proposal, batch.old, batch.rows); err != nil {
 			return Result{}, err
 		}
 		if err := e.checkViewRow(s, &b, row, &eval); err != nil {
@@ -393,9 +393,9 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		}
 		_, overlap := batch.prior[old.Row]
 		if overlap {
-			err = replaceRows(s.writeHost(), ref, batch.old[len(batch.old)-1:], one, dml.ReplaceMerge)
+			err = dml.ReplaceRows(s.writeHost(), ref, batch.old[len(batch.old)-1:], one, dml.ReplaceMerge)
 		} else {
-			err = replaceRows(s.writeHost(), ref, batch.old[len(batch.old)-1:], one, dml.ReplaceAppend)
+			err = dml.ReplaceRows(s.writeHost(), ref, batch.old[len(batch.old)-1:], one, dml.ReplaceAppend)
 		}
 		if err != nil {
 			return Result{}, err

@@ -1,7 +1,6 @@
-package engine
+package dml
 
 import (
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -9,7 +8,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func insertOwnRow(h dml.Host, ref ids.ObjectRef, id ids.RowID) (storage.RowVersion, bool) {
+// InsertOwnRow finds the transaction's own version of row id of ref through
+// the write overlay's slot index.
+func InsertOwnRow(h Host, ref ids.ObjectRef, id ids.RowID) (storage.RowVersion, bool) {
 	own := h.PrivateRows(ref.Address).Own
 	if len(own) == 0 {
 		return storage.RowVersion{}, false
@@ -33,8 +34,8 @@ func insertOwnRow(h dml.Host, ref ids.ObjectRef, id ids.RowID) (storage.RowVersi
 	return own[slot], true
 }
 
-func addInsertWriteKey(o *dml.InsertWriteKeyOverlay, h dml.Host, bound *index.UniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose index.ProbePurpose) error {
-	member, keys, err := existingUniqueOutput(h, bound, row, evaluation, purpose)
+func addInsertWriteKey(o *InsertWriteKeyOverlay, h Host, bound *index.UniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose index.ProbePurpose) error {
+	member, keys, err := ExistingUniqueOutput(h, bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return err
 	}
@@ -49,14 +50,14 @@ func addInsertWriteKey(o *dml.InsertWriteKeyOverlay, h dml.Host, bound *index.Un
 	return nil
 }
 
-func probeInsertWriteOverlay(h dml.Host, ref ids.ObjectRef, bound *index.UniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose index.ProbePurpose) (storage.RowVersion, bool, error) {
+func probeInsertWriteOverlay(h Host, ref ids.ObjectRef, bound *index.UniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose index.ProbePurpose) (storage.RowVersion, bool, error) {
 	c := h.Command().WriteOverlay()
 	if c.Overlays == nil {
-		c.Overlays = make(map[*index.UniqueBoundKey]*dml.InsertWriteKeyOverlay)
+		c.Overlays = make(map[*index.UniqueBoundKey]*InsertWriteKeyOverlay)
 	}
 	o := c.Overlays[bound]
 	if o == nil {
-		o = &dml.InsertWriteKeyOverlay{Stage: make(map[uint64][]int), Own: make(map[uint64][]int)}
+		o = &InsertWriteKeyOverlay{Stage: make(map[uint64][]int), Own: make(map[uint64][]int)}
 		c.Overlays[bound] = o
 	}
 	if !o.OwnReady {

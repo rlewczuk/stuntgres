@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -102,7 +103,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	if result.Rows != nil {
 		result.Rows.Close()
 	}
-	first, err := bindUniqueWrite(scope.writeHost(), ref)
+	first, err := dml.BindUniqueWrite(scope.writeHost(), ref)
 	if err != nil || len(first.Keys) != 0 {
 		t.Fatal(first, err)
 	}
@@ -111,7 +112,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	peer, peerDone := roleOperation(t, e, "postgres")
 	defer peerDone()
 	roleExecute(t, e, peer, "CREATE UNIQUE INDEX ui_ab ON ui_t(a,b) NULLS NOT DISTINCT")
-	second, err := bindUniqueWrite(scope.writeHost(), ref)
+	second, err := dml.BindUniqueWrite(scope.writeHost(), ref)
 	if err != nil || second == first || second.Parent != parent || len(second.Keys) != 1 {
 		t.Fatal("parent-only binding missed added index", err)
 	}
@@ -128,7 +129,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 		t.Fatal("standalone rename changed identity/root")
 	}
 	roleExecute(t, e, peer, "DROP INDEX ui_renamed")
-	third, err := bindUniqueWrite(scope.writeHost(), ref)
+	third, err := dml.BindUniqueWrite(scope.writeHost(), ref)
 	if err != nil || len(third.Keys) != 0 {
 		t.Fatal("removed index retained enforcement", err)
 	}

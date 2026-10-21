@@ -28,7 +28,7 @@ func evaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 	// its epoch is still checked when the completed batch reaches Apply.
 	unique := len(b.Relation.Constraints.Unique) != 0
 	if scope != nil && scope.PartitionInsert == nil && b.Relation.RelationKind != catalog.ForeignRelation {
-		bound, err := bindUniqueWrite(scope.writeHost(), b.Ref)
+		bound, err := dml.BindUniqueWrite(scope.writeHost(), b.Ref)
 		if err != nil {
 			return index.WriteBatch{}, err
 		}

@@ -472,12 +472,12 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 	batch := index.WriteBatch{Values: rows}
 	for i := range batch.Values {
 		candidate := batch.Candidate(i)
-		if err := checkUniqueRow(s.writeHost(), ref, &candidate, nil, batch.Prefix(i)); err != nil {
+		if err := dml.CheckUniqueRow(s.writeHost(), ref, &candidate, nil, batch.Prefix(i)); err != nil {
 			return err
 		}
 		batch.Set(i, candidate)
 	}
-	return applyValidated(s.writeHost(), ref, batch)
+	return dml.ApplyValidated(s.writeHost(), ref, batch)
 }
 
 func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, error) {

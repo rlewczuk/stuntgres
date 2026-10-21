@@ -307,7 +307,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	}
 	row := append([]sqltype.Value(nil), old.Values...)
 	row[1], _ = sqltype.Integer(f.integer, 0)
-	if err := replaceRows(holder.writeHost(), f.baseRef, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
+	if err := dml.ReplaceRows(holder.writeHost(), f.baseRef, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	if err := holder.Finish(nil); err != nil {
@@ -347,7 +347,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	}
 	row := append([]sqltype.Value(nil), originals[1].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	if err := replaceRows(scope.writeHost(), f.baseRef, []storage.RowVersion{originals[1]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
+	if err := dml.ReplaceRows(scope.writeHost(), f.baseRef, []storage.RowVersion{originals[1]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(scope.op.Context())

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
@@ -50,7 +51,7 @@ func TestPartialIndexUniqueAdmissionPrivatePrefix(t *testing.T) {
 					case "prefix":
 						prefix = [][]sqltype.Value{old.Values}
 					}
-					err := checkUniqueRow(scope.writeHost(), f.ref, &index.WriteCandidate{Values: next.Values}, nil, index.WriteBatch{Values: prefix})
+					err := dml.CheckUniqueRow(scope.writeHost(), f.ref, &index.WriteCandidate{Values: next.Values}, nil, index.WriteBatch{Values: prefix})
 					if membership == "true" && candidate == "true" {
 						nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui_index"`, Detail: "Key (a, b)=(2001-02-05, 3) already exists.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 					} else if err != nil {
@@ -76,7 +77,7 @@ func TestPartialIndexUniqueAdmissionCommittedAndClaims(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			scope := partialUniqueScope(t, f)
 			row := partialUniqueRow(t, f, 1, "2001-02-03", "1", active)
-			err := checkUniqueRow(scope.writeHost(), f.ref, &index.WriteCandidate{Values: row.Values}, nil, index.WriteBatch{})
+			err := dml.CheckUniqueRow(scope.writeHost(), f.ref, &index.WriteCandidate{Values: row.Values}, nil, index.WriteBatch{})
 			if active == "true" {
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui_index"`, Detail: "Key (a, b)=(2001-02-03, 1) already exists.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 			} else {
@@ -95,7 +96,7 @@ func TestPartialIndexUniqueAdmissionCommittedAndClaims(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			scope := partialUniqueScope(t, f)
 			row := partialUniqueRow(t, f, 1, "2001-02-03", "1", active)
-			if err := claimUniqueRow(scope.writeHost(), f.ref, row); err != nil {
+			if err := dml.ClaimUniqueRow(scope.writeHost(), f.ref, row); err != nil {
 				t.Fatal(err)
 			}
 			uniqueKeyBucketsEmpty(t, f.e)
@@ -113,7 +114,7 @@ func TestPartialIndexUniqueAdmissionStrongSlots(t *testing.T) {
 				roleExecute(t, f.e, peer, "CREATE UNIQUE INDEX ui_ordinary ON ui_t(p)")
 			}
 			scope := partialUniqueScope(t, f)
-			binding, err := bindUniqueWrite(scope.writeHost(), f.ref)
+			binding, err := dml.BindUniqueWrite(scope.writeHost(), f.ref)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,13 +128,13 @@ func TestPartialIndexUniqueAdmissionStrongSlots(t *testing.T) {
 			old := partialUniqueRow(t, f, 1, "2001-02-05", "3", "true")
 			next := partialUniqueRow(t, f, 2, "2001-02-06", "3", "false")
 			next.Values[2] = old.Values[2]
-			changed, err := uniqueKeyChanged(scope.writeHost(), f.ref, old.Values, next.Values)
+			changed, err := dml.UniqueKeyChanged(scope.writeHost(), f.ref, old.Values, next.Values)
 			if err != nil || changed {
 				t.Fatal("partial key/predicate update stamped strong history", changed, err)
 			}
 			if ordinary {
 				next = partialUniqueRow(t, f, 2, "2001-02-06", "4", "false")
-				changed, err = uniqueKeyChanged(scope.writeHost(), f.ref, old.Values, next.Values)
+				changed, err = dml.UniqueKeyChanged(scope.writeHost(), f.ref, old.Values, next.Values)
 				if err != nil || !changed {
 					t.Fatal("ordinary key control lost strength", changed, err)
 				}
@@ -153,9 +154,9 @@ func TestPartialIndexUniqueAdmissionNullPredicateError(t *testing.T) {
 			row := partialUniqueRow(t, f, 1, "", "0", "true")
 			var err error
 			if claim {
-				err = claimUniqueRow(scope.writeHost(), f.ref, row)
+				err = dml.ClaimUniqueRow(scope.writeHost(), f.ref, row)
 			} else {
-				err = checkUniqueRow(scope.writeHost(), f.ref, &index.WriteCandidate{Values: row.Values}, nil, index.WriteBatch{})
+				err = dml.CheckUniqueRow(scope.writeHost(), f.ref, &index.WriteCandidate{Values: row.Values}, nil, index.WriteBatch{})
 			}
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 			uniqueKeyBucketsEmpty(t, f.e)

@@ -1,8 +1,7 @@
-package engine
+package dml
 
 import (
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -12,14 +11,14 @@ import (
 
 // The insertion producer has already materialized every checked index in order.
 // Staging validates exact produced-data authority and never invokes index SQL.
-func validateIndexCandidates(h dml.Host, ref ids.ObjectRef, batch *index.WriteBatch) error {
+func ValidateIndexCandidates(h Host, ref ids.ObjectRef, batch *index.WriteBatch) error {
 	if len(batch.Values) == 0 {
 		return nil
 	}
 	binding := h.Command().UniqueBinding
 	if binding == nil || binding.Ref != ref {
 		var err error
-		binding, err = bindUniqueWrite(h, ref)
+		binding, err = BindUniqueWrite(h, ref)
 		if err != nil {
 			return err
 		}
@@ -47,7 +46,10 @@ func validateIndexCandidates(h dml.Host, ref ids.ObjectRef, batch *index.WriteBa
 	return nil
 }
 
-func existingUniqueOutput(h dml.Host, bound *index.UniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, purpose index.ProbePurpose) (bool, []sqltype.Value, error) {
+// ExistingUniqueOutput is an existing row's membership and key on bound's
+// index: its recorded output, the statement's retained output, or one
+// computed now (and retained) or read from the index root.
+func ExistingUniqueOutput(h Host, bound *index.UniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, purpose index.ProbePurpose) (bool, []sqltype.Value, error) {
 	idx := bound.Index
 	read := func(output storage.IndexOutput) (bool, []sqltype.Value, error) {
 		if !index.OutputMatches(output, idx) {
@@ -109,11 +111,11 @@ func existingUniqueOutput(h dml.Host, bound *index.UniqueBoundKey, row storage.R
 	return index.ExistingRootOutput(bound, root, row, evaluation, purpose)
 }
 
-func matchesExistingUnique(h dml.Host, bound *index.UniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, key []sqltype.Value, purpose index.ProbePurpose) (bool, error) {
+func matchesExistingUnique(h Host, bound *index.UniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, key []sqltype.Value, purpose index.ProbePurpose) (bool, error) {
 	if purpose == index.ProbeRuntime && !bound.Index.SQLIndex.HasRuntimeDomainConversion() && row.IndexOutputs == nil {
 		return bound.Matches(evaluation, row.Values, key)
 	}
-	member, produced, err := existingUniqueOutput(h, bound, row, evaluation, purpose)
+	member, produced, err := ExistingUniqueOutput(h, bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return false, err
 	}

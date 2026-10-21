@@ -312,7 +312,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 		if err = e.validateMutationRow(s, b, schema, row, &evaluation); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
-		keyChanged, err := uniqueKeyChanged(s.writeHost(), ref, old.Values, row)
+		keyChanged, err := dml.UniqueKeyChanged(s.writeHost(), ref, old.Values, row)
 		if err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
@@ -321,7 +321,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
-		if err = claimUniqueRow(s.writeHost(), ref, old); err != nil {
+		if err = dml.ClaimUniqueRow(s.writeHost(), ref, old); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -334,13 +334,13 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 		}
 		predecessor := [1]storage.RowVersion{old}
 		proposal := index.WriteCandidate{Values: row}
-		if err = checkUniqueRow(s.writeHost(), ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
+		if err = dml.CheckUniqueRow(s.writeHost(), ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		replacement := [1][]sqltype.Value{row}
 		batch := index.WriteBatch{Values: replacement[:], ActionMode: actionMode}
 		batch.Set(0, proposal)
-		if err = replaceRows(s.writeHost(), ref, predecessor[:], batch, dml.ReplaceMerge); err != nil {
+		if err = dml.ReplaceRows(s.writeHost(), ref, predecessor[:], batch, dml.ReplaceMerge); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 	}

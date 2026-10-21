@@ -224,7 +224,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	unique := &index.UniqueWriteBinding{}
 	if foreign == nil {
-		unique, err = bindUniqueWrite(s.writeHost(), b.Ref)
+		unique, err = dml.BindUniqueWrite(s.writeHost(), b.Ref)
 		if err != nil {
 			return 0, err
 		}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -144,7 +145,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
-	binding, err := bindUniqueWrite(scope.writeHost(), ref)
+	binding, err := dml.BindUniqueWrite(scope.writeHost(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}

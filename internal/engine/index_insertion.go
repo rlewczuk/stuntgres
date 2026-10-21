@@ -1,54 +1,5 @@
 package engine
 
-import (
-	"stuntgres/internal/engine/dml"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/storage"
-)
-
-// revalidateIndexRows rebinds after a stale unique binding, readmits the
-// statement's programs and reprobes every row of batch.
-func revalidateIndexRows(h dml.Host, ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
-	c := h.Command()
-	prior := c.UniqueBinding
-	if prior != nil && prior.Ref != ref {
-		prior = c.IndexBindings[ref.Address]
-	}
-	binding, err := bindUniqueWrite(h, ref)
-	if err != nil {
-		return err
-	}
-	purpose := index.ProbeRuntime
-	if binding.Checked || prior != nil && prior.Checked {
-		purpose = index.ProbeRevalidation
-		if prior != nil && !index.SameRelationRowShape(prior.Parent, binding.Parent) {
-			return ids.ErrCatalogReplaced
-		}
-	}
-	if prior != nil {
-		if err := h.ReadmitRevalidation(prior, binding); err != nil {
-			return err
-		}
-	}
-	for i := range batch.Values {
-		candidate := batch.Candidate(i)
-		var excluded []storage.RowVersion
-		if old != nil {
-			excluded = old[:i+1]
-		}
-		conflict, err := probeUniqueRow(h, ref, &candidate, excluded, batch.Prefix(i), nil, purpose)
-		if err != nil {
-			return err
-		}
-		if conflict.index != nil {
-			return conflict.diagnostic(h, ref)
-		}
-		batch.Set(i, candidate)
-	}
-	return nil
-}
-
 // Only actual blocking-grant continuations call this, never a row Eval or an
 // uncontended key probe. TxRef/CommandID are phase coordinates, not a substitute
 // for this fresh coherent authority capture. All checks after unlock are pure

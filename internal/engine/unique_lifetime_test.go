@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -232,13 +233,13 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	first, err := bindUniqueWrite(scope.writeHost(), parentRef)
+	first, err := dml.BindUniqueWrite(scope.writeHost(), parentRef)
 	if err != nil {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal(err)
 	}
-	again, err := bindUniqueWrite(scope.writeHost(), parentRef)
+	again, err := dml.BindUniqueWrite(scope.writeHost(), parentRef)
 	if err != nil || first != again || first.Keys[0].Ordering.Slots[0] != 1 {
 		scope.Finish(err)
 		op.Done()
@@ -289,7 +290,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	next, err := bindUniqueWrite(scope.writeHost(), parentRef)
+	next, err := dml.BindUniqueWrite(scope.writeHost(), parentRef)
 	if err != nil || next == first || next.Keys[0].Ordering.Slots[0] != 0 {
 		scope.Finish(err)
 		op.Done()

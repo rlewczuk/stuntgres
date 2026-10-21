@@ -113,7 +113,7 @@ func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 	e := scope.engine()
 	defer target.Close()
 	defer inputs.Close()
-	unique, err := bindUniqueWrite(scope.writeHost(), b.Ref)
+	unique, err := dml.BindUniqueWrite(scope.writeHost(), b.Ref)
 	if err != nil {
 		return Result{}, err
 	}
