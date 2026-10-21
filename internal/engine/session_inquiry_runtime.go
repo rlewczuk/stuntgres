@@ -9,7 +9,7 @@ import (
 func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	results := scope.inquiry.searchPathResults
-	if scope.inquiry.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleActionAuth != nil {
+	if scope.inquiry.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleAction.auth != nil {
 		engine := scope.engine()
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
@@ -28,7 +28,7 @@ func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor
 				return sqltype.Value{}, err
 			}
 		}
-		if scope.foreignActionAuth == nil && scope.ruleActionAuth == nil {
+		if scope.foreignActionAuth == nil && scope.ruleAction.auth == nil {
 			scope.inquiry.searchPathResults = results
 		}
 	}

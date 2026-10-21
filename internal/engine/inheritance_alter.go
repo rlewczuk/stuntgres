@@ -355,7 +355,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 	}
 	scope.catalog = state.changes
 	e.mu.Unlock()
-	emitViewCascade(op, stage.viewCascadeNames)
+	emitViewCascade(op, stage.dropCascadeNames)
 	return Result{}, nil
 }
 

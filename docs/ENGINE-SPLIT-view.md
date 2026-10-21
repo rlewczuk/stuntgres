@@ -463,9 +463,9 @@ diagnostics and `dropProvider`, the journal and publication.
 
 - Engine units: `rule_*_test.go` (10 files), `view*_test.go` (13),
   `materialized_*_test.go` (17), `polic*_test.go` (5), `rls_*_test.go`,
-  `row_security*_test.go`. Grep `*_test.go` for `expandRulesLocked`,
+  `row_security*_test.go`. Grep `*_test.go` for `ruleRewriter`,
   `composeRuleAction`, `makeRuleProducer`, `bindViewWrite`,
-  `lowerViewWrite`, `materializedConcurrent`, `viewCascadeNames`. Add
+  `lowerViewWrite`, `materializedConcurrent`, `dropCascadeNames`. Add
   `RACE=1` for the concurrent refresh tests.
 - Reference selections, quick mode and `REFERENCE=1` (never edit
   `reference/` or `smoke/`):
@@ -501,8 +501,26 @@ in the root. The checks in §8.3 pass.
 
 ## Status
 
-- [ ] 27a — In place (dead code, drop diagnostics split, rule and
-  view-write authority cuts, slots)
+- [x] 27a — In place (dead code, drop diagnostics split, rule and
+  view-write authority cuts, slots) (`87bfbb497`, `16260a489`, `a0254a5c3`,
+  `57c781f25`, `7472271b6`, `a5e32e52a`, `512cf3e1c`, `24b0bfde4`, then the
+  docs commit). `reach` on
+  `^(rule_|view|policy|rls_|row_security|materialized_)`: 253 clean of 322
+  (243 of 330 before; the drop diagnostics left the matched files). Every
+  declaration in the 27b move lists is clean, except
+  `relationDefiningAuthorityCompatible`, which 5i had already moved to
+  `catalog.RelationDefiningAuthorityCompatible`. Verified with
+  `^Test(Rule|View|Materialized|Polic|RLS|RowSecurity|TemporaryTable|CTE)`
+  (rule, RLS and CTE units also with `-race`), the three reference
+  selections below in quick and `REFERENCE=1` mode, and quickcheck;
+  racecheck/finalcheck skipped at user request. Tests: new
+  `rule_authority_test.go` (`AsUser` and `ruleAuthorizationOf`);
+  `rule_dependency_closure_test.go` and `temporary_table_cleanup_test.go`
+  now call `dropProvider.applyViewDependents`; `rule_test.go`,
+  `rule_source_authority_test.go`, `view_check_test.go`,
+  `view_write_test.go`, `materialized_refresh_authorization_test.go` and
+  `policy_restore_authorization_test.go` use the new signatures. No test
+  moved or deleted.
 - [ ] 27b — `view` created and clean set moved
 - [ ] 27c — Host refined (docs only)
 - [ ] 27d — Handler decisions moved
@@ -511,6 +529,46 @@ Outstanding aliases: none yet.
 
 ### Notes for later steps
 
+- 27a deviations from the plan above, for 27b:
+  - Items 5 and 6 ran in the opposite order: rule expansion calls
+    `bindViewWrite`, so the lowering became functions first.
+  - `stageViewDependentsLocked` was deleted with `stageViewDependents`: its
+    only caller was that test helper. DROP reaches the view closure through
+    `dropProvider.applyViewDependents` (`drop_provider.go`), which stays in
+    the root.
+  - New names: `ruleRewriter{owner}` with `expandLocked` and
+    `expandResidualLocked` (the old `Engine.expandRulesLocked` and
+    `expandRuleResidualLocked`); `appendRuleCommand` is a plain function.
+    `bindViewWrite(owner, view, b, stmt, consumed...)`,
+    `lowerViewWrite(owner, view, b, stmt)` and
+    `lowerViewInsert(owner, view, b, s)`.
+  - `ruleAuthority` and `ruleAuthorizationOf` are in `rule_authority.go`,
+    with the three `AuthorizationView` methods that implement the interface
+    (`Access`, `AsUser`, `StorageLocked`). The interface moves to `view` in
+    27b, but the three methods stay in the root on `AuthorizationView`, and
+    so does `ruleAuthorizationOf`. `normalizeRuleCTEsLocked` takes a
+    `ruleAuthority` too, because it stores it as `ruleCTECommand.caller`.
+  - `policyPreflight` and `resolvePolicyRoles` take only `access.View`: they
+    read `Roles` and `SessionRoleState` and run no check. The other three
+    helpers take `(access.View, access.Environment)`.
+  - The RLS group is the field `statementMutation.rls` of type
+    `rowSecurityMutation` (`rls_base.go`); the name avoids
+    `StatementScope.rowSecurity`, the immutable setting. The rule-action
+    authority is the value field `StatementScope.ruleAction` of type
+    `ruleActionScope{auth *AuthorizationView}` (`rule_execution.go`). Both
+    are values, not pointer slots, because they are swapped per command;
+    `ruleCommandScratch` and the CTE mutation save/restore copy them as one
+    unit. Both groups hold root types, so they stay in the root.
+- 27b: in `materialized_stage.go` and `materialized_refresh.go` the slot
+  accessors `CatalogStage.materialized`/`materializedOrZero` and
+  `StatementScope.materialized`/`materializedOrZero` are root methods. They
+  stay in a root file; only the slot record types move.
+- Open questions from 27a: `relationDefiningAuthorityCompatible` is
+  already `catalog.RelationDefiningAuthorityCompatible` (5i).
+  `physicalBinding` unwraps the `viewWrite` record (`viewWriteOf`), a
+  `view` type, so it moves with `view`, not to `analyze`. Its root callers
+  (`domain_default.go`, `execute*.go`, rule execution and admission,
+  `row_security_setting.go`) import `view`.
 - `dml` (29b) needs the rule action records; they are in `stored` (22c),
   not here, so `dml` does not need `view` for them.
 - `table` (24) calls the drop diagnostics (`emitViewCascade`,

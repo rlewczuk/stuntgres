@@ -501,12 +501,12 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 }
 
 func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode parser.DropMode) error {
-	start := len(stage.viewCascadeNames)
+	start := len(stage.dropCascadeNames)
 	if err := scope.stageExpressionDependents(stage, stage.domainTargets, mode, nil); err != nil {
 		return err
 	}
-	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames[start:]...)
-	stage.viewCascadeNames = stage.viewCascadeNames[:start]
+	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.dropCascadeNames[start:]...)
+	stage.dropCascadeNames = stage.dropCascadeNames[:start]
 	return nil
 }
 

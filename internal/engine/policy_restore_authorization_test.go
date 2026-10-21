@@ -31,10 +31,10 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 	}
 	assertTargets := func(auth AuthorizationView, want authorization.PrincipalRef) {
 		t.Helper()
-		if err := policyPreflight(op, auth, creation, false); err != nil {
+		if err := policyPreflight(op, auth.View, creation, false); err != nil {
 			t.Fatal("preflight", err)
 		}
-		roles, warning, err := resolvePolicyRoles(auth, creation.Roles)
+		roles, warning, err := resolvePolicyRoles(auth.View, creation.Roles)
 		if err != nil || warning || len(roles) != 3 {
 			t.Fatal("selector vector", roles, warning, err)
 		}

@@ -92,7 +92,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	if err := scope.stageOwnedSequences(stage, removedRelations, parser.DropCascade, nil); err != nil {
 		return Result{}, err
 	}
-	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
+	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.dropCascadeNames...)
 	for a := range stage.Removals() {
 		if r, ok := stage.Base.Relation(a); ok && r.RelationKind == catalog.SequenceRelation {
 			if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {

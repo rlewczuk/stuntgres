@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
@@ -9,10 +10,10 @@ import (
 
 // The logical binder has checked arity, expressions and types. Logical view
 // defaults win for exposed columns; only true absence falls back to the base.
-func (e *Engine) lowerViewInsert(b *analyze.Binding, auth AuthorizationView, s *parser.Insert) error {
+func lowerViewInsert(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, s *parser.Insert) error {
 	d := viewWriteOf(b.ViewWrite).base
 	physical := analyze.Binding{Relation: d, Ref: viewWriteOf(b.ViewWrite).ref}
-	domainScheduling := analyze.BindInsertDefaults(e.catalog.owner(), &physical, auth.Catalog, parser.OverrideNone)
+	domainScheduling := analyze.BindInsertDefaults(owner, &physical, view, parser.OverrideNone)
 	b.Insert.Defaults, b.Insert.DefaultOrigins = physical.Insert.Defaults, physical.Insert.DefaultOrigins
 	if b.Insert.Defaults == nil {
 		b.Insert.Defaults = make([]expr.Expr, len(d.Columns))
@@ -24,7 +25,7 @@ func (e *Engine) lowerViewInsert(b *analyze.Binding, auth AuthorizationView, s *
 		if !ok {
 			continue
 		}
-		node, origin := analyze.ColumnDefault(auth.Catalog, viewWriteOf(b.ViewWrite).logical.Relation, i)
+		node, origin := analyze.ColumnDefault(view, viewWriteOf(b.ViewWrite).logical.Relation, i)
 		if origin.Definition.Expression != nil {
 			if b.Insert.DefaultOrigins == nil {
 				b.Insert.DefaultOrigins = make([]analyze.DefaultOrigin, len(d.Columns))

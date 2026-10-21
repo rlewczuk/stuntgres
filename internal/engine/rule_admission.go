@@ -29,7 +29,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			seen[definition] = true
 			mutation, _ := analyze.MutationBinding(definition)
-			if err := analyze.CheckBinding(rewrite.caller, *mutation, definition.Statement); err != nil {
+			if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.caller), *mutation, definition.Statement); err != nil {
 				e.mu.Unlock()
 				return nil, err
 			}
@@ -67,13 +67,14 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 				refs = append(refs, physical.Ref)
 			}
 		}
-		collectAuth := command.auth
-		collectAuth.Recapture(scope.inheritanceRead(command.auth.Catalog))
+		commandAuth := ruleAuthorizationOf(command.auth)
+		collectAuth := commandAuth
+		collectAuth.Recapture(scope.inheritanceRead(commandAuth.Catalog))
 		principal := func(leaf exec.Leaf) authorization.PrincipalRef {
 			if leaf.Principal != (authorization.PrincipalRef{}) {
 				return leaf.Principal
 			}
-			return command.auth.State.CurrentUser
+			return commandAuth.State.CurrentUser
 		}
 		var queryRefs []ids.ObjectRef
 		for start := 0; start < len(command.binding.QuerySources); {
@@ -138,7 +139,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}
 	}
 	for i := range commands {
-		principal := commands[i].auth.State.CurrentUser
+		principal := commands[i].auth.Access().State.CurrentUser
 		current := fresh
 		current.State.CurrentUser = principal
 		if i < len(program.commands) {
@@ -155,7 +156,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}
 	}
 	for i := range commands {
-		current := commands[i].auth
+		current := ruleAuthorizationOf(commands[i].auth)
 		if err := analyze.CheckBinding(current, commands[i].binding, commands[i].syntax); err != nil {
 			e.mu.Unlock()
 			return nil, err

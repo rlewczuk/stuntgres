@@ -14,7 +14,7 @@ import (
 type ruleCTECommand struct {
 	definition *plan.CTEDefinition
 	command    ruleCommand
-	caller     AuthorizationView
+	caller     ruleAuthority
 	events     []catalog.ExpressionDependency
 	mutation   int
 }
@@ -39,7 +39,7 @@ func ruleCTEProgramError(program ruleProgram) error {
 
 // All original bodies have completed ordinary typed analysis and parameter
 // inference. Rewrite modifiers before parent rules, without altering providers.
-func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth AuthorizationView, statement parser.Statement, b *analyze.Binding) error {
+func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth ruleAuthority, statement parser.Statement, b *analyze.Binding) error {
 	matched := func(relation *catalog.Relation, statement parser.Statement) bool {
 		return relation != nil && slices.ContainsFunc(rulesOf(relation), func(rule ruleDefinition) bool { return rule.event == ruleEvent(statement) })
 	}
@@ -62,7 +62,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 		original.Parameters = b.Parameters
 		original.CTEs = b.CTEs
 		program := ruleProgram{count: -1, returning: -1}
-		if _, err := e.expandRulesLocked(scope, auth, definition.Statement, original, nil, &program); err != nil {
+		if _, err := (ruleRewriter{e.catalog.owner()}).expandLocked(auth, definition.Statement, original, nil, &program); err != nil {
 			return err
 		}
 		if err := ruleCTEProgramError(program); err != nil {
@@ -107,7 +107,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			continue
 		}
 		mutation, _ := analyze.MutationBinding(definition)
-		if err := analyze.CheckBinding(rewrite.caller, *mutation, definition.Statement); err != nil {
+		if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.caller), *mutation, definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 	}
 	for _, rewrite := range ruleCTEsOf(b.Rule.CTEs) {
 		caller := fresh
-		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
+		caller.State.CurrentUser = rewrite.caller.Access().State.CurrentUser
 		if err := caller.Roles.ValidatePrincipal(caller.State.CurrentUser); err != nil {
 			e.mu.Unlock()
 			return nil, err
@@ -142,7 +142,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 	}
 	for _, rewrite := range ruleCTEsOf(b.Rule.CTEs) {
 		caller := fresh
-		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
+		caller.State.CurrentUser = rewrite.caller.Access().State.CurrentUser
 		mutation, _ := analyze.MutationBinding(rewrite.definition)
 		if err := analyze.CheckBinding(caller, *mutation, rewrite.definition.Statement); err != nil {
 			e.mu.Unlock()

@@ -349,7 +349,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 					uses = []int{}
 				}
 				sourceInvoker := invoker
-				if scope.ruleActionAuth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
+				if scope.ruleAction.auth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
 					sourceInvoker = leaf.Principal
 				}
 				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses)

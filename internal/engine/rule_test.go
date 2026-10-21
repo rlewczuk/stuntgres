@@ -328,7 +328,7 @@ func TestRuleProgramOrdering(t *testing.T) {
 	original := ruleUnitInsert(e, src, 4, 40)
 	p := ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
-	count, err := e.expandRulesLocked(nil, auth, original.syntax, original.binding, nil, &p)
+	count, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.syntax, original.binding, nil, &p)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -351,7 +351,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
-	count, err := e.expandRulesLocked(nil, auth, original.syntax, original.binding, nil, &p)
+	count, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.syntax, original.binding, nil, &p)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -362,7 +362,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "nothing", event: "INSERT", instead: true}})
 	p = ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
-	count, err = e.expandRulesLocked(nil, auth, original.syntax, original.binding, nil, &p)
+	count, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.syntax, original.binding, nil, &p)
 	e.mu.Unlock()
 	if err != nil || count != -1 || len(p.commands) != 0 {
 		t.Fatalf("NOTHING authority=%d commands=%d error=%v", count, len(p.commands), err)
@@ -383,7 +383,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
-		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {
+		if err := bindViewWrite(f.e.catalog.owner(), auth.Catalog, &mapped, &parser.Update{}); err != nil {
 			t.Fatal(err)
 		}
 		if mapped.Ref != f.viewRef || mapped.Relation != f.view || physicalBinding(mapped).Ref != f.baseRef || mapped.Targets[0] != 1 {
@@ -397,7 +397,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		}
 		program := ruleProgram{count: -1, returning: -1}
 		f.e.mu.Lock()
-		count, err := f.e.expandRulesLocked(nil, auth, &parser.Update{}, mapped, nil, &program)
+		count, err := ruleRewriter{f.e.catalog.owner()}.expandLocked(auth, &parser.Update{}, mapped, nil, &program)
 		f.e.mu.Unlock()
 		if err != nil || count != -1 || len(program.commands) != 0 {
 			t.Fatalf("inner unconditional boundary must stop before automatic validation: count=%d commands=%d error=%v", count, len(program.commands), err)
@@ -412,7 +412,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{}
 	e.mu.Lock()
-	_, err := e.expandRulesLocked(nil, auth, original.syntax, original.binding, nil, &p)
+	_, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.syntax, original.binding, nil, &p)
 	e.mu.Unlock()
 	if err == nil || !strings.Contains(err.Error(), "infinite recursion detected in rules for relation") {
 		t.Fatalf("recursion error=%v", err)
@@ -421,7 +421,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 	rulesOf(src)[0].actions = append(rulesOf(src)[0].actions, ruleUnitInsert(e, sink, 2, 20))
 	p = ruleProgram{}
 	e.mu.Lock()
-	_, err = e.expandRulesLocked(nil, auth, original.syntax, original.binding, nil, &p)
+	_, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.syntax, original.binding, nil, &p)
 	e.mu.Unlock()
 	if err != nil || len(p.commands) != 3 {
 		t.Fatalf("sibling target reuse: commands=%d error=%v", len(p.commands), err)

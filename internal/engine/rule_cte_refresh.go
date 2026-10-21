@@ -8,11 +8,11 @@ import (
 
 // Frozen action-owned modifiers are definitions to refresh, not protected
 // enclosing statement spools. One mapper reconnects declarations and all scans.
-func refreshRuleActionCTEs(auth AuthorizationView, b analyze.Binding) (analyze.Binding, error) {
+func refreshRuleActionCTEs(auth ruleAuthority, b analyze.Binding) (analyze.Binding, error) {
 	if len(b.CTEs) == 0 {
 		return b, nil
 	}
-	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
+	mapper := newRuleTreeMapper(auth.Access().Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		body := *mutation
 		// Stored modifier recipes need a private execution workspace even when
@@ -20,19 +20,19 @@ func refreshRuleActionCTEs(auth AuthorizationView, b analyze.Binding) (analyze.B
 		// visits action-owned descendant definitions and reconnects their scans;
 		// enclosing statement providers never enter this stored-action path.
 		body.Insert.Conflict = body.Insert.Conflict.Clone()
-		if body.Ref.Epoch != auth.Catalog.Epoch() {
+		if body.Ref.Epoch != auth.Access().Catalog.Epoch() {
 			return body, ids.ErrCatalogReplaced
 		}
-		current, ok := auth.Catalog.Relation(body.Ref.Address)
+		current, ok := auth.Access().Catalog.Relation(body.Ref.Address)
 		if !ok {
 			return body, ids.ErrCatalogReplaced
 		}
 		var err error
-		body, err = refreshRuleBinding(auth.Catalog, body, current)
+		body, err = refreshRuleBinding(auth.Access().Catalog, body, current)
 		if err != nil {
 			return body, err
 		}
-		body.Storage = auth.engine.authorizationStorageLocked(auth, body.Ref.Address)
+		body.Storage = auth.StorageLocked(body.Ref.Address)
 		return refreshRuleSources(auth, body)
 	}})
 	mapped, err := mapRuleBindingRecipes(b, mapper)

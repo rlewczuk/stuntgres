@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -43,7 +44,7 @@ func policyClauses(command catalog.PolicyCommand, using, check parser.Expr, crea
 	return nil
 }
 
-func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]catalog.PolicyRole, bool, error) {
+func resolvePolicyRoles(view access.View, raw []parser.GrantGrantee) ([]catalog.PolicyRole, bool, error) {
 	if raw == nil {
 		return []catalog.PolicyRole{{Public: true}}, false, nil
 	}
@@ -55,7 +56,7 @@ func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]ca
 		if role.Role.Name == "none" {
 			return nil, false, sqlError("42939", `role name "none" is reserved`)
 		}
-		ref, err := authorization.MembershipRole(auth.Roles, auth.SessionRoleState, role.Role)
+		ref, err := authorization.MembershipRole(view.Roles, view.SessionRoleState, role.Role)
 		if err != nil {
 			return nil, false, err
 		}
@@ -64,7 +65,7 @@ func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]ca
 	return roles, false, nil
 }
 
-func policyPreflight(op *session.Operation, auth AuthorizationView, stmt parser.Statement, notices bool) error {
+func policyPreflight(op *session.Operation, view access.View, stmt parser.Statement, notices bool) error {
 	var roles []parser.GrantGrantee
 	switch s := stmt.(type) {
 	case *parser.CreatePolicy:
@@ -80,7 +81,7 @@ func policyPreflight(op *session.Operation, auth AuthorizationView, stmt parser.
 	default:
 		return nil
 	}
-	_, warn, err := resolvePolicyRoles(auth, roles)
+	_, warn, err := resolvePolicyRoles(view, roles)
 	if err == nil && warn && notices {
 		op.EmitNotice(session.LevelWarning, sqlstate.Error{
 			Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023",

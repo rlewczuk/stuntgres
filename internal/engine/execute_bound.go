@@ -40,7 +40,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		evaluation.PlanStaticOperators = true
 	}
 	routineAuth := auth
-	if scope.ruleActionAuth != nil {
+	if scope.ruleAction.auth != nil {
 		routineAuth.State.CurrentUser = scope.routineAuth.State.CurrentUser
 		if err := routineAuth.Roles.ValidatePrincipal(routineAuth.State.CurrentUser); err != nil {
 			e.mu.Unlock()
@@ -238,8 +238,8 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if scope.ruleActionAuth != nil {
-			auth.State.CurrentUser = scope.ruleActionAuth.State.CurrentUser
+		if scope.ruleAction.auth != nil {
+			auth.State.CurrentUser = scope.ruleAction.auth.State.CurrentUser
 			if err = auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -455,7 +455,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		var target *exec.Source
-		if scope.rlsTargetDenied {
+		if scope.rls.targetDenied {
 			target, err = captureDeniedQuerySource(view, b.Ref)
 		} else {
 			target, err = exec.CaptureSource(ctx, view, b.Ref)

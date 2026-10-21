@@ -79,7 +79,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 		t.Fatal("view SELECT definition disappeared from the same canonical closure")
 	}
 	stage := e.BeginCatalogStage(view)
-	if err := stageRuleDependents(stage, []ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
+	if err := stageDropProvider(context.Background(), stage, nil, nil, nil).applyViewDependents([]ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	current := e.stageRead(stage).MustRelation(event.Address())

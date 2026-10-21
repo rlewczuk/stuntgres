@@ -160,7 +160,7 @@ func sameViewRelation(a, b ids.ObjectRef) bool {
 	return a == b
 }
 
-func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
+func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, stmt parser.Statement, consumed ...ids.ObjectRef) error {
 	if b.Relation == nil || b.Relation.RelationKind != catalog.ViewRelation {
 		return nil
 	}
@@ -214,11 +214,11 @@ func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt 
 			return ids.ErrCatalogReplaced
 		}
 		leaf := viewOf(d).Sources()[sourceNode.Occurrence]
-		source, ok := auth.Catalog.Relation(leaf.ref.Address)
+		source, ok := view.Relation(leaf.ref.Address)
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
-		use, err := storedViewUseReference(auth.Catalog, d, leaf.ref)
+		use, err := storedViewUseReference(view, d, leaf.ref)
 		if err != nil {
 			return err
 		}
@@ -270,7 +270,7 @@ func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt 
 		w.layers = append(w.layers, viewWriteLayer{relation: d, ref: ref, targets: mapped, source: source, sourceRef: use, mainOccurrence: sourceNode.Occurrence})
 		var lowerStored func(expr.Expr, bool) (expr.Expr, bool, error)
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
-			return rewriteViewExpression(auth.Catalog, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
+			return rewriteViewExpression(view, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
 				if q, ok := n.(functions.StringVariadic); ok && exec.QuoteOriginOf(q).Owner == (ids.ObjectRef{}) {
 					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: viewOf(d).RuleOID(), Revision: viewOf(d).quoteRevision})
 					q.RoutineRecipeReference = d
@@ -349,14 +349,14 @@ func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt 
 			return expanded[c.Slot], true, nil
 		}
 		for i, expr := range outputs {
-			next, _, err := rewriteViewExpression(auth.Catalog, expr, nil, replace)
+			next, _, err := rewriteViewExpression(view, expr, nil, replace)
 			if err != nil {
 				return err
 			}
 			outputs[i] = next
 		}
 		for i, expr := range w.predicates {
-			next, _, err := rewriteViewExpression(auth.Catalog, expr, nil, replace)
+			next, _, err := rewriteViewExpression(view, expr, nil, replace)
 			if err != nil {
 				return err
 			}
@@ -364,7 +364,7 @@ func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt 
 		}
 		for i := range w.checks {
 			for j, expr := range w.checks[i].predicates {
-				next, _, err := rewriteViewExpression(auth.Catalog, expr, nil, replace)
+				next, _, err := rewriteViewExpression(view, expr, nil, replace)
 				if err != nil {
 					return err
 				}
@@ -399,7 +399,7 @@ func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt 
 	w.base, w.ref, w.outputs = d, ref, outputs
 	b.ViewWrite = viewWriteSlotOf(w)
 	b.Targets = targets
-	return e.lowerViewWrite(b, auth, stmt)
+	return lowerViewWrite(owner, view, b, stmt)
 }
 
 func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(plan.Node, func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error)) (expr.Expr, bool, error) {
@@ -415,14 +415,14 @@ func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.R
 	return mapper(bound)
 }
 
-func (e *Engine) lowerViewWrite(b *analyze.Binding, auth AuthorizationView, stmt parser.Statement) error {
+func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, stmt parser.Statement) error {
 	w := viewWriteOf(b.ViewWrite)
 	logicalWidth, physicalWidth := len(w.logical.Relation.Columns), len(w.base.Columns)
 	graft := func(root plan.Node, mapper func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
-		return w.graftQuery(b, auth.Catalog, root, mapper)
+		return w.graftQuery(b, view, root, mapper)
 	}
 	lowerMapped := func(bound expr.Expr) (expr.Expr, bool, error) {
-		return rewriteViewExpression(auth.Catalog, bound, nil, func(n expr.Expr) (expr.Expr, bool, error) {
+		return rewriteViewExpression(view, bound, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			switch n.(type) {
 			case plan.SubqueryExpr:
 				b.SubqueryDemand = true
@@ -464,7 +464,7 @@ func (e *Engine) lowerViewWrite(b *analyze.Binding, auth AuthorizationView, stmt
 					return nil, false, ids.ErrCatalogReplaced
 				}
 				output := w.outputs[c.Slot]
-				output, _, err := rewriteViewExpression(auth.Catalog, output, nil, func(child expr.Expr) (expr.Expr, bool, error) {
+				output, _, err := rewriteViewExpression(view, output, nil, func(child expr.Expr) (expr.Expr, bool, error) {
 					column, ok := child.(plan.ColumnExpr)
 					if !ok || !sameViewRelation(column.Origin, w.ref) || column.Frame != 1 {
 						return child, false, nil
@@ -515,7 +515,7 @@ func (e *Engine) lowerViewWrite(b *analyze.Binding, auth AuthorizationView, stmt
 	if _, inserting := stmt.(*parser.Insert); !inserting {
 		predicates := make([]expr.Expr, len(w.predicates))
 		for i, x := range w.predicates {
-			predicates[i], _, err = rewriteViewExpression(auth.Catalog, x, nil, func(n expr.Expr) (expr.Expr, bool, error) { return n, false, nil }, graft)
+			predicates[i], _, err = rewriteViewExpression(view, x, nil, func(n expr.Expr) (expr.Expr, bool, error) { return n, false, nil }, graft)
 			if err != nil {
 				return err
 			}
@@ -524,7 +524,7 @@ func (e *Engine) lowerViewWrite(b *analyze.Binding, auth AuthorizationView, stmt
 	}
 	for i := range w.checks {
 		for j, x := range w.checks[i].predicates {
-			w.checks[i].predicates[j], _, err = rewriteViewExpression(auth.Catalog, x, nil, func(n expr.Expr) (expr.Expr, bool, error) { return n, false, nil }, graft)
+			w.checks[i].predicates[j], _, err = rewriteViewExpression(view, x, nil, func(n expr.Expr) (expr.Expr, bool, error) { return n, false, nil }, graft)
 			if err != nil {
 				return err
 			}
@@ -616,7 +616,7 @@ func (e *Engine) lowerViewWrite(b *analyze.Binding, auth AuthorizationView, stmt
 		b.Insert.Conflict = &conflict
 	}
 	if insert, ok := stmt.(*parser.Insert); ok {
-		return e.lowerViewInsert(b, auth, insert)
+		return lowerViewInsert(owner, view, b, insert)
 	}
 	if _, ok := stmt.(*parser.Update); ok {
 		for _, slot := range b.Targets {

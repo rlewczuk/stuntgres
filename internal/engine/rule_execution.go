@@ -12,6 +12,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// ruleActionScope is the rule-owner authority of the rule action command now
+// executing; nil auth means no rule action is active. Command switches save
+// and restore it as one unit.
+type ruleActionScope struct {
+	auth *AuthorizationView
+}
+
 // Only command-local target/source scratch changes. Publication, the operation,
 // parameter frame, original signature, snapshot frontier and budget remain owned
 // by the original StatementScope and its one WriteStage/Finish.
@@ -28,12 +35,12 @@ type ruleCommandScratch struct {
 	partition  *partitionInsertState
 	locks      *exec.LockContext
 	admission  analyze.LockAdmission
-	auth       *AuthorizationView
+	ruleAction ruleActionScope
 	quotes     *exec.QuoteCaptureCandidate
 }
 
 func (s *StatementScope) ruleScratch() ruleCommandScratch {
-	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.viewWrite, sources: s.querySources, unique: s.uniqueBinding, conflict: s.insertConflict, returning: s.insertReturning, partition: s.partitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, auth: s.ruleActionAuth, quotes: s.quoteCaptures}
+	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.viewWrite, sources: s.querySources, unique: s.uniqueBinding, conflict: s.insertConflict, returning: s.insertReturning, partition: s.partitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, ruleAction: s.ruleAction, quotes: s.quoteCaptures}
 }
 func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.statementMutation = c.mutation
@@ -41,7 +48,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.viewWrite, s.querySources = c.viewWrite, c.sources
 	s.uniqueBinding, s.insertConflict, s.insertReturning, s.partitionInsert = c.unique, c.conflict, c.returning, c.partition
 	s.queryLocks, s.queryLockAdmission = c.locks, c.admission
-	s.ruleActionAuth = c.auth
+	s.ruleAction = c.ruleAction
 	s.quoteCaptures = c.quotes
 }
 
@@ -51,7 +58,7 @@ func bindingRuleRelation(b analyze.Binding) *catalog.Relation {
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
 	program := ruleProgram{count: -1, returning: -1}
-	count, err := e.expandRulesLocked(scope, auth, stmt, b, nil, &program)
+	count, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, stmt, b, nil, &program)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -82,7 +89,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	}
 	for i := range program.commands {
 		command := &program.commands[i]
-		if err := analyze.CheckBinding(command.auth, command.binding, command.syntax); err != nil {
+		if err := analyze.CheckBinding(ruleAuthorizationOf(command.auth), command.binding, command.syntax); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -129,15 +136,16 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			return Result{}, err
 		}
 		physical := physicalBinding(command.binding)
-		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: viewWriteOf(command.binding.ViewWrite), sources: command.binding.QuerySources, auth: &program.commands[i].auth})
+		commandAuth := ruleAuthorizationOf(command.auth)
+		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: viewWriteOf(command.binding.ViewWrite), sources: command.binding.QuerySources, ruleAction: ruleActionScope{auth: &commandAuth}})
 		captures := &exec.QuoteCaptureCandidate{}
 		if command.binding.Parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
-			pruneQuoteCaptures(captures, command.auth.Catalog)
+			pruneQuoteCaptures(captures, commandAuth.Catalog)
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: commandAuth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 		e.mu.Lock()
-		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, command.auth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
+		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, commandAuth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
 			return Result{}, err
 		}
 	}

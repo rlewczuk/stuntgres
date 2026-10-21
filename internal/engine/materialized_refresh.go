@@ -16,15 +16,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error {
-	d, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.Owner.Domain || ref.Epoch != auth.Catalog.Epoch() {
+func materializedRefreshAccess(view access.View, env access.Environment, ref ids.ObjectRef) error {
+	d, ok := view.Catalog.Relation(ref.Address)
+	if !ok || ref.Domain() != view.Owner.Domain || ref.Epoch != view.Catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.MaterializedViewRelation {
 		return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.Name()))
 	}
-	if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.MaintainPrivilege}); err != nil {
+	if err := view.Check(env, access.Requirement{Object: ref, Privileges: authorization.MaintainPrivilege}); err != nil {
 		return err
 	}
 	if d.RelationKind != catalog.MaterializedViewRelation {
@@ -43,7 +43,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		ref, err = e.resolveRelationReference(auth, stmt.Name, true)
 	}
 	if err == nil {
-		err = materializedRefreshAccess(auth, ref)
+		err = materializedRefreshAccess(auth.View, auth, ref)
 	}
 	if err == nil {
 		observed = auth.Catalog.MustRelation(ref.Address)
@@ -82,7 +82,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
-		err = materializedRefreshAccess(auth, ref)
+		err = materializedRefreshAccess(auth.View, auth, ref)
 	}
 	if err == nil && stmt.Concurrent.Character != 0 {
 		err = materializedConcurrentAdmission(auth.Catalog, current, stmt.NoData)
@@ -115,7 +115,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		return Result{}, fmt.Errorf("stuntgres: REFRESH MATERIALIZED VIEW takes no arguments")
 	}
 	ref := scope.lockedRef
-	if err := materializedRefreshAccess(caller, ref); err != nil {
+	if err := materializedRefreshAccess(caller.View, caller, ref); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
