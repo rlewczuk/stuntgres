@@ -152,7 +152,7 @@ exported names and qualify the callers; no aliases.
 | `table_inheritance.go`, `inheritance_alter.go`, `inheritance_query.go`, `partition.go`, `partition_attach_schema.go` | `inheritanceChildren`, `inheritanceHasChildren`, `inheritanceParticipant`, `cloneInheritance`, `inheritanceQueryLayout`, `hierarchyRelation`, `samePartitionColumnUsage` | `catalog/inheritance.go` |
 | `not_null_binding.go` | `constraintNames`, `relationConstraintNameExists`, `generatedConstraintName` | `catalog/constraint_names.go` |
 | `relation_scope.go` | `sameRelationRowShape` | `catalog` |
-| `deparse_renderer.go` | `pgIdentifier` (quotes a name when `parser.IdentifierNeedsQuotes` says so; 52 uses in 16 files) | `catalog/diagnostic_names.go` as `catalog.Identifier` (regobj 21a does it if this item has not run) |
+| `deparse_renderer.go` | `pgIdentifier` | done: regobj 21a moved it to `catalog/diagnostic_names.go` as `catalog.Identifier`; skip |
 | `materialized_refresh.go` | `relationDefiningAuthorityCompatible` (compares two `catalog.Relation` values) | `catalog` |
 | `definition_identity.go` | `definitionOIDUsed`, `reserveDefinitionOIDs`, `validateDefinitionOIDs`, `structuralNull` | `catalog/definition_identity.go` |
 | `namespace_children.go` | `namespaceChildren` | `catalog` |

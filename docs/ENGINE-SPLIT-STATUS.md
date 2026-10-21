@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `1bf7d5e83` (items 55, 58, 60 and 67). Steps 8–17 were
+Last verified against `master` at `05ab40a48` (items 55, 58, 60, 64, 67 and 71). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,8 +18,7 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 61 (ddl 20b), 64 (regobj
-  21a).
+- **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 61 (ddl 20b).
 - **Follow-ups in existing packages:** 72 (catalog 5i), 73 (plan 10e),
   74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f), 78 (session 13f),
   79 (access B6).
@@ -28,7 +27,8 @@ after each lands.
 
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
-(dump 18a), 58 (copyfmt 19a), 60 (ddl 20a) and 67 (stored 22a) are done.
+(dump 18a), 58 (copyfmt 19a), 60 (ddl 20a), 64 (regobj 21a) and 67
+(stored 22a) are done; regobj 21b (item 65) waits for catalog 5j (item 74).
 Item 71 (functions F6) closed F2 and step 3.
 
 ## Task tree
@@ -412,7 +412,9 @@ Item 71 (functions F6) closed F2 and step 3.
   - [ ] 20d — Schema and tablespace decisions moved
 - [ ] **Step 21 — `regobj`** ([prompt](ENGINE-SPLIT-regobj.md); 21b needs
   5j)
-  - [ ] 21a — In place: regclass and visibility files, renderer split
+  - [x] 21a — In place: regclass and visibility files, renderer split
+    (`faabae6f1`, `fdea22a7e`, `bc4972dc4`, `4c5e82e76`, `c8c5d6f0c`,
+    `108381a52`, `3a26d7fbb`, `46a317e4d`, then the docs commit)
   - [ ] 21b — `regobj` created and clean set moved
   - [ ] 21c — Captured input resolvers moved
 - [ ] **Step 22 — `stored`** ([prompt](ENGINE-SPLIT-stored.md); 22b needs
@@ -846,7 +848,11 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     [ddl](ENGINE-SPLIT-ddl.md) 20c · needs 61
 63. [ ] DDL 20d: schema and tablespace decisions moved —
     [ddl](ENGINE-SPLIT-ddl.md) 20d · needs 62
-64. [ ] regobj 21a: in place — [regobj](ENGINE-SPLIT-regobj.md) 21a · needs —
+64. [x] regobj 21a: in place — [regobj](ENGINE-SPLIT-regobj.md) 21a · needs —
+    (`faabae6f1` … `46a317e4d`, then the docs commit) · regclass, literal,
+    namespace-visibility, identity and presentation files gathered;
+    `pgIdentifier` is `catalog.Identifier` · selected unit and dual-mode
+    proof and quickcheck passed; racecheck/finalcheck skipped at user request
 65. [ ] regobj 21b: `regobj` created, clean set moved —
     [regobj](ENGINE-SPLIT-regobj.md) 21b · needs 64, 74
 66. [ ] regobj 21c: captured input resolvers moved —

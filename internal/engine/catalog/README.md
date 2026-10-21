@@ -114,7 +114,9 @@ standard library, and never the engine or its sibling `functions`. The lower
   descriptors and never grant execution; the engine's regproc lookup and the
   binder's unavailable-function diagnostic read them.
 - **Diagnostic names** (`diagnostic_names.go`). `QuoteIdentifier` always
-  quotes; `DependencyIdentifier` quotes like PostgreSQL 18
+  quotes; `Identifier` quotes only when the supported grammar needs it
+  (`parser.IdentifierNeedsQuotes`; deparse and dump spellings use it);
+  `DependencyIdentifier` quotes like PostgreSQL 18
   `quote_identifier` (every keyword except unreserved ones, independent of
   the parser's smaller grammar); `TypeDiagnosticNameAt` names a type bare
   when the search path finds it first and schema-qualified otherwise;
@@ -192,7 +194,7 @@ external900-second deadline; public dual-mode proof is documented in
 
 
 - Read and write API: `make check RUN='^TestCatalog(ReadTypedAccessors|ReadUntypedAndNameAccessors|ReadAccessorsRequirePopulatedRead|StateWritesStayOnTheirState)$'`.
-- Diagnostic names: `make check RUN='^Test(DependencyIdentifierQuotesLikeQuoteIdentifier|TypeDiagnosticNameAtQualifiesHiddenTypes)$'`.
+- Diagnostic names: `make check RUN='^Test(DependencyIdentifierQuotesLikeQuoteIdentifier|IdentifierQuotesOnlyWhenNeeded|TypeDiagnosticNameAtQualifiesHiddenTypes)$'`.
 - Engine-side catalog seams (registry, payload accessors, operator index,
   publication): `make check RUN='^Test(CatalogAllocatorAndProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayloadAccessors|UserOperatorIndex)'`.
 - Candidate ownership: `make check RUN='^TestCandidate(PrivateUpdates|RenameRemovalReuse|DefaultObservations|RetainedState)$'`.
