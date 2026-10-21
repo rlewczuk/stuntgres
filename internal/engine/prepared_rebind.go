@@ -152,8 +152,8 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 				mutation = s.statementMutation
 			}
 			ref := mutation.lockedRef
-			if mutation.viewWrite != nil {
-				ref = mutation.viewWrite.Logical.Ref
+			if mutation.ViewWrite != nil {
+				ref = mutation.ViewWrite.Logical.Ref
 			}
 			if ref.Domain() == nil {
 				continue

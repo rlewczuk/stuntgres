@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `be8ed733b` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 111, 112 and 113). Steps 8–17 were
+Last verified against `master` at `db8252574` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 111, 112 and 113). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,7 +16,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **DML, executors:** 110a (dml 29d.1); 110b–110f follow in order.
+- **DML, executors:** 110b (dml 29d.2); 110c–110f follow in order.
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -136,6 +136,10 @@ docs only) is ready; the end-state review (item 114) still waits for 110.
 Item 109 (DML 29c, docs only) is done and split 29d into 110a–110f, run
 in order, so 110a (29d.1, seam and lower moves) is ready; the end-state
 review (item 114) now waits for 110f. TRUNCATE stays in the root.
+Item 110a (DML 29d.1) is done: `dml.Host` on `statementHost`, `dml.Command`,
+`lock.UniqueJournal`, probe authority as `access.View` and the lower moves,
+so 110b (29d.2) is ready. The host's FK pieces (`ForeignKeys`,
+`FinishHost`, `dml.Authority`) moved to 110f, next to their callers.
 
 ## Task tree
 
@@ -617,7 +621,7 @@ review (item 114) now waits for 110f. TRUNCATE stays in the root.
     (`8b336c6c1`, `280456a1b`, `c69b2ba66`, `92fe07400`, `bb16abdca`, then the docs commit)
   - [x] 29c — Host refined (docs only) (the docs commit)
   - [ ] 29d — Executors moved
-    - [ ] 29d.1 — Seam and lower moves
+    - [x] 29d.1 — Seam and lower moves (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, docs)
     - [ ] 29d.2 — Unique and exclusion probing, staging loops
     - [ ] 29d.3 — INSERT, ON CONFLICT and COPY FROM
     - [ ] 29d.4 — UPDATE and DELETE
@@ -1502,17 +1506,24 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      baseline build and quickcheck passed
 110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109;
      split by 29c into 110a–110f, run in order:
-     - 110a. [ ] 29d.1: seam and lower moves (`dml.Host`, root
-       `statement_host_dml.go`, `dml.Command`, `lock.UniqueJournal`, probe
-       `Authority`, defaults to `analyze`/`view`, `table`/`view`/`fdw`/
-       `partition` cores) · needs 109
+     - 110a. [x] 29d.1: seam and lower moves (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, then the docs
+       commit) · `dml.Host` on `statementHost` (Statement, Stage, RowLocks,
+       Presentation; `LatestRow` merges the four reads by kind; the stage
+       windows cut from `replaceRows`/`applyValidated`/
+       `appendAcceptedInsert`), `dml.Command`, `lock.UniqueJournal`, probe
+       `Authority` as `access.View`, `partition.InsertState` with `Route`,
+       defaults to `analyze`/`view`, `table.PhysicalRowViolation`,
+       `view.FreezeWriteSources`, `fdw.PlanModification`; FK pieces moved to
+       110f · seam tests, selected units, quickcheck and `REFERENCE=1` DML
+       selection passed; racecheck/finalcheck skipped at user request
      - 110b. [ ] 29d.2: unique and exclusion probing, staging loops · needs
        110a
      - 110c. [ ] 29d.3: INSERT, ON CONFLICT and COPY FROM · needs 110b
      - 110d. [ ] 29d.4: UPDATE and DELETE · needs 110c
      - 110e. [ ] 29d.5: MERGE and foreign DML · needs 110d
-     - 110f. [ ] 29d.6: FK enforcement and actions; closes step 29 · needs
-       110e
+     - 110f. [ ] 29d.6: FK seam (`ForeignKeys`, `FinishHost`,
+       `dml.Authority`, from 110a), FK enforcement and actions; closes step
+       29 · needs 110e
 111. [x] Control 30a: Restore hook table, in place —
      [control](ENGINE-SPLIT-control.md) 30a · needs 57 (`dc839f171`,
      `192993651`, `fbcdc7fc9`, `22ef19659`, `6dc277b11`, `2eb9396e7`,

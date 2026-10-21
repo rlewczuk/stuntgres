@@ -25,7 +25,7 @@ type domainCheckPhase struct {
 }
 
 func (s *StatementScope) readmitPreparedPrograms(view AuthorizationView) error {
-	if len(s.domains.preparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.indexBindings) == 0 {
+	if len(s.domains.preparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.IndexBindings) == 0 {
 		return nil
 	}
 	auth := routineAccessOf(view)
@@ -40,7 +40,7 @@ func (s *StatementScope) readmitPreparedPrograms(view AuthorizationView) error {
 	if err := s.readmitRoutinePrograms(auth); err != nil {
 		return err
 	}
-	for _, binding := range s.indexBindings {
+	for _, binding := range s.IndexBindings {
 		if err := binding.ReadmitPrograms(auth); err != nil {
 			return err
 		}

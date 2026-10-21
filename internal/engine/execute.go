@@ -590,7 +590,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 // A complete projected row is constrained before another identity source row
 // is demanded. This does not publish rows: the caller still stages one batch.
 func (e *Engine) validateInsertRow(scope *StatementScope, b analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
-	if scope.partitionInsert != nil {
+	if scope.PartitionInsert != nil {
 		return scope.validatePartitionInsert(b, row, evaluation)
 	}
 	return e.validatePhysicalInsertRow(scope, b, &b, schema, row, evaluation)
@@ -605,43 +605,16 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b analyze.Bind
 	if err := table.EvaluateGenerations(evaluation.Context, b.Relation, row, evaluation); err != nil {
 		return err
 	}
-	if err := access.RowSecurityProposal(scope.rls.Proposal, scope.rls.ProposalTable); err != nil {
+	if err := access.RowSecurityProposal(scope.RLS.Proposal, scope.RLS.ProposalTable); err != nil {
 		return err
 	}
-	return validatePhysicalRowConstraints(b.Relation, schema, row, evaluation, func() (string, error) { return e.rowConstraintDetail(scope, named, row) })
-}
-
-// Shared by ordinary insertion and isolated native replacement. Validation does
-// not mutate row values; each caller supplies its existing disclosure authority.
-func validatePhysicalRowConstraints(relation *catalog.Relation, schema string, row []sqltype.Value, evaluation *exec.Context, detail func() (string, error)) error {
-	for j, column := range relation.Columns {
-		if column.Nullable {
-			continue
-		}
-		value, err := table.LogicalColumnValue(relation, j, row, evaluation)
-		if err != nil {
-			return err
-		}
-		if value.IsNull() {
-			detail, err := detail()
-			if err != nil {
-				return err
-			}
-			return notNullDetailError(schema, relation.Name(), column.Name, detail)
-		}
+	violation, err := table.PhysicalRowViolation(b.Relation, row, evaluation)
+	if err != nil || violation == nil {
+		return err
 	}
-	if len(relation.Constraints.Check) != 0 {
-		constraint, err := table.ValidateCheckRow(relation, row, evaluation)
-		if err != nil {
-			return err
-		}
-		if constraint != nil {
-			detail, err := detail()
-			if err != nil {
-				return err
-			}
-			return table.CheckDetailError(schema, relation.Name(), constraint.Name, detail)
-		}
+	detail, err := e.rowConstraintDetail(scope, named, row)
+	if err != nil {
+		return err
 	}
-	return nil
+	return violation.Diagnostic(schema, detail)
 }

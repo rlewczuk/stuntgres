@@ -12,7 +12,7 @@ func recordCopyInsertion(state *dml.CopyInsertionState, s *StatementScope, b ana
 	line, size := state.Cursor.InsertionOrigin()
 	state.Lines = append(state.Lines, line)
 	state.Bytes += size
-	if s.partitionInsert == nil {
+	if s.PartitionInsert == nil {
 		return
 	}
 	group := s.partitionInsertionGroup(b.Ref)
@@ -38,9 +38,9 @@ func flushCopyInsertion(state *dml.CopyInsertionState, s *StatementScope, b anal
 		if group == nil {
 			_, err = s.admitInsertProducer(b, &candidate, rows.Prefix(position), evaluation)
 		} else {
-			s.uniqueBinding = group.Unique
+			s.UniqueBinding = group.Unique
 			err = s.checkUniqueRow(group.Ref, &candidate, nil, group.Rows)
-			group.Unique = s.uniqueBinding
+			group.Unique = s.UniqueBinding
 			if err == nil {
 				group.Rows.Append(candidate)
 			}
@@ -51,7 +51,7 @@ func flushCopyInsertion(state *dml.CopyInsertionState, s *StatementScope, b anal
 		rows.Set(position, candidate)
 		return nil
 	}
-	if s.partitionInsert == nil {
+	if s.PartitionInsert == nil {
 		for i := state.First; i < len(rows.Values); i++ {
 			if err := insert(i, nil); err != nil {
 				return err

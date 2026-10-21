@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -107,33 +108,27 @@ func (h *statementHost) WaitTransaction(owner *lock.Ticket, purpose lock.Complet
 	return err
 }
 
-// CaptureUniqueProbe is captureUniqueProbe without the write authority.
+// CaptureUniqueProbe captures the probe and its write authority in one
+// window.
 func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWriteBinding, idx *catalog.Relation, heads bool) (index.UniqueProbe, error) {
-	probe, _, err := h.captureUniqueProbe(ref, b, idx, heads)
-	return probe, err
-}
-
-// captureUniqueProbe also returns the write authority captured in the same
-// window, for the ON CONFLICT check and the conflict's disclosure.
-func (h *statementHost) captureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWriteBinding, idx *catalog.Relation, heads bool) (index.UniqueProbe, AuthorizationView, error) {
 	s := h.scope()
 	e := s.engine()
 	parent := b.Parent
 	e.mu.Lock()
 	if ref.Epoch != e.catalog.state.Epoch() {
 		e.mu.Unlock()
-		return index.UniqueProbe{}, AuthorizationView{}, ids.ErrCatalogReplaced
+		return index.UniqueProbe{}, ids.ErrCatalogReplaced
 	}
 	current := e.privateCatalogLocked(s.owner.Catalog)
 	if current.State() != b.Catalog {
 		e.mu.Unlock()
-		return index.UniqueProbe{Stale: true}, AuthorizationView{}, nil
+		return index.UniqueProbe{Stale: true}, nil
 	}
 	currentParent, parentOK := current.Relation(ref.Address)
 	currentIndex, indexOK := current.Relation(idx.Address())
 	if !parentOK || !indexOK || currentParent.Revision() != parent.Revision() || !index.SameRelationRowShape(parent, currentParent) || currentIndex.Revision() != idx.Revision() || !index.SameIndexKeySemantics(idx, currentIndex) {
 		e.mu.Unlock()
-		return index.UniqueProbe{}, AuthorizationView{}, ids.ErrCatalogReplaced
+		return index.UniqueProbe{}, ids.ErrCatalogReplaced
 	}
 	parent, idx = currentParent, currentIndex
 	auth, err := s.writeAuthorizationLocked(e)
@@ -154,12 +149,12 @@ func (h *statementHost) captureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 	}
 	e.mu.Unlock()
 	if err != nil {
-		return index.UniqueProbe{}, AuthorizationView{}, err
+		return index.UniqueProbe{}, err
 	}
 	if namespace == nil {
-		return index.UniqueProbe{}, AuthorizationView{}, ids.ErrCatalogReplaced
+		return index.UniqueProbe{}, ids.ErrCatalogReplaced
 	}
-	return index.UniqueProbe{Parent: parent, Index: idx, View: current, Schema: namespace.Name(), Root: root, Versions: versions}, auth, nil
+	return index.UniqueProbe{Parent: parent, Index: idx, View: current, Schema: namespace.Name(), Root: root, Versions: versions, Authority: auth.View}, nil
 }
 
 func (h *statementHost) ExistingIndexRoot(idx *catalog.Relation) (*storage.IndexRoot, error) {
@@ -179,26 +174,20 @@ func (h *statementHost) ExistingIndexRoot(idx *catalog.Relation) (*storage.Index
 	return root, nil
 }
 
-// CaptureExclusionScan is captureExclusionScan without the write authority.
+// CaptureExclusionScan captures the scan and its write authority in one
+// window.
 func (h *statementHost) CaptureExclusionScan(ref ids.ObjectRef, b *index.UniqueWriteBinding, idx *catalog.Relation) (index.ExclusionScan, error) {
-	scan, _, err := h.captureExclusionScan(ref, b, idx)
-	return scan, err
-}
-
-// captureExclusionScan also returns the write authority captured in the same
-// window, for the conflict's disclosure.
-func (h *statementHost) captureExclusionScan(ref ids.ObjectRef, b *index.UniqueWriteBinding, idx *catalog.Relation) (index.ExclusionScan, AuthorizationView, error) {
 	s := h.scope()
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(s.owner.Catalog)
 	if ref.Epoch != e.catalog.state.Epoch() || view.State() != b.Catalog {
-		return index.ExclusionScan{}, AuthorizationView{}, ids.ErrCatalogReplaced
+		return index.ExclusionScan{}, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
 	if err != nil {
-		return index.ExclusionScan{}, AuthorizationView{}, err
+		return index.ExclusionScan{}, err
 	}
 	if admission := s.foreignActionsOrZero().Admissions[ref.Address]; admission != nil && admission.Mutated {
 		auth = foreignActionOwner(auth, admission.Relation.Owner)
@@ -213,14 +202,14 @@ func (h *statementHost) captureExclusionScan(ref ids.ObjectRef, b *index.UniqueW
 	}
 	ns, ok := view.Namespace(b.Parent.Namespace())
 	if !ok {
-		return index.ExclusionScan{}, AuthorizationView{}, fmt.Errorf("stuntgres: missing exclusion namespace")
+		return index.ExclusionScan{}, fmt.Errorf("stuntgres: missing exclusion namespace")
 	}
 	store := e.privateStorageLocked(s.owner.Catalog, b.Parent.Address())
 	if store == nil {
-		return index.ExclusionScan{}, AuthorizationView{}, fmt.Errorf("stuntgres: missing exclusion row storage")
+		return index.ExclusionScan{}, fmt.Errorf("stuntgres: missing exclusion row storage")
 	}
 	generation, pending := e.exclusions.ScanLocked()
-	return index.ExclusionScan{Generation: generation, Root: root, Pending: pending, View: view, Schema: ns.Name(), Parent: b.Parent.Address(), Store: store, StoreGeneration: store.Generation, Versions: store.Versions, Ends: store.Ends}, auth, nil
+	return index.ExclusionScan{Generation: generation, Root: root, Pending: pending, View: view, Schema: ns.Name(), Parent: b.Parent.Address(), Store: store, StoreGeneration: store.Generation, Versions: store.Versions, Ends: store.Ends, Authority: auth.View}, nil
 }
 
 func (h *statementHost) ExclusionScanCurrent(scan index.ExclusionScan, idx ids.ObjectAddress) bool {
@@ -308,4 +297,14 @@ func (h *statementHost) AdmitExclusion(idx ids.ObjectAddress, version ids.Versio
 	projected := e.exclusions.ProjectionLocked(s.ticket)
 	projected.Admit(idx, version)
 	s.installExclusionProjectionLocked(e, projected)
+}
+
+// EndExclusionRow takes Engine.mu for the projection edit of
+// projectExclusionDeletionLocked.
+func (h *statementHost) EndExclusionRow(ref ids.ObjectRef, row ids.RowID, version ids.VersionID) {
+	s := h.scope()
+	e := s.engine()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	s.projectExclusionDeletionLocked(e, visibility.DeleteCandidate{Ref: ref, Row: row, Version: version})
 }

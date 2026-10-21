@@ -7,15 +7,12 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -82,13 +79,6 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 	return nil
 }
 
-func applyDefaultOrigin(o analyze.DefaultOrigin, c *exec.Context) {
-	c.QuoteOrigin = o.Quote
-	c.RoutineRecipe, c.RoutineGraft = true, false
-	c.RoutineChecks = nil
-	c.RoutineReferences, c.RoutineConsumer = o.Definition.Dependencies, o.Consumer
-}
-
 func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 	if !d.SQLType.IsDomain() {
 		if d.DomainDefault != nil || d.DomainDefaultOwn || d.DomainDefaultText != "" {
@@ -144,19 +134,4 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 		}
 	}
 	return nil
-}
-
-func evalDefaultExpression(c *exec.Context, node expr.Expr, origin analyze.DefaultOrigin) (sqltype.Value, error) {
-	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
-	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
-	applyDefaultOrigin(origin, c)
-	defer func() {
-		c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft = quote, recipe, graft
-		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = checks, refs, consumer
-	}()
-	return node.Eval(c)
-}
-
-func evalBindingDefault(b *analyze.Binding, c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
-	return evalDefaultExpression(c, node, view.BindingDefaultOrigin(b, slot))
 }

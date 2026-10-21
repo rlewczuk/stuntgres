@@ -46,8 +46,11 @@ admission and DML expansion goes to `dml`.
   the Restore repair parsers (`RestorePhysicalNotNullSyntax`,
   `RestoreNoInheritSyntax`) next to the emitters whose output they read.
 - **CHECK, DEFAULT and generated columns** (`check.go`, `default*.go`,
-  `generated*.go`, `domain_dependencies.go`): `OrderedChecks`,
-  `ValidateChecks`, `ValidateCheckRow`, the CHECK and DEFAULT dependency
+  `generated*.go`, `domain_dependencies.go`, `row_constraints.go`):
+  `OrderedChecks`, `ValidateChecks`, `ValidateCheckRow`,
+  `PhysicalRowViolation` (the first NOT NULL or CHECK violation of a
+  physical row, rendered by `RowViolation.Diagnostic` with the caller's
+  detail), `NotNullDetailError`, the CHECK and DEFAULT dependency
   passes (`CheckDependents`, `DefaultDependents`, over
   `DropDependencyReader`), `DefaultReplayDeferrable`,
   `EvaluateGenerations`, `PrepareGenerationProgram`, `GenerationDepends`,

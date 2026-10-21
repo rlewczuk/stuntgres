@@ -44,7 +44,7 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 		for _, failure := range []string{"none", "next", "close"} {
 			f := insertConflictUniqueFixture(t)
 			scope, ref := insertConflictUnitScope(t, f)
-			b := dml.BindingForConflict(ref, f.parent, scope.insertConflict)
+			b := dml.BindingForConflict(ref, f.parent, scope.InsertConflict)
 			cursor := &insertConflictInputCursor{schema: f.parent.Columns, rows: [][]sqltype.Value{insertConflictUnitRow(t, f, 10), insertConflictUnitRow(t, f, 20), insertConflictUnitRow(t, f, 30)}}
 			injected := errors.New("owned cursor failure")
 			if failure == "next" {

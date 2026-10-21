@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -54,10 +55,10 @@ func TestPartitionAttachLayout(t *testing.T) {
 	if got := borrow.MapValues(physical); &got[0] != &physical[0] {
 		t.Fatal("identity copied")
 	}
-	state := partitionInsertState{target: parent, destination: child, layouts: map[ids.ObjectAddress]*exec.InheritanceQuerySegment{child.Address(): &back}}
-	state.physicalRow = state.rowFor(child, logical)
+	state := partition.InsertState{Target: parent, Destination: child, Layouts: map[ids.ObjectAddress]*exec.InheritanceQuerySegment{child.Address(): &back}}
+	state.PhysicalRow = state.RowFor(child, logical)
 	owned := append([]sqltype.Value(nil), logical...)
-	scope := StatementScope{statementMutation: statementMutation{mutationPartition: mutationPartition{partitionInsert: &state}}}
+	scope := StatementScope{statementMutation: statementMutation{Command: dml.Command{Partition: dml.Partition{PartitionInsert: &state}}}}
 	stored := scope.partitionStoredRow(owned)
 	if &stored[0] != &owned[0] || !reflect.DeepEqual(stored, physical) {
 		t.Fatal("non-returning storage ownership")

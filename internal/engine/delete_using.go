@@ -93,7 +93,8 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 		if err := s.acquireRow(candidate); err != nil {
 			return Result{}, err
 		}
-		current, live, err := s.latestDeleteRow(candidate)
+		latest, err := s.writeHost().LatestRow(dml.DeleteRowRequest(candidate))
+		current, live := latest.Version, latest.Live
 		if err != nil {
 			return Result{}, err
 		}

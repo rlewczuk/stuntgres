@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -42,7 +42,7 @@ func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 		var recipe exec.Context
 		if len(original.DefaultOrigins) != 0 && original.DefaultOrigins[i].Requested {
 			recipe = *c
-			applyDefaultOrigin(original.DefaultOrigins[i], &recipe)
+			analyze.ApplyDefaultOrigin(original.DefaultOrigins[i], &recipe)
 			owner = &recipe
 		}
 		folded, changed, err := exec.PreflightUpdateExpression(owner, expression, planConstants)
@@ -130,34 +130,6 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 	return nil
 }
 
-func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate dml.UpdateCandidate) (storage.RowVersion, bool, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if store == nil {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	current := store.Versions
-	hint := candidate.Slot
-	if candidate.Born == 0 {
-		current = s.ownWrites[ref.Address]
-	}
-	row, _, found := storage.RowByID(current, candidate.Row, hint)
-	if !found {
-		return storage.RowVersion{}, false, errors.New("stuntgres: invalid update predecessor")
-	}
-	if err := s.repeatableConflict(row, store.Ends); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
-}
-
 func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
 	e := s.engine()
 	defer source.Close()
@@ -185,7 +157,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 			return Result{}, err
 		}
 		if b.ViewWrite != nil || b.Rule.Template {
-			from = freezeViewWriteSources(s, from, b.QuerySources)
+			from = view.FreezeWriteSources(from, b.QuerySources, s.authority, hostOf(s))
 		}
 		defer from.Close()
 		inputs = from
@@ -287,16 +259,16 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 	}
 	var single physicalBatch
 	single.ref = b.Ref
-	if len(s.inheritedTargets) == 0 {
+	if len(s.InheritedTargets) == 0 {
 		capacity := min(len(candidates), source.Count())
 		single.old = make([]storage.RowVersion, 0, capacity)
 		single.rows.Values = make([][]sqltype.Value, 0, capacity)
 	}
 	batches := []physicalBatch(nil)
-	if len(s.inheritedTargets) != 0 && len(candidates) != 0 {
-		batches = make([]physicalBatch, len(s.inheritedTargets)+1)
+	if len(s.InheritedTargets) != 0 && len(candidates) != 0 {
+		batches = make([]physicalBatch, len(s.InheritedTargets)+1)
 		batches[0].ref = b.Ref
-		for i, target := range s.inheritedTargets {
+		for i, target := range s.InheritedTargets {
 			batches[i+1].ref = target.Ref
 		}
 		for i := range batches {
@@ -314,7 +286,8 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := s.acquireUpdateRow(ref, candidate.Row); err != nil {
 			return Result{}, err
 		}
-		old, live, err := e.latestUpdateRow(s, ref, candidate)
+		latest, err := s.writeHost().LatestRow(dml.UpdateRowRequest(ref, candidate))
+		old, live := latest.Version, latest.Live
 		if err != nil {
 			return Result{}, err
 		}
@@ -365,9 +338,9 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 			if err := s.acquireUpdateRowMode(ref, old.Row, lock.ForUpdate); err != nil {
 				return Result{}, err
 			}
-			if _, live, err := e.latestUpdateRow(s, ref, candidate); err != nil {
+			if latest, err := s.writeHost().LatestRow(dml.UpdateRowRequest(ref, candidate)); err != nil {
 				return Result{}, err
-			} else if !live {
+			} else if !latest.Live {
 				continue
 			}
 		}
@@ -474,7 +447,7 @@ func (e *Engine) rowConstraintError(s *StatementScope, b analyze.Binding, schema
 	if check != "" {
 		return table.CheckDetailError(schema, b.Relation.Name(), check, detail)
 	}
-	return notNullDetailError(schema, b.Relation.Name(), column, detail)
+	return table.NotNullDetailError(schema, b.Relation.Name(), column, detail)
 }
 
 // Public UPDATE and admitted RI assignment share generation and local checks.
@@ -510,8 +483,8 @@ func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schem
 // Capture only immutable authority under metadata locks. Provider output runs
 // unlocked; disclosure uses the named target's supplied-column manifest.
 func (e *Engine) rowConstraintDetail(s *StatementScope, b *analyze.Binding, row []sqltype.Value) (string, error) {
-	if s != nil && s.partitionInsert != nil && b != nil && b.Relation.Address() == s.partitionInsert.target.Address() {
-		row = s.partitionInsert.namedRow
+	if s != nil && s.PartitionInsert != nil && b != nil && b.Relation.Address() == s.PartitionInsert.Target.Address() {
+		row = s.PartitionInsert.NamedRow
 	}
 	return e.rowDiagnosticDetail(s, b, row, false)
 }

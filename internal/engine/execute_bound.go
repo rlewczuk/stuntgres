@@ -77,7 +77,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			if err := conflict.SelectArbiters(&evaluation, view.PhysicalBinding(b).Relation, auth.Catalog); err != nil {
 				return Result{}, err
 			}
-			scope.insertConflict = conflict
+			scope.InsertConflict = conflict
 			if err := preflightConflictUpdate(conflict, &evaluation); err != nil {
 				return Result{}, err
 			}
@@ -200,7 +200,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				continue
 			}
 			defaultEvaluation := evaluation
-			applyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
+			analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
 			folded, changed, foldErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
 				return Result{}, foldErr
@@ -459,7 +459,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		var target *exec.Source
-		if scope.rls.TargetDenied {
+		if scope.RLS.TargetDenied {
 			target, err = view.CaptureDeniedQuerySource(dataView, b.Ref)
 		} else {
 			target, err = exec.CaptureSource(ctx, dataView, b.Ref)
@@ -479,7 +479,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		return executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
 		err = e.captureCheckCommentSnapshotLocked(scope, b.Relation)
-		for _, target := range scope.inheritedTargets {
+		for _, target := range scope.InheritedTargets {
 			if err != nil {
 				break
 			}
@@ -493,10 +493,10 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		var view *visibility.View
-		if len(b.QuerySources) != 0 || len(scope.inheritedTargets) != 0 {
+		if len(b.QuerySources) != 0 || len(scope.InheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.mutationTargetRefs(b.Ref), scope.op.Session.SessionToken, plan.RowMark{})
+			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.Command.TargetRefs(b.Ref), scope.op.Session.SessionToken, plan.RowMark{})
 			if collectErr != nil {
 				e.mu.Unlock()
 				return Result{}, collectErr
@@ -509,7 +509,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		source, err := scope.captureMutationSource(ctx, view, b)
+		source, err := scope.Command.CaptureSource(ctx, view, b)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -531,10 +531,10 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	case *parser.Delete:
 		var view *visibility.View
 		var viewErr error
-		if len(b.QuerySources) != 0 || len(scope.inheritedTargets) != 0 {
+		if len(b.QuerySources) != 0 || len(scope.InheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.mutationTargetRefs(b.Ref), scope.op.Session.SessionToken, plan.RowMark{})
+			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.Command.TargetRefs(b.Ref), scope.op.Session.SessionToken, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -583,7 +583,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		if b.Rule.Template {
-			source = freezeViewWriteSources(scope, source, b.QuerySources)
+			source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, hostOf(scope))
 		}
 		if scope.protocolOrZero().bind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)

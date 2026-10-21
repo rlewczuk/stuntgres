@@ -1,43 +1,25 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"slices"
-	"strings"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
-	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-type partitionInsertState struct {
-	catalog     catalog.Read
-	auth        AuthorizationView
-	target      *catalog.Relation
-	destination *catalog.Relation
-	layouts     map[ids.ObjectAddress]*exec.InheritanceQuerySegment
-	physicalRow []sqltype.Value
-	namedRow    []sqltype.Value
-	groups      map[ids.ObjectAddress]*partition.InsertGroup
-	order       []*partition.InsertGroup
-}
 
 func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth AuthorizationView, target *catalog.Relation) error {
 	if !catalog.HierarchyRelation(target) {
 		return nil
 	}
-	state := &partitionInsertState{catalog: auth.Catalog, auth: auth, target: target}
+	state := &partition.InsertState{Catalog: auth.Catalog, Authority: auth.View, Env: auth, Target: target}
 	var captureLayouts func(*catalog.Relation) error
 	captureLayout := func(d *catalog.Relation) error {
 		if s.output.RegTS == nil && d.Partition != nil {
@@ -55,10 +37,10 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 			return err
 		}
 		if layout != nil {
-			if state.layouts == nil {
-				state.layouts = make(map[ids.ObjectAddress]*exec.InheritanceQuerySegment)
+			if state.Layouts == nil {
+				state.Layouts = make(map[ids.ObjectAddress]*exec.InheritanceQuerySegment)
 			}
-			state.layouts[d.Address()] = &exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, len(layout))}
+			state.Layouts[d.Address()] = &exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, len(layout))}
 		}
 		return nil
 	}
@@ -93,82 +75,56 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	}); err != nil {
 		return err
 	}
-	s.partitionInsert = state
+	s.PartitionInsert = state
 	return nil
 }
 
 func (s *StatementScope) validatePartitionInsert(b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
-	state := s.partitionInsert
-	state.namedRow = row
-	if state.target.Partition != nil {
+	state := s.PartitionInsert
+	state.NamedRow = row
+	if state.Target.Partition != nil {
 		if err := s.validateTargetPartitionConstraint(b, row, evaluation); err != nil {
 			return err
 		}
 	}
-	destination := state.target
-	for destination.Partition != nil {
-		var values [32]catalog.PartitionDatum
-		key, err := partition.RowKey(destination, state.rowFor(destination, row), evaluation, values[:0])
-		if err != nil {
-			return err
-		}
-		var selected *catalog.Relation
-		for _, address := range destination.Partition.Children {
-			child := state.catalog.MustRelation(address)
-			if child.Membership.DefaultBound {
-				continue
-			}
-			contains, err := partition.Contains(evaluation.Context, destination.Partition.Keys, child.Membership, key, s.input)
-			if err != nil {
-				return err
-			}
-			if contains {
-				selected = child
-				break
-			}
-		}
-		if selected == nil && destination.Partition.DefaultChild != (ids.ObjectAddress{}) {
-			selected = state.catalog.MustRelation(destination.Partition.DefaultChild)
-		}
-		if selected == nil {
-			return state.missingPartition(evaluation.Context, destination, key.Values, s.output)
-		}
-		destination = selected
+	destination, err := state.Route(evaluation, row, s.input, s.output)
+	if err != nil {
+		return err
 	}
-	ref := state.catalog.Owner().Domain.Ref(state.catalog.Epoch(), destination.Address())
-	if state.groups[destination.Address()] == nil {
+	ref := state.Catalog.Owner().Domain.Ref(state.Catalog.Epoch(), destination.Address())
+	if state.Groups[destination.Address()] == nil {
 		if err := s.acquirePartitionLock(ref, lock.RowExclusive); err != nil {
 			return err
 		}
 	}
 	leafBinding := b
 	leafBinding.Relation, leafBinding.Ref = destination, ref
-	schema := state.catalog.Get(destination.Namespace()).Name()
-	physicalRow := state.rowFor(destination, row)
+	schema := state.Catalog.Get(destination.Namespace()).Name()
+	physicalRow := state.RowFor(destination, row)
 	if err := s.engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, physicalRow, evaluation); err != nil {
 		return err
 	}
-	if state.target.Partition == nil {
+	if state.Target.Partition == nil {
 		if err := s.validateTargetPartitionConstraint(b, row, evaluation); err != nil {
 			return err
 		}
 	}
-	state.destination = destination
-	state.physicalRow = physicalRow
+	state.Destination = destination
+	state.PhysicalRow = physicalRow
 	return nil
 }
 
 func (s *StatementScope) validateTargetPartitionConstraint(b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
-	state := s.partitionInsert
-	for child := state.target; child.Membership != nil; {
-		parent := state.catalog.MustRelation(child.Membership.Parent)
-		accepts, err := partition.Accepts(state.catalog, parent, child, state.rowFor(parent, row), evaluation)
+	state := s.PartitionInsert
+	for child := state.Target; child.Membership != nil; {
+		parent := state.Catalog.MustRelation(child.Membership.Parent)
+		accepts, err := partition.Accepts(state.Catalog, parent, child, state.RowFor(parent, row), evaluation)
 		if err != nil {
 			return err
 		}
 		if !accepts {
-			err := sqlError("23514", fmt.Sprintf(`new row for relation "%s" violates partition constraint`, state.target.Name())).(*sqlstate.Error)
-			err.Schema, err.Table = state.catalog.Get(state.target.Namespace()).Name(), state.target.Name()
+			err := sqlError("23514", fmt.Sprintf(`new row for relation "%s" violates partition constraint`, state.Target.Name())).(*sqlstate.Error)
+			err.Schema, err.Table = state.Catalog.Get(state.Target.Namespace()).Name(), state.Target.Name()
 			detail, detailErr := s.engine().rowConstraintDetail(s, &b, row)
 			if detailErr != nil {
 				return detailErr
@@ -181,142 +137,58 @@ func (s *StatementScope) validateTargetPartitionConstraint(b analyze.Binding, ro
 	return nil
 }
 
-func (state *partitionInsertState) missingPartition(ctx context.Context, parent *catalog.Relation, key []catalog.PartitionDatum, output sqltype.OutputEnvironment) error {
-	ref := state.catalog.Owner().Domain.Ref(state.catalog.Epoch(), parent.Address())
-	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.Name())).(*sqlstate.Error)
-	err.Schema, err.Table = state.catalog.Get(parent.Namespace()).Name(), parent.Name()
-	// Routing/integrity errors remain real, but an actor subject to RLS must
-	// not receive key values even when ordinary SELECT ACLs are present.
-	decision, securityErr := access.RowSecurityDecision(state.auth.Roles, state.target, state.auth.State.CurrentUser, catalog.PolicyInsert, true)
-	if securityErr != nil {
-		return securityErr
-	}
-	if decision != access.RLSUnrestricted {
-		return err
-	}
-	rights, checkErr := state.auth.Effective(ref, false)
-	if checkErr != nil {
-		return checkErr
-	}
-	if rights&authorization.SelectPrivilege == 0 {
-		for _, entry := range parent.Partition.Keys {
-			if entry.Derived != nil {
-				return err
-			}
-			column := ref
-			column.Address.SubID = entry.Attribute
-			rights, checkErr = state.auth.Effective(column, false)
-			if checkErr != nil {
-				return checkErr
-			}
-			if rights&authorization.SelectPrivilege == 0 {
-				return err
-			}
-		}
-	}
-	var names, values strings.Builder
-	renderer := stored.Deparser{View: state.catalog, Relation: parent, Output: output}
-	for i, entry := range parent.Partition.Keys {
-		if i != 0 {
-			names.WriteString(", ")
-			values.WriteString(", ")
-		}
-		label := entry.Label
-		if entry.Derived != nil {
-			if renderer.Path == nil {
-				path, pathErr := state.auth.engine.referencePath(state.auth)
-				if pathErr != nil {
-					return pathErr
-				}
-				renderer.Path = path
-			}
-			cast, coercion := entry.Derived.Definition.(plan.CoercionExpr)
-			regTSCast := coercion && cast.Mode == sqltype.Explicit && sqltype.IsRegTS(entry.Usage.Type.BaseType().ID())
-			keyRenderer := renderer
-			if regTSCast {
-				// Partition diagnostics group the whole pretty cast expression,
-				// not its simple operand, as in PostgreSQL's partition key label.
-				keyRenderer.Pretty = true
-			}
-			text, renderErr := keyRenderer.SQL(ctx, entry.Derived.Definition, stored.DeparseParent{})
-			if renderErr != nil {
-				return renderErr
-			}
-			if regTSCast {
-				text = "(" + text + ")"
-			}
-			label = text
-		} else {
-			label = catalog.Identifier(label)
-		}
-		names.WriteString(label)
-		if err := exec.WriteDiagnosticValue(ctx, &values, key[i].Value, output); err != nil {
-			return err
-		}
-	}
-	err.Detail = fmt.Sprintf("Partition key of the failing row contains (%s) = (%s).", names.String(), values.String())
-	return err
-}
-
-func (state *partitionInsertState) rowFor(d *catalog.Relation, row []sqltype.Value) []sqltype.Value {
-	if segment := state.layouts[d.Address()]; segment != nil {
-		return segment.MapValues(row)
-	}
-	return row
-}
-
 // Input tuples already own their payload. Identity layouts borrow them. A
 // reordered tuple can reuse that payload when there is no logical RETURNING
 // consumer; otherwise storage must own a separate immutable physical tuple.
 func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value {
-	state := s.partitionInsert
-	if state.layouts[state.destination.Address()] == nil {
+	state := s.PartitionInsert
+	if state.Layouts[state.Destination.Address()] == nil {
 		return row
 	}
-	if s.insertReturning != nil {
-		return slices.Clone(state.physicalRow)
+	if s.InsertReturning != nil {
+		return slices.Clone(state.PhysicalRow)
 	}
-	copy(row, state.physicalRow)
+	copy(row, state.PhysicalRow)
 	return row
 }
 
 func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partition.InsertGroup {
-	state := s.partitionInsert
-	address := state.destination.Address()
-	group := state.groups[address]
+	state := s.PartitionInsert
+	address := state.Destination.Address()
+	group := state.Groups[address]
 	if group == nil {
 		group = &partition.InsertGroup{Ref: ref.Domain().Ref(ref.Epoch, address)}
-		if state.groups == nil {
-			state.groups = make(map[ids.ObjectAddress]*partition.InsertGroup)
+		if state.Groups == nil {
+			state.Groups = make(map[ids.ObjectAddress]*partition.InsertGroup)
 		}
-		state.groups[address] = group
-		state.order = append(state.order, group)
+		state.Groups[address] = group
+		state.Order = append(state.Order, group)
 	}
 	return group
 }
 
 func (s *StatementScope) checkInsertUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch) error {
-	if s.partitionInsert == nil {
+	if s.PartitionInsert == nil {
 		return s.checkUniqueRow(ref, candidate, nil, prefix)
 	}
 	group := s.partitionInsertionGroup(ref)
-	s.uniqueBinding = group.Unique
+	s.UniqueBinding = group.Unique
 	candidate.Values = s.partitionStoredRow(candidate.Values)
 	if err := s.checkUniqueRow(group.Ref, candidate, nil, group.Rows); err != nil {
 		return err
 	}
-	group.Unique = s.uniqueBinding
+	group.Unique = s.UniqueBinding
 	group.Rows.Append(*candidate)
 	return nil
 }
 
 func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
-	if s.partitionInsert == nil {
+	if s.PartitionInsert == nil {
 		return s.Writes().applyInsertBatch(ref, rows)
 	}
 	count := 0
-	for _, group := range s.partitionInsert.order {
-		s.uniqueBinding = group.Unique
+	for _, group := range s.PartitionInsert.Order {
+		s.UniqueBinding = group.Unique
 		if err := s.Writes().applyValidated(group.Ref, group.Rows); err != nil {
 			return 0, err
 		}

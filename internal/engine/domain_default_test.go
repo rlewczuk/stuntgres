@@ -60,7 +60,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 			t.Fatal("domain recipe lost type origin or invented column identity")
 		}
 		c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
-		value, err := evalDefaultExpression(&c, node, origin)
+		value, err := analyze.EvalDefault(&c, node, origin)
 		if err != nil {
 			t.Fatal(tc.d.Name(), err)
 		}

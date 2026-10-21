@@ -268,7 +268,7 @@ func TestViewWriteDemand(t *testing.T) {
 		if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 			t.Fatal(err)
 		}
-		source = freezeViewWriteSources(scope, source, leaves)
+		source = view.FreezeWriteSources(source, leaves, scope.authority, hostOf(scope))
 		if source.Input == nil || source.Count() != 1 {
 			source.Close()
 			t.Fatal("frozen bridge exposed a deleted version")
@@ -316,7 +316,8 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, dml.UpdateCandidate{RowVersion: old, Slot: 0})
+	latest, err := waiter.writeHost().LatestRow(dml.UpdateRowRequest(f.baseRef, dml.UpdateCandidate{RowVersion: old, Slot: 0}))
+	current, live := latest.Version, latest.Live
 	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
 	}
@@ -362,7 +363,7 @@ func TestViewWriteCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := f.e.storage.Relations[f.base.Address()].Versions
-	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.visibility.CommitSeq() != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
+	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.visibility.CommitSeq() != 1 || len(scope.stage.rows) != 0 || scope.ViewWrite != nil {
 		t.Fatal("canceled stage published or retained resources")
 	}
 	lockState := f.e.locks.Inspect()

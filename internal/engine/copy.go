@@ -132,7 +132,8 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if captureErr != nil {
 			return 0, captureErr
 		}
-		foreign, err = s.planForeignModification(s.op.Context(), target.Foreign, catalog.ForeignInsert, true)
+		s.foreignUnlocked()
+		foreign, err = fdw.PlanModification(s.op.Context(), target.Foreign, catalog.ForeignInsert, true)
 		if err != nil {
 			return 0, err
 		}
@@ -176,7 +177,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			continue
 		}
 		defaultEvaluation := evaluation
-		applyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
+		analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
 		folded, _, planErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 		if planErr != nil {
 			return 0, planErr

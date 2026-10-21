@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -26,7 +27,7 @@ func evaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 	// rows. A target without unique indexes needs no per-row catalog recapture;
 	// its epoch is still checked when the completed batch reaches Apply.
 	unique := len(b.Relation.Constraints.Unique) != 0
-	if scope != nil && scope.partitionInsert == nil && b.Relation.RelationKind != catalog.ForeignRelation {
+	if scope != nil && scope.PartitionInsert == nil && b.Relation.RelationKind != catalog.ForeignRelation {
 		bound, err := scope.bindUniqueWrite(b.Ref)
 		if err != nil {
 			return index.WriteBatch{}, err
@@ -57,7 +58,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 	}()
-	if scope == nil || scope.insertReturning == nil {
+	if scope == nil || scope.InsertReturning == nil {
 		if count >= 0 {
 			rows.Values = make([][]sqltype.Value, 0, count)
 		} else {
@@ -67,7 +68,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	scratch := make([]sqltype.Value, len(b.Targets))
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
 	var copyInsert *dml.CopyInsertionState
-	if producer, ok := cursor.(dml.CopyInsertionCursor); ok && scope != nil && (unique || scope.partitionInsert != nil) {
+	if producer, ok := cursor.(dml.CopyInsertionCursor); ok && scope != nil && (unique || scope.PartitionInsert != nil) {
 		copyInsert = dml.NewCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
@@ -111,14 +112,14 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 		}
 		for j, expression := range b.Insert.Defaults {
 			if expression != nil && (defaultSource == nil || defaultSource.rowDefaults()[j]) {
-				row[j], err = evalBindingDefault(&b, &evaluation, j, expression)
+				row[j], err = view.EvalBindingDefault(&b, &evaluation, j, expression)
 				if err != nil {
 					return index.WriteBatch{}, err
 				}
 			}
 		}
 		candidate := index.WriteCandidate{Values: row}
-		if scope != nil && scope.partitionInsert != nil {
+		if scope != nil && scope.PartitionInsert != nil {
 			if err := scope.engine().validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return index.WriteBatch{}, err
 			}
@@ -132,7 +133,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				}
 				continue
 			}
-			if scope.insertReturning != nil {
+			if scope.InsertReturning != nil {
 				if _, err := scope.admitInsertProducer(b, &candidate, index.WriteBatch{}, &evaluation); err != nil {
 					return index.WriteBatch{}, err
 				}
@@ -152,7 +153,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			continue
 		}
 		if scope != nil {
-			if err := access.RowSecurityProposal(scope.rls.Proposal, scope.rls.ProposalTable); err != nil {
+			if err := access.RowSecurityProposal(scope.RLS.Proposal, scope.RLS.ProposalTable); err != nil {
 				return index.WriteBatch{}, err
 			}
 		}
@@ -186,7 +187,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				return index.WriteBatch{}, scope.engine().rowConstraintError(scope, b, schema, "", constraint.Name, row)
 			}
 		}
-		if unique || scope != nil && scope.insertReturning != nil {
+		if unique || scope != nil && scope.InsertReturning != nil {
 			if scope == nil {
 				return index.WriteBatch{}, fmt.Errorf("stuntgres: uniqueness requires statement authority")
 			}

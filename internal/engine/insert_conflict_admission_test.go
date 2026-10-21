@@ -64,7 +64,7 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 	if err := action.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = action
+	scope.InsertConflict = action
 	return scope, ref
 }
 func insertConflictUnitRow(t testing.TB, f partialIndexFixture, n int64) []sqltype.Value {
@@ -202,8 +202,8 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	f.e.mu.Lock()
 	f.e.storage.InstallIndexRootLocked(second.Address(), root)
 	f.e.mu.Unlock()
-	scope.uniqueBinding = nil
-	scope.insertConflict.Catalog = nil
+	scope.UniqueBinding = nil
+	scope.InsertConflict.Catalog = nil
 	admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal("selected provider must win", admitted, err)
@@ -213,7 +213,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	if admitted || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("unselected violation", admitted, err)
 	}
-	scope.insertConflict = nil
+	scope.InsertConflict = nil
 	err = scope.checkUniqueRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("ordinary route changed", err)

@@ -186,6 +186,15 @@ func operationAuthorization(op *session.Operation) (AuthorizationView, error) {
 	return e.authorizationLocked(op)
 }
 
+// operationAuthority is v with op's environment: the engine, definition
+// reader, session settings, session and materialized population. It is the
+// one constructor of that environment, shared by authorizationLocked and the
+// DML disclosure and write-binding checks over a captured access.View.
+func (e *Engine) operationAuthority(op *session.Operation, v access.View) AuthorizationView {
+	s := op.Session
+	return AuthorizationView{View: v, engine: e, definition: op.Definition, settings: s.Settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
+}
+
 // Lock order is Engine.mu then Session.mu. Views retain only immutable values.
 func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, error) {
 	s := op.Session
@@ -217,7 +226,7 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 		}
 		identity.CurrentUser = operationReplayOrZero(op).materializedOwner
 	}
-	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.State, Revision: a.Revision}, engine: e, definition: op.Definition, settings: s.Settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
+	authorization := e.operationAuthority(op, access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.State, Revision: a.Revision})
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.MissingCurrent = identity.CurrentUser
 	}

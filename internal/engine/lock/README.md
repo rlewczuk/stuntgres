@@ -34,7 +34,9 @@ engine.
 - **Savepoints and unique-key candidates.** `Checkpoint`/`Restore` and the
   unique-key variants restore held contributions, never pending requests.
   `BeginUniqueDelta`, `RestoreUniqueDelta` and `EndUniqueDelta` journal the
-  claims of one conflict-update candidate.
+  claims of one conflict-update candidate. `UniqueJournal` binds the
+  manager to one ticket for these (`Checkpoint`, `Restore`, `BeginDelta`,
+  `EndDelta`, `RestoreDelta`); the engine's DML code uses it.
 - **MultiXact history.** The manager owns immutable MultiXact records, the
   nonzero modular counter and the association with exact row versions
   (`PhysicalEvents`, `MultiXactMembers`, `MultiAge`). Arbitration still uses

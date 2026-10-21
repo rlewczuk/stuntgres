@@ -25,7 +25,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 			if err := s.acquireInheritedMutationTargets(&parser.Update{}); err != nil {
 				t.Fatal(err)
 			}
-			refs := s.mutationTargetRefs(s.lockedRef)
+			refs := s.Command.TargetRefs(s.lockedRef)
 			e.mu.Lock()
 			view, err := s.acquireDataViewsLocked(e, refs)
 			e.mu.Unlock()

@@ -70,7 +70,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				if err := action.SelectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 					b.Fatal(err)
 				}
-				scope.insertConflict = action
+				scope.InsertConflict = action
 				if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: f.store.Versions[0].Values}, index.WriteBatch{}, nil); admitted || err != nil {
 					b.Fatal("warmup", admitted, err)
 				}

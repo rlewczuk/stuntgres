@@ -25,7 +25,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
 	stage.indexes().Output = scope.output
-	for _, observed := range scope.partitionRelations {
+	for _, observed := range scope.PartitionRelations {
 		stage.domainBases = append(stage.domainBases, observed)
 	}
 	e.mu.Unlock()

@@ -126,3 +126,20 @@ func SelectMergeArm(merge *analyze.MergeBinding, evaluation *exec.Context, class
 	}
 	return nil, nil
 }
+
+// MergeFollowStrong reports whether a MERGE follows an update chain with a
+// FOR UPDATE row lock: it has a DELETE arm, or an UPDATE arm assigns one of
+// the unique key slots.
+func MergeFollowStrong(m *analyze.MergeBinding, keySlots []int) bool {
+	if m.HasDelete {
+		return true
+	}
+	for _, key := range keySlots {
+		for _, target := range m.UpdateTargets {
+			if key == target {
+				return true
+			}
+		}
+	}
+	return false
+}

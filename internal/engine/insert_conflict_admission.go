@@ -4,11 +4,12 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 )
 
 func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch, evaluation *exec.Context) (bool, error) {
-	action := s.insertConflict
+	action := s.InsertConflict
 	if action == nil {
 		return true, s.checkInsertUniqueRow(ref, candidate, prefix)
 	}
@@ -18,13 +19,18 @@ func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *index.Writ
 	return s.admitInsertConflictRow(ref, candidate, prefix, index.ProbeRuntime)
 }
 
+// uniqueJournal is the statement ticket's unique-key journal.
+func (s *StatementScope) uniqueJournal() lock.UniqueJournal {
+	return s.engine().locks.UniqueJournal(s.ticket)
+}
+
 func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch, purpose index.ProbePurpose) (bool, error) {
-	action := s.insertConflict
-	manager := s.engine().locks
+	action := s.InsertConflict
+	journal := s.uniqueJournal()
 	if action.StatementKeys == nil {
-		action.StatementKeys = manager.CheckpointUnique(s.ticket, nil)
+		action.StatementKeys = journal.Checkpoint(nil)
 	}
-	action.Checkpoint = manager.CheckpointUnique(s.ticket, action.Checkpoint)
+	action.Checkpoint = journal.Checkpoint(action.Checkpoint)
 	for {
 		conflict, err := s.probeUniqueRow(ref, candidate, nil, prefix, action, purpose)
 		if err != nil {
@@ -34,7 +40,7 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 			if err := s.insertConflictVisible(conflict.row, conflict.committed); err != nil {
 				return false, err
 			}
-			manager.RestoreUnique(s.ticket, action.Checkpoint)
+			journal.Restore(action.Checkpoint)
 			s.writeHost().DiscardExclusion(candidate)
 			return false, nil
 		}
@@ -44,7 +50,7 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 		}
 		// A provider publication during the unselected probe invalidates the first
 		// pass; recapture selected arbiters before treating any hit as a violation.
-		if s.uniqueBinding != nil && action.Catalog != s.uniqueBinding.Catalog {
+		if s.UniqueBinding != nil && action.Catalog != s.UniqueBinding.Catalog {
 			continue
 		}
 		if other.index != nil {
@@ -62,14 +68,14 @@ func (s *StatementScope) insertConflictVisible(row storage.RowVersion, committed
 
 func (w *WriteStage) applyInsertBatch(ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
 	count := len(rows.Values)
-	if action := w.scope.insertConflict; action != nil && action.Update != nil {
+	if action := w.scope.InsertConflict; action != nil && action.Update != nil {
 		return action.Affected, nil
 	}
-	if action := w.scope.insertConflict; action != nil {
+	if action := w.scope.InsertConflict; action != nil {
 		action.Affected = count
 	}
 	err := w.applyValidated(ref, rows)
-	if action := w.scope.insertConflict; action != nil {
+	if action := w.scope.InsertConflict; action != nil {
 		count = action.Affected
 	}
 	if err != nil {
@@ -78,9 +84,9 @@ func (w *WriteStage) applyInsertBatch(ref ids.ObjectRef, rows index.WriteBatch) 
 	return count, nil
 }
 func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows index.WriteBatch) (index.WriteBatch, error) {
-	prior := s.uniqueBinding
-	s.engine().locks.RestoreUnique(s.ticket, s.insertConflict.StatementKeys)
-	s.uniqueBinding = nil
+	prior := s.UniqueBinding
+	s.uniqueJournal().Restore(s.InsertConflict.StatementKeys)
+	s.UniqueBinding = nil
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return index.WriteBatch{}, err
@@ -93,7 +99,7 @@ func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows index.Wr
 		}
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output}}
-	if err := s.insertConflict.SelectArbiters(&evaluation, binding.Parent, s.engine().catalog.read(binding.Catalog)); err != nil {
+	if err := s.InsertConflict.SelectArbiters(&evaluation, binding.Parent, s.engine().catalog.read(binding.Catalog)); err != nil {
 		return index.WriteBatch{}, err
 	}
 	accepted := rows.Prefix(0)

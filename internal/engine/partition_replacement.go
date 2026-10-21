@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -80,8 +81,8 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 					selected = view.MustRelation(destination.Partition.DefaultChild)
 				}
 				if selected == nil {
-					state := partitionInsertState{catalog: view, auth: auth, target: root}
-					return nil, state.missingPartition(ctx, destination, key.Values, evaluation.Output)
+					state := partition.InsertState{Catalog: view, Authority: auth.View, Env: auth, Target: root}
+					return nil, state.MissingPartition(ctx, destination, key.Values, evaluation.Output)
 				}
 				destination = selected
 			}
@@ -94,10 +95,16 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 					return nil, err
 				}
 			}
-			detail := func() (string, error) { return exec.FailingRowDetail(values, evaluation.Output, nil, nil, destination) }
-			schema := view.Get(destination.Namespace()).Name()
-			if err := validatePhysicalRowConstraints(validation, schema, values, evaluation, detail); err != nil {
+			violation, err := table.PhysicalRowViolation(validation, values, evaluation)
+			if err != nil {
 				return nil, err
+			}
+			if violation != nil {
+				detail, err := exec.FailingRowDetail(values, evaluation.Output, nil, nil, destination)
+				if err != nil {
+					return nil, err
+				}
+				return nil, violation.Diagnostic(view.Get(destination.Namespace()).Name(), detail)
 			}
 			// The highest HASH target can itself have RANGE ancestors; ordinary direct
 			// insertion would enforce their constraints as well.

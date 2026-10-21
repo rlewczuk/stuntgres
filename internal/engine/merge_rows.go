@@ -240,7 +240,8 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			if err != nil {
 				return nil, err
 			}
-			latest, live, err := e.latestMergeRow(scope, b.Ref, candidate.UpdateCandidate)
+			current, err := scope.writeHost().LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
+			latest, live := current.Version, current.Live
 			if err != nil {
 				return nil, err
 			}
@@ -253,7 +254,8 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 					if err := scope.acquireUpdateRowMode(b.Ref, old.Row, lock.ForUpdate); err != nil {
 						return nil, err
 					}
-					latest, live, err = e.latestMergeRow(scope, b.Ref, candidate.UpdateCandidate)
+					current, err = scope.writeHost().LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
+					latest, live = current.Version, current.Live
 					if err != nil {
 						return nil, err
 					}
@@ -353,11 +355,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		*excluded = append(*excluded, old)
 		// Retire exclusion authority in actual action order before later admission.
 		// Canonical Delete still validates the original captured provenance at stage.
-		projected := deletion
-		projected.Version = old.Version
-		e.mu.Lock()
-		scope.projectExclusionDeletionLocked(e, projected)
-		e.mu.Unlock()
+		scope.writeHost().EndExclusionRow(deletion.Ref, deletion.Row, old.Version)
 		accepted[old.Row] = true
 		result.Actions = append(result.Actions, dml.MergeActionRow{Action: arm.Action, Deletion: deletion})
 		return nil
@@ -391,9 +389,9 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		}
 	}
 	rowContext := *evaluation
-	scope.rls.Proposal = scope.rls.MergeInsert
+	scope.RLS.Proposal = scope.RLS.MergeInsert
 	if arm.Action == parser.MergeUpdateAction {
-		scope.rls.Proposal = scope.rls.MergeUpdate
+		scope.RLS.Proposal = scope.RLS.MergeUpdate
 	}
 	if err := e.validateInsertRow(scope, b, schema, row, &rowContext); err != nil {
 		return err
@@ -451,44 +449,5 @@ func (s *StatementScope) mergeFollowChainStrong(b analyze.Binding) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	for _, key := range unique.KeySlots {
-		for _, target := range b.Merge.UpdateTargets {
-			if key == target {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
-}
-
-// MERGE follows a committed update even with a retained RR frontier. Deletion
-// still conflicts; query visibility, not this fetch, owns old+own occurrences.
-func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate dml.UpdateCandidate) (storage.RowVersion, bool, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if store == nil {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	current, hint := store.Versions, candidate.Slot
-	if own, _, found := storage.RowByID(s.ownWrites[ref.Address], candidate.Row, -1); found {
-		return own, visibility.LiveVersion(own, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
-	}
-	row, _, found := storage.RowByID(current, candidate.Row, hint)
-	if !found {
-		return storage.RowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
-	}
-	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address])
-	if !live && stableIsolation(s.owner.Isolation) && store.Ends != nil {
-		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.Frontier {
-			return storage.RowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent delete")
-		}
-	}
-	return row, live, nil
+	return dml.MergeFollowStrong(b.Merge, unique.KeySlots), nil
 }

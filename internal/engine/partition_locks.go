@@ -138,14 +138,14 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partition.AppendCompatible(old, d) {
+	if old := s.PartitionRelations[ref.Address]; old != nil && old != d && !partition.AppendCompatible(old, d) {
 		return ids.ErrCatalogReplaced
 	}
-	if catalog.HierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
-		if s.partitionRelations == nil {
-			s.partitionRelations = make(map[ids.ObjectAddress]*catalog.Relation)
+	if catalog.HierarchyRelation(d) && s.PartitionRelations[ref.Address] == nil {
+		if s.PartitionRelations == nil {
+			s.PartitionRelations = make(map[ids.ObjectAddress]*catalog.Relation)
 		}
-		s.partitionRelations[ref.Address] = d
+		s.PartitionRelations[ref.Address] = d
 	}
 	return nil
 }
@@ -198,7 +198,7 @@ func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode loc
 	}
 	var children []ids.ObjectAddress
 	if d.Partition != nil {
-		if captured := s.partitionRelations[ref.Address]; captured != nil {
+		if captured := s.PartitionRelations[ref.Address]; captured != nil {
 			d = captured
 		}
 		children = d.Partition.Children
@@ -247,7 +247,7 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 // only when actual concurrent append growth occurred, never on the normal path.
 func (s *StatementScope) partitionCaptureCatalog(catalog catalog.Read) catalog.Read {
 	changed := false
-	for address, captured := range s.partitionRelations {
+	for address, captured := range s.PartitionRelations {
 		current, _ := catalog.Relation(address)
 		if current != captured && partition.AppendCompatible(captured, current) {
 			changed = true
@@ -259,7 +259,7 @@ func (s *StatementScope) partitionCaptureCatalog(catalog catalog.Read) catalog.R
 	}
 	state := *catalog.State()
 	state.CloneDescriptors()
-	for address, captured := range s.partitionRelations {
+	for address, captured := range s.PartitionRelations {
 		current, _ := catalog.Relation(address)
 		if current != captured && partition.AppendCompatible(captured, current) {
 			state.SetDescriptor(address, captured)

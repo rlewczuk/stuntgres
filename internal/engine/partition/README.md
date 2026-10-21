@@ -7,12 +7,12 @@ checks, the partition dump SQL and dump-event graph, and the Restore replay
 records. Step 25 of the engine split created it (25b moved the clean set).
 It is an upper feature package (L12 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)),
-above `index` and `table`: it imports `analyze` (types and pure functions
-only), `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`, `ids`,
+above `index` and `table`: it imports `access`, `analyze` (types and pure
+functions only), `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`, `ids`,
 `index`, `plan`, `regobj`, `sequence`, `stored`, `table`, `typedef`,
 `visibility`, `parser`,
 `sqlstate`, `sqltype` and the standard library. It never imports the
-engine, `view` or `dml`; only the engine imports it. It never builds a
+engine, `view` or `dml`; only the engine and `dml` import it. It never builds a
 binder. Partitioned indexes are `index` code. See
 [ENGINE-SPLIT-partition.md](../../../docs/ENGINE-SPLIT-partition.md).
 
@@ -23,8 +23,14 @@ binder. Partitioned indexes are `index` code. See
   `RowKey` (an `EvaluatedKey`), `Contains`, `RangeContains`, `Accepts`,
   `PhysicalDescendants`; bound preparation (`PrepareBounds`,
   `GeneratedError`); hash bounds (`ValidHashBound`, `HashOverlap`,
-  `CompareHashBound`); the INSERT routing group `InsertGroup`; and
-  `CaptureQueryPrefix`.
+  `CompareHashBound`); the INSERT routing state `InsertState` (`Route`
+  walks to the accepting leaf, `RowFor` maps a target row to a level's
+  layout, `MissingPartition` is the 23514 failure that discloses key values
+  only to an actor without RLS who may SELECT them) with its per-leaf
+  `InsertGroup`; and `CaptureQueryPrefix`. `InsertState` keeps the captured
+  `access.View` and its environment: Restore's trusted insertion authority
+  carries its own `$user`, so the environment cannot be rebuilt from the
+  view.
 - **Key recipes** (`routine.go`): `EvaluateRecipe` evaluates a partition
   key expression under the statement's routine program. It reaches the
   statement through `RecipeHost`, recovered from the evaluation's live
@@ -95,8 +101,9 @@ hook wrappers and the Restore executors
 (`executePartitionUniqueReplayLocked`, `repairRemappedHashPartitions`, the
 teardown capture); `dropProvider.removePartitionHierarchyLocked` (over
 `WithoutChild`); the storage-read fences (`storage_read_fence.go`); and
-INSERT routing execution with `partitionInsertState` (it holds an
-`AuthorizationView`; step 29 moves it). `partition_host.go` holds
+INSERT routing execution around `InsertState` (the capture under
+`Engine.mu`, the partition lock, physical validation, the target
+constraint and the per-leaf groups; step 29 moves them to `dml`). `partition_host.go` holds
 `ddlHost.BindKeyExpression` and the `partitionBoundBinder` adapter.
 
 ## Invariants

@@ -678,7 +678,11 @@ cursors and insertion. About 1.4k lines. `RACE=1`: COPY cancellation.
 `foreignTargetRows`, `foreignInsertResult`, `executeForeignRowMutation`,
 `finishForeignResult`). About 0.9k lines.
 
-**29d.6 — FK enforcement and actions; close step 29 (110f).**
+**29d.6 — FK enforcement and actions; close step 29 (110f).** First the
+FK seam that 29d.1 left out (user decision): `ForeignKeys`, `FinishHost`
+and `dml.Authority` (decisions 1 and 12) in `dml/host.go`, implemented on
+`statementHost` with `var _ dml.FinishHost`, and `AuthorizationView.ActingAs`
+replacing `foreignActionOwner` (also at the exclusion scan capture). Then
 `dml.SettleForeignActions`, `dml.CheckForeignKeys`,
 `foreignKeyParentExists`, `applyForeignAction`, `foreignActionError`, the
 pure plan and reach; optional TRUNCATE cores. About 0.7k lines. Tests in
@@ -780,7 +784,8 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
   user request
 - [x] 29c — Host refined (docs only; see the 29c record)
 - [ ] 29d — Executors moved, in six items:
-  - [ ] 29d.1 — Seam and lower moves (110a)
+  - [x] 29d.1 — Seam and lower moves (110a) (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, then the docs
+    commit; see the 29d.1 record)
   - [ ] 29d.2 — Unique and exclusion probing, staging loops (110b)
   - [ ] 29d.3 — INSERT, ON CONFLICT and COPY FROM (110c)
   - [ ] 29d.4 — UPDATE and DELETE (110d)
@@ -885,7 +890,70 @@ the sketch and the earlier notes:
   default evaluators go to `analyze` and `view`.
 - Baseline at `be8ed733b`: `make build` and quickcheck passed.
 
+### 29d.1 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-SEAM` from `db8252574`.
+
+| Commit | Change |
+|---|---|
+| `b0f2220f9` | Lower moves: `analyze.ApplyDefaultOrigin`, `analyze.EvalDefault`, `view.EvalBindingDefault`; `table.PhysicalRowViolation` (returns a `RowViolation`, rendered by `Diagnostic` with the caller's detail) and `table.NotNullDetailError`; `view.FreezeWriteSources(src, leaves, auth, host)`; `fdw.PlanModification`; `dml.MergeFollowStrong`; the `insert_conflict.go` stub and `fdw_modify.go` deleted |
+| `fdecd3693` | `lock.UniqueJournal` (`Manager.UniqueJournal(t)`: `Checkpoint`, `Restore`, `BeginDelta`, `EndDelta`, `RestoreDelta`); the ON CONFLICT paths use it through `uniqueJournal()` |
+| `e0dad29db` | `UniqueProbe.Authority`/`ExclusionScan.Authority` (`access.View`); the concrete captures and `exclusionScan` go; `uniqueConflict.auth` is a view; one `operationAuthority(op, v)` constructor for `authorizationLocked`, `disclosureEnv` and `checkWriteBinding`; `index.WriteHost.EndExclusionRow` for MERGE's DELETE arm; `partition.InsertState` with `Route`, `RowFor`, `MissingPartition` |
+| `08f22a454` | `fieldrn` of the nine promoted fields (`uniqueBinding` → `UniqueBinding`, ..., `rls` → `RLS`); `dml.Command` with `Indexes`, `Insert`, `Partition`, `InheritedTargets`, `ViewWrite`, `RLS` and the methods `TargetRefs`, `Storage`, `CaptureSource`; `statementMutation` = `{statement; mutationTarget; dml.Command}` |
+| `43720ea7d` | `dml/host.go` (`Host`, `Statement`, `Stage`, `RowLocks`, `Presentation`, `PrivateRows`, `ReplaceLane`, `RowKind`/`RowRequest`/`LatestRow` with `UpdateRowRequest`, `MergeRowRequest`, `DeleteRowRequest`, `DetailPurpose`, `Outcome`); root `statement_host_dml.go`, `statement_host_stage.go` (the windows cut from `replaceRows`, `applyValidated`, `appendAcceptedInsert`; the old methods keep the loops) and `statement_host_latest_row.go` (the four reads merged by kind); seam tests |
+
+- **Deviations.**
+  - `ForeignKeys`, `FinishHost` and `dml.Authority` moved to 29d.6 (user
+    decision): their only callers move there, and several methods cut the
+    FK windows. 29d.1 asserts `var _ dml.Host` only.
+  - `partition.InsertState` keeps `Env access.Environment` next to
+    `Authority` (decision 8 said no environment field): Restore's trusted
+    insertion authority (`statementAuthorizationLocked`) sets
+    `namespaceUser`, the `$user` of `ReferencePath`, which an environment
+    rebuilt from the view would lose. The ON CONFLICT probe authority comes
+    from `writeAuthorizationLocked`, which sets no such field, so
+    `operationAuthority(op, v)` rebuilds its environment exactly.
+  - COPY FROM a foreign table now calls `foreignUnlocked` itself before
+    `fdw.PlanModification`; the 29c note "callers already release the
+    replacement read" held for foreign DML only.
+  - `RowRequest` has no `Binding` field: the conflict kind builds its
+    binding from the current parent and the active `InsertConflict`.
+  - The `RowLocks` methods delegate to the scope methods, which DDL also
+    uses (`acquirePartitionLock`); the root keeps `mutationStorage` as a
+    helper over `Command.Storage`, because the target is root state.
+  - Go 1.26 rejects a keyed literal naming a promoted field, so
+    `rule_cte.go` and `partition_attach_definition_test.go` name
+    `Command: dml.Command{...}`.
+- **Tests.** New: `statement_host_dml_test.go` (`LatestRow` gates and
+  isolation per kind, `StageReplacement` stale/drop/flush,
+  `PrepareReplacement` order) and `lock/unique_journal_test.go`. Rewritten
+  to the new names: `partition_retained_checks_test.go` (a
+  `retainedRowError` helper), `view_write_test.go`, `fdw_modify_test.go`,
+  `domain_default_test.go`, `partition_attach_definition_test.go`, and the
+  17 test files `fieldrn` touched. None moved or deleted.
+- **Checks.** Selected units after every commit; string-literal multiset
+  unchanged apart from test messages; quickcheck; `make check REFERENCE=1
+  RUN='^TestReference(InsertConflict|InsertReturning|InsertSelect|UpdateFrom|UpdateCurrent|DeleteUsing|DeleteCurrent|MergeInsert|MergeReturning|Copy|CTEDML|Partition)'`
+  passed apart from oracle-side failures: the known
+  `TestReferencePartitionExclusion*` drift and one
+  `TestReferenceCopyTextInputStatementTimeout/postgres` timing flake
+  (PostgreSQL finished the COPY first; it passes alone on this branch and on
+  master); `RACE=1` over ON CONFLICT, range partition publication, row-lock
+  waits, view write rechecks and the seam tests; the 128-row ON CONFLICT benchmarks allocate the same or two fewer
+  objects per update proposal. racecheck, finalcheck and bench skipped at
+  user request (no startup change).
+
 ### Notes for later steps
+
+- 29d.1, for 29d.2: `applyValidated` and `appendAcceptedInsert` keep
+  `s.active()` in their root prologue, before `validateIndexCandidates`;
+  the `dml` loops need the same order, but `Stage` has no `Active` method
+  (only `PrepareReplacement` covers replacements). Add one or a
+  `PrepareInsert`, without moving the check into the windows (that would
+  change the error order). The `modes` slice that `replaceRows` passes to
+  `StageReplacement` escapes once the call goes through the interface; only
+  test callers leave `ActionMode` zero, so production stays
+  allocation-free. Watch the `update_allocation_test.go` envelopes.
 
 29c (item 109) read every note below; where they differ, its decisions
 1–14 win (for example `preflightConflictUpdate` stays root, decision 9,

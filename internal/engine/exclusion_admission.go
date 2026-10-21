@@ -80,22 +80,14 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate vis
 	s.installExclusionProjectionLocked(e, p)
 }
 
-// exclusionScan is a captured scan with the write authority captured in the
-// same window, for the conflict's disclosure.
-type exclusionScan struct {
-	index.ExclusionScan
-	auth AuthorizationView
-}
-
 func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, candidate storage.RowVersion, recheck bool, purpose index.ProbePurpose) (uniqueConflict, bool, error) {
 	idx := bound.Index
 	for {
-		captured, auth, err := s.writeHost().captureExclusionScan(ref, binding, idx)
-		scan := exclusionScan{captured, auth}
+		scan, err := s.writeHost().CaptureExclusionScan(ref, binding, idx)
 		if err != nil {
 			return uniqueConflict{}, false, err
 		}
-		current, found := index.OwnExclusionEntry(&scan.ExclusionScan, s.ticket, idx.Address(), candidate)
+		current, found := index.OwnExclusionEntry(&scan, s.ticket, idx.Address(), candidate)
 		if !found {
 			return uniqueConflict{}, false, nil
 		}
@@ -103,11 +95,11 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.Unique
 		if binding.TypeName != nil {
 			evaluation.Input.TypeDiagnosticName = binding.TypeName
 		}
-		visit, err := index.VisitExclusion(s.op, &evaluation, &scan.ExclusionScan, s.ticket, ref.Address, bound, current, purpose)
+		visit, err := index.VisitExclusion(s.op, &evaluation, &scan, s.ticket, ref.Address, bound, current, purpose)
 		if err != nil {
 			return uniqueConflict{}, false, err
 		}
-		if !s.writeHost().ExclusionScanCurrent(scan.ExclusionScan, idx.Address()) {
+		if !s.writeHost().ExclusionScanCurrent(scan, idx.Address()) {
 			continue
 		}
 		deferred, err := index.ExclusionDeferred(binding.Parent, idx, recheck)
@@ -126,7 +118,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.Unique
 		if !visit.Hit {
 			return uniqueConflict{}, visit.Potential, nil
 		}
-		return uniqueConflict{parent: binding.Parent, index: idx, key: visit.Key, existing: visit.Existing, auth: scan.auth, view: scan.View, schema: scan.Schema, row: visit.Row, committed: visit.Committed}, visit.Potential, nil
+		return uniqueConflict{parent: binding.Parent, index: idx, key: visit.Key, existing: visit.Existing, auth: scan.Authority, view: scan.View, schema: scan.Schema, row: visit.Row, committed: visit.Committed}, visit.Potential, nil
 	}
 }
 func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, action *dml.InsertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
