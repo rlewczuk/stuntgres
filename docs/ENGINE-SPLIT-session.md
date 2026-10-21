@@ -468,7 +468,7 @@ failed)` take the fields they read. `stageMessageCatalog` and
 (the lease's back-reference, per §3 rule 7). `operationAuthorization(op)`
 replaces the method (30 production and 103 test call sites, rewritten with
 `meth2fn`); `settingAccess` was already a function and moved to
-`parameter_permission.go`.
+`parameter_permission.go` (renamed `setting_permission.go` in role 28a).
 
 Tests: adapted in place, none moved or deleted (`session_timeout_test.go`,
 `session_timeout_pending_test.go`, `copy_admission_test.go`,
