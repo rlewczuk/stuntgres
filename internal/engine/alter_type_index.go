@@ -7,13 +7,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type alterTypeIndex struct {
-	index     *catalog.Relation
-	keys      []int
-	predicate bool
-	sql       string
-}
-
 func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
 	op := scope.op
 	hasType := false

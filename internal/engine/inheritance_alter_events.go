@@ -7,18 +7,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Events describe actual provider-phase changes, not the final presence of a
-// same-named fact. A DROP followed by ADD must remove the old contribution even
-// though the parent's completed candidate already contains its replacement.
-type inheritanceAlterEvent struct {
-	action         parser.AlterTableAction
-	attribute      int32
-	constraint     ids.OID
-	validation     bool
-	retiredNotNull []catalog.NotNullConstraint
-	retiredChecks  []catalog.CheckConstraint
-}
-
 func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog.Relation, a parser.AlterTableAction) {
 	state := scope.inheritance.alter
 	if state == nil {
@@ -113,100 +101,6 @@ func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Rela
 		definition.Name = parser.Identifier{Text: c.Name}
 		state.events[before.Address()] = append(state.events[before.Address()], inheritanceAlterEvent{action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, constraint: c.OID})
 	}
-}
-
-func inheritanceEventName(a parser.AlterTableAction) string {
-	switch a.Action {
-	case parser.AddColumn:
-		return a.Definition.Name
-	case parser.AddCheck:
-		return a.Check.Name.Text
-	case parser.DropConstraint:
-		return a.Constraint.Text
-	}
-	return a.Column.Text
-}
-
-func inheritanceParentActions(state *inheritanceAlterPlan, old *catalog.Relation) []parser.AlterTableAction {
-	var actions []parser.AlterTableAction
-	state.validating = nil
-	if old.Inheritance == nil {
-		return actions
-	}
-	for _, parent := range old.Inheritance.Parents {
-		for _, event := range state.events[parent] {
-			a := event.action
-			if a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint {
-				var origins []catalog.InheritanceOrigin
-				if a.Action == parser.DropConstraint {
-					origins = old.Inheritance.Checks[a.Constraint.Text].Origins
-				} else if slot, ok := old.Index[a.Column.Text]; ok {
-					if a.Action == parser.DropColumn {
-						origins = old.Inheritance.Columns[old.Attributes[slot]].Origins
-					} else {
-						origins = old.Inheritance.NotNull[old.Attributes[slot]].Origins
-					}
-				}
-				reached := slices.ContainsFunc(origins, func(origin catalog.InheritanceOrigin) bool {
-					return origin.Parent == parent && ((a.Action == parser.DropColumn && origin.Attribute == event.attribute) || (a.Action != parser.DropColumn && origin.Constraint == event.constraint))
-				})
-				if !reached {
-					continue
-				}
-			}
-			if state.only && a.Action != parser.DropColumn && a.Action != parser.DropConstraint && a.Action != parser.DropNotNull {
-				continue
-			}
-			if !slices.ContainsFunc(actions, func(previous parser.AlterTableAction) bool {
-				return previous.Action == a.Action && inheritanceEventName(previous) == inheritanceEventName(a)
-			}) {
-				actions = append(actions, a)
-			}
-			if event.validation {
-				if state.validating == nil {
-					state.validating = make(map[string]bool)
-				}
-				state.validating[a.Column.Text] = true
-			}
-		}
-	}
-	// Different parents can have emitted their events in different command lists.
-	// Keep the incumbent provider order (including DROP before recreate).
-	slices.SortStableFunc(actions, func(a, b parser.AlterTableAction) int {
-		return inheritanceActionPass(a.Action) - inheritanceActionPass(b.Action)
-	})
-	return actions
-}
-
-func inheritanceRemovedOrigin(state *inheritanceAlterPlan, origin catalog.InheritanceOrigin, kind parser.AlterTableActionKind) bool {
-	for _, event := range state.events[origin.Parent] {
-		if event.action.Action != kind {
-			continue
-		}
-		if kind == parser.DropColumn && event.attribute == origin.Attribute {
-			return true
-		}
-		if kind == parser.DropNotNull && event.constraint == origin.Constraint {
-			return true
-		}
-		if kind == parser.DropConstraint && event.constraint == origin.Constraint {
-			return true
-		}
-	}
-	return false
-}
-
-func inheritancePreparatoryLocks(actions []parser.AlterTableAction, only bool) bool {
-	if only {
-		return false
-	}
-	for _, a := range actions {
-		switch a.Action {
-		case parser.AddCheck, parser.AddNotNull, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AlterColumnType, parser.SetExpression, parser.DropExpression:
-			return true
-		}
-	}
-	return false
 }
 
 func (scope *StatementScope) inheritanceNotNullMode(column string) notNullRecursion {

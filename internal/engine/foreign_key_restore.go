@@ -7,28 +7,12 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-type restoredForeignKey struct {
-	raw        parser.ForeignKeyConstraint
-	path       []ids.ObjectAddress
-	target     ids.ObjectAddress
-	supporting ids.ObjectAddress // Exact captured primary for physical self-FK or omitted-reference inherited replay.
-	inherited  *restoredInheritedForeignKey
-	boundOID   ids.OID
-	boundSlot  int // Actual append position in this sole stage, verified against boundOID.
-}
-type restoredForeignKeys struct {
-	child       ids.ObjectRef
-	auth        ddl.Authority // The declaring principal; root staging recovers it.
-	definitions []restoredForeignKey
-}
 
 // Pending declarations live only inside the isolated Restore invocation. Capture
 // the declaring principal and namespace identities, not the later owner directive.
@@ -65,26 +49,6 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 		}
 	}
 	return nil
-}
-
-func stripRestoreForeignKeys(raw *parser.CreateTable) {
-	elements := raw.Elements[:0]
-	for _, element := range raw.Elements {
-		if element.ForeignKey != nil {
-			continue
-		}
-		if element.Column != nil {
-			constraints := element.Column.Constraints[:0]
-			for _, constraint := range element.Column.Constraints {
-				if constraint.ForeignKey == nil {
-					constraints = append(constraints, constraint)
-				}
-			}
-			element.Column.Constraints = constraints
-		}
-		elements = append(elements, element)
-	}
-	raw.Elements = elements
 }
 
 func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operation, pending []restoredForeignKeys) error {

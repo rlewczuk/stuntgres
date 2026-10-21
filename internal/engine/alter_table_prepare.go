@@ -11,12 +11,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type alterTablePreparation struct {
-	actions     []parser.AlterTableAction
-	destination ids.ObjectRef
-	types       []alterTypePreparation
-}
-
 // Prepare root actions in their original order against the original row shape.
 // Destination resolution is preparation; movement restrictions are execution.
 // Engine.mu is held by the caller.

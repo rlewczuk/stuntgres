@@ -21,17 +21,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type domainDependency struct {
-	address, target, root ids.ObjectAddress
-	oid                   ids.OID
-	ordinal               int32
-	label                 string
-	relation              *catalog.Relation
-	domain                *catalog.Type
-	column                string
-	automatic             bool
-}
-
 // PostgreSQL dependency traversal visits a dependent domain's descendants before
 // resuming its parent's remaining dependents. Stable attributes are separate
 // dependents; a containing table is never a domain-drop target.

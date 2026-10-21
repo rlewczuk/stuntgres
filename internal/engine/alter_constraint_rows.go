@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -39,24 +38,4 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 		return err
 	}
 	return scan(writes, false)
-}
-
-func validCheckTraversal(parent *catalog.Relation) *catalog.Relation {
-	valid := 0
-	for _, c := range parent.Constraints.Check {
-		if !c.NotValid {
-			valid++
-		}
-	}
-	if valid == len(parent.Constraints.Check) {
-		return parent
-	}
-	next := *parent
-	next.Constraints.Check = make([]catalog.CheckConstraint, 0, valid)
-	for _, c := range parent.Constraints.Check {
-		if !c.NotValid {
-			next.Constraints.Check = append(next.Constraints.Check, c)
-		}
-	}
-	return &next
 }

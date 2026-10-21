@@ -8,14 +8,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-const restoreInheritedOwnerBoundary = "restore accepts only immediately paired inherited declaration ownership"
-
-type restoredInheritedOwner struct {
-	ref     ids.ObjectRef
-	owner   authorization.PrincipalRef
-	creator authorization.PrincipalRef
-}
-
 // A genuine named owner directive followed immediately by the bootstrap context
 // carries the captured role identity. CREATE/OWNER must be the next exact pair;
 // no input can retarget an existing relation or choose an unrelated owner.

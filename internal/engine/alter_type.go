@@ -21,21 +21,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type alterTypePreparation struct {
-	usage              sqltype.Usage
-	transformation     index.ColumnTransformation
-	declaredDimensions int16
-}
-
-// Phase-one lookup uses the statement-original descriptor, before ADD/DROP passes.
-func alterTypeColumn(original *catalog.Relation, name string) (int, error) {
-	slot, ok := original.Index[name]
-	if !ok {
-		return 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, original.Name()))
-	}
-	return slot, nil
-}
-
 // Sequence AS uses admitted target usages, including the prefix retained when
 // transformation completion fails. It never visits an unadmitted later TYPE.
 func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, actions []parser.AlterTableAction, prepared []alterTypePreparation) (*CatalogStage, error) {

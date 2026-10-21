@@ -14,14 +14,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// External providers are captured before any wait. Self references instead bind
-// against the completed private candidate, which may own a newly added key.
-type alterForeignKeyAdmission struct {
-	target  ids.ObjectRef
-	storage *storage.Relation
-	index   ids.ObjectAddress
-}
-
 func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	count := 0
 	for _, action := range raw.Actions {

@@ -7,32 +7,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func droppedConstraint(parent *catalog.Relation, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
-	if action.Action == parser.DropConstraint {
-		for _, c := range parent.Constraints.Unique {
-			if c.Name == action.Constraint.Text {
-				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
-			}
-		}
-		for _, c := range parent.Constraints.Exclusion {
-			if c.Name == action.Constraint.Text {
-				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
-			}
-		}
-		for _, c := range parent.Constraints.Check {
-			if c.Name == action.Constraint.Text {
-				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
-			}
-		}
-		for _, c := range parent.Constraints.NotNull {
-			if c.Name == action.Constraint.Text {
-				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
-			}
-		}
-	}
-	return ids.ObjectAddress{}, ids.ObjectAddress{}
-}
-
 // Retire named constraint identities and original backing generations after
 // logical DROP, before ADD naming.
 // Remove retains the original reference/name observations and locks the engine;
@@ -48,15 +22,6 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 	}
 	next, err := dropConstraintIndexes(stageDropProvider(scope.op.Context(), stage, scope, changes, nil), old, next, actions)
 	return next, stage, err
-}
-
-func hasDroppedConstraintIndexes(old *catalog.Relation, actions []parser.AlterTableAction) bool {
-	for _, action := range actions {
-		if constraint, _ := droppedConstraint(old, action); constraint != (ids.ObjectAddress{}) {
-			return true
-		}
-	}
-	return false
 }
 
 // The same ordered provider retires named constraint identities, including
