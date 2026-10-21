@@ -105,11 +105,11 @@ TABLESPACE check), `inheritanceQueryLeaves` and the inheritance query
 scope methods (query admission), `physicalNotNullDumpDependencies` (the
 dump driver), and `validateRestoredInheritedForeignKey`. FK write-time
 enforcement and FK actions (`foreignKeyJob`, `foreign_action*.go`) and
-`mutation_targets.go` go to `dml`; `partition_dump.go` to `partition`;
-`materialized_snapshot.go` to `view`. 24c refined the hosts: `table.Host`
-(on the root `ddlHost`) and `table.AlterHost` (on a scope-bound root
-`alterHost`), every method under `Engine.mu` and never waiting; 24d.1–24d.3
-move the CREATE, ALTER and Restore decisions behind them (see
+`mutation_targets.go` go to `dml`; `materialized_snapshot.go` to `view`.
+24c refined the hosts: `table.Host` (on the root `ddlHost`) and
+`table.AlterHost` (on a scope-bound root `alterHost`), every method under
+`Engine.mu` and never waiting; 24d.1–24d.3 move the CREATE, ALTER and
+Restore decisions behind them (see
 [ENGINE-SPLIT-table.md](../../../docs/ENGINE-SPLIT-table.md) Part B). The
 removal interface stays table-local: `DropDependencyReader` is passed in,
 and its callers hold nothing.
