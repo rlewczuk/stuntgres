@@ -305,5 +305,9 @@ Outstanding aliases: none yet.
   in 28c if they fit the host, or leave them in the root.
 - `fdw_grant.go` (GRANT on foreign data wrappers and servers) belongs to
   `fdw` (step 26d), not here.
+- `grantWarning` goes to `authorization` as `GrantWarning`, not to `role`
+  (fdw 26c refine): the role, database and FDW grants share it, and `fdw`
+  cannot import `role`. If 26d has not landed when 28b runs, 28b moves it
+  to `authorization` instead of `role`.
 - `principal_remap.go` is Restore: its descriptor switch goes to `catalog`
   (5i) and the rest to `control` (step 30).

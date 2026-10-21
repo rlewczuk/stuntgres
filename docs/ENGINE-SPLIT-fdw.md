@@ -272,48 +272,180 @@ references, (3) driver imports, (4) tests, (5) docs.
 
 ## Part B
 
-### 26c — Refine the host (docs only)
+### 26c — Refine the host (docs only; linear item 96)
 
 Re-measure `executeForeignDDL`, `stageForeignLocked`,
-`foreignProcedureLocked`, `executeForeignGrant` and `executeForeignImport`.
-Write the host interface, the move set and the commit sequence into this
-file, and wait for approval. Start from this sketch (draft signatures):
+`foreignProcedureLocked`, `executeForeignGrant` and `executeForeignImport`,
+write the host interface, the move set and the commit sequence into this
+file, then wait for approval. Three questions were open: (1) does
+`fdw.Host` live on the shared `ddl` adapter (20b) or its own; (2) which
+part of `executeForeignGrant`, which writes the journal rather than a
+stage, is a pure decision; (3) how IMPORT stages its tables through
+`stageForeignTableLocked` until 26e.
 
-- **Shared DDL host** (from `ddl`, step 20): `AccessView`, `Stage`,
-  `StageRead`, `AllocateOID`, `Revision`, `CreationNamespace`,
-  `CheckCreateIn`, `DropTarget`, `EmitNotice`, `Context`. Embed `ddl.Host`.
-- **FDW-specific:**
-  - `HandlerProcedure(auth ddl.Authority, name *parser.ObjectName,
-    signature catalog.ProcedureSignature) (*catalog.Procedure, error)`
-    (today `foreignProcedureLocked`: namespace lookup plus EXECUTE check);
-  - `RemoveObject(ids.ObjectAddress) error` (today
-    `stage.removeObjectLocked`; DROP SERVER/WRAPPER/USER MAPPING go
-    through the root removal pipeline);
-  - `StageExpressionDependents(...)` (DROP ... CASCADE);
-  - `Registry() *fdw.Registry` (read-only, for handler and validator
-    lookups).
-- **Callbacks outside the lock.** Validator jobs and the schema importer
-  run after `Engine.mu` is released and after `replacementMu` is released
-  (`foreignUnlocked`). The handler decisions return the jobs and the
-  import request; the root runs them. The host never runs a callback.
+**26c refine (approved; measured at `3f8d7d950`).** The `frontier` tool
+over `fdw_ddl.go`, `fdw_grant.go` and `fdw_import.go` (output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-FDW-REFINE/frontier-fdw.txt`):
 
-Decisions expected to move in 26d: WRAPPER, SERVER and USER MAPPING
-create/alter/drop staging (the 244-line `stageForeignLocked` switch,
-except foreign tables), ownership changes (`access.OwnershipRoleOperand`,
-`access.SchemaOwner`), GRANT on foreign objects (`executeForeignGrant`'s
-target resolution and ACL change), and IMPORT FOREIGN SCHEMA selection
-(LIMIT TO/EXCEPT, options, the `CreateTable` syntax built from each
-imported definition).
+- **Size.** `fdw_ddl.go` is 343 lines: `stageForeignLocked` (243) reads the
+  actor, resolves the owner operand, applies the wrapper superuser gate,
+  routes foreign tables to `stageForeignTableLocked`, then stages WRAPPER,
+  SERVER and USER MAPPING create, alter and drop; `foreignProcedureLocked`
+  (30) finds the handler or validator, checks EXECUTE and the return type.
+  `fdw_grant.go` is 120 lines (`executeForeignGrant`), `fdw_import.go` 188
+  (`executeForeignImport` 132, `foreignImportedTable` 50).
+- **Engine edges (OUT), 43.** Almost all have a `ddl.Host` form already:
+  `allocateOIDLocked`/`revisionLocked` are `Allocator`; `stage.Create`,
+  `Replace` and `LookupName` are `Stage()`; `stage.Base` is `StageBase()`;
+  `schemaNotice` is `ddl.Notice`; the two WARNINGs are `EmitNotice`;
+  `auth.Check` is `ddl.Check`; `auth.Roles`, `Catalog` and `State` are
+  `AccessView(auth)`; `e.creationNamespace` is
+  `ExistingCreationNamespace`; `auth.CheckCreate` is
+  `AccessView(auth).CheckCreate(auth, ns)` (not `CheckCreateIn`, which adds
+  the trusted Restore exception). `foreignProcedureLocked`'s lookup is
+  exactly `Host.LookupFunction` (`lookupNamespaces` plus
+  `analyze.ProcedureInNamespaces`). `stage.domainBases` appends are
+  `ddlHost.AddDomainBase` (from `typedef.StageHost`) and
+  `stage.removeObjectLocked` is `ddlHost.RemoveObject` (from
+  `ddl.SchemaHost`), both with the signatures `fdw` needs. The edges left
+  are orchestration (`Engine.mu`, `authorizationLocked`, stage begin and
+  discard, `replacementMu`, `ValidateCatalogStage`,
+  `publishCatalogOperation`, `acquireDefinitionProviders`,
+  `stageExpressionDependents`, `catalogChangeLocked`, the scope's
+  `catalog` and `catalogAuthority`), `stageForeignTableLocked` (26e) and
+  `grantWarning`.
+- **Outside uses (IN).** `executeForeignDDL` and `executeForeignGrant`: one
+  production caller each (`execute.go`). `stageForeignLocked`: one test
+  (`fdw_dependency_publication_test.go`). `stageForeignValidatorJob`: four
+  calls in `fdw_table.go`.
+- **Not needed** (the draft had them): `HandlerProcedure` (the lookup is
+  `LookupFunction`; the EXECUTE and return-type checks are pure);
+  `StageExpressionDependents` (the DROP roots go through
+  `scope.stageExpressionDependents` after `Engine.mu` is released, so that
+  call stays orchestration and the decision returns the roots); `Registry()`
+  (no decision reads the definitions).
 
-Questions to settle in 26c:
+Decisions:
 
-1. Does `fdw.Host` live on the shared `ddl` adapter (20b), or on its own
-   adapter over the same fields?
-2. `executeForeignGrant` writes the journal (`catalogChangeLocked`) rather
-   than staging a catalog change. Which part is a pure decision?
-3. IMPORT builds tables through `stageForeignTableLocked`, which calls
-   `schemaTableLocked` (CREATE TABLE). Until 26e, the host offers that as
-   one root method (`StageForeignTable`).
+1. **`fdw.Host` lives on the shared `ddlHost`** (question 1), like
+   `routine.DDLHost`, `typedef.StageHost` and `ddl.SchemaHost`; a new root
+   `fdw_host.go` holds `var _ fdw.Host = ddlHost{}`. It is `ddl.Host` plus:
+   - `AddDomainBase(catalog.Descriptor)` and `RemoveObject(ref
+     ids.ObjectRef, namespace bool) error`: already on `ddlHost`, same
+     signatures, declared again in `fdw` (24c owns the general removal
+     interface);
+   - `StageForeignTable(auth ddl.Authority, s *parser.ForeignDDL, input
+     sqltype.InputEnvironment) ([]Validation, []ids.ObjectAddress, error)`
+     (question 3): CREATE and DROP FOREIGN TABLE through
+     `stageForeignTableLocked`, which takes `(op, input)` instead of the
+     scope. 26e removes it.
+
+   `fdw` imports `ddl` for the first time; `ddl` sits below it.
+2. **WRAPPER, SERVER and USER MAPPING staging.** `StageDDL(h Host, auth
+   ddl.Authority, s *parser.ForeignDDL, input sqltype.InputEnvironment)
+   ([]Validation, []ids.ObjectAddress, error)` keeps today's order: actor
+   read, owner operand (`access.OwnershipRoleOperand`,
+   `access.SchemaOwner`), wrapper superuser gate and its hint, the table
+   route, then the unexported `stageDrop` (IF EXISTS notices, owner check,
+   `RemoveObject`, roots) and `stageDefinition` (lookup, duplicate and IF
+   NOT EXISTS, owner check, OID and revision, the class switch, options,
+   rename, ownership change and its same-owner no-op, name conflict,
+   validator job, `Create`/`Replace`, the two ALTER WARNINGs). A `nil, nil,
+   nil` result still means "nothing to publish".
+   `handlerProcedure(h, auth, name, signature)` replaces
+   `foreignProcedureLocked` with the same 42883, 42501 and 42804 texts.
+   `stageValidatorJob(h, wrapper, kind, options)` is `ValidatorJob(
+   h.StageBase(), ...)` plus `h.AddDomainBase`; the root
+   `stageForeignValidatorJob` stays for `fdw_table.go` until 26e. The root
+   `stageForeignLocked` keeps its signature as a thin wrapper that builds the
+   `ddlHost` (the test calls it); `executeForeignDDL` stays orchestration.
+3. **GRANT gets no host** (question 2). It holds `Engine.mu` throughout,
+   never stages and writes the transaction journal. The pure part is
+   `PlanGrant(ctx context.Context, view access.View, s *parser.ObjectGrant,
+   pending map[ids.ObjectAddress]catalog.Descriptor, revision func()
+   (ids.DefinitionRevision, error)) ([]GrantChange, []sqlstate.Error,
+   error)`, following 28a's `objectGrantPlan`: grantor, privilege and
+   grantee checks, actor and role closure, then per target the lookup
+   (over `pending` and its own earlier changes, so a repeated name sees the
+   previous change as today), grant source, 42501, warning, the
+   `available == 0` skip, `ChangeObjectACL`, the unchanged skip, the
+   revision at the same point, `ValidateACL`. `GrantChange` is the address
+   and the new `*catalog.ForeignObject`. Warnings raised before an error
+   come back with it. The root keeps the argument check, the lock,
+   `authorizationLocked`, the journal clone, emitting the warnings (then the
+   error), `catalogChangeLocked` per change in order, and setting
+   `scope.catalog` and `scope.catalogAuthority`.
+4. **`grantWarning` goes down to `authorization`** as `GrantWarning`: the
+   role, database and FDW grants share it and `fdw` cannot import `role`
+   (§3 rule 6). It is already pure and `authorization` already imports
+   `sqlstate`. It leaves 28b's move set; whichever of 26d and 28b runs first
+   moves it.
+5. **IMPORT FOREIGN SCHEMA** (question 3). `PlanImport(h Host, auth
+   ddl.Authority, s *parser.ForeignDDL) (SchemaImporter, ImportRequest,
+   error)`: server and USAGE, creation namespace and CREATE, wrapper
+   (`ids.ErrCatalogReplaced`), handler, the importer capability (HV00P),
+   mapping, options, role, the request; it records the five bases (server,
+   wrapper, mapping, handler procedure, namespace) with `AddDomainBase`.
+   `ImportSelected(s *parser.ForeignDDL, name string) bool` is the LIMIT
+   TO/EXCEPT selection. `ImportedTable(ctx context.Context, definition
+   TableDefinition, s *parser.ForeignDDL) (*parser.ForeignDDL, error)` is
+   today's `foreignImportedTable` with the context instead of the scope.
+   The root begins the stage before `PlanImport` (`BeginCatalogStage` has no
+   side effects; the base is the same `auth.Catalog`), and keeps the
+   `replacementMu` release, the importer callback, the per-definition
+   context check, relock, re-authorization, epoch check and
+   `stageForeignTableLocked`, the `ImportTable` stamp, `RunValidations`,
+   `acquireDefinitionProviders`, validation and publication.
+6. **Callbacks.** The host never runs one. Validator jobs and the importer
+   still run in the root after `Engine.mu` and `replacementMu` are released.
+7. **Errors.** Every message, SQLSTATE, hint and notice stays identical and
+   in the same order, including the foreign mapping diagnostics and the
+   warnings emitted before a later GRANT error.
+
+**Move set (26d; new names).** Into `fdw`:
+
+- `host.go`: the `Host` interface.
+- `stage.go`: `StageDDL`, `stageDefinition`.
+- `stage_drop.go`: `stageDrop`.
+- `handler.go`: `handlerProcedure`, `stageValidatorJob`.
+- `grant.go`: `PlanGrant`, `GrantChange` (next to `GrantKind`).
+- `import.go`: `PlanImport`, `ImportSelected`, `ImportedTable` (next to
+  `HandlerFor`, `ImportExpression`, `ImportedOptions`, `MappingFor`).
+
+Into `authorization`: `GrantWarning`.
+
+**Stays in the root.** `Engine.mu`; `executeForeignDDL` (argument check,
+table ALTER and IMPORT routes, authority capture, stage begin and discard,
+DROP dependents, `replacementMu` release, validations, publication);
+`stageForeignLocked` as a wrapper; `executeForeignGrant` as described;
+`executeForeignImport` as described; `stageForeignTableLocked`,
+`executeForeignTableAlter` and `stageForeignValidatorJob` (26e);
+`schemaNotice` (`fdw_table.go` still uses it).
+
+**Commit sequence (26d).**
+
+1. `grantWarning` → `authorization.GrantWarning`; callers in
+   `role_grant_plan.go`, `role_grant_objects.go`, `database_grant.go` and
+   `fdw_grant.go`.
+2. Seam: `fdw.Host`, `fdw_host.go` on `ddlHost` with its assertion,
+   `StageForeignTable`, and `stageForeignTableLocked` over `(op, input)`.
+   Unit test first, observed failing: `StageForeignTable` stages a foreign
+   table through the stage and returns its validator jobs.
+3. Port in place: root `stageForeignDDL(h, auth, s, input)`,
+   `planForeignGrant`, `planForeignImport(h, auth, s)`,
+   `foreignImportSelected` and `foreignImportedTable(ctx, ...)`, naming no
+   `Engine`, `CatalogStage`, `AuthorizationView` or `StatementScope`.
+4. Move them into `fdw` with `movex` and export the entry points; no
+   aliases.
+5. Docs: the `fdw` README (`Host`, entry points, what stays), this file's
+   Status, the §8 row and the status page; `AGENTS.md` unchanged.
+
+Proof for 26d: `^(TestFDW|TestOwnerExtension)` (also `RACE=1`) and
+`^Test(ObjectGrant|DatabaseACL)` (the units that reach `GrantWarning`);
+`^TestReferenceFDW`, `^TestReferenceDumpRoundTrip$`,
+`^TestReferenceObjectGrant` and `^TestReferenceObjectACLDatabase$` in quick
+and `REFERENCE=1` mode (the last is order-dependent on `master` too:
+compare before reporting); quickcheck.
 
 ### 26d — Move the WRAPPER, SERVER, USER MAPPING, IMPORT and GRANT decisions
 
@@ -443,7 +575,14 @@ pass.
   `^TestReferenceFDW` and `^TestReferenceDumpRoundTrip$` in quick and
   `REFERENCE=1` mode, and quickcheck; racecheck/finalcheck skipped at
   user request; bench not run (no startup or hot-path change).
-- [ ] 26c — Host refined (docs only)
+- [x] 26c — Host refined (docs only; the docs commit). Measured at
+  `3f8d7d950`: 43 engine edges, nearly all covered by `ddl.Host` and two
+  existing `ddlHost` methods. `fdw.Host` = `ddl.Host` + `AddDomainBase`,
+  `RemoveObject` and one new `StageForeignTable`, on `ddlHost`; the draft's
+  `HandlerProcedure`, `StageExpressionDependents` and `Registry()` are not
+  needed. GRANT is a pure `PlanGrant` with no host; `grantWarning` goes to
+  `authorization`; IMPORT is `PlanImport`, `ImportSelected` and
+  `ImportedTable`. 26d move set and commit sequence written.
 - [ ] 26d — WRAPPER, SERVER, USER MAPPING, IMPORT and GRANT decisions moved
 - [ ] 26e — Foreign-table decisions moved (after 24d)
 
@@ -475,12 +614,14 @@ Outstanding aliases: none yet.
   - `foreignOwnershipEligibility`'s recipient check keeps the actor's
     `access.Environment`: `access.View.Check` reads it only for type
     diagnostics and temporary namespaces, never for a wrapper.
-- 26c: the handler decisions use the moved helpers (`fdw.Find`,
-  `fdw.MappingAuthority`, `fdw.ValidatorJob`, ...). `stageForeignValidatorJob`
-  stays the engine wrapper that records the validator in
-  `stage.domainBases`. `fdw.Registry` has no handler or validator lookups;
-  the sketched `Registry()` host method is needed only if 26d decisions
-  read the definitions.
+- 26d: follow the 26c refine above. The decisions use the moved helpers
+  (`fdw.Find`, `fdw.MappingAuthority`, `fdw.ValidatorJob`, ...). If 28b has
+  already moved `grantWarning` into `role`, move it from there to
+  `authorization`.
+- 26e: `fdw.Host.StageForeignTable` and the root `stageForeignValidatorJob`
+  exist only for the foreign-table path; 26e replaces both when
+  `stageForeignTableLocked` and `executeForeignTableAlter` move, and drops
+  `schemaNotice`'s last FDW users.
 - 29b: `foreignTargetRows` (`fdw_execute.go`) is the engine function that
   replaced `foreignModification.targetRows`; it moves to `dml` with the
   rest of foreign DML execution and reads `fdw.Modification.Source` and
