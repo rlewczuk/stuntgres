@@ -240,7 +240,7 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *ca
 		return nil, nil
 	}
 	var effects []catalog.Descriptor
-	err := synchronizeRowTypeMetadata(relation, row, func(address ids.ObjectAddress) catalog.Descriptor {
+	err := typedef.SynchronizeRowTypeMetadata(relation, row, func(address ids.ObjectAddress) catalog.Descriptor {
 		descriptor, _ := reader.Descriptor(address)
 		return descriptor
 	}, func(namespace ids.ObjectAddress, name string) string {
