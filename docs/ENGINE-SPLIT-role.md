@@ -240,7 +240,35 @@ root. The checks in §8.3 pass.
 
 ## Status
 
-- [ ] 28a — In place (renames, cuts, grant/default/owned plans split)
+- [x] 28a — In place (renames, cuts, grant/default/owned plans split)
+  (`23c4487dc`, `40d6de294`, `5f467d54d`, `32097b551`, `86c27112c`, `0ed6411b1`, then the docs commit).
+  `reach` after 28a: 32 clean in the role files (12 before); every request
+  and plan function is clean. Clean set for 28b:
+  - grants (`role_grant_plan.go`): `grantWarning`, `columnGrantRequest`,
+    `objectGrantChange`, `grantRequest`, `objectGrantRequest`, `grantPlan`,
+    `objectGrantPlan`, `relationGrantChange`; `changeNonRelationGrant`
+    (`role_grant_objects.go`), `grantRoutineArgumentDisplay`
+    (`role_grant_routines.go`);
+  - default privileges: `defaultPrivilegesPlan` (`default_privileges_plan.go`);
+  - ownership: `ownedSources`, `ownedPlan`, `planOwned`
+    (`owned_roles_plan.go`), `stageOwnership` (`ownership.go`),
+    `stageOwnedCleanup`, `ownedCleanupAddsDeletionRoot`
+    (`owned_roles_cleanup.go`), and the stage interfaces `ownerStage`,
+    `ownedCleanupStage` (`owned_stage.go`);
+  - diagnostics: `roleDiagnostic`, `roleConnectionLimitError`,
+    `roleLoginError`, `emitPasswordNotice`; `relationDiagnosticNameAt` and
+    `relationVisibleAt` (`relation_diagnostics.go`, for `stored` 22b);
+  - root: `roleStore` and its methods, `preflightACLItemDump` (control).
+  Verified with the role, grant, default-privilege, ownership, owned-role,
+  object-ACL and database-ACL engine units, the quick-mode
+  `^TestReference(ObjectGrant|Role)`, `DefaultPrivilege` and
+  `Ownership|Owned|Reassign` selections, `REFERENCE=1` over
+  `^TestReference(Role|ObjectGrant|DefaultPrivilege|Reassign|DropOwned)|Ownership|Owned|^TestReferenceSchema(Owner|ACL|Authorization)|^TestReferenceDumpRoundTrip$`
+  (23 packages, all passed), and quickcheck; racecheck and
+  finalcheck skipped at user request. Tests: `ownership_test.go` passes
+  `auth.View` to `ownedSources`; new `TestObjectGrantPlanWarningsBeforeError`
+  pins the plan seam (warnings returned with a later error, none emitted by
+  the plan). No test moved or deleted.
 - [ ] 28b — `role` created and clean set moved
 - [ ] 28c — Host refined (docs only)
 - [ ] 28d — Handler decisions moved
@@ -248,6 +276,29 @@ root. The checks in §8.3 pass.
 Outstanding aliases: none yet.
 
 ### Notes for later steps
+
+- 28a deviations from the plan above, for 28b:
+  - `ddl.Stage` has no base catalog, cascade revisions, removals or default
+    ACL records, so `stageOwnership` takes `ownerStage` (`ddl.Stage` plus
+    `BaseCatalog` and `CascadeRevision`) and DROP OWNED cleanup takes
+    `ownedCleanupStage` (adds `BaseRef`, `Remove`, `Descriptors`,
+    `Removal(s)`, the default ACL record methods, `RoleCandidate` and
+    `SetRoleCandidate`). Their method names are exported, so 28b moves the
+    interfaces into `role` unchanged; `*CatalogStage` keeps the adapters
+    (`owned_stage.go`).
+  - `ownedSources` and `changeNonRelationGrant` need only the `access.View`;
+    only `grantRoutineArgumentDisplay` and `planOwned` also take the
+    `access.Environment` (for the reference path).
+  - `objectGrantRequest` resolves the targets through a callback, called at
+    the old point (after the kind check, before grantees), so error
+    precedence is unchanged; `objectGrantTargets` stays in the root until
+    28c settles the grant target host. `grantWarning` is pure; the FDW and
+    database grants emit it themselves.
+  - `objectGrantPlan` returns the warnings raised before an error together
+    with the error; the root emits them, then returns the error.
+  - `executeOwned` keeps the REASSIGN OWNED eligibility and staging loop and
+    the DROP OWNED removal loop: they take `Engine.mu` and the stage. 28c
+    decides whether they become host calls.
 
 - `resolveGrantTablespace` (`tablespace_catalog.go`) and GRANT ON
   PARAMETER (`parameter_catalog.go`) are grant target resolution; take them

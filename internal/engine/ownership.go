@@ -18,7 +18,7 @@ import (
 // Ownership changes retain immutable type, row, index and sequence generator
 // roots. Only descriptor/ACL payloads change. All reciprocal members are staged
 // before the ordinary publication validator sees any of them.
-func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorization.PrincipalRef) error {
+func stageOwnership(stage ownerStage, d catalog.Descriptor, target authorization.PrincipalRef) error {
 	if next := stage.Get(d.Address()); next != nil {
 		d = next
 	}
@@ -26,7 +26,7 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 	if owner == target {
 		return nil
 	}
-	revision, err := stage.cascadeMetadataRevision(d.Revision())
+	revision, err := stage.CascadeRevision(d.Revision())
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 			return err
 		}
 		if old.Array != 0 {
-			array, ok := stage.Base.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Array)})
+			array, ok := stage.BaseCatalog().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Array)})
 			if !ok || !array.SQLType.IsArray() || array.SQLType.Element().ID() != old.SQLType.ID() {
 				return catalog.Conflict{}
 			}
@@ -91,7 +91,7 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 			}
 		}
 		if old.OwningRelation != (ids.ObjectAddress{}) && !old.SQLType.IsArray() {
-			r, ok := stage.Base.Relation(old.OwningRelation)
+			r, ok := stage.BaseCatalog().Relation(old.OwningRelation)
 			if !ok || r.RowType != old.SQLType.ID() {
 				return catalog.Conflict{}
 			}
@@ -116,7 +116,7 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 			return err
 		}
 		if old.RelationKind == catalog.TableRelation || old.RelationKind == catalog.PartitionedRelation || old.RelationKind == catalog.MaterializedViewRelation {
-			for _, associated := range stage.Base.Descriptors() {
+			for _, associated := range stage.BaseCatalog().Descriptors() {
 				r, ok := associated.(*catalog.Relation)
 				if !ok {
 					continue

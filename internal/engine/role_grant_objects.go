@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/access"
@@ -8,7 +9,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -61,9 +61,11 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 
 // Nonrelation classes share the same source selection, ACL mutation and final
 // catalog publication as relation grants, without materializing table defaults.
-func changeNonRelationGrant(op *session.Operation, v AuthorizationView, d catalog.Descriptor, s *parser.ObjectGrant, grantees []authorization.ACLGrantee, principals []authorization.PrincipalRef, super bool, requested authorization.Privileges, all bool) (catalog.Descriptor, error) {
-	if err := access.ValidateACL(v.Roles, d); err != nil {
-		return nil, err
+// It returns the changed descriptor (nil when nothing changes) and the
+// statement's warning for d, which is set even when an error follows it.
+func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Descriptor, s *parser.ObjectGrant, grantees []authorization.ACLGrantee, principals []authorization.PrincipalRef, super bool, requested authorization.Privileges, all bool) (catalog.Descriptor, *sqlstate.Error, error) {
+	if err := access.ValidateACL(view.Roles, d); err != nil {
+		return nil, nil, err
 	}
 	owner, old, _ := access.DescriptorACL(d)
 	if typ, ok := d.(*catalog.Type); ok && typ.ACLSyntheticDefault {
@@ -85,24 +87,27 @@ func changeNonRelationGrant(op *session.Operation, v AuthorizationView, d catalo
 	if !baseline.Explicit {
 		baseline = authorization.DefaultBaseline(owner, class, false)
 	}
-	source, available, err := authorization.ObjectGrantSource(op.Context(), owner, old, authorization.ACLValue{}, principals, super, requested)
+	source, available, err := authorization.ObjectGrantSource(ctx, owner, old, authorization.ACLValue{}, principals, super, requested)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if available == 0 && authorization.ACLRights(baseline, owner, principals, access.ClassPrivileges(d), false) == 0 {
 		// Routine target kinds all share the function ACL object class.
-		return nil, sqlError("42501", "permission denied for "+noun+" "+d.Name())
+		return nil, nil, sqlError("42501", "permission denied for "+noun+" "+d.Name())
 	}
-	grantWarning(op, d.Name(), "", requested, available, all, s.Revoke)
+	var warning *sqlstate.Error
+	if notice, ok := grantWarning(d.Name(), "", requested, available, all, s.Revoke); ok {
+		warning = &notice
+	}
 	if available == 0 {
-		return nil, nil
+		return nil, warning, nil
 	}
-	nextACL, changed, err := authorization.ChangeObjectACL(op.Context(), v.Roles, baseline, owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+	nextACL, changed, err := authorization.ChangeObjectACL(ctx, view.Roles, baseline, owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 	if err != nil {
-		return nil, err
+		return nil, warning, err
 	}
 	if !changed && (old.Explicit || d.Kind() == ids.ParameterObject) {
-		return nil, nil
+		return nil, warning, nil
 	}
 	var next catalog.Descriptor
 	switch d := d.(type) {
@@ -128,8 +133,8 @@ func changeNonRelationGrant(op *session.Operation, v AuthorizationView, d catalo
 		n.ACL = nextACL
 		next = &n
 	}
-	if err := access.ValidateACL(v.Roles, next); err != nil {
-		return nil, err
+	if err := access.ValidateACL(view.Roles, next); err != nil {
+		return nil, warning, err
 	}
-	return next, nil
+	return next, warning, nil
 }

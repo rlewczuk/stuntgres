@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `c0dfba392` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 99 and 107). Steps 8–17 were
+Last verified against `master` at `d10cc959d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 99, 103 and 107). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,7 +20,7 @@ after each lands.
 
 - **Seams:** 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
-- **Upper features, in place:** 103 (role 28a).
+- **Upper features, packages:** 104 (role 28b).
 - **Upper features, refined:** 96 (fdw 26c, docs only).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -64,6 +64,8 @@ item 114 needs it. Item 99 (view 27a) is done; view 27b (item 100) still
 waits for stored 22c (item 69) and table 24b (item 87).
 Item 107 (DML 29a) is done; DML 29b (item 108) still waits for 83, 87, 91
 and 100.
+Item 103 (role 28a) is done, so role 28b (item 104) is ready; role 28c
+(item 105) then needs 104 and 61.
 
 ## Task tree
 
@@ -506,7 +508,10 @@ and 100.
   - [ ] 27d — Handler decisions moved
 - [ ] **Step 28 — `role`** ([prompt](ENGINE-SPLIT-role.md); 28b needs 21b,
   B6) *(lower priority)*
-  - [ ] 28a — In place: renames
+  - [x] 28a — In place: renames, `access.View` cuts, ownership stage
+    interfaces, grant, default-privilege and owned plans split
+    (`23c4487dc`, `40d6de294`, `5f467d54d`, `32097b551`, `86c27112c`,
+    `0ed6411b1`, then the docs commit)
   - [ ] 28b — `role` created and clean set moved
   - [ ] 28c — Host refined (docs only)
   - [ ] 28d — Handler decisions moved
@@ -1144,7 +1149,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      27c · needs 100, 61
 102. [ ] View 27d: handler decisions moved — [view](ENGINE-SPLIT-view.md)
      27d · needs 101
-103. [ ] Role 28a: in place — [role](ENGINE-SPLIT-role.md) 28a · needs —
+103. [x] Role 28a: in place — [role](ENGINE-SPLIT-role.md) 28a · needs —
+     (`23c4487dc`, `40d6de294`, `5f467d54d`, `32097b551`, `86c27112c`, `0ed6411b1`, then the docs commit) · `relation_diagnostics.go`,
+     `setting_permission.go`, `database.go`; `access.View` cuts of
+     `ownedSources`, `changeNonRelationGrant`, `grantRoutineArgumentDisplay`;
+     `ownerStage`/`ownedCleanupStage`; `objectGrantRequest`/`objectGrantPlan`,
+     `defaultPrivilegesPlan`, `planOwned`; every request and plan function
+     clean · selected unit and dual-mode proof and quickcheck passed;
+     racecheck/finalcheck skipped at user request
 104. [ ] Role 28b: `role` created, clean set moved —
      [role](ENGINE-SPLIT-role.md) 28b · needs 103, 65, 79
 105. [ ] Role 28c: host refined (docs only) — [role](ENGINE-SPLIT-role.md)

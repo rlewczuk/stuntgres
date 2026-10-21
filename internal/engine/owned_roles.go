@@ -4,50 +4,14 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool) (map[authorization.PrincipalRef]bool, authorization.PrincipalRef, error) {
-	refs := make(map[authorization.PrincipalRef]bool, len(specs))
-	protected := authorization.PrincipalRef{}
-	for _, spec := range specs {
-		ref, err := authorization.MembershipRole(auth.Roles, auth.State, spec)
-		if err != nil {
-			return nil, authorization.PrincipalRef{}, err
-		}
-		role, err := auth.Roles.Descriptor(ref)
-		if err != nil {
-			return nil, authorization.PrincipalRef{}, err
-		}
-		allowed, err := auth.Roles.InheritsRole(auth.State.CurrentUser, ref)
-		if err != nil {
-			return nil, authorization.PrincipalRef{}, err
-		}
-		if !allowed {
-			message := "permission denied to drop objects"
-			detail := "Only roles with privileges of role \"" + role.Name + "\" may drop objects owned by it."
-			if reassign {
-				message = "permission denied to reassign objects"
-				detail = "Only roles with privileges of role \"" + role.Name + "\" may reassign objects owned by it."
-			}
-			return nil, authorization.PrincipalRef{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: message, Detail: detail}
-		}
-		if (role.Predefined() || ref == auth.Owner.Principals.Principal(authorization.BootstrapPrincipalID)) && protected == (authorization.PrincipalRef{}) {
-			protected = ref
-		}
-		refs[ref] = true
-	}
-	return refs, protected, nil
-}
 
 func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
@@ -59,92 +23,16 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	if err != nil {
 		return fail(err)
 	}
-	var specs []parser.RoleSpec
-	reassign, target, mode := false, authorization.PrincipalRef{}, parser.DropRestrict
-	switch s := stmt.(type) {
-	case *parser.ReassignOwned:
-		reassign = true
-		specs = s.Sources
-	case *parser.DropOwned:
-		specs = s.Sources
-		mode = s.Mode
-	}
-	sources, protected, err := ownedSources(auth, specs, reassign)
+	plan, err := planOwned(auth.View, auth, stmt)
 	if err != nil {
 		return fail(err)
 	}
-	if reassign {
-		s := stmt.(*parser.ReassignOwned)
-		target, err = authorization.MembershipRole(auth.Roles, auth.State, s.Target)
-		if err != nil {
-			return fail(err)
-		}
-		allowed, err := auth.Roles.InheritsRole(auth.State.CurrentUser, target)
-		if err != nil {
-			return fail(err)
-		}
-		if !allowed {
-			role, _ := auth.Roles.Descriptor(target)
-			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to reassign objects", Detail: fmt.Sprintf(`Only roles with privileges of role "%s" may reassign objects to it.`, role.Name)})
-		}
-	}
-	// PostgreSQL resolves and authorizes utility operands before entering the
-	// shared-dependency handler that refuses protected sources.
-	if protected != (authorization.PrincipalRef{}) {
-		role, _ := auth.Roles.Descriptor(protected)
-		noun := "drop objects owned by"
-		if reassign {
-			noun = "reassign ownership of objects owned by"
-		}
-		return fail(sqlError("2BP01", fmt.Sprintf(`cannot %s role %s because they are required by the database system`, noun, role.Name)))
-	}
-	if reassign && len(sources) == 1 && sources[target] {
+	if plan.noop {
 		e.mu.Unlock()
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	roots := access.OwnedRoots(auth.Catalog, sources, routine.OperatorSeeded)
-	if reassign {
-		local := roots[:0]
-		for _, address := range roots {
-			if address.ClassID != ids.ForeignMappingClassID {
-				local = append(local, address)
-			}
-		}
-		roots = local
-	}
-	primaryRoot := ids.ObjectAddress{}
-	if !reassign {
-		local := roots[:0]
-		for _, a := range roots {
-			if a.ClassID != ids.DatabaseClassID {
-				local = append(local, a)
-			}
-		}
-		roots = local
-		if len(local) == 1 {
-			primaryRoot = local[0]
-		}
-		path, _ := e.referencePath(auth)
-		pending := make(map[ids.ObjectAddress]bool, len(roots))
-		for _, a := range roots {
-			pending[a] = true
-		}
-		for _, a := range roots {
-			var extension ids.ObjectAddress
-			switch d := auth.Catalog.Get(a).(type) {
-			case *catalog.Procedure:
-				extension = d.Extension
-			case *catalog.TSDictionary:
-				extension = d.Extension
-			}
-			if extension != (ids.ObjectAddress{}) && !pending[extension] {
-				d := auth.Catalog.MustExtension(extension)
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.Catalog, a, path) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."})
-			}
-		}
-		roots = extension.RemovalRoots(auth.Catalog, roots)
-	}
+	reassign, sources, target, mode, roots, primaryRoot := plan.reassign, plan.sources, plan.target, plan.mode, plan.roots, plan.primaryRoot
 	stage := e.ownershipStage(auth, scope.op)
 	stage.dependencyPath, _ = e.referencePath(auth)
 	e.mu.Unlock()

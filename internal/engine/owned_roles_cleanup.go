@@ -9,14 +9,13 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authorization.Read, publication *access.RoleRecord, sources map[authorization.PrincipalRef]bool) error {
+func stageOwnedCleanup(ctx context.Context, stage ownedCleanupStage, roles authorization.Read, publication *access.RoleRecord, sources map[authorization.PrincipalRef]bool) error {
 	candidate, err := access.OwnedMembershipCandidate(ctx, roles, publication.Revision, sources)
 	if err != nil {
 		return err
 	}
-	stage.roleCandidate = candidate
-	roles = stage.roleRead(publication, stage.owner.stageRead(stage))
-	for address, descriptor := range stage.Base.Descriptors() {
+	roles = stage.SetRoleCandidate(candidate, publication)
+	for address, descriptor := range stage.BaseCatalog().Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -57,7 +56,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		if !changed {
 			continue
 		}
-		revision, err := stage.cascadeMetadataRevision(descriptor.Revision())
+		revision, err := stage.CascadeRevision(descriptor.Revision())
 		if err != nil {
 			return err
 		}
@@ -89,7 +88,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			if !next.ACL.Explicit || authorization.MatchesDefaultBaseline(next.ACL, next.Owner, authorization.DefaultParameters, false) {
-				err = stage.Remove(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), address))
+				err = stage.Remove(stage.BaseRef(address))
 			} else {
 				err = stage.Replace(&next)
 			}
@@ -113,7 +112,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			return err
 		}
 	}
-	for key, original := range stage.Base.State().DefaultACLs() {
+	for key, original := range stage.BaseCatalog().State().DefaultACLs() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -150,28 +149,28 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 // collected object, even when its enclosing relation is already an owner root.
 // ACL row edits are not deletion roots and automatic parent associations do not
 // contribute an invented object count.
-func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization.PrincipalRef]bool) bool {
-	if stage.roleCandidate != nil {
+func ownedCleanupAddsDeletionRoot(stage ownedCleanupStage, sources map[authorization.PrincipalRef]bool) bool {
+	if stage.RoleCandidate() != nil {
 		return true
 	}
 	// Each actual creator-owned policy is independently collected, including
 	// scoped records already tombstoned by namespace AUTO removal. Recipient
 	// normalization and other creators' AUTO records are not owner roots.
-	for key := range stage.Base.State().DefaultACLs() {
+	for key := range stage.BaseCatalog().State().DefaultACLs() {
 		if sources[key.Creator] {
 			return true
 		}
 	}
 	for address, descriptor := range stage.Descriptors() {
 		next, ok := descriptor.(*catalog.Relation)
-		original, existed := stage.Base.Relation(address)
+		original, existed := stage.BaseCatalog().Relation(address)
 		if ok && existed && len(next.Security.Policies) < len(original.Security.Policies) {
 			return true
 		}
 	}
 	// Column-owned sequences have their own real shared owner dependency.
 	// They are excluded from independent mutation roots, not from collection.
-	for _, descriptor := range stage.Base.Descriptors() {
+	for _, descriptor := range stage.BaseCatalog().Descriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
 		if ok && relation.RelationKind == catalog.SequenceRelation && relation.Sequence != nil &&
 			relation.Sequence.Owned != (ids.ObjectAddress{}) && sources[relation.Owner] {
@@ -181,7 +180,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// Cleanup skips already removed relations; their selected policies are
 	// nevertheless separate collected addresses in PostgreSQL.
 	for address := range stage.Removals() {
-		relation, ok := stage.Base.Relation(address)
+		relation, ok := stage.BaseCatalog().Relation(address)
 		if !ok {
 			continue
 		}
