@@ -53,7 +53,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		defer func() { parent.PreparedDomainChecks = c.PreparedDomainChecks }()
 	}
 	if c.SpecializeRuleParameters && expression != nil && expression.Properties().ParameterDependent {
-		specialized, changed, err := specializeRuleParameterExpression(c, expression)
+		specialized, changed, err := exec.SpecializeRuleParameters(c, expression)
 		if err != nil {
 			return nil, false, err
 		}
@@ -75,7 +75,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 			presence = input.(*plan.ProjectNode)
 			input = presence.Child
 		}
-		root, err := preflightQuery(c, input)
+		root, err := exec.PreflightQuery(c, input)
 		if err != nil {
 			return nil, false, err
 		}
@@ -322,7 +322,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		}
 		e.Child = child
 		if e.Plan.ChecksDomain() {
-			if err := prepareDomainConversion(c, e.Child.ResultUsage().Type, e.Usage.Type); err != nil {
+			if err := exec.PrepareDomainConversion(c, e.Child.ResultUsage().Type, e.Usage.Type); err != nil {
 				return nil, false, err
 			}
 		}

@@ -25,6 +25,15 @@ type Preparation interface {
 	// expression: routine EXECUTE, virtual generation and subquery join
 	// legality, read through view.
 	AdmitExpression(c *Context, e expr.Expr, view catalog.Read) error
+	// PreflightQuery preflights a subquery's plan tree: query preflight
+	// reaches the engine's retag, rule producer demand and window pruning.
+	PreflightQuery(c *Context, node plan.Node) (plan.Node, error)
+	// PrepareDomainConversion initializes the domain CHECK programmes a
+	// conversion from source to target needs, in the statement's phase.
+	PrepareDomainConversion(c *Context, source, target *sqltype.Descriptor) error
+	// SpecializeRuleParameters replaces a rule action's parameters with the
+	// operation's imported values, through the engine's view rewriter.
+	SpecializeRuleParameters(c *Context, e expr.Expr) (expr.Expr, bool, error)
 	CheckDomain(ctx context.Context, c *Context, target *sqltype.Descriptor, value sqltype.Value) error
 	// DomainCatalog is the catalog that c's domain checks read: its captured
 	// view, else the statement's domain input or resolution catalog.
@@ -59,6 +68,23 @@ func AdmitExpression(c *Context, e expr.Expr, view catalog.Read) error {
 	return preparation.AdmitExpression(c, e, view)
 }
 
+// PreflightQuery runs the installed query preflight of node.
+func PreflightQuery(c *Context, node plan.Node) (plan.Node, error) {
+	return preparation.PreflightQuery(c, node)
+}
+
+// PrepareDomainConversion runs the installed domain programme preparation
+// of a source to target conversion.
+func PrepareDomainConversion(c *Context, source, target *sqltype.Descriptor) error {
+	return preparation.PrepareDomainConversion(c, source, target)
+}
+
+// SpecializeRuleParameters runs the installed rule parameter specialization
+// of e.
+func SpecializeRuleParameters(c *Context, e expr.Expr) (expr.Expr, bool, error) {
+	return preparation.SpecializeRuleParameters(c, e)
+}
+
 type missingPreparation struct{}
 
 func (missingPreparation) PreflightCoercions(*Context, expr.Expr) (expr.Expr, bool, error) {
@@ -70,6 +96,18 @@ func (missingPreparation) PreflightCoercionsWithPolicy(*Context, expr.Expr, bool
 }
 
 func (missingPreparation) AdmitExpression(*Context, expr.Expr, catalog.Read) error {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) PreflightQuery(*Context, plan.Node) (plan.Node, error) {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) PrepareDomainConversion(*Context, *sqltype.Descriptor, *sqltype.Descriptor) error {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) SpecializeRuleParameters(*Context, expr.Expr) (expr.Expr, bool, error) {
 	panic("exec: preparation not installed")
 }
 

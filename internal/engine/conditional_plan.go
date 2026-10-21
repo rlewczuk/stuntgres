@@ -227,7 +227,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	case plan.CoercionExpr:
 		e.Child, err = child(e.Child)
 		if err == nil && e.Plan.ChecksDomain() {
-			err = prepareDomainConversion(c, e.Child.ResultUsage().Type, e.Usage.Type)
+			err = exec.PrepareDomainConversion(c, e.Child.ResultUsage().Type, e.Usage.Type)
 		}
 		expression = e
 	case plan.BitwiseExpr:

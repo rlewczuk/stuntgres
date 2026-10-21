@@ -24,7 +24,12 @@ func TestMissingPreparationFailsLoudly(t *testing.T) {
 			_, _, _ = PreflightCoercionsWithPolicy(&c, nil, true)
 		},
 		"AdmitExpression": func() { _ = AdmitExpression(&c, nil, catalog.Read{}) },
-		"ReturnsSet":      func() { _ = preparation.ReturnsSet(nil) },
+		"PreflightQuery":  func() { _, _ = PreflightQuery(&c, nil) },
+		"PrepareDomainConversion": func() {
+			_ = PrepareDomainConversion(&c, nil, nil)
+		},
+		"SpecializeRuleParameters": func() { _, _, _ = SpecializeRuleParameters(&c, nil) },
+		"ReturnsSet":               func() { _ = preparation.ReturnsSet(nil) },
 		"StoredReferenceValid": func() {
 			_ = preparation.StoredReferenceValid(catalog.Read{}, nil, ids.ObjectRef{})
 		},
@@ -63,6 +68,21 @@ func (p *recordingPreparation) AdmitExpression(*Context, expr.Expr, catalog.Read
 	return nil
 }
 
+func (p *recordingPreparation) PreflightQuery(_ *Context, n plan.Node) (plan.Node, error) {
+	p.calls++
+	return n, nil
+}
+
+func (p *recordingPreparation) PrepareDomainConversion(*Context, *sqltype.Descriptor, *sqltype.Descriptor) error {
+	p.calls++
+	return nil
+}
+
+func (p *recordingPreparation) SpecializeRuleParameters(_ *Context, e expr.Expr) (expr.Expr, bool, error) {
+	p.calls++
+	return e, true, nil
+}
+
 func (p *recordingPreparation) DomainCatalog(*Context) catalog.Read { return catalog.Read{} }
 
 func (p *recordingPreparation) ReturnsSet(*catalog.Procedure) bool { return false }
@@ -95,5 +115,15 @@ func TestInstallPreparation(t *testing.T) {
 	}
 	if err := AdmitExpression(&c, nil, catalog.Read{}); err != nil || recorder.calls != 3 {
 		t.Fatal(err, recorder.calls)
+	}
+	// The preflight hooks reach the installed value and return its results.
+	if node, err := PreflightQuery(&c, nil); err != nil || node != nil || recorder.calls != 4 {
+		t.Fatal(err, node, recorder.calls)
+	}
+	if err := PrepareDomainConversion(&c, nil, nil); err != nil || recorder.calls != 5 {
+		t.Fatal(err, recorder.calls)
+	}
+	if _, changed, err := SpecializeRuleParameters(&c, nil); err != nil || !changed || recorder.calls != 6 {
+		t.Fatal(err, changed, recorder.calls)
 	}
 }
