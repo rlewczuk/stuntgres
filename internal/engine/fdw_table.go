@@ -10,17 +10,19 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
+func (e *Engine) stageForeignTableLocked(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
 	if s.Action == "drop" {
 		var roots []ids.ObjectAddress
 		for _, name := range s.Names {
 			ref, err := e.resolveRelationReference(auth, name, true)
 			if err != nil {
 				if s.IfExists && renameMissing(err) {
-					schemaNotice(scope.op, "00000", fmt.Sprintf(`foreign table "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+					schemaNotice(op, "00000", fmt.Sprintf(`foreign table "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 					continue
 				}
 				return nil, nil, err
@@ -49,7 +51,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	if stage.LookupName(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
-			scope.op.ExistingRelationNotice(key.Name)
+			op.ExistingRelationNotice(key.Name)
 			return nil, nil, nil
 		}
 		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
@@ -64,7 +66,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err = fdw.CheckTableDeclaration(s.Table); err != nil {
 		return nil, nil, err
 	}
-	if err = e.schemaTableLocked(scope.op, auth, stage, fdw.TableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
+	if err = e.schemaTableLocked(op, auth, stage, fdw.TableSyntax(s.Table), ns.Address, auth.State.CurrentUser, input, nil); err != nil {
 		return nil, nil, err
 	}
 	d, ok := stage.Get(stage.LookupName(key)).(*catalog.Relation)

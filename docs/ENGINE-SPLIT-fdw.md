@@ -583,7 +583,32 @@ pass.
   needed. GRANT is a pure `PlanGrant` with no host; `grantWarning` goes to
   `authorization`; IMPORT is `PlanImport`, `ImportSelected` and
   `ImportedTable`. 26d move set and commit sequence written.
-- [ ] 26d — WRAPPER, SERVER, USER MAPPING, IMPORT and GRANT decisions moved
+- [x] 26d — WRAPPER, SERVER, USER MAPPING, IMPORT and GRANT decisions moved
+  (`743eb4d47`, `6fe2aeaa2`, `e942c6231`, then the docs commit). Step 1
+  (`GrantWarning`) was already done by role 28b (`2492afb3f`). `fdw.Host`
+  (`host.go`) on `ddlHost` (`fdw_host.go`); `stageForeignTableLocked` takes
+  `(op, input)` instead of the scope. Moved into `fdw`: `StageDDL` with
+  `stageDefinition` (`stage.go`) and `stageDrop` (`stage_drop.go`), which
+  share an unexported `stageTarget` (class, name, mapping role, server and
+  wrapper); `handlerProcedure` and `stageValidatorJob` (`handler.go`);
+  `PlanGrant` and `GrantChange` with `GrantKind` (`grant.go`); `PlanImport`,
+  `ImportSelected` and `ImportedTable` (`import.go`). The root keeps
+  `executeForeignDDL`, `stageForeignLocked` (a one-line wrapper over
+  `fdw.StageDDL`), `executeForeignImport` (it now begins the stage before
+  `PlanImport`; `BeginCatalogStage` and `authorizeLocked` have no side
+  effects) and `executeForeignGrant` (journal clone, warnings, then the
+  error, `catalogChangeLocked` per change). `PlanGrant` reads the journal's
+  descriptors and keeps its own earlier changes, so a repeated name still
+  sees the previous change. No aliases. String literals unchanged (checked
+  as a multiset). Tests added: `TestFDWHostStageForeignTable`
+  (`fdw_host_test.go`, the seam, observed failing first) and
+  `TestFDWImportSelected` (`fdw/import_test.go`); none moved or deleted.
+  Verified with `^(TestFDW|TestOwnerExtension)` (also `RACE=1`),
+  `^Test(ObjectGrant|DatabaseACL)`, `^TestReferenceFDW`,
+  `^TestReferenceDumpRoundTrip$`, `^TestReferenceObjectGrant` and
+  `^TestReferenceObjectACLDatabase$` in quick and `REFERENCE=1` mode, and
+  quickcheck; racecheck/finalcheck skipped at user request; bench not run
+  (no startup or hot-path change).
 - [ ] 26e — Foreign-table decisions moved (after 24d)
 
 Outstanding aliases: none yet.
@@ -618,7 +643,8 @@ Outstanding aliases: none yet.
   (`fdw.Find`, `fdw.MappingAuthority`, `fdw.ValidatorJob`, ...). Role 28b
   already moved `grantWarning` to `authorization.GrantWarning`.
 - 26e: `fdw.Host.StageForeignTable` and the root `stageForeignValidatorJob`
-  exist only for the foreign-table path; 26e replaces both when
+  exist only for the foreign-table path (`fdw.stageValidatorJob` is the
+  host form of the latter); 26e replaces both when
   `stageForeignTableLocked` and `executeForeignTableAlter` move, and drops
   `schemaNotice`'s last FDW users.
 - 29b: `foreignTargetRows` (`fdw_execute.go`) is the engine function that
