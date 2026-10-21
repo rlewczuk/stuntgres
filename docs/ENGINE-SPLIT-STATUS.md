@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `10581f8cc` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
+Last verified against `master` at `10581f8cc` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,7 +16,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **Upper features, decisions:** 93 (partition 25d).
+- **DML, host refine (docs only):** 109 (dml 29c).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -131,6 +131,8 @@ and the end-state review (item 114) for 98 and 110.
 Item 98 (fdw 26e) is done and closes step 26; the end-state review (item
 114) still waits for 110. `fdw` now imports `table` (a new L12 arrow), and
 the ALTER FOREIGN TABLE loop stays in the root by design.
+Item 93 (partition 25d) is done and closes step 25, so DML 29c (item 109,
+docs only) is ready; the end-state review (item 114) still waits for 110.
 
 ## Task tree
 
@@ -565,14 +567,15 @@ the ALTER FOREIGN TABLE loop stays in the root by design.
     rebuilds, recursion decisions, removal reader) (`dbaf9d8f9`,
     `b7ed253d3`, `4bb411191`, `b542587c5`, `e39ec498a`, `f4f982aa9`, docs)
   - [x] 24d.3 — Restore and dump cores moved (`a6936164a`, `44f1ae9bf`, docs)
-- [ ] **Step 25 — `partition`** ([prompt](ENGINE-SPLIT-partition.md); 25b
+- [x] **Step 25 — `partition`** ([prompt](ENGINE-SPLIT-partition.md); 25b
   needs 24b)
   - [x] 25a — In place: proof inputs, storage-read fences, renames
     (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit)
   - [x] 25b — `partition` created and clean set moved (`5ed4b040c`,
     `f3e01d002`, `b7acfe47e`, `917899609`, docs)
   - [x] 25c — Host refined (docs only) (docs)
-  - [ ] 25d — Handler decisions moved
+  - [x] 25d — Handler decisions moved (`f8d726111`, `101986429`, `c7de8cd5b`, `b2cd9d59c`,
+    then the docs commit)
 - [x] **Step 26 — `fdw`** ([prompt](ENGINE-SPLIT-fdw.md); 26e needs 24d)
   - [x] 26a — In place: `fdw_` files, `foreignRegistry`, cuts
     (`6cb327eb1`, `c3a7cf7e1`, `1ba975174`, `0c991e6c8`, `d7405f486`, `a02ccecb1`, then the docs commit)
@@ -1326,8 +1329,17 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     fences, trust checks and Restore executors stay root, the row checks
     and replay cores move; 25d move set and commit sequence written, one
     sub-step · docs only, no checks needed
-93. [ ] Partition 25d: handler decisions moved —
+93. [x] Partition 25d: handler decisions moved —
     [partition](ENGINE-SPLIT-partition.md) 25d · needs 92, 89a, 89b
+    (`f8d726111`, `101986429`, `c7de8cd5b`, `b2cd9d59c`, then the docs
+    commit) · `partition.Host` (`table.Host` + `BindKeyExpression`) on
+    `ddlHost` and the self-locking `BoundBinder`; `Definition` with
+    `WithChild`/`WithoutChild`; `StageCreate`, `BindKeys`, the bound checks,
+    `ValidateAttachRows`, `AttachDescriptors`, `StageIndexChildren`,
+    `StageDetach`, `StageExclusions` and the Restore replay cores in
+    `partition`; the root keeps the orchestration, waits, fences and trust
+    checks; no aliases · selected unit, `RACE=1` and dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 94. [x] FDW 26a: in place — [fdw](ENGINE-SPLIT-fdw.md) 26a · needs —
     (`6cb327eb1`, `c3a7cf7e1`, `1ba975174`, `0c991e6c8`, `d7405f486`, `a02ccecb1`, then the docs commit) · `fdw_` file prefix, `foreignRegistry`
     record, authority helpers over `access.View`, `foreignTransaction`

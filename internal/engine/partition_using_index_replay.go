@@ -37,14 +37,7 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *session.Operation, raw *pars
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if table.RelationKind != catalog.TableRelation || table.Partition != nil || table.Membership == nil || table.Inheritance != nil {
-		return nil
-	}
-	address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: raw.Actions[0].UsingIndex.Index.Text})
-	index, ok := auth.Catalog.Relation(address)
-	if ok && index.SQLIndex != nil && index.SQLIndex.Parent == table.Address() && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && index.SQLIndex.Constraint == nil {
-		operationReplay(op).partitionUsingIndex = &partition.UsingIndexReplay{Target: table, Index: index, Syntax: raw}
-	}
+	operationReplay(op).partitionUsingIndex = partition.CaptureUsingIndexReplay(auth.Catalog, raw, table)
 	return nil
 }
 
@@ -52,9 +45,5 @@ func partitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationV
 	if op == nil || raw == nil || operationReplayOrZero(op).partitionUsingIndex == nil {
 		return false
 	}
-	origin := operationReplayOrZero(op).partitionUsingIndex
-	if origin.Index == nil {
-		return false
-	}
-	return origin.Syntax == raw && origin.Target == table && table != nil && table.RelationKind == catalog.TableRelation && table.Partition == nil && table.Membership != nil && table.Inheritance == nil && auth.Catalog.Get(table.Address()) == table && auth.Catalog.Get(origin.Index.Address()) == origin.Index && len(raw.Actions) == 1 && raw.Actions[0].Action == parser.AddUsingIndex && raw.Actions[0].UsingIndex != nil && raw.Actions[0].UsingIndex.Index.Text == origin.Index.Name() && partitionConstraintReplayImport(auth.engine, op, auth)
+	return operationReplayOrZero(op).partitionUsingIndex.Matches(auth.Catalog, raw, table) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

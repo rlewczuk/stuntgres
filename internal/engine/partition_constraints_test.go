@@ -535,7 +535,7 @@ func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.e.mu.Lock()
-	clone, err := f.e.stagePartitionIndexChild(op, stage, f.root, f.parent, f.leaf, true)
+	clone, err := index.StagePartitionIndexChild(ddlHost{e: f.e, op: op, stage: stage}, f.root, f.parent, f.leaf, true)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -750,7 +750,7 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.e.mu.Lock()
-	clone, err := f.e.stagePartitionIndexChild(op, stage, f.root, f.parent, f.leaf, true)
+	clone, err := index.StagePartitionIndexChild(ddlHost{e: f.e, op: op, stage: stage}, f.root, f.parent, f.leaf, true)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
