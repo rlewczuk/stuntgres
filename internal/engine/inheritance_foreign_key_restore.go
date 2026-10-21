@@ -262,7 +262,7 @@ func inheritedForeignRelationUnchanged(current, before *catalog.Relation) bool {
 
 // Comments and final attribute-rank repairs do not alter these key/provider
 // observations. No later key, owner, type or provider incarnation can reuse them.
-func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *session.Operation, declaration restoredForeignKeys, view catalog.Read) error {
+func validateRestoredInheritedForeignKey(e *Engine, receipt *restoredInheritedForeignKey, op *session.Operation, declaration restoredForeignKeys, view catalog.Read) error {
 	auth := ddlAuthorityOf(declaration.auth)
 	auth.Catalog = view
 	auth.Recapture(view)

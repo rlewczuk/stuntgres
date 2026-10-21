@@ -114,7 +114,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 		for i := range declaration.definitions {
 			definition := &declaration.definitions[i]
 			if definition.inherited != nil {
-				if err := definition.inherited.validate(e, op, declaration, base); err != nil {
+				if err := validateRestoredInheritedForeignKey(e, definition.inherited, op, declaration, base); err != nil {
 					e.mu.Unlock()
 					return err
 				}
