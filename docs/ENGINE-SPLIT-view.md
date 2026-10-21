@@ -785,7 +785,10 @@ in the root. The checks in §8.3 pass.
   racecheck/finalcheck skipped at user request; see the 27b record below
 - [x] 27c — Host refined (docs only; the refine is in Part B above; the
   docs commit only) · see the 27c record below
-- [ ] 27d — Handler decisions moved
+- [x] 27d — Handler decisions moved (`955d07306`, `e31c14c82`,
+  `c0c3de8f8`, `d74446d38`, `41d0df237`, `bc76cde87`, then the docs commit)
+  · selected unit, `RACE=1` concurrent refresh and dual-mode proof and
+  quickcheck passed; racecheck/finalcheck skipped at user request; see the 27d record below
 
 Outstanding aliases: none (27b added none).
 
@@ -868,8 +871,71 @@ commit. Deviations from the notes and the sketch:
 - The 27b record said the `REFERENCE=1` selections were pending; they had
   passed before the merge. Corrected above and in STATUS.
 
+### 27d record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-VIEW-DECISIONS`, started at
+`949c682a1` (index 23d.2 merged) and rebased onto `a8f6930c8` (table
+24d.1 and DML 29b). The rebase conflicted only in the import blocks of
+`create_table.go` and `relation_scope.go`; the 11 measured handler files
+had not changed since 27c measured them.
+
+| Commit | Change |
+|---|---|
+| `955d07306` | `creationError` → `ddl.CreationError` (`ddl/helpers.go`), 9 root callers; 89a had not moved it |
+| `e31c14c82` | Seam: `view/host.go` (`Host`, `StageHost`, `RelationChange`), root `view_host.go` (`TemporaryOwner`, `DescribeRule`, `BindRuleCondition`, `ReownDisplacedTypes`); `bindPolicyExpression` becomes `ddlHost.BindPolicyExpression` over the operation and input |
+| `c0c3de8f8` | Port in place: the decisions as root functions over the hosts, the freezers over `(catalog.Read, ids.SessionToken)`; RULE and POLICY share `publishRelationChangeLocked` |
+| `d74446d38` | Move: 7 files to `view` (`create.go`, `alter_drop.go`, `rule_ddl.go`, `rule_bind.go`, `policy_ddl.go`, `definition.go`, `rule_action_presentation.go`), names exported, no aliases |
+| `41d0df237` | RLS: `view.RowSecurity` (`row_security.go`) with `RowSecurityTarget`, `SelectRowSecurity`, `RowSecurityInputDenied`; the field uses renamed |
+| `bc76cde87` | `view.ConcurrentPrevious`, `ValidateMaterializedReplacement`, `MaterializedReplacement.Current` (`materialized_replacement.go`); `DependencyClosure`, `KeepRules`, `KeepPolicies` (`dependents.go`) |
+
+Deviations from decisions 1–9:
+
+- **Splits.** `PlanRule` calls the unexported `planSelectRule` for ON
+  SELECT, and `AlterChange` calls `alterViewOptions` for SET and RESET, to
+  keep the functions short. The RULE and POLICY handler tails were the same,
+  so the root has one `publishRelationChangeLocked`.
+  `RelationChange.Sources` is `[]catalog.Descriptor`: the relations of the
+  ON SELECT or action bindings and the condition presentation, and the
+  descriptors the policy presentations read.
+- **Host bodies.** `BindPolicyExpression` is the old body as a `ddlHost`
+  method (`policy_expression.go`), with no forwarder; the rule condition
+  binder block is `BindRuleCondition` (`view_host.go`).
+- **RLS.** `RowSecurityTarget` also takes the current `RowSecurity`: a
+  statement with no target, or one that is not INSERT, UPDATE, DELETE or
+  MERGE, kept its `ProposalTable` before, and still does.
+- **REFRESH.** `ValidateMaterializedReplacement(r, stage)` and
+  `r.Current(stage, snapshot, stored)` take the stage's embedded
+  `*catalog.Candidate` (its `Base` and `Get`) instead of a staged
+  descriptor and a base: the validation reads the staged descriptor only
+  after checking `r.Original`.
+- **Optional cores.** `DependencyClosure`, `KeepRules` and `KeepPolicies`
+  moved; `dropProvider` still collects the live descriptors and stages the
+  changes. `CheckCreationBinding` was not done: `prepareViewCreation` emits
+  its temporary-view NOTICE between the 0A000 and 42P22 checks, and it is
+  admission, so it stays whole.
+- **CREATE MATERIALIZED VIEW** calls `view.FreezeDefinition(ddlHost{e: e},
+  …)` and keeps its own reown pair: it re-reads the relation after
+  reowning, which `ReownDisplacedTypes` does not return.
+- **Tests.** New `view_host_test.go` (`TestViewHostSeam`: the temporary
+  owner, `ReownDisplacedTypes` a no-op on a clean stage and run after an
+  array displacement) and `ddl` `TestCreationErrorPositionsAtFirstNamePart`.
+  `policy_test.go` binds through the host; four tests call
+  `view.FreezeDefinition`. None moved or deleted.
+- **Checks.** Every commit builds; the string-literal multiset is unchanged
+  by the move (`.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-DECISIONS/lits-*.txt`);
+  the view, rule, policy, RLS, materialized, CTE and DML units passed, and
+  `^TestMaterialized.*Concurrent` (78 tests) with `-race`; quickcheck passed
+  at `bc76cde87`; the selection
+  `^TestReference(View|Rule|Materialized|RLSBase|AccessRoleRLS|InheritanceQueryRLS|InheritanceDMLRLS|DriverBatchPolicy|DumpRoundTrip$)`
+  passed in quick and `REFERENCE=1` mode (`ref-real.log`). racecheck,
+  finalcheck and bench skipped at user request (no startup change).
+
 ### Notes for later steps
 
+- 29c (from 27d): `statementMutation.rls` holds `view.RowSecurity`;
+  `configureRowSecurityLocked` composes `view.RowSecurityTarget` and
+  `view.SelectRowSecurity`, and `rowSecurityInputLocked` calls
+  `view.RowSecurityInputDenied`. Both wrappers stay root authority setup.
 - 27d: `prepareStoredExecutionRoot` stays with root query preflight.
   `view.CreationScope`, `view.MaterializedRefreshScope` and
   `view.MaterializedStage` are the slot records; their accessors stay root

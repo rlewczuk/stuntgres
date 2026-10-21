@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `78ec4c49d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 103, 104, 105, 106, 107, 108, 111 and 112). Steps 8–17 were
+Last verified against `master` at `a8f6930c8` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111 and 112). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -17,8 +17,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now.
 
 - **DML and Dump/Restore:** 113 (control 30c).
-- **Upper features, decisions:** 89b (table 24d.2), 89c (table 24d.3),
-  102 (view 27d).
+- **Upper features, decisions:** 89b (table 24d.2), 89c (table 24d.3).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -119,6 +118,8 @@ Item 89a (table 24d.1) is done, so table 24d.2 (item 89b) and 24d.3 (item
 89c) are ready; partition 25d (item 93) and fdw 26e (item 98) still wait
 for 89b, and DML 29c (item 109) for 89b, 93 and 102. 89a did not move
 `creationError`; view 27d (item 102) moves it to `ddl`.
+Item 102 (view 27d) is done and closes step 27; it moved `creationError`
+to `ddl.CreationError`. DML 29c (item 109) still waits for 89b and 93.
 
 ## Task tree
 
@@ -569,7 +570,7 @@ for 89b, and DML 29c (item 109) for 89b, 93 and 102. 89a did not move
   - [x] 26d — Wrapper, server, mapping, import and grant decisions moved
     (`743eb4d47`, `6fe2aeaa2`, `e942c6231`, then the docs commit)
   - [ ] 26e — Foreign-table decisions moved
-- [ ] **Step 27 — `view`** ([prompt](ENGINE-SPLIT-view.md); 27b needs 22c,
+- [x] **Step 27 — `view`** ([prompt](ENGINE-SPLIT-view.md); 27b needs 22c,
   24b)
   - [x] 27a — In place: `access.View` cuts, slots, renames, dead code
     (`87bfbb497`, `16260a489`, `a0254a5c3`, `57c781f25`, `7472271b6`,
@@ -577,7 +578,8 @@ for 89b, and DML 29c (item 109) for 89b, 93 and 102. 89a did not move
   - [x] 27b — `view` created and clean set moved *(broad)*
     (`03468b5b6`, `d7cd77e1a`, `b61bed3bb`, `73c98d60b`, then the docs commit)
   - [x] 27c — Host refined (docs only) (the docs commit)
-  - [ ] 27d — Handler decisions moved
+  - [x] 27d — Handler decisions moved (`955d07306`, `e31c14c82`,
+    `c0c3de8f8`, `d74446d38`, `41d0df237`, `bc76cde87`, then the docs commit)
 - [x] **Step 28 — `role`** ([prompt](ENGINE-SPLIT-role.md); 28b needs 21b,
   B6) *(lower priority)*
   - [x] 28a — In place: renames, `access.View` cuts, ownership stage
@@ -1351,8 +1353,18 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      move; `creationError` to `ddl`; 27d move set and commit sequence
      written; 27b's `REFERENCE=1` note corrected · docs only, no checks
      needed
-102. [ ] View 27d: handler decisions moved — [view](ENGINE-SPLIT-view.md)
-     27d · needs 101
+102. [x] View 27d: handler decisions moved — [view](ENGINE-SPLIT-view.md)
+     27d · needs 101 (`955d07306`, `e31c14c82`, `c0c3de8f8`, `d74446d38`,
+     `41d0df237`, `bc76cde87`, then the docs commit) · `view.Host` and
+     `view.StageHost` on `ddlHost` (`view_host.go`); `CreateTarget`,
+     `CheckCreate`, `StageCreate`, `AlterChange`, `DropTargets`,
+     `RecheckDropTargets`, `PlanRule` and `PlanPolicy` (a `RelationChange`
+     the root stages through `publishRelationChangeLocked`),
+     `FreezeDefinition` and the rule freezers, `view.RowSecurity` with its
+     selection, the REFRESH replacement and dependents cores in `view`;
+     `ddl.CreationError`; the root keeps authority, waits, stages and
+     publication; no aliases · selected unit, `RACE=1` and dual-mode proof and
+     quickcheck passed; racecheck/finalcheck skipped at user request
 103. [x] Role 28a: in place — [role](ENGINE-SPLIT-role.md) 28a · needs —
      (`23c4487dc`, `40d6de294`, `5f467d54d`, `32097b551`, `86c27112c`, `0ed6411b1`, then the docs commit) · `relation_diagnostics.go`,
      `setting_permission.go`, `database.go`; `access.View` cuts of
