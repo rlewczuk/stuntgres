@@ -96,5 +96,7 @@ type Host interface {
 	// DropTarget records address as dropped by the statement.
 	DropTarget(ids.ObjectAddress)
 	// RecordDependencyPath records auth's path for dependency diagnostics.
-	RecordDependencyPath(Authority)
+	// The path is recorded even when resolving it fails; the error is
+	// returned for callers that stop on it.
+	RecordDependencyPath(Authority) error
 }

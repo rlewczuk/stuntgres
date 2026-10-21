@@ -311,7 +311,7 @@ func StageDropCollationLocked(h StageHost, auth ddl.Authority, s *parser.DropCol
 			h.DropTarget(d.Address())
 		}
 	}
-	h.RecordDependencyPath(auth)
+	_ = h.RecordDependencyPath(auth)
 	return nil
 }
 

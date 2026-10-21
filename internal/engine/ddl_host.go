@@ -117,8 +117,10 @@ func (h ddlHost) DropTarget(address ids.ObjectAddress) {
 	h.stage.domainTargets = append(h.stage.domainTargets, address)
 }
 
-func (h ddlHost) RecordDependencyPath(a ddl.Authority) {
-	h.stage.dependencyPath, _ = h.e.referencePath(ddlAuthorityOf(a))
+func (h ddlHost) RecordDependencyPath(a ddl.Authority) error {
+	var err error
+	h.stage.dependencyPath, err = h.e.referencePath(ddlAuthorityOf(a))
+	return err
 }
 
 func (h ddlHost) AllocateOID() (ids.OID, error)             { return h.e.catalog.allocateOIDLocked() }
