@@ -36,6 +36,9 @@ func (v *viewDefinition) Dependencies() []catalog.ExpressionDependency { return 
 // Invoker reports whether the view runs with the invoker's permissions.
 func (v *viewDefinition) Invoker() bool { return v.invoker }
 
+// Options returns the view's reloptions as "name=value" strings.
+func (v *viewDefinition) Options() []string { return v.options }
+
 // References returns the descriptors a TEMP consumer captured, by reference.
 func (v *viewDefinition) References() map[ids.ObjectRef]catalog.Descriptor { return v.references }
 

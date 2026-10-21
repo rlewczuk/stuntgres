@@ -1,10 +1,14 @@
 package engine
 
 import (
+	"errors"
+	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
 // The payload seams keep "absent" a nil interface and hand the concrete
@@ -79,5 +83,50 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	rules[1].Name = "a"
 	if withRules.Rules.Validate(catalog.Read{}, withRules) == nil {
 		t.Fatal("unordered rule names accepted")
+	}
+}
+
+// The payload readers give non-root callers what they used to ask the host
+// and pgcatalog runtime for: rule facts in order, view options and policy
+// conditions.
+func TestCatalogPayloadReaders(t *testing.T) {
+	refs := []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: 20002}}
+	rules := ruleList{{OID: 40001, Name: "a", event: "UPDATE", instead: true, references: refs}, {OID: 40002, Name: "b", event: "DELETE"}}
+	if rules.Len() != 2 || (ruleList{}).Len() != 0 {
+		t.Fatal("rule count")
+	}
+	var facts []catalog.RuleFact
+	if err := rules.Visit(func(rule catalog.RuleFact) error { facts = append(facts, rule); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	want := []catalog.RuleFact{{OID: 40001, Name: "a", Event: "2", Instead: true, References: refs}, {OID: 40002, Name: "b", Event: "4"}}
+	if !reflect.DeepEqual(facts, want) {
+		t.Fatal("rule facts", facts)
+	}
+	stop := errors.New("stop")
+	visited := 0
+	if err := rules.Visit(func(catalog.RuleFact) error { visited++; return stop }); err != stop || visited != 1 {
+		t.Fatal("rule visit must stop at the first error", err, visited)
+	}
+
+	options := []string{"security_barrier=on"}
+	view := &viewDefinition{options: options}
+	if got := viewPayloadOf(view).Options(); len(got) != 1 || &got[0] != &options[0] {
+		t.Fatal("view options", got)
+	}
+	if (&viewDefinition{}).Options() != nil {
+		t.Fatal("view without options")
+	}
+
+	condition := plan.LiteralExpr{}
+	var seen []expr.Expr
+	if err := policyPayloadOf(&policyExpression{expression: condition}).VisitExpression(func(e expr.Expr) error { seen = append(seen, e); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 1 || !reflect.DeepEqual(seen[0], expr.Expr(condition)) {
+		t.Fatal("policy expression", seen)
+	}
+	if err := policyPayloadOf(&policyExpression{expression: condition}).VisitExpression(func(expr.Expr) error { return stop }); err != stop {
+		t.Fatal("policy visit error", err)
 	}
 }
