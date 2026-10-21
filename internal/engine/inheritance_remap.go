@@ -8,33 +8,6 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-const temporaryInheritanceReplacementError = "stuntgres: catalog replacement with live temporary table inheritance of persistent parents is unsupported"
-
-// Called under Engine.mu at preallocation and final replacement admission.
-// Retained TEMP relations cannot substitute persistent inheritance or OF sources.
-func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
-	for _, descriptor := range e.catalog.state.Descriptors() {
-		table, ok := descriptor.(*catalog.Relation)
-		if !ok || table.Inheritance == nil {
-			continue
-		}
-		namespace := e.catalog.state.MustNamespace(table.Namespace())
-		if namespace.Temporary == (ids.SessionToken{}) {
-			continue
-		}
-		for _, parent := range table.Inheritance.Parents {
-			source, ok := e.catalog.state.Relation(parent)
-			if !ok {
-				return fmt.Errorf("stuntgres: missing inheritance parent")
-			}
-			if e.catalog.state.MustNamespace(source.Namespace()).Temporary == (ids.SessionToken{}) {
-				return fmt.Errorf("%s", temporaryInheritanceReplacementError)
-			}
-		}
-	}
-	return e.checkTemporaryTypedReplacementLocked()
-}
-
 // Copy only graph metadata. Stable attributes are relation-local and do not
 // change when a whole relation address is remapped.
 func remapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAddress) ids.ObjectAddress, constraint func(catalog.InheritanceOrigin) ids.OID) *catalog.TableInheritance {

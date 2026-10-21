@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
-
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -704,4 +703,31 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 		}
 	}
 	return nil
+}
+
+const temporaryInheritanceReplacementError = "stuntgres: catalog replacement with live temporary table inheritance of persistent parents is unsupported"
+
+// Called under Engine.mu at preallocation and final replacement admission.
+// Retained TEMP relations cannot substitute persistent inheritance or OF sources.
+func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
+	for _, descriptor := range e.catalog.state.Descriptors() {
+		table, ok := descriptor.(*catalog.Relation)
+		if !ok || table.Inheritance == nil {
+			continue
+		}
+		namespace := e.catalog.state.MustNamespace(table.Namespace())
+		if namespace.Temporary == (ids.SessionToken{}) {
+			continue
+		}
+		for _, parent := range table.Inheritance.Parents {
+			source, ok := e.catalog.state.Relation(parent)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing inheritance parent")
+			}
+			if e.catalog.state.MustNamespace(source.Namespace()).Temporary == (ids.SessionToken{}) {
+				return fmt.Errorf("%s", temporaryInheritanceReplacementError)
+			}
+		}
+	}
+	return e.checkTemporaryTypedReplacementLocked()
 }
