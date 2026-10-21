@@ -165,13 +165,15 @@ the bodies shrink:
 - `analyze.Host`: `MapBoundExpression`, `MapBoundQueryExpression`
   (retag), `StoredViewVolatile` (`cteStoredViewVolatile`),
   `ValidateViewReadGraph`, `CaptureRetainedViewInput`
-  (`captureRetainedDefinitionInput`). `RelationHasRules` goes with 5j;
+  (`captureRetainedDefinitionInput`). 5j removed `RelationHasRules`;
   `BindViewWrite` stays for step 27.
 - `exec.Host`: `DeparseInquiry` (22c item 4).
 - `pgcatalog.Runtime`: `ViewDefinition`, `IndexDefinition`,
   `ExpressionReferences`, `ViewReferences`, `IndexReferences`,
-  `PartitionReferences`. `ExpressionTree` goes with 10e; `HasRules`,
-  `VisitRules`, `ViewOptions` and `VisitPolicyExpressions` go with 5j.
+  `PartitionReferences`. `ExpressionTree` goes with 10e; 5j removed
+  `HasRules`, `VisitRules`, `ViewOptions` and `VisitPolicyExpressions`
+  (callers read the payloads; 22c moves `ruleList`, `*viewDefinition` and
+  `*policyExpression` with their reader methods).
 
 ## Part A
 

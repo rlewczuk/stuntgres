@@ -203,11 +203,11 @@ accessor by the time 21b starts, stop and ask; do not add one here.
 
 ### 21b — Create `regobj` and move the clean set
 
-1. **Rule identity.** `ownedAddressByName` and `ownedAddressName` iterate
-   `rulesOf(d)` for the OID and name of each rule (object class 2618).
-   Rewrite both loops over the `catalog.RulesPayload` accessor that 5j adds
-   (`d.Rules`), so the identity code names no root type. Check 5j's
-   README note for the accessor's exact name.
+1. **Rule identity.** Done by 5j: `ownedAddressByName` and
+   `ownedAddressName` read each rule's OID and name (object class 2618)
+   through `(*catalog.Relation).VisitRules` (`catalog.RuleFact`), so the
+   identity code names no root rule type. Re-run `frontier` to confirm the
+   rule payload edge is gone from OUT.
 2. **Names.** Export what the root still calls. Proposed names (settle in
    this sub-step and record them in the README):
 

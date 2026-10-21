@@ -215,9 +215,9 @@ functions.
 
 Added when the postponed packages were planned (measured at `c154e14fb`):
 
-- Catalog 5j (linear item 74) removes `Runtime.HasRules`, `VisitRules`,
-  `ViewOptions` and `VisitPolicyExpressions`: producers read the payload
-  interfaces directly, and `RuleFact` moves to `catalog`.
+- Catalog 5j (linear item 74, done) removed `Runtime.HasRules`,
+  `VisitRules`, `ViewOptions` and `VisitPolicyExpressions`: producers read
+  the payload interfaces directly, and `RuleFact` moved to `catalog`.
 - `Runtime`'s definition and reference methods (`ViewDefinition`,
   `IndexDefinition`, `ExpressionTree`, `ExpressionReferences`,
   `ViewReferences`, `IndexReferences`, `PartitionReferences`) stay: `stored`

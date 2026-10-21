@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `05ab40a48` (items 55, 58, 60, 64, 67 and 71). Steps 8–17 were
+Last verified against `master` at `b5cdd1efe` (items 55, 58, 60, 64, 67, 71 and 74). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,18 +18,19 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 61 (ddl 20b).
+- **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 61 (ddl 20b),
+  65 (regobj 21b).
 - **Follow-ups in existing packages:** 72 (catalog 5i), 73 (plan 10e),
-  74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f), 78 (session 13f),
-  79 (access B6).
+  75 (exec 11e), 77 (analyze 12f), 78 (session 13f), 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (dump 18a), 58 (copyfmt 19a), 60 (ddl 20a), 64 (regobj 21a) and 67
-(stored 22a) are done; regobj 21b (item 65) waits for catalog 5j (item 74).
-Item 71 (functions F6) closed F2 and step 3.
+(stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Item 74
+(catalog 5j) is done, so regobj 21b (item 65) is ready; stored 22c
+(item 69) still waits for 22b (item 68).
 
 ## Task tree
 
@@ -475,8 +476,9 @@ Item 71 (functions F6) closed F2 and step 3.
 - [ ] **Second-round follow-ups in existing packages** (each in its step's
   prompt file; F6 is listed under step 3)
   - [ ] 5i — Pure helpers moved into `catalog` ([catalog](ENGINE-SPLIT-catalog.md))
-  - [ ] 5j — Payload accessors replace five host and runtime methods
-    ([catalog](ENGINE-SPLIT-catalog.md))
+  - [x] 5j — Payload accessors replace five host and runtime methods
+    ([catalog](ENGINE-SPLIT-catalog.md)) (`946137fa2`, `f4e53eef6`, then the
+    docs commit)
   - [ ] 10e — Node-tree output and generation helpers moved
     ([plan](ENGINE-SPLIT-plan.md))
   - [ ] 11e — Expression-preparation seam; routine admission moved
@@ -885,8 +887,11 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     [catalog](ENGINE-SPLIT-catalog.md) 5i · needs —
 73. [ ] Plan 10e: node-tree output and generation helpers —
     [plan](ENGINE-SPLIT-plan.md) 10e · needs —
-74. [ ] Catalog 5j: payload accessors — [catalog](ENGINE-SPLIT-catalog.md) 5j ·
-    needs —
+74. [x] Catalog 5j: payload accessors — [catalog](ENGINE-SPLIT-catalog.md) 5j ·
+    needs — (`946137fa2`, `f4e53eef6`, then the docs commit) · rule, view
+    and policy payload readers; five host/runtime methods and
+    `pgcatalog.RuleFact` removed; no aliases · selected unit and dual-mode
+    proof and quickcheck passed; racecheck/finalcheck skipped at user request
 75. [ ] Exec 11e: expression-preparation seam, routine admission —
     [exec](ENGINE-SPLIT-exec.md) 11e · needs —
 76. [ ] Exec 11f: preflight — [exec](ENGINE-SPLIT-exec.md) 11f · needs 75

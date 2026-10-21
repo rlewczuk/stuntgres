@@ -1831,7 +1831,8 @@ exist. Each item is a new sub-step in that package's prompt file.
   expression visitor let `analyze`, `regobj` and
   `pgcatalog` read what they need directly, removing
   `analyze.Host.RelationHasRules` and the `pgcatalog.Runtime` methods
-  `HasRules`, `VisitRules`, `ViewOptions` and `VisitPolicyExpressions`.
+  `HasRules`, `VisitRules`, `ViewOptions` and `VisitPolicyExpressions`
+  (done, linear item 74).
 - **Plan 10e.** The node-tree output (`deparse_tree.go`: `boundTree`,
   `appendBoundTree`, `catalogTree`) and the generation helpers
   (`generationHasTableOID`, `generationImmutable`).
@@ -2017,7 +2018,7 @@ package-specific scope. This section holds the rules every session follows.
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 view literal capture, result nullability protocol and conditional closure hook done (selected proof/quickcheck passed; racecheck/finalcheck waived by user); `SQLJSON` rendering done (selected dual-mode/quickcheck passed; remaining checks, including full racecheck/finalcheck, waived by user); function sources done (proof and specific LIKE-observer failure waiver recorded in the functions prompt); Tier C done: ACL, catalog inquiry, transaction inquiries, advisory/blocking and sequence calls moved (sequence calls: selected dual-mode/quickcheck passed, racecheck/finalcheck skipped at user request); F3 aliases removed |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g); optional 5h open |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g, optional 5h); 5j done (payload readers replace five host and runtime methods; racecheck/finalcheck skipped at user request); 5i planned |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B5, names cleanup; B5 moved the binding walkers into `analyze`, racecheck/finalcheck skipped at user request) |
