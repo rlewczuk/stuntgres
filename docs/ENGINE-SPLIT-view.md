@@ -145,6 +145,7 @@ They are not part of this step. What is left for `view`:
 - To `access` (B6): the RLS action rules of `rls_base.go`
   (`rowSecurityAction`, `rowSecurityActionLabel`, `rowSecurityActions`,
   `rowSecurityFlags`, `rowSecurityKind`). Only ALTER TABLE code uses them.
+  Done: `access.RowSecurityActions`, `RowSecurityFlags`, `RowSecurityKind`.
 - Root drop diagnostics (27a moves them out of the view files; they stay in
   the root): `dependencyObject`, `dependencyRelationName`,
   `supportedDependent`, `supportedDependentLabels`,

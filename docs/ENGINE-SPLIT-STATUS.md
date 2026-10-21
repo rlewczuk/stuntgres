@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `e13730bdb` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77 and 78). Steps 8–17 were
+Last verified against `master` at `e68b939e8` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78 and 79). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -21,11 +21,10 @@ after each lands.
 - **Seams:** 63 (ddl 20d), 66 (regobj 21c), 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
-- **Follow-ups in existing packages:** 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
-Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
+Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (dump 18a), 58 (copyfmt 19a), 60 (ddl 20a), 64 (regobj 21a) and 67
 (stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Items 74
@@ -46,7 +45,9 @@ Part A moves. Item 76 (exec 11f) is done; only the end-state review
 (item 114) needs it, and that still waits for its other items. Item 77
 (analyze 12f) is done, and with 65 done stored 22b (item 68) is ready. Item 78
 (session 13f) is done; only item 114 needs it. Item 62 (ddl 20c, docs
-only) is done, so ddl 20d (item 63) is ready.
+only) is done, so ddl 20d (item 63) is ready. Item 79
+(access B6) is done; table 24b (item 87) still waits for 86 and 83, and
+role 28b (item 104) for 103.
 
 ## Task tree
 
@@ -519,8 +520,9 @@ only) is done, so ddl 20d (item 63) is ready.
   - [x] 13f — Notification records, isolation text and owner handles moved
     ([session](ENGINE-SPLIT-session.md); `c639cc64d`, `8473b1789`, `4a6bea8d3`, docs)
     *(racecheck/finalcheck skipped at user request)*
-  - [ ] B6 — Ownership helpers and RLS action rules moved into `access`
-    ([authorization](ENGINE-SPLIT-authorization.md))
+  - [x] B6 — Ownership helpers and RLS action rules moved into `access`
+    ([authorization](ENGINE-SPLIT-authorization.md); `27d60116f`, `53410d65b`,
+    docs) *(racecheck/finalcheck skipped at user request)*
   - [ ] 14e — Operator and SQL routine dumps moved
     ([routine](ENGINE-SPLIT-routine.md))
   - [ ] 15e — Type dump statements moved ([typedef](ENGINE-SPLIT-typedef.md))
@@ -998,8 +1000,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `ScanNotificationPending`) in `session`; no aliases · selected unit and
     dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
     user request
-79. [ ] Access B6: ownership helpers and RLS action rules —
-    [authorization](ENGINE-SPLIT-authorization.md) B6 · needs —
+79. [x] Access B6: ownership helpers and RLS action rules —
+    [authorization](ENGINE-SPLIT-authorization.md) B6 · needs — (`27d60116f`,
+    `53410d65b`, then the docs commit) · `OwnershipRoot`, `OwnedRoots`,
+    `OwnershipRelationLocks`, `OwnedPolicies`, `OwnedMembershipCandidate`,
+    `RowSecurityActions`, `RowSecurityFlags` and `RowSecurityKind` in
+    `access`; the seeded-operator predicate and the table-kind diagnostic
+    are passed as values (`routine` and `analyze` import `access`); no
+    aliases · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 80. [ ] Routine 14e: operator and SQL routine dumps —
     [routine](ENGINE-SPLIT-routine.md) 14e · needs 56, 67
 81. [ ] Typedef 15e: type dump statements —

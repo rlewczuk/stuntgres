@@ -1895,7 +1895,9 @@ exist. Each item is a new sub-step in that package's prompt file.
   `notificationLink`, `notificationState`) and the isolation text helpers.
 - **Access B6.** The pure ownership helpers (`ownershipRoot`, `ownedRoots`,
   `ownershipRelationLocks`, `ownedPolicies`, `ownedMembershipCandidate`) and
-  the RLS action rules (`rowSecurityAction*`).
+  the RLS action rules (`rowSecurityAction*`). Done (item 79): the
+  seeded-operator predicate and the table-kind diagnostic are passed as
+  values, because `routine` and `analyze` import `access`.
 - **Routine 14e.** `operator_dump.go` and `sqlRoutineDumpStatement`, with
   `dump.Presenter`.
 - **Typedef 15e.** The collation and conversion dump statements (with
@@ -2064,7 +2066,7 @@ package-specific scope. This section holds the rules every session follows.
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5h); 5i done (pure helpers moved, some left in the root) and 5j done (payload readers replace five host and runtime methods) (racecheck/finalcheck skipped at user request) |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
-| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B5, names cleanup; B5 moved the binding walkers into `analyze`, racecheck/finalcheck skipped at user request) |
+| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B6, names cleanup; B5 moved the binding walkers into `analyze`; B6 moved the ownership helpers and RLS action rules into `access`; racecheck/finalcheck skipped at user request) |
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10e): `plan` created, IR, node types and installed extension nodes moved, aliases removed; 10e moved node-tree output and the generation helpers (racecheck/finalcheck skipped by user) |

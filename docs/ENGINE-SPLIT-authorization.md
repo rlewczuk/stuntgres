@@ -311,8 +311,9 @@ statements stay in the root as the README says; their decisions move to
 - [x] B5 — Binding walkers moved next to `binding` in `analyze`
   (`76039ffea`, `4748b28ca`, then the commit that records this status)
   *(racecheck/finalcheck skipped at user request)*
-- [ ] B6 — Ownership helpers and RLS action rules moved into `access`
-  (linear item 79)
+- [x] B6 — Ownership helpers and RLS action rules moved into `access`
+  (linear item 79; `27d60116f`, `53410d65b`, then the commit that records
+  this status) *(racecheck/finalcheck skipped at user request)*
 
 No aliases remain: B4 removed the nine B3 aliases and deleted
 `internal/engine/access_aliases.go`. Part A, B1 and B2 added none.
@@ -817,3 +818,40 @@ Notes for later steps (B5):
 - **Rule package:** `ruleCommand.auth` and `ruleCTECommand.caller` hold
   `AuthorizationView` by value, which is why the RLS walkers cannot take
   `analyze.Privileges` yet.
+
+B6 results:
+
+- **Re-measure.** On `master` at `643601c6e` (rebased onto `e68b939e8`), two of the ten helpers no
+  longer imported only `catalog` and `authorization`: `ownershipRoot` called
+  `routine.OperatorSeeded` and `rowSecurityKind`'s default branch (catalog
+  and foreign relations) called `analyze.TableKindError`. Both packages
+  import `access`, so the move would have formed cycles. Both are now passed
+  as values, as `catalog.PrincipalRemap.OperatorSeeded` and B2 step 5 did,
+  instead of copying the diagnostics.
+- **Moved.** `access/ownership.go` gains `OwnershipRoot`; the new
+  `access/owned.go` holds `OwnedRoots`, `OwnershipRelationLocks`,
+  `OwnedPolicies` and `OwnedMembershipCandidate`; the new
+  `access/rls_actions.go` holds `RowSecurityActions`, `RowSecurityFlags` and
+  `RowSecurityKind`. `rowSecurityAction` and `rowSecurityActionLabel` have
+  no root caller and stay unexported in `access`. No aliases; `access`
+  imports are unchanged.
+- **Commits.** `27d60116f` (ownership helpers), `53410d65b` (RLS action
+  rules), then the docs commit.
+- **Tests.** `TestDropOwnedPolicyTargets` moved to `access/owned_test.go`
+  with principals from a bare `authorization.Domain`, plus an unchanged-input
+  check. New `TestRowSecurityKindDelegatesOtherKinds` pins the fallback seam.
+  The engine-backed `TestDropOwnedMembershipProvenance`, `TestRLSBase*`,
+  `TestRoleOwnershipBuiltinRootsAndRevisionHeadroom` and
+  `TestPGNamespaceShape` changed only at their call sites. None deleted.
+- **Verification.** `make build` and targeted `make check` (ownership, DROP
+  and REASSIGN OWNED, RLS, `pg_namespace` and `access`) after each commit,
+  `RACE=1` for `TestDropOwned.*` and `TestRLSBase.*`. `quickcheck` passed
+  before and after the rebase onto `e68b939e8`. One post-rebase run failed
+  `TestReferenceTransactionControlsCancellation/original_1_77` (57014
+  instead of 25P02) under full-suite load; it passed alone five times, on
+  `master`, and in the full rerun.
+  The `access` README reference set plus the role, DROP/REASSIGN OWNED and
+  row-security selections passed in quick mode and with `REFERENCE=1`.
+  `racecheck` and `finalcheck` were skipped at the user's request; no locks
+  or goroutines changed. `make deps` lists only module paths. `AGENTS.md`
+  stays at 99 lines.

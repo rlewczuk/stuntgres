@@ -34,13 +34,25 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
 - **Ownership** (`ownership.go`): `OwnershipSuccessor`,
   `OwnershipEligibility`, `OwnershipDatabaseCreate`, `SchemaOwner` and
   `OwnershipRoleOperand`, which share the `current_user`/`session_user`
-  string protocol.
+  string protocol, and `OwnershipRoot`, the bulk-root rule of REASSIGN and
+  DROP OWNED.
+- **Owned objects** (`owned.go`): `OwnedRoots`, `OwnershipRelationLocks`,
+  `OwnedPolicies` and `OwnedMembershipCandidate`, the pure parts of
+  REASSIGN and DROP OWNED. `OwnershipRoot` and `OwnedRoots` take the
+  seeded-operator predicate as a value (`routine.OperatorSeeded` in the
+  engine), because `routine` imports `access`.
 - **Namespaces** (`namespace.go`): `CheckPersistentCreationNamespace`, the
   TEMP capability boundary of non-table creation and namespace moves.
 - **Row security** (`rls.go`): `RowSecurityApplies`, `RowSecurityDecision`,
   `RowSecurityGroups` (returning an `RLSDisposition`), `RowSecurityProposal`,
   `RowSecurityExpressionError` and `RowSecurityPrincipal` over the view
   layers (`RowSecurityLayer`) the engine collects.
+- **Row-security actions** (`rls_actions.go`): `RowSecurityActions`,
+  `RowSecurityFlags` and `RowSecurityKind`, the ALTER TABLE ENABLE, DISABLE,
+  FORCE and NO FORCE ROW LEVEL SECURITY rules. `RowSecurityKind` takes the
+  diagnostic for the other relation kinds as a value
+  (`analyze.TableKindError` in the engine), because `analyze` imports
+  `access`.
 - **Role dependencies** (`role_dependencies.go`): `RoleDependency`,
   `DescriptorRoleDependencies` and `DefaultRoleDependencies`. A nil collector
   stops at the first dependency.
@@ -86,16 +98,17 @@ Run from the repository root under the shared
 [testing policy](../../../docs/TESTING.md). The package tests build a catalog
 owner, a seeded role root and a current database without an engine, and pin
 the view's owner, pairing and epoch rejection, `RoleRead`'s owner and domain
-checks, the lazy TEMP environment and `RowSecurityPrincipal`:
+checks, the lazy TEMP environment, `RowSecurityPrincipal`, DROP OWNED policy
+cleanup and the `RowSecurityKind` fallback:
 
 ```sh
-timeout 900s make check RUN='^(TestViewRejectsForeignOrStaleObjects|TestRoleReadRequiresOwnerDomainAndRoot|TestViewTemporaryNamespaceOnlyFromEnvironment|TestRowSecurityPrincipalFollowsInnermostDefiner)$'
+timeout 900s make check RUN='^(TestViewRejectsForeignOrStaleObjects|TestRoleReadRequiresOwnerDomainAndRoot|TestViewTemporaryNamespaceOnlyFromEnvironment|TestRowSecurityPrincipalFollowsInnermostDefiner|TestDropOwnedPolicyTargets|TestRowSecurityKindDelegatesOtherKinds)$'
 ```
 
 Engine unit tests exercise the checks through `AuthorizationView`:
 
 ```sh
-timeout 900s make check RUN='^(TestAccessView.*|TestRoleStore.*|TestDatabaseTemporaryCapturedRights|TestDataTypePrivilegesCapture|TestObjectACLAddressLookup|TestRLS.*|TestOwnership.*)$'
+timeout 900s make check RUN='^(TestAccessView.*|TestRoleStore.*|TestDatabaseTemporaryCapturedRights|TestDataTypePrivilegesCapture|TestObjectACLAddressLookup|TestRLS.*|TestOwnership.*|TestRoleOwnership.*|TestDropOwned.*|TestReassignOwned.*)$'
 ```
 
 Public behavior is covered by the dual-mode reference tests; run each with
