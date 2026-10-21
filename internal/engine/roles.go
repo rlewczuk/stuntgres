@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"stuntgres/internal/engine/access"
@@ -11,7 +10,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -71,31 +69,9 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 	case *parser.RoleMembership:
 		return e.membershipLocked(op, v, s)
 	case *parser.RoleSelection:
-		target := v.State.SessionUser
-		if s.Reset && v.State.ResetRole != (authorization.PrincipalRef{}) {
-			target = v.State.ResetRole
-		} else if !s.Reset && s.Name != "none" {
-			d, ok := v.Roles.Lookup(s.Name)
-			if !ok {
-				return Result{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
-			}
-			target = d.Ref
-		}
-		if s.Reset {
-			if _, err := v.Roles.Descriptor(target); err != nil {
-				return Result{}, err
-			}
-		} else {
-			allowed := target == v.State.SessionUser
-			if !allowed {
-				allowed, err = v.Roles.CanSetRole(v.State.SessionUser, target)
-				if err != nil {
-					return Result{}, err
-				}
-			}
-			if !allowed {
-				return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
-			}
+		target, err := setRoleTarget(v.View, s)
+		if err != nil {
+			return Result{}, err
 		}
 		sess := op.Session
 		settings := sess.Settings
@@ -117,17 +93,9 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		a.Revision++
 		return Result{}, nil
 	case *parser.SessionAuthorization:
-		target := v.State.Authenticated
-		if !s.Default {
-			d, ok := v.Roles.Lookup(s.Name)
-			if !ok {
-				return Result{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
-			}
-			target = d.Ref
-		}
-		auth, _ := v.Roles.Descriptor(v.State.Authenticated)
-		if !auth.Superuser && target != auth.Ref {
-			return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set session authorization \"%s\"", s.Name))
+		target, err := sessionAuthorizationTarget(v.View, s)
+		if err != nil {
+			return Result{}, err
 		}
 		sess := op.Session
 		settings := sess.Settings
@@ -149,11 +117,11 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		a.Revision++
 		return Result{}, nil
 	case *parser.DropRole:
-		actor, exists := v.Roles.Find(v.State.CurrentUser)
-		if !exists || !actor.Superuser {
-			return Result{}, role.Diagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
+		plan, err := planDropRoles(ddlHost{e: e, op: op}, v, s)
+		if err != nil {
+			return Result{}, err
 		}
-		return e.dropRolesLocked(op, v, s)
+		return e.publishDroppedRolesLocked(op, plan)
 	}
 	return Result{}, fmt.Errorf("stuntgres: invalid role statement")
 }
@@ -242,89 +210,23 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 	}
 	return prefix + kind + name
 }
-func (e *Engine) dropRolesLocked(op *session.Operation, v AuthorizationView, s *parser.DropRole) (Result, error) {
-	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor, len(s.Names))
-	ordered := make([]authorization.PrincipalRef, 0, len(s.Names))
-	for _, name := range s.Names {
-		d, ok := v.Roles.Lookup(name)
-		if !ok {
-			return Result{}, sqlError("42704", fmt.Sprintf("role \"%s\" does not exist", name))
-		}
-		if d.Ref == v.State.CurrentUser {
-			return Result{}, sqlError("55006", "current user cannot be dropped")
-		}
-		if d.Ref == v.State.SessionUser {
-			return Result{}, sqlError("55006", "session user cannot be dropped")
-		}
-		if _, ok := targets[d.Ref]; !ok {
-			ordered = append(ordered, d.Ref)
-			targets[d.Ref] = d
-		}
-	}
-	// Hypothetical endpoint cleanup precedes every dependency check. A grantor
-	// alone is not an endpoint and therefore retains its membership dependency.
-	retained := v.RoleRecord.Root.RetainedMemberships(targets)
-	for _, ref := range ordered {
-		d := targets[ref]
-		if d.Predefined() {
-			return Result{}, role.Diagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
-		}
-		var dependencies []access.RoleDependency
-		for _, object := range v.Catalog.Descriptors() {
-			access.DescriptorRoleDependencies(object, ref, &dependencies)
-		}
-		access.DefaultRoleDependencies(v.Catalog, v.Roles, ref, &dependencies)
-		for edge := range retained {
-			if edge.Grantor == ref {
-				member, _ := v.Roles.Descriptor(edge.Member)
-				role, _ := v.Roles.Descriptor(edge.Role)
-				dependencies = append(dependencies, access.RoleDependency{Kind: 'a', Description: "privileges for membership of role " + member.Name + " in role " + role.Name})
-			}
-		}
-		for _, feature := range e.roles.referencingFeatures(ref) {
-			dependencies = append(dependencies, access.RoleDependency{Kind: 'a', Description: "privileges for " + feature})
-		}
-		if len(dependencies) > 0 {
-			sort.Slice(dependencies, func(i, j int) bool {
-				a, b := dependencies[i], dependencies[j]
-				if a.Address.ObjectID != b.Address.ObjectID {
-					return a.Address.ObjectID < b.Address.ObjectID
-				}
-				if a.Address.ClassID != b.Address.ClassID {
-					return a.Address.ClassID < b.Address.ClassID
-				}
-				if a.Address.SubID != b.Address.SubID {
-					return uint32(a.Address.SubID) < uint32(b.Address.SubID)
-				}
-				if a.Kind != b.Kind {
-					return a.Kind < b.Kind
-				}
-				return a.Description < b.Description
-			})
-			details := make([]string, len(dependencies))
-			for i, dep := range dependencies {
-				details[i] = dependencyDescription(v, dep)
-			}
-			return Result{}, role.Diagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
-		}
-	}
-	if v.RoleRecord.Revision == ^uint64(0) {
-		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
-	}
-	n := v.RoleRecord.Root.Retire(targets)
+
+// publishDroppedRolesLocked installs a decided DROP ROLE: the role record
+// joins the operation, and a retained transaction remembers the retired roles.
+func (e *Engine) publishDroppedRolesLocked(op *session.Operation, plan dropRolesPlan) (Result, error) {
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
+	e.installOperationRolesLocked(op, plan.Roles)
 	if t := op.Session.Transactions; t.RetainsTransaction() {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.
 		if t.Catalog.RetiredRoles == nil {
-			t.Catalog.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(ordered))
+			t.Catalog.RetiredRoles = make(map[authorization.PrincipalRef]struct{}, len(plan.Retired))
 		}
-		for _, ref := range ordered {
+		for _, ref := range plan.Retired {
 			t.Catalog.RetiredRoles[ref] = struct{}{}
 		}
 	}
