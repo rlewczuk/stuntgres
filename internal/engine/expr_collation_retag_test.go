@@ -99,12 +99,12 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("source operand graph/render changed", actual, err)
 	}
 	viewRef := catalogRef(t, e, view, "expr_retag_v")
-	stored := viewOf(view.MustRelation(viewRef.Address)).query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
-	selected, ambiguous := stored.Predicate.InputCollation()
-	if !ambiguous || selected.ID != 100 || stored.Usage.Collation.ID != 0 {
+	persisted := viewOf(view.MustRelation(viewRef.Address)).query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
+	selected, ambiguous := persisted.Predicate.InputCollation()
+	if !ambiguous || selected.ID != 100 || persisted.Usage.Collation.ID != 0 {
 		t.Fatal("stored implicit conflict erased", selected, ambiguous)
 	}
-	rebound, changed, err = retagBoundTypes(view, stored, identity, remap)
+	rebound, changed, err = retagBoundTypes(view, persisted, identity, remap)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -115,7 +115,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if mapped.Left.ResultUsage().Collation.ID != uint32(destination.OID) || mapped.Right.ResultUsage().Collation.ID != uint32(otherDestination.OID) {
 		t.Fatal("destination operands not genuine mapped capabilities")
 	}
-	if stored.Left.ResultUsage().Collation.ID != uint32(source.OID) || stored.Right.ResultUsage().Collation.ID != uint32(other.OID) {
+	if persisted.Left.ResultUsage().Collation.ID != uint32(source.OID) || persisted.Right.ResultUsage().Collation.ID != uint32(other.OID) {
 		t.Fatal("source conflict operands mutated")
 	}
 	left, right := mapped.Left.ResultUsage().Type, mapped.Right.ResultUsage().Type

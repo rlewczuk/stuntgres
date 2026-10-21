@@ -36,17 +36,17 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	argument := plan.LiteralExpr{Info: expr.Info{Usage: iv.Usage()}, Value: sqltype.Null(iv)}
 	bound := functions.UUIDGeneration{Info: expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "uuidv7", Args: []expr.Expr{argument}}
 	// Tree inspection, descriptor remapping and rendering do not evaluate a child.
-	stored, err := b.Bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	persisted, err := b.Bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	other := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	rebound, changed, err := retagBoundTypes(other.BindingCatalog(), stored, func(d *sqltype.Descriptor) *sqltype.Descriptor { return other.Type(d.ID()) })
+	rebound, changed, err := retagBoundTypes(other.BindingCatalog(), persisted, func(d *sqltype.Descriptor) *sqltype.Descriptor { return other.Type(d.ID()) })
 	if err != nil || !changed {
 		t.Fatal("UUID retag", changed, err)
 	}
 	n := rebound.(functions.UUIDGeneration)
-	if n.Timestamp != other.Type(sqltype.Timestamptz) || n.ResultUsage().Type != other.Type(sqltype.UUID) || n.Args[0].ResultUsage().Type != other.Type(sqltype.Interval) || n.Properties() != stored.Properties() {
+	if n.Timestamp != other.Type(sqltype.Timestamptz) || n.ResultUsage().Type != other.Type(sqltype.UUID) || n.Args[0].ResultUsage().Type != other.Type(sqltype.Interval) || n.Properties() != persisted.Properties() {
 		t.Fatal("retag lost descriptor/dependence")
 	}
 	if plan.GenerationImmutable(bound) {

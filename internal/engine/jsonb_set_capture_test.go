@@ -82,11 +82,11 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	}
 	closed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), `SELECT jsonb_set('{}',ARRAY[('ab'::text)::varchar(1)]::text[],'9')`)
 	conversion := pathConversion(closed)
-	stored, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), conversion)
+	persisted, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), conversion)
 	if err != nil {
 		t.Fatal("explicit plan/default validation changed", err)
 	}
-	rebound := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+stored)
+	rebound := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+persisted)
 	converted, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)

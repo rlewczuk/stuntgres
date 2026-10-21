@@ -234,13 +234,13 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored := node.(functions.DatetimeOverlaps)
-	stored.Property = expr.Properties{RowDependent: true}
+	persisted := node.(functions.DatetimeOverlaps)
+	persisted.Property = expr.Properties{RowDependent: true}
 	for i := range 2 {
 		origin := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000, SubID: int32(i + 1)}}
-		stored.Args[i+2] = plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: i, Origin: origin}
+		persisted.Args[i+2] = plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: i, Origin: origin}
 	}
-	folded, changed, err := exec.SimplifyOverlapsRoute(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, stored)
+	folded, changed, err := exec.SimplifyOverlapsRoute(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, persisted)
 	if err != nil || !changed || folded.Folded[0].Type() != b.Type(sqltype.Timestamp) || folded.Folded[1].Type() != nil {
 		t.Fatal(folded, changed, err)
 	}

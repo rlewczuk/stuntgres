@@ -34,8 +34,8 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			sessionSQL(t, s, "CREATE RULE original AS ON UPDATE TO input DO ALSO "+tc.action)
 			before := e.CatalogRead()
 			input := catalogRef(t, e, before, "input")
-			stored := rulesOf(before.MustRelation(input.Address))[0]
-			action := stored.actions[0]
+			persisted := rulesOf(before.MustRelation(input.Address))[0]
+			action := persisted.actions[0]
 			owner := action.presentation.frames[1]
 			child := owner.Child
 			columns := make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(action.presentation.columns))

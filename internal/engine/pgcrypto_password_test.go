@@ -45,11 +45,11 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if !analyze.ClosedPgcryptoDefault(n) {
 			t.Fatal("closed installed crypto default rejected", v.name)
 		}
-		stored, err := binder.BindDefault(raw, catalog.Column{Name: "salt", Usage: binder.Type(sqltype.Text).Usage()})
+		persisted, err := binder.BindDefault(raw, catalog.Column{Name: "salt", Usage: binder.Type(sqltype.Text).Usage()})
 		if err != nil {
 			t.Fatal("installed crypto DEFAULT admission", v.name, err)
 		}
-		if _, err := defaultSQL(context.Background(), e.CatalogRead(), stored); err != nil {
+		if _, err := defaultSQL(context.Background(), e.CatalogRead(), persisted); err != nil {
 			t.Fatal("installed crypto DEFAULT rendering", v.name, err)
 		}
 		for _, properties := range []expr.Properties{

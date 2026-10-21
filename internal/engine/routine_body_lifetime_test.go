@@ -112,11 +112,11 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	capture := func(e *Engine) []recipe {
 		view := e.CatalogRead()
 		table := view.MustRelation(roleTableRef(t, e, "body_defaults").Address)
-		stored := view.MustRelation(roleTableRef(t, e, "body_view").Address)
+		persisted := view.MustRelation(roleTableRef(t, e, "body_view").Address)
 		def := table.ColumnMeta.Defaults[table.Attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.Expression, refs: def.Dependencies},
-			{consumer: stored, node: viewOf(stored).query.Root.(*plan.ProjectNode).Expressions[0], checks: viewOf(stored).Dependencies()},
+			{consumer: persisted, node: viewOf(persisted).query.Root.(*plan.ProjectNode).Expressions[0], checks: viewOf(persisted).Dependencies()},
 		}
 	}
 	authority := func(e *Engine) AuthorizationView {
