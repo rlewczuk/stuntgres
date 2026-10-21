@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -130,7 +131,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			}
 			copy := *grafted.(*plan.ProjectNode)
 			copy.Frame = frame
-			pruned, err := pruneProjectWindows(&copy)
+			pruned, err := analyze.PruneProjectWindows(&copy)
 			if err != nil {
 				t.Fatal(err)
 			}

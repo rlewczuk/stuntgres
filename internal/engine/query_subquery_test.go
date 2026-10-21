@@ -141,7 +141,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 	})
 	t.Run("required derived projection", func(t *testing.T) {
 		e, q, source := queryJoinsFixture(t, "SELECT 1 FROM (SELECT abs(k) AS x FROM a) d WHERE x=1 LIMIT 1")
-		frames, _ := collectQueryFrames(q.Root)
+		frames, _ := analyze.CollectQueryFrames(q.Root)
 		root := q.Root.(*plan.ProjectNode)
 		sentinel := errors.New("required derived target")
 		calls := 0
@@ -487,7 +487,7 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 
 func TestQuerySubqueryViewRemap(t *testing.T) {
 	e, q, _ := queryJoinsFixture(t, "SELECT EXISTS(SELECT (SELECT b.k FROM b) FROM a ORDER BY k LIMIT 1)")
-	before, syntax := collectQueryFrames(q.Root)
+	before, syntax := analyze.CollectQueryFrames(q.Root)
 	integer, ok := e.CatalogRead().LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("missing INT4")
@@ -500,14 +500,14 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 		return typ
 	}
 	refs := func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }
-	if !queryDescriptorsChanged(q.Root, types) {
+	if !analyze.QueryDescriptorsChanged(q.Root, types) {
 		t.Fatal("nested type change invisible")
 	}
 	mapped, err := remapViewQuery(New().CatalogRead(), q.Root, refs, types)
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, queries := collectQueryFrames(mapped)
+	after, queries := analyze.CollectQueryFrames(mapped)
 	if len(after) != len(before) || len(queries) != len(syntax) {
 		t.Fatal("remapping dropped analyzed ignored targets")
 	}
@@ -522,10 +522,10 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 			}
 		}
 	}
-	if queryDescriptorsChanged(mapped, types) {
+	if analyze.QueryDescriptorsChanged(mapped, types) {
 		t.Fatal("remap retained old nested descriptors")
 	}
-	if !queryDescriptorsChanged(q.Root, types) {
+	if !analyze.QueryDescriptorsChanged(q.Root, types) {
 		t.Fatal("remapping mutated the original analyzed query")
 	}
 	originalRefs := make(map[int]ids.ObjectRef)
@@ -568,7 +568,7 @@ func TestQuerySubqueryDerivedDuplicateSchema(t *testing.T) {
 	if len(schema) != 2 || schema[0].Name != "x" || schema[1].Name != "x" || schema[0].Usage.Type.ID() != sqltype.Int4 || schema[1].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("derived positional names/types changed", schema)
 	}
-	frames, _ := collectQueryFrames(q.Root)
+	frames, _ := analyze.CollectQueryFrames(q.Root)
 	for frame, project := range frames {
 		if frame != q.Root.(*plan.ProjectNode).Frame {
 			if project.Schema()[0].Name != "x" || project.Schema()[1].Name != "x" {

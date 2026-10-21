@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -61,7 +62,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			return nil, nil, err
 		}
 		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.only, Principal: relationPrincipal, Storage: e.privateStorageLocked(scope.owner.Catalog, leaf.ref.Address), Mark: viewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.analysisOnly}
-		leaves[i].Uses, err = querySourceReadUses(reads[i], relation.Attributes)
+		leaves[i].Uses, err = analyze.QuerySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {
 			e.mu.Unlock()
 			return nil, nil, err
@@ -160,7 +161,7 @@ func prepareStoredExecutionRoot(c *exec.Context, definition *viewDefinition, out
 	if err != nil {
 		return nil, nil, err
 	}
-	reads := queryExecutionSourceReads(root, nil)
+	reads := analyze.QueryExecutionSourceReads(root, nil)
 	if source, ok := root.(*plan.SourceNode); ok {
 		if source.Occurrence < 0 || source.Occurrence >= len(definition.Sources()) {
 			return nil, nil, fmt.Errorf("stuntgres: invalid stored source occurrence")

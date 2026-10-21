@@ -110,7 +110,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 	query := *original.query
 	query.Root = root
 	definition.query = &query
-	definition.frames, definition.queries = collectQueryFrames(root)
+	definition.frames, definition.queries = analyze.CollectQueryFrames(root)
 	if project, ok := root.(*plan.ProjectNode); ok && project.Syntax == nil && project.Frame != 0 {
 		definition.frames[project.Frame] = project
 	}

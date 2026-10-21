@@ -17,7 +17,7 @@ import (
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
 func validateQueryJoinExecution(c *exec.Context, node plan.Node, catalog catalog.Read, inherited lock.Mode) error {
-	reads := queryExecutionSourceReads(node, nil)
+	reads := analyze.QueryExecutionSourceReads(node, nil)
 	if source, ok := node.(*plan.SourceNode); ok {
 		reads[source.Occurrence] = nil
 	}
@@ -160,7 +160,7 @@ func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 		if subquery.PresenceOnly {
 			ignored = project
 		}
-		if err := validateMarkedQueryJoin(&child, project, catalog, nil, plan.RowMark{}, false, ignored, queryExecutionSourceReads(project, ignored)); err != nil {
+		if err := validateMarkedQueryJoin(&child, project, catalog, nil, plan.RowMark{}, false, ignored, analyze.QueryExecutionSourceReads(project, ignored)); err != nil {
 			return err
 		}
 	}
@@ -315,7 +315,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 			if err := viewRowLockLegality(viewOf(d), analyze.RowLockDiagnostic(mark)); err != nil {
 				return err
 			}
-			outputUses, err := querySourceReadUses(reads[n.Occurrence], d.Attributes)
+			outputUses, err := analyze.QuerySourceReadUses(reads[n.Occurrence], d.Attributes)
 			if err != nil {
 				return err
 			}

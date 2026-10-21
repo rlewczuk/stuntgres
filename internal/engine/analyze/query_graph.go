@@ -1,7 +1,6 @@
-package engine
+package analyze
 
 import (
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -13,7 +12,7 @@ import (
 
 // A stored view freezes every query's original input frame as well as the
 // executable output tree. The maps are analyzed metadata, never row caches.
-func collectQueryFrames(root plan.Node) (map[uint32]*plan.ProjectNode, map[*parser.Select]*plan.ProjectNode) {
+func CollectQueryFrames(root plan.Node) (map[uint32]*plan.ProjectNode, map[*parser.Select]*plan.ProjectNode) {
 	frames := make(map[uint32]*plan.ProjectNode)
 	queries := make(map[*parser.Select]*plan.ProjectNode)
 	var walk func(plan.Node)
@@ -42,7 +41,7 @@ func collectQueryFrames(root plan.Node) (map[uint32]*plan.ProjectNode, map[*pars
 	return frames, queries
 }
 
-func queryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
+func QueryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
 	if node == nil {
 		return false
 	}
@@ -57,7 +56,7 @@ func queryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqlt
 			if typ(expr.ResultUsage().Type) != expr.ResultUsage().Type {
 				changed = true
 			}
-			if child, ok := expr.(plan.SubqueryExpr); ok && queryDescriptorsChanged(child.QueryPlan.Root, typ) {
+			if child, ok := expr.(plan.SubqueryExpr); ok && QueryDescriptorsChanged(child.QueryPlan.Root, typ) {
 				changed = true
 			}
 		})
@@ -66,13 +65,13 @@ func queryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqlt
 		return true
 	}
 	left, right := plan.QueryInputs(node)
-	return queryDescriptorsChanged(left, typ) || queryDescriptorsChanged(right, typ)
+	return QueryDescriptorsChanged(left, typ) || QueryDescriptorsChanged(right, typ)
 }
 
 // A type-only fast path must not retain an old routine identity carrier after
 // catalog reownership. Pointer comparison here requests metadata reconstruction;
 // it is never an ACL or lifetime admission decision.
-func queryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
+func QueryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 	if node == nil || view.State() == nil {
 		return false
 	}
@@ -83,7 +82,7 @@ func queryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 			if err != nil || captured != nil && view.Get(captured.Address()) != captured {
 				changed = true
 			}
-			if subquery, ok := expression.(plan.SubqueryExpr); ok && queryRoutineCarriersChanged(view, subquery.QueryPlan.Root) {
+			if subquery, ok := expression.(plan.SubqueryExpr); ok && QueryRoutineCarriersChanged(view, subquery.QueryPlan.Root) {
 				changed = true
 			}
 		})
@@ -92,12 +91,12 @@ func queryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 		return true
 	}
 	left, right := plan.QueryInputs(node)
-	return queryRoutineCarriersChanged(view, left) || queryRoutineCarriersChanged(view, right)
+	return QueryRoutineCarriersChanged(view, left) || QueryRoutineCarriersChanged(view, right)
 }
 
 // Runtime reads belong to an occurrence's physical input span in its lexical
 // frame, not to a relation OID. Analysis-only CTE edges remain frozen metadata.
-func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode) map[int][]int32 {
+func QueryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode) map[int][]int32 {
 	type span struct {
 		source *plan.SourceNode
 		offset int
@@ -130,7 +129,7 @@ func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode)
 			rightOffset += join.LeftWidth
 		}
 		walk(right, frame, rightOffset, ignored, collect)
-		if node == ignored || analyze.QueryIgnoresOwnExpressions(node) {
+		if node == ignored || QueryIgnoresOwnExpressions(node) {
 			return
 		}
 		visit := func(expression expr.Expr) {
@@ -184,7 +183,7 @@ func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode)
 
 // Bridge captured attribute identities to the current source layout. nil
 // denotes full demand; a nonnil empty slice denotes presence-only demand.
-func querySourceReadUses(reads []int32, attributes []int32) ([]int, error) {
+func QuerySourceReadUses(reads []int32, attributes []int32) ([]int, error) {
 	if reads == nil {
 		return nil, nil
 	}

@@ -1,15 +1,14 @@
-package engine
+package analyze
 
 import (
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
 
-// pruneProjectWindows retains analyzed slots and original routine references,
+// PruneProjectWindows retains analyzed slots and original routine references,
 // but removes execution demand for window occurrences absent from the surviving
 // expressions above their stage. Empty input is not evidence of absent demand.
-func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
+func PruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 	var window *plan.WindowNode
 	for node := project.Child; node != nil; {
 		if candidate, ok := node.(*plan.WindowNode); ok {
@@ -72,7 +71,7 @@ func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 		expression(expr)
 	}
 	for node := project.Child; node != window; {
-		if !analyze.QueryIgnoresOwnExpressions(node) {
+		if !QueryIgnoresOwnExpressions(node) {
 			plan.QueryExpressions(node, expression)
 		}
 		node, _ = plan.QueryInputs(node)

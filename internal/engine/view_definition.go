@@ -49,7 +49,7 @@ func freezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 	definition.posixSubstrings = b.Capture.PosixSubstrings
 	definition.collations = b.Capture.Collations
 	definition.columns, definition.stars = b.Capture.Columns, b.Capture.Stars
-	definition.frames, definition.queries = collectQueryFrames(b.Query.Root)
+	definition.frames, definition.queries = analyze.CollectQueryFrames(b.Query.Root)
 	definition.namespaces = b.Capture.Namespaces
 	definition.sequenceRefs = make(map[int]ids.ObjectRef, len(b.Prepared.SequenceConstants))
 	for _, constant := range b.Prepared.SequenceConstants {

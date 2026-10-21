@@ -837,7 +837,7 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 		for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 			if condition != nil {
 				expression(condition.expression)
-				changed = changed || queryDescriptorsChanged(condition.presentation.query.Root, typ)
+				changed = changed || analyze.QueryDescriptorsChanged(condition.presentation.query.Root, typ)
 				for _, usage := range condition.presentation.castUsages {
 					changed = changed || usage.Type != typ(usage.Type)
 				}
@@ -887,7 +887,7 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 		for _, literal := range viewOf(d).literals {
 			expression(literal)
 		}
-		changed = changed || queryDescriptorsChanged(viewOf(d).query.Root, typ)
+		changed = changed || analyze.QueryDescriptorsChanged(viewOf(d).query.Root, typ)
 	}
 	return changed
 }

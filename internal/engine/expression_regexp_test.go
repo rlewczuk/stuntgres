@@ -233,7 +233,7 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 				stars: b.Capture.Stars, namespaces: b.Capture.Namespaces,
 				collations: b.Capture.Collations,
 			}
-			definition.frames, definition.queries = collectQueryFrames(query.Root)
+			definition.frames, definition.queries = analyze.CollectQueryFrames(query.Root)
 			text, err := definition.selectSQL(context.Background(), auth.Catalog, viewPresentation{})
 			if err != nil || !strings.Contains(text, `"a"."s"`) {
 				t.Fatal("lost dependent function argument prefix", text, err)
