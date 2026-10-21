@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -11,13 +12,13 @@ import (
 // stagePartitionIndexValidity runs the validity pass over the stage. It
 // needs no lock.
 func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote ids.ObjectAddress) error {
-	return PartitionIndexValidity(stageDropProvider(context.Background(), stage, nil, nil, nil), promote)
+	return index.PartitionIndexValidity(stageDropProvider(context.Background(), stage, nil, nil, nil), promote)
 }
 
 // stagePartitionIndexAttach serves the partition constraint tests; the caller
 // holds Engine.mu.
 func (e *Engine) stagePartitionIndexAttach(op *session.Operation, stage *CatalogStage, parent, child *catalog.Relation) error {
-	return StagePartitionIndexAttach(ddlHost{e: e, op: op, stage: stage}, parent, child)
+	return index.StagePartitionIndexAttach(ddlHost{e: e, op: op, stage: stage}, parent, child)
 }
 
 func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {

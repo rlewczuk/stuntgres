@@ -1,11 +1,10 @@
-package engine
+package index
 
 import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 )
 
@@ -14,7 +13,7 @@ import (
 // sets the grant saw, and every observed descriptor as a domain base. REINDEX
 // records its rebuilds and makes an index that is not ready, valid and live
 // so again. RENAME and DROP stay with the caller.
-func StageMaintenance(h index.Host, g *index.MaintenanceGrant, stmt parser.Statement) error {
+func StageMaintenance(h Host, g *MaintenanceGrant, stmt parser.Statement) error {
 	st := h.IndexStage()
 	st.Parents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.Parents))
 	for _, ref := range g.Parents {
@@ -58,7 +57,7 @@ func StageMaintenance(h index.Host, g *index.MaintenanceGrant, stmt parser.State
 // current catalog before any work is prepared; the publication loop also
 // fences that catalog at install. replacedParent is the original of a
 // materialized view the stage replaces, or zero.
-func ValidateMaintenance(st index.Stage, base catalog.Read, current *catalog.State, replacedParent ids.ObjectAddress) error {
+func ValidateMaintenance(st Stage, base catalog.Read, current *catalog.State, replacedParent ids.ObjectAddress) error {
 	if (len(st.Parents) > 0 || len(st.Rebuilds) > 0 || len(st.Sets) > 0) && current.Epoch() != base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}

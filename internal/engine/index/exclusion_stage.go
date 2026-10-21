@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"fmt"
@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,7 +16,7 @@ import (
 // index; recurse also stages the partitions' child indexes. It binds through
 // the stage's catalog and the host's index binder; EXCLUDE introduces no
 // alternate type, expression, predicate or method provider.
-func StageExclusion(h index.Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
+func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
 	s := raw.Index
 	if len(s.Keys) == 0 || len(s.Keys) != len(raw.Operators) {
 		return fmt.Errorf("stuntgres: invalid exclusion declaration")
@@ -30,7 +29,7 @@ func StageExclusion(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 	}
 	methodCheck := s
 	methodCheck.Predicate = nil // Constraint-local HASH predicate admission only.
-	if err := index.ValidateIndexMethod(&methodCheck); err != nil {
+	if err := ValidateIndexMethod(&methodCheck); err != nil {
 		return err
 	}
 	auth = h.Recapture(auth, h.StageRead())
@@ -48,7 +47,7 @@ func StageExclusion(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 	for i, name := range raw.Operators {
 		path, err := h.SearchNamespaces(auth, name, ids.OperatorClassID)
 		if err != nil {
-			return index.SemanticError(err)
+			return SemanticError(err)
 		}
 		visible := false
 		for _, namespace := range path {
@@ -57,7 +56,7 @@ func StageExclusion(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 				break
 			}
 		}
-		usage, err := index.KeyUsage(parent, definition.Keys[i])
+		usage, err := KeyUsage(parent, definition.Keys[i])
 		if err != nil {
 			return err
 		}
@@ -74,10 +73,10 @@ func StageExclusion(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 		}
 	}
 	if len(s.Options) != 0 {
-		if err := index.ValidateIndexReloptions(s.Options, definition.Method, false); err != nil {
+		if err := ValidateIndexReloptions(s.Options, definition.Method, false); err != nil {
 			return err
 		}
-		return index.Capability("index storage parameters are unsupported", s.WithPos)
+		return Capability("index storage parameters are unsupported", s.WithPos)
 	}
 	name := raw.Name.Text
 	used := catalog.ConstraintNames(view, parent.Namespace(), parent)
@@ -140,9 +139,9 @@ func StageExclusion(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 		return err
 	}
 	c := catalog.ExclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
-	definition.Constraint = index.ExclusionBacking(&c)
+	definition.Constraint = ExclusionBacking(&c)
 	definition.Exclusion = operators
-	if err := index.PartitionUniqueCoverage(parent, definition); err != nil {
+	if err := PartitionUniqueCoverage(parent, definition); err != nil {
 		return err
 	}
 	backing := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}}
@@ -173,7 +172,7 @@ func StageExclusion(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 
 // StageCreateExclusions stages the EXCLUDE constraints of CREATE TABLE s on
 // the new table parent.
-func StageCreateExclusions(h index.Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateTable) error {
+func StageCreateExclusions(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateTable) error {
 	for _, element := range s.Elements {
 		if element.Exclusion != nil {
 			if err := StageExclusion(h, auth, input, parent, element.Exclusion, true); err != nil {

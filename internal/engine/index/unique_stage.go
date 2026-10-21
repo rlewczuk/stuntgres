@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -17,7 +16,7 @@ import (
 // only new groups and replaces the existing parent instead of creating it.
 //
 // The caller records each declaration's LIKE source first.
-func StageUniqueDefinitions(h index.Host, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
+func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
 			if definition, ok := d.ColumnMeta.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {
@@ -117,13 +116,13 @@ func StageUniqueDefinitions(h index.Host, d *catalog.Relation, declarations []an
 		if err != nil {
 			return err
 		}
-		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: index.UniqueBacking(c), Ready: true, Valid: true, Live: true}
+		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: UniqueBacking(c), Ready: true, Valid: true, Live: true}
 		idx := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 		if source := declarations[i-start].Source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.SQLIndex
-			definition.Parent, definition.Constraint = d.Address(), index.UniqueBacking(c)
+			definition.Parent, definition.Constraint = d.Address(), UniqueBacking(c)
 			definition.PartitionParent = ids.ObjectAddress{}
 			definition.Ready, definition.Valid, definition.Live = true, true, true
 			definition.Keys = slices.Clone(source.SQLIndex.Keys)
@@ -169,7 +168,7 @@ func StageUniqueDefinitions(h index.Host, d *catalog.Relation, declarations []an
 				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
 				if !ok {
-					return index.DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
+					return DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
 				definition.Keys[j] = catalog.IndexKey{Attribute: a, Class: class}
 				column.Nullable, column.NullabilityKnown = true, true
@@ -205,6 +204,6 @@ func StageUniqueDefinitions(h index.Host, d *catalog.Relation, declarations []an
 
 // StageCreateUniques stages the UNIQUE and PRIMARY KEY constraints of a new
 // table d with their backing indexes.
-func StageCreateUniques(h index.Host, d *catalog.Relation, declarations []analyze.UniqueConstraint) error {
+func StageCreateUniques(h Host, d *catalog.Relation, declarations []analyze.UniqueConstraint) error {
 	return StageUniqueDefinitions(h, d, declarations, false)
 }

@@ -21,7 +21,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return PrepareUsingIndex(ddlHost{e: e, op: op}, reader, parent, effective, captured)
+	return index.PrepareUsingIndex(ddlHost{e: e, op: op}, reader, parent, effective, captured)
 }
 
 // Runtime effects follow action order, but remain immutable statement candidates.

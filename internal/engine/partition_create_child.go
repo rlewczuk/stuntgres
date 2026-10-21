@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
@@ -190,10 +191,10 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			stage.captureLikeSource(declaration.Source)
 		}
 	}
-	if err = StageCreateUniques(h, d, uniques); err != nil {
+	if err = index.StageCreateUniques(h, d, uniques); err != nil {
 		return nil, err
 	}
-	if err = StageCreateExclusions(h, auth, scope.input, d, syntax); err != nil {
+	if err = index.StageCreateExclusions(h, auth, scope.input, d, syntax); err != nil {
 		return nil, err
 	}
 	return d, nil

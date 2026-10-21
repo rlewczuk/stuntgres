@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,10 +15,10 @@ import (
 // LookupClass resolves an explicit operator class of method. Only the
 // built-in classes in pg_catalog exist, so the class is found only when
 // pg_catalog is on the operator search path of raw.
-func LookupClass(h index.KeyHost, auth ddl.Authority, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
+func LookupClass(h KeyHost, auth ddl.Authority, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
 	path, err := h.SearchNamespaces(auth, raw, ids.OperatorClassID)
 	if err != nil {
-		return sqltype.IndexClass{}, index.SemanticError(err)
+		return sqltype.IndexClass{}, SemanticError(err)
 	}
 	for _, namespace := range path {
 		if namespace == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
@@ -33,12 +32,12 @@ func LookupClass(h index.KeyHost, auth ddl.Authority, raw parser.ObjectName, met
 
 // BindKey binds one index key of type u: collation, operator class and the
 // ordering options method allows.
-func BindKey(h index.KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey, method catalog.IndexMethod) (catalog.IndexKey, error) {
+func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey, method catalog.IndexMethod) (catalog.IndexKey, error) {
 	key := catalog.IndexKey{Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc}
 	if raw.Collation != nil {
 		id, err := h.LookupCollation(*raw.Collation)
 		if err != nil {
-			return key, index.SemanticError(err)
+			return key, SemanticError(err)
 		}
 		if u.Type.Usage().Collation.ID == 0 {
 			return key, sqlError("42804", "collations are not supported by type "+u.Type.DiagnosticName())
@@ -64,7 +63,7 @@ func BindKey(h index.KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.In
 		exists = true
 	}
 	if !exists {
-		return key, index.DefaultClassError(u.Type.DiagnosticName(), method)
+		return key, DefaultClassError(u.Type.DiagnosticName(), method)
 	}
 	key.Class = c
 	if method == catalog.GistMethod {
@@ -74,26 +73,26 @@ func BindKey(h index.KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.In
 		return key, nil
 	}
 	if method == catalog.HashMethod {
-		if err := index.ValidateHashKeyDirection(raw); err != nil {
+		if err := ValidateHashKeyDirection(raw); err != nil {
 			return key, err
 		}
-		_, err := sqltype.BindIndexHash(index.KeyCollation(u, key), c)
+		_, err := sqltype.BindIndexHash(KeyCollation(u, key), c)
 		return key, err
 	}
-	_, err := sqltype.BindIndexOrdering(index.KeyCollation(u, key), c)
+	_, err := sqltype.BindIndexOrdering(KeyCollation(u, key), c)
 	return key, err
 }
 
 // Validate released system attribute identity without manufacturing an owned
 // storage descriptor or comparator. Final system prohibition stays after all
 // attributes, so a later ordinary missing column can still win.
-func validateSystemKey(h index.KeyHost, auth ddl.Authority, raw parser.IndexKey, method catalog.IndexMethod) error {
+func validateSystemKey(h KeyHost, auth ddl.Authority, raw parser.IndexKey, method catalog.IndexMethod) error {
 	id, name := sqltype.SystemAttributeType(raw.Column.Text)
 	if raw.Collation != nil {
 		_, err := h.LookupCollation(*raw.Collation)
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); !ok || d.Code != "0A000" {
-				return index.SemanticError(err)
+				return SemanticError(err)
 			}
 		}
 		return sqlError("42804", "collations are not supported by type "+name)
@@ -107,7 +106,7 @@ func validateSystemKey(h index.KeyHost, auth ddl.Authority, raw parser.IndexKey,
 			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), name))
 		}
 	} else if _, exists := method.DefaultClassID(id); !exists {
-		return index.DefaultClassError(name, method)
+		return DefaultClassError(name, method)
 	}
 	return nil
 }
@@ -115,9 +114,9 @@ func validateSystemKey(h index.KeyHost, auth ddl.Authority, raw parser.IndexKey,
 // BindAttributes binds the key and INCLUDE columns of s on parent: the index
 // definition without its predicate, the index columns, their attribute
 // numbers and the name lookup.
-func BindAttributes(h index.Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
+func BindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
-	d := &catalog.IndexDefinition{Method: index.MethodOf(s.Method), Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
+	d := &catalog.IndexDefinition{Method: MethodOf(s.Method), Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
 	columns := make([]catalog.Column, total)
 	attributes := make([]int32, total)
 	lookup := make(map[string]int, total)
@@ -154,19 +153,19 @@ func BindAttributes(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 				key.Derived = derived
 			}
 			d.Keys[i] = key
-			columns[i].Usage = index.KeyCollation(derived.Execution.ResultUsage(), key)
+			columns[i].Usage = KeyCollation(derived.Execution.ResultUsage(), key)
 		} else {
 			if catalog.IsSystemColumn(raw.Column.Text) {
 				system = true
 				if included {
-					if err := index.ValidateIndexInclude(raw); err != nil {
+					if err := ValidateIndexInclude(raw); err != nil {
 						return fail(err)
 					}
 				} else if err := validateSystemKey(h, auth, raw, d.Method); err != nil {
 					return fail(err)
 				}
 				if !included && d.Method == catalog.HashMethod {
-					if err := index.ValidateHashKeyDirection(raw); err != nil {
+					if err := ValidateHashKeyDirection(raw); err != nil {
 						return fail(err)
 					}
 				}
@@ -176,12 +175,12 @@ func BindAttributes(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 			if !exists {
 				return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Column.Text)))
 			}
-			if err := index.RejectVirtualUses(parent, []int{slot}); err != nil {
+			if err := RejectVirtualUses(parent, []int{slot}); err != nil {
 				return fail(err)
 			}
 			columns[i] = parent.Columns[slot]
 			if included {
-				if err := index.ValidateIndexInclude(raw); err != nil {
+				if err := ValidateIndexInclude(raw); err != nil {
 					return fail(err)
 				}
 				d.Include[i-len(s.Keys)] = parent.Attributes[slot]
@@ -192,7 +191,7 @@ func BindAttributes(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 				}
 				key.Attribute = parent.Attributes[slot]
 				d.Keys[i] = key
-				columns[i].Usage = index.KeyCollation(columns[i].Usage, key)
+				columns[i].Usage = KeyCollation(columns[i].Usage, key)
 			}
 		}
 		baseLabel := label
@@ -200,7 +199,7 @@ func BindAttributes(h index.Host, auth ddl.Authority, input sqltype.InputEnviron
 			if _, exists := lookup[label]; !exists {
 				break
 			}
-			label = index.ColumnLabel(baseLabel, suffix)
+			label = ColumnLabel(baseLabel, suffix)
 		}
 		columns[i].Name = label
 		lookup[label] = i

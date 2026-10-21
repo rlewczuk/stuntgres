@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 )
 
@@ -42,7 +43,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			return Result{}, err
 		}
 		h := ddlHost{e: e, op: scope.op, stage: stage}
-		created, err := PrepareCreate(h, auth, parent, s, scope.input)
+		created, err := index.PrepareCreate(h, auth, parent, s, scope.input)
 		if err != nil {
 			return failStage(err)
 		}
@@ -60,7 +61,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return failStage(err)
 			}
 		}
-		err = StageCreate(h, parent, d, s.Only)
+		err = index.StageCreate(h, parent, d, s.Only)
 		e.mu.Unlock()
 		if err != nil {
 			e.DiscardCatalogStage(stage)

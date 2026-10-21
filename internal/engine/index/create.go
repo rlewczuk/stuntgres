@@ -1,4 +1,4 @@
-package engine
+package index
 
 import (
 	"fmt"
@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -28,7 +27,7 @@ type CreatePlan struct {
 // method, clauses, predicate and attributes, name, operator class options,
 // unique providers, partition coverage, then the new identities. A
 // CONCURRENTLY index starts neither ready nor valid.
-func PrepareCreate(h index.Host, auth ddl.Authority, parent *catalog.Relation, s *parser.CreateIndex, input sqltype.InputEnvironment) (CreatePlan, error) {
+func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *parser.CreateIndex, input sqltype.InputEnvironment) (CreatePlan, error) {
 	trusted, err := h.TrustedRestoreDestination(auth, "index")
 	if err != nil {
 		return CreatePlan{}, err
@@ -49,14 +48,14 @@ func PrepareCreate(h index.Host, auth ddl.Authority, parent *catalog.Relation, s
 	if err = h.CheckCreateIn(auth, ns); err != nil {
 		return CreatePlan{}, err
 	}
-	if err = index.ValidateIndexMethod(s); err != nil {
+	if err = ValidateIndexMethod(s); err != nil {
 		return CreatePlan{}, err
 	}
 	if s.Concurrent.Character != 0 && s.Predicate != nil {
 		return CreatePlan{}, sqlError("0A000", "partial concurrent indexes are unsupported")
 	}
 	if len(s.Options) != 0 {
-		if err := index.ValidateIndexReloptions(s.Options, index.MethodOf(s.Method), false); err != nil {
+		if err := ValidateIndexReloptions(s.Options, MethodOf(s.Method), false); err != nil {
 			return CreatePlan{}, err
 		}
 	}
@@ -102,15 +101,15 @@ func PrepareCreate(h index.Host, auth ddl.Authority, parent *catalog.Relation, s
 	}
 	definition.Unique, definition.NullsNotDistinct = s.Unique, s.NullsNotDistinct
 	if s.Unique && s.Concurrent.Character == 0 && !trusted {
-		if err := index.ValidateUniqueProviders(parent, definition, s.Keys); err != nil {
+		if err := ValidateUniqueProviders(parent, definition, s.Keys); err != nil {
 			return CreatePlan{}, err
 		}
 	}
-	if err := index.PartitionUniqueCoverage(parent, definition); err != nil {
+	if err := PartitionUniqueCoverage(parent, definition); err != nil {
 		return CreatePlan{}, err
 	}
 	if len(s.Options) != 0 {
-		return CreatePlan{}, index.Capability("index storage parameters are unsupported", s.WithPos)
+		return CreatePlan{}, Capability("index storage parameters are unsupported", s.WithPos)
 	}
 	oid, err := h.AllocateOID()
 	if err != nil {
@@ -134,8 +133,8 @@ func PrepareCreate(h index.Host, auth ddl.Authority, parent *catalog.Relation, s
 
 // StageCreate stages a prepared index on parent. On a partitioned parent,
 // ONLY leaves it valid only without partitions; otherwise every partition
-// gets an attached child index.
-func StageCreate(h index.Host, parent, idx *catalog.Relation, only bool) error {
+// gets an attached child
+func StageCreate(h Host, parent, idx *catalog.Relation, only bool) error {
 	if err := h.Stage().Create(idx); err != nil {
 		return err
 	}

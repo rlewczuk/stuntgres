@@ -57,7 +57,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
 	stage.indexes().Output = scope.output
-	if err := StageMaintenance(ddlHost{e: e, op: scope.op, stage: stage}, g, stmt); err != nil {
+	if err := index.StageMaintenance(ddlHost{e: e, op: scope.op, stage: stage}, g, stmt); err != nil {
 		e.mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
@@ -66,7 +66,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, ref := range g.Indexes {
-			if err := StagePartitionIndexDrop(stage, g.Descriptors[ref.Address]); err != nil {
+			if err := index.StagePartitionIndexDrop(stage, g.Descriptors[ref.Address]); err != nil {
 				return Result{}, err
 			}
 		}
@@ -110,7 +110,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 	if replacement := s.materializedOrZero().replacement; replacement != nil {
 		replacedParent = replacement.original.Address()
 	}
-	return ValidateMaintenance(s.indexesOrZero(), s.Base, current, replacedParent)
+	return index.ValidateMaintenance(s.indexesOrZero(), s.Base, current, replacedParent)
 }
 
 // indexes returns the statement's indexes slot, allocating it on first use.

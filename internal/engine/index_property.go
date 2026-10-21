@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqltype"
 )
 
@@ -17,13 +18,13 @@ func (h *statementHost) IndexProperty(kind functions.IndexPropertyKind, oid uint
 		return false, false, nil
 	}
 	if kind == functions.WholeIndexProperty {
-		value, known = Property(relation.SQLIndex, true, 0, property)
+		value, known = index.Property(relation.SQLIndex, true, 0, property)
 	} else {
 		ordinal, err := ordinalValue.Integer()
 		if err != nil {
 			return false, false, err
 		}
-		value, known = Property(relation.SQLIndex, false, ordinal, property)
+		value, known = index.Property(relation.SQLIndex, false, ordinal, property)
 	}
 	return value, known, nil
 }

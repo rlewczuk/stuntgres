@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -54,7 +55,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *s
 	}
 	next.Constraints.Exclusion = slices.Clone(table.Constraints.Exclusion)
 	for _, action := range raw.Actions {
-		if err = StageExclusion(ddlHost{e: e, op: op, stage: stage}, auth, scope.input, &next, action.Exclusion, !raw.Only); err != nil {
+		if err = index.StageExclusion(ddlHost{e: e, op: op, stage: stage}, auth, scope.input, &next, action.Exclusion, !raw.Only); err != nil {
 			break
 		}
 	}

@@ -13,11 +13,11 @@ import (
 // stagePartitionIndexDrop and stagePartitionConstraintDrop serve ALTER
 // TABLE and the partition constraint tests; neither needs Engine.mu.
 func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, idx *catalog.Relation) error {
-	return StagePartitionIndexDrop(stage, idx)
+	return index.StagePartitionIndexDrop(stage, idx)
 }
 
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
-	return StagePartitionConstraintDrop(stage, oid)
+	return index.StagePartitionConstraintDrop(stage, oid)
 }
 
 // The caller owns Engine.mu; all exits release it before candidate validation.
@@ -46,10 +46,10 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			if err := index.PartitionIndexDropDependency(view, idx); err != nil {
 				return Result{}, err
 			}
-			if err := StagePartitionConstraintDrop(stage, c.OID); err != nil {
+			if err := index.StagePartitionConstraintDrop(stage, c.OID); err != nil {
 				return Result{}, err
 			}
-			if err := StagePartitionIndexDrop(stage, idx); err != nil {
+			if err := index.StagePartitionIndexDrop(stage, idx); err != nil {
 				return Result{}, err
 			}
 		}
@@ -65,10 +65,10 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			if err := index.PartitionIndexDropDependency(view, idx); err != nil {
 				return Result{}, err
 			}
-			if err := StagePartitionConstraintDrop(stage, c.OID); err != nil {
+			if err := index.StagePartitionConstraintDrop(stage, c.OID); err != nil {
 				return Result{}, err
 			}
-			if err := StagePartitionIndexDrop(stage, idx); err != nil {
+			if err := index.StagePartitionIndexDrop(stage, idx); err != nil {
 				return Result{}, err
 			}
 		}

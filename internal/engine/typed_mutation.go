@@ -219,12 +219,12 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	e.mu.Lock()
 	h := ddlHost{e: e, op: scope.op, stage: stage}
-	next, err = RebuildAlterUniques(h, next, mutation.transforms)
+	next, err = index.RebuildAlterUniques(h, next, mutation.transforms)
 	if err == nil {
 		next, err = e.rebuildAlterNotNullsLocked(stage, next, mutation.transforms)
 	}
 	if err == nil {
-		next, err = RebuildAlterExclusions(h, next, mutation.transforms)
+		next, err = index.RebuildAlterExclusions(h, next, mutation.transforms)
 	}
 	if err == nil {
 		err = e.evolveStageIndexesLocked(stage, old.Address(), mutation.transforms)
