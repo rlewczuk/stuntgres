@@ -47,13 +47,16 @@ type WriteHost interface {
 	// ExclusionScanCurrent reports whether nothing scan captured for idx
 	// changed since. Locks, never waits.
 	ExclusionScanCurrent(scan ExclusionScan, idx ids.ObjectAddress) bool
-	// PublishExclusion checks the epoch and state, gives proposal its row
+	// PublishExclusion checks the epoch and state, reserves proposal's row
 	// identity, applies edit to the statement's projection and installs it,
-	// all in one window. Locks, never waits.
-	PublishExclusion(ref ids.ObjectRef, state *catalog.State, proposal *WriteCandidate, edit ExclusionEdit) (storage.RowVersion, error)
-	// DiscardExclusion drops proposal's projected entries. Locks, never
-	// waits.
-	DiscardExclusion(proposal *WriteCandidate)
+	// all in one window. It returns the reserved row with its index outputs;
+	// the caller records it with WriteCandidate.RecordExclusion. proposal is
+	// a copy, so the caller's candidate never escapes through the host.
+	// Locks, never waits.
+	PublishExclusion(ref ids.ObjectRef, state *catalog.State, proposal WriteCandidate, edit ExclusionEdit) (storage.RowVersion, error)
+	// DiscardExclusion drops version's projected entries (from
+	// WriteCandidate.TakeExclusion). Locks, never waits.
+	DiscardExclusion(version ids.VersionID)
 	// OwnExclusionKeys returns the keys the statement's published projection
 	// holds for version on idx, or nil. Locks, never waits.
 	OwnExclusionKeys(idx ids.ObjectAddress, version ids.VersionID) []sqltype.Value

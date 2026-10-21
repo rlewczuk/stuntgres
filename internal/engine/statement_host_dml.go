@@ -3,12 +3,15 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -36,21 +39,40 @@ func (h *statementHost) Snapshot() (bool, ids.CommitSeq) {
 func (h *statementHost) UniqueJournal() lock.UniqueJournal { return h.scope().uniqueJournal() }
 func (h *statementHost) QueryAuthority() *exec.Authority   { return h.authority }
 
-func (h *statementHost) ForeignActions() *dml.ForeignActionScope {
-	return h.scope().foreignActions()
+func (h *statementHost) ForeignActions(allocate bool) *dml.ForeignActionScope {
+	if allocate {
+		return h.scope().foreignActions()
+	}
+	return h.foreignActionsSlot
+}
+
+func (h *statementHost) IndexScope(allocate bool) *index.Scope {
+	if allocate {
+		return h.scope().indexes()
+	}
+	return h.indexesSlot
+}
+
+func (h *statementHost) Ticket() *lock.Ticket { return h.ticket }
+
+func (h *statementHost) CatalogRead(state *catalog.State) catalog.Read {
+	return h.scope().engine().catalog.read(state)
 }
 
 func (h *statementHost) PositionedRow(b analyze.Binding) (dml.MutationRowIdentity, error) {
 	return h.scope().positionedMutationRow(b)
 }
 
-// CheckWriteBinding checks b over v with the operation's environment.
+// CheckWriteBinding is the ON CONFLICT binding check of b over v with the
+// operation's environment. It never locks.
 func (h *statementHost) CheckWriteBinding(v access.View, b analyze.Binding) error {
-	return h.scope().checkWriteBinding(v, b)
+	return analyze.CheckBinding(h.scope().engine().operationAuthority(h.op, v), b, &parser.Insert{})
 }
 
+// DisclosureEnv is the access environment of the statement's operation over
+// v, for key disclosure decisions. It never locks.
 func (h *statementHost) DisclosureEnv(v access.View) access.Environment {
-	return h.scope().disclosureEnv(v)
+	return h.scope().engine().operationAuthority(h.op, v)
 }
 
 func (h *statementHost) CommandError(err error) error     { return h.op.CommandError(err) }

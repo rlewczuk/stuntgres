@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `17e01ca8b` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 111, 112, 113 and 114). Steps 8–17 were
+Last verified against `master` at `d97704517` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 111, 112, 113 and 114). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -17,13 +17,13 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
-- **DML, executors:** 110b (dml 29d.2); 110c–110f follow in order.
+- **DML, executors:** 110c (dml 29d.3); 110d–110f follow in order.
 - **Third round, view:** 115 (27e, query preflight; first, it unblocks 116,
   125 and 132), 117 (27g, DROP read side), 118 (27h, lock walks).
 - **Third round, stored and control:** 119 (22e, type provider
   validation; then 120), 121 (30e, definition OID remap; then 122).
 - **Third round, table and index:** 123 (24e; then 124 and 125), 126 (23e;
-  touches `set_constraints.go`, which 110b also edits), 127 (25e).
+  touches `set_constraints.go`, which 110b also edited), 127 (25e).
 - **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
   (catalog 5k), 131 (access B7, in place; it changes `AuthorizationView`,
   so rebase other open branches after it lands).
@@ -155,6 +155,11 @@ after 110a and before 110b–110f: the root is 405 files and 58.5k lines,
 25% of the engine. It planned a third round in existing packages, items
 115–132 (about 8.7k lines), and a closing review, item 133, which needs
 110f and the whole third round.
+Item 110b (DML 29d.2) is done: the unique and exclusion probing, index
+candidate validation, the write overlay probe and the `ApplyValidated`/
+`ReplaceRows` staging loops live in `dml` over `dml.Host`, so 110c (29d.3)
+is ready. The ON CONFLICT DO NOTHING admission and its revalidation moved
+with the loops (the stale retry calls them).
 
 ## Task tree
 
@@ -637,7 +642,7 @@ after 110a and before 110b–110f: the root is 405 files and 58.5k lines,
   - [x] 29c — Host refined (docs only) (the docs commit)
   - [ ] 29d — Executors moved
     - [x] 29d.1 — Seam and lower moves (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, docs)
-    - [ ] 29d.2 — Unique and exclusion probing, staging loops
+    - [x] 29d.2 — Unique and exclusion probing, staging loops (`b2f1e2058`, `fb919b1ac`, `ae653408b`, `34fb07658`, docs)
     - [ ] 29d.3 — INSERT, ON CONFLICT and COPY FROM
     - [ ] 29d.4 — UPDATE and DELETE
     - [ ] 29d.5 — MERGE and foreign DML
@@ -1565,8 +1570,19 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
        `view.FreezeWriteSources`, `fdw.PlanModification`; FK pieces moved to
        110f · seam tests, selected units, quickcheck and `REFERENCE=1` DML
        selection passed; racecheck/finalcheck skipped at user request
-     - 110b. [ ] 29d.2: unique and exclusion probing, staging loops · needs
-       110a
+     - 110b. [x] 29d.2: unique and exclusion probing, staging loops (`b2f1e2058`, `fb919b1ac`, `ae653408b`, `34fb07658`, then the docs
+       commit) · `dml.BindUniqueWrite`, `ProbeUniqueRow`, `CheckUniqueRow`,
+       `ClaimUniqueRow`, `UniqueKeyChanged`, `UniqueConflict`,
+       `ProbeExclusion`, `ValidateIndexCandidates`, `ExistingUniqueOutput`,
+       the write overlay probe, `AdmitInsertConflictRow` and
+       `ApplyValidated`/`ReplaceRows` over `dml.Host`; the host gains
+       `IndexScope`, `Ticket`, `CatalogRead`, `Active` and
+       `ReadmitRevalidation`; `PublishExclusion`/`DiscardExclusion` pass
+       values so candidates stay off the heap; the `WriteStage` replace
+       wrappers go · seam tests, selected units, `RACE=1`
+       unique/exclusion/ON CONFLICT, benchmarks, quickcheck and
+       `REFERENCE=1` selection passed;
+       racecheck/finalcheck skipped at user request
      - 110c. [ ] 29d.3: INSERT, ON CONFLICT and COPY FROM · needs 110b
      - 110d. [ ] 29d.4: UPDATE and DELETE · needs 110c
      - 110e. [ ] 29d.5: MERGE and foreign DML · needs 110d

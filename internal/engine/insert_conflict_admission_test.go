@@ -84,7 +84,7 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 			purpose := test.purpose
 			f := insertConflictUniqueFixture(t)
 			scope, ref := insertConflictUnitScope(t, f)
-			binding, err := scope.bindUniqueWrite(ref)
+			binding, err := dml.BindUniqueWrite(scope.writeHost(), ref)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -96,7 +96,7 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 				t.Fatal(err)
 			}
 			own := storage.RowVersion{Row: 200, Version: 200, Values: insertConflictUnitRow(t, f, 10)}
-			member, existing, err := scope.existingUniqueOutput(bound, own, &evaluation, purpose)
+			member, existing, err := dml.ExistingUniqueOutput(scope.writeHost(), bound, own, &evaluation, purpose)
 			if err != nil || !member {
 				t.Fatal("existing row lost membership", member, err)
 			}
@@ -173,10 +173,10 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 				t.Fatal("post-frontier tuple", admitted, err)
 			}
 		}
-		if err := scope.insertConflictVisible(storage.RowVersion{Born: 10}, false); err != nil {
+		if err := dml.InsertConflictVisible(scope.writeHost(), storage.RowVersion{Born: 10}, false); err != nil {
 			t.Fatal("own proposal is visible", err)
 		}
-		if err := scope.insertConflictVisible(storage.RowVersion{Born: 0}, true); err != nil {
+		if err := dml.InsertConflictVisible(scope.writeHost(), storage.RowVersion{Born: 0}, true); err != nil {
 			t.Fatal("frontier tuple is visible", err)
 		}
 	}
@@ -214,7 +214,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 		t.Fatal("unselected violation", admitted, err)
 	}
 	scope.InsertConflict = nil
-	err = scope.checkUniqueRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
+	err = dml.CheckUniqueRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("ordinary route changed", err)
 	}

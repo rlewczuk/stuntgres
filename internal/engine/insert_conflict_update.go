@@ -30,22 +30,22 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := evaluation.Context.Err(); err != nil {
 			return err
 		}
-		hit, err := s.probeUniqueRow(ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
+		hit, err := dml.ProbeUniqueRow(s.writeHost(), ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
-		if hit.index == nil {
-			other, err := s.probeUniqueRow(ref, candidate, nil, index.WriteBatch{}, nil, index.ProbeRuntime)
+		if hit.Index == nil {
+			other, err := dml.ProbeUniqueRow(s.writeHost(), ref, candidate, nil, index.WriteBatch{}, nil, index.ProbeRuntime)
 			if err != nil {
 				return err
 			}
 			if c.Catalog != s.UniqueBinding.Catalog {
 				journal.RestoreDelta()
-				s.writeHost().DiscardExclusion(candidate)
+				dml.DiscardExclusion(s.writeHost(), candidate)
 				continue
 			}
-			if other.index != nil {
-				return other.diagnostic(s, ref)
+			if other.Index != nil {
+				return other.Diagnostic(s.writeHost(), ref)
 			}
 			if s.ViewWrite != nil {
 				b := dml.BindingForConflict(ref, s.ViewWrite.BaseRelation, c)
@@ -62,13 +62,13 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				}
 				if retry {
 					journal.RestoreDelta()
-					s.writeHost().DiscardExclusion(candidate)
+					dml.DiscardExclusion(s.writeHost(), candidate)
 					continue
 				}
 			} else {
 				var batch index.WriteBatch
 				batch.Append(*candidate)
-				if err := s.Writes().applyValidated(ref, batch); err != nil {
+				if err := dml.ApplyValidated(s.writeHost(), ref, batch); err != nil {
 					return err
 				}
 			}
@@ -79,7 +79,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		// A speculative key must never be held while queuing for the selected row.
 		// Restore only this candidate's newly granted keys, preserving prior claims.
 		journal.RestoreDelta()
-		s.writeHost().DiscardExclusion(candidate)
+		dml.DiscardExclusion(s.writeHost(), candidate)
 		mode := lock.ForNoKeyUpdate
 		for _, target := range c.UpdateTargets {
 			for _, key := range s.UniqueBinding.KeySlots {
@@ -88,7 +88,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				}
 			}
 		}
-		if err := s.acquireUpdateRowMode(ref, hit.row.Row, mode); err != nil {
+		if err := s.acquireUpdateRowMode(ref, hit.Row.Row, mode); err != nil {
 			return err
 		}
 		latest, err := s.writeHost().LatestRow(conflictRowRequest(ref, hit))
@@ -100,13 +100,13 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			continue
 		}
 		// Reacquire row -> key, and demand the same physical identity under both.
-		checked, err := s.probeUniqueRow(ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
+		checked, err := dml.ProbeUniqueRow(s.writeHost(), ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
-		if checked.index == nil || checked.row.Row != old.Row || checked.row.Version != old.Version {
+		if checked.Index == nil || checked.Row.Row != old.Row || checked.Row.Version != old.Version {
 			journal.RestoreDelta()
-			s.writeHost().DiscardExclusion(candidate)
+			dml.DiscardExclusion(s.writeHost(), candidate)
 			continue
 		}
 		if _, duplicate := c.AffectedRows[old.Row]; duplicate {
@@ -131,7 +131,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		}
 		if !matches {
 			journal.RestoreDelta()
-			s.writeHost().DiscardExclusion(candidate)
+			dml.DiscardExclusion(s.writeHost(), candidate)
 			return nil
 		}
 		row, err := evaluateUpdateAssignments(&evaluation, c.Update, c.UpdateTargets, old.Values)
@@ -144,7 +144,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := e.validatePhysicalInsertRow(s, b, &b, schema, row, &evaluation); err != nil {
 			return err
 		}
-		keyChanged, err := s.uniqueKeyChanged(ref, old.Values, row)
+		keyChanged, err := dml.UniqueKeyChanged(s.writeHost(), ref, old.Values, row)
 		if err != nil {
 			return err
 		}
@@ -161,7 +161,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				return errors.New("stuntgres: conflict update predecessor changed under row lock")
 			}
 		}
-		if err := s.claimUniqueRow(ref, old); err != nil {
+		if err := dml.ClaimUniqueRow(s.writeHost(), ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -173,7 +173,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		replacement := index.WriteCandidate{Values: row}
-		if err := s.checkUniqueRow(ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
+		if err := dml.CheckUniqueRow(s.writeHost(), ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
 			return err
 		}
 		b.ViewWrite = view.ViewWriteSlotOf(s.ViewWrite)
@@ -183,7 +183,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		var batch index.WriteBatch
 		batch.ActionMode = actionMode
 		batch.Append(replacement)
-		if err := s.Writes().replaceDistinct(ref, []storage.RowVersion{old}, batch); err != nil {
+		if err := dml.ReplaceRows(s.writeHost(), ref, []storage.RowVersion{old}, batch, dml.ReplaceConflict); err != nil {
 			return err
 		}
 		c.MarkAffected(old.Row, len(s.stage.rows[ref.Address])-1)
@@ -204,6 +204,6 @@ func preflightConflictUpdate(c *dml.InsertConflictState, evaluation *exec.Contex
 }
 
 // conflictRowRequest is the RowConflictUpdate request of a unique conflict.
-func conflictRowRequest(ref ids.ObjectRef, c uniqueConflict) dml.RowRequest {
-	return dml.RowRequest{Kind: dml.RowConflictUpdate, Ref: ref, Row: c.row.Row, Own: !c.committed, Hint: c.position, Parent: c.parent}
+func conflictRowRequest(ref ids.ObjectRef, c dml.UniqueConflict) dml.RowRequest {
+	return dml.RowRequest{Kind: dml.RowConflictUpdate, Ref: ref, Row: c.Row.Row, Own: !c.Committed, Hint: c.Position, Parent: c.Parent}
 }

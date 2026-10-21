@@ -204,3 +204,67 @@ func TestStatementHostPrepareReplacement(t *testing.T) {
 	scope.foreignActionAuth = nil
 	lockEmpty(t, e)
 }
+
+// The statement slots read without allocating until a writer allocates them,
+// and the statement's ticket, catalog reads and activity follow the scope.
+func TestStatementHostStatementSlots(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	sessionSQL(t, s, "CREATE TABLE t(v INT)")
+	scope, _, _ := deleteProbeScope(t, s)
+	h := scope.writeHost()
+	if h.IndexScope(false) != nil || h.ForeignActions(false) != nil {
+		t.Fatal("slot read allocated")
+	}
+	indexes, actions := h.IndexScope(true), h.ForeignActions(true)
+	if indexes == nil || actions == nil || h.IndexScope(false) != indexes || h.ForeignActions(false) != actions {
+		t.Fatal("allocated slot not retained", indexes, actions)
+	}
+	if h.Ticket() == nil || h.Ticket() != scope.ticket {
+		t.Fatal("ticket", h.Ticket())
+	}
+	state := e.catalog.state
+	if read := h.CatalogRead(state); read.State() != state {
+		t.Fatal("catalog read of another state")
+	}
+	if err := h.Active(); err != nil {
+		t.Fatal(err)
+	}
+	if err := scope.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+	wantErrorText(t, h.Active(), "stuntgres: inactive statement scope")
+	lockEmpty(t, e)
+}
+
+// ReadmitRevalidation readmits under the current authority and releases
+// Engine.mu on both its success and its capture failure.
+func TestStatementHostReadmitRevalidation(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	sessionSQL(t, s, "CREATE TABLE t(v INT UNIQUE)")
+	scope, b, _ := deleteProbeScope(t, s)
+	h := scope.writeHost()
+	binding, err := dml.BindUniqueWrite(scope.writeHost(), b.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.ReadmitRevalidation(binding, binding); err != nil {
+		t.Fatal(err)
+	}
+	if !e.mu.TryLock() {
+		t.Fatal("Engine.mu held after readmission")
+	}
+	e.mu.Unlock()
+	scope.foreignActionAuth = &AuthorizationView{}
+	if err := h.ReadmitRevalidation(binding, binding); err == nil {
+		t.Fatal("unknown acting principal admitted")
+	}
+	scope.foreignActionAuth = nil
+	if !e.mu.TryLock() {
+		t.Fatal("Engine.mu held after a failed capture")
+	}
+	e.mu.Unlock()
+	_ = scope.Finish(errors.New("rollback"))
+	lockEmpty(t, e)
+}

@@ -154,7 +154,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	value, _ := sqltype.Integer(job.Child.Columns[0].Usage.Type, 2)
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]storage.RowVersion{old}
-	if err = scope.stage.replace(ref, predecessor[:], index.WriteBatch{Values: replacement[:]}); err == nil {
+	if err = dml.ReplaceRows(scope.writeHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
 		t.Fatal("FK address alone authorized a child replacement")
 	}
 	if err = scope.admitForeignAction(ref, job, false); err != nil {
@@ -172,7 +172,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	ownerAuth := foreignActionOwner(auth, job.Child.Owner)
 	scope.foreignActionAuth = &ownerAuth
 	scope.foreignActions().Settling = true
-	if err = scope.stage.replace(ref, predecessor[:], index.WriteBatch{Values: replacement[:]}); err != nil {
+	if err = dml.ReplaceRows(scope.writeHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	scope.foreignActionAuth = nil

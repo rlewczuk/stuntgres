@@ -227,7 +227,7 @@ func (h *statementHost) ExclusionScanCurrent(scan index.ExclusionScan, idx ids.O
 	return e.exclusions.CurrentLocked(scan.Generation) && scan.View.State() == e.privateCatalogLocked(s.owner.Catalog).State() && scan.Root == root && store == scan.Store && store.Generation == scan.StoreGeneration && len(store.Versions) == len(scan.Versions) && store.Ends == scan.Ends
 }
 
-func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State, proposal *index.WriteCandidate, edit index.ExclusionEdit) (storage.RowVersion, error) {
+func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State, proposal index.WriteCandidate, edit index.ExclusionEdit) (storage.RowVersion, error) {
 	s := h.scope()
 	e := s.engine()
 	e.mu.Lock()
@@ -236,37 +236,28 @@ func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
-	row, err := s.exclusionCandidateLocked(e, proposal, edit.Excluded, state)
+	row, err := s.exclusionCandidateLocked(e, &proposal, edit.Excluded, state)
 	if err != nil {
 		return storage.RowVersion{}, err
 	}
 	row.IndexOutputs = proposal.Indexes
 	if edit.Precheck {
 		row.IndexOutputs = proposal.Precheck
-		proposal.SharedPrecheck = true
-	} else {
-		proposal.SharedIndexes = true
 	}
-	proposal.Exclusion = &row
 	p := e.exclusions.ProjectionLocked(s.ticket)
 	edit.Apply(p, ref.Address, row)
 	s.installExclusionProjectionLocked(e, p)
 	return row, nil
 }
 
-func (h *statementHost) DiscardExclusion(proposal *index.WriteCandidate) {
+func (h *statementHost) DiscardExclusion(version ids.VersionID) {
+	if version == 0 {
+		return
+	}
 	s := h.scope()
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if proposal.Exclusion == nil {
-		return
-	}
-	version := proposal.Exclusion.Version
-	proposal.Exclusion = nil
-	if version == 0 {
-		return
-	}
 	p := e.exclusions.ProjectionLocked(s.ticket)
 	p.DiscardVersion(version)
 	s.installExclusionProjectionLocked(e, p)

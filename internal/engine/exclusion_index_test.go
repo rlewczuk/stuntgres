@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
 	"testing"
@@ -132,7 +133,7 @@ func TestExclusionStrongRowKeys(t *testing.T) {
 			if err := scope.gate(statement(t, "INSERT INTO t VALUES(1)")); err != nil {
 				t.Fatal(err)
 			}
-			binding, err := scope.bindUniqueWrite(roleTableRef(t, e, "public.t"))
+			binding, err := dml.BindUniqueWrite(scope.writeHost(), roleTableRef(t, e, "public.t"))
 			if err != nil {
 				t.Fatal(err)
 			}

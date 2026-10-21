@@ -115,3 +115,15 @@ func (c *Command) CaptureSource(ctx context.Context, dataView *visibility.View, 
 	}
 	return source, nil
 }
+
+// WriteOverlay is the INSERT write overlay of the active command: ON
+// CONFLICT DO UPDATE's or RETURNING's, or nil for neither.
+func (c *Command) WriteOverlay() *InsertWriteOverlay {
+	if c.InsertConflict != nil && c.InsertConflict.Update != nil {
+		return &c.InsertConflict.InsertWriteOverlay
+	}
+	if c.InsertReturning != nil {
+		return &c.InsertReturning.Overlay
+	}
+	return nil
+}

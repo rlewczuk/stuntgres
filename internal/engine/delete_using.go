@@ -118,7 +118,7 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(candidate.Ref, current); err != nil {
+		if err := dml.ClaimUniqueRow(s.writeHost(), candidate.Ref, current); err != nil {
 			return Result{}, err
 		}
 		deleted, err := s.Writes().Delete(candidate)

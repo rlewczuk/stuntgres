@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -44,7 +45,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 			remaining = append(remaining, event)
 			continue
 		}
-		binding, err := s.bindUniqueWrite(event.Parent)
+		binding, err := dml.BindUniqueWrite(s.writeHost(), event.Parent)
 		if err != nil {
 			return err
 		}
@@ -58,12 +59,12 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if bound == nil {
 			continue
 		}
-		conflict, _, err := s.probeExclusion(event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
+		conflict, _, err := dml.ProbeExclusion(s.writeHost(), event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
-		if conflict.index != nil {
-			return conflict.diagnostic(s, event.Parent)
+		if conflict.Index != nil {
+			return conflict.Diagnostic(s.writeHost(), event.Parent)
 		}
 	}
 	s.indexes().ExclusionModes.Events = remaining

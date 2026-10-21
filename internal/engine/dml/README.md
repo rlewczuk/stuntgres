@@ -4,9 +4,10 @@ The records and pure algorithms of the write executors: ON CONFLICT
 arbitration and arbiter inference, the INSERT write overlay, RETURNING
 outputs, MERGE and UPDATE/DELETE records, inheritance target helpers,
 TRUNCATE records, foreign-key action records and COPY insertion batching,
-plus the command state `Command` and the executors' host `Host`. Step 29
+plus the command state `Command`, the executors' host `Host`, and the
+unique and exclusion probing and staging loops that run over it. Step 29
 of the engine split created it (29b moved the clean set, 29d.1 added the
-seam). It sits at L13 in
+seam, 29d.2 moved the probing and staging loops). It sits at L13 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (payload types and pure functions only),
 `authorization`, `catalog`, `copyfmt`, `exec`, `expr`, `fdw`, `ids`,
@@ -20,12 +21,17 @@ it, it never imports the engine, and it never builds a binder. See
 - **Host** (`host.go`): `Host` embeds `exec.Host`, `index.WriteHost` and
   `fdw.WriteRuntime` and adds four pieces, each with one owner:
   `Statement` (the active command, target, private rows, snapshot, unique
-  journal, query authority, FK action scope, WHERE CURRENT OF row, the ON
-  CONFLICT binding check, the disclosure environment and command errors;
-  never locks or waits, read at call time), `Stage` (the write stage
-  windows `PrepareReplacement`, `StageInsert`, `StageReplacement` with its
-  `ReplaceLane`, `AppendAcceptedInsert`, `Delete`; each takes the owner
-  mutex and `Engine.mu` itself and never waits), `RowLocks` (`AcquireRow`,
+  journal, query authority, the FK action and index scopes (read without
+  allocating unless asked), the lock ticket, catalog reads of a captured
+  state, WHERE CURRENT OF row, the ON CONFLICT binding check, the
+  disclosure environment and command errors; never locks or waits, read at
+  call time), `Stage` (`Active`, the activity check before any candidate
+  validation; `ReadmitRevalidation`, which recaptures the write authority
+  under `Engine.mu` and readmits the programs unlocked after a stale
+  binding; and the write stage windows `PrepareReplacement`, `StageInsert`,
+  `StageReplacement` with its `ReplaceLane`, `AppendAcceptedInsert`,
+  `Delete`; each window takes the owner mutex and `Engine.mu` itself and
+  never waits), `RowLocks` (`AcquireRow`,
   `AcquireUpdateRow`, `AcquirePartitionLock` wait with the caller holding
   nothing; `LatestRow` reads one row per `RowKind` under one lock;
   `PhysicalRowEvent`) and `Presentation` (`RowDetail` by `DetailPurpose`,
@@ -36,8 +42,9 @@ it, it never imports the engine, and it never builds a binder. See
   `statement_host_latest_row.go`).
 - **Command state** (`command.go`): `Command`, the active command's DML
   state, grouped by owner (`Indexes`, `Insert`, `Partition`, plus
-  `InheritedTargets`, `ViewWrite` and `RLS`), with `TargetRefs`, `Storage`
-  and `CaptureSource`. The engine embeds it by value in its per-command
+  `InheritedTargets`, `ViewWrite` and `RLS`), with `TargetRefs`, `Storage`,
+  `CaptureSource` and `WriteOverlay` (ON CONFLICT DO UPDATE's or
+  RETURNING's INSERT write overlay). The engine embeds it by value in its per-command
   mutation, so writable CTEs, rules and SQL routines swap it whole.
 - **ON CONFLICT** (`insert_conflict.go`, `insert_conflict_predicate.go`):
   `InsertConflictState` (`NewInsertConflictState`, `SelectArbiters`,
@@ -45,9 +52,26 @@ it, it never imports the engine, and it never builds a binder. See
   `ConflictUpdateCardinalityError`, and the partial-index predicate proofs
   `NormalizeConflictPredicate` (the proof `conflictPredicateImpliedBy` is
   package-internal).
-- **INSERT write overlay** (`insert_write_overlay.go`): `InsertWriteOverlay`
-  and `InsertWriteKeyOverlay`, the per-statement key buckets that unique
-  probing consults for the command's own rows.
+- **INSERT write overlay** (`insert_write_overlay.go`,
+  `write_overlay_probe.go`): `InsertWriteOverlay` and
+  `InsertWriteKeyOverlay`, the per-statement key buckets that unique
+  probing consults for the command's own rows, and `InsertOwnRow`.
+- **Unique and exclusion probing** (`unique.go`, `exclusion.go`,
+  `index_candidates.go`): `BindUniqueWrite`, `ProbeUniqueRow` (committed
+  roots, own and staged rows, the write overlay and the batch prefix;
+  with an ON CONFLICT state only the arbiters), `CheckUniqueRow`,
+  `ClaimUniqueRow`, `UniqueKeyChanged`, `UniqueConflict` with
+  `Diagnostic`, `ProbeExclusion` (also SET CONSTRAINTS' deferred recheck),
+  `DiscardExclusion`,
+  `ValidateIndexCandidates` and `ExistingUniqueOutput`; ON CONFLICT DO
+  NOTHING admission `AdmitInsertConflictRow` and `InsertConflictVisible`
+  (`insert_conflict_admission.go`). They wait only through
+  `ClaimUniqueKey` and `WaitTransaction`, with the caller holding nothing.
+- **Staging loops** (`stage.go`): `ApplyValidated` and `ReplaceRows` own
+  the work around the `Stage` windows: key-change classification, row
+  grants, index candidate validation, and after a stale unique binding
+  the revalidation (`ReadmitRevalidation`, then a reprobe of every row, or
+  the ON CONFLICT DO NOTHING readmission) and the retry.
 - **RETURNING** (`returning.go`, `returning_preflight.go`):
   `InsertReturningOutput`, `MergeReturningOutput` (`Project`),
   `ForeignMutationRow`, `ProjectForeignReturning`, `PreflightReturning`.
@@ -84,19 +108,29 @@ root `Result`) and the COPY protocol. The executors themselves
 TRUNCATE, COPY, FK enforcement and actions, foreign DML) stay until 29d,
 and so do the functions that run the records against the scope:
 `stageMergeRows`, `recordCopyInsertion`, `flushCopyInsertion`,
-`addInsertWriteKey`, `preflightConflictUpdate`. Also root: the COPY cursors
+`preflightConflictUpdate`, and the ON CONFLICT entry points
+`admitInsertRow` and `applyInsertBatch` (29d.3). Also root: the COPY cursors
 (they hold the scope), `truncateGraphFence` (catalog fences implement the
 root `catalogFence` interface; the kind order is in `catalog_fence.go`),
 `mutationTarget` (the admitted target, which statement admission and DDL
-read), `WriteStage` with the loops around the `Stage` windows until 29d.2,
-and `preflightUpdate`/`preflightMerge` (root query preflight). 29d moves
-the executors behind `Host` in steps (29d.2–29d.6).
+read), `WriteStage` with the `Stage` windows (its public `Apply` checks
+each row and calls `ApplyValidated`), the exclusion projection's `*Locked`
+helpers, `readmitProgramsAfterWait`, and `preflightUpdate`/`preflightMerge`
+(root query preflight). 29d moves the executors behind `Host` in steps
+(29d.3–29d.6).
 
 ## Invariants
 
-- The package holds no engine state and no mutex, and nothing here waits.
-  Executors run after `Engine.mu` is released; row-lock waits never happen
-  under it.
+- No pointer to a per-row stack value (a probe candidate, a one-row batch
+  array) crosses a `Host` method: through the interface it escapes, and
+  the value moves to the heap for every row. Pass a copy and apply the
+  result here (`PublishExclusion` and `WriteCandidate.RecordExclusion`);
+  the ON CONFLICT and UPDATE benchmarks and `TestUpdateCoreSparseAllocation`
+  guard the allocation counts.
+- The package holds no engine state and no mutex. It waits only through
+  `Host` methods (`ClaimUniqueKey`, `WaitTransaction`, `AcquireUpdateRow`)
+  with the caller holding nothing. Executors run after `Engine.mu` is
+  released; row-lock waits never happen under it.
 - Messages, details, SQLSTATEs and the first-error choice are unchanged,
   including MERGE and ON CONFLICT cardinality errors and COPY's line
   context.
@@ -109,12 +143,20 @@ the executors behind `Host` in steps (29d.2–29d.6).
 cover the predicate proofs here. Every other DML unit test builds an engine
 and stays in the root package, naming the moved code as `dml.X`; the host
 seam tests are `statement_host_dml_test.go` (`LatestRow` per kind,
-`StageReplacement` stale/flush/drop, `PrepareReplacement` order).
+`StageReplacement` stale/flush/drop, `PrepareReplacement` order, the
+statement slot reads, `Active` after Finish, `ReadmitRevalidation`'s lock
+release). The probing and staging loops are covered by the engine's unique,
+exclusion, ON CONFLICT, view write and allocation tests; the per-row cost
+by `BenchmarkInsertConflictCommittedOmissions`,
+`BenchmarkInsertConflictUpdateDistinctStage` and
+`TestUpdateCoreSparseAllocation`.
 
 ```sh
 make check RUN='^TestInsertConflictPredicate'
 make check RUN='^TestStatementHost'
 make check RUN='^Test(Insert|Update|Merge|Delete|Truncate|Copy|Foreign|InheritanceDML|CTE)'
+make check RUN='^Test(Unique|Exclusion|PartialUnique|ConcurrentIndex|ViewWrite|ViewCheck|UpdateCore)'
+make check RACE=1 RUN='^Test(Unique|Exclusion|InsertConflict)'
 make check RACE=1 RUN='^Test(Truncate|ForeignAction|Copy)'
 ```
 

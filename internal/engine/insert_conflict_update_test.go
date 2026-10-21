@@ -83,7 +83,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	if err != nil || testExport(values[1]) != int64(3) || testExport(old[1]) != int64(1) {
 		t.Fatal("target/excluded slots and immutable RHS", values, old, err)
 	}
-	unique, err := scope.bindUniqueWrite(b.Ref)
+	unique, err := dml.BindUniqueWrite(scope.writeHost(), b.Ref)
 	if err != nil || !reflect.DeepEqual(unique.KeySlots, []int{0}) {
 		t.Fatal("installed simple/nonpartial FK-key bitmap", unique, err)
 	}

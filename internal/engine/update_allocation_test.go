@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -222,7 +223,7 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	var err error
 	payload[1], err = sqltype.Integer(payload[1].Type(), 11)
 	if err == nil {
-		err = scope.Writes().replace(bound.Ref, committed[:1], index.WriteBatch{Values: [][]sqltype.Value{payload}})
+		err = dml.ReplaceRows(scope.writeHost(), bound.Ref, committed[:1], index.WriteBatch{Values: [][]sqltype.Value{payload}}, dml.ReplaceMerge)
 	}
 	if err != nil {
 		scope.Finish(err)

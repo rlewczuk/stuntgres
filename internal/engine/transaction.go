@@ -472,41 +472,12 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 	batch := index.WriteBatch{Values: rows}
 	for i := range batch.Values {
 		candidate := batch.Candidate(i)
-		if err := s.checkUniqueRow(ref, &candidate, nil, batch.Prefix(i)); err != nil {
+		if err := dml.CheckUniqueRow(s.writeHost(), ref, &candidate, nil, batch.Prefix(i)); err != nil {
 			return err
 		}
 		batch.Set(i, candidate)
 	}
-	return w.applyValidated(ref, batch)
-}
-
-// SQL producers validate each accepted prefix before demanding the next row;
-// only this canonical staging method transfers the completed immutable batch.
-func (w *WriteStage) applyValidated(ref ids.ObjectRef, batch index.WriteBatch) error {
-	s := w.scope
-	if err := s.active(); err != nil {
-		return err
-	}
-	h := s.writeHost()
-	for {
-		if err := s.validateIndexCandidates(ref, &batch); err != nil {
-			return err
-		}
-		stale, err := h.StageInsert(ref, batch)
-		if err != nil || !stale {
-			return err
-		}
-		if s.InsertConflict != nil && s.InsertConflict.Update == nil {
-			batch, err = s.revalidateConflictRows(ref, batch)
-			if err != nil {
-				return err
-			}
-		} else {
-			if err := s.revalidateIndexRows(ref, nil, &batch); err != nil {
-				return err
-			}
-		}
-	}
+	return dml.ApplyValidated(s.writeHost(), ref, batch)
 }
 
 func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, error) {

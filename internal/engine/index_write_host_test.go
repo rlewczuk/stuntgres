@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestIndexWriteHostPublishExclusionAdvancesGeneration(t *testing.T) {
 	h := scope.writeHost()
 	var _ index.WriteHost = h
 	ref := roleTableRef(t, e, "public.t")
-	binding, err := scope.bindUniqueWrite(ref)
+	binding, err := dml.BindUniqueWrite(scope.writeHost(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,10 +54,11 @@ func TestIndexWriteHostPublishExclusionAdvancesGeneration(t *testing.T) {
 	}
 	key := []sqltype.Value{value}
 	proposal := index.WriteCandidate{Values: []sqltype.Value{value}}
-	row, err := h.PublishExclusion(ref, binding.Catalog, &proposal, index.ExclusionEdit{Index: idx.Address(), Keys: key, Member: true})
+	row, err := h.PublishExclusion(ref, binding.Catalog, proposal, index.ExclusionEdit{Index: idx.Address(), Keys: key, Member: true})
 	if err != nil {
 		t.Fatal(err)
 	}
+	proposal.RecordExclusion(row, false)
 	if proposal.Exclusion == nil || proposal.Exclusion.Version != row.Version || row.Version == 0 {
 		t.Fatalf("published row %+v, proposal exclusion %+v", row, proposal.Exclusion)
 	}
@@ -76,7 +78,7 @@ func TestIndexWriteHostPublishExclusionAdvancesGeneration(t *testing.T) {
 	if got := h.OwnExclusionKeys(idx.Address(), row.Version); len(got) != 1 || !sqltype.SameDatum(got[0], value) {
 		t.Fatalf("own exclusion keys %v, want [7]", got)
 	}
-	h.DiscardExclusion(&proposal)
+	h.DiscardExclusion(proposal.TakeExclusion())
 	if proposal.Exclusion != nil || h.OwnExclusionKeys(idx.Address(), row.Version) != nil {
 		t.Fatal("discarded proposal is still projected")
 	}

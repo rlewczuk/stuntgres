@@ -39,7 +39,7 @@ func flushCopyInsertion(state *dml.CopyInsertionState, s *StatementScope, b anal
 			_, err = s.admitInsertProducer(b, &candidate, rows.Prefix(position), evaluation)
 		} else {
 			s.UniqueBinding = group.Unique
-			err = s.checkUniqueRow(group.Ref, &candidate, nil, group.Rows)
+			err = dml.CheckUniqueRow(s.writeHost(), group.Ref, &candidate, nil, group.Rows)
 			group.Unique = s.UniqueBinding
 			if err == nil {
 				group.Rows.Append(candidate)
