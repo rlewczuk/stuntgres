@@ -31,7 +31,8 @@ type dropProvider struct {
 	scope          *StatementScope
 	changes        *session.Journal
 	project        func(*catalog.Relation, *catalog.Relation) error
-	identitySource *catalog.Relation // Actual grant-time identity provider only.
+	identitySource *catalog.Relation   // Actual grant-time identity provider only.
+	identityDrop   identityDropCapture // The sequence DROP IDENTITY captured at its grant.
 }
 
 type dropEffect struct {
@@ -267,8 +268,7 @@ func (p *dropProvider) applyForeignKeyDependents(edges []table.DomainDependency)
 	return table.ForeignKeyDependents(p, edges)
 }
 
-func (p *dropProvider) MissingColumnNotice(column, relation string) {
-	notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, column, relation)}
+func (p *dropProvider) Notice(notice sqlstate.Error) {
 	if p.prepared == nil {
 		p.scope.op.EmitNotice(session.LevelNotice, notice)
 		return
@@ -349,7 +349,7 @@ func (p *dropProvider) removedRowType(address ids.ObjectAddress) {
 	p.prepared.recordEffect(dropEffect{rowType: address})
 }
 
-func (p *dropProvider) remove(ref ids.ObjectRef) error {
+func (p *dropProvider) Remove(ref ids.ObjectRef) error {
 	if p.stage != nil {
 		return p.stage.Remove(ref)
 	}

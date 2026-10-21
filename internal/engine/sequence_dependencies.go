@@ -45,7 +45,7 @@ func (provider *dropProvider) OwnedExpressionDependencies(targets []ids.ObjectAd
 			copy(closure, targets)
 		}
 		closure[len(targets)] = ref.Address
-		if err := provider.expressionDependencies(closure, mode, ids.ObjectAddress{}); err != nil {
+		if err := provider.ExpressionDependencies(closure, mode, ids.ObjectAddress{}); err != nil {
 			return err
 		}
 		if provider.scope != nil {
@@ -82,7 +82,7 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 		if err := prepare(ref); err != nil {
 			return err
 		}
-		if err := provider.remove(ref); err != nil {
+		if err := provider.Remove(ref); err != nil {
 			return err
 		}
 	}

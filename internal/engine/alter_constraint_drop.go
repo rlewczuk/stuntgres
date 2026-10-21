@@ -42,12 +42,12 @@ func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, 
 		retired := [2]ids.ObjectAddress{constraint, address}
 		roots := retired[:1]
 		if address != (ids.ObjectAddress{}) {
-			if err := provider.remove(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address)); err != nil {
+			if err := provider.Remove(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address)); err != nil {
 				return next, err
 			}
 			roots = retired[:]
 		}
-		if err := provider.expressionDependencies(roots, action.Mode, constraint); err != nil {
+		if err := provider.ExpressionDependencies(roots, action.Mode, constraint); err != nil {
 			return next, err
 		}
 		// CASCADE can remove a self-reference from this same parent.

@@ -70,7 +70,7 @@ func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relatio
 		// Defaults own their type, unlike a separately removable CHECK. Use
 		// the ordinary authenticated whole-domain/column/view closure before
 		// the composite descriptor and its stored expressions are retagged.
-		return provider.expressionDependencies([]ids.ObjectAddress{target}, mode, target)
+		return provider.ExpressionDependencies([]ids.ObjectAddress{target}, mode, target)
 	}
 	slices.SortFunc(relations, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {

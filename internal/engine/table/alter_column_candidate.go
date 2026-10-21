@@ -29,7 +29,7 @@ func OrdinaryColumnDrop(provider DropDependencyReader, old *catalog.Relation, re
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.Name()))
 		}
 		if provider.StatementBound() {
-			provider.MissingColumnNotice(a.Column.Text, old.Name())
+			provider.Notice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, a.Column.Text, old.Name())})
 		}
 		return old, nil
 	}
