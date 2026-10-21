@@ -2693,6 +2693,41 @@ universally immutable. Held native results retain their row/types across
 Reset/Restore, while held statements read the replacement catalog.
 See [selected proof and smoke](../reference/catalogs/README.md#pg_language-selected-proof).
 
+## pg_ts_config configuration metadata
+
+`pg_catalog.pg_ts_config` is relation3602, namespace11, bootstrap owner10.
+Its exact column order is `oid OID`, `cfgname NAME`, `cfgnamespace OID`,
+`cfgowner OID`, `cfgparser OID`. All five columns are nonnullable with typmod−1;
+NAME has C collation950, and the OID columns have no collation. It is an indexed
+catalog table in `pg_class`/`pg_tables`, not a `pg_views` entry. This logical flag
+does not manufacture physical index objects. Rowtype10064 and array10063 retain
+catalog-owned reciprocal links and are refreshed on catalog replacement.
+
+The complete native inventory is **empty**, including after actual unaccent
+installation. No configuration provider exists: scalar TSVECTOR/TSQUERY codecs
+and dictionary descriptors are not configurations. The pinned PostgreSQL oracle
+independently checks builtin `(3748,'simple',11,10,3722)` and its namespace,
+owner and default-parser links; that row is not seeded natively.
+The existing foreign-key metadata declares cfgnamespace→pg_namespace.oid,
+cfgowner→pg_authid.oid and cfgparser→pg_ts_parser.oid without inventing target
+parser rows.
+
+PUBLIC SELECT works directly, through fresh/held prepared queries and views.
+Empty results still expose exact descriptors. Native Dump/Reset/Restore retains
+the builtin relation, old result metadata and fresh held-statement reads.
+Ordinary-role DML, writable CTEs and MERGE fail with `42501` /
+`permission denied for table pg_ts_config`; TRUNCATE reports `42501` /
+`permission denied: "pg_ts_config" is a system catalog`. Authority is checked
+at execution even for zero-row predicates and held statements. Native superuser
+mutations fail with `0A000` / `catalog source mutation is unsupported`;
+PostgreSQL superusers are not claimed universally unable to write catalogs.
+Native row locking remains `0A000` /
+`row locking is not supported for virtual catalog relations`.
+
+Configuration creation/use, pg_ts_parser, pg_ts_config_map, normalization,
+matching and symbolic REGCONFIG lookup remain outside this catalog support.
+See [selected proof](../reference/catalogs/README.md#pg_ts_config-selected-proof).
+
 ## pg_type supported type metadata
 
 `pg_catalog.pg_type` is relation1247 in pg_catalog11, owner10, rowtype71 and

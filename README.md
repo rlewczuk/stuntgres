@@ -502,6 +502,20 @@ procedural execution and external handlers remain unavailable.
 See [native limits](docs/DIALECT.md#pg_language-supported-language-metadata) and
 [selected proof and feature smoke](reference/catalogs/README.md#pg_language-selected-proof).
 
+## Text-search configuration metadata — change note
+
+`pg_catalog.pg_ts_config` exposes the five released columns in order:
+`oid OID`, `cfgname NAME`, `cfgnamespace OID`, `cfgowner OID`, and `cfgparser OID`.
+The complete native inventory is empty: scalar FTS values and installed unaccent
+dictionaries do not implement configurations. The relation supports PUBLIC reads,
+direct/prepared queries, catalog discovery and native Dump/Reset/Restore without
+fabricating `simple`, parsers or owners. Ordinary-role writes report PostgreSQL
+permission errors; native superuser writes remain unsupported. This does not
+enable configuration DDL/use or symbolic REGCONFIG lookup.
+See [native limits](docs/DIALECT.md#pg_ts_config-configuration-metadata) and
+[selected proof](reference/catalogs/README.md#pg_ts_config-selected-proof).
+
+
 ## Text slicing — change note
 
 `left`, `right`, positional `substring` and `substr` slice TEXT by Unicode

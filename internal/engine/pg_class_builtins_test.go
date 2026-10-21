@@ -27,6 +27,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		{2612, "pg_language"}, {2617, "pg_operator"},
 		{2618, "pg_rewrite"}, {3079, "pg_extension"}, {3456, "pg_collation"},
 		{3501, "pg_enum"}, {3541, "pg_range"}, {3600, "pg_ts_dict"}, {3764, "pg_ts_template"},
+		{3602, "pg_ts_config"},
 	}
 	views := []string{"pg_roles", "pg_group", "pg_user", "pg_cursors", "pg_locks", "pg_timezone_names", "pg_timezone_abbrevs", "pg_available_extensions", "pg_available_extension_versions", "pg_sequences", "pg_views", "pg_prepared_xacts", "pg_indexes", "pg_tables", "pg_matviews", "table_privileges"}
 	check := func() {

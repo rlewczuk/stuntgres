@@ -6,6 +6,49 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_ts_config selected proof
+
+The seven `TestReferencePGTSConfig` scenarios independently specify the empty
+native configuration inventory and the PostgreSQL18.6 builtin witness
+`(3748,"simple",11,10,3722)`. They cover exact five-column descriptors, direct,
+fresh-prepared and physically held name/OID predicates, NULL/absent identities,
+relation/attribute/row-array discovery, namespace/owner/parser links and declared
+foreign keys. Native unaccent installation must not fabricate configurations.
+No oracle-discovery filters remain.
+
+Diagnostics assert SQLSTATE, English text, character positions and all logical
+optional fields through the shared fixture. Ordinary-role DML/CTE/MERGE/TRUNCATE
+denials preserve sentinel and sequence state; a superuser-prepared write must
+use fresh role authority. PostgreSQL zero-row superuser writes run in rollback;
+native mutations explicitly remain unsupported. Native-only phases exercise
+precancellation and Dump→Reset→Restore with a restored view, sentinel, held read
+and retained empty-cursor metadata. Symbolic REGCONFIG remains unsupported.
+
+Run each public selector both as written and with `REFERENCE=1`, under an
+external900-second deadline:
+
+```sh
+make check RUN='^TestReferencePGTSConfig(Inventory|Shape|CatalogLinks)$'
+make check RUN='^TestReferencePGTSConfig(Diagnostics|Permissions|Prepared|Lifecycle)$'
+make check RUN='^TestReferencePGTableViewsBuiltins$'
+make check RUN='^TestReferenceRegTSDiagnostics$'
+```
+
+Package-only invariants supplement the public scenarios:
+
+```sh
+make check RUN='^TestPGTSConfig(Capture|Ownership)$'
+make check RUN='^Test(PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity)$'
+```
+
+The standalone public smoke supplied in the part plan runs from the repository
+root as `go run "$PG_TS_CONFIG_SMOKE"` using its OMP session-file path. Expected
+output is `pg_ts_config: empty inventory; exact shape; guarded writes; restored metadata`
+and exit0. It composes exact shape, empty inventory after unaccent, held reads,
+ordinary-role errors and native control replay. These are expected observations,
+not a claim of executed verification. Root owns selected dual-mode proof,
+whole-project quickcheck and post-integration finalcheck.
+
 ### Extension removal
 
 The nine new removal definitions independently specify PostgreSQL18.6

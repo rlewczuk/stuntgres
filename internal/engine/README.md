@@ -63,6 +63,21 @@ producer ownership. Engine code names the moved types directly
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
+### Text-search configuration catalog
+
+`TestPGTSConfigCapture` exercises the registered empty producer, invalid widths,
+foreign-owned NAME/OID descriptors and cancellation precedence.
+`TestPGTSConfigOwnership` checks current and retained attribute/row/array ownership
+across Reset and rejects an old-generation source in the replacement catalog.
+
+```sh
+make check RUN='^TestPGTSConfig(Capture|Ownership)$'
+make check RUN='^Test(PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity)$'
+```
+
+Public SQL/API coverage and both-mode selectors live in the
+[catalog reference tests](../../reference/catalogs/README.md#pg_ts_config-selected-proof).
+
 ### Immutable settings registry
 
 Focused ownership/default and publication checks:

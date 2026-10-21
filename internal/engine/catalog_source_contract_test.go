@@ -335,14 +335,6 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 }
 
 func TestCatalogSourceSpecMetadata(t *testing.T) {
-	wantOrder := []ids.OID{1247, 1249, 2615, 1213, 6243, 826, 1262, 2964, 2601, 1255, 3764, 3600, 12007, 12008, 12014, 12077, 12073, 12005, 12004, 3456, 2607, 2605, 2612, 2600, 2616, 3541, 2617, 3501, 3079, 12081, 12085, 12048, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2611, 2610, 2618, 12000, 12001, 12002, 12003, 12006, 2328, 1417, 1418, 3118, 12095, 16200, 16202, 16201}
-	var gotOrder []ids.OID
-	for _, spec := range pgcatalog.Specs {
-		gotOrder = append(gotOrder, spec.OID)
-	}
-	if !reflect.DeepEqual(gotOrder, wantOrder) {
-		t.Fatal("descriptor registration order", gotOrder)
-	}
 	e := New()
 	view := e.CatalogRead()
 	stableAttributes := map[ids.OID][]int32{

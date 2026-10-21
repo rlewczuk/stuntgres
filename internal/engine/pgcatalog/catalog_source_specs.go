@@ -277,6 +277,13 @@ var Specs = [...]Spec{
 		{"lanvalidator", sqltype.Oid, false, 0, 0, -1},
 		{"lanacl", sqltype.ACLItemArray, true, 0, 0, -1},
 	}, false, CatalogHasIndexes(LanguageOID), false, false, "stuntgres: missing catalog source type"},
+	{TSConfigOID, ids.PGCatalogNamespaceOID, "pg_ts_config", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"cfgname", sqltype.Name, false, 0, 0, -1},
+		{"cfgnamespace", sqltype.Oid, false, 0, 0, -1},
+		{"cfgowner", sqltype.Oid, false, 0, 0, -1},
+		{"cfgparser", sqltype.Oid, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(TSConfigOID), false, false, "stuntgres: missing catalog source type"},
 	{AggregateOID, ids.PGCatalogNamespaceOID, "pg_aggregate", []ColumnSpec{
 		{"aggfnoid", sqltype.Regproc, false, 0, 0, -1},
 		{"aggkind", sqltype.Char, false, 0, 0, -1},

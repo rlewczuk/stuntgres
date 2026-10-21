@@ -48,6 +48,7 @@ var producers = [...]Registration{
 	{3501, capturePGEnum},
 	{3541, capturePGRange},
 	{3600, captureExtensionCatalog},
+	{TSConfigOID, capturePGTSConfig},
 	{3764, captureExtensionCatalog},
 	{6243, capturePGParameterACL},
 	{12000, captureTableViewSummary},
