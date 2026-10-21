@@ -209,7 +209,7 @@ README; generator and prepared-literal tests stay with their engine owners.
 
 ### Catalog write ownership
 
-`catalogStore.advanceRevisionFrontier` is a pure, saturating calculation over a
+`catalog.AdvanceRevisionFrontier` is a pure, saturating calculation over a
 descriptor revision and (for relations) its sequence plan stamp. It never reserves
 the global allocator or touches live generator state. Publication accumulates a
 local frontier and commits it only at the existing successful catalog/storage/

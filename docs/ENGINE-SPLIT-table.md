@@ -936,7 +936,11 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   and drop units (also `RACE=1`), `^TestReference(Inheritance|AlterDropColumn)`
   in quick and `REFERENCE=1` mode, and quickcheck; racecheck skipped at user
   request
-- [ ] 24d.1 — CREATE decisions moved — linear item 89a
+- [x] 24d.1 — CREATE decisions moved — linear item 89a (`89660982b`,
+  `383a943e6`, `3c0c77d50`, `7f9263745`, then the docs commit) · selected
+  unit (also `RACE=1`) and dual-mode proof, Dump→Restore→Dump smoke and
+  quickcheck passed; racecheck/finalcheck skipped at user request; see the
+  24d.1 record below
 - [ ] 24d.2 — ALTER and inheritance decisions moved — linear item 89b
 - [ ] 24d.3 — Restore and dump cores moved — linear item 89c
 
@@ -1055,6 +1059,74 @@ Notes for 24d (from index 23d.1, item 85a, merged in `0ab96a3a8`):
   and its `OldNameCount`/reown pair matches the new
   `ddlHost.ReownDisplacedTypes`.
 
+### 24d.1 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-TABLE-CREATE-DECISIONS` from
+`116432550` (view 27b merged), rebased onto `949c682a1` (index 23d.2 and
+the 25c, 27c and 30b refines) and then `78ec4c49d` (DML 29b); code
+conflict-free, only the status page conflicted. Re-measured with `frontier`
+over the nine CREATE files: 19 members, about 30 engine edges, all of them
+on `ddl.Host`, `index.Host`, `access.View` plus the `ddl.Authority`
+environment, or the new host methods. After the port the staged set's OUT
+was `sqlError` alone.
+
+| Commit | Change |
+|---|---|
+| `89660982b` | Pure helpers: `catalog.RelationDiagnosticKind` (9 call sites), `catalog.AdvanceRevisionFrontier` (the receiver-free `catalogStore` method; its unit test moved to `catalog`), `session.ExistingRelation` (the 42P07 skipping NOTICE); `table.NewRelation`, `table.AssignDefinitionOIDs` over `ddl.Allocator`, `table.TypedObservationValid` over the typed stage; `stageCheckDependents` to `check_dependents_helpers_test.go` |
+| `383a943e6` | Seam: `table/host.go` (`Host`, `AlterHost`), root `table_host.go`; `TestTableHost*` written first and observed failing (missing methods) |
+| `3c0c77d50` | Port in place into `tblmv_*.go` over `table.Host`; `(*table.Stage).CaptureLikeSource`/`ValidateLikeSources`; `DropTargets` over the stage-less `table.Resolver`; the four SET SCHEMA cores; `QueryTableColumns`; `CreateCheckSyntax` |
+| `7f9263745` | Move into `table` (script `.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-CREATE-DECISIONS/c4.py`), root callers qualified; six emptied root files deleted; no aliases |
+
+- **Moved** (about 1.5k lines, plus the 118-line `host.go`): `StageCreateTable` (was `schemaTableLocked`'s
+  body), `StageInheritance`, `StageLikeColumns`, `StageLikeChecks`,
+  `StageLikeIndexes`, `StageCreateIdentities`, `StageIdentitySequence`,
+  `StageCreateSerials`, `ownedSequenceName`, `StageForeignKey`,
+  `StageCreateForeignKeys`, `CreateCheckSyntax`, `NewRelation`,
+  `AssignDefinitionOIDs`, `DropTargets`, `SetSchemaOwned`, `SetSchemaGroup`,
+  `SetSchemaCandidates`, `SetSchemaConflict`, `QueryTableColumns`,
+  `TypedObservationValid`, the two LIKE source methods.
+- **Root left**: `schemaTableLocked` (a forwarder next to
+  `createTableLocked`; 4 production and 17 test callers), the
+  `validateLikeSources` forwarder (`table_stage.go`), `StageSchemaTable`,
+  `StageForeignTable` and `NewCompositeRelation`, which now reach the
+  `table` functions; `bindCreateChecks` (PARTITION OF still calls it) over
+  `table.CreateCheckSyntax`. Deleted: `create_table_stage.go`,
+  `table_like.go`, `table_like_index.go`, `table_inheritance_definitions.go`,
+  `serial.go`, `foreign_key.go`, `typed_inheritance.go`.
+- **Deviations.** (1) `AlterHost` is declared but the root `alterHost` is
+  not added yet: a method-less skeleton would be dead code; 24d.2 adds it
+  with its methods. (2) `ResolveReference` sits in a small `table.Resolver`
+  (`AccessView` + `ResolveReference`) that `Host` embeds, so `DropTargets`
+  runs before DROP TABLE begins a stage (the root passes a stage-less
+  `ddlHost`). (3) The optional `CheckCreatePersistence` was not split:
+  `createTableLocked` keeps its checks, and `creationError` stays in the root
+  for view 27d to move (nothing 24d.1 moved calls it). (4) SET SCHEMA's
+  conflict core takes a `catalog.Read`; the root wraps
+  `stageCatalogBaseLocked`'s state with `e.catalog.read`. (5) LIKE indexes
+  are in `like_index.go` (the plan listed `like.go`), serial staging in
+  `serial.go`, `QueryTableColumns` in the existing `query_table_create.go`.
+- **Op-less hosts.** `identityCandidate` (ADD IDENTITY) and
+  `stageAddedForeignKey` (ALTER … ADD FOREIGN KEY) call
+  `StageCreateIdentities`/`StageForeignKey` with `ddlHost{e, stage}` and no
+  operation: neither function reads `Context` or `EmitNotice`, and a unit
+  test calls `identityCandidate` without a scope. 24d.2's `alterHost` should
+  supply the operation.
+- **Tests.** Moved: `TestCatalogStoreRevisionFrontier` →
+  `catalog.TestAdvanceRevisionFrontier` (the allocator check went with the
+  receiver); the UTF-8 assertion of `TestSerialAtomicDeclarationsAndNaming`
+  → `table.TestOwnedSequenceNameTruncatesToValidUTF8`. New:
+  `TestTableHostBindColumnDefaultsMatchesCreateTable`,
+  `TestTableHostStageChangedReportsStagedDescriptor`. Adapted to the new
+  names: 21 root test files (locals named `table` in `typed_table_test.go`,
+  `typed_type_lifecycle_test.go` and `partition_unique_replay_test.go`
+  renamed `tbl`). None deleted.
+- **Checks.** String-literal multiset unchanged apart from the new tests and
+  the frontier test's messages; the 24b Dump→Restore→Dump smoke
+  byte-identical; 272 selected engine units passed, also with `RACE=1`;
+  `table` imports no root, `partition`, `view`, `dml` or `control` package;
+  no anonymous-interface assertion in the root names an unexported moved
+  method.
+
 ### Notes for later steps
 
 - 24b: the dependency passes need `dropDependencyReader` and
@@ -1091,3 +1163,17 @@ Notes for 24d (from index 23d.1, item 85a, merged in `0ab96a3a8`):
   `evolveStageIndexesLocked`).
 - `analyze` (12f, done): `closedRegclassDefault` (used by
   `defaultReplayDeferrable`) is now `analyze.ClosedRegclassDefault`.
+- 24d.1 for 24d.2: add `alterHost{ddlHost; scope}` with its methods and the
+  operation, and pass it to `StageCreateIdentities` (ADD IDENTITY) and
+  `StageForeignKey` (`stageAddedForeignKey`), which use op-less hosts now.
+  `table.Resolver` already holds `ResolveReference`. `identity.go` in the
+  root now holds only `evaluateInsertValuesRow` (DML; 29b left it in the root).
+- 24d.1 for 24d.3: `ResolveRestoredRelation` is implemented on `ddlHost`
+  and unused until the Restore cores move.
+- 24d.1 for partition 25d: `schemaPartitionChildLocked` already calls
+  `table.StageCreateIdentities`, `table.NewRelation`,
+  `table.AssignDefinitionOIDs` and `(*table.Stage).CaptureLikeSource`; its
+  defaults, generations and CHECKs still use the root binders
+  (`bindCreateDefaults`, `bindCreateGenerations`, `bindCreateChecks`),
+  which `BindColumnDefaults` (zero token), `BindGenerations` and
+  `BindChecks` wrap.

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `949c682a1` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 103, 104, 105, 106, 107, 108, 111 and 112). Steps 8–17 were
+Last verified against `master` at `78ec4c49d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 103, 104, 105, 106, 107, 108, 111 and 112). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -17,7 +17,8 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now.
 
 - **DML and Dump/Restore:** 113 (control 30c).
-- **Upper features, decisions:** 89a (table 24d.1), 102 (view 27d).
+- **Upper features, decisions:** 89b (table 24d.2), 89c (table 24d.3),
+  102 (view 27d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -114,6 +115,10 @@ Item 108 (DML 29b) is done; DML 29c (item 109) still waits for 89a, 89b,
 93 and 102.
 Item 85b (index 23d.2) is done and closes step 23; DML 29c (item 109)
 still waits for 108, 89a, 89b, 93 and 102.
+Item 89a (table 24d.1) is done, so table 24d.2 (item 89b) and 24d.3 (item
+89c) are ready; partition 25d (item 93) and fdw 26e (item 98) still wait
+for 89b, and DML 29c (item 109) for 89b, 93 and 102. 89a did not move
+`creationError`; view 27d (item 102) moves it to `ddl`.
 
 ## Task tree
 
@@ -541,8 +546,9 @@ still waits for 108, 89a, 89b, 93 and 102.
   - [x] 24b — `table` created and clean set moved *(broad)* (`7e9873c11`,
     `b05bbcdf9`, `8797fe715`, `a0ef76b6c`, `e0eb9d15d`, `30ed6f576`, docs)
   - [x] 24c — Host refined (docs only) (`e6176d3c3` regression fix, docs)
-  - [ ] 24d.1 — CREATE decisions moved (CREATE TABLE, LIKE, identity and
-    serial, FK staging, DROP/SET SCHEMA cores)
+  - [x] 24d.1 — CREATE decisions moved (CREATE TABLE, LIKE, identity and
+    serial, FK staging, DROP/SET SCHEMA cores) (`89660982b`, `383a943e6`,
+    `3c0c77d50`, `7f9263745`, docs)
   - [ ] 24d.2 — ALTER and inheritance decisions moved (candidates,
     rebuilds, recursion decisions, removal reader)
   - [ ] 24d.3 — Restore and dump cores moved
@@ -1243,8 +1249,16 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     regression (the inheritance drop-discovery reader assertion never
     matched): unit, `RACE=1`, dual-mode selection and quickcheck passed;
     racecheck/finalcheck skipped at user request
-89a. [ ] Table 24d.1: CREATE decisions moved —
-    [table](ENGINE-SPLIT-table.md) 24d · needs 88, 85a
+89a. [x] Table 24d.1: CREATE decisions moved —
+    [table](ENGINE-SPLIT-table.md) 24d · needs 88, 85a (`89660982b`,
+    `383a943e6`, `3c0c77d50`, `7f9263745`, then the docs commit) ·
+    `table.Host` (with the stage-less `table.Resolver`) on `ddlHost`,
+    `table.AlterHost` declared; `StageCreateTable`, inheritance, LIKE,
+    identity, serial and FK staging, `NewRelation`, `AssignDefinitionOIDs`,
+    `DropTargets`, the SET SCHEMA cores and `QueryTableColumns` in `table`;
+    `catalog.RelationDiagnosticKind`, `catalog.AdvanceRevisionFrontier`; no
+    aliases · selected unit, `RACE=1` and dual-mode proof, dump smoke and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 89b. [ ] Table 24d.2: ALTER and inheritance decisions moved —
     [table](ENGINE-SPLIT-table.md) 24d · needs 89a
 89c. [ ] Table 24d.3: Restore and dump cores moved —
