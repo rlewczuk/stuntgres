@@ -168,7 +168,8 @@ func mergeHasVirtualReads(merge *analyze.MergeBinding) bool {
 	return false
 }
 
-func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding, target, inputs *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
+func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding, target, inputs *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
+	e := scope.engine()
 	defer target.Close()
 	defer inputs.Close()
 	unique, err := scope.bindUniqueWrite(b.Ref)

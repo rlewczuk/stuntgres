@@ -30,7 +30,7 @@ func TestMergeInsertBinding(t *testing.T) {
 	if inputs.View.Data() != data || len(data.Committed) != 2 {
 		t.Fatal("target/source did not share frontier")
 	}
-	r, err := e.executeMerge(op.Ctx, scope, b, target, inputs, nil, "public")
+	r, err := executeMerge(op.Ctx, scope, b, target, inputs, nil, "public")
 	if err != nil || r.Count != 2 || r.Rows != nil || len(scope.stage.rows[b.Ref.Address]) != 2 {
 		t.Fatal("completed producer", r, err, scope.stage.rows)
 	}
@@ -176,7 +176,7 @@ func TestMergeInsertCancellation(t *testing.T) {
 				target.Close()
 				inputs.Close()
 			} else {
-				result, err = e.executeMerge(ctx, scope, b, target, inputs, nil, "public")
+				result, err = executeMerge(ctx, scope, b, target, inputs, nil, "public")
 			}
 			if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || len(scope.stage.rows) != 0 {
 				t.Fatal("cancellation leaked publication", result, err, scope.stage.rows)

@@ -473,7 +473,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 		e.mu.Unlock()
-		return e.executeMerge(ctx, scope, b, target, inputs, canonical, schema)
+		return executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
 		err = e.captureCheckCommentSnapshotLocked(scope, b.Relation)
 		for _, target := range scope.inheritedTargets {
@@ -522,7 +522,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 		e.mu.Unlock()
-		return e.executeUpdate(ctx, scope, b, source, from, canonical, schema)
+		return executeUpdate(ctx, scope, b, source, from, canonical, schema)
 	case *parser.Insert:
 		return e.executeInsertLocked(scope, execution, canonical)
 	case *parser.Delete:
@@ -551,7 +551,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			view.Release()
 			return Result{}, viewErr
 		}
-		return scope.executeDelete(b, view, inputs, canonical)
+		return executeDelete(scope, b, view, inputs, canonical)
 	case *parser.CreateQueryTable:
 		return e.executeQueryTableLocked(scope, s, b, queryRoot, canonical, creationStage, creationDescriptor)
 	case *parser.DeclareCursor:

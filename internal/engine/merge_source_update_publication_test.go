@@ -56,7 +56,7 @@ func TestMergeSourceUpdateCorrelatedArrayBound(t *testing.T) {
 	sessionSQL(t, peer, "INSERT INTO t VALUES(2,ARRAY[10,20,30])")
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN NOT MATCHED BY SOURCE THEN UPDATE SET a[(SELECT t.id)]=t.a[1],a[1]=t.a[t.id]")
 	defer op.Done()
-	result, err := e.executeMerge(context.Background(), scope, b, target, inputs, nil, "public")
+	result, err := executeMerge(context.Background(), scope, b, target, inputs, nil, "public")
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)

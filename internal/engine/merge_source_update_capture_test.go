@@ -26,7 +26,7 @@ func TestMergeSourceUpdateCapture(t *testing.T) {
 	}
 	sessionSQL(t, peer, "UPDATE source SET id=2")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(3,30)")
-	result, err := e.executeMerge(context.Background(), scope, b, target, inputs, nil, "public")
+	result, err := executeMerge(context.Background(), scope, b, target, inputs, nil, "public")
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
