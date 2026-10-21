@@ -1,10 +1,13 @@
 package engine
 
 import (
+	"strconv"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/sqltype"
 )
 
 // regclassReplayReferences discovers only replay-order prerequisites. Opaque
@@ -33,4 +36,46 @@ func regclassReplayReferences(view catalog.Read, node expr.Expr, visit func(ids.
 		}
 	})
 	return failure
+}
+
+// Remap captured relation identities recursively without rendering or reparsing
+// array text. Payloads are copied only on the first affected element.
+func remapRegclassDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
+	if value.IsNull() {
+		return value, nil
+	}
+	if value.Type().BaseType().IsComposite() {
+		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return remapRegclassDatum(member, destination)
+		})
+	}
+	if value.Type().BaseType().IsArray() {
+		return value.MapArray(value.Type(), func(element sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return remapRegclassDatum(element, destination)
+		})
+	}
+	if value.Type().BaseType().ID() != sqltype.Regclass {
+		return value, nil
+	}
+	physical, err := value.BaseValue()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	text, err := physical.Text()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	oid, err := strconv.ParseUint(text, 10, 32)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	target := destination(ids.OID(oid))
+	if target == ids.OID(oid) {
+		return value, nil
+	}
+	physical = sqltype.String(value.Type().BaseType(), strconv.FormatUint(uint64(target), 10))
+	if value.Type().IsDomain() {
+		return value.Type().Wrap(physical)
+	}
+	return physical, nil
 }

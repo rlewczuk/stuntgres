@@ -178,3 +178,13 @@ func regclassIdentifier(name string) string {
 	}
 	return name
 }
+
+type catalogRegclassOutput struct {
+	view       catalog.Read
+	path       []ids.ObjectAddress
+	definition catalog.DefinitionReader
+}
+
+func (r catalogRegclassOutput) FormatRegclass(id uint32) (string, error) {
+	return regclassSpellingAt(r.view, r.definition, r.path, ids.OID(id)), nil
+}

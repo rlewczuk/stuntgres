@@ -303,13 +303,3 @@ func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader cata
 	}
 	return literalSQL(ctx, n)
 }
-
-type catalogRegclassOutput struct {
-	view       catalog.Read
-	path       []ids.ObjectAddress
-	definition catalog.DefinitionReader
-}
-
-func (r catalogRegclassOutput) FormatRegclass(id uint32) (string, error) {
-	return regclassSpellingAt(r.view, r.definition, r.path, ids.OID(id)), nil
-}
