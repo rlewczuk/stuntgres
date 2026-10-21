@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"slices"
 	"strings"
 
 	"stuntgres/internal/engine/access"
@@ -33,18 +32,6 @@ func (r *restoreRun) inlineBefore2(op *session.Operation, stmt parser.Statement)
 	r.pairedDomainOwner = typedef.RestoredDomainOwner{}
 	r.lastAuthorization, r.createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
 	r.pairedOwner = restoredInheritedOwner{}
-	if alteration, ok := stmt.(*parser.AlterTable); ok && r.cur.physicalConstructor == nil {
-		declaration, admitted, captureErr := r.stage.captureInheritedForeignKey(op, alteration, r.historicalRefs)
-		if captureErr != nil {
-			return false, captureErr
-		}
-		if admitted {
-			r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
-			r.physicalForeignProvider = nil
-			r.pairedNotNull = restoredNotNull{}
-			return true, nil
-		}
-	}
 	return false, nil
 }
 
@@ -291,23 +278,7 @@ func (r *restoreRun) inlineAdmit(op *session.Operation, stmt parser.Statement) (
 	return restoreAdmitted, err
 }
 
-func (r *restoreRun) inlinePrepare(op *session.Operation, stmt parser.Statement) error {
-	var err error
-	if insertion, ok := stmt.(*parser.Insert); ok && len(r.generationRepairs) != 0 {
-		r.generationRepairs, err = r.stage.closeRestoredRecipesForData(op, insertion, r.generationRepairs)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (r *restoreRun) inlinePrepare2(op *session.Operation, stmt parser.Statement) error {
-	if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetExpression {
-		if err := r.stage.pairRestoredGeneration(op, alteration, r.placeholderOrigins); err != nil {
-			return err
-		}
-	}
 	operationReplay(op).tableDestination = false
 	if _, ok := stmt.(*parser.CreateTable); ok {
 		operationReplay(op).tableDestination = true
@@ -406,41 +377,6 @@ func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, r
 		if err != nil {
 			return err
 		}
-	}
-	if _, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
-		r.historicalRefs[result.created.Address] = result.created
-		captureHistoricalRelation(r.stage.CatalogRead(), result.created, r.historicalAuthority.facts)
-	}
-	return nil
-}
-
-func (r *restoreRun) inlineAfter2(op *session.Operation, stmt parser.Statement, result Result) error {
-	var err error
-	if creation, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
-		r.stage.captureRestoredPlaceholders(result.created, creation, r.placeholderOrigins)
-		if r.cur.ownerForCreate != (authorization.PrincipalRef{}) && len(creation.Parents) != 0 {
-			r.pairedOwner, err = r.stage.captureInheritedOwner(op, result.created, r.cur.ownerForCreate)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	if alteration, altered := stmt.(*parser.AlterTable); altered && slices.ContainsFunc(alteration.Actions, func(a parser.AlterTableAction) bool {
-		return a.Action == parser.AddCheck || a.Action == parser.AddNotNull || a.Action == parser.SetNotNull
-	}) {
-		r.stage.captureHistoricalFacts(r.historicalRefs, r.historicalAuthority.facts)
-	}
-	return err
-}
-
-func (r *restoreRun) inlineAfter3(op *session.Operation, stmt parser.Statement, result Result) error {
-	if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetExpression {
-		record, captureErr := r.stage.captureRestoredGeneration(op, alteration)
-		if captureErr != nil {
-			return captureErr
-		}
-		r.generationRepairs = append(r.generationRepairs, record)
-		delete(r.placeholderOrigins, restoredGenerationKey{record.ref.Address, record.attribute})
 	}
 	return nil
 }

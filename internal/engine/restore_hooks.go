@@ -136,15 +136,17 @@ var restoreHooks = []restoreHook{
 	{name: "table: deferred physical primary owner", before: beforeRestoreDeferredPhysicalOwner},
 	{name: "table: physical import index base", before: beforeRestorePhysicalIndexBase},
 	{name: "inline before 2", before: (*restoreRun).inlineBefore2},
+	{name: "inheritance: inherited foreign key", before: beforeRestoreInheritedForeignKey},
 	{name: "table: physical self foreign key", before: beforeRestorePhysicalSelfForeignKey},
 
 	// Admission.
 	{name: "inline admit", admit: (*restoreRun).inlineAdmit},
 
 	// After admission, before execution.
-	{name: "inline prepare", prepare: (*restoreRun).inlinePrepare},
+	{name: "inheritance: generation recipe data", prepare: prepareRestoreRecipeData},
 	{name: "table: NOT NULL pair reset", prepare: prepareRestoreNotNullPairReset},
 	{name: "table: NOT NULL pair", prepare: prepareRestoreNotNullPair},
+	{name: "inheritance: generation pair", prepare: prepareRestoreGenerationPair},
 	{name: "inline prepare 2", prepare: (*restoreRun).inlinePrepare2},
 
 	// After execution.
@@ -152,11 +154,14 @@ var restoreHooks = []restoreHook{
 	{name: "table: physical foreign key provider", after: afterRestorePhysicalForeignKeyProvider},
 	{name: "table: physical import index", after: afterRestorePhysicalImportIndex},
 	{name: "inline after", after: (*restoreRun).inlineAfter},
+	{name: "inheritance: historical relation", after: afterRestoreHistoricalRelation},
 	{name: "table: NOT NULL origins", after: afterRestoreNotNullOrigins},
-	{name: "inline after 2", after: (*restoreRun).inlineAfter2},
+	{name: "inheritance: generation placeholders", after: afterRestoreGenerationPlaceholders},
+	{name: "inheritance: inherited owner", after: afterRestoreInheritedOwner},
+	{name: "inheritance: historical facts", after: afterRestoreHistoricalFacts},
 	{name: "table: foreign key targets", after: afterRestoreForeignKeys},
 	{name: "table: deferred default", after: afterRestoreDefault},
-	{name: "inline after 3", after: (*restoreRun).inlineAfter3},
+	{name: "inheritance: generation capture", after: afterRestoreGeneration},
 
 	// After the last statement.
 	{name: "table: physical NOT NULL boundary at end", finish: finishRestorePhysicalBoundary},
