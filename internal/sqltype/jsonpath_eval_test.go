@@ -139,7 +139,7 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	p := navigatePlan(t, types)
 	values := navigateValues(t, types, `[{"x":1},{},{"x":3}]`, `strict $[*].x`, `{}`, true)
 	var nodes []*jsonbNode
-	status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(n *jsonbNode) (bool, error) { nodes = append(nodes, n); return true, nil })
+	status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
 	if err != nil || status.kind != jsonpathSuppressibleStop || status.diagnostic == nil || len(nodes) != 1 || nodes[0] != &values[0].jsonb.root.items[0].fields[0].value {
 		t.Fatal(status, err, nodes)
 	}
@@ -147,7 +147,7 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	if err != nil || v.text != `[1]` {
 		t.Fatal(v.text, err)
 	}
-	status, err = executeJSONPath(context.Background(), values[0], jsonbSetUnitInput(t, types[JSONPath], `$[*]`), values[2], func(*jsonbNode) (bool, error) { return false, nil })
+	status, err = executeJSONPath(context.Background(), values[0], jsonbSetUnitInput(t, types[JSONPath], `$[*]`), values[2], func(jsonpathItem) (bool, error) { return false, nil })
 	if err != nil || status.kind != jsonpathConsumerStop {
 		t.Fatal(status, err)
 	}
@@ -182,7 +182,7 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	} {
 		vals := navigateValues(t, types, tc.doc, tc.path, `{}`, true)
 		emitted := 0
-		status, err := executeJSONPath(context.Background(), vals[0], vals[1], vals[2], func(*jsonbNode) (bool, error) { emitted++; return true, nil })
+		status, err := executeJSONPath(context.Background(), vals[0], vals[1], vals[2], func(jsonpathItem) (bool, error) { emitted++; return true, nil })
 		if emitted != 0 {
 			t.Fatal("subscript emitted before operand completed", emitted)
 		}

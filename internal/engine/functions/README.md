@@ -523,6 +523,23 @@ intent; the JSON aggregates' FORMAT JSON input uses it too.
 `SQLJSONReturningType` resolves RETURNING with the SETOF and pseudo-type
 checks. `BindJSONPredicate` binds `IS JSON` into `JSONPredicate`.
 
+Standard query syntax uses `parser.SQLJSONQueryExpr` and `BindSQLJSONQuery`,
+not the ordinary function registry or constructor RETURNING coercion.
+`SQLJSONQuery` evaluates document, path, all ordered PASSING operands and only
+the selected behavior DEFAULT. Its immutable sqltype plan keeps result
+conversion inside ON ERROR; source casts and ordinary errors stay outside.
+An unformatted unknown string document uses a private execution-time input
+node: binding and constant preflight retain its text child, and execution
+performs JSONB input before the document/path NULL jumps and ON ERROR boundary.
+Explicit source casts and unknown path literals retain ordinary analysis and
+preflight behavior. The query node publishes nullable result metadata through
+`expr.ResultNullability`, including composite RETURNING destinations.
+Rebuild remints descriptor-bearing query/default plans, and capture/render
+enumerate every child, including lazy defaults. `SQLJSONQueryPieces` retains
+wrapper, quote, format and behavior clauses for both bound and raw renderers.
+Dynamic paths and mixed-zone temporal predicates supply path-specific STABLE
+properties; bare temporal transport does not.
+
 `BindBinary` takes a precomputed visibility for the engine's analyzer tests;
 it reaches the text routes `BindPosixSubstring`, `BindSimilarSubstring` and
 `FinishString`. `FinishBinary` is shared with the string family's binary
@@ -1126,6 +1143,16 @@ without allocating code strings, so two empty/no-letter inputs agree4.
 There is no input-length limit, Unicode normalization or transliteration.
 
 ## Testing
+
+### SQL/JSON query protocol
+
+`TestSQLJSONQueryExpression` exercises runtime order, lazy defaults, document
+NULL skipping, deferred document input errors, ordinary child-error propagation
+and independent rebuilt plans.
+Run `make check RUN='^TestSQLJSONQueryExpression$'`. Public query contracts and
+the required native/real-mode selectors live in
+[`reference/binary_json_arrays`](../../../reference/binary_json_arrays/README.md#sqljson-query-functions).
+
 ### Aggregate provider remap
 
 `aggregate_remap_test.go` holds the leaf units: every persistable provider maps

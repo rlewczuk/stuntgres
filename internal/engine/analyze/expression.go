@@ -553,6 +553,12 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			if err != nil {
 				return nil, err
 			}
+		case parser.SQLJSONQueryExpr:
+			var err error
+			node, err = functions.BindSQLJSONQuery(b, r)
+			if err != nil {
+				return nil, err
+			}
 		case parser.SQLJSONExpr:
 			var err error
 			node, err = b.bindSQLJSON(r)
@@ -1214,6 +1220,8 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.MergeActionExpr:
 		return "merge_action", true
+	case parser.SQLJSONQueryExpr:
+		return r.Kind, true
 	case parser.SQLJSONExpr:
 		return r.Kind, true
 	case parser.JSONPredicateExpr:
@@ -1684,7 +1692,7 @@ func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolic
 	switch raw.(type) {
 	case parser.InListExpr, parser.ArrayComparisonExpr:
 	case parser.RowExpr, parser.FieldExpr, parser.StarExpr, parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.SubscriptExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
-	case parser.SQLJSONExpr, parser.JSONPredicateExpr:
+	case parser.SQLJSONExpr, parser.SQLJSONQueryExpr, parser.JSONPredicateExpr:
 	case parser.MergeActionExpr:
 	default:
 		return ComparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")

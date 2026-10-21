@@ -113,7 +113,7 @@ func (p JSONBPathExistsPlan) Evaluate(ctx context.Context, values []Value) (Valu
 		return Null(p.result.Type), nil
 	}
 	found := false
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(*jsonbNode) (bool, error) {
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(jsonpathItem) (bool, error) {
 		found = true
 		// Strict existence must demand the tail, including ordinary errors.
 		return values[1].jsonpath.strict, ctx.Err()
@@ -140,9 +140,9 @@ func (p JSONBPathMatchPlan) Evaluate(ctx context.Context, values []Value) (Value
 	}
 	var first *jsonbNode
 	count := 0
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n *jsonbNode) (bool, error) {
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n jsonpathItem) (bool, error) {
 		if count == 0 {
-			first = n
+			first = n.jsonbNode
 		}
 		if count < 2 {
 			count++
@@ -179,9 +179,9 @@ func (p JSONBPathQueryFirstPlan) Evaluate(ctx context.Context, values []Value) (
 		return Null(p.result.Type), nil
 	}
 	var first *jsonbNode
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n *jsonbNode) (bool, error) {
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n jsonpathItem) (bool, error) {
 		if first == nil {
-			first = n
+			first = n.jsonbNode
 		}
 		// First selects one item, but never truncates demanded traversal.
 		return true, ctx.Err()
@@ -201,8 +201,8 @@ func (p JSONBPathQueryPlan) Evaluate(ctx context.Context, values []Value) ([]Val
 		return nil, err
 	}
 	var result []Value
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n *jsonbNode) (bool, error) {
-		v, err := p.output(ctx, n)
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n jsonpathItem) (bool, error) {
+		v, err := p.output(ctx, n.jsonbNode)
 		if err != nil {
 			return false, err
 		}

@@ -66,6 +66,8 @@ func (e *Engine) bindIndexExpression(op *session.Operation, input sqltype.InputE
 	switch r := raw.(type) {
 	case parser.ColumnExpr:
 		label = r.Name.Parts[len(r.Name.Parts)-1].Text
+	case parser.SQLJSONQueryExpr:
+		label = r.Kind
 	case parser.SQLJSONExpr:
 		label = r.Kind
 	case parser.FunctionExpr:

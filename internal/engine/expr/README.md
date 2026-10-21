@@ -181,6 +181,10 @@ without a hook gets the switch's previous generic behavior:
   exactly one recognized formatted-input conversion, never an arbitrary cast.
   The engine retains conversion plans, catalog/typmod/domain declarations,
   literal transport and validation; the description stores no engine callback.
+  Standard SQL/JSON query nodes instead supply `OwnedReturning`: their own result
+  usage owns the named type slot because conversion is inside ON ERROR. A genuine
+  enclosing cast remains outside that boundary. No renderer resolves a second
+  RETURNING type from raw spelling.
 - **`GroupIdentity`** (`SameGroup`): whether another expression is the same
   grouping expression (GROUP BY matching, DISTINCT ON, CHECK definition
   equality). The node compares its own identity and calls the engine's `same`

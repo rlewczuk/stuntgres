@@ -2465,3 +2465,64 @@ actual emitted SQL replay on PostgreSQL. Control replacement failures must leave
 the destination dump byte-for-byte unchanged; parameters in every new argument
 slot remain rejected. Quiet test success alone is not a discovery transcript.
 
+
+### SQL/JSON query functions
+
+`TestReferenceSQLJSONQueryValues`, `Wrappers`, `Passing`, `Returning`,
+`Behaviors`, `Diagnostics`, `Parameters`, `Consumers`, `Lifecycle` and
+`FeatureSmoke` specify independent pinned PostgreSQL 18.6 contracts. The shared
+bodies retain direct/prepared execution, held recovery, result metadata before
+iteration, complete diagnostics, typed temporal PASSING and live timezone output.
+Composite RETURNING retains the shared fixture's descriptor flags, exact raw
+bytes and normalized/recorder-owned rows. No discovery-only backend filter is
+part of these definitions.
+
+NULL runtime short-circuit witnesses use table-backed document/path/PASSING
+inputs. Constant-preflight failures are separate witnesses: they do not imply
+runtime child evaluation. Portal parameter Context is asserted explicitly in
+both native and PostgreSQL held-input diagnostics. The current-environment
+witness changes the SAME held statements' session settings; its separate
+current-date/time DST witness uses each selected zone's SQL literal, not the
+statement-level-only native `current_setting` call. Stored recipes, sequence dependencies,
+renames, admission properties, atomic writes and reached cancellation use actual
+public consumers and native Dump/Reset/Restore.
+
+Run each selected group in native and real pinned PostgreSQL modes:
+
+```sh
+make check RUN='^TestReferenceSQLJSONQuery(Values|Wrappers|Passing|Returning)$'
+make check RUN='^TestReferenceSQLJSONQuery(Values|Wrappers|Passing|Returning)$' REFERENCE=1
+make check RUN='^TestReferenceSQLJSONQuery(Behaviors|Diagnostics|Parameters)$'
+make check RUN='^TestReferenceSQLJSONQuery(Behaviors|Diagnostics|Parameters)$' REFERENCE=1
+make check RUN='^TestReferenceSQLJSONQuery(Consumers|Lifecycle|FeatureSmoke)$'
+make check RUN='^TestReferenceSQLJSONQuery(Consumers|Lifecycle|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceSQLJSONQuery(Parameters|Lifecycle)$' RACE=1
+make check RUN='^TestSQLJSONQuery(Plan|Expression|Parser)$'
+```
+
+The feature smoke holds all three functions across found, empty, multiple,
+malformed-source, same-held recovery and typed NULL inputs. Expected principal
+rows are `true/[1, 2]/123`, `false/NULL/-1` and `false/[3]/-2`; malformed document
+input is unconditional `22P02`. Quotes, JSON null versus SQL NULL, behavior
+generated arrays and a stored VALUE view returning 7 survive real native logical
+replay. Whole-project Docker-free verification remains `make quickcheck`.
+
+`TestReferenceSQLJSONQueryMutability` is the focused oracle-first regression for
+temporal status propagation through filter `@`, lax scalar index/wildcard access
+and filters used as comparison operands. Mixed-zone paths independently require
+full `42P17` generated-column/index diagnostics at execution on direct and
+prepared DDL routes. Table-backed execution, including the SAME held statement,
+expects false/true/false across UTC/America/Los_Angeles/UTC. Strict scalar
+accessors, same-zone comparisons and all five bare temporal variable types are
+immutable admission controls, with independently specified generated values.
+The same assertions run on both backends, without discovery guards or skips.
+Strict generated/index controls retain `DEFAULT false ON ERROR` inside
+COALESCE rather than bypassing the scoped SQL grammar. Supplementary private
+`TestSQLJSONPathMutable` covers nested current isolation, recursive depth and
+subscript-bound boundaries; it does not replace these public assertions.
+
+```sh
+make check RUN='^TestReferenceSQLJSONQueryMutability$' REFERENCE=1
+make check RUN='^TestSQLJSONPathMutable$'
+make check RUN='^TestReferenceSQLJSONQueryMutability$'
+```

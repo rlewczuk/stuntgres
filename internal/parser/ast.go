@@ -1950,13 +1950,14 @@ type JSONFormat struct {
 }
 
 type JSONAggregateOptions struct {
-	Input     *JSONFormat
-	Absent    bool
-	NullPos   Position
-	Unique    bool
-	UniquePos Position
-	Returning *TypeName
-	Output    *JSONFormat
+	Input        *JSONFormat
+	Absent       bool
+	NullPos      Position
+	Unique       bool
+	UniquePos    Position
+	Returning    *TypeName
+	Output       *JSONFormat
+	ReturningPos Position
 }
 
 // SQLJSONExpr retains written SQL/JSON clauses without ordinary function lookup.
@@ -1975,6 +1976,68 @@ type SQLJSONExpr struct {
 
 func (SQLJSONExpr) expression()                {}
 func (e SQLJSONExpr) SourcePosition() Position { return e.Pos }
+
+// SQLJSONQueryExpr keeps query-function clauses separate from constructors.
+// Children are in execution order; DEFAULT children follow all PASSING children.
+type SQLJSONQueryExpr struct {
+	Kind            string
+	Document, Path  Expr
+	Input, Output   *JSONFormat
+	Passing         []SQLJSONPassing
+	Returning       *TypeName
+	Wrapper, Quotes string
+	Empty, Error    SQLJSONBehavior
+	Pos             Position
+}
+
+type SQLJSONPassing struct {
+	Value Expr
+	Name  Identifier
+}
+
+type SQLJSONBehavior struct {
+	Kind      string
+	Default   Expr
+	Pos       Position
+	BranchPos Position
+}
+
+func (SQLJSONQueryExpr) expression()                {}
+func (e SQLJSONQueryExpr) SourcePosition() Position { return e.Pos }
+
+func (e SQLJSONQueryExpr) Children() []Expr {
+	children := make([]Expr, 0, 4+len(e.Passing))
+	children = append(children, e.Document, e.Path)
+	for _, binding := range e.Passing {
+		children = append(children, binding.Value)
+	}
+	if e.Empty.Default != nil {
+		children = append(children, e.Empty.Default)
+	}
+	if e.Error.Default != nil {
+		children = append(children, e.Error.Default)
+	}
+	return children
+}
+
+// WithChildren retains all clause metadata while replacing expression children.
+func (e SQLJSONQueryExpr) WithChildren(children []Expr) SQLJSONQueryExpr {
+	e.Document, e.Path = children[0], children[1]
+	e.Passing = append([]SQLJSONPassing(nil), e.Passing...)
+	i := 2
+	for j := range e.Passing {
+		e.Passing[j].Value = children[i]
+		i++
+	}
+	if e.Empty.Default != nil {
+		e.Empty.Default = children[i]
+		i++
+	}
+	if e.Error.Default != nil {
+		e.Error.Default = children[i]
+	}
+	return e
+}
 
 type JSONPredicateExpr struct {
 	Child       Expr

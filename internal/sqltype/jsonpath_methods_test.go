@@ -14,7 +14,7 @@ func TestJSONPathMethodsRetainedNodes(t *testing.T) {
 		t.Fatal(err)
 	}
 	var nodes []*jsonbNode
-	_, err = executeJSONPath(context.Background(), values[0], values[1], values[2], func(n *jsonbNode) (bool, error) { nodes = append(nodes, n); return true, nil })
+	_, err = executeJSONPath(context.Background(), values[0], values[1], values[2], func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
 	if err != nil || len(nodes) != 3 {
 		t.Fatal(len(nodes), err)
 	}
@@ -59,7 +59,7 @@ func TestJSONPathMethodsIsolation(t *testing.T) {
 		wg.Go(func() {
 			for range 25 {
 				var nodes []*jsonbNode
-				_, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(n *jsonbNode) (bool, error) { nodes = append(nodes, n); return true, nil })
+				_, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
 				if err != nil || len(nodes) != 6 {
 					t.Errorf("execution: %d %v", len(nodes), err)
 					return

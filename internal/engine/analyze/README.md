@@ -23,6 +23,12 @@ It imports `plan`, `exec`, `catalog`, `storage`, `expr`, `functions`, `ids`,
 engine or `session`. See
 [ENGINE-SPLIT-analyze.md](../../../docs/ENGINE-SPLIT-analyze.md) (step 12).
 
+Standard SQL/JSON query syntax dispatches to the functions binder. Unlike
+constructor RETURNING, its result conversion stays in the query node's ON ERROR
+boundary. Literal capture records RETURNING usage and every document/path,
+PASSING and DEFAULT occurrence in written order; normalization, qualification
+and VALUES aggregate inspection traverse the same query children.
+
 ## What it owns
 
 - **`Binder`** (`expression.go` and the other expression, function,

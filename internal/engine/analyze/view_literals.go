@@ -134,6 +134,14 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return child(r.Right, n.Array)
 		}
+	case parser.SQLJSONQueryExpr:
+		if r.Returning != nil {
+			if b.Capture.CastUsages == nil {
+				b.Capture.CastUsages = make(map[ViewLiteralPath]sqltype.Usage)
+			}
+			b.Capture.CastUsages[path] = bound.ResultUsage()
+		}
+		return protocol(expr.CaptureSQLJSON, r.Children())
 	case parser.SQLJSONExpr:
 		if r.Returning != nil {
 			if b.Capture.CastUsages == nil {

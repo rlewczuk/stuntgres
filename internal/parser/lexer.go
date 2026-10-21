@@ -32,6 +32,7 @@ type lexer struct {
 	jsonParenDepth      int
 	jsonAggregateDepths []int
 	jsonQueryDepths     []int
+	jsonFunctionDepths  []int
 	jsonObjectFirst     bool // Empty/member/legacy disambiguation starts with an ordinary operand.
 	err                 error
 	statements          []Statement
@@ -887,6 +888,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = SELECTED_FUNC
 		}
 	}
+	if token.lexeme.keyword != nil && l.previousToken != int('.') && (token.lexeme.text == "json_exists" || token.lexeme.text == "json_query" || token.lexeme.text == "json_value") {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = SQLJSON_QUERY_FUNC
+		}
+	}
 	if token.lexeme.keyword != nil && l.previousToken != int('.') {
 		switch token.lexeme.text {
 		case "json", "json_array", "json_object", "json_scalar", "json_serialize":
@@ -984,7 +992,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			case "absent", "null":
 				next := l.nextRaw()
 				l.lookahead, l.hasLookahead = next, true
-				if next.code == ON && (len(l.jsonQueryDepths) == 0 || l.jsonQueryDepths[len(l.jsonQueryDepths)-1] != l.jsonParenDepth) {
+				if next.code == ON && (len(l.jsonQueryDepths) == 0 || l.jsonQueryDepths[len(l.jsonQueryDepths)-1] != l.jsonParenDepth) && (len(l.jsonFunctionDepths) == 0 || l.jsonFunctionDepths[len(l.jsonFunctionDepths)-1] != l.jsonParenDepth) {
 					if token.lexeme.text == "absent" {
 						token.code = JSON_ABSENT
 					} else {
@@ -993,6 +1001,67 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				}
 			case "setof":
 				token.code = SETOF_TYPE
+			}
+		}
+	}
+	if len(l.jsonFunctionDepths) > 0 && l.jsonParenDepth == l.jsonFunctionDepths[len(l.jsonFunctionDepths)-1] && token.lexeme.keyword != nil && l.previousToken != int('.') && l.previousToken != AS {
+		switch token.lexeme.text {
+		case "passing":
+			if l.previousToken != int('(') && l.previousToken != int(',') && l.previousToken != DEFAULT && l.previousToken != JSON_PASSING {
+				token.code = JSON_PASSING
+			}
+		case "with", "without":
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.lexeme.keyword != nil && (next.lexeme.text == "wrapper" || next.lexeme.text == "conditional" || next.lexeme.text == "unconditional" || next.code == ARRAY) {
+				token.code = JSON_WITH
+				if token.lexeme.text == "without" {
+					token.code = JSON_WITHOUT
+				}
+			}
+		case "wrapper":
+			if l.previousToken == JSON_WITH || l.previousToken == JSON_WITHOUT || l.previousToken == ARRAY || l.previousToken == JSON_CONDITIONAL || l.previousToken == JSON_UNCONDITIONAL {
+				token.code = JSON_WRAPPER
+			}
+		case "conditional":
+			if l.previousToken == JSON_WITH {
+				token.code = JSON_CONDITIONAL
+			}
+		case "unconditional":
+			if l.previousToken == JSON_WITH {
+				token.code = JSON_UNCONDITIONAL
+			}
+		case "quotes":
+			if l.previousToken == JSON_KEEP || l.previousToken == JSON_OMIT {
+				token.code = JSON_QUOTES
+			}
+		case "keep", "omit", "empty", "error":
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			switch token.lexeme.text {
+			case "keep", "omit":
+				if next.lexeme.keyword != nil && next.lexeme.text == "quotes" {
+					token.code = JSON_KEEP
+					if token.lexeme.text == "omit" {
+						token.code = JSON_OMIT
+					}
+				}
+			case "empty":
+				if l.previousToken == ON || next.code == ON || next.code == ARRAY || next.lexeme.keyword != nil && next.lexeme.text == "object" {
+					token.code = JSON_EMPTY
+				}
+			case "error":
+				if l.previousToken == ON || next.code == ON {
+					token.code = JSON_ERROR
+				}
+			}
+		case "object":
+			if l.previousToken == JSON_EMPTY {
+				token.code = JSON_BEHAVIOR
+			}
+		case "scalar", "string":
+			if l.previousToken == ON || l.previousToken == JSON_SCALAR_STRING {
+				token.code = JSON_SCALAR_STRING
 			}
 		}
 	}
@@ -1441,6 +1510,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == int('(') {
 		l.jsonParenDepth++
 	} else if token.code == int(')') {
+		if len(l.jsonFunctionDepths) > 0 && l.jsonFunctionDepths[len(l.jsonFunctionDepths)-1] == l.jsonParenDepth {
+			l.jsonFunctionDepths = l.jsonFunctionDepths[:len(l.jsonFunctionDepths)-1]
+		}
 		if len(l.jsonQueryDepths) > 0 && l.jsonQueryDepths[len(l.jsonQueryDepths)-1] == l.jsonParenDepth {
 			l.jsonQueryDepths = l.jsonQueryDepths[:len(l.jsonQueryDepths)-1]
 		}

@@ -71,7 +71,7 @@ func (e *jsonpathExecutor) conditionValue(n *jsonpathNode, s jsonpathScope) (jso
 		return jsonpathFalse, nil
 	case "exists":
 		found := false
-		_, err := e.walk(n.left, e.root, s, func(*jsonbNode) (bool, error) { found = true; return e.strict, nil })
+		_, err := e.walk(n.left, jsonpathItem{jsonbNode: e.root}, s, func(jsonpathItem) (bool, error) { found = true; return e.strict, nil })
 		return jsonpathBoolean(found), err
 	}
 	left, err := e.operand(n.left, s, !e.strict)
@@ -82,7 +82,7 @@ func (e *jsonpathExecutor) conditionValue(n *jsonpathNode, s jsonpathScope) (jso
 		result := jsonpathFalse
 		for _, a := range left {
 			truth := jsonpathUnknown
-			if a.kind == jsonbString {
+			if a.itemKind() == jsonbString {
 				matched, err := e.match(n, a.text)
 				if err != nil {
 					return jsonpathUnknown, err
@@ -137,15 +137,15 @@ func (e *jsonpathExecutor) conditionValue(n *jsonpathNode, s jsonpathScope) (jso
 	}
 	return result, nil
 }
-func (e *jsonpathExecutor) operand(n *jsonpathNode, s jsonpathScope, unwrap bool) ([]*jsonbNode, error) {
-	var nodes []*jsonbNode
-	_, err := e.walk(n, e.root, s, func(v *jsonbNode) (bool, error) {
-		if unwrap && v.kind == jsonbArray {
+func (e *jsonpathExecutor) operand(n *jsonpathNode, s jsonpathScope, unwrap bool) ([]jsonpathItem, error) {
+	var nodes []jsonpathItem
+	_, err := e.walk(n, jsonpathItem{jsonbNode: e.root}, s, func(v jsonpathItem) (bool, error) {
+		if unwrap && v.itemKind() == jsonbArray {
 			for i := range v.items {
 				if err := e.ctx.Err(); err != nil {
 					return false, err
 				}
-				nodes = append(nodes, &v.items[i])
+				nodes = append(nodes, jsonpathItem{jsonbNode: &v.items[i]})
 			}
 		} else {
 			nodes = append(nodes, v)
@@ -155,9 +155,9 @@ func (e *jsonpathExecutor) operand(n *jsonpathNode, s jsonpathScope, unwrap bool
 	return nodes, err
 }
 
-func (e *jsonpathExecutor) pair(op string, a, b *jsonbNode) (jsonpathTruth, error) {
+func (e *jsonpathExecutor) pair(op string, a, b jsonpathItem) (jsonpathTruth, error) {
 	if op == "starts with" {
-		if a.kind != jsonbString || b.kind != jsonbString {
+		if a.itemKind() != jsonbString || b.itemKind() != jsonbString {
 			return jsonpathUnknown, nil
 		}
 		if len(a.text) < len(b.text) {
@@ -166,11 +166,21 @@ func (e *jsonpathExecutor) pair(op string, a, b *jsonbNode) (jsonpathTruth, erro
 		c, err := e.stringCompare(a.text[:len(b.text)], b.text)
 		return jsonpathBoolean(c == 0), err
 	}
-	if a.kind == jsonbNull || b.kind == jsonbNull {
-		if a.kind != b.kind {
+	if a.itemKind() == jsonbNull || b.itemKind() == jsonbNull {
+		if a.itemKind() != b.itemKind() {
 			return jsonpathBoolean(op == "!="), nil
 		}
 		return jsonpathBoolean(op == "==" || op == "<=" || op == ">="), nil
+	}
+	if a.temporal != nil || b.temporal != nil {
+		if a.temporal == nil || b.temporal == nil {
+			return jsonpathUnknown, nil
+		}
+		c, comparable, err := compareSQLJSONTemporal(e.ctx, *a.temporal, *b.temporal, e.input)
+		if err != nil || !comparable {
+			return jsonpathUnknown, err
+		}
+		return jsonpathComparisonTruth(op, c), nil
 	}
 	if a.kind != b.kind || a.kind == jsonbArray || a.kind == jsonbObject {
 		return jsonpathUnknown, nil
@@ -193,21 +203,25 @@ func (e *jsonpathExecutor) pair(op string, a, b *jsonbNode) (jsonpathTruth, erro
 	if err != nil {
 		return jsonpathUnknown, err
 	}
+	return jsonpathComparisonTruth(op, c), nil
+}
+
+func jsonpathComparisonTruth(op string, c int) jsonpathTruth {
 	switch op {
 	case "==":
-		return jsonpathBoolean(c == 0), nil
+		return jsonpathBoolean(c == 0)
 	case "!=":
-		return jsonpathBoolean(c != 0), nil
+		return jsonpathBoolean(c != 0)
 	case "<":
-		return jsonpathBoolean(c < 0), nil
+		return jsonpathBoolean(c < 0)
 	case ">":
-		return jsonpathBoolean(c > 0), nil
+		return jsonpathBoolean(c > 0)
 	case "<=":
-		return jsonpathBoolean(c <= 0), nil
+		return jsonpathBoolean(c <= 0)
 	case ">=":
-		return jsonpathBoolean(c >= 0), nil
+		return jsonpathBoolean(c >= 0)
 	}
-	return jsonpathUnknown, nil
+	return jsonpathUnknown
 }
 func (e *jsonpathExecutor) stringCompare(a, b string) (int, error) {
 	length := min(len(a), len(b))

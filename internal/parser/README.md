@@ -6,6 +6,24 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### SQL/JSON query syntax
+
+`SQLJSONQueryExpr` retains document/path, ordered PASSING and lazy DEFAULT
+children separately from constructors. Its Children/WithChildren contract is
+shared by scalar admission, qualification, query visitation and raw capture.
+Clause words are contextual to the selected call's own parenthesis depth;
+quoted/qualified ordinary calls and nested expressions retain their own syntax.
+Wrapper introducers use scoped clause tokens so a preceding `::jsonpath` does
+not consume WITH/WITHOUT as a type-name tail. PASSING operands and aliases can
+still use ordinary unquoted clause-word identifiers.
+Boolean/NULL behavior words retain their ordinary literal tokens: DEFAULT
+expressions ending in false, true or NULL must not be mistaken for standalone
+ON EMPTY/ON ERROR behaviors. Edit `grammar.y`, never the generated parser.
+`TestSQLJSONQueryParser` checks positioned nested clauses, child ownership,
+DEFAULT literal children, nested/generated/index syntax and complete-input rejection:
+`make check RUN='^TestSQLJSONQueryParser$'`.
+
+
 ### Qualified JSONPath operators
 
 `TestJSONBPathOpsParser` checks generic maximal-munch `@?`/`@@`, qualified

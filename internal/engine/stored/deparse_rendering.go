@@ -18,6 +18,9 @@ func (r Deparser) rendering(ctx context.Context, node expr.Expr, spec expr.Rende
 }
 
 func (r Deparser) renderingWithReturning(ctx context.Context, node expr.Expr, spec expr.Rendering, parent DeparseParent, returning sqltype.Usage) (string, error) {
+	if spec.OwnedReturning.Type != nil {
+		returning = spec.OwnedReturning
+	}
 	switch spec.Form {
 	case expr.FormLeaf:
 		return spec.Text, nil

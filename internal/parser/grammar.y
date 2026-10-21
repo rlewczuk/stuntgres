@@ -30,6 +30,9 @@ package parser
  jsonFormat *JSONFormat
  jsonOptions JSONAggregateOptions
  sqljson SQLJSONExpr
+ sqljsonQuery *SQLJSONQueryExpr
+ sqljsonPassing []SQLJSONPassing
+ sqljsonBehavior SQLJSONBehavior
  types []TypeName
  grantRoutine GrantRoutineTarget
  grantRoutines []GrantRoutineTarget
@@ -206,6 +209,7 @@ package parser
 %token <tok> FILTER WITHIN
 %token <tok> JSON_ARRAYAGG JSON_OBJECTAGG JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING JSON_ABSENT JSON_NULL JSON_KEYS JSON_WITH JSON_WITHOUT
 %token <tok> SQLJSON_ARRAY SQLJSON_OBJECT SQLJSON_PARSE SQLJSON_SCALAR SQLJSON_SERIALIZE JSON_PREDICATE JSON_KIND
+%token <tok> SQLJSON_QUERY_FUNC JSON_PASSING JSON_WRAPPER JSON_CONDITIONAL JSON_UNCONDITIONAL JSON_QUOTES JSON_KEEP JSON_OMIT JSON_BEHAVIOR JSON_EMPTY JSON_ERROR JSON_SCALAR_STRING
 %token <tok> OVER WINDOW PARTITION FRAME_UNIT FRAME_EDGE FRAME_START
 %token <tok> UNIQUE PRIMARY
 %token <tok> FOREIGN REFERENCES MATCH PERIOD INITIALLY
@@ -602,6 +606,11 @@ package parser
 %type <desc> json_unique
 %type <sqljson> sqljson_members sqljson_member sqljson_values sqljson_value sqljson_optional_values
 %type <expr> sqljson_constructor
+%type <expr> sqljson_query
+%type <tok> sqljson_query_head sqljson_wrapper sqljson_quotes sqljson_wrapper_kind sqljson_scalar_string
+%type <sqljsonPassing> sqljson_passing sqljson_bindings
+%type <sqljsonBehavior> sqljson_behavior
+%type <sqljsonQuery> sqljson_behaviors
 %type <tok> like_operator
 %type <expr> target_escape
 %type <expr> conditional conditional_call case_test case_else conditional_value
@@ -1503,6 +1512,7 @@ index_atom: name {$$=IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.
  | '(' scalar_projection ')' {$$=IndexKey{Expression:$2,Pos:$1.pos}}
  | function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
  | conditional_call {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
+ | sqljson_query {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
  | check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=IndexKey{Expression:call,Pos:$1.pos}}
  | name '.' check_function_head function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
  | string_function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
@@ -1965,6 +1975,7 @@ scalar: scalar_atom { $$=$1 }
  | scalar COLLATE relation_name %prec COLLATE { if !selectedScalarChild(sqllex,$1,$2) {return 1};$$=CollateExpr{Child:$1,Name:$3,Pos:$2.pos} }
  | aggregate_application { $$=$1 }
  | sqljson_constructor { $$=$1 }
+ | sqljson_query { $$=$1 }
  | GROUPING '(' function_values ')' { $$=GroupingExpr{Args:$3,Pos:$1.pos} }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
   * them as scalar literals (which would convert overflowing numbers too early). */
@@ -2555,7 +2566,7 @@ json_null_policy: /* empty */ { $$=JSONAggregateOptions{Absent:true} }
  | JSON_ABSENT ON NULL { $$=JSONAggregateOptions{Absent:true,NullPos:$1.pos} }
  | JSON_NULL ON NULL { $$=JSONAggregateOptions{NullPos:$1.pos} } ;
 json_returning: /* empty */ { $$=JSONAggregateOptions{} }
- | RETURNING json_return_type json_format { typ:=$2;$$=JSONAggregateOptions{Returning:&typ,Output:$3} } ;
+ | RETURNING json_return_type json_format { typ:=$2;$$=JSONAggregateOptions{Returning:&typ,Output:$3,ReturningPos:$1.pos} } ;
 json_return_type: type { $$=$1 } | SETOF_TYPE type { $$=$2;$$.Setof=true } ;
 sqljson_array_head: SQLJSON_ARRAY '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
 sqljson_object_head: SQLJSON_OBJECT '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonObjectFirst=true;$$=$1 } ;
@@ -2595,6 +2606,48 @@ json_keys: /* empty */ { $$=lexeme{} }
  | JSON_KEYS { $$=$1 } ;
 json_predicate_kind: /* empty */ { $$=lexeme{} }
  | JSON_KIND { $$=$1 } ;
+sqljson_query_head: SQLJSON_QUERY_FUNC '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonFunctionDepths=append(l.jsonFunctionDepths,l.jsonParenDepth);$$=$1 } ;
+sqljson_query: sqljson_query_head target_or json_format ',' target_or sqljson_passing json_returning sqljson_wrapper sqljson_quotes sqljson_behaviors ')' {
+ l:=sqllex.(*lexer)
+ if $1.text=="json_exists" && $7.Returning!=nil {l.syntax(lexeme{raw:"RETURNING",pos:$7.ReturningPos});return 1}
+ if $1.text!="json_query" && $8.text!="" {l.syntax($8);return 1}
+ if $1.text!="json_query" && $9.text!="" {l.syntax($9);return 1}
+ if $1.text=="json_exists" && $10.Empty.Kind!="" {l.syntax(lexeme{raw:"EMPTY",pos:$10.Empty.BranchPos});return 1}
+ $$=SQLJSONQueryExpr{Kind:$1.text,Document:$2,Input:$3,Path:$5,Passing:$6,Returning:$7.Returning,Output:$7.Output,Wrapper:$8.text,Quotes:$9.text,Empty:$10.Empty,Error:$10.Error,Pos:$1.pos}
+ } ;
+sqljson_passing: /* empty */ { $$=nil }
+ | JSON_PASSING sqljson_bindings { $$=$2 } ;
+sqljson_bindings: target_or AS name { $$=[]SQLJSONPassing{{Value:$1,Name:Identifier{Text:$3.text,Pos:$3.pos}}} }
+ | sqljson_bindings ',' target_or AS name { $$=append($1,SQLJSONPassing{Value:$3,Name:Identifier{Text:$5.text,Pos:$5.pos}}) } ;
+sqljson_wrapper: /* empty */ { $$=lexeme{} }
+ | JSON_WITHOUT JSON_WRAPPER { $$=$1 }
+ | JSON_WITHOUT ARRAY JSON_WRAPPER { $$=$1 }
+ | JSON_WITH sqljson_wrapper_kind JSON_WRAPPER { $$=$1;$$.text="unconditional";if $2.text=="conditional"{$$.text="conditional"} }
+ | JSON_WITH sqljson_wrapper_kind ARRAY JSON_WRAPPER { $$=$1;$$.text="unconditional";if $2.text=="conditional"{$$.text="conditional"} } ;
+sqljson_wrapper_kind: /* empty */ { $$=lexeme{} }
+ | JSON_CONDITIONAL { $$=$1 }
+ | JSON_UNCONDITIONAL { $$=$1 } ;
+sqljson_quotes: /* empty */ { $$=lexeme{} }
+ | JSON_KEEP JSON_QUOTES sqljson_scalar_string { $$=$1 }
+ | JSON_OMIT JSON_QUOTES sqljson_scalar_string { $$=$1 } ;
+sqljson_scalar_string: /* empty */ { $$=lexeme{} }
+ | ON JSON_SCALAR_STRING JSON_SCALAR_STRING { $$=$2 } ;
+sqljson_behaviors: /* empty */ { $$=&SQLJSONQueryExpr{} }
+ | sqljson_behavior ON JSON_EMPTY { b:=$1;b.BranchPos=$3.pos;$$=&SQLJSONQueryExpr{Empty:b} }
+ | sqljson_behavior ON JSON_ERROR { $$=&SQLJSONQueryExpr{Error:$1} }
+ | sqljson_behavior ON JSON_EMPTY sqljson_behavior ON JSON_ERROR { b:=$1;b.BranchPos=$3.pos;$$=&SQLJSONQueryExpr{Empty:b,Error:$4} } ;
+/* Keep literals as ordinary tokens: ON lookahead must not reclassify the last
+ * literal of a DEFAULT expression as a standalone behavior. */
+sqljson_behavior: JSON_BEHAVIOR { $$=SQLJSONBehavior{Kind:$1.text,Pos:$1.pos} }
+ | TRUE { $$=SQLJSONBehavior{Kind:$1.text,Pos:$1.pos} }
+ | FALSE { $$=SQLJSONBehavior{Kind:$1.text,Pos:$1.pos} }
+ | UNKNOWN { $$=SQLJSONBehavior{Kind:$1.text,Pos:$1.pos} }
+ | NULL { $$=SQLJSONBehavior{Kind:"null",Pos:$1.pos} }
+ | JSON_EMPTY { $$=SQLJSONBehavior{Kind:"empty array",Pos:$1.pos} }
+ | JSON_EMPTY ARRAY { $$=SQLJSONBehavior{Kind:"empty array",Pos:$1.pos} }
+ | JSON_EMPTY JSON_BEHAVIOR { $$=SQLJSONBehavior{Kind:"empty "+$2.text,Pos:$1.pos} }
+ | JSON_ERROR { $$=SQLJSONBehavior{Kind:"error",Pos:$1.pos} }
+ | DEFAULT target_or { $$=SQLJSONBehavior{Kind:"default",Default:$2,Pos:$1.pos} } ;
 fetch_count: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if !selectedScalarChild(sqllex,$3,$4) {return 1};if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | aggregate_application { $$=$1 }
@@ -2650,6 +2703,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | SQLJSON_PARSE %prec NAME_LIST { $$=$1 }
  | SQLJSON_SCALAR %prec NAME_LIST { $$=$1 }
  | SQLJSON_SERIALIZE %prec NAME_LIST { $$=$1 }
+ | SQLJSON_QUERY_FUNC %prec NAME_LIST { $$=$1 }
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;

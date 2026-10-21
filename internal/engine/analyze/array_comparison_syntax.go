@@ -161,6 +161,11 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 		if changed {
 			return r, true
 		}
+	case parser.SQLJSONQueryExpr:
+		children := args(r.Children())
+		if changed {
+			return r.WithChildren(children), true
+		}
 	case parser.SQLJSONExpr:
 		r.Args = args(r.Args)
 		if changed {

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -1085,6 +1086,34 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			return "", err
 		}
 		return jsonPredicateRecipe(text, e.Kind, e.Unique, e.Not), nil
+	case parser.SQLJSONQueryExpr:
+		children := e.Children()
+		parts := make([]string, len(children))
+		for i, arg := range children {
+			text, err := child(arg)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = text
+		}
+		declaration := ""
+		if e.Returning != nil {
+			usage, ok := v.castUsages[path]
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing SQL/JSON query returning usage")
+			}
+			var err error
+			declaration, err = regobj.TypeDeclaration(catalogView, usage)
+			if err != nil {
+				return "", err
+			}
+		}
+		return templateSQL(functions.SQLJSONQueryPieces(e), parts, declaration, func(piece expr.Piece) (string, error) {
+			if piece.Identifier {
+				return catalog.Identifier(piece.Text), nil
+			}
+			return rawSyntaxWord(piece)
+		})
 	case parser.SQLJSONExpr:
 		parts := make([]string, len(e.Args))
 		for i, arg := range e.Args {

@@ -22,6 +22,9 @@ func (r ScalarRenderer) rendering(ctx context.Context, view catalog.Read, spec e
 }
 
 func (r ScalarRenderer) renderingWithReturning(ctx context.Context, view catalog.Read, spec expr.Rendering, returning sqltype.Usage) (string, error) {
+	if spec.OwnedReturning.Type != nil {
+		returning = spec.OwnedReturning
+	}
 	replay := spec.Replay
 	if replay.RelationOnly && r.Owner == nil {
 		return "", fmt.Errorf("stuntgres: volatile stored default")

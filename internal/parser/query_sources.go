@@ -133,6 +133,8 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			return expressions(e.Fields)
 		case OperatorExpr:
 			return expressions(e.Args)
+		case SQLJSONQueryExpr:
+			return expressions(e.Children())
 		case SQLJSONExpr:
 			if err := expressions(e.Args); err != nil {
 				return err

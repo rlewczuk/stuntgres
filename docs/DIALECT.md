@@ -1924,9 +1924,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   casts. Identifier companion arrays remain lookup-only. Scalar input itself
   does not allocate; the selected transaction-information functions above own
   actual assignment, full epochs and retention, without populating system columns.
-- JSONPath supports `jsonb_path_query_array`, the four query-family consumers
-  and JSONB `@?`/`@@`, not SQL/JSON query syntax or GIN. JSON has no equality provider.
-  Catalog type identities do not imply executable codecs.
+- JSONPath supports `jsonb_path_query_array`, the four query-family consumers,
+  JSONB `@?`/`@@` and standard SQL/JSON query syntax, not GIN. JSON has no equality
+  provider. Catalog type identities do not imply executable codecs.
 - Scalar `IN`/`NOT IN` lists and scalar operators with array-expression
   `ANY`/`SOME`/`ALL` reuse existing scalar comparison providers; array forms
   additionally require a concrete associated array and executable array codec.
@@ -2202,7 +2202,7 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   differ, and generated wrappers have fresh bases. No absolute ID or state
   survives a call or enters persistence. Demanded arithmetic and remaining
   methods raise native `0A000` through silent/predicate layers; unreachable
-  branches are not eagerly rejected. `_tz`, SQL/JSON query forms and GIN remain
+  branches are not eagerly rejected. `_tz` routines and GIN remain
   unsupported. JSONB `@?`/`@@` use the same exists/match consumers
   with silent evaluation and no variables: suppressed structural/subscript
   errors do not hide malformed path input, missing variables, caller cancellation
@@ -2295,6 +2295,33 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `jsonb_delete_path(...)`, named concat/delete functions, TEXT[] top-level
   deletion, subscripting, generic JSON equality and JSON path/query execution
   remain excluded.
+- SQL/JSON `JSON_EXISTS`, `JSON_QUERY` and `JSON_VALUE` support ordered PASSING,
+  applicable RETURNING, query wrappers/quotes and ON EMPTY / ON ERROR. EXISTS
+  tests item presence, including JSON false/null; VALUE requires one scalar;
+  QUERY requires one item unless wrapped. Conditional wrapping leaves every
+  singleton unchanged, and zero matches still select ON EMPTY. JSON null is
+  distinct from SQL NULL; VALUE maps JSON null to SQL NULL without ON EMPTY.
+  RETURNING conversion belongs inside ON ERROR; outer casts do not. Defaults
+  are bound with all dependencies but evaluated only on their selected branch.
+  ERROR ON EMPTY and failures of a selected DEFAULT do not recurse into ON ERROR.
+  Document/path parsing, missing demanded variables, cancellation and ordinary
+  provider errors escape suppression. Strict structural errors discard the
+  entire selected result rather than publishing a preceding prefix.
+  PASSING evaluates every written binding, with the first duplicate name winning.
+  Temporal bindings retain typed comparisons with timezone use enabled; time to
+  timetz comparison resolves the offset for the current local date and supplied
+  clock time. VALUE uses SQL scalar output followed by destination input, not a
+  direct temporal cast; QUERY and JSON/JSONB VALUE encode temporal JSON strings.
+  Passed timestamptz JSON uses UTC independently of the live session timezone.
+  Stored-expression volatility is path-sensitive: dynamic paths and mixed zoned/
+  unzoned temporal comparisons are STABLE, including filter `@`, filter outputs
+  and lax scalar array access. Strict array access clears temporal status;
+  recursive access preserves it only when its range starts at depth zero.
+  Same-zone comparisons and bare temporal variables are not blanket STABLE.
+  The shared evaluator supports the JSON item methods documented
+  above; demanded methods on typed temporal items and remaining unsupported
+  methods/arithmetic raise native `0A000`, without eager rejection of unreachable
+  branches.
 - SQL/JSON constructors `JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR`,
   `JSON_SERIALIZE` and `IS [NOT] JSON` predicates support FORMAT JSON,
   applicable RETURNING, NULL/ABSENT ON NULL and UNIQUE KEYS. Query ARRAY uses

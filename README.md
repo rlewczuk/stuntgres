@@ -1734,6 +1734,23 @@ routes retain their diagnostics and cancellation still propagates.
 Feature smoke: `make check RUN='^TestReferenceSQLJSONFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceSQLJSONFeatureSmoke$'`.
 
+Change note: standard SQL/JSON `JSON_EXISTS`, `JSON_QUERY` and `JSON_VALUE`
+share the JSONPath evaluator with ordered, typed PASSING bindings. Query
+wrappers and scalar-string quotes, RETURNING conversions, and lazy ON EMPTY /
+ON ERROR behaviors retain their syntax through stored expressions and native
+Dump/Restore. JSON null is a present item (VALUE yields SQL NULL); no match
+selects ON EMPTY even with a wrapper. Document/path input errors, demanded
+missing variables, cancellation and native unsupported path operations are not
+hidden by ON ERROR. Temporal PASSING retains SQL types for predicates and VALUE
+conversion; JSON encoding of passed timestamptz is UTC, while VALUE text observes
+the live output environment. Stored admission preserves temporal categories
+through filter-current, filter output and lax array access; strict array access
+clears them. Mixed-zone comparisons are STABLE, while same-zone and bare-variable
+controls remain immutable. Advanced path methods, `_tz` routines and GIN
+remain outside native support.
+Feature smoke: `make check RUN='^TestReferenceSQLJSONQueryFeatureSmoke$'` and
+`make check RUN='^TestReferenceSQLJSONQueryFeatureSmoke$' REFERENCE=1`.
+
 Change note: `json_agg`, `jsonb_agg`, `json_agg_strict`, `jsonb_agg_strict`
 and SQL/JSON `json_arrayagg` collect values through the ordinary aggregate
 pipeline. Local ORDER BY fixes element order; ordinary variants include SQL NULL,

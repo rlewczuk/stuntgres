@@ -14,6 +14,13 @@ import (
 // the shared recursive visitor.
 func RestoreScalar(raw parser.Expr, stored bool) error {
 	switch r := raw.(type) {
+	case parser.SQLJSONQueryExpr:
+		for _, child := range r.Children() {
+			if err := RestoreScalar(child, stored); err != nil {
+				return err
+			}
+		}
+		return nil
 	case parser.SQLJSONExpr:
 		for _, child := range r.Args {
 			if err := RestoreScalar(child, stored); err != nil {

@@ -65,11 +65,41 @@ payload-sized scratch or frame caches. Complete PKCS-run validation is shared;
 CFB64 streams arbitrary tails and treats valid padding options as no-ops.
 
 
+Standard SQL/JSON query plans share this same walker. Its private path item
+borrows either an immutable JSON node or an invocation-owned temporal Value;
+temporal payloads never enter persistent JSONB. Ordered PASSING keeps first-name
+lookup while evaluating every input. Query/value selection fully demands strict
+tails and discards structural-error prefixes. Result conversion uses destination
+input/domain/array/composite providers; SQL VALUE temporal text and UTC JSON
+temporal encoding are separate. Selected behavior conversion is terminal.
+Constant-path properties walk the parsed tree with separate incoming-item and
+filter-current temporal categories. Filters preserve their candidate category;
+lax array access preserves scalar wrapping, strict array access clears it.
+Recursive access preserves it only when the minimum depth is zero. Nested
+filters and subscript bounds cannot overwrite an enclosing current category.
+Mixed zoned/nonzoned comparisons are mutable; bare bindings and same-zone
+comparisons are not blanket mutable.
+
+
 ## Testing
 
 Follow the [shared testing guide](../../docs/TESTING.md). These tests call codec
 and value functions directly; public SQL and socket answers belong in
 `reference/`.
+
+`TestSQLJSONQueryPlan` covers private descriptor authority, strict prefix
+discard, ordinary errors, context-before-NULL, duplicate-name lookup,
+path-sensitive properties and DST-sensitive civil-date time/timetz comparison.
+Run `make check RUN='^TestSQLJSONQueryPlan$'`; shared public SQL proof remains in
+`reference/binary_json_arrays` and requires native and real pinned modes.
+`TestSQLJSONPathMutable` supplements public admission proof with a parsed-path
+matrix: nested/current isolation, filter output, lax/strict index/range/wildcard,
+recursive zero/positive/LAST bounds, key/method category clearing, nested work
+in subscript bounds and boolean operands, first-duplicate lookup, all five bare
+temporal types and typed/constant NULL controls.
+Run `make check RUN='^TestSQLJSONPathMutable$'`.
+
+
 
 `TestJSONBPathOpsSignatures`, `Consumers` and `Resolution` exercise the typed
 two-operand plan, foreign-value/context admission, concurrent invocation-local

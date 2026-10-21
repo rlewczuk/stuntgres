@@ -413,6 +413,12 @@ func qualifiedCastChild(raw parser.Expr) error {
 				return err
 			}
 		}
+	case parser.SQLJSONQueryExpr:
+		for _, arg := range e.Children() {
+			if err := qualifiedCastChild(arg); err != nil {
+				return err
+			}
+		}
 	case parser.SQLJSONExpr:
 		for _, arg := range e.Args {
 			if err := qualifiedCastChild(arg); err != nil {

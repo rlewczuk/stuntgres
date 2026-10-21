@@ -254,6 +254,8 @@ func (v *View) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path a
 			return err
 		}
 		return child(r.Right)
+	case parser.SQLJSONQueryExpr:
+		return args(r.Children())
 	case parser.SQLJSONExpr:
 		if r.Query != nil {
 			if v.queries[r.Query] == nil {

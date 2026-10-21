@@ -15,6 +15,12 @@ features). `analyze`, `exec`, `session`, `pgcatalog` and the lower features
 reach it through the engine's host methods. See
 [ENGINE-SPLIT-stored.md](../../../docs/ENGINE-SPLIT-stored.md).
 
+SQL/JSON query nodes carry their internal RETURNING usage through
+`Rendering.OwnedReturning`; scalar replay and display use that descriptor, not
+raw type spelling or an enclosing cast. Raw view capture retains all query
+children/options and RETURNING usage. Generic reconstruction remints executable
+query/default plans after descriptor generations change.
+
 ## What it owns
 
 - **Frozen payloads.** `View` (`view.go`, `view_payload.go`): a view's plan

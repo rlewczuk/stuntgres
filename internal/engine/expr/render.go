@@ -55,6 +55,9 @@ type Rendering struct {
 	// JSONReturning permits the enclosing constructor-owned conversion to
 	// supply a type usage for Returning pieces. Ordinary casts never supply it.
 	JSONReturning bool
+	// OwnedReturning supplies a query expression's internal result conversion;
+	// unlike constructors, no enclosing coercion owns this RETURNING clause.
+	OwnedReturning sqltype.Usage
 
 	// Replay is how stored scalar SQL writes the node where that differs from
 	// the display form above.

@@ -50,8 +50,8 @@ func (p JSONBPathQueryArrayPlan) Evaluate(ctx context.Context, values []Value) (
 		return Value{}, fmt.Errorf("missing JSONPath array payload")
 	}
 	root := jsonbNode{kind: jsonbArray}
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n *jsonbNode) (bool, error) {
-		root.items = append(root.items, *n)
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n jsonpathItem) (bool, error) {
+		root.items = append(root.items, *n.jsonbNode)
 		return true, ctx.Err()
 	})
 	if err != nil {

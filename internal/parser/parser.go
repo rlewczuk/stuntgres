@@ -573,6 +573,13 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 			}
 		}
 		return true
+	case SQLJSONQueryExpr:
+		for _, arg := range r.Children() {
+			if !l.scalarInputTree(arg) {
+				return false
+			}
+		}
+		return true
 	case JSONPredicateExpr:
 		return l.scalarInputTree(r.Child)
 	case FunctionExpr:

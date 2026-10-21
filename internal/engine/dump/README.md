@@ -33,6 +33,8 @@ callback. Step 18 of the split created it; see
   two modes (stored CREATE expressions keep the binder's admission rules;
   INSERT values keep the Restore whitelist) and `RestoreSQLJSONQuery`. Both
   reject every parameter with SQLSTATE 42P02.
+  Standard SQL/JSON query scalars recurse through document, path, every PASSING
+  operand and both DEFAULT children, including branches skipped at runtime.
 - **Capabilities** (`capabilities.go`), implemented above this package:
   - `Resolver.Predecessor` maps a dependency address to the OID of the
     dump event that must precede its consumer, or 0.
