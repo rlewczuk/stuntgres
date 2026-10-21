@@ -377,10 +377,10 @@ type checkDependencyEdge struct {
 // Provider references join the incumbent dependency stage. Owner-local column
 // dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
 func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
-	return stageDropProvider(context.Background(), stage, nil, nil, nil).checkDependents(targets, mode)
+	return checkDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }
 
-func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
+func checkDependents(provider dropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
 	var relations []*catalog.Relation
 	for address, descriptor := range provider.inputDescriptors() {
 		d, ok := descriptor.(*catalog.Relation)

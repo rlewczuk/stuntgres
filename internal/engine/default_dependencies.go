@@ -76,10 +76,10 @@ func validateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, defi
 }
 
 func stageDefaultDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
-	return stageDropProvider(context.Background(), stage, nil, nil, nil).defaultDependents(targets, mode)
+	return defaultDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }
 
-func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
+func defaultDependents(provider dropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
 	var edges []defaultDependencyEdge
 	for address, descriptor := range provider.inputDescriptors() {
 		d, ok := descriptor.(*catalog.Relation)

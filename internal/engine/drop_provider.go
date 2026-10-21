@@ -263,7 +263,7 @@ func (p *dropProvider) applyForeignKeyDependents(edges []domainDependency) error
 		p.owner.mu.Lock()
 		defer p.owner.mu.Unlock()
 	}
-	return p.foreignKeyDependents(edges)
+	return foreignKeyDependents(p, edges)
 }
 
 func (p *dropProvider) missingColumnNotice(column, relation string) {

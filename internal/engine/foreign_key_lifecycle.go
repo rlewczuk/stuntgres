@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -108,12 +107,7 @@ func foreignKeyActionSQL(action parser.ForeignKeyAction) (string, error) {
 // Column retirement already owns local AUTO definitions and shape projection.
 // Consume only FK metadata edges from shared discovery; never reenter the
 // whole-provider projection controller before the column's own pruning.
-func foreignKeyColumnDependencies(ctx context.Context, stage *CatalogStage, target ids.ObjectAddress, mode parser.DropMode, scope *StatementScope) ([]domainDependency, error) {
-	return stageDropProvider(ctx, stage, scope, nil, nil).foreignKeyColumnDependencies(target, mode)
-}
-
-func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddress, mode parser.DropMode) ([]domainDependency, error) {
-	scope := provider.scope
+func foreignKeyColumnDependencies(provider dropDependencyReader, target ids.ObjectAddress, mode parser.DropMode) ([]domainDependency, error) {
 	present := false
 	for address, descriptor := range provider.inputDescriptors() {
 		if replacement := provider.replacement(address); replacement != nil {
@@ -149,13 +143,13 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 			}
 		}
 	}
-	if scope != nil && mode == parser.DropCascade {
+	if provider.statementBound() && mode == parser.DropCascade {
 		var owners []ids.ObjectRef
 		for _, edge := range foreign {
 			if edge.automatic {
 				continue
 			}
-			ref := provider.owner.catalog.Domain.Ref(provider.base.Epoch(), edge.relation.Address())
+			ref := provider.baseRef(edge.relation.Address())
 			if !slices.Contains(owners, ref) {
 				owners = append(owners, ref)
 			}
@@ -180,18 +174,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 
 // The ordinary dependency closure owns discovery/order/RESTRICT diagnostics.
 // This pass consumes only FK definition edges, never the referencing table/data.
-func stageForeignKeyDependents(stage *CatalogStage, edges []domainDependency) error {
-	e := stage.owner
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return stageForeignKeyDependentsLocked(stage, edges)
-}
-
-func stageForeignKeyDependentsLocked(stage *CatalogStage, edges []domainDependency) error {
-	return stageDropProvider(context.Background(), stage, nil, nil, nil).foreignKeyDependents(edges)
-}
-
-func (provider *dropProvider) foreignKeyDependents(edges []domainDependency) error {
+func foreignKeyDependents(provider dropDependencyReader, edges []domainDependency) error {
 	for _, edge := range edges {
 		if edge.address.ClassID != 2606 || edge.relation == nil {
 			continue

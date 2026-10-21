@@ -23,8 +23,8 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *catalog.
 	return ordinaryColumnDrop(stageDropProvider(ctx, stage, scope, changes, project), old, ref, a)
 }
 
-func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction) (*catalog.Relation, error) {
-	ctx := provider.ctx
+func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction) (*catalog.Relation, error) {
+	ctx := provider.context()
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
@@ -36,7 +36,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 		if !a.IfExists {
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.Name()))
 		}
-		if provider.scope != nil {
+		if provider.statementBound() {
 			provider.missingColumnNotice(a.Column.Text, old.Name())
 		}
 		return old, nil
@@ -64,7 +64,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 		generatedSlot := old.IndexForAttribute(attribute)
 		if a.Mode == parser.DropRestrict {
 			message := "cannot drop desired object(s) because other objects depend on them"
-			if provider.scope == nil || provider.scope.inheritance.alter == nil {
+			if !provider.recursingInheritance() {
 				message = fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.Name())
 			}
 			diagnostic := sqlError("2BP01", message).(*sqlstate.Error)
@@ -89,7 +89,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 			return nil, err
 		}
 	}
-	foreign, err := provider.foreignKeyColumnDependencies(target, a.Mode)
+	foreign, err := foreignKeyColumnDependencies(provider, target, a.Mode)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 	// The dependency pass can prune surviving definitions on this same table.
 	// Its staged descriptor, not the pre-cascade maps, owns the remaining shape.
 	old = provider.descriptor(ref.Address).(*catalog.Relation)
-	next, err := dropColumnMetadata(ctx, provider.base, provider.descriptor, old, target, history)
+	next, err := dropColumnMetadata(ctx, provider.baseRead(), provider.descriptor, old, target, history)
 	if err != nil {
 		return nil, err
 	}
