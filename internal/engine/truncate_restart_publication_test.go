@@ -47,7 +47,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 			oldPD, oldQD := e.catalog.state.MustRelation(ps.Address), e.catalog.state.MustRelation(qs.Address)
 			frontier := e.visibility.CommitSeq()
 			scope := truncateRestartUnitStage(t, e, s, "p", "q", "p")
-			if len(scope.truncateOrZero().sequences) != 2 || len(scope.catalog.Generators) != 2 {
+			if len(scope.truncateOrZero().Sequences) != 2 || len(scope.catalog.Generators) != 2 {
 				t.Fatal("owned sequences not deduplicated")
 			}
 			for _, test := range []struct {

@@ -43,12 +43,12 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 			scope.Finish(err)
 			t.Fatal(err)
 		}
-		defer rows.returning.Close()
+		defer rows.Returning.Close()
 		var got [][]driver.Value
-		values := make([]sqltype.Value, len(rows.returning.Schema()))
+		values := make([]sqltype.Value, len(rows.Returning.Schema()))
 		var retainedSource sqltype.Value
 		for {
-			present, nextErr := rows.returning.Next(op.Context(), values)
+			present, nextErr := rows.Returning.Next(op.Context(), values)
 			if nextErr != nil {
 				t.Fatal(nextErr)
 			}
@@ -57,14 +57,14 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 			}
 			row := []driver.Value{testExport(values[0]), testExport(values[1]), testExport(values[2]), testExport(values[3]), nil}
 			source := values[4]
-			if source.Type() != rows.returning.Schema()[4].Usage.Type || !source.Type().IsComposite() {
+			if source.Type() != rows.Returning.Schema()[4].Usage.Type || !source.Type().IsComposite() {
 				t.Fatal("source whole-row descriptor", source.Type())
 			}
 			if !source.IsNull() {
 				if source.CompositeLen() != 2 || testExport(source.CompositeField(0)) != int64(1) || testExport(source.CompositeField(1)) != int64(7) {
 					t.Fatal("owned source whole-row fields", source)
 				}
-				text, codecErr := source.Type().OutputWithEnvironment(op.Context(), source, rows.returning.OutputEnvironment())
+				text, codecErr := source.Type().OutputWithEnvironment(op.Context(), source, rows.Returning.OutputEnvironment())
 				if codecErr != nil {
 					t.Fatal("source whole-row codec", codecErr)
 				}
@@ -82,7 +82,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal("drained source/transition recipe provenance", got, want)
 		}
-		if err = rows.stage(scope.Writes(), b.Ref); err != nil {
+		if err = stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
 		}

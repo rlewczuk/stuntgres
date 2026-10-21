@@ -4,6 +4,7 @@ import (
 	"maps"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -32,8 +33,8 @@ type ruleCommandScratch struct {
 	viewWrite  *view.Write
 	sources    []exec.Leaf
 	unique     *index.UniqueWriteBinding
-	conflict   *insertConflictState
-	returning  *insertReturningOutput
+	conflict   *dml.InsertConflictState
+	returning  *dml.InsertReturningOutput
 	partition  *partitionInsertState
 	locks      *exec.LockContext
 	admission  analyze.LockAdmission

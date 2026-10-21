@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -128,9 +129,9 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.Unique
 		return uniqueConflict{parent: binding.Parent, index: idx, key: visit.Key, existing: visit.Existing, auth: scan.auth, view: scan.View, schema: scan.Schema, row: visit.Row, committed: visit.Committed}, visit.Potential, nil
 	}
 }
-func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, action *insertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
+func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, action *dml.InsertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
 	idx := bound.Index
-	if action != nil && !slices.Contains(action.selected, idx.Address()) {
+	if action != nil && !slices.Contains(action.Selected, idx.Address()) {
 		return uniqueConflict{}, nil
 	}
 	candidate, err := s.publishExclusionCandidate(ref, binding, bound, proposal, excluded, action != nil, purpose)
@@ -171,8 +172,8 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *index.Uni
 		event := index.ExclusionEvent{Parent: ref, Index: ref.Domain().Ref(ref.Epoch, idx.Address()), Constraint: c.OID, Row: candidate.Row, Version: candidate.Version}
 		if !slices.Contains(s.indexesOrZero().ExclusionModes.Events, event) {
 			s.indexes().ExclusionModes.Events = append(slices.Clone(s.indexesOrZero().ExclusionModes.Events), event)
-			if s.foreignActionsOrZero().settling {
-				s.foreignActions().exclusionAdded = true
+			if s.foreignActionsOrZero().Settling {
+				s.foreignActions().ExclusionAdded = true
 			}
 		}
 	}

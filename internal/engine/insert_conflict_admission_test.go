@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -58,9 +59,9 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 		t.Fatal(err)
 	}
 	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
-	action := newInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
+	action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
+	if err := action.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	scope.insertConflict = action
@@ -202,7 +203,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	f.e.storage.InstallIndexRootLocked(second.Address(), root)
 	f.e.mu.Unlock()
 	scope.uniqueBinding = nil
-	scope.insertConflict.catalog = nil
+	scope.insertConflict.Catalog = nil
 	admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal("selected provider must win", admitted, err)
@@ -221,21 +222,21 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 func TestInsertConflictInferenceInstalledStates(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	explicit := newInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Attribute: 10}}, Predicate: f.predicate})
-	targetless := newInsertConflictState(&analyze.InsertConflict{})
+	explicit := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Attribute: 10}}, Predicate: f.predicate})
+	targetless := dml.NewInsertConflictState(&analyze.InsertConflict{})
 	f.index.SQLIndex.Include = []int32{20}
-	if err := explicit.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(explicit.selected) != 1 {
+	if err := explicit.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(explicit.Selected) != 1 {
 		t.Fatal("repeated keys / INCLUDE", err)
 	}
 	f.index.SQLIndex.Valid = false
-	if err := targetless.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(targetless.selected) != 1 {
+	if err := targetless.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(targetless.Selected) != 1 {
 		t.Fatal("ready invalid provider", err)
 	}
-	if err := explicit.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err == nil {
+	if err := explicit.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err == nil {
 		t.Fatal("explicit inferred an invalid provider")
 	}
 	f.index.SQLIndex.Ready = false
-	if err := targetless.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(targetless.selected) != 0 {
+	if err := targetless.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(targetless.Selected) != 0 {
 		t.Fatal("not-ready provider", err)
 	}
 }
@@ -263,16 +264,16 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		f.e.storage.InstallIndexRootLocked(idx.Address(), root)
 		f.e.mu.Unlock()
 	}
-	action := newInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Expression: expression}, {Expression: expression}}, Predicate: f.predicate})
+	action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Expression: expression}, {Expression: expression}}, Predicate: f.predicate})
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(action.selected) != 2 {
-		t.Fatal("complete mixed expression set", action.selected, err)
+	if err := action.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(action.Selected) != 2 {
+		t.Fatal("complete mixed expression set", action.Selected, err)
 	}
 	unrelated := expression
 	unrelated.Left = plan.LogicalExpr{Info: expression.Info, Op: parser.LogicalNot, Left: f.predicate}
 	action.Keys[1].Expression = unrelated
 	action.Keys[2].Expression = unrelated
-	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err == nil {
+	if err := action.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err == nil {
 		t.Fatal("expression matching performed unrelated algebra")
 	}
 }

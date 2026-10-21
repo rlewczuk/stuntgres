@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
@@ -269,9 +270,9 @@ type StatementScope struct {
 	domains            domainScope
 	protocolSlot       *protocolScope
 	presentationSlot   *presentationCaches
-	truncateSlot       *truncateScope
+	truncateSlot       *dml.TruncateScope
 	dropsSlot          *dropScope
-	foreignActionsSlot *foreignActionScope
+	foreignActionsSlot *dml.ForeignActionScope
 	viewCreationSlot   *view.CreationScope
 	materializedSlot   *view.MaterializedRefreshScope
 	indexesSlot        *index.Scope
@@ -536,7 +537,7 @@ retry:
 		}
 	}
 	if s.insertConflict != nil && s.insertConflict.Update == nil {
-		s.insertConflict.affected = len(rows)
+		s.insertConflict.Affected = len(rows)
 	}
 	if len(rows) == 0 {
 		return nil

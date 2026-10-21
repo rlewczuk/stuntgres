@@ -166,7 +166,8 @@ the domain CHECK programme preparation (`prepareDomainConversion`, which
 keeps its phases in the statement scope) and `pruneQuoteCaptures` (stored
 view definitions); the binder
 methods in the `query_*_bind.go` files; the join legality checks; the DML
-executors, which open their inputs with `exec.OpenNode`; data-modifying CTE
+executors, which open their inputs with `exec.OpenNode` (their records are
+in [`dml`](../dml/README.md)); data-modifying CTE
 execution (`completeCTEMutation`); CREATE TABLE AS; SQL cursors and protocol
 portals; rule execution; `statementHost` with the capability bodies,
 `enginePreparation`, query grouping admission (`admitQueryGroupings`, which

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -14,19 +15,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type insertReturningOutput struct {
-	binding analyze.Binding
-	rows    *exec.FinalRows
-	overlay insertWriteOverlay
-}
-
 func (s *StatementScope) beginInsertReturning(b analyze.Binding) {
 	if b.Returning == nil {
 		return
 	}
 	rows := exec.NewFinalRows(b.Returning.Schema, 0)
 	rows.Output = s.output
-	s.insertReturning = &insertReturningOutput{binding: b, rows: rows}
+	s.insertReturning = &dml.InsertReturningOutput{Binding: b, Rows: rows}
 }
 func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exec.Context) error {
 	output := s.insertReturning
@@ -36,30 +31,30 @@ func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exe
 	evaluation := *c
 	evaluation.Scope, evaluation.Frame = 1, 1
 	evaluation.Row, evaluation.OldRow = row, old
-	for i, expr := range output.binding.Returning.Expressions {
+	for i, expr := range output.Binding.Returning.Expressions {
 		value, err := expr.Eval(&evaluation)
 		if err != nil {
 			return err
 		}
-		if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.rows.Columns[i].Usage.Type {
+		if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.Rows.Columns[i].Usage.Type {
 			return errors.New("stuntgres: invalid finalized INSERT value")
 		}
-		output.rows.Values = append(output.rows.Values, value)
+		output.Rows.Values = append(output.Rows.Values, value)
 	}
-	output.rows.Count++
+	output.Rows.Count++
 	return nil
 }
 func (s *StatementScope) finishInsertReturning() (Result, error) {
 	output := s.insertReturning
-	if output.binding.Returning.RegclassOutput && output.rows.Count != 0 {
-		if err := s.engine().captureRegclassOutput(s.op, output.rows); err != nil {
+	if output.Binding.Returning.RegclassOutput && output.Rows.Count != 0 {
+		if err := s.engine().captureRegclassOutput(s.op, output.Rows); err != nil {
 			return Result{}, err
 		}
 	}
 	if err := s.op.Context().Err(); err != nil {
 		return Result{}, err
 	}
-	return Result{Count: int64(output.rows.Count), Rows: output.rows}, nil
+	return Result{Count: int64(output.Rows.Count), Rows: output.Rows}, nil
 }
 
 // Revalidate the proposal before output, never output before possible filtering.
@@ -149,7 +144,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 	}
 	auth.Catalog = catalog
 	auth.Recapture(auth.Catalog)
-	b := s.insertReturning.binding
+	b := s.insertReturning.Binding
 	if b.ViewWrite == nil && s.partitionInsert == nil {
 		b.Ref, b.Relation = ref, parent
 	}

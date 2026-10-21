@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -16,15 +17,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-// A granted identity owns both the immutable descriptor and its physical store.
-// Virtual partition roots have no store but participate in locks and closure.
-type truncateRelation struct {
-	ref       ids.ObjectRef
-	relation  *catalog.Relation
-	storage   *storage.Relation
-	privilege bool
-}
 
 func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation, privilege, only bool) error {
 	if analyze.GuardedCatalogRelation(d) {
@@ -61,16 +53,6 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relatio
 	return nil
 }
 
-// Descendant admission and its final graph fence share the inherited-query
-// consumer's namespace/session-token authority, not child ACL or USAGE checks.
-func truncateOtherTemporary(catalog catalog.Read, relation *catalog.Relation, token ids.SessionToken) (bool, error) {
-	namespace, ok := catalog.Namespace(relation.Namespace())
-	if !ok {
-		return false, ids.ErrCatalogReplaced
-	}
-	return namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != token, nil
-}
-
 // Explicit targets are opened in user order. Named occurrences always check
 // their own ACL, even when an earlier inheritance expansion already selected them.
 func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
@@ -79,12 +61,12 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		s.op.SnapshotNoticeThreshold()
 	}
 	selected := make(map[ids.ObjectAddress]int)
-	s.truncate().selected = selected
-	s.truncate().restart = stmt.RestartIdentity
-	s.truncate().foreignCascade = stmt.Mode == parser.DropCascade
+	s.truncate().Selected = selected
+	s.truncate().Restart = stmt.RestartIdentity
+	s.truncate().ForeignCascade = stmt.Mode == parser.DropCascade
 	expanded := make(map[ids.ObjectAddress]bool)
-	var open func(ids.ObjectRef, *truncateName, bool, bool, bool, bool) error
-	open = func(ref ids.ObjectRef, name *truncateName, privilege, only, recurse, cascade bool) error {
+	var open func(ids.ObjectRef, *dml.TruncateName, bool, bool, bool, bool) error
+	open = func(ref ids.ObjectRef, name *dml.TruncateName, privilege, only, recurse, cascade bool) error {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var before *catalog.Relation
@@ -99,7 +81,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					err = ids.ErrCatalogReplaced
 				} else {
 					if !privilege {
-						otherTemporary, err = truncateOtherTemporary(auth.Catalog, before, s.op.Session.SessionToken)
+						otherTemporary, err = dml.TruncateOtherTemporary(auth.Catalog, before, s.op.Session.SessionToken)
 					}
 					if err == nil && !otherTemporary {
 						err = checkTruncate(auth, ref, before, privilege && !cascade, only)
@@ -155,7 +137,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = e.truncateNameCurrent(auth, *name)
 			}
 			if err == nil && !privilege {
-				otherTemporary, err = truncateOtherTemporary(auth.Catalog, d, s.op.Session.SessionToken)
+				otherTemporary, err = dml.TruncateOtherTemporary(auth.Catalog, d, s.op.Session.SessionToken)
 				if err == nil && otherTemporary {
 					err = ids.ErrCatalogReplaced
 				}
@@ -175,10 +157,10 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					s.owner.AccessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {
-					s.truncate().relations = append(s.truncateOrZero().relations, truncateRelation{ref: ref, relation: d, storage: current, privilege: privilege})
-					selected[ref.Address] = len(s.truncateOrZero().relations)
+					s.truncate().Relations = append(s.truncateOrZero().Relations, dml.TruncateRelation{Ref: ref, Relation: d, Storage: current, Privilege: privilege})
+					selected[ref.Address] = len(s.truncateOrZero().Relations)
 				} else if privilege {
-					s.truncate().relations[index-1].privilege = true
+					s.truncate().Relations[index-1].Privilege = true
 				}
 			}
 		}
@@ -195,7 +177,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					}
 					children = append(children, child)
 				}
-				slices.SortFunc(children, func(a, b *catalog.Relation) int { return compareTruncateAddress(a.Address(), b.Address()) })
+				slices.SortFunc(children, func(a, b *catalog.Relation) int { return dml.CompareTruncateAddress(a.Address(), b.Address()) })
 			}
 		}
 		e.mu.Unlock()
@@ -213,7 +195,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var ref ids.ObjectRef
-		observation := truncateName{name: target.Name}
+		observation := dml.TruncateName{Name: target.Name}
 		if err == nil && s.txRef.Epoch() != e.catalog.state.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
@@ -225,7 +207,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			if !ok {
 				err = ids.ErrCatalogReplaced
 			} else {
-				observation.ref, observation.namespace = ref, descriptor.Namespace()
+				observation.Ref, observation.Namespace = ref, descriptor.Namespace()
 			}
 		}
 		e.mu.Unlock()
@@ -235,12 +217,12 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err = open(ref, &observation, true, target.Only, !target.Only, false); err != nil {
 			return err
 		}
-		s.truncate().names = append(s.truncateOrZero().names, observation)
+		s.truncate().Names = append(s.truncateOrZero().Names, observation)
 	}
 	for {
 		e.mu.Lock()
 		catalog := e.privateCatalogLocked(s.owner.Catalog)
-		inbound := truncateReferencers(catalog, selected)
+		inbound := dml.TruncateReferencers(catalog, selected)
 		e.mu.Unlock()
 		if len(inbound) == 0 {
 			if stmt.RestartIdentity {
@@ -249,10 +231,10 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return nil
 		}
 		if stmt.Mode != parser.DropCascade {
-			return truncateForeignKeyError(inbound[0].parent.Name(), inbound[0].relation.Name())
+			return dml.TruncateForeignKeyError(inbound[0].Parent.Name(), inbound[0].Relation.Name())
 		}
 		for _, candidate := range inbound {
-			ref := e.catalog.Domain.Ref(s.txRef.Epoch(), candidate.relation.Address())
+			ref := e.catalog.Domain.Ref(s.txRef.Epoch(), candidate.Relation.Address())
 			if err := open(ref, nil, true, false, false, true); err != nil {
 				return err
 			}
@@ -260,68 +242,18 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	}
 }
 
-type truncateReferencer struct{ relation, parent *catalog.Relation }
-
-func compareTruncateAddress(a, b ids.ObjectAddress) int {
-	if a.ObjectID < b.ObjectID {
-		return -1
-	}
-	if a.ObjectID > b.ObjectID {
-		return 1
-	}
-	return 0
-}
-
-// FK definitions alone decide closure, including empty referencing tables.
-func truncateReferencers(view catalog.Read, selected map[ids.ObjectAddress]int) []truncateReferencer {
-	var result []truncateReferencer
-	for address, descriptor := range view.Descriptors() {
-		d, ok := descriptor.(*catalog.Relation)
-		if !ok || selected[address] != 0 {
-			continue
-		}
-		for _, fk := range d.Constraints.ForeignKeys {
-			if selected[fk.Target] != 0 {
-				parent, _ := view.Relation(fk.Target)
-				if parent != nil {
-					result = append(result, truncateReferencer{d, parent})
-				}
-				break
-			}
-		}
-	}
-	slices.SortFunc(result, func(a, b truncateReferencer) int {
-		return compareTruncateAddress(a.relation.Address(), b.relation.Address())
-	})
-	return result
-}
-func truncateForeignKeyError(parent, child string) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot truncate a table referenced in a foreign key constraint", Detail: fmt.Sprintf("Table %q references %q.", child, parent), Hint: fmt.Sprintf("Truncate table %q at the same time, or use TRUNCATE ... CASCADE.", child)}
-}
-
-// truncateScope is the statement's TRUNCATE slot: the selected relations and
-// sequences, RESTART IDENTITY and the foreign-table CASCADE request.
-type truncateScope struct {
-	relations      []truncateRelation
-	sequences      []truncateSequence
-	restart        bool
-	names          []truncateName
-	selected       map[ids.ObjectAddress]int
-	foreignCascade bool
-}
-
 // truncate returns the statement's truncate slot, allocating it on first use.
-func (s *StatementScope) truncate() *truncateScope {
+func (s *StatementScope) truncate() *dml.TruncateScope {
 	if s.truncateSlot == nil {
-		s.truncateSlot = new(truncateScope)
+		s.truncateSlot = new(dml.TruncateScope)
 	}
 	return s.truncateSlot
 }
 
 // truncateOrZero reads the truncate slot; a nil slot reads as zero.
-func (s *StatementScope) truncateOrZero() truncateScope {
+func (s *StatementScope) truncateOrZero() dml.TruncateScope {
 	if s.truncateSlot == nil {
-		return truncateScope{}
+		return dml.TruncateScope{}
 	}
 	return *s.truncateSlot
 }

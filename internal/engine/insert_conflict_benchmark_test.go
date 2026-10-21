@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -64,9 +65,9 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				}
 				scope.owner.Isolation, scope.owner.Frontier = isolation, 1
 				ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
-				action := newInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
+				action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
 				evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-				if err := action.selectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
+				if err := action.SelectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 					b.Fatal(err)
 				}
 				scope.insertConflict = action

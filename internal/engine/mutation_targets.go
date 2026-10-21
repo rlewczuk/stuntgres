@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -171,16 +172,6 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, dataView *vi
 	return source, nil
 }
 
-func mutationPhysicalRow(source *exec.Source, index int, b analyze.Binding) exec.QueryPhysicalRow {
-	version := source.VersionAt(source.RawIndex(index))
-	return source.PhysicalRow(index, exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage}, version)
-}
-
-type mutationRowIdentity struct {
-	ref ids.ObjectRef
-	row ids.RowID
-}
-
 // Physical generation/checks use the full physical proposal; diagnostic values
 // and SELECT rights are projected back to the named mutation target.
 func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.Binding, physical exec.QueryPhysicalRow, schema string, row []sqltype.Value, eval *exec.Context) error {
@@ -227,25 +218,6 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 	return nil
 }
 
-func scatterMutationRow(physical exec.QueryPhysicalRow, old storage.RowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
-	if physical.Segment == nil || physical.Segment.Layout == nil {
-		return named
-	}
-	row := append([]sqltype.Value(nil), old.Values...)
-	for _, slot := range targets {
-		row[physical.Segment.Layout[slot]] = named[slot]
-	}
-	return row
-}
-
-// versionRows appends the logical row identities of versions to buf.
-func versionRows(buf []ids.RowID, versions []storage.RowVersion) []ids.RowID {
-	for _, version := range versions {
-		buf = append(buf, version.Row)
-	}
-	return buf
-}
-
 // Descendant replacement authority is a real command target, captured generation
 // and row grant. Neither a source grant nor an RI authorization can manufacture it.
 func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []storage.RowVersion) error {
@@ -260,7 +232,7 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 		return errors.New("stuntgres: replacement requires its captured target view")
 	}
 	var small [8]ids.RowID
-	target, missing := s.engine().locks.ReplacementGrants(s.ticket, ref, versionRows(small[:0], old))
+	target, missing := s.engine().locks.ReplacementGrants(s.ticket, ref, dml.VersionRows(small[:0], old))
 	if s.ticket == nil || s.ticket.Ref() != s.txRef || !target {
 		return errors.New("stuntgres: replacement requires its target grant")
 	}

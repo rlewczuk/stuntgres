@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
@@ -65,9 +66,9 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	}
 	scratch := make([]sqltype.Value, len(b.Targets))
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
-	var copyInsert *copyInsertionState
-	if producer, ok := cursor.(copyInsertionCursor); ok && scope != nil && (unique || scope.partitionInsert != nil) {
-		copyInsert = newCopyInsertionState(producer, b)
+	var copyInsert *dml.CopyInsertionState
+	if producer, ok := cursor.(dml.CopyInsertionCursor); ok && scope != nil && (unique || scope.partitionInsert != nil) {
+		copyInsert = dml.NewCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}
@@ -122,10 +123,10 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				return index.WriteBatch{}, err
 			}
 			if copyInsert != nil {
-				copyInsert.record(scope, b, &candidate, len(rows.Values))
+				recordCopyInsertion(copyInsert, scope, b, &candidate, len(rows.Values))
 				rows.Append(candidate)
-				if copyInsert.full() {
-					if err := copyInsert.flush(scope, b, &rows, &evaluation); err != nil {
+				if copyInsert.Full() {
+					if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 						return index.WriteBatch{}, err
 					}
 				}
@@ -203,17 +204,17 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 		if copyInsert != nil {
-			copyInsert.record(scope, b, &candidate, len(rows.Values))
+			recordCopyInsertion(copyInsert, scope, b, &candidate, len(rows.Values))
 		}
 		rows.Append(candidate)
-		if copyInsert != nil && copyInsert.full() {
-			if err := copyInsert.flush(scope, b, &rows, &evaluation); err != nil {
+		if copyInsert != nil && copyInsert.Full() {
+			if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 				return index.WriteBatch{}, err
 			}
 		}
 	}
-	if copyInsert != nil && len(copyInsert.lines) != 0 {
-		if err := copyInsert.flush(scope, b, &rows, &evaluation); err != nil {
+	if copyInsert != nil && len(copyInsert.Lines) != 0 {
+		if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 			return index.WriteBatch{}, err
 		}
 	}

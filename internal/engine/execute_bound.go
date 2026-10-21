@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/fdw"
@@ -66,18 +67,18 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				return Result{}, err
 			}
 		}
-		if conflict := newInsertConflictState(b.Insert.Conflict); conflict != nil {
+		if conflict := dml.NewInsertConflictState(b.Insert.Conflict); conflict != nil {
 			if conflict.Predicate != nil {
-				conflict.Predicate, err = normalizeConflictPredicate(&evaluation, conflict.Predicate)
+				conflict.Predicate, err = dml.NormalizeConflictPredicate(&evaluation, conflict.Predicate)
 				if err != nil {
 					return Result{}, err
 				}
 			}
-			if err := conflict.selectArbiters(&evaluation, view.PhysicalBinding(b).Relation, auth.Catalog); err != nil {
+			if err := conflict.SelectArbiters(&evaluation, view.PhysicalBinding(b).Relation, auth.Catalog); err != nil {
 				return Result{}, err
 			}
 			scope.insertConflict = conflict
-			if err := conflict.preflightUpdate(&evaluation); err != nil {
+			if err := preflightConflictUpdate(conflict, &evaluation); err != nil {
 				return Result{}, err
 			}
 		}
@@ -155,7 +156,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 		if err == nil && b.Returning != nil {
-			b.Returning, err = preflightReturning(&evaluation, b.Returning)
+			b.Returning, err = dml.PreflightReturning(&evaluation, b.Returning)
 		}
 		if err == nil && (inserting || b.Update != nil || deleting || b.Merge != nil) {
 			err = validateMutationJoinExecution(&evaluation, &b, expressions, auth.Catalog)

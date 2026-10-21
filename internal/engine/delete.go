@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -173,7 +174,7 @@ func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.So
 		}
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	var positioned mutationRowIdentity
+	var positioned dml.MutationRowIdentity
 	if b.CurrentOf != "" {
 		var err error
 		positioned, err = s.positionedMutationRow(b)
@@ -218,9 +219,9 @@ func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.So
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		physical := mutationPhysicalRow(source, i, b)
+		physical := dml.MutationPhysicalRow(source, i, b)
 		version := physical.Version
-		if b.CurrentOf != "" && (positioned.ref != physical.Leaf.Ref || version.Row != positioned.row) {
+		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || version.Row != positioned.Row) {
 			continue
 		}
 		evaluation.Row = physical.Values(version)

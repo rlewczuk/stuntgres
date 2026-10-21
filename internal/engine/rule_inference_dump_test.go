@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -111,7 +112,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						want bool
 					}{{matchingRef, !expression}, {ordinaryRef, false}} {
 						index := catalog.MustRelation(test.ref.Address).SQLIndex
-						got, err := newInsertConflictState(c).matches(parent, index)
+						got, err := dml.NewInsertConflictState(c).Matches(parent, index)
 						if err != nil || got != test.want {
 							t.Fatalf("canonical inference match=%v want=%v error=%v", got, test.want, err)
 						}

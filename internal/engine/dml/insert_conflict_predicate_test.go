@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"context"
@@ -19,9 +19,8 @@ type insertConflictProofFixture struct {
 
 func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
 	t.Helper()
-	e := New()
-	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
+	integer, _ := builtinType(sqltype.Int4)
+	boolean, _ := builtinType(sqltype.Bool)
 	return insertConflictProofFixture{integer: integer, boolean: boolean, column: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}, ctx: exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}}
 }
 func (f insertConflictProofFixture) comparison(t *testing.T, op string, left, right expr.Expr) plan.ComparisonExpr {
@@ -142,8 +141,7 @@ func TestInsertConflictPredicateCurrentParameters(t *testing.T) {
 }
 func TestInsertConflictPredicateNegativeProviderProof(t *testing.T) {
 	f := insertConflictProofTypes(t)
-	e := New()
-	text, _ := e.CatalogRead().LookupType(sqltype.Text)
+	text, _ := builtinType(sqltype.Text)
 	literal := func(input string) plan.LiteralExpr {
 		value, err := text.Input(context.Background(), input, -1)
 		if err != nil {
@@ -176,9 +174,8 @@ func TestInsertConflictPredicateNegativeProviderProof(t *testing.T) {
 }
 func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 	f := insertConflictProofTypes(t)
-	e := New()
 	literal := func(id sqltype.ID, text string) plan.LiteralExpr {
-		descriptor, _ := e.CatalogRead().LookupType(id)
+		descriptor, _ := builtinType(id)
 		value, err := descriptor.Input(context.Background(), text, -1)
 		if err != nil {
 			t.Fatal(err)
@@ -238,4 +235,14 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 	if err != nil || got {
 		t.Fatal("unrelated column theorem", got, err)
 	}
+}
+
+// builtinType finds a builtin type descriptor, as the engine catalog seeds it.
+func builtinType(id sqltype.ID) (*sqltype.Descriptor, bool) {
+	for _, d := range sqltype.Builtins() {
+		if d.ID() == id {
+			return d, true
+		}
+	}
+	return nil, false
 }

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
@@ -163,7 +164,7 @@ func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Bind
 		if err := s.engine().checkViewRow(s, &b, row, evaluation); err != nil {
 			return err
 		}
-		return projectForeignReturning(b, output, row, nil, evaluation)
+		return dml.ProjectForeignReturning(b, output, row, nil, evaluation)
 	})
 	if err != nil {
 		if output != nil {
@@ -172,32 +173,6 @@ func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Bind
 		return Result{}, err
 	}
 	return s.finishForeignResult(b, output, count)
-}
-func projectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
-	if output == nil {
-		return nil
-	}
-	eval := *evaluation
-	eval.Scope, eval.Frame = 1, 1
-	eval.Row, eval.OldRow = row, old
-	if b.Delete.Using != nil || b.Update != nil && b.Update.From != nil {
-		// Keep the matched source suffix and query identity, replacing only
-		// the target prefix with the provider's actual NEW/returned tuple.
-		copy(evaluation.Row, row)
-		eval.Row = evaluation.Row
-	}
-	for i, expression := range b.Returning.Expressions {
-		value, err := expression.Eval(&eval)
-		if err != nil {
-			return err
-		}
-		if value.Type() == nil || value.Type() != output.Columns[i].Usage.Type {
-			return errors.New("stuntgres: invalid foreign RETURNING value")
-		}
-		output.Values = append(output.Values, value)
-	}
-	output.Count++
-	return nil
 }
 func (s *StatementScope) finishForeignResult(b analyze.Binding, output *exec.FinalRows, count int64) (Result, error) {
 	if output != nil && b.Returning.RegclassOutput && count != 0 {
@@ -218,12 +193,7 @@ func (s *StatementScope) finishForeignResult(b analyze.Binding, output *exec.Fin
 	return Result{Count: count, Rows: output}, nil
 }
 
-type foreignMutationRow struct {
-	row      []sqltype.Value
-	identity catalog.ForeignRowIdentity
-}
-
-func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modification) ([]foreignMutationRow, error) {
+func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modification) ([]dml.ForeignMutationRow, error) {
 	f := m.Source
 	r := exec.CopyForeignRequest(m.Request.ForeignRequest)
 	r.Identity = &m.Request.Targets
@@ -243,7 +213,7 @@ func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modificati
 	if !ok {
 		return nil, sqlError("0A000", "foreign modification scan does not supply row identity")
 	}
-	var rows []foreignMutationRow
+	var rows []dml.ForeignMutationRow
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -270,7 +240,7 @@ func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modificati
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, foreignMutationRow{row: values, identity: exec.CopyForeignCells(identity)})
+		rows = append(rows, dml.ForeignMutationRow{Row: values, Identity: exec.CopyForeignCells(identity)})
 	}
 	return rows, nil
 }
@@ -338,9 +308,9 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			evaluation.Row = candidate.row
+			evaluation.Row = candidate.Row
 			if from != nil {
-				copy(frame, candidate.row)
+				copy(frame, candidate.Row)
 				copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(i)))
 				evaluation.Row = frame
 				evaluation.BindQueryIdentity(stage.Source, stage.Index(i))
@@ -356,13 +326,13 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 				continue
 			}
 			identityChecked = true
-			if !seen.Add(candidate.identity) {
+			if !seen.Add(candidate.Identity) {
 				continue
 			}
 			var returned catalog.ForeignRow
 			var present bool
 			if b.Update != nil {
-				row, err := evaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.row)
+				row, err := evaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.Row)
 				if err != nil {
 					return Result{}, err
 				}
@@ -373,16 +343,16 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 				if err != nil {
 					return Result{}, err
 				}
-				returned, present, err = m.Source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.identity), input)
+				returned, present, err = m.Source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.Identity), input)
 				if err != nil {
 					return Result{}, exec.ForeignCallbackError(err)
 				}
 			} else {
-				input, exportErr := m.Export(ctx, candidate.row, s.foreignWrites())
+				input, exportErr := m.Export(ctx, candidate.Row, s.foreignWrites())
 				if exportErr != nil {
 					return Result{}, exportErr
 				}
-				returned, present, err = m.Source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.identity), input)
+				returned, present, err = m.Source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.Identity), input)
 			}
 			if err != nil {
 				return Result{}, exec.ForeignCallbackError(err)
@@ -399,7 +369,7 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 					return Result{}, err
 				}
 			}
-			if err := projectForeignReturning(b, output, actual, candidate.row, evaluation); err != nil {
+			if err := dml.ProjectForeignReturning(b, output, actual, candidate.Row, evaluation); err != nil {
 				return Result{}, err
 			}
 			count++

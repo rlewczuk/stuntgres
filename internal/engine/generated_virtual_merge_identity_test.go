@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"testing"
 )
@@ -19,7 +20,7 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	if err := exec.SelectQuerySources(op.Ctx, inputs); err != nil {
 		t.Fatal(err)
 	}
-	state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: mergeHasVirtualReads(b.Merge)}
+	state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: dml.MergeHasVirtualReads(b.Merge)}
 	if !state.VirtualReads {
 		t.Fatal("MERGE action did not establish virtual demand")
 	}

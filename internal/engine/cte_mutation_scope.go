@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -46,8 +47,8 @@ type mutationIndexes struct {
 
 // mutationInsert holds INSERT's ON CONFLICT and RETURNING state (dml).
 type mutationInsert struct {
-	insertConflict  *insertConflictState
-	insertReturning *insertReturningOutput
+	insertConflict  *dml.InsertConflictState
+	insertReturning *dml.InsertReturningOutput
 }
 
 // mutationPartition holds INSERT partition routing (partition).
@@ -74,18 +75,6 @@ func (s *StatementScope) mutationIndex(statement parser.Statement) int {
 	return -1
 }
 
-func statementCTERoot(statement parser.Statement) parser.Statement {
-	switch s := statement.(type) {
-	case *parser.CreateQueryTable:
-		return s.Query
-	case *parser.CreateView:
-		return s.Query
-	case *parser.DeclareCursor:
-		return s.Query
-	}
-	return statement
-}
-
 // Admission is complete before binding/execution. The existing source walker
 // remains lexical authority; target occurrences cannot become virtual scans.
 func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute bool) error {
@@ -102,7 +91,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 	}
 	// Main SELECT/CTAS has an empty context; its admission must not reuse an
 	// auxiliary's target. Main DML already occupies its final occurrence.
-	root := statementCTERoot(statement)
+	root := dml.StatementCTERoot(statement)
 	if !parser.ModifyingStatement(root) {
 		s.mutations = append(s.mutations, statementMutation{statement: root})
 	}

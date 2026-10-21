@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -12,44 +12,26 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/sqltype"
 )
-
-// This authority is private to one statement and one captured physical child.
-// It never substitutes for the initiating target's admission or candidate view.
-type foreignActionAdmission struct {
-	ref               ids.ObjectRef
-	storage           *storage.Relation
-	relation          *catalog.Relation
-	tx                ids.TxRef
-	jobs              []foreignKeyJob
-	writable, mutated bool
-}
-
-type foreignActionTransition struct {
-	relation  ids.ObjectAddress
-	old, next storage.RowVersion
-	owner     authorization.PrincipalRef // zero means the initiating statement's actor
-}
 
 func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRef) error {
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	admission := s.foreignActionsOrZero().admissions[ref.Address]
-	if admission == nil || admission.ref != ref || admission.tx != s.txRef || s.owner.Ref != s.txRef {
+	admission := s.foreignActionsOrZero().Admissions[ref.Address]
+	if admission == nil || admission.Ref != ref || admission.Tx != s.txRef || s.owner.Ref != s.txRef {
 		return errors.New("stuntgres: missing internal action admission")
 	}
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-	if !ok || !index.SameRelationRowShape(admission.relation, current) || e.privateStorageLocked(s.owner.Catalog, ref.Address) != admission.storage {
+	if !ok || !index.SameRelationRowShape(admission.Relation, current) || e.privateStorageLocked(s.owner.Catalog, ref.Address) != admission.Storage {
 		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
-	for _, captured := range admission.jobs {
-		if err := refreshForeignActionJob(view, &captured); err != nil {
+	for _, captured := range admission.Jobs {
+		if err := dml.RefreshForeignActionJob(view, &captured); err != nil {
 			return err
 		}
 	}
@@ -79,7 +61,7 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 	return auth, nil
 }
 
-func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJob, writable bool) error {
+func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *dml.ForeignKeyJob, writable bool) error {
 	e := s.engine()
 	required := lock.RowShare | lock.RowExclusive
 	if writable {
@@ -91,7 +73,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() || ref.Address != job.child.Address() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() || ref.Address != job.Child.Address() {
 		return ids.ErrCatalogReplaced
 	}
 	if !held {
@@ -99,31 +81,31 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	}
 	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
 	storage := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if !ok || !index.SameRelationRowShape(current, job.child) || storage == nil {
+	if !ok || !index.SameRelationRowShape(current, job.Child) || storage == nil {
 		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
-	if err := refreshForeignActionJob(view, job); err != nil {
+	if err := dml.RefreshForeignActionJob(view, job); err != nil {
 		return err
 	}
-	if s.foreignActionsOrZero().admissions == nil {
-		s.foreignActions().admissions = make(map[ids.ObjectAddress]*foreignActionAdmission)
+	if s.foreignActionsOrZero().Admissions == nil {
+		s.foreignActions().Admissions = make(map[ids.ObjectAddress]*dml.ForeignActionAdmission)
 	}
-	if previous := s.foreignActionsOrZero().admissions[ref.Address]; previous != nil {
+	if previous := s.foreignActionsOrZero().Admissions[ref.Address]; previous != nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
 			return err
 		}
 		present := false
-		for _, captured := range previous.jobs {
-			present = present || captured.definition.OID == job.definition.OID
+		for _, captured := range previous.Jobs {
+			present = present || captured.Definition.OID == job.Definition.OID
 		}
 		if !present {
-			previous.jobs = append(previous.jobs, *job)
+			previous.Jobs = append(previous.Jobs, *job)
 		}
-		previous.writable = previous.writable || writable
+		previous.Writable = previous.Writable || writable
 		return nil
 	}
-	s.foreignActions().admissions[ref.Address] = &foreignActionAdmission{ref: ref, storage: storage, relation: current, tx: s.txRef, jobs: []foreignKeyJob{*job}, writable: writable}
+	s.foreignActions().Admissions[ref.Address] = &dml.ForeignActionAdmission{Ref: ref, Storage: storage, Relation: current, Tx: s.txRef, Jobs: []dml.ForeignKeyJob{*job}, Writable: writable}
 	return nil
 }
 
@@ -136,7 +118,7 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	stored := s.foreignActionsOrZero().admissions[ref.Address].storage
+	stored := s.foreignActionsOrZero().Admissions[ref.Address].Storage
 	if index.UniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 		return storage.RowVersion{}, false, nil
 	}
@@ -173,7 +155,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return err
 	}
-	if !s.foreignActionsOrZero().admissions[ref.Address].writable {
+	if !s.foreignActionsOrZero().Admissions[ref.Address].Writable {
 		return errors.New("stuntgres: read-only internal action admission")
 	}
 	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
@@ -182,7 +164,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if index.UniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
 		return nil
 	}
-	stored := s.foreignActionsOrZero().admissions[ref.Address].storage
+	stored := s.foreignActionsOrZero().Admissions[ref.Address].Storage
 	candidate := visibility.DeleteCandidate{Ref: ref, Storage: stored, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
 	if old.Born != 0 {
 		candidate.Base = old.Version
@@ -190,18 +172,18 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if err := w.stageDeletionLocked(e, candidate, old); err != nil {
 		return err
 	}
-	s.foreignActions().admissions[ref.Address].mutated = true
-	s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: ref.Address, old: old, owner: s.foreignActionsOrZero().admissions[ref.Address].relation.Owner})
+	s.foreignActions().Admissions[ref.Address].Mutated = true
+	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Owner: s.foreignActionsOrZero().Admissions[ref.Address].Relation.Owner})
 	return nil
 }
 
 func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, next storage.RowVersion) {
-	if !s.foreignActionsOrZero().settling {
+	if !s.foreignActionsOrZero().Settling {
 		return
 	}
-	admission := s.foreignActionsOrZero().admissions[ref.Address]
-	admission.mutated = true
-	s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.Owner})
+	admission := s.foreignActionsOrZero().Admissions[ref.Address]
+	admission.Mutated = true
+	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: admission.Relation.Owner})
 }
 
 func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {
@@ -209,15 +191,6 @@ func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef
 		auth.State.CurrentUser = owner
 	}
 	return auth
-}
-
-func foreignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []sqltype.Value) bool {
-	for _, comparison := range comparisons {
-		if !sqltype.SameDatum(old[comparison.Parent], next[comparison.Parent]) {
-			return false
-		}
-	}
-	return true
 }
 
 // Borrow both current and retained images under stable isolation. Current
@@ -244,31 +217,18 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (table.Fore
 	return rows, retained, nil
 }
 
-// foreignActionScope is the statement's foreign-key action slot: admitted
-// referencing relations, row transitions, settling state, prepared check jobs
-// and the foreign-key targets of CREATE/ALTER TABLE.
-type foreignActionScope struct {
-	admissions     map[ids.ObjectAddress]*foreignActionAdmission
-	transitions    []foreignActionTransition
-	settling       bool
-	exclusionAdded bool // a new event admitted while settling actions
-	jobs           []foreignKeyJob
-	keyTargets     []ids.ObjectRef
-	alterKeys      []table.AlterForeignKeyAdmission
-}
-
 // foreignActions returns the statement's foreignActions slot, allocating it on first use.
-func (s *StatementScope) foreignActions() *foreignActionScope {
+func (s *StatementScope) foreignActions() *dml.ForeignActionScope {
 	if s.foreignActionsSlot == nil {
-		s.foreignActionsSlot = new(foreignActionScope)
+		s.foreignActionsSlot = new(dml.ForeignActionScope)
 	}
 	return s.foreignActionsSlot
 }
 
 // foreignActionsOrZero reads the foreignActions slot; a nil slot reads as zero.
-func (s *StatementScope) foreignActionsOrZero() foreignActionScope {
+func (s *StatementScope) foreignActionsOrZero() dml.ForeignActionScope {
 	if s.foreignActionsSlot == nil {
-		return foreignActionScope{}
+		return dml.ForeignActionScope{}
 	}
 	return *s.foreignActionsSlot
 }

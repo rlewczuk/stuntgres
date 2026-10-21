@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/copyfmt"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -30,7 +31,7 @@ func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyfmt.Options, 
 	// One backing array for both row flags offsets the targets allocation.
 	n := len(b.Relation.Columns)
 	flags := make([]bool, 2*n)
-	c := &copyCursor{scope: scope, binding: b, in: copyfmt.NewLineReader(o, bufio.NewReader(copyReader{scope, r}), copyLineTargets(b)), defaults: flags[:n:n], omitted: flags[n:]}
+	c := &copyCursor{scope: scope, binding: b, in: copyfmt.NewLineReader(o, bufio.NewReader(copyReader{scope, r}), dml.CopyLineTargets(b)), defaults: flags[:n:n], omitted: flags[n:]}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
@@ -40,14 +41,6 @@ func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyfmt.Options, 
 	return c
 }
 
-// copyLineTargets is built once per statement from the target columns.
-func copyLineTargets(b analyze.Binding) []copyfmt.Target {
-	targets := make([]copyfmt.Target, len(b.Targets))
-	for i, target := range b.Targets {
-		targets[i] = copyfmt.Target{Name: b.Relation.Columns[target].Name, HasDefault: len(b.Insert.Defaults) != 0 && b.Insert.Defaults[target] != nil}
-	}
-	return targets
-}
 func (c *copyCursor) Schema() []catalog.Column { return nil }
 func (c *copyCursor) Close() error             { return nil }
 func (c *copyCursor) rowDefaults() []bool      { return c.defaults }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -48,11 +49,11 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q 
 		t.Fatal(err)
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	conflict := newInsertConflictState(b.Insert.Conflict)
-	if err := conflict.selectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
+	conflict := dml.NewInsertConflictState(b.Insert.Conflict)
+	if err := conflict.SelectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if err := conflict.preflightUpdate(&evaluation); err != nil {
+	if err := preflightConflictUpdate(conflict, &evaluation); err != nil {
 		t.Fatal(err)
 	}
 	scope.insertConflict = conflict
@@ -140,7 +141,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			t.Fatal(tc.name, err)
 		}
 		original := action.Insert.Conflict.Update
-		err = newInsertConflictState(action.Insert.Conflict).preflightUpdate(&evaluation)
+		err = preflightConflictUpdate(dml.NewInsertConflictState(action.Insert.Conflict), &evaluation)
 		if tc.error {
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || action.Insert.Conflict.Update != original {
@@ -326,8 +327,8 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		if failure == "close" {
 			consumed, affected = 2, 2
 		}
-		if cursor.position != consumed || cursor.nextCalls != consumed+1 || scope.insertConflict.affected != affected {
-			t.Fatal("consumed proposals and once-only mixed action accounting", cursor.position, cursor.nextCalls, scope.insertConflict.affected)
+		if cursor.position != consumed || cursor.nextCalls != consumed+1 || scope.insertConflict.Affected != affected {
+			t.Fatal("consumed proposals and once-only mixed action accounting", cursor.position, cursor.nextCalls, scope.insertConflict.Affected)
 		}
 		if finishErr := scope.Finish(err); !errors.Is(finishErr, injected) {
 			t.Fatal("primary veto lost", finishErr)

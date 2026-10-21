@@ -85,7 +85,7 @@ func (s *StatementScope) Finish(err error) error {
 		if err == nil {
 			err = s.settleForeignActions()
 		}
-		if err == nil && s.foreignActionsOrZero().exclusionAdded {
+		if err == nil && s.foreignActionsOrZero().ExclusionAdded {
 			err = s.checkExclusionEvents(t.State == session.TxImplicit && !t.RetainsTransaction(), nil)
 		}
 		if err == nil {

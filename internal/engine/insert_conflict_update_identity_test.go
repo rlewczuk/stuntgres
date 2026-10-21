@@ -33,7 +33,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		}
 		proposal := []sqltype.Value{integer(1), integer(2)}
 		hit, err := scope.probeUniqueRow(b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.insertConflict, index.ProbeRuntime)
-		entry := e.storage.IndexRoots[scope.insertConflict.selected[0]].Entries[0]
+		entry := e.storage.IndexRoots[scope.insertConflict.Selected[0]].Entries[0]
 		store := e.storage.Relations[b.Ref.Address]
 		if err != nil || !hit.committed || entry.Position != 1 || hit.position != 1 || hit.row.Row != entry.Row || hit.row.Version != entry.Version || &hit.row.Values[0] != &store.Versions[1].Values[0] {
 			t.Fatal("provider physical hint after real tombstone, without copying", isolation, hit, entry, err)
@@ -48,7 +48,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		if err != nil || replacement.committed || len(stage) != 1 || replacement.row.Row != old.Row || replacement.row.Version != stage[0].Version || replacement.row.Base != old.Version || replacement.row.Version == old.Version || testExport(old.Values[1]) != int64(10) {
 			t.Fatal("current-command replacement overlay/provenance", replacement, stage, old, err)
 		}
-		if _, affected := scope.insertConflict.affectedRows[replacement.row.Row]; !affected {
+		if _, affected := scope.insertConflict.AffectedRows[replacement.row.Row]; !affected {
 			t.Fatal("command origin missing")
 		}
 		if err := scope.Finish(nil); err != nil {
@@ -62,7 +62,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		op2, scope2, b2 := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,4) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
 		own, err := scope2.probeUniqueRow(b2.Ref, &index.WriteCandidate{Values: nextProposal}, nil, index.WriteBatch{}, scope2.insertConflict, index.ProbeRuntime)
-		if err != nil || own.committed || own.row.Row != prior.Row || own.row.Version != prior.Version || len(scope2.insertConflict.affectedRows) != 0 {
+		if err != nil || own.committed || own.row.Row != prior.Row || own.row.Version != prior.Version || len(scope2.insertConflict.AffectedRows) != 0 {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}
 		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op2.Context(), Input: scope2.input, Output: scope2.output, Host: hostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
@@ -200,7 +200,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 			t.Fatal(err)
 		}
 		result, err := scope.Execute(statement(t, "INSERT INTO t VALUES(2,20),(1,11),(3,31) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE t.k<>3"), 0, nil)
-		if err != nil || result.Count != 2 || result.Rows != nil || len(scope.stage.rows[ref.Address]) != 2 || !scope.stage.replacing || scope.insertConflict.affected != 2 {
+		if err != nil || result.Count != 2 || result.Rows != nil || len(scope.stage.rows[ref.Address]) != 2 || !scope.stage.replacing || scope.insertConflict.Affected != 2 {
 			scope.Finish(errors.New("bad mixed stage"))
 			cancel()
 			op.Done()

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -12,7 +13,6 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -43,7 +43,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			if err != nil {
 				return err
 			}
-			if c.catalog != s.uniqueBinding.Catalog {
+			if c.Catalog != s.uniqueBinding.Catalog {
 				manager.RestoreUniqueDelta(s.ticket)
 				s.writeHost().DiscardExclusion(candidate)
 				continue
@@ -52,7 +52,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				return other.diagnostic(s, ref)
 			}
 			if s.viewWrite != nil {
-				b := bindingForConflict(ref, s.viewWrite.BaseRelation, c)
+				b := dml.BindingForConflict(ref, s.viewWrite.BaseRelation, c)
 				b.ViewWrite = view.ViewWriteSlotOf(s.viewWrite)
 				b.Targets = c.Targets
 				if err := e.checkViewRow(s, &b, proposal, &evaluation); err != nil {
@@ -77,7 +77,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				}
 			}
 			staged := s.stage.rows[ref.Address]
-			c.markAffected(staged[len(staged)-1].Row, len(staged)-1)
+			c.MarkAffected(staged[len(staged)-1].Row, len(staged)-1)
 			return s.projectInsertReturning(proposal, nil, &evaluation)
 		}
 		// A speculative key must never be held while queuing for the selected row.
@@ -112,8 +112,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			s.writeHost().DiscardExclusion(candidate)
 			continue
 		}
-		if _, duplicate := c.affectedRows[old.Row]; duplicate {
-			return conflictUpdateCardinalityError()
+		if _, duplicate := c.AffectedRows[old.Row]; duplicate {
+			return dml.ConflictUpdateCardinalityError()
 		}
 		lockMode, err := lock.MultiLockMode(mode)
 		if err != nil {
@@ -122,12 +122,12 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.physicalRowEvent(ref, old, lockMode, 0); err != nil {
 			return err
 		}
-		if c.frame == nil {
-			c.frame = make([]sqltype.Value, 2*c.Width)
+		if c.Frame == nil {
+			c.Frame = make([]sqltype.Value, 2*c.Width)
 		}
-		copy(c.frame, old.Values)
-		copy(c.frame[c.Width:], proposal)
-		evaluation.Row = c.frame
+		copy(c.Frame, old.Values)
+		copy(c.Frame[c.Width:], proposal)
+		evaluation.Row = c.Frame
 		matches, err := exec.UpdateMatches(&evaluation, c.Update.Predicate)
 		if err != nil {
 			return err
@@ -141,7 +141,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err != nil {
 			return err
 		}
-		b := bindingForConflict(ref, parent, c)
+		b := dml.BindingForConflict(ref, parent, c)
 		// Constraint Detail can disclose SET outputs, not unread carried target data.
 		b.Targets = c.UpdateTargets
 		if err := e.validatePhysicalInsertRow(s, b, &b, schema, row, &evaluation); err != nil {
@@ -188,22 +188,9 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.Writes().replaceDistinct(ref, []storage.RowVersion{old}, batch); err != nil {
 			return err
 		}
-		c.markAffected(old.Row, len(s.stage.rows[ref.Address])-1)
+		c.MarkAffected(old.Row, len(s.stage.rows[ref.Address])-1)
 		return s.projectInsertReturning(row, old.Values, &evaluation)
 	}
-}
-
-func (c *insertConflictState) markAffected(id ids.RowID, slot int) {
-	if c.affectedRows == nil {
-		c.affectedRows = make(map[ids.RowID]int)
-	}
-	c.affectedRows[id] = slot
-	c.affected++
-}
-func conflictUpdateCardinalityError() error {
-	d := sqlError("21000", "ON CONFLICT DO UPDATE command cannot affect row a second time").(*sqlstate.Error)
-	d.Hint = "Ensure that no rows proposed for insertion within the same command have duplicate constrained values."
-	return d
 }
 
 // Committed hits retain their provider's exact physical hint. Private overlays
@@ -229,7 +216,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	}
 	auth.Catalog = catalog
 	auth.Recapture(auth.Catalog)
-	if err := analyze.CheckBinding(auth, bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
+	if err := analyze.CheckBinding(auth, dml.BindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
 		return storage.RowVersion{}, nil, "", false, err
 	}
 	namespace, ok := catalog.Namespace(parent.Namespace())
@@ -241,7 +228,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if candidate.committed {
 		row, _, found = storage.RowByID(store.Versions, candidate.row.Row, candidate.position)
 	} else {
-		if slot, ok := s.insertConflict.affectedRows[candidate.row.Row]; ok {
+		if slot, ok := s.insertConflict.AffectedRows[candidate.row.Row]; ok {
 			row, found = s.stage.rows[ref.Address][slot], true
 		}
 		if !found {
@@ -258,7 +245,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	return row, parent, namespace.Name(), live, nil
 }
 
-func (c *insertConflictState) preflightUpdate(evaluation *exec.Context) error {
+func preflightConflictUpdate(c *dml.InsertConflictState, evaluation *exec.Context) error {
 	if c.Update == nil {
 		return nil
 	}

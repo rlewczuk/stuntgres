@@ -73,7 +73,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			return nil, err
 		}
 	} else {
-		if err := e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.State.CurrentUser, scope.input, scope.foreignActionsOrZero().keyTargets); err != nil {
+		if err := e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.State.CurrentUser, scope.input, scope.foreignActionsOrZero().KeyTargets); err != nil {
 			return nil, err
 		}
 	}
