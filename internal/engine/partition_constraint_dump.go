@@ -162,7 +162,7 @@ func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *
 			}
 			addition = strings.Join(labels, "_")
 		}
-		name := generatedConstraintName(child.Name(), addition, suffix, used)
+		name := catalog.GeneratedConstraintName(child.Name(), addition, suffix, used)
 		used[name] = true
 		renames = append(renames, rename{index, name})
 		if event.Phase == dump.TableAttachment && child.Partition != nil {

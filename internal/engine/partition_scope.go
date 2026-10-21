@@ -280,7 +280,7 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 // child manifest may cross the read admission fence; no name/shape retargeting.
 func partitionAppendCompatible(old, current *catalog.Relation) bool {
 	if old == nil || current == nil || old.Partition == nil || current.Partition == nil ||
-		!relationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
+		!catalog.RelationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
 		old.Membership != current.Membership || old.Inheritance != current.Inheritance ||
 		old.Partition.Strategy != current.Partition.Strategy ||
 		len(old.Partition.Keys) != len(current.Partition.Keys) ||

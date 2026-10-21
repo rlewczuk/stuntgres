@@ -34,7 +34,7 @@ func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, own
 		if partitionReplaySeparateConstraint(view, index) != separate {
 			continue
 		}
-		primary := physicalPrimaryForAttribute(table, foreign.Referenced[0])
+		primary := catalog.PhysicalPrimaryForAttribute(table, foreign.Referenced[0])
 		text, err := (pgRenderer{view: view}).foreignKeyConstraintSQLWithPrimary(table, foreign, slices.Equal(foreign.Referenced, primary.Attributes))
 		if err != nil {
 			return err
@@ -89,7 +89,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 		if !primary.Primary {
 			continue
 		}
-		support := capturePhysicalPrimarySupport(old, primary)
+		support := catalog.CapturePhysicalPrimarySupport(old, primary)
 		if !physicalPrimarySupportValid(auth.Catalog, old, primary, support) {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}

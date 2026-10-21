@@ -51,7 +51,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 	}
 	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
 	for _, attribute := range t.attributes {
-		if _, physical := t.descriptor.Constraints.PhysicalNotNull[attribute]; !physical || physicalPrimaryForAttribute(t.descriptor, attribute) != nil {
+		if _, physical := t.descriptor.Constraints.PhysicalNotNull[attribute]; !physical || catalog.PhysicalPrimaryForAttribute(t.descriptor, attribute) != nil {
 			continue
 		}
 		column := t.columns[t.descriptor.IndexForAttribute(attribute)].Name

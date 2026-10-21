@@ -193,9 +193,9 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 	name := a.Constraint.Text
 	if adding {
 		if name == "" {
-			name = generatedConstraintName(old.Name(), old.Columns[slot].Name, "not_null", constraintNames(view, old.Namespace(), old, op.Definition))
+			name = catalog.GeneratedConstraintName(old.Name(), old.Columns[slot].Name, "not_null", catalog.ConstraintNames(view, old.Namespace(), old, op.Definition))
 		}
-		if relationConstraintNameExists(old, name) {
+		if catalog.RelationConstraintNameExists(old, name) {
 			return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.Name()))
 		}
 	}

@@ -27,7 +27,7 @@ func remapPhysicalNotNullReferences(old, next *catalog.Relation, mapping map[ids
 		cause.Ref.Address = next.Address()
 		proof.Cause = &cause
 		if support := proof.Support; support != nil {
-			primary := physicalPrimaryForAttribute(old, attribute)
+			primary := catalog.PhysicalPrimaryForAttribute(old, attribute)
 			if primary == nil || support.Constraint != primary.OID || support.Index != primary.Index || len(support.Keys) != len(primary.Attributes) {
 				return fmt.Errorf("stuntgres: missing physical not-null source primary")
 			}
@@ -86,7 +86,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalog.State, previous map[ids.Obje
 			proof.Cause = &cause
 			proof.Usage = table.Columns[slot].Usage
 			if support := proof.Support; support != nil {
-				before, after := physicalPrimaryForAttribute(old, attribute), physicalPrimaryForAttribute(table, attribute)
+				before, after := catalog.PhysicalPrimaryForAttribute(old, attribute), catalog.PhysicalPrimaryForAttribute(table, attribute)
 				if before == nil || after == nil || before.OID != support.Constraint || before.Index != support.Index || after.Index != before.Index || !slices.Equal(before.Attributes, after.Attributes) {
 					return fmt.Errorf("stuntgres: changed physical not-null remap primary")
 				}

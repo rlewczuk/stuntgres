@@ -124,7 +124,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 			}
 		}
 	}
-	if index.SQLIndex.Constraint != nil || relationConstraintNameExists(parent, name) {
+	if index.SQLIndex.Constraint != nil || catalog.RelationConstraintNameExists(parent, name) {
 		prepared.err = usingIndexCatalogDuplicate(parent, name)
 		return prepared, nil
 	}

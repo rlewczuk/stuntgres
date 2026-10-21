@@ -122,7 +122,7 @@ func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, cu
 			if retained.Support != proof.Support || retained.Retired != proof.Retired {
 				return reject()
 			}
-		} else if physicalPrimaryForAttribute(current, attribute) != nil {
+		} else if catalog.PhysicalPrimaryForAttribute(current, attribute) != nil {
 			return reject()
 		}
 	}

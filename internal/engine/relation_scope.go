@@ -570,7 +570,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	if materializedAlterAuthority != nil &&
 		(descriptor.RelationKind != materializedAlterAuthority.RelationKind ||
-			!relationDefiningAuthorityCompatible(materializedAlterAuthority, descriptor) ||
+			!catalog.RelationDefiningAuthorityCompatible(materializedAlterAuthority, descriptor) ||
 			descriptor.SQLIndex != materializedAlterAuthority.SQLIndex) {
 		// Check current ownership on the admitted identity, not its old name.
 		// A still-authorized actor cannot adopt a changed defining predecessor.

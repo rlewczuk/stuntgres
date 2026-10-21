@@ -174,7 +174,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 			}
 		}
 		pair.facts[i] = restoredPhysicalNotNullFact{attribute: attribute, oid: current.Constraints.NotNull[index].OID, usage: current.Columns[slot].Usage}
-		primary := physicalPrimaryForAttribute(current, attribute)
+		primary := catalog.PhysicalPrimaryForAttribute(current, attribute)
 		if repair.primary == "" {
 			if slices.ContainsFunc(current.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 				return reject()
@@ -189,7 +189,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 				}
 			}
 			if pair.primary == nil {
-				pair.primary = capturePhysicalPrimarySupport(current, primary)
+				pair.primary = catalog.CapturePhysicalPrimarySupport(current, primary)
 				if !physicalPrimarySupportValid(auth.Catalog, current, primary, pair.primary) {
 					return reject()
 				}
@@ -268,7 +268,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 			return reject()
 		}
 	}
-	primary := physicalPrimaryForAttribute(old, fact.attribute)
+	primary := catalog.PhysicalPrimaryForAttribute(old, fact.attribute)
 	if pair.primary == nil {
 		if primary != nil || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 			e.mu.Unlock()

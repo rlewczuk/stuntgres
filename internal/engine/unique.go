@@ -121,7 +121,7 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 		local[c.Name] = true
 	}
 	view := e.stageRead(stage)
-	used := constraintNames(view, d.Namespace(), nil)
+	used := catalog.ConstraintNames(view, d.Namespace(), nil)
 	for name := range local {
 		used[name] = true
 	}
@@ -139,13 +139,13 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 		}
 		if c.Name == "" {
 			if c.Primary {
-				c.Name = generatedConstraintName(d.Name(), "", "pkey", used)
+				c.Name = catalog.GeneratedConstraintName(d.Name(), "", "pkey", used)
 			} else {
 				labels := make([]string, len(c.Attributes))
 				for j, a := range c.Attributes {
 					labels[j] = d.Columns[slices.Index(d.Attributes, a)].Name
 				}
-				c.Name = generatedConstraintName(d.Name(), strings.Join(labels, "_"), "key", used)
+				c.Name = catalog.GeneratedConstraintName(d.Name(), strings.Join(labels, "_"), "key", used)
 			}
 		}
 		// An existing backing relation wins over a same-named local NN/CHECK

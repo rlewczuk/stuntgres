@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -71,10 +72,10 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 		}
 	}
 	long := strings.Repeat("é", 31)
-	if got := generatedConstraintName(long, "", "check", map[string]bool{}); got != strings.Repeat("é", 28)+"_check" {
+	if got := catalog.GeneratedConstraintName(long, "", "check", map[string]bool{}); got != strings.Repeat("é", 28)+"_check" {
 		t.Fatal("UTF8 clipping", got)
 	}
-	if !constraintNames(view, d.ObjectNamespace, nil)["a_first"] {
+	if !catalog.ConstraintNames(view, d.ObjectNamespace, nil)["a_first"] {
 		t.Fatal("domain constraint missing from namespace generator")
 	}
 }
