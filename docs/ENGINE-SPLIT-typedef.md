@@ -600,7 +600,56 @@ Part B: the type DDL handlers live in `typedef`. The checks in §8.3 pass.
     `TestReferenceCompositeExprCorrelatedReturning/postgres` fail (as in 15a
     and 15b; every stuntgres subtest passes). No bench: startup is not
     touched. Racecheck and finalcheck skipped at user request.
-- [ ] 15e — Type dump statements moved (linear item 81)
+- [x] 15e — Type dump statements moved (linear item 81) (`daaaf0da3`,
+  `f1b6a78c7`, `27fe76274`, then the docs commit) *(racecheck/finalcheck
+  skipped at user request)*
+  - Re-measured at `e13730bdb`, then rebased onto `e68b939e8` and `1eabe1ff6` (regobj 21b
+    had moved `catalogTypeDeclaration*` and `catalogColumnDeclaration` into
+    `regobj`). `regobj` sits at L11 and imports `analyze`, `exec` and
+    `routine`, so `typedef` still reaches type and column declarations
+    through `dump.Presenter`, never `regobj` directly.
+  - `daaaf0da3` (seam): `dump.Presenter` gains `DomainDefault(ctx, view,
+    node)` and `DomainCheck(ctx, view, value, node)`; the root
+    `dumpPresenter` forwards them to `scalarRenderer{currentRowShape: true}`
+    and `scalarRenderer{domainValue: &value}`. No `Literal` method: none of
+    the moved code renders literals.
+  - `f1b6a78c7` (port in place): the dump statements take a
+    `dump.Presenter`; the root passes `dumpPresenter{}`.
+    `dumpColumnPredecessors` (a Resolver graph edge, also used for tables)
+    moved to `dump_resolver.go`; `domainInvalidDumpStatement` moved from
+    `domain_alter_dump.go` into `domain_dump.go`.
+  - `27fe76274` (move): `collation_dump.go`, `conversion_dump.go`,
+    `composite_dump.go` and `domain_dump.go` moved into `typedef`. Entry
+    points `CollationDumpStatements`, `ConversionDumpStatements`,
+    `MixedDumpStatements` and `DomainInvalidDumpStatement`;
+    `compositeDumpStatement` and `domainDumpStatement` stay private.
+    `typedef` now also imports `dump`; no aliases. String literals are
+    unchanged apart from import paths.
+  - Deviations: `mixedDumpStatements` and `domainInvalidDumpStatement` moved
+    too (the plan named only the four statements); both became clean with
+    the new methods, and moving `mixed` keeps the composite and domain
+    statements private. Two presenter methods instead of one
+    "check-rendering" method, because the domain DEFAULT also used
+    `scalarRenderer`.
+  - Stays in the root: `dumpColumnPredecessors` and
+    `domainInvalidDumpEvents` (graph edges through `dumpPredecessor`), the
+    Emit entry `emitDumpDomainChecks` (it takes the root `dumpScript`; step
+    30) and the domain owner transfer in `emitDumpStatement`.
+  - Tests: new seam test `TestDumpPresenterDomainExpressions`
+    (`dump_presenter_test.go`), written first and observed failing.
+    `TestCollationDumpLosslessBootstrapSelection` was only qualified; none
+    moved or deleted.
+  - Verification: build and vet (only the existing `composites`, `copylocks`
+    and `lostcancel` findings) after every commit; the targeted engine,
+    `dump` and `typedef` units after every commit; the 18b Dump→Restore→Dump
+    smoke byte-identical to the base after every commit; quick mode for the
+    Dump/Restore/Control reference selections and the 15a typedef selection;
+    `make quickcheck`, `make deps` and the `go list` layering check; both
+    reference selections with `REFERENCE=1`. With `REFERENCE=1` only the
+    known oracle-side drift `TestReferenceCompositeExprReturning/postgres`
+    and `TestReferenceCompositeExprCorrelatedReturning/postgres` fail (as in
+    15a–15d; every stuntgres subtest passes). No bench: startup is not
+    touched. Racecheck and finalcheck skipped at user request.
 
 Outstanding aliases: none (15b qualified every reference; no type aliases).
 
@@ -617,13 +666,10 @@ Notes for later steps:
   accessors on `CatalogStage` and `catalogChanges` (`domainAlterState`,
   `typedState`, `domainWritable`, `enumWritable`) stay in the engine until
   13d, or become typedef functions taking the slot.
-- The collation, conversion and composite dump statements,
-  `domainDumpStatement` and type-declaration rendering need a dump seam (a
-  dump record below the engine, and the definition reader and reg*
-  formatters behind an interface); `operator_dump.go` waits for the same
-  seam (routine prompt file). `typeProvider` waits for the stored-SQL
-  rendering seam. 15c leaves both out of 15d: plan them in the item 54
-  round (`control` owns Dump/Restore).
+- 15e moved the type dump statements behind `dump.Presenter`.
+  `typeProvider` still waits for the stored-SQL rendering seam. When
+  `stored` (22b) owns `scalarRenderer`, only `dumpPresenter`'s
+  `DomainDefault`/`DomainCheck` forwarders change.
 - 14d/15d both build on `schemaHost`'s fields and share root functions
   (`collationCreationNamespaceLocked`, `conversionCheckCreate`,
   `dependencyObject`), through two adapters (`schemaHost`, `typedefHost`).

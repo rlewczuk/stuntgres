@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"context"
@@ -9,18 +9,17 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/typedef"
 )
 
 // Multiple defaults in one namespace are legal after SET SCHEMA, but cannot be
 // directly CREATED there. Only additional defaults use a collision-free helper
 // schema, which is created before owner groups and removed by the same replay.
-func conversionDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Conversion) (statements []dump.Statement, schemas []string, err error) {
+func ConversionDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Conversion) (statements []dump.Statement, schemas []string, err error) {
 	if len(definitions) == 0 {
 		return
 	}
 	sort.Slice(definitions, func(i, j int) bool {
-		return typedef.ConversionSQLName(view, definitions[i]) < typedef.ConversionSQLName(view, definitions[j])
+		return ConversionSQLName(view, definitions[i]) < ConversionSQLName(view, definitions[j])
 	})
 	type pair struct {
 		namespace           ids.ObjectAddress
@@ -49,7 +48,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 		if ownerErr != nil {
 			return nil, nil, ownerErr
 		}
-		name := typedef.ConversionSQLName(view, d)
+		name := ConversionSQLName(view, d)
 		key := pair{d.Namespace(), d.Source, d.Destination}
 		helper := ""
 		if d.DefaultConversion && occupiedPairs[key] {
@@ -62,7 +61,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 			schemas = append(schemas, "CREATE SCHEMA "+catalog.QuoteIdentifier(helper)+" AUTHORIZATION "+catalog.QuoteIdentifier(owner.Name)+";\n")
 			name = catalog.QuoteIdentifier(helper) + "." + catalog.QuoteIdentifier(d.Name())
 		}
-		definition, definitionErr := typedef.ConversionDefinition(view, d, name)
+		definition, definitionErr := ConversionDefinition(view, d, name)
 		if definitionErr != nil {
 			return nil, nil, definitionErr
 		}

@@ -58,26 +58,6 @@ func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph dump.
 	return nil
 }
 
-func domainInvalidDumpStatement(ctx context.Context, view catalog.Read, domain *catalog.Type) (string, error) {
-	qualified, err := regobj.TypeDeclaration(view, domain.SQLType.Usage())
-	if err != nil {
-		return "", err
-	}
-	base := domain.SQLType.DomainBase()
-	var text strings.Builder
-	for _, check := range domain.DomainChecks {
-		if !check.NotValid {
-			continue
-		}
-		expression, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.Expression)
-		if err != nil {
-			return "", err
-		}
-		text.WriteString("ALTER DOMAIN " + qualified + " ADD CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + expression + ") NOT VALID;\n")
-	}
-	return text.String(), nil
-}
-
 func restoreDomainAlter(raw *parser.AlterDomain) error {
 	if raw == nil || raw.Action != parser.DomainAddCheck || raw.Check == nil || !raw.Check.NotValid || raw.Check.NoInherit || raw.Check.Name.Text == "" || raw.Constraint != raw.Check.Name || raw.IfExists || raw.Mode != 0 || len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(raw.Name.Parts[0].Text, "pg_temp_") {
 		return sqlError("0A000", "restore accepts only qualified named NOT VALID domain CHECK additions")

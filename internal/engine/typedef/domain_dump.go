@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"context"
@@ -8,18 +8,16 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
-	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/typedef"
 )
 
-func domainDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *typedef.DomainReplayNames) (dump.Statement, error) {
+func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *DomainReplayNames) (dump.Statement, error) {
 	if err := ctx.Err(); err != nil {
 		return dump.Statement{}, err
 	}
-	if !typedef.DefaultDomainACL(d) {
+	if !DefaultDomainACL(d) {
 		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
 	}
-	qualified, err := regobj.TypeDeclaration(view, d.SQLType.Usage())
+	qualified, err := p.TypeDeclaration(view, nil, d.SQLType.Usage())
 	if err != nil {
 		return dump.Statement{}, err
 	}
@@ -35,7 +33,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 		return dump.Statement{Owner: owner.Name, SQL: "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"}, nil
 	}
 	base := d.SQLType.DomainBase()
-	declaration, err := regobj.TypeDeclaration(view, base)
+	declaration, err := p.TypeDeclaration(view, nil, base)
 	if err != nil {
 		return dump.Statement{}, err
 	}
@@ -56,7 +54,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	}
 	collation := ""
 	if base.Collation != base.Type.Usage().Collation {
-		name := typedef.CollationSQLName(view, base.Collation.ID)
+		name := CollationSQLName(view, base.Collation.ID)
 		if name == "" {
 			return dump.Statement{}, fmt.Errorf("stuntgres: unsupported domain collation")
 		}
@@ -64,7 +62,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	}
 	var checks strings.Builder
 	if d.DomainDefaultOwn {
-		text, err := (scalarRenderer{currentRowShape: true}).sql(ctx, view, d.DomainDefault.Expression)
+		text, err := p.DomainDefault(ctx, view, d.DomainDefault.Expression)
 		if err != nil {
 			return dump.Statement{}, err
 		}
@@ -77,11 +75,31 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 		if check.NotValid {
 			continue
 		}
-		text, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.Expression)
+		text, err := p.DomainCheck(ctx, view, base, check.Expression)
 		if err != nil {
 			return dump.Statement{}, err
 		}
 		checks.WriteString(" CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + text + ")")
 	}
 	return dump.Statement{Owner: owner.Name, SQL: "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
+}
+
+func DomainInvalidDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, domain *catalog.Type) (string, error) {
+	qualified, err := p.TypeDeclaration(view, nil, domain.SQLType.Usage())
+	if err != nil {
+		return "", err
+	}
+	base := domain.SQLType.DomainBase()
+	var text strings.Builder
+	for _, check := range domain.DomainChecks {
+		if !check.NotValid {
+			continue
+		}
+		expression, err := p.DomainCheck(ctx, view, base, check.Expression)
+		if err != nil {
+			return "", err
+		}
+		text.WriteString("ALTER DOMAIN " + qualified + " ADD CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + expression + ") NOT VALID;\n")
+	}
+	return text.String(), nil
 }

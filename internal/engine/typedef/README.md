@@ -4,10 +4,11 @@ User-defined type support that does not need the engine: domains, enums,
 composites and typed tables, collations and conversions. Part A of step 15
 moved the records, validation, Dump/Restore and remap helpers here; Part B
 (15d) moved the DDL stage handlers, which reach the engine through
-`StageHost`. The package sits at layer L10 of
+`StageHost`; 15e moved the type dump statements, which render through
+`dump.Presenter`. The package sits at layer L10 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access`, `authorization`, `catalog`, `ddl` (the shared
-host contract), `expr`, `ids`,
+host contract), `dump` (dump records and the `Presenter`), `expr`, `ids`,
 `pgcatalog` (collation versions), `session` (the journal slot interfaces and
 notice levels), `storage`, `parser`, `sqltype`, `sqlstate` and the standard
 library, and never the engine, `analyze`, `exec` or `routine`. See
@@ -56,6 +57,16 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
   `CanonicalDeclarationTypeName`, `RelationTypeNameOccupied`,
   `StoredArrayElement`, `TypeDiagnostic`, `UnsupportedColumnType`,
   `UsageDependsOn`.
+- **Dump statements** (`collation_dump.go`, `conversion_dump.go`,
+  `composite_dump.go`, `domain_dump.go`): `CollationDumpStatements`,
+  `ConversionDumpStatements` (with the helper schemas that replay extra
+  default conversions), `MixedDumpStatements` (domains, enums and composite
+  types in captured graph order, reserving implicit array names as it goes)
+  and `DomainInvalidDumpStatement` (the post-data NOT VALID domain CHECKs).
+  They produce `dump.Statement` records and are pure functions of the
+  captured view: type and column declarations and the domain DEFAULT and
+  CHECK text come from the caller's `dump.Presenter`, so the package never
+  names the stored-SQL renderer or `regobj`.
 - **Slot structs**: `DomainAlterStage` and `TypedStage` (the type state of a
   `CatalogStage`), `DomainJournal` and `EnumJournal` (the type state of the
   catalog journal, implementing `session.DomainSlot` and `session.EnumSlot`;
@@ -124,9 +135,10 @@ enum journal updates; `type_generation.go` and `enum_generation.go`
 TEMP collation cleanup and `collationCreationNamespaceLocked`
 (`collation_temporary.go`); `conversionCheckCreate`
 (`conversion_create_check.go`, shared with `routine.DDLHost`); the dump
-statements that produce the dump record
-`dump.Statement` (`collationDumpStatements`,
-`conversionDumpStatements`, `compositeDumpStatement`); `typeProvider`
+graph edges of type declarations (`dumpColumnPredecessors`,
+`domainInvalidDumpEvents`), the domain owner transfer in
+`emitDumpStatement` and the `dump.Presenter` adapter `dumpPresenter`;
+`typeProvider`
 (its `Validate` reaches the expression binder); domain check programs and
 evaluation; `reownCatalogScalarTypes`; the typed
 inheritance and mutation steps that use ALTER TABLE records; the column
@@ -159,6 +171,15 @@ Engine witnesses that use the package through the catalog and DDL:
 make check RUN='^(TestCatalogTypeJournalSlotsCopyOnWrite|TestDomainDefaultReplayAdmissionInternal|TestPGEnumAllocatorBounds|TestTypedTemporaryReplacementAdmission|TestConversionDescriptorCreateAndMoveUniqueness)$'
 ```
 
+The dump statements (`TestCollationDumpLosslessBootstrapSelection` calls
+`CollationDumpStatements`; `TestDumpPresenterDomainExpressions` pins the
+presenter methods the domain statements use):
+
+```sh
+make check RUN='^(TestCollationDumpLosslessBootstrapSelection|TestDumpPresenterDomainExpressions)$'
+```
+
 Public behavior is covered by the domain, enum, composite, range,
 collation, conversion, typed-table and Dump/Restore selections in
-`reference/` that the step 15 prompt file lists.
+`reference/` that the step 15 prompt file lists; dump output must stay
+byte-identical (the Dump/Restore selectors in the `dump` README).

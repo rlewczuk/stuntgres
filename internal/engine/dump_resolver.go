@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
@@ -128,4 +129,26 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		return 0, nil
 	}
 	return source.Address().ObjectID, nil
+}
+
+func dumpColumnPredecessors(view catalog.Read, relation *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
+	if relation.OfType != (ids.ObjectAddress{}) {
+		id, err := dumpPredecessor(view, relation.OfType, relation.Address())
+		if err != nil {
+			return nil, err
+		}
+		if id != 0 && !slices.Contains(predecessors, id) {
+			predecessors = append(predecessors, id)
+		}
+	}
+	for _, column := range relation.Columns {
+		id, err := dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, relation.Address())
+		if err != nil {
+			return nil, err
+		}
+		if id != 0 && !slices.Contains(predecessors, id) {
+			predecessors = append(predecessors, id)
+		}
+	}
+	return predecessors, nil
 }
