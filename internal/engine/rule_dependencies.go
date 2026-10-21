@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"iter"
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -181,37 +180,11 @@ func ruleDepends(catalog catalog.Read, r ruleDefinition, target ids.ObjectAddres
 	return false
 }
 
-func ruleDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
-	return ruleDependentLabelsFrom(catalog, targets, path, catalog.Descriptors(), nil)
-}
-
 func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) []supportedDependent {
 	if provider.prepared == nil {
 		return ruleDependentLabels(provider.base, targets, provider.path)
 	}
 	return ruleDependentLabelsFrom(provider.base, targets, provider.path, provider.liveDescriptors(), provider.observe)
-}
-
-func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
-	var dependents []supportedDependent
-	for _, descriptor := range descriptors {
-		d, ok := descriptor.(*catalog.Relation)
-		if !ok || slices.Contains(targets, d.Address()) {
-			continue
-		}
-		for _, r := range rulesOf(d) {
-			for _, target := range targets {
-				if ruleDepends(view, r, target) {
-					if observe != nil {
-						observe(d.Address())
-					}
-					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)})
-					break
-				}
-			}
-		}
-	}
-	return dependents
 }
 
 func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode parser.DropMode) error {

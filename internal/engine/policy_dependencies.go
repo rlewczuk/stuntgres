@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"iter"
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -17,31 +16,6 @@ func policyDepends(p catalog.PolicyDefinition, target ids.ObjectAddress) bool {
 		}
 	}
 	return false
-}
-func policyDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
-	return policyDependentLabelsFrom(catalog, targets, path, catalog.Descriptors())
-}
-
-func policyDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []supportedDependent {
-	var dependents []supportedDependent
-	for _, descriptor := range descriptors {
-		d, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		if slices.Contains(targets, d.Address()) {
-			continue
-		}
-		for _, p := range d.Security.Policies {
-			for _, target := range targets {
-				if policyDepends(p, target) {
-					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + dependencyRelationName(view, d, path)})
-					break
-				}
-			}
-		}
-	}
-	return dependents
 }
 
 func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode parser.DropMode) error {
