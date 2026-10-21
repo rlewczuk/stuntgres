@@ -432,7 +432,7 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 		{Query: 2, Clause: analyze.ViewTargetLiteral, Node: 2}:   {sqltype.Int4, "44"},
 	}
 	protocolLiterals(t, b, want)
-	frames, queries := collectQueryFrames(query.Root)
+	frames, queries := analyze.CollectQueryFrames(query.Root)
 	definition := &viewDefinition{syntax: raw, query: query, frames: frames, queries: queries, namespaces: b.Capture.Namespaces, literals: b.Capture.Literals, columns: b.Capture.Columns, castUsages: b.Capture.CastUsages}
 	if err := definition.validateLiterals(b.BindingCatalog()); err != nil {
 		t.Fatal(err)

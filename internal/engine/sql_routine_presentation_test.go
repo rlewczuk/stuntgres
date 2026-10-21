@@ -47,7 +47,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			ownedSyntax.Targets = []parser.Expr{frozen}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: &ownedSyntax}
 			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: &ownedSyntax, dependencies: b.Dependencies, routineRefs: b.Capture.RoutineRefs, literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}
-			definition.frames, definition.queries = collectQueryFrames(project)
+			definition.frames, definition.queries = analyze.CollectQueryFrames(project)
 			read := e.CatalogRead()
 			if err := definition.validateLiterals(read); err != nil {
 				t.Fatal(err)

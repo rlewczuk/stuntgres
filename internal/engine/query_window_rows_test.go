@@ -365,7 +365,7 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 			mappedDomain = expr.ResultUsage().Type
 		}
 	})
-	if mappedDomain != types[offsetDomain.ID()] || mappedDomain == offsetDomain || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) {
+	if mappedDomain != types[offsetDomain.ID()] || mappedDomain == offsetDomain || !analyze.QueryDescriptorsChanged(root, lookup) || analyze.QueryDescriptorsChanged(mapped, lookup) {
 		t.Fatal("offset domain remap retained/mutated descriptors", mappedDomain, offsetDomain)
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}

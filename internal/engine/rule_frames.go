@@ -26,7 +26,7 @@ func rewriteRuleFrames(view catalog.Read, root plan.Node, expr expr.Expr, frame 
 func ruleBindingMaxFrame(b analyze.Binding) uint32 {
 	max := uint32(1)
 	visit := func(root plan.Node) {
-		frames, _ := collectQueryFrames(root)
+		frames, _ := analyze.CollectQueryFrames(root)
 		for frame := range frames {
 			if frame > max {
 				max = frame

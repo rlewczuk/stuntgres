@@ -214,7 +214,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	if n.Left.Frame == n.Right.Frame || n.Left.Frame == project.Frame || n.Right.Frame == project.Frame {
 		t.Fatal("set arms share frame", project.Frame, n.Left.Frame, n.Right.Frame)
 	}
-	frames, queries := collectQueryFrames(project)
+	frames, queries := analyze.CollectQueryFrames(project)
 	if len(frames) != 5 || len(queries) != 5 {
 		t.Fatal("nested arm frame registration", len(frames), len(queries))
 	}

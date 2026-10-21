@@ -428,7 +428,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 			mappedDomain = expr.ResultUsage().Type
 		}
 	})
-	if mappedDomain != types[domain.ID()] || mappedDomain == domain || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) || next.Specs[0].Frame.Exclusion != parser.ExcludeGroup {
+	if mappedDomain != types[domain.ID()] || mappedDomain == domain || !analyze.QueryDescriptorsChanged(root, lookup) || analyze.QueryDescriptorsChanged(mapped, lookup) || next.Specs[0].Frame.Exclusion != parser.ExcludeGroup {
 		t.Fatal("SUM domain ownership", domain, mappedDomain)
 	}
 }

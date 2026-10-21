@@ -11,30 +11,12 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func queryRootRowMode(node plan.Node) lock.Mode {
-	for {
-		switch n := node.(type) {
-		case *plan.ProjectNode:
-			node = n.Child
-		case *plan.LimitNode:
-			node = n.Child
-		case *plan.EvaluationNode:
-			node = n.Child
-		case *plan.RowLockNode:
-			return n.FirstMode
-		case *plan.DistinctNode, *plan.DistinctOnNode, *plan.AggregateNode:
-			return 0 // Descendant marks are consumed at materialization.
-		default:
-			return 0
-		}
-	}
-}
 func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) (lock.Mode, error) {
 	view := e.privateCatalogLocked(scope.owner.Catalog)
 	if _, err := validateViewReadGraph(view, leaves); err != nil {
 		return 0, err
 	}
-	if mode := queryRootRowMode(root); mode != 0 {
+	if mode := analyze.QueryRootRowMode(root); mode != 0 {
 		return mode, nil
 	}
 	var visit func(*catalog.Relation, plan.RowMark, lock.Mode) (lock.Mode, error)
@@ -52,7 +34,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, 
 			return analyze.RowLockDiagnostic(inherited), nil
 		}
 		if diagnostic == 0 {
-			diagnostic = queryRootRowMode(viewOf(d).query.Root)
+			diagnostic = analyze.QueryRootRowMode(viewOf(d).query.Root)
 		}
 		for i, leaf := range viewOf(d).Sources() {
 			child, ok := view.Relation(leaf.ref.Address)
@@ -82,7 +64,7 @@ func viewHasStoredRowMarks(d *catalog.Relation, view catalog.Read) bool {
 			return false
 		}
 		seen[d.Address()] = true
-		if queryRootRowMode(viewOf(d).query.Root) != 0 {
+		if analyze.QueryRootRowMode(viewOf(d).query.Root) != 0 {
 			return true
 		}
 		for _, leaf := range viewOf(d).Sources() {
@@ -98,130 +80,16 @@ func viewHasStoredRowMarks(d *catalog.Relation, view catalog.Read) bool {
 	return visit(d)
 }
 func viewRowLockLegality(d *viewDefinition, mode lock.Mode) error {
-	if queryHasSetOutput(d.query.Root) {
+	if analyze.QueryHasSetOutput(d.query.Root) {
 		return nil // A stored set view is an opaque physical-lineage boundary.
 	}
-	return queryRowLockLegality(d.query.Root, mode)
-}
-
-// Only the stored query's output boundary stops inherited reference-kind
-// context. Ordinary joins/derived queries retain their existing legality and
-// sibling checks; a nested stored set view applies this boundary on its entry.
-func queryHasSetOutput(node plan.Node) bool {
-	for {
-		switch n := node.(type) {
-		case *plan.ProjectNode:
-			node = n.Child
-		case *plan.SortNode:
-			node = n.Child
-		case *plan.LimitNode:
-			node = n.Child
-		case *plan.EvaluationNode:
-			node = n.Child
-		case *plan.FilterNode:
-			node = n.Child
-		case *plan.SetNode, *plan.RecursiveUnionNode:
-			return true
-		default:
-			return false
-		}
-	}
-}
-
-func queryRowLockLegality(root plan.Node, mode lock.Mode) error {
-	if mode == 0 {
-		return nil
-	}
-	project, ok := root.(*plan.ProjectNode)
-	if !ok || project.Syntax == nil {
-		return fmt.Errorf("stuntgres: missing rowmark query syntax")
-	}
-	suffix := ""
-	switch {
-	case project.Syntax.Set != nil:
-		suffix = "UNION/INTERSECT/EXCEPT"
-	case project.Syntax.Distinct != nil:
-		suffix = "DISTINCT clause"
-	case project.Syntax.GroupBy != nil:
-		suffix = "GROUP BY clause"
-	case project.Syntax.Having != nil:
-		suffix = "HAVING clause"
-	default:
-		for node := project.Child; node != nil; {
-			switch n := node.(type) {
-			case *plan.ProjectNode:
-				node = n.Child
-			case *plan.SetProjectNode:
-				node = n.Child
-			case *plan.LimitNode:
-				node = n.Child
-			case *plan.EvaluationNode:
-				node = n.Child
-			case *plan.SortNode:
-				node = n.Child
-			case *plan.FilterNode:
-				node = n.Child
-			case *plan.RowLockNode:
-				node = n.Child
-			case *plan.AggregateNode:
-				suffix = "aggregate functions"
-				node = nil
-			case *plan.WindowNode:
-				suffix = "window functions"
-				node = nil
-			case *plan.DistinctNode, *plan.DistinctOnNode:
-				suffix = "DISTINCT clause"
-				node = nil
-			default:
-				node = nil
-			}
-		}
-	}
-	if suffix == "" && project.HasTargetSet && stringInheritedRowMark(analyze.ViewFromRoot(project)) {
-		suffix = "set-returning functions in the target list"
-	}
-	if suffix != "" {
-		return sqlError("0A000", analyze.RowLockClause(mode)+" is not allowed with "+suffix)
-	}
-	var from func(plan.Node) error
-	from = func(node plan.Node) error {
-		switch n := node.(type) {
-		case *plan.DerivedNode:
-			if n.CTE != nil && n.CTE.Mutation != nil {
-				return nil
-			}
-			if n.CTE != nil {
-				return queryRowLockLegality(n.Query.Root, queryRootRowMode(n.Query.Root))
-			}
-			return queryRowLockLegality(n.Query.Root, exec.StrongerQueryRowMode(mode, queryRootRowMode(n.Query.Root)))
-		case *plan.JoinNode:
-			if err := from(n.Left); err != nil {
-				return err
-			}
-			return from(n.Right)
-		}
-		return nil
-	}
-	return from(analyze.ViewFromRoot(project))
-}
-
-// View lock pushdown marks relation/subquery RTEs, not computed function rows.
-func stringInheritedRowMark(node plan.Node) bool {
-	switch n := node.(type) {
-	case *plan.SourceNode:
-		return true
-	case *plan.DerivedNode:
-		return n.CTE == nil
-	case *plan.JoinNode:
-		return stringInheritedRowMark(n.Left) || stringInheritedRowMark(n.Right)
-	}
-	return false
+	return analyze.QueryRowLockLegality(d.query.Root, mode)
 }
 
 // Called before any source expression is opened. Inherited rowmark legality,
 // kind and authorization checks remain Execute-only.
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) error {
-	marked := queryRootRowMode(root) != 0
+	marked := analyze.QueryRootRowMode(root) != 0
 	view := e.privateCatalogLocked(scope.owner.Catalog)
 	visibilityDemand, err := validateViewReadGraph(view, leaves)
 	if err != nil {
@@ -231,11 +99,11 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 	var visit func(*catalog.Relation, plan.RowMark, bool) error
 	visit = func(d *catalog.Relation, inherited plan.RowMark, referenceMarked bool) error {
 		if d.RelationKind == catalog.ViewRelation {
-			if queryHasSetOutput(viewOf(d).query.Root) {
+			if analyze.QueryHasSetOutput(viewOf(d).query.Root) {
 				referenceMarked = false
 			}
-			referenceMarked = referenceMarked || queryRootRowMode(viewOf(d).query.Root) != 0
-			marked = marked || queryRootRowMode(viewOf(d).query.Root) != 0
+			referenceMarked = referenceMarked || analyze.QueryRootRowMode(viewOf(d).query.Root) != 0
+			marked = marked || analyze.QueryRootRowMode(viewOf(d).query.Root) != 0
 			if err := viewRowLockLegality(viewOf(d), analyze.RowLockDiagnostic(inherited)); err != nil {
 				return err
 			}
@@ -339,33 +207,10 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 	return nil
 }
 
-// Inherited marks follow physical lineage, unlike general source/dependency
-// traversal: a materialized set still reads both arms but exposes neither's rows.
-func queryRowMarkReachesSource(node plan.Node, occurrence int) bool {
-	if node == nil {
-		return false
-	}
-	if _, ok := node.(*plan.SetNode); ok {
-		return false
-	}
-	if source, ok := node.(*plan.SourceNode); ok {
-		return source.Occurrence == occurrence
-	}
-	left, right := plan.QueryInputs(node)
-	return queryRowMarkReachesSource(left, occurrence) || queryRowMarkReachesSource(right, occurrence)
-}
-
 func viewLeafRowMark(view *viewDefinition, occurrence int, inherited plan.RowMark) plan.RowMark {
 	mark := view.Sources()[occurrence].mark
-	if inherited.Mode != 0 && queryRowMarkReachesSource(view.query.Root, occurrence) {
+	if inherited.Mode != 0 && analyze.QueryRowMarkReachesSource(view.query.Root, occurrence) {
 		mark = exec.MergeQueryRowMark(inherited, mark)
 	}
 	return mark
-}
-
-func queryOccurrenceMark(marks []plan.RowMark, occurrence int, inherited plan.RowMark) plan.RowMark {
-	if occurrence < len(marks) {
-		return exec.MergeQueryRowMark(inherited, marks[occurrence])
-	}
-	return inherited
 }

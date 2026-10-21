@@ -543,8 +543,9 @@ set referenced only `sqlError` and `commentLiteral` in the engine.
   `CatalogStage`, the identity DROP flow and `relationDiagnosticKind`
   (`sequence_dependencies.go`). `tableKind` already moved to `analyze`
   (`1a329c118`).
-- Later: `closedRegclassDefault` (`serial.go`, used by `default_replay.go`)
-  walks plan nodes; it belongs next to `analyze.ClosedSequenceDefault`.
+- Done (analyze 12f): `closedRegclassDefault` (used by `default_replay.go`)
+  is now `analyze.ClosedRegclassDefault`, next to
+  `analyze.ClosedSequenceDefault`.
 - `catalogChanges.generators` is core journal state (13b keeps it), not a
   sequence slot.
 - `journalOf` stays in the engine; `sequence.JournalIdentity` moved in 17b.

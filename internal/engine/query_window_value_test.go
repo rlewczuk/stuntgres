@@ -225,7 +225,7 @@ func TestQueryWindowValueDomainRemap(t *testing.T) {
 			ordinalDomain = expr.ResultUsage().Type
 		}
 	})
-	if next.Expression.ResultUsage().Type != types[domain.ID()] || next.Argument.ResultUsage().Type != types[domain.ID()] || ordinalDomain != types[domain.ID()] || ordinalDomain == domain || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) || node.Specs[0].Frame.Exclusion != parser.ExcludeTies {
+	if next.Expression.ResultUsage().Type != types[domain.ID()] || next.Argument.ResultUsage().Type != types[domain.ID()] || ordinalDomain != types[domain.ID()] || ordinalDomain == domain || !analyze.QueryDescriptorsChanged(root, lookup) || analyze.QueryDescriptorsChanged(mapped, lookup) || node.Specs[0].Frame.Exclusion != parser.ExcludeTies {
 		t.Fatal("value/ordinal/result ownership", next, ordinalDomain)
 	}
 }

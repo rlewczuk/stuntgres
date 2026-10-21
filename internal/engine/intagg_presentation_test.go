@@ -43,7 +43,7 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: syntax}
 			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, dependencies: b.Dependencies, routineRefs: b.Capture.RoutineRefs, literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}
-			definition.frames, definition.queries = collectQueryFrames(project)
+			definition.frames, definition.queries = analyze.CollectQueryFrames(project)
 			if err := definition.validateLiterals(e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}

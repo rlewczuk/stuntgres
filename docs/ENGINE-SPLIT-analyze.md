@@ -1244,7 +1244,30 @@ in §8.3 pass.
   the docs commit; see the 12e result). quickcheck and the selected
   `REFERENCE=1` run passed; racecheck and finalcheck skipped at user
   request.
-- [ ] 12f — Query legality helpers moved (linear item 77)
+- [x] 12f — Query legality helpers moved (linear item 77; `d65defe64`,
+  `d77505532`, then the docs commit). `query_graph.go` and
+  `query_window_prune.go` moved whole; the clean parts of
+  `query_join_legality.go` and `query_lock_admission.go` became
+  `analyze/query_join_legality.go` and `analyze/query_lock_legality.go`;
+  `ClosedRegclassDefault` sits next to `ClosedSequenceDefault`. Exported:
+  `CollectQueryFrames`, `QueryDescriptorsChanged`,
+  `QueryRoutineCarriersChanged`, `QueryExecutionSourceReads`,
+  `QuerySourceReadUses`, `PruneProjectWindows`, `FullJoinCondition`,
+  `FullJoinFacts` (fields `Constant`, `Truth`, `Keys`; `merge.go` writes
+  them), `FullJoinKey`, `NullableQueryRowMark`, `FirstNullableQueryMark`,
+  `QueryOccurrenceMark`, `QueryRootRowMode`, `QueryHasSetOutput`,
+  `QueryRowLockLegality`, `QueryRowMarkReachesSource`;
+  `fullJoinComparisonOperator` and `stringInheritedRowMark` stay unexported.
+  No aliases. Moved test: `TestQueryOuterJoinsComparisonNegators` (to
+  `analyze/query_join_legality_test.go`, body unchanged); 14 engine test
+  files renamed call sites only, no assertion changed. A normalized
+  removed/added line comparison showed only renames plus seven new doc
+  comments. Targeted engine units, the selected reference tests in quick
+  and real 18.6 modes (only the known oracle drift failed, as on `master`:
+  MERGE repeatable read, `QueryFromValuesPhysicalReplacement` and the
+  PG-only `SerialDefaultProvider` tests), quickcheck and `make deps`
+  passed; racecheck and finalcheck skipped at user request. No startup
+  path touched, so no bench.
 
 Outstanding aliases: none. 12e removed the 60 aliases of
 `analyze_aliases.go`; the driver names `analyze.ParameterInfo`.
@@ -1330,6 +1353,14 @@ result):
   which moves to `analyze`, and its per-execution state (arbiters, catalog
   checkpoints, `insertWriteOverlay`), which stays in the engine; then
   `InsertConflictSlot` can shrink to the runtime half.
+- 12f (done): the executor walks (`validate*JoinExecution`,
+  `validateMarkedQueryJoin`, `admitQueryGroupings`) stay in the root; they
+  reach `viewOf`, `prepareStoredExecutionRoot`, `preflightQuery` and
+  `admitColumnVirtualGeneration`. The stored-view row-mark readers
+  (`viewRowLockLegality`, `viewLeafRowMark`, `viewHasStoredRowMarks`,
+  `checkViewRowMarks*`) call `analyze.QueryRowLockLegality`,
+  `QueryHasSetOutput`, `QueryRootRowMode` and `QueryRowMarkReachesSource`
+  and can move with `stored` (22b) unchanged.
 - 12e (done): the aliases are gone and §7 decision 11 is settled for
   `ParameterInfo` (the driver imports `analyze`). Engine code moved by later
   steps names `analyze.Binder`, `analyze.Binding` and the other `analyze`

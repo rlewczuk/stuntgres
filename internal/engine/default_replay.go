@@ -42,7 +42,7 @@ func defaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 	}
 	// The selected stored regclass result subset also includes opaque arrays,
 	// domains and numeric coercion trees, without manufacturing DROP providers.
-	if node.ResultUsage().Type.ContainsRegclass() && closedRegclassDefault(node) {
+	if node.ResultUsage().Type.ContainsRegclass() && analyze.ClosedRegclassDefault(node) {
 		return true
 	}
 	captured := false

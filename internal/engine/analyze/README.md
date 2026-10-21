@@ -137,10 +137,23 @@ engine or `session`. See
   recovery of a data-modifying CTE's binding), subquery demand and the
   EXISTS presence rewrite; the set-returning lowering helpers that query
   preflight shares; and column-name hints and query diagnostics.
+- **Query legality helpers** (`query_graph.go`, `query_window_prune.go`,
+  `query_join_legality.go`, `query_lock_legality.go`): walks of the plan IR
+  that freeze a stored query's frames (`CollectQueryFrames`), detect changed
+  descriptors and routine carriers (`QueryDescriptorsChanged`,
+  `QueryRoutineCarriersChanged`), map an occurrence's runtime reads
+  (`QueryExecutionSourceReads`, `QuerySourceReadUses`) and drop unused window
+  calls (`PruneProjectWindows`); the FULL JOIN condition facts
+  (`FullJoinCondition`, `FullJoinFacts`) and nullable-side row marks
+  (`NullableQueryRowMark`, `FirstNullableQueryMark`, `QueryOccurrenceMark`);
+  and the row-lock legality of a query shape (`QueryRootRowMode`,
+  `QueryHasSetOutput`, `QueryRowLockLegality`, `QueryRowMarkReachesSource`).
+  They read only their arguments; the engine's executor walks, view
+  rendering, remap and lock initialization call them.
 - **Shared expression helpers** (`default_closure.go`, `retained_input.go`,
   `operator_names.go`, `procedure_lookup.go`, `rule_namespace.go`): the closed
   DEFAULT predicates (`ClosedPgcryptoDefault`, `ClosedSequenceDefault`,
-  `ClosedTransactionTimeDefault`, `ClosedUUIDDefault`, `ClosedSQLRoutineDefault`
+  `ClosedRegclassDefault`, `ClosedTransactionTimeDefault`, `ClosedUUIDDefault`, `ClosedSQLRoutineDefault`
   with `SQLRoutineDefaultClosure`) and the installed-call shape checks they use
   (`CryptoExpressionSignature`, `ValidInstalledUUIDOsspShape`,
   `ValidInstalledText`); `NeedsTypeDiagnosticInput` and
@@ -203,7 +216,13 @@ over the binding's clause); and the execution-side helpers over
 the binding types: `physicalBinding`, `bindingDefaultOrigin`,
 `evalBindingDefault`, `applyDefaultOrigin`, `capturedDomainReplayCell`,
 `mergeHasVirtualReads`, `selectMergeArm`, `validateCompositeOccurrence` and
-`remapLikeExpression`. Since 12e the engine names these types directly
+`remapLikeExpression`. The executor-side legality walks stay too
+(`validateQueryJoinExecution`, `validateMutationJoinExecution`,
+`validateExpressionJoinExecution`, `validateMarkedQueryJoin`,
+`admitQueryGroupings` in `query_join_legality.go`), with the row-mark readers
+of stored views (`viewRowLockLegality`, `viewLeafRowMark`,
+`viewHasStoredRowMarks`, `checkViewRowMarks*`, `query_lock_admission.go`),
+which move with `stored`. Since 12e the engine names these types directly
 (`analyze.Binding`, `analyze.Binder`, ...); no aliases remain.
 
 ## Testing
@@ -212,7 +231,8 @@ the binding types: `physicalBinding`, `bindingDefaultOrigin`,
 `TestExpectedCheckLifetimeFencesCatalogTypes` the held lifetime check, and
 `TestCheckQuerySourcesChecksEachSourceAsItsPrincipal` and
 `TestCheckBindingDeleteChecksDeleteBeforeReads` the binding privilege walkers
-(per-source principals, validation and check order).
+(per-source principals, validation and check order), and
+`TestQueryOuterJoinsComparisonNegators` the FULL JOIN comparison negators.
 The binder needs an engine host, so its unit tests stay in the engine and
 name `analyze.Binder` and its exported members. The seams have engine unit tests: slots, binding
 authorities, held inputs, captured input retargeting and the host's rule
@@ -220,7 +240,7 @@ check, expression and query mapping, stored-view reads and the view read
 graph:
 
 ```sh
-make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestCheckQuerySourcesChecksEachSourceAsItsPrincipal|TestCheckBindingDeleteChecksDeleteBeforeReads|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
+make check RUN='^(TestQueryOuterJoinsComparisonNegators|TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestCheckQuerySourcesChecksEachSourceAsItsPrincipal|TestCheckBindingDeleteChecksDeleteBeforeReads|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
 ```
 
 ON CONFLICT execution state over the clause: `TestRuleConflictInstantiation`,
@@ -239,4 +259,12 @@ namespaces and the query helpers:
 
 ```sh
 make check RUN='^TestReference(Query|RowLock|PartialIndex|GeneratedVirtual|CompositeExpr)'
+```
+
+The query legality helpers need engine-built plans, so their unit tests stay
+in the engine (`TestQueryOuterJoinsNegatedKeys`, `TestQueryWindow*`,
+`TestQuerySet*`, `TestStringSplitRowMarks`, `TestQuerySubquery*`):
+
+```sh
+make check RUN='^(TestQueryOuterJoins|TestQueryWindow|TestQuerySet|TestStringSplit|TestQuerySubquery)'
 ```

@@ -22,7 +22,7 @@ import (
 func retagBoundTypes(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
 	retainedType = analyze.RecordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root plan.Node) (plan.Node, error) {
-		if (view.State() == nil || view.State().ACLItemImport() == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
+		if (view.State() == nil || view.State().ACLItemImport() == nil) && (len(collations) == 0 || collations[0] == nil) && !analyze.QueryDescriptorsChanged(root, retainedType) && !analyze.QueryRoutineCarriersChanged(view, root) {
 			return root, nil
 		}
 		return remapViewQueryMapped(view, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, retainedType, collations...)

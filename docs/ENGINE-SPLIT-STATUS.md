@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `8cf863131` (items 55, 56, 57, 58, 59, 60, 61, 64, 67, 71, 72, 73, 74, 75 and 76). Steps 8–17 were
+Last verified against `master` at `92d17ca19` (items 55, 56, 57, 58, 59, 60, 61, 64, 67, 71, 72, 73, 74, 75, 76 and 77). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,8 +20,7 @@ after each lands.
 
 - **Seams:** 62 (ddl 20c, docs only), 65 (regobj 21b), 111 (control 30a).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
-- **Follow-ups in existing packages:** 77 (analyze 12f),
-  78 (session 13f), 79 (access B6).
+- **Follow-ups in existing packages:** 78 (session 13f), 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
@@ -33,7 +32,7 @@ planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (item 69) still waits for 22b (item 68). Item 73 (plan 10e) is done;
 index 23b (item 83) still waits for 82 and 68. Item 56 (dump
 18b) is done, so dump 18c (item 57), routine 14e (item 80) and typedef 15e
-(item 81) are ready; stored 22b (item 68) still waits for 65 and 77.
+(item 81) are ready; stored 22b (item 68) then waited for 65 and 77.
 Item 72 (catalog 5i) is done, so table 24a (item 86) is ready.
 Item 75 (exec 11e) is done, so exec 11f (item 76) is ready; index 23b
 (item 83) still waits for 82 and 68. Item 61 (ddl 20b) is done, so ddl 20c
@@ -43,7 +42,8 @@ done and closes step 19; DML 29b (item 108) still waits for 107, 83, 87,
 91, 95 and 100. Item 57 (dump 18c) is done and closes step 18, so control
 30a (item 111) is ready; control 30b (item 112) still waits for 111 and the
 Part A moves. Item 76 (exec 11f) is done; only the end-state review
-(item 114) needs it, and that still waits for its other items.
+(item 114) needs it, and that still waits for its other items. Item 77
+(analyze 12f) is done, so stored 22b (item 68) now waits only for 65.
 
 ## Task tree
 
@@ -509,7 +509,9 @@ Part A moves. Item 76 (exec 11f) is done; only the end-state review
     request)*
   - [x] 11f — Preflight moved ([exec](ENGINE-SPLIT-exec.md); `78e557fef`, `f1287c2c4`, `013311667`,
     docs) *(racecheck/finalcheck skipped at user request)*
-  - [ ] 12f — Query legality helpers moved ([analyze](ENGINE-SPLIT-analyze.md))
+  - [x] 12f — Query legality helpers moved ([analyze](ENGINE-SPLIT-analyze.md);
+    `d65defe64`, `d77505532`, docs) *(racecheck/finalcheck skipped at user
+    request)*
   - [ ] 13f — Notification records, isolation text and owner handles moved
     ([session](ENGINE-SPLIT-session.md))
   - [ ] B6 — Ownership helpers and RLS action rules moved into `access`
@@ -967,8 +969,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     preflight, rule parameter specialization and the domain programme stay
     in the root · selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-77. [ ] Analyze 12f: query legality helpers —
-    [analyze](ENGINE-SPLIT-analyze.md) 12f · needs —
+77. [x] Analyze 12f: query legality helpers —
+    [analyze](ENGINE-SPLIT-analyze.md) 12f · needs — (`d65defe64`,
+    `d77505532`, then the docs commit) · `query_graph.go` and
+    `query_window_prune.go` whole, the clean join and row-lock legality
+    helpers and `ClosedRegclassDefault` in `analyze`, exported where the
+    root calls them; executor walks and stored-view row-mark readers stay;
+    no aliases · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 78. [ ] Session 13f: notification records, isolation text, owner handles —
     [session](ENGINE-SPLIT-session.md) 13f · needs —
 79. [ ] Access B6: ownership helpers and RLS action rules —

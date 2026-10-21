@@ -165,7 +165,7 @@ func TestQueryWindowOffsetOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := mapped.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
-	if next.Argument == original.Argument || next.Ordinal == original.Ordinal || next.DefaultValue == original.DefaultValue || next.Expression == original.Expression || next.Argument.ResultUsage().Type != types[domain.ID()] || next.DefaultValue.ResultUsage().Type != types[domain.ID()] || next.Expression.ResultUsage().Type != types[domain.ID()] || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) {
+	if next.Argument == original.Argument || next.Ordinal == original.Ordinal || next.DefaultValue == original.DefaultValue || next.Expression == original.Expression || next.Argument.ResultUsage().Type != types[domain.ID()] || next.DefaultValue.ResultUsage().Type != types[domain.ID()] || next.Expression.ResultUsage().Type != types[domain.ID()] || !analyze.QueryDescriptorsChanged(root, lookup) || analyze.QueryDescriptorsChanged(mapped, lookup) {
 		t.Fatal("source-owned default/result", next)
 	}
 }

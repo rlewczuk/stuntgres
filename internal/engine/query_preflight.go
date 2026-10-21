@@ -337,7 +337,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			n, node = &copy, &copy
 			expressions = nil
 		}
-		pruned, err := pruneProjectWindows(n)
+		pruned, err := analyze.PruneProjectWindows(n)
 		if err != nil {
 			return nil, err
 		}
