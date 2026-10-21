@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -32,7 +31,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if call.ResultUsage().Type.ID() != sqltype.JSONB || call.Properties().Volatility != expr.Immutable || exec.SourceReturnsSet(call) {
 		t.Fatal("scalar immutable JSONB contract", call)
 	}
-	captured, err := routine.ExpressionRoutineDescriptor(call)
+	captured, err := exec.ExpressionRoutineDescriptor(call)
 	if err != nil || captured == nil || captured.Builtin == nil {
 		t.Fatal("missing actual bound declaration", captured, err)
 	}

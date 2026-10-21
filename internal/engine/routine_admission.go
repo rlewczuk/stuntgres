@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,7 +18,7 @@ import (
 // descriptor identifies the declaration; neither its ACL nor its address alone
 // supplies authority. Admission borrows the immutable manifest without copying.
 func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation) error {
-	current, err := routine.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
+	current, err := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
 	if err != nil {
 		return err
 	}
@@ -55,7 +54,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.Expre
 // have their separate source/project demand point: a pruned FROM source must not
 // acquire EXECUTE merely because its arguments were inspected during planning.
 func admitRoutineCall(c *exec.Context, node expr.Expr, scalarPlanning, constantComputation bool) error {
-	recipe, recipeErr := routine.ExpressionRecipeDescriptor(node)
+	recipe, recipeErr := exec.ExpressionRecipeDescriptor(node)
 	if recipeErr != nil {
 		return recipeErr
 	}
@@ -91,7 +90,7 @@ func admitRoutineCall(c *exec.Context, node expr.Expr, scalarPlanning, constantC
 			}
 		}
 	}
-	captured, err := routine.ExpressionRoutineDescriptor(node)
+	captured, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil || captured == nil {
 		return err
 	}
@@ -148,7 +147,7 @@ func checkRecipeRoutineDescriptor(c *exec.Context, auth AuthorizationView, depen
 		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer)
 	}
 	if c.RoutineReferences != nil {
-		if _, err := routine.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
+		if _, err := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
 			return err
 		}
 		for _, ref := range c.RoutineReferences {

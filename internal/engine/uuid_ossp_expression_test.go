@@ -19,7 +19,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -34,7 +33,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(plan.InstalledUUIDOsspExpr)
-	if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
+	if carrier, err := exec.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
 	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Volatile || !analyze.ValidInstalledUUIDOsspShape(n) || !analyze.ClosedUUIDDefault(n) || plan.GenerationImmutable(n) {
@@ -225,7 +224,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(plan.InstalledUUIDOsspExpr)
-	captured, err := routine.ExpressionRoutineDescriptor(node)
+	captured, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil || captured != n.Procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != catalog.FunctionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.Ref.Domain() != e.catalog.Domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
@@ -291,7 +290,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		auth.Catalog.State().SetDescriptor(n.Ref.Address, &bad)
 		probe := evaluation
 		probe.RoutineAuthority = &auth
-		if routine.SameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
+		if exec.SameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
 			t.Fatal("incompatible current provider/kind admitted")
 		}
 	}
@@ -345,7 +344,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal("retag must resolve selected remapped address", err)
 	}
-	current, err := routine.ExpressionRoutineDescriptor(relocated)
+	current, err := exec.ExpressionRoutineDescriptor(relocated)
 	if err != nil || current != state.Get(mapping[n.Ref.Address]) || !analyze.ValidInstalledUUIDOsspShape(relocated.(plan.InstalledUUIDOsspExpr)) {
 		t.Fatal("remapped common and installed carriers diverged", err)
 	}
@@ -431,7 +430,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		current := auth.Catalog.MustProcedure(address)
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 		rights, err := auth.Effective(ref, false)
-		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !routine.SameRoutineDeclaration(current, original) {
+		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !exec.SameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}

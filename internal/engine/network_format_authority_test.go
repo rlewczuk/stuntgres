@@ -3,15 +3,15 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Non-public binder/authority test: released declarations and exact dependency
@@ -45,7 +45,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			outer, err := routine.ExpressionRoutineDescriptor(node)
+			outer, err := exec.ExpressionRoutineDescriptor(node)
 			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing original declaration", outer, err)
 			}

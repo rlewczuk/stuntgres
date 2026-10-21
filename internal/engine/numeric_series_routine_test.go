@@ -3,15 +3,15 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
-	"testing"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -37,7 +37,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if !ok || len(carrier.Args) != tc.arity || !exec.SourceAdmitted(carrier) || !binder.Clause.QueryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
-			captured, err := routine.ExpressionRoutineDescriptor(node)
+			captured, err := exec.ExpressionRoutineDescriptor(node)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
@@ -147,7 +147,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("render original carrier", err)
 			}
 			rebound, _, reboundEvaluation := strictNullUnitBind(t, e, op, scope, text)
-			reboundDescriptor, err := routine.ExpressionRoutineDescriptor(rebound)
+			reboundDescriptor, err := exec.ExpressionRoutineDescriptor(rebound)
 			if err != nil || reboundDescriptor != captured || len(rebound.(plan.SeriesExpr).Args) != tc.arity {
 				t.Fatal("render/rebind lost original full-IN declaration", reboundDescriptor, err)
 			}

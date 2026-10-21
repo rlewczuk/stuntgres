@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -61,13 +62,13 @@ func (b *Binder) captureBuiltinRoutineDeclaration(declaration *catalog.BuiltinRo
 // ACL. Optional polymorphic casts are selected from the real argument, not all
 // possible casts and not ordinary I/O helper identities.
 func (b *Binder) capturePolymorphicBody(node expr.Expr) error {
-	outer, err := routine.ExpressionRoutineDescriptor(node)
+	outer, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil || outer == nil {
 		return err
 	}
-	argument := routine.PolymorphicBodyArgument(node, outer.Address().ObjectID)
+	argument := exec.PolymorphicBodyArgument(node, outer.Address().ObjectID)
 	for _, edge := range outer.Body {
-		if routine.BodyCastMatches(edge, argument) {
+		if exec.BodyCastMatches(edge, argument) {
 			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
 				return err
 			}

@@ -4,13 +4,13 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -70,7 +70,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 	}
 	changed := typ != info.Usage.Type
 	info.Usage.Type = typ
-	if _, failure := routine.ExpressionRecipeDescriptor(node); failure != nil {
+	if _, failure := exec.ExpressionRecipeDescriptor(node); failure != nil {
 		return nil, false, failure
 	}
 	if recipe != nil && info.RoutineRecipeReference != recipe {
@@ -79,7 +79,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 	}
 	var err error
 	if info.RoutineReference != nil {
-		captured, failure := routine.ExpressionRoutineDescriptor(node)
+		captured, failure := exec.ExpressionRoutineDescriptor(node)
 		if failure != nil {
 			return nil, false, failure
 		}
@@ -584,7 +584,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 			arm.Condition, arm.Result = child(arm.Condition), child(arm.Result)
 			if arm.Routine != nil && view.State() != nil {
 				current, ok := view.Procedure(arm.Routine.Address())
-				if !ok || !routine.SameRoutineDeclaration(current, arm.Routine) {
+				if !ok || !exec.SameRoutineDeclaration(current, arm.Routine) {
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
 				}
 				changed = changed || arm.Routine != current

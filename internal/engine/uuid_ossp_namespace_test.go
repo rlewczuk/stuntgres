@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -33,7 +32,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) || !analyze.ClosedUUIDDefault(n) {
 				t.Fatal("constant shape/identity", n)
 			}
-			if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
+			if carrier, err := exec.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 				t.Fatal("lost routine authority", carrier, err)
 			}
 			if err := validateInstalledUUIDOssp(n, view); err != nil {

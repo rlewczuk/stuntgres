@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +39,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if !ok || carrier.Slots != tc.slots || carrier.Validate() != nil {
 				t.Fatal("canonical named-slot carrier", node)
 			}
-			captured, err := routine.ExpressionRoutineDescriptor(node)
+			captured, err := exec.ExpressionRoutineDescriptor(node)
 			if err != nil || captured == nil {
 				t.Fatal("missing genuine routine reference", captured, err)
 			}
@@ -214,7 +213,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			seen := 0
 			plan.QueryExpressions(execution, func(call expr.Expr) {
 				seen++
-				if ref, err := routine.ExpressionRoutineDescriptor(call); err != nil || ref == nil {
+				if ref, err := exec.ExpressionRoutineDescriptor(call); err != nil || ref == nil {
 					t.Fatal("lost original callable", ref, err)
 				}
 			})
@@ -330,7 +329,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type {
 				t.Fatal("generic typed NULL", value, err)
 			}
-			if ref, err := routine.ExpressionRoutineDescriptor(folded); err != nil || ref != nil {
+			if ref, err := exec.ExpressionRoutineDescriptor(folded); err != nil || ref != nil {
 				t.Fatal("pruned callable identity", ref, err)
 			}
 			if folded.Properties() != node.Properties() || !reflect.DeepEqual(before, expr.InfoOf(node)) {
@@ -348,10 +347,10 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if err != nil || !changed || !exec.RandomLiteralNull(folded) {
 			t.Fatal("scalar NULL folding", changed, err)
 		}
-		if ref, err := routine.ExpressionRoutineDescriptor(folded); err != nil || ref != nil {
+		if ref, err := exec.ExpressionRoutineDescriptor(folded); err != nil || ref != nil {
 			t.Fatal("folded literal retained executable identity", ref, err)
 		}
-		if ref, err := routine.ExpressionRoutineDescriptor(node); err != nil || ref == nil || ref.Address().ObjectID != 3537 {
+		if ref, err := exec.ExpressionRoutineDescriptor(node); err != nil || ref == nil || ref.Address().ObjectID != 3537 {
 			t.Fatal("folding erased original identity", ref, err)
 		}
 		if folded.ResultUsage() != node.ResultUsage() || !reflect.DeepEqual(before, expr.InfoOf(node)) {

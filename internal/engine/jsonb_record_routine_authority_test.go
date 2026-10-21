@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -94,7 +93,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("valid must retain real base and BOOL result")
 				}
 			}
-			captured, err := routine.ExpressionRoutineDescriptor(call)
+			captured, err := exec.ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing original descriptor", captured, err)
 			}
@@ -269,7 +268,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "jsonb_to_record('{}'::jsonb)")
 	original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 	call := node.(functions.JSONBRecord)
-	captured, err := routine.ExpressionRoutineDescriptor(call)
+	captured, err := exec.ExpressionRoutineDescriptor(call)
 	if err != nil || captured == nil {
 		t.Fatal("original stored-call descriptor", err)
 	}
@@ -305,7 +304,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 		if next.Info.RoutineReference != captured || next.Info.RoutineRecipeReference != recipe || next.SourcePosition() != call.SourcePosition() || next.Definitions != (i != 0) || next.Unresolved != (i == 0) || next.Name != call.Name || len(next.Args) != len(call.Args) || next.Args[0].ResultUsage() != call.Args[0].ResultUsage() {
 			t.Fatal("stored chain lost original authority/arguments", next)
 		}
-		childRecipe, err := routine.ExpressionRecipeDescriptor(next.Args[0])
+		childRecipe, err := exec.ExpressionRecipeDescriptor(next.Args[0])
 		if err != nil || childRecipe != recipe {
 			t.Fatal("stored child lost owning recipe", err)
 		}
@@ -335,7 +334,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	if call.Info.RoutineReference != captured || call.Info.RoutineRecipeReference != nil || call.Definitions || !call.Unresolved || captured.Owner != owner || captured.Revision() != revision || view.Get(captured.Address()) != captured || !reflect.DeepEqual(evaluation.RoutineChecks, original) {
 		t.Fatal("stored chain mutated original")
 	}
-	if childRecipe, err := routine.ExpressionRecipeDescriptor(call.Args[0]); err != nil || childRecipe != nil {
+	if childRecipe, err := exec.ExpressionRecipeDescriptor(call.Args[0]); err != nil || childRecipe != nil {
 		t.Fatal("stored chain mutated original child ancestry", err)
 	}
 	if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
@@ -416,7 +415,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		"jsonb_populate_record_valid(NULL::strict_null_rows,'{}'::jsonb)",
 	} {
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-		captured, err := routine.ExpressionRoutineDescriptor(node)
+		captured, err := exec.ExpressionRoutineDescriptor(node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -439,7 +438,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		ownerOp, ownerDone := roleOperation(t, e, "jsonb_authority_owner")
 		ownerAuth := eMustJSONBRoutineAuthority(t, e, ownerOp)
 		ownerDone()
-		if got, err := routine.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil || got != current {
+		if got, err := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil || got != current {
 			t.Fatal("compatible owner declaration", err)
 		}
 		for _, dep := range original {
@@ -458,7 +457,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			t.Fatal("owner revision rescued old graph")
 		}
 		fresh, freshBinder, freshEvaluation := strictNullUnitBind(t, e, op, scope, expression)
-		freshDescriptor, err := routine.ExpressionRoutineDescriptor(fresh)
+		freshDescriptor, err := exec.ExpressionRoutineDescriptor(fresh)
 		if err != nil || freshDescriptor != current {
 			t.Fatal("fresh analysis did not capture owner/revision", err)
 		}
@@ -484,7 +483,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 				t.Fatal(err)
 			}
 			bad := badStage.Get(current.Address()).(*catalog.Procedure)
-			if _, err := routine.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, bad); err == nil {
+			if _, err := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, bad); err == nil {
 				t.Fatal("zero/foreign staged owner provenance accepted")
 			}
 			if _, err := e.ValidateCatalogStage(context.Background(), badStage); err == nil {
@@ -514,7 +513,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 		"jsonb_populate_record_valid(NULL::strict_null_rows,NULL::jsonb)",
 	} {
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-		captured, err := routine.ExpressionRoutineDescriptor(node)
+		captured, err := exec.ExpressionRoutineDescriptor(node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -545,7 +544,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 			if current == captured || current.Revision() != captured.Revision() {
 				t.Fatal("ACL COW changed original definition identity")
 			}
-			if got, err := routine.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil || got != current {
+			if got, err := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil || got != current {
 				t.Fatal("ACL COW declaration compatibility", err)
 			}
 			probe := evaluation
@@ -561,7 +560,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 		if !reflect.DeepEqual(binder.Dependencies, original) {
 			t.Fatal("ACL COW changed original manifest")
 		}
-		if selected, err := routine.ExpressionRoutineDescriptor(node); err != nil || selected != captured {
+		if selected, err := exec.ExpressionRoutineDescriptor(node); err != nil || selected != captured {
 			t.Fatal("ACL COW replaced original carrier", err)
 		}
 	}

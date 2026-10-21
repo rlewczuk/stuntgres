@@ -182,7 +182,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected, err := routine.ExpressionRoutineDescriptor(node)
+		selected, err := exec.ExpressionRoutineDescriptor(node)
 		if err != nil || selected != procedure {
 			t.Fatal("selected routine authority", selected, err)
 		}

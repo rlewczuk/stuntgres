@@ -5,8 +5,8 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +20,7 @@ func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path analy
 	if !ok || d.SQL == nil || len(raw.Name.Parts) != 2 || raw.Name.Parts[1].Text != d.Name() || len(raw.Args) != len(d.SQL.Inputs) {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen SQL routine procedure")
 	}
-	if _, err := routine.ValidateStoredRoutineDescriptor(read, d); err != nil {
+	if _, err := exec.ValidateStoredRoutineDescriptor(read, d); err != nil {
 		return nil, err
 	}
 	for _, dependency := range v.dependencies {

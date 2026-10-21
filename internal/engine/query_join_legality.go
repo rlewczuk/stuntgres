@@ -2,13 +2,13 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -129,7 +129,7 @@ func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 	if expression == nil {
 		return nil
 	}
-	recipe, err := routine.ExpressionRecipeDescriptor(expression)
+	recipe, err := exec.ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return err
 	}

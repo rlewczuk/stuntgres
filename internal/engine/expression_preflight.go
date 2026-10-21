@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -40,7 +39,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 	if err := exec.EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
-	recipe, err := routine.ExpressionRecipeDescriptor(expression)
+	recipe, err := exec.ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return nil, false, err
 	}

@@ -2,12 +2,12 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 )
 
 func bodyErrorContext(outer *catalog.Procedure, constant bool) exec.RoutineBodyContext {
@@ -65,7 +65,7 @@ func bodyRoutineDescriptor(c *exec.Context, auth AuthorizationView, dependencies
 		return nil, err
 	}
 	current, ok := descriptor.(*catalog.Procedure)
-	if !ok || !routine.SameRoutineDeclaration(current, edge.Routine) {
+	if !ok || !exec.SameRoutineDeclaration(current, edge.Routine) {
 		return nil, fmt.Errorf("stuntgres: stale SQL body declaration")
 	}
 	if revision != 0 && current.Revision() != revision {
@@ -79,7 +79,7 @@ func validateInquiryBodyLifetime(c *exec.Context, node expr.Expr, outer *catalog
 	if err != nil || auth.engine == nil {
 		return err
 	}
-	return routine.WalkRoutineBody(outer, node, func(body *catalog.Procedure) error {
+	return exec.WalkRoutineBody(outer, node, func(body *catalog.Procedure) error {
 		_, err := bodyRoutineDescriptor(c, auth, dependencies, catalog.RoutineBodyEdge{Routine: body})
 		return err
 	})
@@ -88,8 +88,8 @@ func validateInquiryBodyLifetime(c *exec.Context, node expr.Expr, outer *catalog
 func bodyEdgeDemanded(node expr.Expr, outer *catalog.Procedure, edge catalog.RoutineBodyEdge) bool {
 	switch edge.Demand {
 	case catalog.BodyBooleanText, catalog.BodyNetworkText:
-		argument := routine.PolymorphicBodyArgument(node, outer.Address().ObjectID)
-		return routine.BodyCastMatches(edge, argument) && !exec.RandomLiteralNull(argument)
+		argument := exec.PolymorphicBodyArgument(node, outer.Address().ObjectID)
+		return exec.BodyCastMatches(edge, argument) && !exec.RandomLiteralNull(argument)
 	case catalog.BodyLeftDuration, catalog.BodyRightDuration:
 		overlap, ok := node.(functions.DatetimeOverlaps)
 		if !ok {
@@ -140,7 +140,7 @@ func admitRoutineBody(c *exec.Context, node expr.Expr, outer *catalog.Procedure,
 }
 
 func admitOverlapsPair(c *exec.Context, e functions.DatetimeOverlaps, pair int) error {
-	outer, err := routine.ExpressionRoutineDescriptor(e)
+	outer, err := exec.ExpressionRoutineDescriptor(e)
 	if err != nil || outer == nil {
 		return err
 	}

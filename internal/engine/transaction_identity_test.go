@@ -6,17 +6,17 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestTransactionIdentityAgeArithmetic(t *testing.T) {
@@ -278,7 +278,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if err := validateGenerationPlan(e.CatalogRead(), nil, n); err != nil {
 			t.Fatal("original provider", err)
 		}
-		captured, err := routine.ExpressionRoutineDescriptor(n)
+		captured, err := exec.ExpressionRoutineDescriptor(n)
 		if err != nil || captured == nil {
 			t.Fatal("missing captured original routine", err)
 		}
