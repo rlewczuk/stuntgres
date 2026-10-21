@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `99bb7c173` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 86 and 94). Steps 8–17 were
+Last verified against `master` at `c02c9d97e` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 86, 90 and 94). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,8 +20,8 @@ after each lands.
 
 - **Seams:** 63 (ddl 20d), 66 (regobj 21c), 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
-- **Upper features, in place:** 82 (index 23a), 90 (partition 25a),
-  99 (view 27a), 103 (role 28a).
+- **Upper features, in place:** 82 (index 23a), 99 (view 27a), 103
+  (role 28a).
 - **Upper features, packages:** 95 (fdw 26b).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -53,6 +53,8 @@ wait for their other items.
 Item 86 (table 24a) is done; table 24b (item 87) still waits for 83,
 and DML 29a (item 107) for 82. Item 94 (fdw 26a) is done, so fdw 26b
 (item 95) is ready; fdw 26c (item 96) then needs 95 and 61.
+Item 90 (partition 25a) is done; partition 25b (item 91) still waits
+for table 24b (item 87).
 
 ## Task tree
 
@@ -469,7 +471,8 @@ and DML 29a (item 107) for 82. Item 94 (fdw 26a) is done, so fdw 26b
   - [ ] 24d — Handler decisions moved
 - [ ] **Step 25 — `partition`** ([prompt](ENGINE-SPLIT-partition.md); 25b
   needs 24b)
-  - [ ] 25a — In place: proof inputs, storage-read fences, renames
+  - [x] 25a — In place: proof inputs, storage-read fences, renames
+    (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit)
   - [ ] 25b — `partition` created and clean set moved
   - [ ] 25c — Host refined (docs only)
   - [ ] 25d — Handler decisions moved
@@ -1062,8 +1065,13 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     24c · needs 87, 84
 89. [ ] Table 24d: handler decisions moved — [table](ENGINE-SPLIT-table.md)
     24d · needs 88, 85
-90. [ ] Partition 25a: in place — [partition](ENGINE-SPLIT-partition.md) 25a ·
-    needs —
+90. [x] Partition 25a: in place — [partition](ENGINE-SPLIT-partition.md) 25a ·
+    needs — (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit) ·
+    `partitionProof` takes the context and input environment;
+    `partitionRecipeHost` on `statementHost`; `storageReadFence`,
+    `partition_locks.go`, `partition_create_child.go` · selected unit and
+    dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+    user request
 91. [ ] Partition 25b: `partition` created, clean set moved —
     [partition](ENGINE-SPLIT-partition.md) 25b · needs 90, 87
 92. [ ] Partition 25c: host refined (docs only) —

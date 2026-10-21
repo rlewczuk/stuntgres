@@ -59,7 +59,7 @@ line counts per declaration, approximate).
 | Sub-area | Files | Lines | Clean | After cuts |
 |---|---|---:|---:|---:|
 | Core, bounds, routing | `partition.go`, `partition_bind.go`, `partition_hash_bounds.go`, `partition_insert.go`, `partition_query.go`, `partition_routine.go` | 1,144 | 391 | 517 |
-| CREATE, ATTACH, DETACH, DROP, locks | `partition_create.go`, `partition_inherit.go`, `partition_attach.go`, `partition_attach_scan.go`, `partition_attach_schema.go`, `partition_detach.go`, `partition_drop.go`, `partition_scope.go`, `partition_exclusion.go` | 2,006 | 247 | 331 |
+| CREATE, ATTACH, DETACH, DROP, locks | `partition_create.go`, `partition_create_child.go`, `partition_attach.go`, `partition_attach_scan.go`, `partition_attach_schema.go`, `partition_detach.go`, `partition_drop.go`, `partition_locks.go`, `partition_exclusion.go` | 2,006 | 247 | 331 |
 | Proofs and retained checks | `partition_proof.go`, `partition_retained_checks.go` | 604 | 339 | 573 |
 | Dump, replay, remap | `partition_dump.go`, `partition_dump_events.go`, `partition_invalid_dump.go`, `partition_constraint_dump.go`, `partition_unique_dump.go`, `partition_remap.go`, `partition_replacement.go`, `partition_check_replay.go`, `partition_unique_replay.go`, `partition_using_index_replay.go`, `partition_detach_restore.go` | 2,325 | 636 | 1,722 |
 | **Total** | 28 files | 6,079 | 1,613 | about 3,140 |
@@ -134,13 +134,13 @@ The table prompt relies on these two rows: 23a moves
 
 ### Dirty, and why
 
-- **Handlers on `Engine`** (27 declarations): `attachPartitionLocked`
+- **Handlers on `Engine`** (26 declarations): `attachPartitionLocked`
   (210 lines), `detachPartitionLocked`, `stagePartitionDetach`,
   `schemaPartitionTableLocked`, `schemaPartitionChildLocked` (175),
   `bindPartitionKeys`, `executePartitionExclusionAddLocked`,
   `partitionAttachAuthorization`, `partitionAttachRelation`,
   `partitionAttachName`, `partitionAttachCapture`,
-  `partitionParentAuthorization`, `partitionReadsValidLocked`; the Restore
+  `partitionParentAuthorization`; the Restore
   executors `beginPartitionCheckReplay`, `beginPartitionUniqueReplay`,
   `executePartitionUniqueReplayLocked`, `beginPartitionUsingIndexReplay`,
   `capturePartitionReplayTeardown`, `validatePartitionReplayTeardown`,
@@ -161,12 +161,13 @@ The table prompt relies on these two rows: 23a moves
   `partitionCheckReplayAllowed`, `partitionUniqueReplayAllowed`,
   `partitionUsingIndexReplayAllowed` and `partitionConstraintReplayImport`
   read the engine's Restore and authorization state;
-  `dropProvider.removePartitionHierarchyLocked` is drop-pipeline code;
-  `partitionReadFence.currentLocked` is a fence check.
-- **Through the scope only for a context:** `partitionProof.scope`,
-  `partitionConstraintProven(scope, ...)` and
-  `partitionAttachSchema(ctxScope, ...)` use the scope only for the
-  operation context and the input environment (25a step 2).
+  `dropProvider.removePartitionHierarchyLocked` is drop-pipeline code.
+  *(25a moved the generic `storageReadFence`, formerly
+  `partitionReadFence`, to `storage_read_fence.go`.)*
+- **Through the scope only for a context** (cut in 25a): `partitionProof`
+  holds the operation context and input environment;
+  `partitionConstraintProven(ctx, input, ...)` and
+  `partitionAttachSchema(ctx, ...)` take them instead of the scope.
 
 ### State
 
@@ -176,9 +177,9 @@ The table prompt relies on these two rows: 23a moves
   `partitionRelations`. `partitionScope.dropPrograms` is also called from
   `sql_cursor_hold.go`, and the SQL routine scratch saves the validation
   view.
-- **`CatalogStage`:** `partitionReads []partitionReadFence`
-  (`partition_create.go`), appended by `partition_create.go` and
-  `partition_attach_scan.go`, checked by `partitionReadsValidLocked`
+- **`CatalogStage`:** `storageReads []storageReadFence`
+  (`storage_read_fence.go` since 25a), appended by `partition_create.go` and
+  `partition_attach_scan.go`, checked by `storageReadsValidLocked`
   (`catalog.go`, three sites; `temporary_session.go`) and by the
   `fenceStorageRead` fence in `catalog_message.go`. `catalog_message.go`
   (line 249) and `catalog_overlay_indexes.go` (line 90) build the same
@@ -196,7 +197,7 @@ using area: Dump/Restore driver 29, table 24, DML 21, statement dispatch
 (`execute.go`, `alter_table.go`, `create_table.go`) calls the handlers;
 the DML files call the routing methods; `relationDefiningAuthorityCompatible`
 (`materialized_refresh.go`, a pure catalog comparison) is used by
-`partition_scope.go` and `relation_scope.go`.
+`partition_locks.go` and `relation_scope.go`.
 
 ## Part A
 
@@ -377,7 +378,45 @@ too; the root keeps only the orchestration listed above. The checks in
 
 ## Status
 
-- [ ] 25a — In place: context cut, recipe capability, renames (linear item 90)
+- [x] 25a — In place: context cut, recipe capability, renames (linear item 90)
+  (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit) · selected
+  unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
+  skipped at user request
+  - Re-measured at `e68b939e8` (rebased onto `c02c9d97e`) with `reach`
+    over `^partition.*\.go$`: 107 clean and 80 dirty declarations (the
+    planning snapshot had 86/100). The difference is the 22a coverage cut
+    and the 5i/18b moves (`hierarchyRelation`, `samePartitionColumnUsage`, `addDumpDependency`,
+    `dumpEventDependsOn` are gone), as the inventory expected; no
+    inventory rewrite. After 25a the 28 files hold 6,053 lines, 3,104 of
+    them clean (2,668 before; the inventory's "about 3,140" also counts
+    the index 23a cuts). Outputs in
+    `.cswd/tmp/PG18-ENGINE-SPLIT-PARTITION-IN-PLACE/`.
+  - `22bba0e50` (step 2, 319 lines clean): `partitionProof` holds `ctx`
+    and `input`; `partitionConstraintProven(ctx, input, ...)`.
+    `partitionAttachSchema(ctx, ...)` takes only the context: it never
+    reads the input environment (deviation from step 2's wording).
+  - `47d732220` (step 3, 117 lines clean: `evaluatePartitionRecipe`,
+    `partitionRowKey`, `partitionAccepts`): `partitionRecipeHost`
+    (`partition_routine.go`) with `CommandIdentity`,
+    `PreparedDomainChecks`, `ReferentialActor`, `PartitionPrograms` and
+    `RecordPartitionPrograms` (writes the program cache and the consumed
+    routine program together, as before), implemented on `statementHost`
+    in the new `statement_host_partition.go`; recovered from
+    `local.LiveHost()` with one checked type assertion. The method names
+    are exported so 25b can move the interface unchanged (as
+    `partition.RecipeHost`).
+  - `bbe3e3cc1` (step 4): `storageReadFence`, `CatalogStage.storageReads` and
+    `storageReadsValidLocked` live in the new root file
+    `storage_read_fence.go`; `partition_scope.go` is `partition_locks.go`,
+    `partition_inherit.go` is `partition_create_child.go`. The index
+    declarations of "Not partition code" were left to 23a, which owns them
+    and had not started.
+  - Tests changed only in call shape: `partition_attach_definition_test.go`
+    and `partition_attach_eligibility_test.go` pass a context (and an
+    empty input environment) instead of a `StatementScope`;
+    `partition_attach_publication_test.go` and
+    `driver_batch_catalog_provider_test.go` use the fence's new name. None
+    moved or deleted.
 - [ ] 25b — `partition` created and clean set moved (linear item 91)
 - [ ] 25c — Host refined (docs only; linear item 92)
 - [ ] 25d — Handler decisions moved (linear item 93)
@@ -399,4 +438,4 @@ Outstanding aliases: none yet.
   `repairRemappedHashPartitions`, the teardown capture and validation).
 - Catalog 5i: `relationDefiningAuthorityCompatible`
   (`materialized_refresh.go`) is a pure catalog comparison used by
-  `partition_scope.go` and `relation_scope.go`; it belongs in `catalog`.
+  `partition_locks.go` and `relation_scope.go`; it belongs in `catalog`.
