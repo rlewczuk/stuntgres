@@ -112,20 +112,20 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	defer done()
 	source := &catalog.Relation{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
-	b := analyze.Binding{Query: viewOf(d).query, QuerySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
+	b := analyze.Binding{Query: viewOf(d).Query(), QuerySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, viewOf(d).syntax, b, false, false, 0, catalog.MaterializedViewRelation, false)
+	definition, err := e.freezeViewDefinitionLocked(auth, viewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	source.Attributes[1] = 9
-	if definition.query != b.Query || definition.syntax != viewOf(d).syntax || definition.RuleOID() == 0 || definition.RuleOID() == viewOf(d).RuleOID() {
+	if definition.Query() != b.Query || definition.Syntax() != viewOf(d).Syntax() || definition.RuleOID() == 0 || definition.RuleOID() == viewOf(d).RuleOID() {
 		t.Fatal("definition rebound or lost fresh rule identity")
 	}
 	if !reflect.DeepEqual(definition.Sources()[0].attributes, []int32{1, 3}) || !reflect.DeepEqual(definition.Sources()[0].reads, []int32{3}) || definition.Dependencies()[0] != b.Dependencies[0] {

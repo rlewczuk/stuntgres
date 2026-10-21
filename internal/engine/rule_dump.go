@@ -95,7 +95,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		// Replacement remaps executable and frozen graphs independently.
 		// Every slot cache and frame lookup in this render must use the
 		// retained presentation graph, selected by immutable syntax identity.
-		project = renderer.queries[project.Syntax]
+		project = renderer.Queries()[project.Syntax]
 		if project == nil {
 			return "", true, fmt.Errorf("stuntgres: missing retained rule subquery presentation")
 		}
@@ -155,7 +155,7 @@ func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query plan
 	default:
 		return nil
 	}
-	owner := renderer.frames[1]
+	owner := renderer.Frames()[1]
 	if owner == nil {
 		return fmt.Errorf("stuntgres: missing rule mutation presentation frame")
 	}
@@ -232,7 +232,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 			return "", fmt.Errorf("stuntgres: missing rule derived-query presentation")
 		}
 		renderer := newViewRenderer(action.presentation)
-		project = renderer.queries[project.Syntax]
+		project = renderer.Queries()[project.Syntax]
 		if project == nil {
 			return "", fmt.Errorf("stuntgres: missing retained rule derived-query presentation")
 		}
@@ -306,7 +306,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		renderer := newViewRenderer(action.presentation)
 		prefix, err := renderer.withClauseSQL(ctx, view, definitions, parser.StatementWithRecursive(action.syntax), func(statement parser.Statement) (string, error) {
 			if query, ok := statement.(*parser.Select); ok {
-				project := renderer.queries[query]
+				project := renderer.Queries()[query]
 				if project == nil {
 					return "", fmt.Errorf("stuntgres: missing retained rule WITH body")
 				}
@@ -550,8 +550,8 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			sql.WriteString("CREATE RULE " + catalog.QuoteIdentifier(r.Name) + " AS ON " + r.event + " TO " + table)
 			if r.condition != nil {
 				renderer := newViewRenderer(r.conditionPresentation)
-				renderer.frame = r.conditionPresentation.query.Root.(*plan.ProjectNode).Frame
-				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.syntax.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				renderer.frame = r.conditionPresentation.Query().Root.(*plan.ProjectNode).Frame
+				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.Syntax().Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					return nil, err
 				}

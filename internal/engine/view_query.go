@@ -27,7 +27,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	e.mu.Unlock()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.QuoteCaptures = scope.quoteCaptures
-	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.quoteRevision}
+	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.QuoteRevision()}
 	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || viewOf(consumer) != definition {
 		return nil, nil, ids.ErrCatalogReplaced
@@ -73,7 +73,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || definition.query.VisibilitySnapshot
+		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || definition.Query().VisibilitySnapshot
 		locks = scope.queryLocks
 	}
 	source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, plan.RowMark{}, locks)
@@ -143,7 +143,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 // Legality and source opening consume the same execution-owned projection and
 // scheduled producers. Frozen authorization reads and dependencies are unchanged.
 func prepareStoredExecutionRoot(c *exec.Context, definition *viewDefinition, outputUses []int) (plan.Node, map[int][]int32, error) {
-	demanded := definition.query.Root
+	demanded := definition.Query().Root
 	if project, ok := demanded.(*plan.ProjectNode); ok {
 		var err error
 		demanded, err = storedProjectionDemand(project, outputUses)

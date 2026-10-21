@@ -190,7 +190,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
 			return rewriteViewExpression(view, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
 				if q, ok := n.(functions.StringVariadic); ok && exec.QuoteOriginOf(q).Owner == (ids.ObjectRef{}) {
-					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: viewOf(d).RuleOID(), Revision: viewOf(d).quoteRevision})
+					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: viewOf(d).RuleOID(), Revision: viewOf(d).QuoteRevision()})
 					q.RoutineRecipeReference = d
 					var args []expr.Expr
 					// A changed leaf exits the shared mapper before its children.
@@ -289,7 +289,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 				w.checks[i].predicates[j] = next
 			}
 		}
-		cascaded = cascaded || viewOf(d).checkOption == viewCheckCascaded
+		cascaded = cascaded || viewOf(d).CheckOption() == viewCheckCascaded
 		var checked []expr.Expr
 		for _, expr := range predicates {
 			next, _, err := lowerStored(expr, true)
@@ -297,7 +297,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 				return err
 			}
 			w.predicates = append(w.predicates, next)
-			if operation != "delete" && (cascaded || viewOf(d).checkOption != viewCheckNone) {
+			if operation != "delete" && (cascaded || viewOf(d).CheckOption() != viewCheckNone) {
 				checked = append(checked, next)
 			}
 		}

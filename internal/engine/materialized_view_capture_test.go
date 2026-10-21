@@ -50,7 +50,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			if len(viewOf(d).Literals()) == 0 {
 				t.Fatal("missing frozen literal occurrences")
 			}
-			if len(b.QuerySources) != 0 && (len(viewOf(d).columns) == 0 || len(viewOf(d).namespaces) == 0) {
+			if len(b.QuerySources) != 0 && (len(viewOf(d).Columns()) == 0 || len(viewOf(d).Namespaces()) == 0) {
 				t.Fatal("missing source column/frame analysis")
 			}
 			if err := (relationProvider{}).Validate(e.stageRead(stage), d); err != nil {

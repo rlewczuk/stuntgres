@@ -41,13 +41,15 @@ func TestPgClassOptionHistory(t *testing.T) {
 		t.Fatal("lexical facts", got)
 	}
 	e := New()
-	original := &viewDefinition{query: &plan.Query{Root: &plan.SingletonNode{}}, options: old, barrier: true, invoker: false, checkOption: viewCheckNone, rule: 200001}
+	original := NewView(ViewParts{Query: &plan.Query{Root: &plan.SingletonNode{}}, Options: old, Barrier: true, Invoker: false, CheckOption: viewCheckNone, Rule: 200001})
 	mapped, err := remapFrozenPresentation(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
-	if err != nil || mapped == original || mapped.RuleOID() != original.RuleOID() || mapped.barrier != original.barrier || mapped.Invoker() != original.Invoker() || !reflect.DeepEqual(mapped.options, old) {
+	if err != nil || mapped == original || mapped.RuleOID() != original.RuleOID() || mapped.Barrier() != original.Barrier() || mapped.Invoker() != original.Invoker() || !reflect.DeepEqual(mapped.Options(), old) {
 		t.Fatal("remap lost installed options", mapped, err)
 	}
-	mapped.options = transformViewOptions(mapped.options, []parser.ViewOption{option("security_invoker", "true")}, false)
-	if !reflect.DeepEqual(original.options, old) || !reflect.DeepEqual(mapped.options, []string{"security_barrier=true", "security_invoker=true"}) {
+	mapped = mapped.With(func(p *ViewParts) {
+		p.Options = transformViewOptions(p.Options, []parser.ViewOption{option("security_invoker", "true")}, false)
+	})
+	if !reflect.DeepEqual(original.Options(), old) || !reflect.DeepEqual(mapped.Options(), []string{"security_barrier=true", "security_invoker=true"}) {
 		t.Fatal("remapped mutation touched retained facts")
 	}
 }

@@ -433,7 +433,7 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 	}
 	protocolLiterals(t, b, want)
 	frames, queries := analyze.CollectQueryFrames(query.Root)
-	definition := &viewDefinition{syntax: raw, query: query, frames: frames, queries: queries, namespaces: b.Capture.Namespaces, literals: b.Capture.Literals, columns: b.Capture.Columns, castUsages: b.Capture.CastUsages}
+	definition := NewView(ViewParts{Syntax: raw, Query: query, Frames: frames, Queries: queries, Namespaces: b.Capture.Namespaces, Literals: b.Capture.Literals, Columns: b.Capture.Columns, CastUsages: b.Capture.CastUsages})
 	if err := definition.validateLiterals(b.BindingCatalog()); err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(remapped.Literals()) != len(want) || !reflect.DeepEqual(remapped.columns, definition.columns) {
+	if len(remapped.Literals()) != len(want) || !reflect.DeepEqual(remapped.Columns(), definition.Columns()) {
 		t.Fatal("remap changed occurrence identity")
 	}
 	for path, original := range definition.Literals() {

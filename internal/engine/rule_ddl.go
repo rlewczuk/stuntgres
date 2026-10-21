@@ -104,13 +104,15 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if err := ruleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
-			temporary := viewOf(old).temporary != (ids.SessionToken{})
-			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).barrier, viewOf(old).Invoker(), viewOf(old).RuleOID(), catalog.ViewRelation, temporary)
+			temporary := viewOf(old).Temporary() != (ids.SessionToken{})
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).Barrier(), viewOf(old).Invoker(), viewOf(old).RuleOID(), catalog.ViewRelation, temporary)
 			if err != nil {
 				return fail(err)
 			}
-			definition.options = viewOf(old).options
-			definition.checkOption = viewOf(old).checkOption
+			definition = definition.With(func(p *ViewParts) {
+				p.Options = viewOf(old).Options()
+				p.CheckOption = viewOf(old).CheckOption()
+			})
 			next.View = viewPayloadOf(definition)
 			sources = b.QuerySources
 		} else {
@@ -167,7 +169,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(err)
 	}
 	if next.View != old.View {
-		viewOf(&next).quoteRevision = next.Revision()
+		next.View = viewOf(&next).With(func(p *ViewParts) { p.QuoteRevision = next.Revision() })
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)

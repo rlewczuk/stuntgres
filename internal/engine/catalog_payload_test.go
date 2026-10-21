@@ -24,7 +24,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	captured := &catalog.Relation{ObjectAddress: source}
 	ref := domain.Ref(7, source)
 	token := domain.Session(5)
-	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]catalog.Descriptor{ref: captured}}
+	definition := NewView(ViewParts{Rule: 30001, Consumer: consumer, Temporary: token, Sources: []viewLeaf{{ref: ref}}, Dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, References: map[ids.ObjectRef]catalog.Descriptor{ref: captured}})
 	d := &catalog.Relation{ObjectAddress: consumer, View: viewPayloadOf(definition)}
 	if viewOf(d) != definition || d.View.RuleOID() != 30001 {
 		t.Fatal("view payload identity")
@@ -54,7 +54,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	if policyExpressionOf(nil) != nil || policyPayloadOf(nil) != nil {
 		t.Fatal("absent policy payload")
 	}
-	condition := &policyExpression{presentation: definition}
+	condition := NewPolicy(nil, nil, definition)
 	policy := catalog.PolicyDefinition{Using: policyPayloadOf(condition)}
 	if policyExpressionOf(policy.Using) != condition || policy.Check != nil {
 		t.Fatal("policy payload identity")
@@ -110,23 +110,23 @@ func TestCatalogPayloadReaders(t *testing.T) {
 	}
 
 	options := []string{"security_barrier=on"}
-	view := &viewDefinition{options: options}
+	view := NewView(ViewParts{Options: options})
 	if got := viewPayloadOf(view).Options(); len(got) != 1 || &got[0] != &options[0] {
 		t.Fatal("view options", got)
 	}
-	if (&viewDefinition{}).Options() != nil {
+	if (NewView(ViewParts{})).Options() != nil {
 		t.Fatal("view without options")
 	}
 
 	condition := plan.LiteralExpr{}
 	var seen []expr.Expr
-	if err := policyPayloadOf(&policyExpression{expression: condition}).VisitExpression(func(e expr.Expr) error { seen = append(seen, e); return nil }); err != nil {
+	if err := policyPayloadOf(NewPolicy(nil, condition, nil)).VisitExpression(func(e expr.Expr) error { seen = append(seen, e); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if len(seen) != 1 || !reflect.DeepEqual(seen[0], expr.Expr(condition)) {
 		t.Fatal("policy expression", seen)
 	}
-	if err := policyPayloadOf(&policyExpression{expression: condition}).VisitExpression(func(expr.Expr) error { return stop }); err != stop {
+	if err := policyPayloadOf(NewPolicy(nil, condition, nil)).VisitExpression(func(expr.Expr) error { return stop }); err != stop {
 		t.Fatal("policy visit error", err)
 	}
 }

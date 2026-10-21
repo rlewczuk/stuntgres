@@ -189,10 +189,10 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		t.Fatal("outer cast hid prohibited child", err)
 	}
 	arrayLiteral := plan.LiteralExpr{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{
-		literals:   map[analyze.ViewLiteralPath]plan.LiteralExpr{{Node: 1}: arrayLiteral},
-		castUsages: map[analyze.ViewLiteralPath]sqltype.Usage{{}: arrayType.Usage()},
-	}}
+	renderer := viewRenderer{viewDefinition: NewView(ViewParts{
+		Literals:   map[analyze.ViewLiteralPath]plan.LiteralExpr{{Node: 1}: arrayLiteral},
+		CastUsages: map[analyze.ViewLiteralPath]sqltype.Usage{{}: arrayType.Usage()},
+	})}
 	raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue}}}
 	ordinal := 0
 	text, err := renderer.expressionSQLAt(context.Background(), view, raw, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})

@@ -20,14 +20,12 @@ func remapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 			if *slot == nil {
 				continue
 			}
-			expression := *policyExpressionOf(*slot)
-			frozen, err := remapFrozenPresentation(view, expression.presentation, mapping, ref, typ, collation)
+			expression := policyExpressionOf(*slot)
+			frozen, err := remapFrozenPresentation(view, expression.Presentation(), mapping, ref, typ, collation)
 			if err != nil {
 				return nil, err
 			}
-			expression.presentation = frozen
-			expression.expression = frozen.query.Root.(*plan.ProjectNode).Expressions[0]
-			*slot = &expression
+			*slot = NewPolicy(expression.Syntax(), frozen.Query().Root.(*plan.ProjectNode).Expressions[0], frozen)
 		}
 	}
 	return &copy, nil

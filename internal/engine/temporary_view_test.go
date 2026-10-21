@@ -38,7 +38,8 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		t.Fatal(err)
 	}
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, ObjectNamespace: table.Namespace(), ObjectName: "candidate_view", ObjectRevision: 1, Owner: table.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
-	definition.consumer = d.Address()
+	definition = definition.With(func(p *ViewParts) { p.Consumer = d.Address() })
+	d.View = viewPayloadOf(definition)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	err = e.stageRowTypeLocked(stage, d)
 	e.mu.Unlock()
@@ -232,7 +233,7 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	}
 	next.SetDescriptor(ref.Address, old)
 	fake := *view
-	fake.View = &viewDefinition{consumer: view.Address(), temporary: viewOf(view).temporary}
+	fake.View = NewView(ViewParts{Consumer: view.Address(), Temporary: viewOf(view).Temporary()})
 	next.SetDescriptor(view.Address(), &fake)
 	if storedViewReferenceValid(retained, &fake, ref) {
 		t.Fatal("missing captured manifest accepted")
@@ -250,7 +251,7 @@ func TestTemporaryViewDescribeNoEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.catalog.state
-	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: viewOf(view).syntax}
+	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: viewOf(view).Syntax()}
 	description, err := e.describeOperation(scope, raw)
 	scope.Finish(err)
 	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.Base.Get(view.Address()) != nil {

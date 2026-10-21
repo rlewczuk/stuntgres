@@ -99,7 +99,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("source operand graph/render changed", actual, err)
 	}
 	viewRef := catalogRef(t, e, view, "expr_retag_v")
-	persisted := viewOf(view.MustRelation(viewRef.Address)).query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
+	persisted := viewOf(view.MustRelation(viewRef.Address)).Query().Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
 	selected, ambiguous := persisted.Predicate.InputCollation()
 	if !ambiguous || selected.ID != 100 || persisted.Usage.Collation.ID != 0 {
 		t.Fatal("stored implicit conflict erased", selected, ambiguous)
@@ -126,7 +126,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	storedExpression := func(name string) expr.Expr {
 		ref := catalogRef(t, e, view, name)
-		return viewOf(view.MustRelation(ref.Address)).query.Root.(*plan.ProjectNode).Expressions[0]
+		return viewOf(view.MustRelation(ref.Address)).Query().Root.(*plan.ProjectNode).Expressions[0]
 	}
 	saved := storedExpression("expr_retag_case").(plan.CaseExpr)
 	ref, conflict := saved.Arms[0].Equality.InputCollation()
@@ -204,7 +204,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("membership input remap/source immutability broken")
 	}
 	projectionRef := catalogRef(t, e, view, "expr_retag_projection")
-	projection := viewOf(view.MustRelation(projectionRef.Address)).query.Root.(*plan.ProjectNode)
+	projection := viewOf(view.MustRelation(projectionRef.Address)).Query().Root.(*plan.ProjectNode)
 	demanded, err := storedProjectionDemand(projection, []int{1})
 	if err != nil {
 		t.Fatal(err)

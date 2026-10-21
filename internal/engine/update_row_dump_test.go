@@ -36,10 +36,10 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			input := catalogRef(t, e, before, "input")
 			persisted := rulesOf(before.MustRelation(input.Address))[0]
 			action := persisted.actions[0]
-			owner := action.presentation.frames[1]
+			owner := action.presentation.Frames()[1]
 			child := owner.Child
-			columns := make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(action.presentation.columns))
-			for key, column := range action.presentation.columns {
+			columns := make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(action.presentation.Columns()))
+			for key, column := range action.presentation.Columns() {
 				columns[key] = column
 			}
 			// Names must come from current attributes, not stale raw identifiers.
@@ -49,7 +49,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if owner.Child != child || action.presentation.frames[1] != owner || !reflect.DeepEqual(columns, action.presentation.columns) {
+			if owner.Child != child || action.presentation.Frames()[1] != owner || !reflect.DeepEqual(columns, action.presentation.Columns()) {
 				t.Fatal("render mutated frozen namespace ownership")
 			}
 			syntax, err := parser.Parse(text)
@@ -111,7 +111,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					} else {
 						find(mapped.binding.Predicate)
 					}
-					if executable == nil || mapped.presentation.queries[executable.Syntax] == executable {
+					if executable == nil || mapped.presentation.Queries()[executable.Syntax] == executable {
 						t.Fatal("fixture did not establish independently remapped executable and presentation graphs")
 					}
 					actual, err := ruleActionSQL(context.Background(), current, mapped)

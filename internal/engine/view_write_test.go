@@ -44,7 +44,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	view := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: ns, ObjectName: "logical", ObjectRevision: 1, Owner: owner, RelationKind: catalog.ViewRelation, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Columns: []catalog.Column{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Frame: 1, Syntax: syntax, Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(base.Columns), Ref: baseRef, Occurrence: 0}, Expressions: []expr.Expr{column(1), column(0)}}
-	view.View = &viewDefinition{syntax: syntax, query: &plan.Query{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
+	view.View = NewView(ViewParts{Syntax: syntax, Query: &plan.Query{Root: project}, Sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}})
 	viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	e.catalog.state.SetDescriptor(base.Address(), base)
 	e.catalog.state.SetDescriptor(view.Address(), view)
@@ -128,12 +128,10 @@ func TestViewWriteMapping(t *testing.T) {
 	// Reject the first released classifier reason rather than a later group
 	// restriction. These are admitted AST shapes, not invented parser nodes.
 	restricted := *f.view
-	definition := *viewOf(f.view)
-	syntax := *definition.syntax
+	syntax := *viewOf(f.view).Syntax()
 	syntax.Distinct = &parser.DistinctClause{}
 	syntax.GroupBy = &parser.GroupClause{}
-	definition.syntax = &syntax
-	restricted.View = &definition
+	restricted.View = viewOf(f.view).With(func(p *ViewParts) { p.Syntax = &syntax })
 	_, _, _, reason := viewWriteShape(&restricted)
 	if reason != "Views containing DISTINCT are not automatically updatable." {
 		t.Fatal(reason)

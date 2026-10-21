@@ -56,20 +56,23 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if err != nil {
 		return nil, err
 	}
-	frozen.frames[1] = root
-	frozen.expressionSyntax = raw
 	refs, err := pgDependExpressionRefs(scope.op.Context(), auth.Catalog, node)
 	if err != nil {
 		return nil, err
 	}
-	frozen.dependencies = make([]catalog.ExpressionDependency, 0, len(refs))
+	dependencies := make([]catalog.ExpressionDependency, 0, len(refs))
 	for _, address := range refs {
 		whole := address
 		whole.SubID = 0
-		frozen.dependencies = append(frozen.dependencies, catalog.ExpressionDependency{
+		dependencies = append(dependencies, catalog.ExpressionDependency{
 			Ref:      e.catalog.Domain.Ref(auth.Catalog.Epoch(), address),
 			Revision: auth.Catalog.Get(whole).Revision(),
 		})
 	}
-	return &policyExpression{syntax: raw, expression: node, presentation: frozen}, nil
+	frozen = frozen.With(func(p *ViewParts) {
+		p.Frames[1] = root
+		p.ExpressionSyntax = raw
+		p.Dependencies = dependencies
+	})
+	return NewPolicy(raw, node, frozen), nil
 }

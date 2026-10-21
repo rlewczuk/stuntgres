@@ -158,9 +158,9 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		columns = " (" + strings.Join(labels, ", ") + ")"
 	}
 	options := ""
-	if len(viewOf(r).options) != 0 {
-		installed := make([]string, len(viewOf(r).options))
-		for i, option := range viewOf(r).options {
+	if len(viewOf(r).Options()) != 0 {
+		installed := make([]string, len(viewOf(r).Options()))
+		for i, option := range viewOf(r).Options() {
 			name, value, _ := strings.Cut(option, "=")
 			installed[i] = catalog.QuoteIdentifier(name) + "=" + dump.CommentLiteral(value)
 		}

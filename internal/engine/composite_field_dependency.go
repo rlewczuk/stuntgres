@@ -198,7 +198,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 		return false, nil
 	}
 	view := viewOf(relation)
-	if view == nil || view.query == nil {
+	if view == nil || view.Query() == nil {
 		return false, nil
 	}
 	column := false
@@ -230,7 +230,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 	} else {
 		return false, fmt.Errorf("stuntgres: missing view dependency projection")
 	}
-	refs, err := pgDependQueryRefs(provider.ctx, provider.base, reader, view.query)
+	refs, err := pgDependQueryRefs(provider.ctx, provider.base, reader, view.Query())
 	if err != nil {
 		return false, err
 	}

@@ -68,7 +68,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			refs = append(refs, ref)
 		}
 		if d.RelationKind == catalog.ViewRelation || s.materializedOrZero().refresh && ref == s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
-			if viewOf(d).temporary != (ids.SessionToken{}) {
+			if viewOf(d).Temporary() != (ids.SessionToken{}) {
 				for old := range viewOf(d).References() {
 					if old.Epoch != e.catalog.state.Epoch() {
 						retainedViews = append(retainedViews, d)

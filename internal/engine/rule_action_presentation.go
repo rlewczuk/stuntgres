@@ -63,8 +63,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 	if err != nil {
 		return nil, err
 	}
-	presentation.frames[1] = metadata.Query.Root.(*plan.ProjectNode)
-	return presentation, nil
+	return presentation.With(func(p *ViewParts) { p.Frames[1] = metadata.Query.Root.(*plan.ProjectNode) }), nil
 }
 
 func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b analyze.Binding) (map[parser.Statement]*viewDefinition, error) {

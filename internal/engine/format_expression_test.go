@@ -98,7 +98,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, original, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := newViewRenderer(&viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages})
+	renderer := newViewRenderer(NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
 	renderer.frame = b.FrameID()
 	persisted, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {

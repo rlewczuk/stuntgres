@@ -25,7 +25,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 	var definition *viewDefinition
 	var consumer *catalog.Relation
 	for _, layer := range w.layers {
-		if _, found := viewOf(layer.relation).queries[project.Syntax]; found {
+		if _, found := viewOf(layer.relation).Queries()[project.Syntax]; found {
 			definition = viewOf(layer.relation)
 			consumer = layer.relation
 			break

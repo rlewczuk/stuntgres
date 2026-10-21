@@ -42,8 +42,8 @@ func intaggUnitRecipes(t *testing.T) {
 				child = &plan.AggregateNode{Child: child, Calls: b.Grouping.Aggregates}
 			}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: syntax}
-			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, dependencies: b.Dependencies, routineRefs: b.Capture.RoutineRefs, literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}
-			definition.frames, definition.queries = analyze.CollectQueryFrames(project)
+			definition := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages})
+			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
 			if err := definition.validateLiterals(e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
@@ -54,19 +54,18 @@ func intaggUnitRecipes(t *testing.T) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}
 			for _, badRef := range []ids.ObjectRef{{}, New().catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.Address())} {
-				bad := *definition
-				bad.routineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: badRef}
+				bad := definition.With(func(p *ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: badRef} })
 				if err := bad.validateLiterals(e.CatalogRead()); err == nil {
 					t.Fatal("forged frozen reference accepted", badRef)
 				}
 			}
-			missing := *definition
-			missing.routineRefs = nil
+			missing := definition.With(func(p *ViewParts) { p.RoutineRefs = nil })
 			if err := missing.validateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("raw-name fallback accepted")
 			}
-			extra := *definition
-			extra.routineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref, {Query: b.FrameID(), Target: 99}: ref}
+			extra := definition.With(func(p *ViewParts) {
+				p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref, {Query: b.FrameID(), Target: 99}: ref}
+			})
 			if err := extra.validateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("unused frozen capture accepted")
 			}
@@ -97,7 +96,7 @@ func intaggUnitRecipes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if mapped.routineRefs[path] != mapRef(ref) || definition.routineRefs[path] != ref {
+			if mapped.RoutineRefs()[path] != mapRef(ref) || definition.RoutineRefs()[path] != ref {
 				t.Fatal("capture remap mutated/lost authority")
 			}
 			if err := mapped.validateLiterals(view); err != nil {

@@ -110,7 +110,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	}
 	syntax := &parser.Select{Targets: []parser.Expr{raw, rawText}}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{outer, positions}, Frame: b.FrameID(), Syntax: syntax}
-	original := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, literals: b.Capture.Literals, castUsages: b.Capture.CastUsages, collations: b.Capture.Collations}
+	original := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages, Collations: b.Capture.Collations})
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
 		r := viewRenderer{viewDefinition: definition, frame: b.FrameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}
@@ -156,7 +156,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mappedProject := mapped.query.Root.(*plan.ProjectNode)
+	mappedProject := mapped.Query().Root.(*plan.ProjectNode)
 	if mappedProject == project || mappedProject.Schema()[0].Usage.Type == wideArray || mappedProject.Schema()[1].Usage.Type == array {
 		t.Fatal("descriptor transition did not produce target-owned schema")
 	}

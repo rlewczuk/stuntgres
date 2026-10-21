@@ -16,6 +16,20 @@ type policyExpression struct {
 	presentation *viewDefinition
 }
 
+// NewPolicy builds a frozen policy condition.
+func NewPolicy(syntax parser.Expr, expression expr.Expr, presentation *viewDefinition) *policyExpression {
+	return &policyExpression{syntax: syntax, expression: expression, presentation: presentation}
+}
+
+// Syntax returns the condition's syntax.
+func (e *policyExpression) Syntax() parser.Expr { return e.syntax }
+
+// Expression returns the analyzed condition.
+func (e *policyExpression) Expression() expr.Expr { return e.expression }
+
+// Presentation returns the frozen definition that renders the condition.
+func (e *policyExpression) Presentation() *viewDefinition { return e.presentation }
+
 // policyExpressionOf returns p's concrete condition, or nil when p is absent.
 func policyExpressionOf(p catalog.PolicyPayload) *policyExpression {
 	e, _ := p.(*policyExpression)

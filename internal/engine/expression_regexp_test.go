@@ -227,13 +227,13 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 			}
 			// Actual analyzed occurrences and lexical frames, with no query
 			// execution or captured output used as an expected SQL golden.
-			definition := &viewDefinition{
-				query: query, syntax: raw, literals: b.Capture.Literals,
-				castUsages: b.Capture.CastUsages, columns: b.Capture.Columns,
-				stars: b.Capture.Stars, namespaces: b.Capture.Namespaces,
-				collations: b.Capture.Collations,
-			}
-			definition.frames, definition.queries = analyze.CollectQueryFrames(query.Root)
+			definition := NewView(ViewParts{
+				Query: query, Syntax: raw, Literals: b.Capture.Literals,
+				CastUsages: b.Capture.CastUsages, Columns: b.Capture.Columns,
+				Stars: b.Capture.Stars, Namespaces: b.Capture.Namespaces,
+				Collations: b.Capture.Collations,
+			})
+			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(query.Root) })
 			text, err := definition.selectSQL(context.Background(), auth.Catalog, viewPresentation{})
 			if err != nil || !strings.Contains(text, `"a"."s"`) {
 				t.Fatal("lost dependent function argument prefix", text, err)

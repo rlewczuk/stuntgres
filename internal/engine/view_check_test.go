@@ -55,19 +55,18 @@ func TestViewCheckDeclaration(t *testing.T) {
 	if err := validateViewCheckDeclaration(viewOf(f.view)); err != nil {
 		t.Fatal(err)
 	}
-	project := *viewOf(f.view).query.Root.(*plan.ProjectNode)
-	definition := *viewOf(f.view)
-	definition.query = &plan.Query{Root: &project}
+	project := *viewOf(f.view).Query().Root.(*plan.ProjectNode)
+	definition := viewOf(f.view).With(func(p *ViewParts) { p.Query = &plan.Query{Root: &project} })
 	for _, expressions := range [][]expr.Expr{nil, {plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}} {
 		project.Expressions = expressions
 		var d *sqlstate.Error
-		if err := validateViewCheckDeclaration(&definition); !errors.As(err, &d) || d.Code != "0A000" || d.Hint != "Views that have no updatable columns are not automatically updatable." {
+		if err := validateViewCheckDeclaration(definition); !errors.As(err, &d) || d.Code != "0A000" || d.Hint != "Views that have no updatable columns are not automatically updatable." {
 			t.Fatal(err)
 		}
 	}
-	definition.syntax = &parser.Select{Distinct: &parser.DistinctClause{}}
+	definition = definition.With(func(p *ViewParts) { p.Syntax = &parser.Select{Distinct: &parser.DistinctClause{}} })
 	var d *sqlstate.Error
-	if err := validateViewCheckDeclaration(&definition); !errors.As(err, &d) || d.Hint != "Views containing DISTINCT are not automatically updatable." {
+	if err := validateViewCheckDeclaration(definition); !errors.As(err, &d) || d.Hint != "Views containing DISTINCT are not automatically updatable." {
 		t.Fatal(err)
 	}
 }
@@ -84,7 +83,7 @@ func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScop
 func TestViewCheckStack(t *testing.T) {
 	f := viewWriteMechanics(t)
 	guard := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
-	project := viewOf(f.view).query.Root.(*plan.ProjectNode)
+	project := viewOf(f.view).Query().Root.(*plan.ProjectNode)
 	project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: guard}
 	layers := []*catalog.Relation{f.view}
 	refs := []ids.ObjectRef{f.viewRef}
@@ -102,7 +101,7 @@ func TestViewCheckStack(t *testing.T) {
 			origin.Address.SubID = source.Attributes[i]
 			expressions[i] = plan.ColumnExpr{Info: expr.Info{Usage: column.Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: i}
 		}
-		view.View = &viewDefinition{syntax: syntax, query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.Attributes}}}
+		view.View = NewView(ViewParts{Syntax: syntax, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, Sources: []viewLeaf{{ref: ref, attributes: source.Attributes}}})
 		f.e.catalog.state.SetDescriptor(view.Address(), &view)
 		layers = append(layers, &view)
 		refs = append(refs, f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), view.Address()))
@@ -112,9 +111,9 @@ func TestViewCheckStack(t *testing.T) {
 	for top := range 3 {
 		for middle := range 3 {
 			for leaf := range 3 {
-				viewOf(layers[2]).checkOption = viewCheckMode(top)
-				viewOf(layers[1]).checkOption = viewCheckMode(middle)
-				viewOf(layers[0]).checkOption = viewCheckMode(leaf)
+				for i, mode := range []int{leaf, middle, top} {
+					layers[i].View = viewOf(layers[i]).With(func(p *ViewParts) { p.CheckOption = viewCheckMode(mode) })
+				}
 				b := analyze.Binding{Relation: layers[2], Ref: refs[2]}
 				if err := bindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
 					t.Fatal(err)
@@ -141,12 +140,12 @@ func TestViewCheckStack(t *testing.T) {
 
 func TestViewCheckMapping(t *testing.T) {
 	f := viewWriteMechanics(t)
-	project := viewOf(f.view).query.Root.(*plan.ProjectNode)
+	project := viewOf(f.view).Query().Root.(*plan.ProjectNode)
 	column := project.Expressions[0]
 	// Reorder live physical columns while preserving frozen attribute identities.
 	f.base.Attributes = []int32{11, 7, 19}
 	f.base.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[0], f.base.Columns[2]}
-	viewOf(f.view).checkOption = viewCheckLocal
+	f.view.View = viewOf(f.view).With(func(p *ViewParts) { p.CheckOption = viewCheckLocal })
 	project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: column}
 	scope, op := f.scope(t)
 	b := viewCheckUnitBinding(t, f, scope, op)
@@ -307,13 +306,13 @@ func TestViewCheckFinish(t *testing.T) {
 func TestViewCheckControlRemap(t *testing.T) {
 	f := viewWriteMechanics(t)
 	for _, mode := range []viewCheckMode{viewCheckNone, viewCheckLocal, viewCheckCascaded} {
-		viewOf(f.view).checkOption = mode
+		f.view.View = viewOf(f.view).With(func(p *ViewParts) { p.CheckOption = mode })
 		ref := func(old ids.ObjectRef) ids.ObjectRef { old.Epoch++; return old }
 		copy, err := remapFrozenPresentation(f.e.CatalogRead(), viewOf(f.view), nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if copy == viewOf(f.view) || copy.checkOption != mode || copy.Sources()[0].ref.Epoch != f.baseRef.Epoch+1 || viewOf(f.view).Sources()[0].ref != f.baseRef {
+		if copy == viewOf(f.view) || copy.CheckOption() != mode || copy.Sources()[0].ref.Epoch != f.baseRef.Epoch+1 || viewOf(f.view).Sources()[0].ref != f.baseRef {
 			t.Fatal("mode/remint/mutation", mode, copy)
 		}
 	}

@@ -144,7 +144,7 @@ func (r engineCatalogRuntime) ExpressionReferences(ctx context.Context, view cat
 	return pgDependExpressionRefs(ctx, view, value)
 }
 func (r engineCatalogRuntime) ViewReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
-	return pgDependQueryRefs(ctx, view, nil, viewOf(relation).query)
+	return pgDependQueryRefs(ctx, view, nil, viewOf(relation).Query())
 }
 func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
 	if key.Derived == nil {
@@ -191,7 +191,7 @@ func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.R
 	renderer := newViewRenderer(viewOf(relation))
 	renderer.presentation = presentation
 	renderer.currentNames = true
-	definition, err := renderer.selectQuerySQL(ctx, view, viewOf(relation).syntax, viewOf(relation).queries[viewOf(relation).syntax])
+	definition, err := renderer.selectQuerySQL(ctx, view, viewOf(relation).Syntax(), viewOf(relation).Queries()[viewOf(relation).Syntax()])
 	return definition, err
 }
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {

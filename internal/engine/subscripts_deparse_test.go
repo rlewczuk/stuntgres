@@ -31,7 +31,7 @@ func TestSubscriptsDeparse(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var raw parser.Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "[-2:0]={NULL,NULL,NULL}"}}
-			definition := &viewDefinition{literals: make(map[analyze.ViewLiteralPath]plan.LiteralExpr), castUsages: make(map[analyze.ViewLiteralPath]sqltype.Usage)}
+			definition := NewView(ViewParts{Literals: make(map[analyze.ViewLiteralPath]plan.LiteralExpr), CastUsages: make(map[analyze.ViewLiteralPath]sqltype.Usage)})
 			for i := range tc.casts {
 				usage := arrayUsage
 				if i == 0 {
@@ -42,10 +42,10 @@ func TestSubscriptsDeparse(t *testing.T) {
 					name = "bigint"
 				}
 				raw = parser.CastExpr{Child: raw, TypeName: parser.TypeName{Name: name, ArrayBounds: []int32{0}}}
-				definition.castUsages[analyze.ViewLiteralPath{Node: i + 1}] = usage
+				definition.CastUsages()[analyze.ViewLiteralPath{Node: i + 1}] = usage
 			}
-			definition.literals[analyze.ViewLiteralPath{Node: tc.casts + 1}] = arrayLiteral
-			definition.literals[analyze.ViewLiteralPath{Node: tc.casts + 2}] = integerLiteral
+			definition.Literals()[analyze.ViewLiteralPath{Node: tc.casts + 1}] = arrayLiteral
+			definition.Literals()[analyze.ViewLiteralPath{Node: tc.casts + 2}] = integerLiteral
 			call := nullCountRaw("generate_subscripts", raw, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}})
 			renderer := &viewRenderer{viewDefinition: definition}
 			ordinal := 0

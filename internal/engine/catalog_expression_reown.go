@@ -338,10 +338,8 @@ func (e *Engine) remapViewRuleOIDs(next *catalog.State) error {
 				rule = candidate
 				break
 			}
-			definition := *viewOf(view)
-			definition.rule = rule
 			replacement := *view
-			replacement.View = &definition
+			replacement.View = viewOf(view).With(func(p *ViewParts) { p.Rule = rule })
 			next.SetDescriptor(view.Address(), &replacement)
 		}
 		reserved[rule] |= ruleOID | claimedOID

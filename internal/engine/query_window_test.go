@@ -370,7 +370,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	}
 	ref := roleTableRef(t, e, "enum_window")
 	definition := viewOf(e.CatalogRead().MustRelation(ref.Address))
-	original := definition.query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
+	original := definition.Query().Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	oldEnum := domainUnitType(t, e.CatalogRead(), "window_enum").SQLType
 	oldDomain := domainUnitType(t, e.CatalogRead(), "window_domain").SQLType
 	var dump bytes.Buffer
@@ -386,7 +386,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	if oldEnum == newEnum || oldDomain == newDomain || newDomain.BaseType() != newEnum {
 		t.Fatal("descriptors not replaced")
 	}
-	mapped, err := remapViewQuery(New().CatalogRead(), definition.query.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := remapViewQuery(New().CatalogRead(), definition.Query().Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == oldEnum {
 			return newEnum
 		}
@@ -399,7 +399,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 		}
 		return next
 	})
-	if err != nil || mapped == definition.query.Root {
+	if err != nil || mapped == definition.Query().Root {
 		t.Fatal(mapped, err)
 	}
 	next := mapped.(*plan.ProjectNode).Child.(*plan.WindowNode)

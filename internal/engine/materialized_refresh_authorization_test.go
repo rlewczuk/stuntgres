@@ -149,9 +149,9 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			t.Fatal(err)
 		}
 		converted := plan.CoercionExpr{Info: expr.Info{Usage: routine.Usage()}, Child: probe, Plan: coercionPlan, Mode: sqltype.Explicit}
-		definition := *viewOf(d)
-		definition.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: d.Columns, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{converted}}}
-		d.View = &definition
+		d.View = viewOf(d).With(func(p *ViewParts) {
+			p.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: d.Columns, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{converted}}}
+		})
 		e.mu.Lock()
 		rows, err := e.materializedRefreshRowsLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address()), d)
 		if fail {

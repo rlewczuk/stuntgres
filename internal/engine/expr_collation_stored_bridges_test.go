@@ -57,7 +57,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "expr_preflight_v")
 	definition := viewOf(view.MustRelation(ref.Address))
-	frozen := definition.query.Root
+	frozen := definition.Query().Root
 	for _, tc := range []struct {
 		name, q string
 		uses    []int
@@ -83,7 +83,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 			} else if err != nil {
 				t.Fatal("legality preflight demanded unused stored payload", err)
 			}
-			if definition.query.Root != frozen {
+			if definition.Query().Root != frozen {
 				t.Fatal("legality mutated frozen definition")
 			}
 		})
@@ -105,7 +105,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 	view := e.CatalogRead()
 	innerRef := catalogRef(t, e, view, "expr_nested_inner")
 	inner := view.MustRelation(innerRef.Address)
-	innerRoot := viewOf(inner).query.Root
+	innerRoot := viewOf(inner).Query().Root
 	for _, tc := range []struct {
 		name, q string
 		outer   string
@@ -119,7 +119,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			outerRef := catalogRef(t, e, view, tc.outer)
 			outer := view.MustRelation(outerRef.Address)
-			frozenRoot := viewOf(outer).query.Root
+			frozenRoot := viewOf(outer).Query().Root
 			reads := make([][]int32, len(viewOf(outer).Sources()))
 			for i, leaf := range viewOf(outer).Sources() {
 				reads[i] = append([]int32(nil), leaf.reads...)
@@ -164,7 +164,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 					t.Fatal("nested authorization capture changed")
 				}
 			}
-			if viewOf(outer).query.Root != frozenRoot || viewOf(inner).query.Root != innerRoot {
+			if viewOf(outer).Query().Root != frozenRoot || viewOf(inner).Query().Root != innerRoot {
 				t.Fatal("nested demand mutated frozen source roots")
 			}
 			for i, leaf := range viewOf(outer).Sources() {

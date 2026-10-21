@@ -61,18 +61,18 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	viewReplaceError(t, err, sqlstate.Error{Code: "2BP01", Message: "cannot drop table u because other objects depend on it", Detail: "view v depends on table u\nview w depends on view v", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
 	roleExecute(t, e, op, "ALTER VIEW v SET(security_invoker=false)")
 	flags := viewOf(e.catalog.state.MustRelation(ref.Address))
-	if !flags.barrier || flags.Invoker() {
+	if !flags.Barrier() || flags.Invoker() {
 		t.Fatal(flags)
 	}
 	roleExecute(t, e, op, "ALTER VIEW v RESET(security_barrier,unknown_option,unknown_option,check_option)")
 	flags = viewOf(e.catalog.state.MustRelation(ref.Address))
-	if flags.barrier || flags.Invoker() {
+	if flags.Barrier() || flags.Invoker() {
 		t.Fatal(flags)
 	}
 	roleExecute(t, e, op, "ALTER VIEW v SET(security_barrier=true,security_invoker=true)")
 	roleExecute(t, e, op, "CREATE OR REPLACE VIEW v AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
 	flags = viewOf(e.catalog.state.MustRelation(ref.Address))
-	if flags.barrier || flags.Invoker() {
+	if flags.Barrier() || flags.Invoker() {
 		t.Fatal("replace did not clear options", flags)
 	}
 	roleExecute(t, e, op, "ALTER VIEW v OWNER TO successor")

@@ -377,8 +377,8 @@ func TestRuleProgramAuthority(t *testing.T) {
 		auth := f.authorization(t, op)
 		f.base.RelationKind, f.base.VirtualView = catalog.ViewRelation, true
 		f.base.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}})
-		viewOf(f.view).checkOption = viewCheckCascaded
-		project := viewOf(f.view).query.Root.(*plan.ProjectNode)
+		f.view.View = viewOf(f.view).With(func(p *ViewParts) { p.CheckOption = viewCheckCascaded })
+		project := viewOf(f.view).Query().Root.(*plan.ProjectNode)
 		predicate := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}

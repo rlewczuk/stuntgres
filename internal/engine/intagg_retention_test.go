@@ -45,7 +45,8 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, nam
 			return nil, nil, err
 		}
 		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace.Address(), ObjectName: name, ObjectRevision: revision, Owner: namespace.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
-		definition.consumer = d.Address()
+		definition = definition.With(func(p *ViewParts) { p.Consumer = d.Address() })
+		d.View = viewPayloadOf(definition)
 		stage := e.BeginCatalogStage(auth.Catalog)
 		if err := e.stageRowTypeLocked(stage, d); err != nil {
 			e.DiscardCatalogStage(stage)
@@ -88,14 +89,14 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			t.Fatal("TEMP consumer not retained exactly")
 		}
 		refs := pgDependRefs{ctx: context.Background(), catalog: view}
-		refs.query(viewOf(consumer).query.Root)
+		refs.query(viewOf(consumer).Query().Root)
 		if refs.err != nil {
 			t.Fatal("retained query dependency collection", refs.err)
 		}
-		if len(viewOf(consumer).routineRefs) != 1 {
+		if len(viewOf(consumer).RoutineRefs()) != 1 {
 			t.Fatal("missing real captured procedure")
 		}
-		for path, ref := range viewOf(consumer).routineRefs {
+		for path, ref := range viewOf(consumer).RoutineRefs() {
 			proc := before.MustProcedure(ref.Address)
 			if view.Get(ref.Address) != proc {
 				t.Fatal("TEMP procedure descriptor changed")

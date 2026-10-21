@@ -89,9 +89,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case "rowtype":
 				next.RowType++
 			case "definition":
-				definition := *viewOf(d)
-				definition.invoker = !definition.Invoker()
-				next.View = &definition
+				next.View = viewOf(d).With(func(p *ViewParts) { p.Invoker = !p.Invoker })
 			case "ref":
 				next.ObjectAddress.ObjectID += 100000
 				expectedAddress = next.Address()

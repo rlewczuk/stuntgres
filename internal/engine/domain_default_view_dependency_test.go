@@ -62,9 +62,9 @@ func TestDomainDefaultDependencyPreparedProjectionInternal(t *testing.T) {
 	sourceRef := roleTableRef(t, e, "dd_projection_source")
 	source := before.MustRelation(sourceRef.Address)
 	retired := before.MustRelation(roleTableRef(t, e, "dd_projection_retired").Address)
-	retiredQuery := viewOf(retired).query
-	query := viewOf(before.MustRelation(roleTableRef(t, e, "dd_projection_alias").Address)).query
-	liveQuery := viewOf(before.MustRelation(roleTableRef(t, e, "dd_projection_live_alias").Address)).query
+	retiredQuery := viewOf(retired).Query()
+	query := viewOf(before.MustRelation(roleTableRef(t, e, "dd_projection_alias").Address)).Query()
+	liveQuery := viewOf(before.MustRelation(roleTableRef(t, e, "dd_projection_live_alias").Address)).Query()
 	target := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(retired.RowType)}
 	refs, err := pgDependQueryRefs(op.Context(), before, nil, query)
 	if err != nil || !slices.Contains(refs, target) {

@@ -103,7 +103,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				if condition == nil {
 					continue
 				}
-				for _, leaf := range condition.presentation.Sources() {
+				for _, leaf := range condition.Presentation().Sources() {
 					if _, retained := temporary[leaf.ref.Address]; retained {
 						continue
 					}
@@ -111,7 +111,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
 					}
 				}
-				for _, dependency := range condition.presentation.Dependencies() {
+				for _, dependency := range condition.Presentation().Dependencies() {
 					address := dependency.Ref.Address
 					address.SubID = 0
 					if _, retained := temporary[address]; retained {
@@ -180,7 +180,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			for _, policy := range relation.Security.Policies {
 				for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 					if condition != nil {
-						analyze.WalkQueryArgumentExpression(condition.expression, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
+						analyze.WalkQueryArgumentExpression(condition.Expression(), func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 					}
 				}
 			}
@@ -221,11 +221,11 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					retainQuery(left)
 					retainQuery(right)
 				}
-				retainQuery(definition.query.Root)
+				retainQuery(definition.Query().Root)
 				for _, literal := range definition.Literals() {
 					retainBuiltin(literal.ResultUsage().Type)
 				}
-				for _, usage := range definition.castUsages {
+				for _, usage := range definition.CastUsages() {
 					retainBuiltin(usage.Type)
 				}
 				for ref, captured := range definition.References() {

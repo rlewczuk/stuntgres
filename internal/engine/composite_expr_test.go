@@ -270,7 +270,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 		t.Fatal("missing capture kind admitted")
 	}
 	whole := analyze.CompositeOccurrence{Kind: analyze.CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
-	if err := (&viewDefinition{}).validateCompositeSource(whole); err == nil {
+	if err := (NewView(ViewParts{})).validateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}
 	if err := validateGenerationPlan(view, nil, selected); err == nil {

@@ -23,7 +23,7 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 	set := &plan.SetNode{Left: &plan.ProjectNode{Child: left}, Right: &plan.ProjectNode{Child: right}}
 	wrapped := &plan.ProjectNode{Child: &plan.LimitNode{Child: &plan.SortNode{Child: &plan.EvaluationNode{Child: set}}}}
 	local := plan.RowMark{Mode: lock.ForKeyShare, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForShare, Order: 2}
-	view := &viewDefinition{query: &plan.Query{Root: wrapped}, sources: []viewLeaf{{}, {mark: local}}}
+	view := NewView(ViewParts{Query: &plan.Query{Root: wrapped}, Sources: []viewLeaf{{}, {mark: local}}})
 	outer := plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockSkip, DiagnosticMode: lock.ForNoKeyUpdate, Order: 1}
 	for i, want := range []plan.RowMark{{}, local} {
 		if got := viewLeafRowMark(view, i, outer); got != want {
@@ -39,20 +39,22 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 	if l != set.Left || r != set.Right || !exec.QueryHasPhysicalInput(wrapped) {
 		t.Fatal("set barrier pruned general source traversal")
 	}
-	ordinary := *view
-	ordinary.query = &plan.Query{Root: &plan.ProjectNode{Child: &plan.JoinNode{Left: left, Right: right}}}
+	ordinary := view.With(func(p *ViewParts) {
+		p.Query = &plan.Query{Root: &plan.ProjectNode{Child: &plan.JoinNode{Left: left, Right: right}}}
+	})
 	for i, want := range []plan.RowMark{outer, exec.MergeQueryRowMark(outer, local)} {
-		if got := viewLeafRowMark(&ordinary, i, outer); got != want {
+		if got := viewLeafRowMark(ordinary, i, outer); got != want {
 			t.Fatalf("ordinary source %d inherited mark: got %+v want %+v", i, got, want)
 		}
 	}
 	// Encountered sets also stop inherited marks inside an ordinary mixed tree,
 	// without clearing marks on the independent physical contributor.
-	mixed := *view
-	mixed.sources = []viewLeaf{{}, {}, {}}
-	mixed.query = &plan.Query{Root: &plan.ProjectNode{Child: &plan.JoinNode{Left: set, Right: &plan.SourceNode{Occurrence: 2}}}}
+	mixed := view.With(func(p *ViewParts) {
+		p.Sources = []viewLeaf{{}, {}, {}}
+		p.Query = &plan.Query{Root: &plan.ProjectNode{Child: &plan.JoinNode{Left: set, Right: &plan.SourceNode{Occurrence: 2}}}}
+	})
 	for i, want := range []plan.RowMark{{}, {}, outer} {
-		if got := viewLeafRowMark(&mixed, i, outer); got != want {
+		if got := viewLeafRowMark(mixed, i, outer); got != want {
 			t.Fatalf("mixed source %d got %+v want %+v", i, got, want)
 		}
 	}
@@ -86,7 +88,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		d := *original
 		d.ObjectAddress, d.ObjectName, d.Owner, d.RelationKind = ref.Address, name, owner, catalog.ViewRelation
 		d.Columns, d.Attributes, d.Security.ColumnACL = query.Root.Schema(), []int32{1}, nil
-		d.View = &viewDefinition{query: &plan.Query{Root: root}, sources: leaves, invoker: invoker}
+		d.View = NewView(ViewParts{Query: &plan.Query{Root: root}, Sources: leaves, Invoker: invoker})
 		e.catalog.state.SetDescriptor(ref.Address, &d)
 		refs[name] = ref
 		return ref
@@ -198,18 +200,18 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	setRoot := func() *plan.ProjectNode {
 		return &plan.ProjectNode{Syntax: &parser.Select{Set: &parser.SetQuery{}}, Child: &plan.LimitNode{Child: &plan.SortNode{Child: &plan.EvaluationNode{Child: &plan.FilterNode{Child: &plan.SetNode{Left: plainRoot(), Right: &plan.ProjectNode{Child: &plan.SourceNode{Occurrence: 1}}}}}}}}
 	}
-	set := add("kind_set", &viewDefinition{query: &plan.Query{Root: setRoot()}, sources: []viewLeaf{{ref: sequence}, {ref: catalogKindRef}}}, catalog.ViewRelation)
-	nested := add("kind_nested", &viewDefinition{query: &plan.Query{Root: plainRoot()}, sources: []viewLeaf{{ref: set}}}, catalog.ViewRelation)
-	ordinary := add("kind_ordinary", &viewDefinition{query: &plan.Query{Root: plainRoot()}, sources: []viewLeaf{{ref: sequence}}}, catalog.ViewRelation)
+	set := add("kind_set", NewView(ViewParts{Query: &plan.Query{Root: setRoot()}, Sources: []viewLeaf{{ref: sequence}, {ref: catalogKindRef}}}), catalog.ViewRelation)
+	nested := add("kind_nested", NewView(ViewParts{Query: &plan.Query{Root: plainRoot()}, Sources: []viewLeaf{{ref: set}}}), catalog.ViewRelation)
+	ordinary := add("kind_ordinary", NewView(ViewParts{Query: &plan.Query{Root: plainRoot()}, Sources: []viewLeaf{{ref: sequence}}}), catalog.ViewRelation)
 	localMark := plan.RowMark{Mode: lock.ForUpdate}
 	localRoot := plainRoot()
 	localRoot.Child = &plan.RowLockNode{Child: &plan.JoinNode{Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}}, FirstMode: lock.ForUpdate}
 	// The sequence is unselected: only the local reference-kind context, not a
 	// physical source mark, must reject this sibling beneath a nested set.
-	local := add("kind_local", &viewDefinition{query: &plan.Query{Root: localRoot}, sources: []viewLeaf{{ref: base, mark: localMark}, {ref: sequence}}}, catalog.ViewRelation)
-	localSet := add("kind_local_set", &viewDefinition{query: &plan.Query{Root: setRoot()}, sources: []viewLeaf{{ref: local}, {ref: catalogKindRef}}}, catalog.ViewRelation)
-	localCatalog := add("kind_local_catalog", &viewDefinition{query: &plan.Query{Root: plainRoot()}, sources: []viewLeaf{{ref: catalogKindRef, mark: localMark}}}, catalog.ViewRelation)
-	localCatalogSet := add("kind_local_catalog_set", &viewDefinition{query: &plan.Query{Root: setRoot()}, sources: []viewLeaf{{ref: localCatalog}, {ref: base}}}, catalog.ViewRelation)
+	local := add("kind_local", NewView(ViewParts{Query: &plan.Query{Root: localRoot}, Sources: []viewLeaf{{ref: base, mark: localMark}, {ref: sequence}}}), catalog.ViewRelation)
+	localSet := add("kind_local_set", NewView(ViewParts{Query: &plan.Query{Root: setRoot()}, Sources: []viewLeaf{{ref: local}, {ref: catalogKindRef}}}), catalog.ViewRelation)
+	localCatalog := add("kind_local_catalog", NewView(ViewParts{Query: &plan.Query{Root: plainRoot()}, Sources: []viewLeaf{{ref: catalogKindRef, mark: localMark}}}), catalog.ViewRelation)
+	localCatalogSet := add("kind_local_catalog_set", NewView(ViewParts{Query: &plan.Query{Root: setRoot()}, Sources: []viewLeaf{{ref: localCatalog}, {ref: base}}}), catalog.ViewRelation)
 	for _, tc := range []struct {
 		ref           ids.ObjectRef
 		mark          plan.RowMark
@@ -254,10 +256,9 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	}
 	// Every stored arm is still admitted, including one whose identity expired.
 	d := *e.catalog.state.MustRelation(set.Address)
-	definition := *viewOf(&d)
-	definition.sources = append([]viewLeaf(nil), definition.Sources()...)
-	definition.sources[1].ref.Epoch++
-	d.View = &definition
+	sources := append([]viewLeaf(nil), viewOf(&d).Sources()...)
+	sources[1].ref.Epoch++
+	d.View = viewOf(&d).With(func(p *ViewParts) { p.Sources = sources })
 	e.catalog.state.SetDescriptor(set.Address, &d)
 	scope := &StatementScope{owner: &session.TransactionOwner{}}
 	e.mu.Lock()

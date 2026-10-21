@@ -62,8 +62,8 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if condition == "random()>=0" && expression.expression.Properties().Volatility != expr.Volatile {
-				t.Fatal("policy binding lost volatile function behavior", expression.expression.Properties())
+			if condition == "random()>=0" && expression.Expression().Properties().Volatility != expr.Volatile {
+				t.Fatal("policy binding lost volatile function behavior", expression.Expression().Properties())
 			}
 			if err = validatePolicyExpression(e.CatalogRead(), d, expression); err != nil {
 				t.Fatal(err)
@@ -89,7 +89,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 				}
 				sql = redump
 			}
-			original := expression.presentation
+			original := expression.Presentation()
 			next := catalog.CloneState(e.CatalogRead().State())
 			owner := *d
 			owner.ObjectName = "renamed"
@@ -103,7 +103,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			if strings.Contains(sql, `"t"."id"`) && !strings.Contains(text, `"renamed"."key"`) {
 				t.Fatal("lost stable owner identity", text)
 			}
-			if expression.presentation != original || d.Name() != "t" || d.Columns[0].Name != "id" {
+			if expression.Presentation() != original || d.Name() != "t" || d.Columns[0].Name != "id" {
 				t.Fatal("mutated published definition")
 			}
 		})
@@ -217,7 +217,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err = validatePolicies(view, copied); err != nil {
 		t.Fatal(err)
 	}
-	if policyExpressionOf(p.Using) == expression || expression.presentation.Sources()[0].ref.Domain() != e.catalog.Domain {
+	if policyExpressionOf(p.Using) == expression || expression.Presentation().Sources()[0].ref.Domain() != e.catalog.Domain {
 		t.Fatal("remap mutated original expression")
 	}
 	originalSQL, err := policyExpressionSQL(context.Background(), e.CatalogRead(), expression)

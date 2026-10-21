@@ -60,7 +60,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	}
 	ref := roleTableRef(t, source, "tz_at")
 	definition := viewOf(source.catalog.state.MustRelation(ref.Address))
-	project := definition.query.Root.(*plan.ProjectNode)
+	project := definition.Query().Root.(*plan.ProjectNode)
 	for _, expression := range project.Expressions {
 		original := expression.(functions.Timezone)
 		before := original
@@ -113,27 +113,27 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, column := range []bool{false, true} {
-		bad := *definition
+		bad := definition.Parts()
 		if column {
-			bad.columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(definition.columns))
-			for path, slot := range definition.columns {
-				bad.columns[path] = slot
+			bad.Columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(definition.Columns()))
+			for path, slot := range definition.Columns() {
+				bad.Columns[path] = slot
 			}
-			for path := range bad.columns {
-				delete(bad.columns, path)
+			for path := range bad.Columns {
+				delete(bad.Columns, path)
 				break
 			}
 		} else {
-			bad.literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(definition.Literals()))
+			bad.Literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(definition.Literals()))
 			for path, literal := range definition.Literals() {
-				bad.literals[path] = literal
+				bad.Literals[path] = literal
 			}
-			for path := range bad.Literals() {
-				delete(bad.Literals(), path)
+			for path := range bad.Literals {
+				delete(bad.Literals, path)
 				break
 			}
 		}
-		if err := bad.validateLiterals(e.CatalogRead()); err == nil {
+		if err := NewView(bad).validateLiterals(e.CatalogRead()); err == nil {
 			t.Fatalf("missing timezone child occurrence accepted: column=%t", column)
 		}
 	}

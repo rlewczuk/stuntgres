@@ -66,12 +66,12 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						t.Fatal("modifier's analyzed projection no longer belongs to input.v")
 					}
 					path := analyze.ViewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral}
-					column, ok := presentation.columns[path]
+					column, ok := presentation.Columns()[path]
 					if !ok || column.RuleSide != 0 || column.Frame != project.Frame {
 						t.Fatal("modifier input column was replaced by the consumer's NEW recipe")
 					}
 					path.Query = outer.Frame
-					if action.presentation.columns[path].RuleSide != 2 {
+					if action.presentation.Columns()[path].RuleSide != 2 {
 						t.Fatal("consumer lost its independent NEW recipe")
 					}
 				}

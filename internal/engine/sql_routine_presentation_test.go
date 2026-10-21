@@ -46,14 +46,14 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			ownedSyntax := *syntax
 			ownedSyntax.Targets = []parser.Expr{frozen}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: &ownedSyntax}
-			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: &ownedSyntax, dependencies: b.Dependencies, routineRefs: b.Capture.RoutineRefs, literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}
-			definition.frames, definition.queries = analyze.CollectQueryFrames(project)
+			definition := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: &ownedSyntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages})
+			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
 			read := e.CatalogRead()
 			if err := definition.validateLiterals(read); err != nil {
 				t.Fatal(err)
 			}
 			path := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
-			if definition.routineRefs[path] != n.Ref || len(definition.castUsages) != 1 {
+			if definition.RoutineRefs()[path] != n.Ref || len(definition.CastUsages()) != 1 {
 				t.Fatal("lost selected identity or implicit argument conversion")
 			}
 			badReferences := []ids.ObjectRef{{}, New().catalog.Domain.Ref(n.Ref.Epoch, n.Ref.Address), n.Ref.Domain().Ref(n.Ref.Epoch+1, n.Ref.Address)}
@@ -66,19 +66,18 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			}
 			badReferences = append(badReferences, e.catalog.Domain.Ref(read.Epoch(), builtins[0]))
 			for _, ref := range badReferences {
-				bad := *definition
-				bad.routineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref}
+				bad := definition.With(func(p *ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref} })
 				if err := bad.validateLiterals(read); err == nil {
 					t.Fatal("forged frozen SQL reference accepted", ref)
 				}
 			}
-			missing := *definition
-			missing.routineRefs = nil
+			missing := definition.With(func(p *ViewParts) { p.RoutineRefs = nil })
 			if err := missing.validateLiterals(read); err == nil {
 				t.Fatal("missing SQL capture accepted")
 			}
-			extra := *definition
-			extra.routineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.FrameID(), Target: 99}: n.Ref}
+			extra := definition.With(func(p *ViewParts) {
+				p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.FrameID(), Target: 99}: n.Ref}
+			})
 			if err := extra.validateLiterals(read); err == nil {
 				t.Fatal("extra SQL capture accepted")
 			}
@@ -104,7 +103,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if text := render(); !strings.HasPrefix(text, `"routine_recipe_moved"."`+n.Procedure.Name()+`"(`) {
 				t.Fatal("rendered stale source namespace", text)
 			}
-			if frozen.Name.Parts[0].Text != "public" || definition.routineRefs[path] != n.Ref {
+			if frozen.Name.Parts[0].Text != "public" || definition.RoutineRefs()[path] != n.Ref {
 				t.Fatal("render mutated frozen source or capture")
 			}
 		})

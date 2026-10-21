@@ -119,7 +119,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 			}
 		}
 	case "set", "reset":
-		definition := *viewOf(old)
+		definition := viewOf(old).Parts()
 		if s.Action == "set" {
 			barrier, invoker, mode, err := viewOptions(s.Options)
 			if err != nil {
@@ -128,11 +128,11 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 			for _, option := range s.Options {
 				switch option.Name.Text {
 				case "security_barrier":
-					definition.barrier = barrier
+					definition.Barrier = barrier
 				case "security_invoker":
-					definition.invoker = invoker
+					definition.Invoker = invoker
 				case "check_option":
-					definition.checkOption = mode
+					definition.CheckOption = mode
 				}
 			}
 		} else {
@@ -142,21 +142,22 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				}
 				switch option.Name.Text {
 				case "security_barrier":
-					definition.barrier = false
+					definition.Barrier = false
 				case "security_invoker":
-					definition.invoker = false
+					definition.Invoker = false
 				case "check_option":
-					definition.checkOption = viewCheckNone
+					definition.CheckOption = viewCheckNone
 				}
 			}
 		}
-		definition.options = transformViewOptions(viewOf(old).options, s.Options, s.Action == "reset")
-		if definition.checkOption != viewCheckNone {
-			if err := validateViewCheckDeclaration(&definition); err != nil {
+		definition.Options = transformViewOptions(viewOf(old).Options(), s.Options, s.Action == "reset")
+		altered := NewView(definition)
+		if altered.CheckOption() != viewCheckNone {
+			if err := validateViewCheckDeclaration(altered); err != nil {
 				return fail(err)
 			}
 		}
-		next.View = &definition
+		next.View = altered
 	default:
 		return fail(sqlError("0A000", "ALTER VIEW action is unsupported"))
 	}

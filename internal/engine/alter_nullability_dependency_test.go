@@ -42,9 +42,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 		next.ObjectAddress.ObjectID = oid
 		next.ObjectName = "late_view"
 		next.ObjectRevision = revision
-		definition := *viewOf(originalView)
-		definition.rule = rule
-		next.View = &definition
+		next.View = viewOf(originalView).With(func(p *ViewParts) { p.Rule = rule })
 		next.Columns = append([]catalog.Column(nil), originalView.Columns...)
 		for i := range next.Columns {
 			next.Columns[i].OriginTable = uint32(oid)

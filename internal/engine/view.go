@@ -185,7 +185,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	// CREATE checks local declaration shape before options and replacement prefix.
 	for _, option := range view.Options {
 		if option.Name.Text == "check_option" {
-			if err := validateViewCheckDeclaration(&viewDefinition{syntax: view.Query, query: b.Query}); err != nil {
+			if err := validateViewCheckDeclaration(NewView(ViewParts{Syntax: view.Query, Query: b.Query})); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
@@ -270,9 +270,11 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition.checkOption = mode
-	definition.options = transformViewOptions(nil, view.Options, false)
-	definition.quoteRevision = revision
+	definition = definition.With(func(p *ViewParts) {
+		p.CheckOption = mode
+		p.Options = transformViewOptions(nil, view.Options, false)
+		p.QuoteRevision = revision
+	})
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.Query.Root.Schema()))}
 	if old != nil {
 		*d = *old
@@ -286,7 +288,8 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.Security.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
 	}
 	if scope.viewCreationOrZero().persistence == "temporary" {
-		definition.consumer = d.Address()
+		definition = definition.With(func(p *ViewParts) { p.Consumer = d.Address() })
+		d.View = viewPayloadOf(definition)
 	}
 	attribute := d.ColumnMeta.HighWater
 	for _, id := range d.Attributes {

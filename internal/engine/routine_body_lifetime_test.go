@@ -116,7 +116,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		def := table.ColumnMeta.Defaults[table.Attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.Expression, refs: def.Dependencies},
-			{consumer: persisted, node: viewOf(persisted).query.Root.(*plan.ProjectNode).Expressions[0], checks: viewOf(persisted).Dependencies()},
+			{consumer: persisted, node: viewOf(persisted).Query().Root.(*plan.ProjectNode).Expressions[0], checks: viewOf(persisted).Dependencies()},
 		}
 	}
 	authority := func(e *Engine) AuthorizationView {
