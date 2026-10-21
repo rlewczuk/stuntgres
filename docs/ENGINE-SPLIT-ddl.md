@@ -557,9 +557,39 @@ in §8.3 pass.
   `RecordDependencyPath` returns its error, CREATE TABLESPACE takes the
   `access.View` and no host, and the seed comments go to `catalog`. No code
   changed, so no checks ran
-- [ ] 20d — Schema and tablespace decisions moved
+- [x] 20d — Schema and tablespace decisions moved (`77b3fabf1`, `40deebd48`, `c8167af8d`, `4d5daf404`, then the
+  docs commit; linear item 63). Re-measured at `1eabe1ff6`: `schema.go`,
+  `tablespace.go`, `comment_builtin.go` and `ddl` were unchanged since
+  `92d17ca19`, so the refine above was followed as written. `ddl.SchemaHost`
+  (`ddl/schema_host.go`) is on `ddlHost` in the root `schema_host.go` with
+  one assertion; `Host.RecordDependencyPath` returns the path error and the
+  five other callers ignore it (`_ =`). `ddl` holds `StageCreateSchema`,
+  `StageAlterSchema` (over `Host`), `StageDropSchema`
+  (`schema_create.go`, `schema_alter.go`, `schema_drop.go`), the
+  unexported `schemaReserved`, `lookupSchema`, `checkSchemaOwner` (was the
+  `own` closure), `checkDatabaseCreate` and the pure `schemaDependents`
+  (`schema.go`, `schema_drop.go`), `CreateTablespace` and
+  `TablespacePhysicalUnsupported` (`tablespace.go`), and `sqlError` and
+  `detailError` (`errors.go`). Ported in place first, then moved with
+  `movex` (qualify mode) and `git mv`; no aliases. `ddl` added only
+  `sqltype`, `context`, `fmt`, `sort` and `strings` to its imports.
+  `stageSchemaLocked` keeps its signature and the early actor read (a
+  comment says why); CREATE SCHEMA reads the actor again through
+  `AccessView`. `executeCreateTablespace` passes `auth.View`. The seed
+  comments are `catalog.NamespaceCommentBaseline` and
+  `catalog.BuiltinTypeComment` (`catalog/builtin_comments.go`). Rebased
+  onto table 24a (`99bb7c173`), which moved `schemaTableLocked` to
+  `create_table_stage.go`; `StageSchemaTable` calls it there. Tests: new
+  `TestDDLHostStageSchemaTableKeepsAuthority` (root `schema_host_test.go`),
+  observed failing first (no `StageSchemaTable`); `tablespace_test.go`
+  names `ddl.TablespacePhysicalUnsupported`. No test moved or deleted.
+  Selected engine units (`TestTablespace`, `TestDDLHost`, the eight
+  `stageSchemaLocked` tests, the `ddl` seam tests), the schema, tablespace,
+  Dump and Restore reference selections in both modes, and quickcheck
+  passed; no bench (startup untouched); racecheck/finalcheck skipped at user
+  request
 
-Outstanding aliases: none yet.
+Outstanding aliases: none.
 
 ### Notes for later steps
 
