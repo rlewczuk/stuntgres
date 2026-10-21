@@ -59,12 +59,12 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 
 | Statement | Entry point (receiver) | Files (lines) |
 |---|---|---|
-| INSERT VALUES | inline in `executePreparedCommandLocked` (`Engine`), the `*parser.Insert` case, `execute_bound.go:525-693` (about 170 lines) | `execute_bound.go` (772), `insert_returning.go` (213), `insert_write_overlay.go` (129) |
+| INSERT VALUES | `Engine.executeInsertLocked` (29a; was the `*parser.Insert` case of `executePreparedCommandLocked`), called from `execute_bound.go` | `insert.go` (185), `insert_returning.go` (213), `insert_write_overlay.go` (129) |
 | INSERT ... SELECT | `evaluateInsertQuery`, `assembleInsertRows` | `insert_query.go` (222) |
 | ON CONFLICT | `newInsertConflictState`, `normalizeConflictPredicate`, `insertConflictState.selectArbiters`; arbiter probing through `StatementScope.probeUniqueRow` | `insert_conflict.go` (142), `insert_conflict_predicate.go` (384, all clean), `insert_conflict_admission.go` (119), `insert_conflict_update.go` (269) |
-| UPDATE | `Engine.executeUpdate` | `update.go` (597), `update_versions.go` (258), `update_assignment_eval.go` (58), `update_from_admission.go` (165) |
-| DELETE | `StatementScope.executeDelete` | `delete.go` (389), `delete_using.go` (165) |
-| MERGE | `Engine.executeMerge` | `merge.go` (221), `merge_rows.go` (546), `merge_returning_output.go` (54) |
+| UPDATE | `executeUpdate` (function over the scope, 29a) | `update.go` (584), `update_versions.go` (223), `update_assignment_eval.go` (58) |
+| DELETE | `executeDelete` (function over the scope, 29a) | `delete.go` (389), `delete_using.go` (165) |
+| MERGE | `executeMerge` (function over the scope, 29a) | `merge.go` (221), `merge_rows.go` (546), `merge_returning_output.go` (54) |
 | RETURNING | `beginInsertReturning`, `projectInsertReturning`, `finishInsertReturning` (scope), `newMergeReturningOutput`, `preflightReturning` | `insert_returning.go`, `merge_returning_output.go`, `returning_preflight.go` (37) |
 | Writable CTEs | `executeCTECommandsLocked`, `prepareCTECommandsLocked`, `executePreparedCTECommandsLocked` (`Engine`), `StatementScope.activateMutation` | `cte_mutation_execute.go` (323), `cte_mutation_scope.go` (177) |
 | WHERE CURRENT OF | `StatementScope.positionedMutationRow` | `current_of.go` (181) |
@@ -81,31 +81,31 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 |---|---|---|
 | `unique_dml.go` (611): `uniqueWriteBinding`, `uniqueBoundKey`, `bindUniqueWrite`, `checkUniqueRow`, `claimUniqueRow`, `probeUniqueRow` | `index` | 23a renames it `index_unique_binding.go` |
 | `captureQuerySource`, `captureQueryPrefix` (`delete.go`), `cursorSimpleScan`, `cursorOccurrenceVersion`, `cursorOccurrencePhysicalRow` (`current_of.go`) | `exec` | done in 11e |
-| `mergeDeletions` (`delete.go`), `mergePrivateRows` (`update_versions.go`): write-set helpers, also used by `transaction_finish.go` | root, beside `WriteStage` | 29a |
+| `mergeDeletions`, `mergePrivateRows`: write-set helpers, also used by `transaction_finish.go` | root, beside `WriteStage` (`write_set.go`) | done (29a) |
 | `rowByID` (`update_versions.go`) | `storage` (`storage.RowByID`) | index 23a |
 | `ruleUpdateAssignmentsSQL` (`update_row_dump.go`) | `stored` (rule rendering) | 22c |
-| `validateRuleNewUpdateOutput` (`update_row_rule.go`) | `view` (rules) | 29a renames, 27b moves |
-| `checkTemporaryStorageAccess` (`update_from_admission.go`) | root (`temporary_access.go`) | 29a |
-| `Engine.queryTableRefsLocked` (`update_from_admission.go`) | root query admission | 29a |
-| `physicalRowEvent`, `flushPhysicalEvents` (`physical_row_events.go`) | root row-lock area (`statement_host_row_lock.go`) | 29a |
+| `validateRuleNewUpdateOutput` (`rule_update_output.go`) | `view` (rules) | 29a renamed the file; 27b moves |
+| `checkTemporaryStorageAccess` | root (`temporary_access.go`) | done (29a) |
+| `Engine.queryTableRefsLocked` | root query admission (`query_table_refs.go`) | done (29a) |
+| `physicalRowEvent`, `flushPhysicalEvents` | root row-lock area (`statement_host_row_lock.go`) | done (29a) |
 | FK probe records (`foreign_key_probe.go`: `findForeignKeyParent`, `prepareForeignKeyChild`, `foreignKeyRows`, `probeForeignKeyIndex`); also used by `foreign_key_restore.go` | `table` | 24b; `dml` imports them |
 | `inheritance_query*.go` (`captureInheritanceQueryPrefix`, `inheritanceQueryClosure`, `inheritanceQueryLeaves`, `sourceOnly`); also used by SELECT admission (`query_admission.go`) | `table` (clean helpers, 24b); the scope methods stay with root query admission | 24b |
 | COPY codecs (options, FORCE binding, `ResolveColumns`, text/CSV `LineReader`, `BinaryReader`) | `copyfmt` (done, 19b) | 19 |
 | COPY execution (`copy.go`, `copy_text.go`, `copy_binary.go`, `copy_insertion.go`: cursors' `Next`/`diagnostic`, `copyOutput`, `copyBinaryOutput`) | `dml` | 29b |
 | COPY protocol and reservation (`copy_admission.go`, `protocol_copy.go`, `protocol_copy_query.go`, `CopyBoundary`, `StatementScope.Copy`/`CopyProtocol`) | root (public facade) | — |
 
-**`statementMutation`** (`cte_mutation_scope.go:16`) is the per-command
+**`statementMutation`** (`cte_mutation_scope.go`) is the per-command
 state embedded in `StatementScope`; `activateMutation` swaps it by value
-between the commands of a writable CTE. Its fields, by owner:
-- target and lock: `statement`, `lockedRef`, `lockedDescriptor`,
-  `lockedStorage`, `lockedIdentityOnly`, `admittedTargetName`,
-  `admittedTargetLexical`, `routineDependencies` (dml);
-- `inheritedTargets` (table/dml), `viewWrite` (view);
-- `uniqueBinding`, `indexBindings` (index);
-- `insertConflict`, `insertReturning` (dml);
-- `partitionInsert`, `partitionRelations` (partition);
-- `rls` (`rowSecurityMutation`: target denial, proposal, the two MERGE
-  dispositions and the proposal table; view, grouped by 27a).
+between the commands of a writable CTE. Since 29a its fields are embedded
+value groups, by owner:
+- `mutationTarget`: `lockedRef`, `lockedDescriptor`, `lockedStorage`,
+  `lockedIdentityOnly`, `admittedTargetName`, `admittedTargetLexical`,
+  `routineDependencies` (dml);
+- `mutationIndexes`: `uniqueBinding`, `indexBindings` (index);
+- `mutationInsert`: `insertConflict`, `insertReturning` (dml);
+- `mutationPartition`: `partitionInsert`, `partitionRelations` (partition);
+- direct fields: `statement`, `inheritedTargets` (table/dml), `viewWrite`
+  (view) and `rls` (`rowSecurityMutation`, 27a's value group).
 
 **Clean set** (2.4k lines, by real owner): dml keeps about 1.0k (the ON
 CONFLICT state and the whole of `insert_conflict_predicate.go`,
@@ -326,8 +326,28 @@ publication stay in the root. The checks in §8.3 pass.
 
 ## Status
 
-- [ ] 29a — In place (INSERT extracted, misplaced code to owners, one
-  receiver style, `statementMutation` grouped)
+- [x] 29a — In place (INSERT extracted, misplaced code to owners, one
+  receiver style, `statementMutation` grouped) (`919c6319f`, `3bbec01e0`,
+  `146d99d5b`, `03b5e1c78`, then the docs commit). `reach` over the
+  inventory files: 83 clean / 124 dirty declarations (1.48k / 6.65k lines)
+  after, 86 / 125 (1.58k / 6.81k) before; the drop is the helpers that left
+  for their owners' files and fdw 26b's move. `mutationTarget`,
+  `mutationIndexes` and `mutationInsert` are clean; `mutationPartition` is
+  dirty through `partitionInsertState` (`AuthorizationView`). Step 6 (FK
+  runtime) needed no code: the FDW files carry `fdw_` since 26a, so
+  `foreign_key_writes.go`, `foreign_actions.go` and `foreign_action_*.go`
+  are the FK runtime (dml); FK DDL, validation scans, dump and probe
+  records stay with `table`. Verified with
+  `^Test(Insert|ReferenceInsert)`,
+  `^Test(Update|Merge|Delete|Check|InsertConflict|RangePartition|GeneratedVirtualMerge|ReferenceUpdate|ReferenceMerge|ReferenceDelete)`,
+  `make check REFERENCE=1
+  RUN='^TestReference(InsertConflict|InsertReturning|InsertSelect|UpdateFrom|UpdateCurrent|DeleteUsing|DeleteCurrent|MergeInsert|MergeReturning|CTEDML)'`
+  (`reference/dml`, passed) and quickcheck; racecheck/finalcheck
+  skipped at user request. Tests: about 20 engine test files call
+  `executeUpdate`/`executeMerge` as functions;
+  `insert_conflict_authorization_test.go` calls `applyInsertBatch`;
+  `partition_attach_definition_test.go` keys the `mutationPartition`
+  group. No test moved or deleted.
 - [ ] 29b — `dml` created and clean set moved
 - [ ] 29c — Host refined (docs only)
 - [ ] 29d — Executors moved
@@ -335,6 +355,25 @@ publication stay in the root. The checks in §8.3 pass.
 Outstanding aliases: none yet.
 
 ### Notes for later steps
+
+- 29a deviations and names, for 29b–29d:
+  - The INSERT executor is `Engine.executeInsertLocked`, not
+    `executeInsertValuesLocked`: it also runs INSERT ... SELECT
+    (`b.CommandQuery`). It is entered with `Engine.mu` held and releases it.
+  - Of the two `applyInsertValidated` methods, the `WriteStage` one became
+    `applyInsertBatch`; the partition router
+    `StatementScope.applyInsertValidated` keeps its name because
+    `range_partition_publication_test.go` matches it as a stack frame.
+  - The three executors take the scope first and reach the engine with
+    `s.engine()`; their helpers (`assembleMergeRows`, `appendMergeAction`,
+    `latestUpdateRow`, `latestMergeRow`, `deleteSource`) kept their
+    receivers for 29c to retarget.
+  - The `statementMutation` groups are embedded, so readers still use
+    promoted names (`s.lockedRef`); only keyed literals name the group.
+    Moving a group to `dml` or `index` needs either named fields or an
+    exported group type.
+  - `update_row_dump.go` (`ruleUpdateAssignmentsSQL`) stayed: stored 22c
+    lists it.
 
 - `insert_write_overlay.go` stays with `dml` (the INSERT write overlay that
   unique probing consults); its key overlay uses `index`'s `uniqueBoundKey`.

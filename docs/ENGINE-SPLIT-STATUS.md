@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `ca969c312` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95 and 99). Steps 8–17 were
+Last verified against `master` at `c0dfba392` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 99 and 107). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -22,7 +22,6 @@ after each lands.
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
 - **Upper features, in place:** 103 (role 28a).
 - **Upper features, refined:** 96 (fdw 26c, docs only).
-- **DML, in place:** 107 (dml 29a).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -63,6 +62,8 @@ Item 63 (ddl 20d) is done and closes step 20; only the end-state review
 (item 114) needs it. Item 66 (regobj 21c) is done and closes step 21; only
 item 114 needs it. Item 99 (view 27a) is done; view 27b (item 100) still
 waits for stored 22c (item 69) and table 24b (item 87).
+Item 107 (DML 29a) is done; DML 29b (item 108) still waits for 83, 87, 91
+and 100.
 
 ## Task tree
 
@@ -511,7 +512,8 @@ waits for stored 22c (item 69) and table 24b (item 87).
   - [ ] 28d — Handler decisions moved
 - [ ] **Step 29 — `dml`** ([prompt](ENGINE-SPLIT-dml.md); 29b needs Part A of
   19 and 23–27, 29c needs Part B of 23–27)
-  - [ ] 29a — In place: `insert.go`, misplaced code to owners, receivers
+  - [x] 29a — In place: `insert.go`, misplaced code to owners, receivers
+    (`919c6319f`, `3bbec01e0`, `146d99d5b`, `03b5e1c78`, then the docs commit)
   - [ ] 29b — `dml` created and clean set moved
   - [ ] 29c — Host refined (docs only)
   - [ ] 29d — Executors moved
@@ -1152,7 +1154,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 
 ### Group K — DML and Dump/Restore (steps 29–30)
 
-107. [ ] DML 29a: in place — [dml](ENGINE-SPLIT-dml.md) 29a · needs 82, 86
+107. [x] DML 29a: in place — [dml](ENGINE-SPLIT-dml.md) 29a · needs 82, 86
+     (`919c6319f`, `3bbec01e0`, `146d99d5b`, `03b5e1c78`, then the docs commit) ·
+     `executeInsertLocked` in `insert.go`; write-set, rule, temporary-access,
+     query-admission and row-event helpers in their owners' files; UPDATE,
+     MERGE and DELETE executors are functions over the scope;
+     `statementMutation` grouped into embedded value groups · selected unit
+     and dual-mode proof and quickcheck passed; racecheck/finalcheck skipped
+     at user request
 108. [ ] DML 29b: `dml` created, clean set moved — [dml](ENGINE-SPLIT-dml.md)
      29b · needs 107, 59, 83, 87, 91, 95, 100
 109. [ ] DML 29c: host refined (docs only) — [dml](ENGINE-SPLIT-dml.md) 29c ·
