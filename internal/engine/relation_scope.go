@@ -761,22 +761,6 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	return nil
 }
 
-func sameRelationRowShape(a, b *catalog.Relation) bool {
-	if a == b {
-		return true
-	}
-	if len(a.Columns) != len(b.Columns) || len(a.Attributes) != len(a.Columns) || len(b.Attributes) != len(b.Columns) {
-		return false
-	}
-	for i, column := range a.Columns {
-		other := b.Columns[i]
-		if a.Attributes[i] != b.Attributes[i] || column.Name != other.Name || !analyze.SameStatementUsage(column.Usage, other.Usage) || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
-			return false
-		}
-	}
-	return true
-}
-
 // Called under Engine.mu after partitionParentAuthorization validates any
 // trusted importer provenance. Destination rights belong to the named child
 // principal, never the parent's private restore authorization.

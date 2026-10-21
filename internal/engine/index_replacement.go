@@ -9,17 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The final installer consumes completed private data. It owns only the final
-// cancellation observation, authority check and indivisible publication.
-type remintedIndexStorage struct {
-	catalog              *catalog.State
-	baseCatalog          *catalog.State
-	roots                map[ids.ObjectAddress]*storage.IndexRoot
-	nextRow, nextVersion uint64
-	baseRow, baseVersion uint64
-	frontier             ids.CommitSeq
-}
-
 func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *indexSnapshot) (remintedIndexStorage, error) {
 	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.storage.RowFrontier(), baseVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
 	var err error

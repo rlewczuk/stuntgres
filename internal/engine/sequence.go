@@ -494,21 +494,3 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil
 }
-func relationDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
-	err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
-	if err == nil {
-		return nil
-	}
-	if _, validationErr := view.Object(ref); validationErr != nil {
-		return validationErr
-	}
-	ns, ok := view.Catalog.Namespace(d.Namespace())
-	if !ok {
-		return fmt.Errorf("stuntgres: invalid sequence namespace")
-	}
-	namespace := ref.Domain().Ref(ref.Epoch, ns.Address())
-	if view.Check(env, access.Requirement{Object: namespace, OwnerOnly: true}) == nil {
-		return nil
-	}
-	return err
-}

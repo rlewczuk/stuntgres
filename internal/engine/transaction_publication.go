@@ -11,22 +11,6 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-// Prepare immutable replacement heads/end roots outside final locks. Appends
-// retain geometric capacity; final installation follows one all-relations veto.
-type rowPublication struct {
-	address            ids.ObjectAddress
-	store              *storage.Relation
-	original           *storage.Relation
-	originalRelation   *catalog.Relation
-	relation           *catalog.Relation
-	root, next, writes []storage.RowVersion
-	ends, nextEnds     *storage.DeletionRoot
-	deletion           *visibility.PrivateDeletes
-	generation         uint64
-	slots              []int
-	singleSlot         int
-}
-
 func (e *Engine) publishWrites(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, scope *StatementScope) error {
 	owner := session.TxOwnerOf(ref)
 	if op == nil || op.Self != op || op.Session == nil || op.Session.Transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.Session.SessionToken || owner != op.Session.Transactions || ref.ID() == 0 || ref != owner.Ref {

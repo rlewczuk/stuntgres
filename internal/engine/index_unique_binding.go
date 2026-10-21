@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -82,4 +83,20 @@ func conflictEntryVersion(versions []storage.RowVersion, entry storage.IndexEntr
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	return head, nil
+}
+
+func sameRelationRowShape(a, b *catalog.Relation) bool {
+	if a == b {
+		return true
+	}
+	if len(a.Columns) != len(b.Columns) || len(a.Attributes) != len(a.Columns) || len(b.Attributes) != len(b.Columns) {
+		return false
+	}
+	for i, column := range a.Columns {
+		other := b.Columns[i]
+		if a.Attributes[i] != b.Attributes[i] || column.Name != other.Name || !analyze.SameStatementUsage(column.Usage, other.Usage) || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
+			return false
+		}
+	}
+	return true
 }

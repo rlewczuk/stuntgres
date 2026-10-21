@@ -346,17 +346,3 @@ func partitionTupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []cat
 func hashPartitionBoundSQL(bound *catalog.PartitionMembership) string {
 	return fmt.Sprintf(" FOR VALUES WITH (MODULUS %d, REMAINDER %d)", bound.Modulus, bound.Remainder)
 }
-
-// Replay identity-sensitive rows through their highest HASH ancestor; RANGE-only
-// trees preserve physical destinations. Parent insertion checks every ancestor.
-func partitionHashReplayTarget(catalog catalog.Read, d *catalog.Relation) *catalog.Relation {
-	target := d
-	for child := d; child.Membership != nil; {
-		parent := catalog.MustRelation(child.Membership.Parent)
-		if parent.Partition.Strategy == parser.PartitionHash {
-			target = parent
-		}
-		child = parent
-	}
-	return target
-}

@@ -10,16 +10,6 @@ import (
 	"stuntgres/internal/engine/regobj"
 )
 
-func partitionDumpIndexBacking(view catalog.Read, index, table ids.ObjectAddress) *catalog.Relation {
-	for _, descriptor := range view.Descriptors() {
-		candidate, ok := descriptor.(*catalog.Relation)
-		if ok && candidate.SQLIndex != nil && candidate.SQLIndex.Parent == table && candidate.SQLIndex.PartitionParent == index {
-			return candidate
-		}
-	}
-	return nil
-}
-
 // A preexisting incomplete manual index must not be present while ATTACH could
 // synthesize a missing child or replace a captured invalid child. Delay all
 // manual virtual indexes on that table, including the intended valid tree, so
