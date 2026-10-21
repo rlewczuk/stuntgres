@@ -2,8 +2,10 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -27,7 +29,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 	ns, err := e.relationCreationNamespaceLocked(auth, s.Name, persistence, changes)
 	if err != nil {
 		e.mu.Unlock()
-		return Result{}, creationError(err, s.Name)
+		return Result{}, ddl.CreationError(err, s.Name)
 	}
 	auth.Catalog = e.privateCatalogLocked(changes)
 	auth.Recapture(auth.Catalog)
@@ -43,12 +45,12 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 	}
 	if err = auth.CheckCreate(ns); err != nil && !operationReplayOrZero(op).tableDestination {
 		e.mu.Unlock()
-		return Result{}, creationError(err, s.Name)
+		return Result{}, ddl.CreationError(err, s.Name)
 	}
 	persistence, err = adjustRelationCreationPersistence(auth, ns, persistence)
 	if err != nil {
 		e.mu.Unlock()
-		return Result{}, creationError(err, s.Name)
+		return Result{}, ddl.CreationError(err, s.Name)
 	}
 	temporary := persistence == "temporary"
 	if temporary && (s.PartitionBy != nil || s.PartitionOf != nil) {
@@ -166,10 +168,10 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 				return Result{}, contextErr
 			}
 			if resolveErr != nil {
-				return Result{}, creationError(resolveErr, s.Name)
+				return Result{}, ddl.CreationError(resolveErr, s.Name)
 			}
 			if accessErr != nil {
-				return Result{}, creationError(accessErr, s.Name)
+				return Result{}, ddl.CreationError(accessErr, s.Name)
 			}
 			if same && exists {
 				op.ExistingRelationNotice(key.Name)

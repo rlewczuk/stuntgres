@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
@@ -778,7 +779,7 @@ func (s *StatementScope) checkPartitionCreationNamespaceLocked(auth Authorizatio
 		err = auth.CheckCreate(ns)
 	}
 	if err != nil {
-		return creationError(err, creation.Name)
+		return ddl.CreationError(err, creation.Name)
 	}
 	return nil
 }

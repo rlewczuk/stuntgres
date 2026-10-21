@@ -499,15 +499,6 @@ func insertError(code, message string, pos parser.Position) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(pos.Character)}
 }
 
-func creationError(err error, name parser.ObjectName) error {
-	if diagnostic, ok := err.(*sqlstate.Error); ok && len(name.Parts) > 0 {
-		copy := *diagnostic
-		copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
-		return &copy
-	}
-	return err
-}
-
 func notNullDetailError(schema, table, column, detail string) error {
 	return &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -105,5 +106,25 @@ func TestNoticeEmitsNoticeLevel(t *testing.T) {
 	want := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P06", Message: `schema "s" already exists, skipping`}
 	if len(h.notices) != 1 || h.levels[0] != session.LevelNotice || h.notices[0] != want {
 		t.Fatalf("notices = %v at %v, want one %+v at NOTICE level", h.notices, h.levels, want)
+	}
+}
+
+func TestCreationErrorPositionsAtFirstNamePart(t *testing.T) {
+	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "s", Pos: parser.Position{Character: 14}}, {Text: "v", Pos: parser.Position{Character: 16}}}}
+	original := &sqlstate.Error{Code: "42P07", Message: "relation \"v\" already exists", Position: "3"}
+	got := CreationError(original, name)
+	var diagnostic *sqlstate.Error
+	if !errors.As(got, &diagnostic) || diagnostic.Code != "42P07" || diagnostic.Position != "14" {
+		t.Fatalf("CreationError = %#v, want 42P07 at 14", got)
+	}
+	if original.Position != "3" {
+		t.Fatalf("original diagnostic changed: %q", original.Position)
+	}
+	plain := errors.New("plain")
+	if got := CreationError(plain, name); got != plain {
+		t.Fatalf("plain error = %v, want it unchanged", got)
+	}
+	if got := CreationError(original, parser.ObjectName{}); got != original {
+		t.Fatalf("empty name = %v, want the original diagnostic", got)
 	}
 }

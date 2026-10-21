@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -28,7 +29,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "0A000" {
-			err = creationError(err, s.Name)
+			err = ddl.CreationError(err, s.Name)
 		}
 		return nil, nil, false, err
 	}

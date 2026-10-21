@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -67,7 +68,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			target, err = e.resolveRelationReference(auth, targetName, true)
 		}
 		if err != nil {
-			return stored.NewRule(p), creationError(err, targetName)
+			return stored.NewRule(p), ddl.CreationError(err, targetName)
 		}
 		b, err := describeWithRule(scope.op.Context(), e.analysisHost(scope.op), action, auth, target, scope.input, nil, nil, ns)
 		if err != nil {
