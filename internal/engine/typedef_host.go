@@ -1,66 +1,23 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// typedefHost is ddlHost seen as typedef.StageHost. The ddl.Host methods
-// delegate to ddlHost; only the type methods have bodies here. 20b merges
-// the two adapters.
-type typedefHost ddlHost
+// The typedef.StageHost methods of ddlHost beyond the shared ddl.Host,
+// including ddl.TypeStaging.
 
-var _ typedef.StageHost = typedefHost{}
+var _ typedef.StageHost = ddlHost{}
 
-func (h typedefHost) AccessView(a ddl.Authority) access.View { return ddlHost(h).AccessView(a) }
-func (h typedefHost) Recapture(a ddl.Authority, view catalog.Read) ddl.Authority {
-	return ddlHost(h).Recapture(a, view)
-}
-func (h typedefHost) CheckCreateIn(a ddl.Authority, namespace ids.ObjectRef) error {
-	return ddlHost(h).CheckCreateIn(a, namespace)
-}
-func (h typedefHost) Context() context.Context { return ddlHost(h).Context() }
-func (h typedefHost) EmitNotice(level session.NoticeLevel, diagnostic sqlstate.Error) {
-	ddlHost(h).EmitNotice(level, diagnostic)
-}
-func (h typedefHost) AllocateOID() (ids.OID, error)             { return ddlHost(h).AllocateOID() }
-func (h typedefHost) Revision() (ids.DefinitionRevision, error) { return ddlHost(h).Revision() }
-func (h typedefHost) Stage() ddl.Stage                          { return ddlHost(h).Stage() }
-func (h typedefHost) StageBase() catalog.Read                   { return ddlHost(h).StageBase() }
-func (h typedefHost) StageRead() catalog.Read                   { return ddlHost(h).StageRead() }
-func (h typedefHost) CreationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
-	return ddlHost(h).CreationACL(owner, schema, class)
-}
-func (h typedefHost) DropTarget(address ids.ObjectAddress) { ddlHost(h).DropTarget(address) }
-func (h typedefHost) RecordDependencyPath(a ddl.Authority) { ddlHost(h).RecordDependencyPath(a) }
-func (h typedefHost) CreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
-	return ddlHost(h).CreationNamespace(a, name)
-}
-func (h typedefHost) ExistingCreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
-	return ddlHost(h).ExistingCreationNamespace(a, name)
-}
-func (h typedefHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error) {
-	return ddlHost(h).SearchNamespaces(a, name, class)
-}
-func (h typedefHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
-	return ddlHost(h).LookupFunction(a, name, signature)
-}
-func (h typedefHost) DependencyObject(a ddl.Authority, address ids.ObjectAddress) (string, error) {
-	return ddlHost(h).DependencyObject(a, address)
-}
-
-func (h typedefHost) TrustedRestoreDestination(a ddl.Authority, what string) (bool, error) {
+func (h ddlHost) TrustedRestoreDestination(a ddl.Authority, what string) (bool, error) {
 	if h.op == nil || !operationReplayOrZero(h.op).tableDestination {
 		return false, nil
 	}
@@ -72,63 +29,63 @@ func (h typedefHost) TrustedRestoreDestination(a ddl.Authority, what string) (bo
 	return true, nil
 }
 
-func (h typedefHost) AllocateEnumMember() (int64, error) {
+func (h ddlHost) AllocateEnumMember() (int64, error) {
 	return h.e.catalog.allocateEnumMemberLocked()
 }
 
-func (h typedefHost) ReplaceUnsynchronized(d catalog.Descriptor) error {
+func (h ddlHost) ReplaceUnsynchronized(d catalog.Descriptor) error {
 	return h.stage.replaceDescriptor(d, false)
 }
 
-func (h typedefHost) CreationTypeACL(owner authorization.PrincipalRef, schema ids.ObjectAddress) (authorization.ACLValue, bool) {
+func (h ddlHost) CreationTypeACL(owner authorization.PrincipalRef, schema ids.ObjectAddress) (authorization.ACLValue, bool) {
 	return h.stage.creationTypeACL(owner, schema)
 }
 
-func (h typedefHost) AddDomainBase(d catalog.Descriptor) {
+func (h ddlHost) AddDomainBase(d catalog.Descriptor) {
 	h.stage.domainBases = append(h.stage.domainBases, d)
 }
 
-func (h typedefHost) RemoveDomainCheck(d *catalog.Type, oid ids.OID) error {
+func (h ddlHost) RemoveDomainCheck(d *catalog.Type, oid ids.OID) error {
 	return h.stage.removeDomainCheck(d, oid)
 }
 
-func (h typedefHost) NamedType(a ddl.Authority, name parser.ObjectName) (*catalog.Type, error) {
+func (h ddlHost) NamedType(a ddl.Authority, name parser.ObjectName) (*catalog.Type, error) {
 	return h.e.namedType(ddlAuthorityOf(a), name)
 }
 
-func (h typedefHost) FindCollation(a ddl.Authority, name parser.ObjectName) (*catalog.Collation, error) {
+func (h ddlHost) FindCollation(a ddl.Authority, name parser.ObjectName) (*catalog.Collation, error) {
 	return h.e.findCollation(ddlAuthorityOf(a), name)
 }
 
-func (h typedefHost) ResolveType(raw parser.TypeName) (sqltype.Usage, error) {
+func (h ddlHost) ResolveType(raw parser.TypeName) (sqltype.Usage, error) {
 	return h.e.resolveType(raw, h.op)
 }
 
-func (h typedefHost) ResolveDomainBase(raw parser.TypeName) (sqltype.Usage, error) {
+func (h ddlHost) ResolveDomainBase(raw parser.TypeName) (sqltype.Usage, error) {
 	return h.e.resolveAnnotationTypeMode(raw, h.op, false, true)
 }
 
-func (h typedefHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
+func (h ddlHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
 	return h.e.resolveColumnCollation(u, raw, h.op)
 }
 
-func (h typedefHost) BindDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+func (h ddlHost) BindDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	return h.e.bindDomainDefault(h.op.Context(), h.op, ddlAuthorityOf(a), h.stage, d, raw, input, output)
 }
 
-func (h typedefHost) BindDomainChecks(a ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+func (h ddlHost) BindDomainChecks(a ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	return h.e.bindDomainChecks(h.op, ddlAuthorityOf(a), h.stage, d, raw, input)
 }
 
-func (h typedefHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {
+func (h ddlHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {
 	return h.e.displaceAssociatedArrayLocked(h.stage, namespace, name)
 }
 
-func (h typedefHost) AssociatedArrayName(namespace ids.ObjectAddress, name string) string {
+func (h ddlHost) AssociatedArrayName(namespace ids.ObjectAddress, name string) string {
 	return associatedArrayName(h.stage, namespace, name)
 }
 
-func (h typedefHost) NewCompositeRelation(namespace ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []catalog.Column, index map[string]int) (*catalog.Relation, error) {
+func (h ddlHost) NewCompositeRelation(namespace ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []catalog.Column, index map[string]int) (*catalog.Relation, error) {
 	relation, err := h.e.newTableDescriptorLocked(namespace, name, owner, columns, index)
 	if err != nil {
 		return nil, err
@@ -137,6 +94,6 @@ func (h typedefHost) NewCompositeRelation(namespace ids.ObjectAddress, name stri
 	return relation, nil
 }
 
-func (h typedefHost) StageRowType(relation *catalog.Relation) error {
+func (h ddlHost) StageRowType(relation *catalog.Relation) error {
 	return h.e.stageRowTypeLocked(h.stage, relation)
 }

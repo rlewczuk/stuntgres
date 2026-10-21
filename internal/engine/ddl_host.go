@@ -10,28 +10,25 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
-// ddlHost is the root staging adapter behind ddl.Host and routine.DDLHost
-// (and, as typedefHost, typedef.StageHost) for one DDL statement. Staging
-// runs under Engine.mu without a StatementScope, so it holds the engine, the
-// operation and the catalog stage, and no authorization view: the handlers
-// pass their authority in.
+// ddlHost is the one root staging adapter: it implements ddl.Host here,
+// routine.DDLHost in routine_host.go and typedef.StageHost in
+// typedef_host.go, for one DDL statement. Staging runs under Engine.mu without
+// a StatementScope, so it holds the engine, the operation and the catalog
+// stage, and no authorization view: the handlers pass their authority in.
+// Like extensionHost it wraps the stage and is never a defined type over
+// CatalogStage, so Create and Replace keep the stage's lifecycle checks.
 type ddlHost struct {
 	e     *Engine
 	op    *session.Operation
 	stage *CatalogStage
 }
 
-var (
-	_ ddl.Host        = ddlHost{}
-	_ routine.DDLHost = ddlHost{}
-)
+var _ ddl.Host = ddlHost{}
 
 // DDLAuthority marks AuthorizationView as a ddl.Authority.
 func (AuthorizationView) DDLAuthority() {}
@@ -52,14 +49,6 @@ func (h ddlHost) Recapture(a ddl.Authority, view catalog.Read) ddl.Authority {
 	v := ddlAuthorityOf(a)
 	v.Recapture(view)
 	return v
-}
-
-func (h ddlHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return ddlAuthorityOf(a).definitionType(id)
-}
-
-func (h ddlHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
-	return ddlAuthorityOf(a).definitionLookup(key)
 }
 
 func (h ddlHost) CreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
@@ -108,25 +97,6 @@ func (h ddlHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signatu
 	return analyze.ProcedureInNamespaces(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, signature), nil
 }
 
-func (h ddlHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
-	v := ddlAuthorityOf(a)
-	path, err := h.e.lookupNamespaces(v, name, analyze.FunctionLookup)
-	if err != nil {
-		return catalog.RoutineIdentity{}, 0, err
-	}
-	identity, count := selectRoutine(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, &signature)
-	return identity, count, nil
-}
-
-func (h ddlHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
-	input, err := h.e.captureRegtypeInput(ddlAuthorityOf(a), h.op)
-	if err != nil {
-		return 0, err
-	}
-	id, err := input.resolveParsedTypeName(h.op.Context(), raw, h.op)
-	return ids.OID(id), err
-}
-
 // DependencyObject renders the description even when the path fails, so a
 // caller that only wants the text keeps it.
 func (h ddlHost) DependencyObject(a ddl.Authority, address ids.ObjectAddress) (string, error) {
@@ -158,19 +128,4 @@ func (h ddlHost) Context() context.Context { return h.op.Context() }
 
 func (h ddlHost) EmitNotice(level session.NoticeLevel, diagnostic sqlstate.Error) {
 	h.op.EmitNotice(level, diagnostic)
-}
-
-// BindSQLRoutine binds d's body with the stage's definitions in place of the
-// operation's. Restore defers SQL body validation until the import ends.
-func (h ddlHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
-	if operationReplayOrZero(h.op).sqlBodies {
-		return nil
-	}
-	previous := h.op.Definition
-	h.op.Definition = stageDefinitionReader{h.stage}
-	defer func() { h.op.Definition = previous }()
-	auth := ddlAuthorityOf(a)
-	auth.definition = h.op.Definition
-	_, _, err := h.e.bindSQLRoutineLocked(h.op, auth, d, input, nil)
-	return err
 }

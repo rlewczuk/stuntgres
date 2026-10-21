@@ -95,7 +95,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	if create, ok := stmt.(*parser.CreateEnum); ok {
-		if err := typedef.StageCreateEnumLocked(typedefHost{e: e, op: op, stage: stage}, auth, create); err != nil {
+		if err := typedef.StageCreateEnumLocked(ddlHost{e: e, op: op, stage: stage}, auth, create); err != nil {
 			return Result{}, err
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
@@ -120,7 +120,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
-		edit, err := typedef.StageAlterEnumLabelLocked(typedefHost{e: e, op: op, stage: stage}, old, alter)
+		edit, err := typedef.StageAlterEnumLabelLocked(ddlHost{e: e, op: op, stage: stage}, old, alter)
 		if err != nil {
 			return Result{}, err
 		}
