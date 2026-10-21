@@ -13,7 +13,7 @@ import (
 // import of both actual relations, with a strict ordinary inheritance edge,
 // can issue a receipt. The incumbent pending binder remains the sole FK binder.
 func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
-	if handled, err := InheritedForeignKeyShape(raw); !handled || err != nil {
+	if handled, err := table.InheritedForeignKeyShape(raw); !handled || err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
 	foreign := raw.Actions[0].ForeignKey
@@ -35,7 +35,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 	if err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
-	if err := CaptureInheritedForeignKey(auth.View, auth, sourceRef, targetRef, created, *foreign, &pending); err != nil {
+	if err := table.CaptureInheritedForeignKey(auth.View, auth, sourceRef, targetRef, created, *foreign, &pending); err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
 	return pending, true, nil
@@ -50,7 +50,7 @@ func validateRestoredInheritedForeignKey(e *Engine, receipt *table.RestoredInher
 	if receipt.Source != declaration.Child || receipt.Source.Domain() != e.catalog.Domain || receipt.Target.Domain() != e.catalog.Domain || receipt.Source.Epoch != view.Epoch() || receipt.Target.Epoch != view.Epoch() || auth.RoleRecord != e.roles.published || !partitionConstraintReplayImport(e, op, auth) {
 		return ids.ErrCatalogReplaced
 	}
-	if !RestoredInheritedForeignKeyUnchanged(receipt, view) {
+	if !receipt.Unchanged(view) {
 		return ids.ErrCatalogReplaced
 	}
 	return auth.Check(access.Requirement{Object: receipt.Source, OwnerOnly: true})

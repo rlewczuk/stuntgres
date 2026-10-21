@@ -10,7 +10,7 @@ import (
 )
 
 func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]table.RestoredNotNull) (table.RestoredNotNull, error) {
-	if !RestoredNotNullShape(raw) {
+	if !table.RestoredNotNullShape(raw) {
 		return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	auth, err := operationAuthorization(op)
@@ -21,7 +21,7 @@ func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTab
 	if err != nil {
 		return table.RestoredNotNull{}, err
 	}
-	return PairRestoredNotNull(auth.Catalog, ref, raw, origins)
+	return table.PairRestoredNotNull(auth.Catalog, ref, raw, origins)
 }
 
 // Unlike public UPDATE, this interpreter can only run inside isolated Restore,
@@ -55,7 +55,7 @@ func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Upda
 		e.mu.Unlock()
 		return err
 	}
-	next, err := NoInheritNotNullCandidate(auth.Catalog, ref, origin, column, label)
+	next, err := table.NoInheritNotNullCandidate(auth.Catalog, ref, origin, column, label)
 	if err != nil || next == nil {
 		e.mu.Unlock()
 		return err

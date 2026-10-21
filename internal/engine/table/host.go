@@ -27,6 +27,7 @@ type Host interface {
 	index.Host
 	ddl.TypeStaging
 	Resolver
+	RestoreResolver
 
 	// StageRowType stages the composite row type of relation.
 	StageRowType(relation *catalog.Relation) error
@@ -52,8 +53,6 @@ type Host interface {
 	// temporary namespace before publication, when namespace is the
 	// session's own non-TOAST temporary namespace; otherwise auth unchanged.
 	StagedTemporary(auth ddl.Authority, namespace *catalog.Namespace) ddl.Authority
-	// ResolveRestoredRelation resolves a relation name of a Restore repair.
-	ResolveRestoredRelation(auth ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error)
 
 	// DescribeCreateTable analyzes s.
 	DescribeCreateTable(auth ddl.Authority, s *parser.CreateTable, input sqltype.InputEnvironment) (analyze.Binding, error)
@@ -115,4 +114,11 @@ type AlterHost interface {
 	// StageIdentitySequenceOptions stages the sequence options of an
 	// identity column; the caller holds the sequence's grant.
 	StageIdentitySequenceOptions(relation *catalog.Relation, attribute int32, sequence ids.ObjectAddress, raw []parser.SequenceOption) error
+}
+
+// RestoreResolver resolves the relation names of Restore repairs. Its method
+// runs with Engine.mu held and never waits.
+type RestoreResolver interface {
+	// ResolveRestoredRelation resolves a relation name of a Restore repair.
+	ResolveRestoredRelation(auth ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error)
 }

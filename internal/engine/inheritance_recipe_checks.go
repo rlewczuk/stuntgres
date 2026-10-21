@@ -10,8 +10,8 @@ func (e *Engine) pairRestoredGeneration(op *session.Operation, raw *parser.Alter
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	if !RestoredGenerationShape(raw) {
-		return sqlError("0A000", RestoreGenerationBoundary)
+	if !table.RestoredGenerationShape(raw) {
+		return sqlError("0A000", table.RestoreGenerationBoundary)
 	}
 	auth, err := operationAuthorization(op)
 	if err != nil {
@@ -21,13 +21,13 @@ func (e *Engine) pairRestoredGeneration(op *session.Operation, raw *parser.Alter
 	trusted := partitionConstraintReplayImport(e, op, auth)
 	e.mu.Unlock()
 	if !trusted {
-		return sqlError("0A000", RestoreGenerationBoundary)
+		return sqlError("0A000", table.RestoreGenerationBoundary)
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, false)
 	if err != nil {
 		return err
 	}
-	return PairRestoredGeneration(auth.Catalog, relationProvider{}, ref, raw, origins)
+	return table.PairRestoredGeneration(auth.Catalog, relationProvider{}, ref, raw, origins)
 }
 
 func (e *Engine) captureRestoredGeneration(op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
@@ -39,14 +39,14 @@ func (e *Engine) captureRestoredGeneration(op *session.Operation, raw *parser.Al
 	if err != nil {
 		return table.RestoredGenerationRecipe{}, err
 	}
-	return CaptureRestoredGeneration(auth.Catalog, ref, raw)
+	return table.CaptureRestoredGeneration(auth.Catalog, ref, raw)
 }
 
 func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	if err := RestoredInheritedCheckShape(raw); err != nil {
+	if err := table.RestoredInheritedCheckShape(raw); err != nil {
 		return err
 	}
 	e.mu.Lock()
@@ -56,20 +56,20 @@ func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterT
 		return err
 	}
 	if !partitionConstraintReplayImport(e, op, auth) {
-		return sqlError("0A000", RestoreInheritedCheckBoundary)
+		return sqlError("0A000", table.RestoreInheritedCheckBoundary)
 	}
 	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
 	if !actor.Superuser {
-		return sqlError("0A000", RestoreInheritedCheckBoundary)
+		return sqlError("0A000", table.RestoreInheritedCheckBoundary)
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, false)
 	if err != nil {
 		return err
 	}
-	return InheritedCheckRecipe(auth.Catalog, relationProvider{}, ref, repairs)
+	return table.InheritedCheckRecipe(auth.Catalog, relationProvider{}, ref, repairs)
 }
 
 func (e *Engine) closeRestoredRecipesForData(op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {
@@ -81,5 +81,5 @@ func (e *Engine) closeRestoredRecipesForData(op *session.Operation, raw *parser.
 	if err != nil {
 		return nil, err
 	}
-	return CloseRestoredRecipes(auth.Catalog, ref.Address, repairs), nil
+	return table.CloseRestoredRecipes(auth.Catalog, ref.Address, repairs), nil
 }

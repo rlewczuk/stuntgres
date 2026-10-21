@@ -36,10 +36,10 @@ type restoreRun struct {
 	pendingForeignKeys      []table.RestoredForeignKeys
 	notNullOrigins          map[ids.OID]table.RestoredNotNull
 	pairedNotNull           table.RestoredNotNull
-	pairedPhysical          *RestoredPhysicalNotNull
-	deferredPhysical        *RestoredPhysicalNotNull
+	pairedPhysical          *table.RestoredPhysicalNotNull
+	deferredPhysical        *table.RestoredPhysicalNotNull
 	physicalIndexes         map[ids.ObjectAddress]*catalog.Relation
-	physicalForeignProvider *RestoredPhysicalForeignKeyProvider
+	physicalForeignProvider *table.RestoredPhysicalForeignKeyProvider
 
 	// Inheritance captures.
 	placeholderOrigins  map[table.RestoredGenerationKey]table.RestoredGenerationRecipe
@@ -128,7 +128,7 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 		op.Done()
 		endSession()
 	}
-	h.run.startCaptures(RetiredArchiveHighWater(h.target.CatalogRead()))
+	h.run.startCaptures(table.RetiredArchiveHighWater(h.target.CatalogRead()))
 	return op, end, nil
 }
 

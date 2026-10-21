@@ -1,10 +1,9 @@
-package engine
+package table
 
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +19,7 @@ const RestoreInheritedCheckBoundary = "restore accepts only paired inherited-rec
 // the relation Restore just created as created whose generation a later SET
 // EXPRESSION repairs: declared NULL placeholders, and generations every
 // parent contributes from an already captured, compatible origin.
-func CaptureRestoredPlaceholders(view catalog.Read, created ids.ObjectRef, raw *parser.CreateTable, origins map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) {
+func CaptureRestoredPlaceholders(view catalog.Read, created ids.ObjectRef, raw *parser.CreateTable, origins map[RestoredGenerationKey]RestoredGenerationRecipe) {
 	tbl, ok := view.Relation(created.Address)
 	if !ok {
 		return
@@ -52,7 +51,7 @@ func CaptureRestoredPlaceholders(view catalog.Read, created ids.ObjectRef, raw *
 					continue
 				}
 				inherited = true
-				record, exists := origins[table.RestoredGenerationKey{Relation: origin.Parent, Attribute: origin.Attribute}]
+				record, exists := origins[RestoredGenerationKey{Relation: origin.Parent, Attribute: origin.Attribute}]
 				if !exists || record.Ref.Domain() != created.Domain() || record.Ref.Epoch != created.Epoch || record.Generation != generation.OID || record.Kind != generation.Kind || record.Usage != parent.Columns[parent.IndexForAttribute(origin.Attribute)].Usage {
 					compatible = false
 					break
@@ -61,7 +60,7 @@ func CaptureRestoredPlaceholders(view catalog.Read, created ids.ObjectRef, raw *
 			declared = inherited && compatible && !tbl.Inheritance.Columns[attribute].ExplicitGeneration
 		}
 		if declared {
-			origins[table.RestoredGenerationKey{Relation: created.Address, Attribute: attribute}] = table.RestoredGenerationRecipe{Ref: created, Attribute: attribute, Generation: definition.OID, Usage: tbl.Columns[tbl.IndexForAttribute(attribute)].Usage, Kind: definition.Kind}
+			origins[RestoredGenerationKey{Relation: created.Address, Attribute: attribute}] = RestoredGenerationRecipe{Ref: created, Attribute: attribute, Generation: definition.OID, Usage: tbl.Columns[tbl.IndexForAttribute(attribute)].Usage, Kind: definition.Kind}
 		}
 	}
 }
@@ -75,7 +74,7 @@ func RestoredGenerationShape(raw *parser.AlterTable) bool {
 // PairRestoredGeneration accepts the SET EXPRESSION of raw on ref, a
 // permanent relation, only when it pairs the placeholder captured for the
 // same generation, type and kind; relations validates the relation.
-func PairRestoredGeneration(view catalog.Read, relations catalog.Provider, ref ids.ObjectRef, raw *parser.AlterTable, origins map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) error {
+func PairRestoredGeneration(view catalog.Read, relations catalog.Provider, ref ids.ObjectRef, raw *parser.AlterTable, origins map[RestoredGenerationKey]RestoredGenerationRecipe) error {
 	reject := func() error { return sqlError("0A000", RestoreGenerationBoundary) }
 	tbl, ok := view.Relation(ref.Address)
 	if !ok {
@@ -90,7 +89,7 @@ func PairRestoredGeneration(view catalog.Read, relations catalog.Provider, ref i
 		return reject()
 	}
 	attribute := tbl.Attributes[slot]
-	record, exists := origins[table.RestoredGenerationKey{Relation: ref.Address, Attribute: attribute}]
+	record, exists := origins[RestoredGenerationKey{Relation: ref.Address, Attribute: attribute}]
 	definition, generated := tbl.ColumnMeta.Generations[attribute]
 	if !exists || !generated || record.Ref != ref || record.Attribute != attribute || record.Generation != definition.OID || record.Usage != tbl.Columns[slot].Usage || record.Kind != definition.Kind {
 		return reject()
@@ -103,18 +102,18 @@ func PairRestoredGeneration(view catalog.Read, relations catalog.Provider, ref i
 
 // CaptureRestoredGeneration records the generation the paired SET EXPRESSION
 // of raw left on ref.
-func CaptureRestoredGeneration(view catalog.Read, ref ids.ObjectRef, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
+func CaptureRestoredGeneration(view catalog.Read, ref ids.ObjectRef, raw *parser.AlterTable) (RestoredGenerationRecipe, error) {
 	tbl, ok := view.Relation(ref.Address)
 	if !ok {
-		return table.RestoredGenerationRecipe{}, ids.ErrCatalogReplaced
+		return RestoredGenerationRecipe{}, ids.ErrCatalogReplaced
 	}
 	slot, ok := tbl.Index[raw.Actions[0].Column.Text]
 	if !ok {
-		return table.RestoredGenerationRecipe{}, ids.ErrCatalogReplaced
+		return RestoredGenerationRecipe{}, ids.ErrCatalogReplaced
 	}
 	attribute := tbl.Attributes[slot]
 	generation := tbl.ColumnMeta.Generations[attribute]
-	return table.RestoredGenerationRecipe{Ref: ref, Attribute: attribute, Generation: generation.OID, Usage: tbl.Columns[slot].Usage, Kind: generation.Kind}, nil
+	return RestoredGenerationRecipe{Ref: ref, Attribute: attribute, Generation: generation.OID, Usage: tbl.Columns[slot].Usage, Kind: generation.Kind}, nil
 }
 
 // RestoredInheritedCheckShape checks the shape of an inherited-recipe CHECK:
@@ -135,7 +134,7 @@ func RestoredInheritedCheckShape(raw *parser.AlterTable) error {
 // InheritedCheckRecipe accepts the inherited-recipe CHECK on ref, a
 // permanent ordinary table with a valid inheritance graph, only when one of
 // repairs is still current, valid under relations, and connected to it.
-func InheritedCheckRecipe(view catalog.Read, relations catalog.Provider, ref ids.ObjectRef, repairs []table.RestoredGenerationRecipe) error {
+func InheritedCheckRecipe(view catalog.Read, relations catalog.Provider, ref ids.ObjectRef, repairs []RestoredGenerationRecipe) error {
 	reject := func() error { return sqlError("0A000", RestoreInheritedCheckBoundary) }
 	target, ok := view.Relation(ref.Address)
 	if !ok || target.RelationKind != catalog.TableRelation || target.Partition != nil || target.Membership != nil {
@@ -145,7 +144,7 @@ func InheritedCheckRecipe(view catalog.Read, relations catalog.Provider, ref ids
 	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
-	if table.ValidateInheritance(view, target) != nil {
+	if ValidateInheritance(view, target) != nil {
 		return reject()
 	}
 	for _, repair := range repairs {
@@ -164,7 +163,7 @@ func InheritedCheckRecipe(view catalog.Read, relations catalog.Provider, ref ids
 		if relations.Validate(view, tbl) != nil {
 			continue
 		}
-		if table.InheritedRecipeConnected(view, target.Address(), tbl.Address()) {
+		if InheritedRecipeConnected(view, target.Address(), tbl.Address()) {
 			return nil
 		}
 	}
@@ -173,10 +172,10 @@ func InheritedCheckRecipe(view catalog.Read, relations catalog.Provider, ref ids
 
 // CloseRestoredRecipes drops from repairs, in place, the recipes connected
 // to target, whose data Restore is about to load.
-func CloseRestoredRecipes(view catalog.Read, target ids.ObjectAddress, repairs []table.RestoredGenerationRecipe) []table.RestoredGenerationRecipe {
+func CloseRestoredRecipes(view catalog.Read, target ids.ObjectAddress, repairs []RestoredGenerationRecipe) []RestoredGenerationRecipe {
 	retained := repairs[:0]
 	for _, repair := range repairs {
-		if !table.InheritedRecipeConnected(view, target, repair.Ref.Address) {
+		if !InheritedRecipeConnected(view, target, repair.Ref.Address) {
 			retained = append(retained, repair)
 		}
 	}

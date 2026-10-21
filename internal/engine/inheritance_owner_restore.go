@@ -29,7 +29,7 @@ func (e *Engine) captureInheritedOwner(op *session.Operation, created ids.Object
 	if !trusted || !capturedRole {
 		return table.RestoredInheritedOwner{}, sqlError("0A000", table.RestoreInheritedOwnerBoundary)
 	}
-	return CaptureInheritedOwner(auth.View, created, owner)
+	return table.CaptureInheritedOwner(auth.View, created, owner)
 }
 
 func (e *Engine) restoreInheritedOwner(op *session.Operation, raw *parser.AlterOwner, pair table.RestoredInheritedOwner) error {
@@ -37,7 +37,7 @@ func (e *Engine) restoreInheritedOwner(op *session.Operation, raw *parser.AlterO
 		return err
 	}
 	reject := func() error { return sqlError("0A000", table.RestoreInheritedOwnerBoundary) }
-	if !InheritedOwnerShape(raw, pair) {
+	if !table.InheritedOwnerShape(raw, pair) {
 		return reject()
 	}
 	auth, err := operationAuthorization(op)
@@ -49,12 +49,12 @@ func (e *Engine) restoreInheritedOwner(op *session.Operation, raw *parser.AlterO
 	if !partitionConstraintReplayImport(e, op, auth) {
 		return reject()
 	}
-	if err := InheritedOwnerDirective(auth.View, raw, pair); err != nil {
+	if err := table.InheritedOwnerDirective(auth.View, raw, pair); err != nil {
 		return err
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, false)
 	if err != nil {
 		return err
 	}
-	return InheritedOwnerTarget(auth.Catalog, ref, pair)
+	return table.InheritedOwnerTarget(auth.Catalog, ref, pair)
 }

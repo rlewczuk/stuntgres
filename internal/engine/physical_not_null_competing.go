@@ -7,8 +7,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *parser.AlterTable, provider *RestoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
-	if handled, err := CompetingUniqueShape(op, raw, provider); !handled || err != nil {
+func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *parser.AlterTable, provider *table.RestoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
+	if handled, err := table.CompetingUniqueShape(op, raw, provider); !handled || err != nil {
 		return nil, err
 	}
 	auth, err := operationAuthorization(op)
@@ -20,5 +20,5 @@ func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *pars
 	if !partitionConstraintReplayImport(e, op, auth) || !provider.Holds(auth.RoleRecord, auth.Catalog) || created[provider.Ref.Address] != provider.Ref {
 		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	return PreparePhysicalCompetingUnique(auth.Catalog, raw, provider)
+	return table.PreparePhysicalCompetingUnique(auth.Catalog, raw, provider)
 }

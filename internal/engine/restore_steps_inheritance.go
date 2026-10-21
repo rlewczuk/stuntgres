@@ -67,7 +67,7 @@ func afterRestoreHistoricalRelation(r *restoreRun, _ *session.Operation, stmt pa
 // placeholders.
 func afterRestoreGenerationPlaceholders(r *restoreRun, _ *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
 	if creation, ok := stmt.(*parser.CreateTable); ok && outcome.Created != (ids.ObjectRef{}) {
-		CaptureRestoredPlaceholders(r.stage.CatalogRead(), outcome.Created, creation, r.placeholderOrigins)
+		table.CaptureRestoredPlaceholders(r.stage.CatalogRead(), outcome.Created, creation, r.placeholderOrigins)
 	}
 	return nil
 }
@@ -90,7 +90,7 @@ func afterRestoreHistoricalFacts(r *restoreRun, _ *session.Operation, stmt parse
 	if alteration, altered := stmt.(*parser.AlterTable); altered && slices.ContainsFunc(alteration.Actions, func(a parser.AlterTableAction) bool {
 		return a.Action == parser.AddCheck || a.Action == parser.AddNotNull || a.Action == parser.SetNotNull
 	}) {
-		CaptureHistoricalFacts(r.stage.CatalogRead(), r.historicalRefs, r.historicalAuthority.Facts)
+		table.CaptureHistoricalFacts(r.stage.CatalogRead(), r.historicalRefs, r.historicalAuthority.Facts)
 	}
 	return nil
 }

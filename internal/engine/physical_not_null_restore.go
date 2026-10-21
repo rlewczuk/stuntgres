@@ -12,7 +12,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *p
 	if len(repairs) == 0 {
 		return nil, nil
 	}
-	if !PhysicalNotNullConstructorShape(raw, repairs) {
+	if !table.PhysicalNotNullConstructorShape(raw, repairs) {
 		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	auth, err := operationAuthorization(op)
@@ -28,11 +28,11 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *p
 	if err != nil {
 		return nil, err
 	}
-	return PreparePhysicalNotNullConstructor(auth.Catalog, ref, raw, repairs, created)
+	return table.PreparePhysicalNotNullConstructor(auth.Catalog, ref, raw, repairs, created)
 }
 
 // Capture actual normal constructor results, not a generated-name prediction.
-func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*RestoredPhysicalNotNull, error) {
+func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*table.RestoredPhysicalNotNull, error) {
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
@@ -42,12 +42,12 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 	if !partitionConstraintReplayImport(e, op, auth) || constructor.Ref.Epoch != auth.Catalog.Epoch() {
 		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	return CapturePhysicalNotNullConstructor(op, auth.RoleRecord, auth.Catalog, constructor, indexes)
+	return table.CapturePhysicalNotNullConstructor(op, auth.RoleRecord, auth.Catalog, constructor, indexes)
 }
 
 // The selected NN and its outbound dependency projection disappear together in
 // the sole private stage. The surviving physical flag is not a synthetic NN row.
-func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delete, pair *RestoredPhysicalNotNull) error {
+func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delete, pair *table.RestoredPhysicalNotNull) error {
 	repair, valid := table.RestorePhysicalNotNullSyntax(raw)
 	reject := func() error { return sqlError("0A000", table.RestorePhysicalNotNullBoundary) }
 	if !valid || !pair.Pairs(op, repair) {
@@ -77,7 +77,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 		e.mu.Unlock()
 		return err
 	}
-	next, err := PhysicalNotNullCleanup(auth.Catalog, pair, ref, repair)
+	next, err := table.PhysicalNotNullCleanup(auth.Catalog, pair, ref, repair)
 	if err != nil {
 		e.mu.Unlock()
 		return err

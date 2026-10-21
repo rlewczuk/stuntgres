@@ -43,7 +43,7 @@ func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update)
 		e.mu.Unlock()
 		return err
 	}
-	next, err := AttributeRankCandidate(auth.Catalog, ref, column, rank)
+	next, err := table.AttributeRankCandidate(auth.Catalog, ref, column, rank)
 	if err != nil || next == nil {
 		e.mu.Unlock()
 		return err

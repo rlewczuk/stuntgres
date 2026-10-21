@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -18,5 +19,5 @@ func (e *Engine) validateRestoredDefault(op *session.Operation, s *parser.AlterT
 	if err != nil {
 		return err
 	}
-	return ValidateRestoredDefault(auth.Catalog, ref, s)
+	return table.ValidateRestoredDefault(auth.Catalog, ref, s)
 }

@@ -140,7 +140,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 			}
 			children := table.ForeignKeyRows{Storage: childStore, Committed: childStore.Versions, Ends: childStore.Ends, Frontier: e.visibility.CommitSeq()}
 			parents := table.ForeignKeyRows{Storage: parentStore, Committed: parentStore.Versions, Ends: parentStore.Ends, Frontier: e.visibility.CommitSeq(), Index: f.Index, Root: e.storage.IndexRoots[f.Index]}
-			if err := ValidateForeignKeyData(ctx, auth.View, auth, child, parent, f, comparisons, children, parents, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
+			if err := table.ValidateForeignKeyData(ctx, auth.View, auth, child, parent, f, comparisons, children, parents, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
 				return err
 			}
 		}

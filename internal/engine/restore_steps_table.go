@@ -151,7 +151,7 @@ func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt p
 	if !ok {
 		return nil
 	}
-	if index := CapturePhysicalImportIndex(r.cur.physicalIndexBase, r.stage.CatalogRead(), r.stage.catalog.Domain, creation, r.historicalRefs); index != nil {
+	if index := table.CapturePhysicalImportIndex(r.cur.physicalIndexBase, r.stage.CatalogRead(), r.stage.catalog.Domain, creation, r.historicalRefs); index != nil {
 		r.physicalIndexes[index.Address()] = index
 	}
 	return nil
@@ -161,7 +161,7 @@ func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt p
 // made, for pairing with later repairs.
 func afterRestoreNotNullOrigins(r *restoreRun, _ *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
 	if creation, ok := stmt.(*parser.CreateTable); ok && outcome.Created != (ids.ObjectRef{}) {
-		CaptureRestoredNotNulls(r.stage.CatalogRead(), outcome.Created, creation, r.notNullOrigins)
+		table.CaptureRestoredNotNulls(r.stage.CatalogRead(), outcome.Created, creation, r.notNullOrigins)
 	}
 	return nil
 }

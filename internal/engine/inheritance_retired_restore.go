@@ -15,7 +15,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 		return err
 	}
 	reject := func() error { return sqlError("0A000", table.RestoreRetiredBoundary) }
-	if !HistoryAuthorityComplete(authority) {
+	if !authority.Complete() {
 		return reject()
 	}
 	auth, err := operationAuthorization(op)
@@ -37,7 +37,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 		e.mu.Unlock()
 		return err
 	}
-	next, commit, err := RetiredConstraintCandidate(ddlHost{e: e, op: op}, auth, auth.Catalog, ref, repair, authority)
+	next, commit, err := table.RetiredConstraintCandidate(ddlHost{e: e, op: op}, auth, auth.Catalog, ref, repair, authority)
 	if err != nil {
 		e.mu.Unlock()
 		return err
@@ -45,6 +45,6 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	if err := e.publishRestoreRepairLocked(op, auth, next, ref.Epoch); err != nil {
 		return err
 	}
-	CommitRetiredRepair(authority, commit)
+	authority.CommitRetiredRepair(commit)
 	return nil
 }
