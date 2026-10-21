@@ -93,9 +93,9 @@ reach it through the engine's host methods. See
 
 ## Names
 
-Settled in 22a, 22b and 22c. The root names on the left still work through the
-temporary type aliases in `internal/engine/stored_aliases.go`, which 22d
-removes; functions and constants are qualified directly.
+Settled in 22a, 22b and 22c. The root names on the left are gone: 22d removed
+the temporary type aliases, and the root and its tests name `stored.X`. The
+table maps the root names that older prompt files and design notes cite.
 
 | Root name | `stored` name |
 |---|---|

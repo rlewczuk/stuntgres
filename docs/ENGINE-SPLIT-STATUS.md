@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `42a45f774` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 86, 90, 94, 95, 96, 97, 99, 103, 104, 105, 107 and 111). Steps 8–17 were
+Last verified against `master` at `71235c83b` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 86, 90, 94, 95, 96, 97, 99, 103, 104, 105, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -14,12 +14,8 @@ planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); 70 and 87 are broad, so run only one of them
-at a time. They touch different
-files, so they may run in parallel on separate branches; rebase the others
-after each lands.
+as another broad item (§8); 87 is the only broad item ready.
 
-- **Stored-SQL package:** 70 (stored 22d, **broad**).
 - **Upper features, packages:** 87 (table 24b, **broad**).
 - **Upper features, refined:** 84 (index 23c, docs only).
 - **Upper features, decisions:** 106 (role 28d).
@@ -82,6 +78,9 @@ Item 97 (fdw 26d) is done; fdw 26e (item 98) still waits for table 24d
 Item 83 (index 23b) is done, so index 23c (item 84, docs only) and table
 24b (item 87, broad) are ready; DML 29b (item 108) still waits for 87, 91
 and 100, and control 30b (item 112) for 70, 87, 91 and 100.
+Item 70 (stored 22d) is done and closes step 22; control 30b (item 112)
+still waits for 87, 91 and 100, and table 24b (item 87, broad) no longer
+competes with another ready broad item.
 Item 105 (role 28c, docs only) is done, so role 28d (item 106) is ready.
 
 ## Task tree
@@ -478,7 +477,7 @@ Item 105 (role 28c, docs only) is done, so role 28d (item 106) is ready.
     `8ea91a2eb`, `ca7c8d575`, then the docs commit)
   - [x] 21c — Captured input resolvers moved (`8565a61e7`, `fc8a45cdd`, `b65da8100`, then the docs
     commit)
-- [ ] **Step 22 — `stored`** ([prompt](ENGINE-SPLIT-stored.md); 22b needs
+- [x] **Step 22 — `stored`** ([prompt](ENGINE-SPLIT-stored.md); 22b needs
   21b, F6, 18b and 12f, 22c needs 5j)
   - [x] 22a — In place: coverage cut, freeze cut, accessors, renames
     (`fc0f6dbe8`, `219495724`, `f9035b171`, `a0224bb18`, `905c53bad`,
@@ -486,8 +485,11 @@ Item 105 (role 28c, docs only) is done, so role 28d (item 106) is ready.
   - [x] 22b — `stored` created, presentation set moved with aliases *(broad)*
     (`ae29be757`, `4f51dfb7c`, `b66915729`, `687d5dc84`, `96720fefc`, `020d1a446`, `b6960ba81`,
     then the docs commit)
-  - [ ] 22c — Rule and policy payloads, remap protocol
-  - [ ] 22d — Aliases removed *(broad)*
+  - [x] 22c — Rule and policy payloads, remap protocol
+    (`7eb30702d`, `06b8adad6`, `a3cd3577f`, `c06636d9f`, `751c1a011`,
+    then the docs commit)
+  - [x] 22d — Aliases removed *(broad)*
+    (`b4cdcf403`, `ffd4a418d`, then the docs commit)
 - [ ] **Step 23 — `index`** ([prompt](ENGINE-SPLIT-index.md); 23b needs 22b,
   5i, 10e, 11e)
   - [x] 23a — In place: renames, wait and exclusion registries, cuts
@@ -1010,8 +1012,11 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     root; 3 more type aliases · selected unit and dual-mode proof,
     byte-identical dump smoke and quickcheck passed; racecheck/finalcheck
     skipped at user request
-70. [ ] stored 22d: aliases removed — [stored](ENGINE-SPLIT-stored.md) 22d ·
-    needs 69 · **broad**
+70. [x] stored 22d: aliases removed — [stored](ENGINE-SPLIT-stored.md) 22d ·
+    needs 69 · **broad** (`b4cdcf403`, `ffd4a418d`, then the docs commit) · 440 uses
+    in 180 root files name `stored.X`; `stored_aliases.go` and its 15 type
+    aliases removed; no shadowing locals; five subpackage comments
+    renamed · selected unit, quick-mode reference selections, quickcheck and a narrow `REFERENCE=1` selection passed; racecheck/finalcheck skipped at user request
 
 ### Group I — follow-ups in existing packages
 

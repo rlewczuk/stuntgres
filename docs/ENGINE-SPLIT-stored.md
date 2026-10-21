@@ -440,15 +440,11 @@ aliases remain; the checks in §8.3 pass.
   (`7eb30702d`, `06b8adad6`, `a3cd3577f`, `c06636d9f`, `751c1a011`, then the docs commit) · selected unit and dual-mode proof,
   byte-identical dump smoke and quickcheck passed; racecheck/finalcheck
   skipped at user request
-- [ ] 22d — Aliases removed *(broad)* (item 70)
+- [x] 22d — Aliases removed *(broad)* (item 70) (`b4cdcf403`, `ffd4a418d`, then
+  the docs commit) · selected unit, quick-mode reference selections, quickcheck and a narrow `REFERENCE=1` selection passed; racecheck/finalcheck skipped at user request
 
-Outstanding aliases (`internal/engine/stored_aliases.go`, types only):
-`pgDependRefs`, `pgRenderer`, `pgRenderParent`, `policyExpression`,
-`procedureProvider`, `ruleAction`, `ruleDefinition`, `ruleTreeMapping`,
-`scalarRenderer`, `viewCheckMode`, `viewDefinition`, `viewLeaf`,
-`viewPresentation`, `viewQueryRemapper`, `viewRenderer` (15; 22c added the
-three rule types). Functions, constants, `ViewParts`, `RuleParts`,
-`RuleActionParts` and `RuleList` are qualified directly.
+Outstanding aliases: none. 22d removed `internal/engine/stored_aliases.go`
+and its 15 type aliases.
 
 ### 22b record
 
@@ -553,6 +549,27 @@ Deviations from the plan above:
   `Engine.resolveRelationSnapshot`, and `pg_get_serial_sequence` evaluates
   through the scope. That is more than the allowed input record.
 - `remapLikeExpression` had already moved in 22b (`RemapLikeExpression`).
+
+### 22d record
+
+Measured at `42a45f774`: `unalias -dry` counted 440 alias uses in 180
+root files (about 60 production, 120 test); `shadowrn -dry` found no
+local named `stored` that would capture `stored.X`, so no rename commit
+was needed, and none of the files that are not gofmt-clean on master
+used an alias. Commits, each replayable by a script in
+`.cswd/tmp/PG18-ENGINE-SPLIT-STORED-ALIASES/`:
+
+1. `c1.sh`: `unalias` over `stored_aliases.go` (the 13e copy), then
+   `git rm` of the file. `check-rename.py` confirmed the diff holds only
+   alias → `stored.X` renames and imports; `go vet` output is unchanged,
+   so `keylit` had nothing to key.
+2. `c2.sh`: five comments in `catalog`, `extension` and `stored` named
+   the root aliases; they name `stored.View`, `stored.Policy`,
+   `stored.Rule`, `stored.ProcedureProvider` and `Deparser`.
+
+No test moved or was deleted; the 125 touched test files only changed
+spelling. The package READMEs that still named `procedureProvider` or
+`scalarRenderer` as root code now name the `stored` types.
 
 ### Notes for later steps
 
