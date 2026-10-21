@@ -119,7 +119,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		return nil, nil, d
 	}
 	if s.Kind == "table" {
-		return e.stageForeignTableLocked(scope, auth, stage, s)
+		return e.stageForeignTableLocked(scope.op, scope.input, auth, stage, s)
 	}
 	class := fdw.Class(s.Kind)
 	var old, server, wrapper *catalog.ForeignObject
