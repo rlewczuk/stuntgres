@@ -62,7 +62,7 @@ constrain order proofs; typed comparison owns constant comparisons. SELECT's
 exact-conjunction mask is unchanged; no truth-subset solver or theorem engine is added.
 
 Row assembly preserves assignment/default/identity/generated/NOT NULL/CHECK
-validation before arbitration. `probeUniqueRow` returns a value outcome with the
+validation before arbitration. `dml.ProbeUniqueRow` returns a value outcome with the
 actual provider and authorization view. Only selected stable-isolation hits need
 committed row/version identity.
 The ordinary `checkUniqueRow` wrapper retains its23505 behavior for INSERT without a

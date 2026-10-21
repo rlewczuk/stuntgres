@@ -188,7 +188,10 @@ context.
   head versions), `ExistingIndexRoot`, `CaptureExclusionScan`
   (`ExclusionScan`), `ExclusionScanCurrent`, `PublishExclusion` (epoch and
   state check, row identity, the `ExclusionEdit` and install in one
-  window), `DiscardExclusion`, `OwnExclusionKeys`, `AdmitExclusion` and
+  window; it takes the candidate by value and returns the reserved row,
+  which the caller records with `WriteCandidate.RecordExclusion`, so no
+  candidate escapes through the interface), `DiscardExclusion` (of the
+  version `WriteCandidate.TakeExclusion` clears), `OwnExclusionKeys`, `AdmitExclusion` and
   `EndExclusionRow` (standalone windows; the admit window checks no epoch,
   as before; `EndExclusionRow` projects the end of a row version deleted
   outside the write stage, for MERGE's DELETE arm).
@@ -210,8 +213,9 @@ Pure decisions over captured values:
   `ExistingRootOutput` (a row's output read from a captured root).
 - `OwnExclusionEntry`, `VisitExclusion` (the committed-root and pending
   passes; an `ExclusionVisit` with the potential flag, the owner to wait
-  for and the first hit) and `ExclusionDeferred`. The visit takes the
-  operation and asks it for its context per comparison.
+  for and the first hit) and `ExclusionDeferred`. The visit takes a context
+  source (the operation or `dml.Host`) and asks it for its context per
+  comparison.
 - Projection edits: `ExclusionEdit.Apply`, and `ExclusionProjection`'s
   `DiscardVersion`, `EndRow`, `Admit` and `ReplaceShape`;
   `ExclusionShapeEntries` projects an ALTER's surviving writes. Each edit
@@ -269,17 +273,15 @@ wrappers that build a `ddlHost` for callers outside the moved set
 the wrappers left with no production caller (`bindIndexKey`) or only test
 callers (`bindIndexAttributes`, `stagePartitionIndexAttach`,
 `stagePartitionIndexDrop`) go in index 23e (item 126), with the pure
-snapshot, remint, layout and maintenance-plan decisions. The write-time loops stay on `StatementScope` until `dml`: the unique
-probe and claim (`probeUniqueRow`, `claimUniqueRow`, `checkUniqueRow`,
-`bindUniqueWrite`, `existingUniqueOutput`, `revalidateIndexRows`), the
-exclusion probe and admission (`probeExclusion`, `probeExclusionRow`,
-`publishExclusionCandidate`) and the ALTER shape window
-(`prepareExclusionShape`). They interleave ON CONFLICT arbiters, the
-insert write overlay, own writes and deletes and foreign action owners.
-`exclusionScan` and `uniqueConflict` keep their `AuthorizationView` (one
-allocation per probe otherwise). `projectExclusionDeletionLocked`,
-savepoint restore and the publication resets stay engine callers of the
-registry primitives.
+snapshot, remint, layout and maintenance-plan decisions. The write-time
+loops are `dml`'s (29d.2) and run over this host through `dml.Host`: the
+unique probe and claim (`dml.ProbeUniqueRow`, `ClaimUniqueRow`,
+`CheckUniqueRow`, `BindUniqueWrite`, `ExistingUniqueOutput`) and the
+exclusion probe and admission (`dml.ProbeExclusion`). They interleave ON
+CONFLICT arbiters, the insert write overlay, own writes and deletes and
+foreign action owners. The ALTER shape window (`prepareExclusionShape`),
+`projectExclusionDeletionLocked`, savepoint restore and the publication
+resets stay engine callers of the registry primitives.
 
 ## Testing
 

@@ -805,7 +805,8 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
 - [ ] 29d — Executors moved, in six items:
   - [x] 29d.1 — Seam and lower moves (110a) (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, then the docs
     commit; see the 29d.1 record)
-  - [ ] 29d.2 — Unique and exclusion probing, staging loops (110b)
+  - [x] 29d.2 — Unique and exclusion probing, staging loops (110b) (`b2f1e2058`, `fb919b1ac`, `ae653408b`, `34fb07658`, then the docs
+    commit; see the 29d.2 record)
   - [ ] 29d.3 — INSERT, ON CONFLICT and COPY FROM (110c)
   - [ ] 29d.4 — UPDATE and DELETE (110d)
   - [ ] 29d.5 — MERGE and foreign DML (110e)
@@ -963,7 +964,70 @@ Done on `implement-part/PG18-ENGINE-SPLIT-DML-SEAM` from `db8252574`.
   objects per update proposal. racecheck, finalcheck and bench skipped at
   user request (no startup change).
 
+### 29d.2 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-PROBING` from `c715c2f9c`.
+
+| Commit | Change |
+|---|---|
+| `b2f1e2058` | Seam: `Statement` gains `IndexScope(allocate)`, `Ticket`, `CatalogRead` and `ForeignActions(allocate)` (was allocating only); `Stage` gains `Active` and `ReadmitRevalidation` (the authority window of `revalidateIndexRows`); `index.VisitExclusion` takes any `Context()` source instead of `*session.Operation`; seam tests |
+| `fb919b1ac` | Port in place: the move set as root functions over `h dml.Host`, reading the active command and private rows at call time; `Command.WriteOverlay`; the `WriteStage` loops become `applyValidated`/`replaceRows` over the host and the `replace`, `replaceDistinct`, `appendUpdateReplacement` wrappers go (callers pass the lane); the scope's `disclosureEnv`/`checkWriteBinding` fold into the host methods |
+| `ae653408b` | Move (`mvpkg.sh` with `movex -qual dml`, one call for the mutually recursive set, then `movedecl` inside `dml`): `unique.go`, `exclusion.go`, `index_candidates.go`, `write_overlay_probe.go`, `insert_conflict_admission.go`, `stage.go`; root callers and 16 engine test files name `dml.X(s.writeHost(), …)` |
+
+| `34fb07658` | Allocation fix: `index.WriteHost.PublishExclusion` takes the candidate by value and returns the reserved row (`WriteCandidate.RecordExclusion` records it), `DiscardExclusion` takes the version (`WriteCandidate.TakeExclusion`, `dml.DiscardExclusion`); `ReplaceRows` allocates its per-row modes only without an `ActionMode` |
+
+- **Deviations.**
+  - `AdmitInsertConflictRow`, `InsertConflictVisible` and
+    `revalidateConflictRows` moved here, not in 29d.3: `ApplyValidated`'s
+    stale retry calls `revalidateConflictRows`, and a host callback is not
+    allowed. `admitInsertRow` and `applyInsertBatch` stay root for 29d.3.
+  - The host gained more than 29c listed: `IndexScope`, `Ticket`,
+    `CatalogRead`, `Active` (the 29d.1 note) and `ReadmitRevalidation`.
+    `IndexScope` and `ForeignActions` take an `allocate` flag so the hot
+    reads (`ExistingOutputs`, `Settling`) never allocate a slot, as
+    `indexesOrZero`/`foreignActionsOrZero` did not.
+  - `WriteStage.applyValidated`, `replaceRows` and the three lane wrappers
+    are gone rather than kept as delegates; their forgery guard is
+    `PrepareReplacement`'s (same message, still first).
+  - `probeExclusionRow`, `publishExclusionCandidate`,
+    `matchesExistingUnique`, `revalidateIndexRows`,
+    `probeInsertWriteOverlay`, `addInsertWriteKey` and
+    `revalidateConflictRows` stay unexported: only `dml` calls them.
+- **Per-row cost.** After the move, pointers passed through `dml.Host`
+  escaped: every probed candidate (through `PublishExclusion` and
+  `DiscardExclusion`) and `ReplaceRows`' one-element modes array moved to
+  the heap, +1 allocation per ON CONFLICT DO NOTHING proposal, +3 per DO
+  UPDATE proposal, +2 per one-row UPDATE. The fix commit passes values
+  instead; `BenchmarkInsertConflictCommittedOmissions`,
+  `BenchmarkInsertConflictUpdateDistinctStage` (128 and 4096 rows) and
+  `BenchmarkUpdateCoreSparse` allocate exactly as master, and the
+  `-gcflags=-m` "moved to heap" set matches master apart from one
+  remaining case: the one-element batch array of an FK action's
+  replacement (`foreign_action_apply.go`) escapes into `StageReplacement`,
+  one 24-byte allocation per cascaded or SET NULL/DEFAULT row, a path that
+  already clones the row. ns/op was too noisy under load to compare.
+- **Tests.** New seam tests `TestStatementHostStatementSlots` and
+  `TestStatementHostReadmitRevalidation`. Rewritten to the new names: 16
+  engine test files (`partial_unique_admission_test.go`,
+  `insert_conflict_*_test.go`, `unique_*_test.go`, `view_*_test.go`,
+  `update_allocation_test.go`, `foreign_actions_test.go`, ...). None moved
+  or deleted: they all build an engine.
+- **Checks.** String-literal multiset unchanged apart from the new test
+  messages and the removed duplicate replacement guard; selected units after
+  every commit; `RACE=1` `^Test(Unique|Exclusion|InsertConflict|StatementHost|PartialUnique|ConcurrentIndex)`;
+  quickcheck; `make check RUN=` and `REFERENCE=1` over
+  `^TestReference(InsertConflict|InsertReturning|Unique|Exclusion|UpdateFrom|DeleteUsing|MergeInsert|ForeignAction|Copy)`.
+  racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
 ### Notes for later steps
+
+- 29d.2, for 29d.3: `admitInsertRow`, `applyInsertBatch`,
+  `checkInsertUniqueRow` and `appendAcceptedInsert` are the ON CONFLICT and
+  RETURNING entry points left in the root; they call `dml.CheckUniqueRow`,
+  `dml.AdmitInsertConflictRow`, `dml.ValidateIndexCandidates` and
+  `dml.ApplyValidated` with `s.writeHost()`. `UniqueConflict`'s fields are
+  exported for `insert_conflict_update.go` (`conflictRowRequest`).
 
 - 29d.1, for 29d.2: `applyValidated` and `appendAcceptedInsert` keep
   `s.active()` in their root prologue, before `validateIndexCandidates`;
