@@ -4,9 +4,19 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 )
+
+// dumpResolver is the root's dump.Resolver.
+type dumpResolver struct{}
+
+var _ dump.Resolver = dumpResolver{}
+
+func (dumpResolver) Predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
+	return dumpPredecessor(view, address, consumer)
+}
 
 // Standalone sequences are emitted before this graph. An identity sequence is
 // instead created by its owning table's inline declaration, so dependencies on
