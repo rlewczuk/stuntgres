@@ -90,7 +90,8 @@ func TypedPropagationOrder(view catalog.Read, source ids.ObjectAddress) []*catal
 		}
 		seen[table.Address()] = true
 		if table.Inheritance != nil {
-			for _, parent := range table.Inheritance.Parents {
+			for _, edge := range table.Inheritance.Parents {
+				parent := edge.Relation
 				if d := selected[parent]; d != nil {
 					visit(d)
 				}
@@ -171,7 +172,8 @@ func TypedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 	// New attributes merge with an existing local/sibling attribute by live name,
 	// while old attributes retain their explicit origin identity across rename.
 	pending := make(map[string]int)
-	for _, address := range graph.Parents {
+	for _, edge := range graph.Parents {
+		address := edge.Relation
 		parent := view.MustRelation(address)
 		for i, member := range parent.Columns {
 			origin := catalog.InheritanceOrigin{Parent: address, Attribute: parent.Attributes[i]}

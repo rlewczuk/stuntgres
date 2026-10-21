@@ -225,8 +225,10 @@ and temporal-key facilities remain compatibility limits.
 
 `pg_catalog.pg_inherits` is a four-column immutable projection, not a second
 hierarchy owner. Each ordinary `Inheritance.Parents[i]` supplies the child's and
-parent's `pg_class` OIDs with ordinal `i+1`. Table partition membership and
-`SQLIndex.PartitionParent` each supply one immediate edge with ordinal one.
+parent's `pg_class` OIDs and its stored positive `Seqno`. Detach never renumbers
+survivors; attach uses one above the greatest live ordinal, or one when empty.
+Table partition membership and `SQLIndex.PartitionParent` each supply one
+immediate edge with ordinal one.
 The indexed-table owner (`SQLIndex.Parent`) and reverse partition child list
 do not supply extra rows. Actual index links are included even while the
 partitioned index remains invalid/incomplete.
@@ -548,6 +550,42 @@ assignments scatter by stable named-column layout without losing child-only data
 Physical relation+RowID, captured store/version and real grants survive waits,
 FROM/USING, modifying CTEs, CURRENT OF and held prepared execution. Counts include
 each selected physical row once; later child failure vetoes the whole statement.
+
+Ordinary `INHERIT`/`NO INHERIT` are relationship-phase ALTER actions, not table
+recreation. They preserve child attribute/fact identities, physical storage,
+rows, defaults and generated recipes. Attach matches live columns by name
+including type modifiers, collation and generated kind; inherited NN matches
+by attribute and CHECK by name and canonical cooked definition. Compatible
+facts gain immediate origins, while last detach localizes surviving facts.
+Parent physical keys/indexes are never inherited. Parent spellings and exact
+incarnations (including initially absent spellings) are observed before the
+child's AX wait. Lookup/ownership diagnostics and parent SUE/AS admission are
+consumed at each miscellaneous action, after earlier phases and actions succeed.
+Unreached later endpoints cannot preempt earlier errors. Action-time and
+post-wait comparisons reject replacement or newly appearing/shadowing targets,
+not silently adopt them. Only actual first-child history-marker publication is
+accepted; its admitted pointer is consumed without rebasing the stage or minting
+another marker. Reached endpoints retain final implicit/private publication
+fences. Relationship-only execution does not capture or require physical roots.
+
+Kind checks are action-specific: attach rejects typed tables, partitions and
+partitioned tables during preparation. Detach rejects actual partitions at its
+action; typed/partitioned nonparents receive the ordinary missing-edge error.
+This does not enable mixed physical partition ALTER or typed schema maintenance.
+
+Retired NN/CHECK origins are historical certificates, not live ancestry.
+Last detach archives their source identity and removes its live-provider
+obligation; the child and its descendants retain their observed counters,
+locality and enforcement after the former parent disappears. A later same-name
+parent creates new live origins without claiming those archived facts. TYPE
+cleanup of detached retained NN can remove the constraint tuple while keeping
+the physical NOT NULL flag, with a checked historical cause rather than a
+fabricated key or constraint provider.
+Attached TEMP history may retain an older row-reference epoch after native
+replacement. Detach archives it only when the admitted actual parent identity
+matches and the incumbent contextual retained-reference authority accepts it.
+Historical epoch equality with the current statement is not required; an
+already detached archive is never reconnected or reinterpreted as a live source.
 
 Already-supported ordinary ALTER column/default/inheritable NN/CHECK/generated
 actions use one staged graph publication. Local and other-parent contributions
@@ -903,6 +941,16 @@ catalog replacement. Its narrow utility whitelist is not arbitrary PostgreSQL du
 or ALTER acceptance. Context, reader, parse, binding or late validation failure
 preserves the target and already retained snapshots. Explicit ACL serialization
 limits remain errors rather than silent loss.
+
+Retired inheritance repairs use a canonical text-valued source carrier:
+live sources retain qualified regclass identity and an actual edge predicate;
+detached sources use an archived numeric identity and do not resolve former
+parent names. Native import pairs the repair with its captured freshly emitted
+fact, validates locality/count/definition and source-token shape, and remints
+archive ownership. All-local tables with no live parents are valid repair
+targets. Dump emits no empty INHERITS clause and no declaration for a dead
+archival provider. Physical-only NN cleanup replays through the existing
+captured SET-NOT-NULL/constraint-removal pair, not a synthetic provider.
 
 FK import captures declarations and creator authority only for newly minted actual
 table references; later ownership/elevation does not replace that authority. Pending

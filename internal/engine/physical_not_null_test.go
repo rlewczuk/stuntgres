@@ -37,7 +37,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
 	primary := catalog.UniqueConstraint{OID: 20000, Name: "c_key", Attributes: []int32{1, 2}, Primary: true, Index: indexAddress, IsLocal: true}
 	history := catalog.RetiredInheritanceOrigin{Parent: e.catalog.Domain.Ref(base.Epoch(), parent.Address()), Attribute: 1, Column: "a", Name: "nn", Constraint: 20001, Lifetime: uint64(base.Epoch()), Own: 20002}
-	old := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "c", Owner: owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, History: catalog.PublicationHistory{HasIndexes: true}, Columns: []catalog.Column{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, Unique: []catalog.UniqueConstraint{primary}}, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]catalog.InheritedColumn{1: {Local: true}, 2: {Local: true}}, NotNull: map[int32]catalog.InheritedConstraint{1: {Retired: []catalog.RetiredInheritanceOrigin{history}}, 2: {Local: true}}}}
+	old := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "c", Owner: owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, History: catalog.PublicationHistory{HasIndexes: true}, Columns: []catalog.Column{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, Unique: []catalog.UniqueConstraint{primary}}, Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address()), Columns: map[int32]catalog.InheritedColumn{1: {Local: true}, 2: {Local: true}}, NotNull: map[int32]catalog.InheritedConstraint{1: {Retired: []catalog.RetiredInheritanceOrigin{history}}, 2: {Local: true}}}}
 	index := &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespace, ObjectName: "c_key", Owner: owner, ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: slices.Clone(old.Columns), Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, SQLIndex: &catalog.IndexDefinition{Parent: address, Keys: []catalog.IndexKey{{Attribute: 1}, {Attribute: 2}}, Unique: true, Ready: true, Valid: true, Live: true, Constraint: index.UniqueBacking(&primary)}}
 	parent.History.HasSubclasses = true
 	old.Inheritance.Columns[2] = catalog.InheritedColumn{Local: true, Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 2}}}
@@ -59,7 +59,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 	// on a stage whose base never contained this newly created relation.
 	stage := e.BeginCatalogStage(view)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
-	clean := table.ReleaseRetiredTypeConstraints(old, []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "a"}}})
+	clean := table.ReleaseRetiredTypeConstraints(view, old, []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "a"}}})
 	if clean == old || len(clean.Constraints.PhysicalNotNull) != 1 || len(clean.Constraints.NotNull) != 1 || clean.Columns[0].Nullable {
 		t.Fatal("genuine historical cleanup did not retain exactly its physical flag")
 	}
@@ -122,12 +122,12 @@ func TestPhysicalNotNullCauseAndCurrentSupport(t *testing.T) {
 	}
 	fake := old.Constraints.NotNull[0]
 	fake.OID++
-	if _, issued := table.PhysicalNotNullFromType(old, clean, fake); issued {
+	if _, issued := table.PhysicalNotNullFromType(view, old, clean, fake); issued {
 		t.Fatal("nonexistent NN tuple issued a physical receipt")
 	}
 	withoutPrimary := *old
 	withoutPrimary.Constraints.Unique = nil
-	if _, issued := table.PhysicalNotNullFromType(&withoutPrimary, clean, old.Constraints.NotNull[0]); issued {
+	if _, issued := table.PhysicalNotNullFromType(view, &withoutPrimary, clean, old.Constraints.NotNull[0]); issued {
 		t.Fatal("historical count alone issued a physical flag")
 	}
 }

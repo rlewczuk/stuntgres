@@ -119,7 +119,7 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	child.ObjectAddress.ObjectID += 2000
 	child.OfType = ids.ObjectAddress{}
 	child.Attributes = []int32{3, 8}
-	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{root.Address(), other.Address()}, Columns: map[int32]catalog.InheritedColumn{3: {Origins: []catalog.InheritanceOrigin{{Parent: root.Address(), Attribute: 1}, {Parent: other.Address(), Attribute: 1}}}, 8: {Local: true, Origins: []catalog.InheritanceOrigin{{Parent: root.Address(), Attribute: 7}, {Parent: other.Address(), Attribute: 7}}}}}
+	child.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(root.Address(), other.Address()), Columns: map[int32]catalog.InheritedColumn{3: {Origins: []catalog.InheritanceOrigin{{Parent: root.Address(), Attribute: 1}, {Parent: other.Address(), Attribute: 1}}}, 8: {Local: true, Origins: []catalog.InheritanceOrigin{{Parent: root.Address(), Attribute: 7}, {Parent: other.Address(), Attribute: 7}}}}}
 	changed := *root
 	changed.Columns, changed.Attributes, changed.Index = root.Columns[1:], root.Attributes[1:], map[string]int{"note": 0}
 	state := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{root.Address(): &changed, other.Address(): &other}, nil)

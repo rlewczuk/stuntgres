@@ -76,6 +76,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			notifications := e.prepareNotificationPublication(op.Session, actions, events)
 		emptyFence:
 			e.mu.Lock()
+			if scope != nil {
+				if err := scope.validateInheritanceRelationshipsLocked(e); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+			}
 			op.Session.Mu.Lock()
 			err := publicationOperationLocked(e, op)
 			if err == nil && ref.Epoch() != e.catalog.state.Epoch() {
@@ -335,6 +341,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 	publicationFence:
 		sess := op.Session
 		e.mu.Lock()
+		if scope != nil {
+			if err := scope.validateInheritanceRelationshipsLocked(e); err != nil {
+				e.mu.Unlock()
+				return err
+			}
+		}
 		sess.Mu.Lock()
 		err = publicationOperationLocked(e, op)
 		if err == nil && ref.Epoch() != e.catalog.state.Epoch() {

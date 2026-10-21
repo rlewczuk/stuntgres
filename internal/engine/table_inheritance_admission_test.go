@@ -14,7 +14,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	child := inheritanceUnitRelation(e, "c", 22001, "a")
-	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
+	child.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address())}
 	e.catalog.state = inheritanceUnitView(e, parent).State()
 	holderOp, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()

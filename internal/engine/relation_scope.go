@@ -435,7 +435,8 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		_, attaching := stmt.(*parser.AlterTableAttachPartition)
 		_, detaching := stmt.(*parser.AlterTableDetachPartition)
-		if source || preparableBody(stmt) || attaching || detaching {
+		alter, altering := stmt.(*parser.AlterTable)
+		if source || preparableBody(stmt) || attaching || detaching || altering && table.HasRelationshipActions(alter.Actions) {
 			lexical := ref
 			if retained {
 				lexical, err = e.admissionNameReference(auth, name)
@@ -465,6 +466,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				typedSourceRef = e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
 			}
 		}
+	}
+	if raw, ok := stmt.(*parser.AlterTable); ok && err == nil {
+		err = s.captureInheritanceRelationshipsLocked(e, auth, raw, ref)
 	}
 	e.mu.Unlock()
 	// Catalog provider validation may call Reset; ALTER must not retain a
@@ -685,6 +689,9 @@ func (s *StatementScope) refreshRelationGrantsLocked(e *Engine) error {
 }
 
 func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources bool) error {
+	if err := s.validateInheritanceRelationshipsLocked(e); err != nil {
+		return err
+	}
 	if len(s.mutations) != 0 {
 		active := s.activeMutation
 		defer s.activateMutation(active)

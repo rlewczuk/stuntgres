@@ -141,8 +141,11 @@ func (s *StatementScope) Finish(err error) error {
 				session := s.op.Session
 			privateForeignFence:
 				e.mu.Lock()
+				err = s.validateInheritanceRelationshipsLocked(e)
 				session.Mu.Lock()
-				err = publicationOperationLocked(e, s.op)
+				if err == nil {
+					err = publicationOperationLocked(e, s.op)
+				}
 				if err == nil && t.Ref.Epoch() != e.catalog.state.Epoch() {
 					err = ids.ErrCatalogReplaced
 				}

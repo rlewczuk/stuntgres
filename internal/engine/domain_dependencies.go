@@ -294,7 +294,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 				if d.Inheritance != nil {
 					for _, parent := range d.Inheritance.Parents {
-						if parent == target {
+						if parent.Relation == target {
 							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
 							break
 						}

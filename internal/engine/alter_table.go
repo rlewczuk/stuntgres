@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
@@ -109,7 +110,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		command.Actions = work
 		s = &command
 	}
-	if scope.inheritance.alter == nil && !access.RowSecurityActions(s.Actions) && catalog.InheritanceParticipant(auth.Catalog, old) {
+	if scope.inheritance.alter == nil && !access.RowSecurityActions(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions)) {
 		return e.alterInheritanceLocked(scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.inheritance.alter == nil || !scope.inheritance.alter.Descendant {
@@ -130,23 +131,34 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if scope.inheritance.alter != nil {
 		changes = scope.inheritance.alter.changes
 	}
-	original := e.storage.Relations[ref.Address]
-	store := e.privateStorageLocked(changes, ref.Address)
-	if store == nil {
-		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
-	}
+	relationshipOnly := table.RelationshipOnly(s.Actions)
+	var original, store *storage.Relation
 	var shape session.StorageChange
-	exists := false
-	if changes != nil {
-		shape, exists = changes.Storage[ref.Address]
+	var versions []storage.RowVersion
+	var ends *storage.DeletionRoot
+	var frontier ids.CommitSeq
+	var snapshot visibility.Root
+	var snapshotExists bool
+	var grantCatalog *catalog.State
+	var schema string
+	if !relationshipOnly {
+		original = e.storage.Relations[ref.Address]
+		store = e.privateStorageLocked(changes, ref.Address)
+		if store == nil {
+			return fail(fmt.Errorf("stuntgres: relation storage is missing"))
+		}
+		exists := false
+		if changes != nil {
+			shape, exists = changes.Storage[ref.Address]
+		}
+		if !exists {
+			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
+		}
+		versions, ends, frontier = store.Versions, store.Ends, e.visibility.CommitSeq()
+		snapshot, snapshotExists = scope.owner.Roots[ref.Address]
+		grantCatalog = e.catalog.state
+		schema = auth.Catalog.Get(old.Namespace()).Name()
 	}
-	if !exists {
-		shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
-	}
-	versions, ends, frontier := store.Versions, store.Ends, e.visibility.CommitSeq()
-	snapshot, snapshotExists := scope.owner.Roots[ref.Address]
-	grantCatalog := e.catalog.state
-	schema := auth.Catalog.Get(old.Namespace()).Name()
 	var stage *CatalogStage
 	if scope.inheritance.alter == nil || !scope.inheritance.alter.Descendant {
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
@@ -190,7 +202,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	// Keep shape/generated/identity phases. Index metadata precedes other
 	// constraint bindings; historical row checks run only after index builds.
-	for pass := range 9 {
+	for pass := range 10 {
 		typeIndex := 0
 		attachmentIndex := 0
 		for actionIndex, action := range s.Actions {
@@ -208,6 +220,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				if err == nil && cachedAdded.Column != nil {
 					additions = append(additions, cachedAdded)
 				}
+			} else if table.RelationshipAction(action.Action) {
+				next, err = scope.inheritanceRelationshipCandidate(stage, next, actionIndex, action)
 			} else if action.Action == parser.AddIdentity || action.Action == parser.DropIdentity || action.Action == parser.SetIdentity {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.Catalog)
@@ -291,7 +305,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				next, stage, err = e.stageDroppedConstraintIndexes(scope, auth, stage, old, next, s.Actions, changes)
 			}
 			if err == nil {
-				next = table.ReleaseRetiredTypeConstraints(next, s.Actions)
+				cleanupView := auth.Catalog
+				if stage != nil {
+					cleanupView = e.stageRead(stage)
+				}
+				next = table.ReleaseRetiredTypeConstraints(cleanupView, next, s.Actions)
+				next = table.ReleaseInheritedTypeConstraints(cleanupView, scope.inheritancePlan(), next, s.Actions)
 			}
 			if err == nil {
 				pendingChecks, err = table.CaptureAlterTypeChecks(op, auth.Catalog, old, next, s.Actions)
@@ -410,6 +429,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	next, err = scope.finishInheritanceAlterCandidate(old, next)
 	if err != nil {
 		return Result{}, err
+	}
+	if relationshipOnly {
+		stage.UpdateDescriptor(next)
+		return Result{}, nil
 	}
 	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.sequence.StagedGenerators()) == 0) {
 		if err := validateAlterTablespaceMove(destination); err != nil {

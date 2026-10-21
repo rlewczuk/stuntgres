@@ -318,7 +318,8 @@ type tableDumpEdges struct {
 func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEdges, error) {
 	var predecessors []ids.OID
 	if r.Inheritance != nil {
-		for _, parent := range r.Inheritance.Parents {
+		for _, edge := range r.Inheritance.Parents {
+			parent := edge.Relation
 			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, parent, r.Address())
 			if err != nil {
 				return tableDumpEdges{}, err

@@ -3,7 +3,6 @@ package table
 import (
 	"fmt"
 	"iter"
-	"slices"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -62,7 +61,7 @@ func InheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, ca
 		if current := replacement(address); current != nil {
 			descriptor = current
 		}
-		if child, ok := descriptor.(*catalog.Relation); ok && child.Inheritance != nil && slices.Contains(child.Inheritance.Parents, relation.Address()) {
+		if child, ok := descriptor.(*catalog.Relation); ok && child.Inheritance.HasParent(relation.Address()) {
 			return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
 		}
 	}

@@ -895,12 +895,15 @@ const (
 	AddUnique
 	AddForeignKey
 	SetTablespace
+	InheritTable
+	NoInheritTable
 )
 
 type AlterTableAction struct {
 	Column      Identifier
 	Constraint  Identifier
 	Tablespace  Identifier
+	Parent      ObjectName
 	Action      AlterTableActionKind
 	IfExists    bool
 	IfNotExists bool

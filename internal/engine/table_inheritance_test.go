@@ -89,7 +89,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if len(child.Constraints.NotNull) != 1 || child.Constraints.NotNull[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
 		t.Fatal(child)
 	}
-	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !analyze.SameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
+	if !reflect.DeepEqual(child.Inheritance.Parents, inheritanceUnitParents(p.Address(), q.Address())) || !analyze.SameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
 		t.Fatal(child.ColumnMeta.Defaults, p.ColumnMeta.Defaults)
 	}
 	if err := table.AssignDefinitionOIDs(ddlHost{e: e}, child); err != nil {
@@ -107,7 +107,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 	e := New()
 	p := inheritanceUnitRelation(e, "p", 22000, "a")
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
-	c.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}}}
+	c.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(p.Address()), Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}}}
 	if err := table.ValidateInheritance(inheritanceUnitView(e, p, c), c); err != nil {
 		t.Fatal(err)
 	}
@@ -117,17 +117,17 @@ func TestInheritanceGraphValidation(t *testing.T) {
 			child := *c
 			graph := *c.Inheritance
 			child.Inheritance = &graph
-			graph.Parents = append([]ids.ObjectAddress(nil), graph.Parents...)
+			graph.Parents = append([]catalog.InheritanceParent(nil), graph.Parents...)
 			graph.Columns = map[int32]catalog.InheritedColumn{1: c.Inheritance.Columns[1]}
 			switch kind {
 			case "dangling":
-				graph.Parents[0].ObjectID++
+				graph.Parents[0].Relation.ObjectID++
 			case "duplicate":
-				graph.Parents = append(graph.Parents, p.Address())
+				graph.Parents = append(graph.Parents, catalog.InheritanceParent{Relation: p.Address(), Seqno: 2})
 			case "attribute":
 				graph.Columns[1] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 0}}}
 			case "cycle":
-				parent.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{c.Address()}}
+				parent.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(c.Address())}
 			case "locality":
 				graph.Columns[1] = catalog.InheritedColumn{}
 			case "type":
@@ -139,7 +139,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 			}
 		})
 	}
-	if p.Inheritance != nil || c.Inheritance.Parents[0] != p.Address() {
+	if p.Inheritance != nil || c.Inheritance.Parents[0].Relation != p.Address() {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -149,9 +149,9 @@ func TestInheritanceGraphDiamondChildren(t *testing.T) {
 	left := inheritanceUnitRelation(e, "left", 22001)
 	right := inheritanceUnitRelation(e, "right", 22002)
 	leaf := inheritanceUnitRelation(e, "leaf", 22003)
-	left.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{base.Address()}}
-	right.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{base.Address()}}
-	leaf.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{left.Address(), right.Address(), base.Address()}}
+	left.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(base.Address())}
+	right.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(base.Address())}
+	leaf.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(left.Address(), right.Address(), base.Address())}
 	v := inheritanceUnitView(e, base, left, right, leaf)
 	got := catalog.InheritanceChildren(v, base.Address())
 	if len(got) != 3 || got[0] != left || got[1] != right || got[2] != leaf || len(catalog.InheritanceChildren(v, leaf.Address())) != 0 {

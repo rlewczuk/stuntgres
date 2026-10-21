@@ -14,7 +14,7 @@ func RemapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAd
 	if graph == nil {
 		return nil
 	}
-	next := &catalog.TableInheritance{Parents: make([]ids.ObjectAddress, len(graph.Parents)), Columns: make(map[int32]catalog.InheritedColumn, len(graph.Columns)), Checks: make(map[string]catalog.InheritedConstraint, len(graph.Checks)), NotNull: make(map[int32]catalog.InheritedConstraint, len(graph.NotNull))}
+	next := &catalog.TableInheritance{Parents: make([]catalog.InheritanceParent, len(graph.Parents)), Columns: make(map[int32]catalog.InheritedColumn, len(graph.Columns)), Checks: make(map[string]catalog.InheritedConstraint, len(graph.Checks)), NotNull: make(map[int32]catalog.InheritedConstraint, len(graph.NotNull))}
 	origins := func(source []catalog.InheritanceOrigin) []catalog.InheritanceOrigin {
 		result := make([]catalog.InheritanceOrigin, len(source))
 		for i, origin := range source {
@@ -27,12 +27,14 @@ func RemapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAd
 	retired := func(source []catalog.RetiredInheritanceOrigin) []catalog.RetiredInheritanceOrigin {
 		result := slices.Clone(source)
 		for i := range result {
-			result[i].Parent.Address = address(result[i].Parent.Address)
+			if !result[i].Detached {
+				result[i].Parent.Address = address(result[i].Parent.Address)
+			}
 		}
 		return result
 	}
 	for i, parent := range graph.Parents {
-		next.Parents[i] = address(parent)
+		next.Parents[i] = catalog.InheritanceParent{Relation: address(parent.Relation), Seqno: parent.Seqno}
 	}
 	for attribute, column := range graph.Columns {
 		column.Origins = origins(column.Origins)

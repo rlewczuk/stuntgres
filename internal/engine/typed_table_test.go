@@ -198,7 +198,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 			next.SetDescriptor(late.Address(), &late)
 		case "child":
 			late.OfType = ids.ObjectAddress{}
-			late.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{tbl.Address()}}
+			late.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(tbl.Address())}
 			next.SetDescriptor(late.Address(), &late)
 		case "descriptor":
 			replacement := *tbl

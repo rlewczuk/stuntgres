@@ -12,14 +12,11 @@ import (
 // The caller is the affected historical-only NN branch of real TYPE cleanup.
 // It has not rebound the primary yet; the ordinary TYPE rebuilder still owns
 // fresh key/index identities and supplies the completed binding below.
-func PhysicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotNullConstraint) (catalog.PhysicalNotNullProof, bool) {
+func PhysicalNotNullFromType(view catalog.Read, old, candidate *catalog.Relation, fact catalog.NotNullConstraint) (catalog.PhysicalNotNullProof, bool) {
 	if old.Inheritance == nil || fact.OID == 0 || fact.NotValid || fact.NoInherit || !slices.Contains(old.Constraints.NotNull, fact) {
 		return catalog.PhysicalNotNullProof{}, false
 	}
 	primary := catalog.PhysicalPrimaryForAttribute(old, fact.Attribute)
-	if primary == nil {
-		return catalog.PhysicalNotNullProof{}, false
-	}
 	slot := old.IndexForAttribute(fact.Attribute)
 	provenance := old.Inheritance.NotNull[fact.Attribute]
 	if slot < 0 || provenance.Local || len(provenance.Origins) != 0 || len(provenance.Retired) == 0 || old.Columns[slot].Nullable || !old.Columns[slot].NullabilityKnown {
@@ -30,11 +27,26 @@ func PhysicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotN
 			return catalog.PhysicalNotNullProof{}, false
 		}
 	}
-	parent := provenance.Retired[0].Parent
-	ref := parent.Domain().Ref(parent.Epoch, old.Address())
-	cause := &catalog.PhysicalNotNullCause{Kind: catalog.PhysicalNotNullTypeCleanup, Ref: ref, Origin: ref, Attribute: fact.Attribute, RemovedNN: fact.OID, Primary: primary.OID, Index: primary.Index, Usage: old.Columns[slot].Usage}
+	ref := view.Domain().Ref(view.Epoch(), old.Address())
+	cause := &catalog.PhysicalNotNullCause{Kind: catalog.PhysicalNotNullTypeCleanup, Ref: ref, Origin: ref, Attribute: fact.Attribute, RemovedNN: fact.OID, Usage: old.Columns[slot].Usage}
+	var support *catalog.PhysicalPrimarySupport
+	if primary != nil {
+		cause.Primary, cause.Index = primary.OID, primary.Index
+		support = catalog.CapturePhysicalPrimarySupport(candidate, primary)
+	} else {
+		if ValidateRetiredInheritance(view, old, provenance, fact.OID, false) != nil {
+			return catalog.PhysicalNotNullProof{}, false
+		}
+		for _, history := range provenance.Retired {
+			if !history.Detached {
+				return catalog.PhysicalNotNullProof{}, false
+			}
+		}
+		cause.Kind = catalog.PhysicalNotNullDetachedTypeCleanup
+		cause.History = slices.Clone(provenance.Retired)
+	}
 	cause.Self = cause
-	return catalog.PhysicalNotNullProof{Cause: cause, Usage: old.Columns[slot].Usage, Support: catalog.CapturePhysicalPrimarySupport(candidate, primary)}, true
+	return catalog.PhysicalNotNullProof{Cause: cause, Usage: old.Columns[slot].Usage, Support: support}, true
 }
 
 func ValidatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinary map[int32]bool) error {
@@ -49,7 +61,7 @@ func ValidatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinar
 				return fmt.Errorf("stuntgres: missing physical not-null primary binding")
 			}
 			if proof.Retired == nil {
-				if proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
+				if !catalog.PhysicalNotNullStandaloneCause(proof.Cause) {
 					return fmt.Errorf("stuntgres: missing physical not-null retirement")
 				}
 			} else if proof.Retired.Constraint == 0 || proof.Retired.Index.ObjectID == 0 || !slices.ContainsFunc(proof.Retired.Keys, func(key catalog.PhysicalPrimaryKeyUsage) bool { return key.Attribute == attribute }) {
@@ -138,7 +150,7 @@ func RebindPhysicalNotNullType(stage ddl.Stage, parent *catalog.Relation, change
 	copied := next.Constraints.PhysicalNotNull != nil && len(next.Constraints.PhysicalNotNull) != len(parent.Constraints.PhysicalNotNull)
 	for attribute, proof := range next.Constraints.PhysicalNotNull {
 		primary := catalog.PhysicalPrimaryForAttribute(&next, attribute)
-		if primary == nil && (proof.Support != nil || proof.Retired == nil && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag) {
+		if primary == nil && (proof.Support != nil || proof.Retired == nil && !catalog.PhysicalNotNullStandaloneCause(proof.Cause)) {
 			return nil, fmt.Errorf("stuntgres: missing rebuilt physical not-null primary")
 		}
 		// Included payload TYPE changes can rebuild the real primary group

@@ -13,7 +13,7 @@ import (
 func visitSubclassParents(child *catalog.Relation, visit func(ids.ObjectAddress) error) error {
 	if child.Inheritance != nil {
 		for _, parent := range child.Inheritance.Parents {
-			if err := visit(parent); err != nil {
+			if err := visit(parent.Relation); err != nil {
 				return err
 			}
 		}

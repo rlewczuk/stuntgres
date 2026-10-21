@@ -73,7 +73,7 @@ func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) err
 		}
 		if d.Inheritance != nil {
 			for _, parent := range d.Inheritance.Parents {
-				if fence.targets[parent] != 0 {
+				if fence.targets[parent.Relation] != 0 {
 					return catalog.Conflict{}
 				}
 			}

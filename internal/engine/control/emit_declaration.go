@@ -386,9 +386,10 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelatio
 		if hasElements {
 			line.WriteString(")")
 		}
-		if inheritance := t.Descriptor.Inheritance; inheritance != nil {
+		if inheritance := t.Descriptor.Inheritance; inheritance != nil && len(inheritance.Parents) != 0 {
 			line.WriteString(" INHERITS (")
-			for i, address := range inheritance.Parents {
+			for i, edge := range inheritance.Parents {
+				address := edge.Relation
 				if i > 0 {
 					line.WriteString(", ")
 				}

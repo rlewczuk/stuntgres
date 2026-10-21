@@ -28,7 +28,7 @@ func InheritedForeignKeyDescendant(view catalog.Read, target *catalog.Relation, 
 		return false
 	}
 	for _, parent := range target.Inheritance.Parents {
-		if parent == ancestor {
+		if parent.Relation == ancestor {
 			return true
 		}
 	}
@@ -39,7 +39,8 @@ func InheritedForeignKeyDescendant(view catalog.Read, target *catalog.Relation, 
 			return false
 		}
 		visited[relation.Address()] = true
-		for _, address := range relation.Inheritance.Parents {
+		for _, edge := range relation.Inheritance.Parents {
+			address := edge.Relation
 			if address == ancestor {
 				return true
 			}

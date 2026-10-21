@@ -1,6 +1,7 @@
 package table
 
 import (
+	"context"
 	"fmt"
 	"slices"
 
@@ -23,13 +24,32 @@ func SameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v cat
 	return err == nil && analyze.SameGroupExpression(mapped, current)
 }
 
+// Existing CHECK attachment follows PostgreSQL's cooked deparsed-definition
+// equality. It is not authority for default/generated recipe identity or CREATE
+// merges, which retain structural and type/provider-sensitive comparison.
+func sameInheritedCheck(ctx context.Context, mapped, child expr.Expr, d *catalog.Relation, v catalog.Read) (bool, error) {
+	if SameInheritedExpression(mapped, child, d, v) {
+		return true, nil
+	}
+	renderer := stored.Deparser{View: v, Relation: d}
+	left, err := renderer.SQL(ctx, mapped, stored.DeparseParent{})
+	if err != nil {
+		return false, err
+	}
+	right, err := renderer.SQL(ctx, child, stored.DeparseParent{})
+	if err != nil {
+		return false, err
+	}
+	return left == right, nil
+}
+
 func ValidateInheritance(v catalog.Read, d *catalog.Relation) error {
 	graph := d.Inheritance
 	if graph == nil {
 		return nil
 	}
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid table inheritance graph") }
-	if d.RelationKind != catalog.TableRelation || len(graph.Parents) == 0 || len(graph.Columns) != len(d.Columns) {
+	if d.RelationKind != catalog.TableRelation || len(graph.Parents) == 0 && !graph.HasRetired() || len(graph.Columns) != len(d.Columns) {
 		return invalid()
 	}
 	childNS, ok := v.Namespace(d.Namespace())
@@ -37,7 +57,13 @@ func ValidateInheritance(v catalog.Read, d *catalog.Relation) error {
 		return invalid()
 	}
 	seen := make(map[ids.ObjectAddress]bool, len(graph.Parents))
-	for _, address := range graph.Parents {
+	var previousSeqno int32
+	for _, edge := range graph.Parents {
+		address := edge.Relation
+		if edge.Seqno <= previousSeqno {
+			return invalid()
+		}
+		previousSeqno = edge.Seqno
 		parent, ok := v.Relation(address)
 		if !ok || parent.Address() != address || parent.RelationKind != catalog.TableRelation || address.SubID != 0 || seen[address] || address == d.Address() {
 			return invalid()
@@ -65,14 +91,16 @@ func ValidateInheritance(v catalog.Read, d *catalog.Relation) error {
 				return invalid()
 			}
 		}
-		for _, parentAddress := range graph.Parents {
+		for _, edge := range graph.Parents {
+			parentAddress := edge.Relation
 			parent := v.MustRelation(parentAddress)
 			if _, ok := parent.Index[d.Columns[slot].Name]; ok && !origins[parentAddress] {
 				return invalid()
 			}
 		}
 	}
-	for _, parentAddress := range graph.Parents {
+	for _, edge := range graph.Parents {
+		parentAddress := edge.Relation
 		parent := v.MustRelation(parentAddress)
 		mapper := analyze.LikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 		for i, column := range parent.Columns {
@@ -170,7 +198,11 @@ func ValidateInheritance(v catalog.Read, d *catalog.Relation) error {
 				mapper.TargetSlots[i] = d.Index[c.Name]
 			}
 			node, err := stored.RemapLikeExpression(&mapper, parent.Constraints.Check[source].Expression, d, v)
-			if err != nil || !SameInheritedExpression(node, d.Constraints.Check[child].Expression, d, v) {
+			if err != nil {
+				return invalid()
+			}
+			same, err := sameInheritedCheck(context.Background(), node, d.Constraints.Check[child].Expression, d, v)
+			if err != nil || !same {
 				return invalid()
 			}
 		}
@@ -198,7 +230,8 @@ func ValidateInheritance(v catalog.Read, d *catalog.Relation) error {
 		}
 		visiting[current.Address()] = true
 		if current.Inheritance != nil {
-			for _, address := range current.Inheritance.Parents {
+			for _, edge := range current.Inheritance.Parents {
+				address := edge.Relation
 				parent, ok := v.Relation(address)
 				if !ok || !visit(parent) {
 					return false

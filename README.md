@@ -70,6 +70,25 @@ See [native boundaries](docs/DIALECT.md#scalar-sql-routines),
 [fixture replay](docs/FIXTURES.md#sql-routine-declarations-and-callers), and
 [selected proof and smoke](reference/query_core/README.md#scalar-sql-routine-contract).
 
+## Ordinary inheritance maintenance — change note
+
+`ALTER TABLE ... INHERIT` and `NO INHERIT` maintain ordinary direct ancestry
+without moving rows, replacing compatible child facts, or copying physical
+indexes. Compatibility uses actual column, NOT NULL and CHECK definitions;
+detach preserves surviving contributions and localizes the last contribution.
+Live parent ordinals may contain gaps. Mixed lists publish atomically through
+the existing ALTER stage, with exact child/parent admission across lock waits.
+Parent spellings, including absence, are observed before waits; lookup,
+ownership and parent grants are consumed at each action's execution position,
+so a later missing or unauthorized parent cannot preempt an earlier failure.
+Historical NN/CHECK facts retained after a parent column drop survive last
+detach and former-parent removal without keeping that parent alive, including
+TEMP history retained across native replacement. Dump/Restore carries this
+provenance separately from live ancestry.
+See [dialect boundaries](docs/DIALECT.md#tables-hierarchies-and-materializations),
+[descriptor and replay contracts](docs/TABLES.md#inheritance-typed-attachments-and-partition-graphs),
+and [selected reference coverage](reference/tables/README.md).
+
 ## Inheritance catalog metadata — change note
 
 `pg_catalog.pg_inherits` exposes the four PostgreSQL 18 fields for actual direct
@@ -2146,9 +2165,10 @@ separate from physical-child generation, constraints, indexes and row locks.
 Supported ordinary ALTER actions propagate atomically according to their action:
 columns/defaults, inheritable NN/CHECK and generated recipes recurse; identity,
 security and physical key/index definitions do not. A parent PK can require
-inherited NOT NULL without copying its key. Ordinary LOCK, attachment-changing
-INHERIT/NO INHERIT, provider-CASCADE graph-shape mutation and new partition ALTER
-families retain their explicit boundaries.
+inherited NOT NULL without copying its key. Compatible ordinary INHERIT and
+NO INHERIT update direct links without moving rows. Ordinary LOCK,
+provider-CASCADE graph-shape mutation and new partition ALTER families retain
+their explicit boundaries.
 Native metadata-only DEFAULT and column/constraint rename admit additive
 descendant growth before their one catalog stage, preserving current owners,
 stable attributes and constraint origins. Genuine definition replacement,

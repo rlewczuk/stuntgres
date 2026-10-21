@@ -176,7 +176,8 @@ func typedFieldCheckOwner(stage *CatalogStage, relation *catalog.Relation) bool 
 		return true
 	}
 	if relation.Inheritance != nil {
-		for _, address := range relation.Inheritance.Parents {
+		for _, edge := range relation.Inheritance.Parents {
+			address := edge.Relation
 			parent, ok := stage.Base.Relation(address)
 			if ok && typedFieldCheckOwner(stage, parent) {
 				return true

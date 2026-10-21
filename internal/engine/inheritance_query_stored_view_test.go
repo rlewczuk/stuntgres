@@ -51,7 +51,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				predecessor, before := parent, e.CatalogRead()
 				storage := e.storage.Relations[parent.Address()]
 				childStage, d := queryCreateStage(t, e, "c", 1)
-				d.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]catalog.InheritedColumn{d.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: parent.Attributes[0]}}}}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
+				d.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address()), Columns: map[int32]catalog.InheritedColumn{d.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: parent.Attributes[0]}}}}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
 				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 					t.Fatal(err)
 				}

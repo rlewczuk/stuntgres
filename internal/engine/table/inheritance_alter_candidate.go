@@ -27,7 +27,8 @@ func InheritedAlterActions(plan *InheritanceAlterPlan, view, retired catalog.Rea
 			existing = existing && !droppedColumns[name]
 			if existing {
 				slot := old.Index[name]
-				for _, parentAddress := range graph.Parents {
+				for _, edge := range graph.Parents {
+					parentAddress := edge.Relation
 					parent := state.DefinitionRelation(view, parentAddress)
 					if pslot, ok := parent.Index[name]; ok {
 						if err := analyze.InheritanceColumnConflict(view, old.Columns[slot], parent.Columns[pslot], true); err != nil {
@@ -170,6 +171,9 @@ func FinishInheritanceAlterCandidate(plan *InheritanceAlterPlan, view catalog.Re
 	if state == nil || old.Inheritance == nil {
 		return next, nil
 	}
+	if !state.Descendant && next.Inheritance == nil {
+		return next, nil
+	}
 	graph := state.Graph
 	if !state.Descendant && next.Inheritance != nil {
 		graph = catalog.CloneInheritance(next.Inheritance)
@@ -194,7 +198,8 @@ func FinishInheritanceAlterCandidate(plan *InheritanceAlterPlan, view catalog.Re
 		}
 		if state.Descendant {
 			var origins []catalog.InheritanceOrigin
-			for _, parentAddress := range graph.Parents {
+			for _, edge := range graph.Parents {
+				parentAddress := edge.Relation
 				parent := view.MustRelation(parentAddress)
 				if slot, ok := parent.Index[next.Columns[i].Name]; ok {
 					origins = append(origins, catalog.InheritanceOrigin{Parent: parentAddress, Attribute: parent.Attributes[slot]})
@@ -231,7 +236,8 @@ func FinishInheritanceAlterCandidate(plan *InheritanceAlterPlan, view catalog.Re
 		}
 		if state.Descendant {
 			var origins []catalog.InheritanceOrigin
-			for _, address := range graph.Parents {
+			for _, edge := range graph.Parents {
+				address := edge.Relation
 				parent := view.MustRelation(address)
 				for _, pc := range parent.Constraints.Check {
 					if pc.Name == c.Name && !pc.NoInherit {
@@ -263,7 +269,8 @@ func FinishInheritanceAlterCandidate(plan *InheritanceAlterPlan, view catalog.Re
 		if state.Descendant {
 			var origins []catalog.InheritanceOrigin
 			name := next.Columns[next.IndexForAttribute(c.Attribute)].Name
-			for _, address := range graph.Parents {
+			for _, edge := range graph.Parents {
+				address := edge.Relation
 				parent := view.MustRelation(address)
 				if slot, ok := parent.Index[name]; ok {
 					for _, pc := range parent.Constraints.NotNull {
@@ -284,6 +291,9 @@ func FinishInheritanceAlterCandidate(plan *InheritanceAlterPlan, view catalog.Re
 	}
 	copy := *next
 	copy.Inheritance = graph
+	if len(graph.Parents) == 0 && !graph.HasRetired() {
+		copy.Inheritance = nil
+	}
 	if copy.Revision() == old.Revision() {
 		copy.ObjectRevision++
 	}

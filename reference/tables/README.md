@@ -315,6 +315,116 @@ Run its exact selector in both modes; release-source cooked-expression mapping
 alone does not establish qualified-syntax acceptance.
 
 
+### Inheritance relationship maintenance
+
+`TestReferenceInheritanceMaintAttach`, `Compatibility`, and `RetiredDetach`
+share direct/prepared SQL through the existing inheritance fixture, without
+backend filters. Attach asserts nonprefix child layout, local default9 versus
+parent default7, unchanged CHECK/NN identities, differing generated recipes,
+child/subtree visibility, and typed values/column metadata. Compatibility
+specifies complete diagnostics, empty edges/counters and preserved child rows
+after rejection.
+
+```sh
+make check RUN='^TestReferenceInheritanceMaint(Attach|Compatibility|RetiredDetach)$' REFERENCE=1
+make check RUN='^TestReferenceInheritanceMaint(Attach|Compatibility|RetiredDetach)$'
+```
+
+Use an external 900-second deadline. These tests do not themselves establish
+implemented native support; root records oracle and native-red results separately.
+Pinned PostgreSQL18.6 discovery confirmed the independently specified history
+expectations: last detach retains historical-only NN/CHECK count1, nonlocality,
+identity, validity, definitions and enforcement; deleting the former parent
+leaves them intact. Reattaching a parent without those facts leaves count1;
+attaching a same-name new parent with recreated facts adds a new contribution
+(count2), then detach returns to1. CHECK/NN DROP fails with exact42P16 and no
+optional diagnostic fields. Detached recursive TYPE succeeds with affected0,
+removes child and leaf constraint catalog facts, retains physical attnotnull,
+and yields BIGINT values12,13 with unchanged b values20,30 and column locality.
+Isolated subcases preserve each DROP/TYPE and parent-lifetime witness. Genuine
+native replay remains in the later controls batch; these tests make no
+persistence claim.
+
+Additional maintenance definitions cover `Detach`, `DiamondOrdinals`,
+`MixedLists`, `Propagation`, `DropOnlyCascade`, `OnlyMixedMigration`, `Syntax`,
+`Admission`, `Lifecycle`, `Controls`, and `FeatureSmoke`. All use the shared
+backend loop without discovery filters. Their SQL outcomes were independently
+specified and pinned against PostgreSQL18.6; native implementation and actual
+control phases require their own selected proof.
+
+```sh
+make check RUN='^TestReferenceInheritanceMaint(Detach|DiamondOrdinals|MixedLists|Propagation|DropOnlyCascade|OnlyMixedMigration|Syntax|Admission|Lifecycle|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceInheritanceMaint(Detach|DiamondOrdinals|MixedLists|Propagation|DropOnlyCascade|OnlyMixedMigration|Syntax|Admission|Lifecycle|Controls|FeatureSmoke)$'
+make check RUN='^TestInheritanceAlter(OnlyMixedActions|CheckProvenanceAtomicity)$'
+```
+
+Use an external 900-second deadline for each invocation. The migrated public
+ONLY mixed-action union includes generated child recipe identity, root-only
+UNIQUE, complete rejection diagnostics/unchanged facts, and CHECK replacement
+identity/locality/atomicity. Internal tests now invoke actual candidate/event/
+stage seams without SQL execution, retaining immutable graph, generation and
+provider-identity assertions. Unrelated internal admission/history fixture
+migrations remain for their production-round seams.
+
+Lifecycle cancellation distinguishes runtime contracts without dropping the
+relationship witness: native direct/prepared precanceled calls return ordinary
+context errors without mutation; PostgreSQL queues the actual ALTER behind a
+parent AX hold, observes server admission, sends `pg_cancel_backend`, joins the
+operation, and asserts complete57014 plus a nil result. Both routes assert
+unchanged edges and reexecute the same preheld child consumer on the same owner.
+No fast pq precancel outcome is treated as deterministic. Ownership scenarios
+establish actual schema USAGE grants before switching roles.
+
+The actual feature smoke selector is
+`^TestReferenceInheritanceMaintFeatureSmoke$`, run once per mode. Expected
+observations are attach parent rows1,2,3/ONLY1; missing-column42804 without an
+edge; propagated flag7; inherited DROP CASCADE42P16; detach retaining child2,3;
+later parent-only column; genuine native Dump/Reset/Restore and actual emitted
+bytes replayed on PostgreSQL when available; retained native eager rows; future
+child default9; surviving g→c edge after former-parent DROP. Controls separately
+specify exact live sparse ordinals1,3 versus normalized logical replay1,2 and
+detached historical constraints after former-parent removal. Invalid late and
+canceled native Restore must preserve an independent sentinel and imported rows.
+Native-control phases have no PostgreSQL API equivalent; their genuine emitted
+bytes are replayed on PostgreSQL in real mode. Passing SQL-only oracle discovery
+does not establish that native controls or emitted-byte replay have passed.
+
+Review regressions are isolated in
+`TestReferenceInheritanceMaintReviewTemporaryHistory`, `ReviewErrorOrder`, and
+`ReviewDetachKinds`. TEMP history uses common direct/prepared SQL around a real
+native Reset or Restore phase; constraint identities, locality/counters,
+enforcement, rows and leaf ancestry survive last detach and former-parent DROP.
+Native controls have no PostgreSQL equivalent. Mixed-list cases independently
+specify earlier incompatibility/binding/drop errors versus later missing or
+unauthorized parents, atomic rollback and released relation grants. Detach kind
+cases distinguish typed/partitioned missing-parent relationships from actual
+partition rejection. A mixed physical partition list retains the native
+capability rejection while PostgreSQL independently reports its nonparent error.
+Lock cleanup observes all participants' AX/SUE grants on the isolated scenario's
+relations through supported `pg_locks` columns, without requiring backend-PID
+function support.
+
+All review definitions now use the unfiltered shared backend loop. Pinned
+PostgreSQL discovery established the common SQL outcomes; native replacement,
+immutable sources and final publication still require their own exercised proof.
+
+```sh
+make check RUN='^TestReferenceInheritanceMaintReview(TemporaryHistory|ErrorOrder|DetachKinds)$' REFERENCE=1
+make check RUN='^TestReferenceInheritanceMaintReview(TemporaryHistory|ErrorOrder|DetachKinds)$'
+make check RUN='^TestInheritanceMaintReview(TemporaryHistory|ContributionLimit)$'
+make check RUN='^TestInheritanceMaintReview(AbsentEndpoint|MarkerAdmission)$' RACE=1
+```
+
+The package-level TEMP witness captures immutable source graphs across genuine
+catalog replacement. The signed16 candidate witness separately admits32767 and
+rejects32768 for column origins and live-plus-retired NN/CHECK totals, without
+constructing32768 public SQL objects. Actual AX-wait absence→presence veto and
+SUE-wait first-child marker reconciliation units both exercise final Finish,
+preserve concurrent catalog work and join their workers on failure.
+The TEMP dependency witness first establishes the real pre-detach child edge,
+then rejects every residual dependency except the former parent's own automatic
+row-type array. Automatic type ownership is not an external child/history edge.
+
 Run each bounded group with `REFERENCE=1` and without it; each invocation has
 an external 900-second deadline:
 

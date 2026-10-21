@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -11,10 +10,17 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
+
+func inheritanceUnitParents(parents ...ids.ObjectAddress) []catalog.InheritanceParent {
+	edges := make([]catalog.InheritanceParent, len(parents))
+	for i, parent := range parents {
+		edges[i] = catalog.InheritanceParent{Relation: parent, Seqno: int32(i + 1)}
+	}
+	return edges
+}
 
 func TestInheritanceAlterOrigins(t *testing.T) {
 	for _, kind := range []string{"column", "notnull", "check"} {
@@ -33,7 +39,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 						parents = append(parents, q.Address())
 						origins = append(origins, catalog.InheritanceOrigin{Parent: q.Address(), Attribute: 1})
 					}
-					c.Inheritance = &catalog.TableInheritance{Parents: parents, Columns: map[int32]catalog.InheritedColumn{2: {Local: true}, 7: {Local: local, Origins: origins}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
+					c.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parents...), Columns: map[int32]catalog.InheritedColumn{2: {Local: true}, 7: {Local: local, Origins: origins}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
 					original := catalog.CloneInheritance(c.Inheritance)
 					next := *p
 					next.ObjectRevision++
@@ -175,7 +181,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	c = inheritanceUnitRelation(e, "gc", 22003, "a", "g")
 	p.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24000, Kind: catalog.GenerationVirtual, Expression: expression(1)}}
 	c.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24001, Kind: catalog.GenerationVirtual, Expression: expression(2)}}
-	c.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}, 2: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 2}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
+	c.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(p.Address()), Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}, 2: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 2}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
 	view = inheritanceUnitView(e, p, c)
 	if err := table.ValidateInheritance(view, c); err != nil {
 		t.Fatal("legal ONLY recipe divergence invalidated column origins", err)
@@ -213,144 +219,109 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	}
 }
 
+// Public SQL/rows/errors moved to TestReferenceInheritanceMaintOnlyMixedMigration.
+// These units exercise the provenance and physical-recipe seams directly.
 func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
-	expectInts := func(t *testing.T, e *Engine, query string, want [][]int64) {
-		t.Helper()
-		rows := run(t, e, query).Rows
-		values := make([]sqltype.Value, len(rows.Schema()))
-		for i, expected := range want {
-			present, err := rows.Next(context.Background(), values)
-			if err != nil || !present {
-				t.Fatal(query, i, present, err)
-			}
-			for j, n := range expected {
-				actual, err := values[j].Integer()
-				if err != nil || actual != n {
-					t.Fatal(query, i, j, actual, n, err)
-				}
-			}
-		}
-		if present, err := rows.Next(context.Background(), values); err != nil || present {
-			t.Fatal(query, "extra row", present, err)
-		}
+	e := New()
+	p := inheritanceUnitRelation(e, "p", 22000, "a", "b", "g")
+	c := inheritanceUnitRelation(e, "c", 22001, "a", "b", "g")
+	c.Inheritance = &catalog.TableInheritance{
+		Parents: inheritanceUnitParents(p.Address()),
+		Columns: map[int32]catalog.InheritedColumn{},
+		NotNull: map[int32]catalog.InheritedConstraint{},
+		Checks:  map[string]catalog.InheritedConstraint{},
 	}
-	expectError := func(t *testing.T, e *Engine, query, code string) {
-		t.Helper()
-		_, err := testExecute(e, context.Background(), statement(t, query), nil)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != code {
-			t.Fatal(query, err, code)
-		}
+	for _, attribute := range c.Attributes {
+		c.Inheritance.Columns[attribute] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: attribute}}}
 	}
-	t.Run("drop_then_root_expression", func(t *testing.T) {
-		e := New()
-		for _, q := range []string{
-			"CREATE TABLE p(a INT,b INT,g INT GENERATED ALWAYS AS(a+1) STORED)",
-			"CREATE TABLE c() INHERITS(p)",
-			"INSERT INTO p(a,b) VALUES(1,9)", "INSERT INTO c(a,b) VALUES(2,8)",
-		} {
-			ownershipUnitExec(t, e, q)
+	usage := testUsage(e, sqltype.Int4)
+	generation := catalog.ColumnGeneration{OID: 24000, Kind: catalog.GenerationStored, Expression: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: inheritanceQueryInt(e, 3)}}
+	c.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{3: generation}
+	original := catalog.CloneInheritance(c.Inheritance)
+	view := inheritanceUnitView(e, p, c)
+	stage := e.BeginCatalogStage(view)
+	defer e.DiscardCatalogStage(stage)
+	next := *p
+	next.ObjectRevision++
+	next.Columns = []catalog.Column{p.Columns[0], p.Columns[2]}
+	next.Attributes = []int32{1, 3}
+	next.Index = map[string]int{"a": 0, "g": 1}
+	stage.UpdateDescriptor(&next)
+	drop := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "b"}}
+	for _, later := range []parser.AlterTableAction{
+		{Action: parser.SetExpression, Column: parser.Identifier{Text: "g"}},
+		{Action: parser.AddUnique},
+	} {
+		state := &inheritanceAlterState{stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
+			Root: p, Targets: []*catalog.Relation{p, c}, Only: true,
+			Selected: map[ids.ObjectAddress]bool{p.Address(): true},
+			Actions:  []parser.AlterTableAction{drop, later},
+			Events:   make(map[ids.ObjectAddress][]table.InheritanceAlterEvent),
+		}}
+		state.RecordAction(p, &next, drop)
+		state.RecordAction(p, &next, later)
+		actions, graph, err := e.inheritedAlterActions(state, c)
+		if err != nil || len(actions) != 0 {
+			t.Fatal("ONLY root recipe/key acquired descendant physical action", actions, err)
 		}
-		before := retiredUnitTable(t, e, "c")
-		g := before.Attributes[before.Index["g"]]
-		generation := before.ColumnMeta.Generations[g]
-		ownershipUnitExec(t, e, "ALTER TABLE ONLY p DROP COLUMN b,ALTER g SET EXPRESSION AS(a+10)")
-		parent := retiredUnitTable(t, e, "p")
-		child := retiredUnitTable(t, e, "c")
-		if _, exists := parent.Index["b"]; exists {
-			t.Fatal("root column survived actual DROP")
+		if fact := graph.Columns[2]; !fact.Local || len(fact.Origins) != 0 {
+			t.Fatal("ONLY DROP did not localize surviving child column", fact)
 		}
-		provenance := child.Inheritance.Columns[child.Attributes[child.Index["b"]]]
-		if !provenance.Local || len(provenance.Origins) != 0 || child.ColumnMeta.Generations[g].OID != generation.OID {
-			t.Fatal("ONLY later recipe changed child definition", provenance, child.ColumnMeta.Generations[g])
+		if !reflect.DeepEqual(c.Inheritance, original) || !reflect.DeepEqual(c.ColumnMeta.Generations[3], generation) {
+			t.Fatal("candidate changed captured child provenance/generation identity")
 		}
-		expectInts(t, e, "SELECT a,g FROM ONLY p", [][]int64{{1, 11}})
-		expectInts(t, e, "SELECT a,b,g FROM ONLY c", [][]int64{{2, 8, 3}})
-	})
-	t.Run("drop_then_physical_unique", func(t *testing.T) {
-		e := New()
-		for _, q := range []string{"CREATE TABLE p(a INT,b INT)", "CREATE TABLE c() INHERITS(p)", "INSERT INTO p VALUES(1,9)", "INSERT INTO c VALUES(2,8)"} {
-			ownershipUnitExec(t, e, q)
-		}
-		ownershipUnitExec(t, e, "ALTER TABLE ONLY p DROP COLUMN b,ADD CONSTRAINT uq UNIQUE(a)")
-		parent := retiredUnitTable(t, e, "p")
-		child := retiredUnitTable(t, e, "c")
-		if len(parent.Constraints.Unique) != 1 || parent.Constraints.Unique[0].Name != "uq" || len(child.Constraints.Unique) != 0 {
-			t.Fatal("physical key propagated or was skipped")
-		}
-		expectError(t, e, "INSERT INTO p VALUES(1)", "23505")
-		ownershipUnitExec(t, e, "INSERT INTO c VALUES(1,7)")
-		expectInts(t, e, "SELECT a FROM ONLY p", [][]int64{{1}})
-		expectInts(t, e, "SELECT a,b FROM ONLY c ORDER BY a", [][]int64{{1, 7}, {2, 8}})
-	})
-	for _, kind := range []string{"notnull", "check"} {
-		t.Run("only_drop_add_"+kind, func(t *testing.T) {
-			e := New()
-			declaration := "a INT CONSTRAINT fact NOT NULL"
-			addition := "ADD CONSTRAINT replacement NOT NULL a"
-			if kind == "check" {
-				declaration = "a INT CONSTRAINT fact CHECK(a>0)"
-				addition = "ADD CONSTRAINT fact CHECK(a>1)"
-			}
-			ownershipUnitExec(t, e, "CREATE TABLE p("+declaration+")")
-			ownershipUnitExec(t, e, "CREATE TABLE c() INHERITS(p)")
-			before := e.CatalogRead()
-			parent := retiredUnitTable(t, e, "p")
-			child := retiredUnitTable(t, e, "c")
-			expectError(t, e, "ALTER TABLE ONLY p DROP CONSTRAINT fact,"+addition, "42P16")
-			if kind == "check" {
-				expectError(t, e, "ALTER TABLE ONLY p DROP CONSTRAINT fact,ADD CONSTRAINT fact CHECK(missing>0)", "42703")
-			}
-			if e.CatalogRead().State() != before.State() || retiredUnitTable(t, e, "p") != parent || retiredUnitTable(t, e, "c") != child {
-				t.Fatal("ONLY phase-local prohibition published partial DROP")
-			}
-		})
 	}
 }
 
 func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 	e := New()
-	for _, query := range []string{"CREATE TABLE p(a INT)", "CREATE TABLE c() INHERITS(p)", "CREATE TABLE leaf() INHERITS(c)", "INSERT INTO p VALUES(2)", "INSERT INTO c VALUES(3)", "INSERT INTO leaf VALUES(4)", "ALTER TABLE p ADD CONSTRAINT ck CHECK(a>0)"} {
-		ownershipUnitExec(t, e, query)
+	p := inheritanceUnitRelation(e, "p", 22000, "a")
+	c := inheritanceUnitRelation(e, "c", 22001, "a")
+	p.Constraints.Check = []catalog.CheckConstraint{{OID: 23000, Name: "ck"}}
+	c.Constraints.Check = []catalog.CheckConstraint{{OID: 23001, Name: "ck"}}
+	c.Inheritance = &catalog.TableInheritance{
+		Parents: inheritanceUnitParents(p.Address()),
+		Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}},
+		NotNull: map[int32]catalog.InheritedConstraint{},
+		Checks:  map[string]catalog.InheritedConstraint{"ck": {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Constraint: 23000}}}},
 	}
-	before := e.CatalogRead()
-	originals := make(map[string]*catalog.Relation)
-	graphs := make(map[string]*catalog.TableInheritance)
-	for _, name := range []string{"p", "c", "leaf"} {
-		table := retiredUnitTable(t, e, name)
-		originals[name] = table
-		graphs[name] = catalog.CloneInheritance(table.Inheritance)
-		if name != "p" {
-			fact := table.Inheritance.Checks["ck"]
-			if fact.Local || len(fact.Origins) != 1 {
-				t.Fatal("recursive new CHECK acquired local contribution", name, fact)
-			}
-		}
+	view := inheritanceUnitView(e, p, c)
+	published := e.CatalogRead()
+	original := catalog.CloneInheritance(c.Inheritance)
+	stage := e.BeginCatalogStage(view)
+	nextParent := *p
+	nextParent.ObjectRevision++
+	nextParent.Constraints.Check = []catalog.CheckConstraint{{OID: 23002, Name: "ck"}}
+	stage.UpdateDescriptor(&nextParent)
+	drop := parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "ck"}}
+	state := &inheritanceAlterState{stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
+		Root: p, Targets: []*catalog.Relation{p, c}, Descendant: true,
+		Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true},
+		Actions:  []parser.AlterTableAction{drop},
+		Events:   make(map[ids.ObjectAddress][]table.InheritanceAlterEvent),
+	}}
+	state.RecordAction(p, &nextParent, drop)
+	_, graph, err := e.inheritedAlterActions(state, c)
+	if err != nil {
+		t.Fatal(err)
 	}
-	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE p DROP CONSTRAINT ck,ADD CONSTRAINT ck CHECK(a<4)"), nil)
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "23514" || diagnostic.Table != "leaf" {
-		t.Fatal("actual later CHECK veto missing", err)
+	state.Graph = graph
+	nextChild := *c
+	nextChild.Constraints.Check = []catalog.CheckConstraint{{OID: 23003, Name: "ck"}}
+	candidate, err := table.FinishInheritanceAlterCandidate(&state.InheritanceAlterPlan, e.stageRead(stage), c, &nextChild)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if e.CatalogRead().State() != before.State() {
-		t.Fatal("failed CHECK replacement published catalog")
+	fact := candidate.Inheritance.Checks["ck"]
+	if fact.Local || len(fact.Origins) != 1 || fact.Origins[0].Parent != p.Address() || fact.Origins[0].Constraint != 23002 {
+		t.Fatal("replacement CHECK localized or retained old provider identity", fact)
 	}
-	for name, original := range originals {
-		if retiredUnitTable(t, e, name) != original || !reflect.DeepEqual(original.Inheritance, graphs[name]) {
-			t.Fatal("failed binding mutated captured CHECK provenance", name)
-		}
+	stage.UpdateDescriptor(candidate)
+	if e.CatalogRead().State() != published.State() || view.Get(p.Address()) != p || view.Get(c.Address()) != c || !reflect.DeepEqual(c.Inheritance, original) {
+		t.Fatal("staged CHECK replacement changed captured catalog/provenance")
 	}
-	ownershipUnitExec(t, e, "ALTER TABLE p DROP CONSTRAINT ck,ADD CONSTRAINT ck CHECK(a>1)")
-	for name, original := range originals {
-		table := retiredUnitTable(t, e, name)
-		if len(table.Constraints.Check) != 1 || table.Constraints.Check[0].OID == original.Constraints.Check[0].OID {
-			t.Fatal("genuine DROP/ADD did not replace physical CHECK", name)
-		}
-		if name != "p" {
-			fact := table.Inheritance.Checks["ck"]
-			if fact.Local || len(fact.Origins) != 1 {
-				t.Fatal("replacement localized inherited CHECK", name, fact)
-			}
-		}
+	e.DiscardCatalogStage(stage)
+	if e.CatalogRead().State() != published.State() || view.Get(c.Address()) != c || !reflect.DeepEqual(c.Inheritance, original) || c.Constraints.Check[0].OID != 23001 {
+		t.Fatal("discarded CHECK replacement changed catalog/fact identity")
 	}
 }

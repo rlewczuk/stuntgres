@@ -32,7 +32,7 @@ func StageInheritance(h Host, auth ddl.Authority, d *catalog.Relation, b analyze
 	}
 	var defaultConflicts, generationConflicts map[int32]bool
 	for _, in := range b.Create.Inheritance {
-		graph.Parents = append(graph.Parents, in.Source.Address())
+		graph.Parents = append(graph.Parents, catalog.InheritanceParent{Relation: in.Source.Address(), Seqno: int32(len(graph.Parents) + 1)})
 		h.TableStage().CaptureLikeSource(in.Source)
 		mapper := analyze.LikeInput{Ref: in.Ref, Source: in.Source, TargetSlots: make([]int, len(in.Source.Columns))}
 		for slot, c := range in.Source.Columns {

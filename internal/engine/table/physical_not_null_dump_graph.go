@@ -64,7 +64,8 @@ func PhysicalNotNullDumpDependencies(r dump.Resolver, view catalog.Read, graph d
 			continue
 		}
 		if relation.Inheritance != nil {
-			for _, parent := range relation.Inheritance.Parents {
+			for _, edge := range relation.Inheritance.Parents {
+				parent := edge.Relation
 				idx := deferred[parent]
 				if idx == nil || !index.PartitionReplaySeparateConstraint(view, idx) {
 					continue

@@ -723,7 +723,8 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 		if namespace.Temporary == (ids.SessionToken{}) {
 			continue
 		}
-		for _, parent := range table.Inheritance.Parents {
+		for _, edge := range table.Inheritance.Parents {
+			parent := edge.Relation
 			source, ok := e.catalog.state.Relation(parent)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing inheritance parent")

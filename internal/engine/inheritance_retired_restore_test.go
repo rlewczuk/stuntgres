@@ -23,7 +23,7 @@ func retiredRepairSQL(table, name, kind string, local, beforeLocal bool, before 
 	return fmt.Sprintf("UPDATE pg_catalog.pg_constraint SET conislocal = %t, coninhcount = %d + (SELECT count(DISTINCT (retired.column1, retired.column6, retired.column7)) FROM (VALUES %s) AS retired) WHERE conrelid = 'public.%s'::regclass AND conname = '%s' AND contype = '%s' AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.%s'::regclass AND attname = 'a')] AND conislocal = %t AND coninhcount = %d AND EXISTS (SELECT 1 FROM pg_catalog.pg_inherits WHERE inhrelid = 'public.%s'::regclass AND inhparent = 'public.p'::regclass)", local, before, rows, table, name, kind, table, beforeLocal, before, table)
 }
 func retiredRow(kind, lifetime, oid string) string {
-	return "('public.p'::regclass, 'a', 1, '" + kind + "', '" + map[string]string{"n": "nn", "c": "ck"}[kind] + "', '" + lifetime + "', '" + oid + "')"
+	return "('public.p'::regclass::text, 'a', 1, '" + kind + "', '" + map[string]string{"n": "nn", "c": "ck"}[kind] + "', '" + lifetime + "', '" + oid + "')"
 }
 func retiredRaw(t *testing.T, q string) *parser.Update {
 	t.Helper()

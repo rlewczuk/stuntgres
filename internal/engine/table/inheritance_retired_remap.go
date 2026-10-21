@@ -82,8 +82,9 @@ func RemapRetiredConstraints(domain *ids.Domain, next *catalog.State, previous m
 					record.Archive = runtimeArchive
 				}
 				record.Own = newOID
-				record.Parent = domain.Ref(record.Parent.Epoch, record.Parent.Address)
-				record.Parent.Epoch = next.Epoch()
+				if !record.Detached {
+					record.Parent = domain.Ref(next.Epoch(), record.Parent.Address)
+				}
 				record.Replayed = true
 			}
 			return p, nil

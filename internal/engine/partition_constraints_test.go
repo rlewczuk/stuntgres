@@ -386,7 +386,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 			t.Fatal(err)
 		}
 		imported := next.MustRelation(child.Address())
-		mapped := imported.Inheritance.Parents[0]
+		mapped := imported.Inheritance.Parents[0].Relation
 		if next.Get(temp.Address()) != temp || next.Get(manual.Address()) == nil || mapped == parent.Address() {
 			t.Fatal("retained/noncolliding identity contract changed")
 		}

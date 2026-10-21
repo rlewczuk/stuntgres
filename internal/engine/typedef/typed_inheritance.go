@@ -41,7 +41,8 @@ func FinishTypedInheritance(view catalog.Read, next *catalog.Relation, graph *ca
 	for i, attribute := range next.Attributes {
 		provenance, exists := graph.Columns[attribute]
 		if !exists {
-			for _, address := range graph.Parents {
+			for _, edge := range graph.Parents {
+				address := edge.Relation
 				parent := view.MustRelation(address)
 				if slot, found := parent.Index[next.Columns[i].Name]; found {
 					provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: address, Attribute: parent.Attributes[slot]})

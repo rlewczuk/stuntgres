@@ -207,7 +207,7 @@ func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]storage.RowVers
 func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	stage, g := queryCreateStage(t, e, "g", 1)
-	g.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{c.Address()}, Columns: map[int32]catalog.InheritedColumn{g.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: c.Address(), Attribute: c.Attributes[0]}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
+	g.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(c.Address()), Columns: map[int32]catalog.InheritedColumn{g.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: c.Address(), Attribute: c.Attributes[0]}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}

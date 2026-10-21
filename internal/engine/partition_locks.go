@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -39,6 +40,14 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 			message = "partitioned indexes are unsupported"
 		}
 	case *parser.AlterTable:
+		for _, action := range s.Actions {
+			if action.Action == parser.InheritTable {
+				return table.RelationshipChildKind(d, action.Action)
+			}
+		}
+		if table.RelationshipOnly(s.Actions) {
+			return nil // Detach rejects actual partitions at its misc action.
+		}
 		if access.RowSecurityActions(s.Actions) || tablespaceOnlyActions(s.Actions) {
 			return nil
 		}

@@ -107,7 +107,41 @@ admission and DML expansion goes to `dml`.
   identity drops implement), the typed-table propagation
   (`TypedClosure`, `TypedInheritedActions`), and the query-expansion
   helpers `InheritanceQueryClosure`, `CaptureInheritanceQueryPrefix` and
-  `SourceOnly`.
+  `SourceOnly`. `inheritance_relationship.go` owns compatible ordinary attach
+  and detach candidates; the root owns exact endpoint grants/admission and the
+  existing single ALTER stage. Parent candidates read that stage's complete
+  catalog view, including unchanged base descriptors, not its staged-only Get
+  map. Capture observes every lexical endpoint, including absence, without
+  emitting later lookup/owner errors. Each misc action consumes its own semantic
+  lookup and parent grant before compatibility. Unreached captures are not final
+  publication subjects. Live observation ignores the recipe-definition reader.
+  Post-wait admission compares the original parent before refreshing it; only
+  genuine first-child marker publication is allowed. An unstaged parent's actual
+  admitted marker pointer can be consumed into the stage, never reminted or
+  substituted for staged own changes; Stage.Base is not rebased.
+  The same endpoint fence runs under the Engine mutex at actual implicit
+  publication and explicit private-journal installation, not just stage
+  construction; its authorization capture precedes the Session mutex.
+  Attach's typed/partition preparation restrictions and detach's actual-partition
+  execution restriction are distinct. Relationship-only detach reaches its
+  missing-edge diagnostic without requiring storage; unsupported mixed physical
+  partition ALTER remains behind its existing capability boundary.
+  `InheritanceParent` stores identity plus a live
+  sparse ordinal. Detached retired origins retain archival identity without a
+  live parent provider; strict restore carriers pair that history with fresh
+  facts. TYPE cleanup uses checked physical-NN historical causes and does not
+  invent keys or constraint rows.
+  Detach uses the admitted current parent identity plus ReferenceEpochValid for
+  still-attached retained TEMP certificates; it neither requires whole old/new
+  reference equality nor reconnects a detached archival source.
+  Recursive DROP's RESTRICT primary distinguishes actual physical column
+  deletions from origin decrements: a local or other-parent contribution can
+  preserve the child's column, leaving a singular root deletion diagnostic.
+  CHECK attachment and CHECK-origin validation share a CHECK-only cooked
+  deparsed-definition comparator. `SameInheritedExpression` remains structural,
+  normalizing only retained row-reference epochs; it never substitutes rendered
+  SQL for differing type or external-provider authority. CREATE merges and
+  default/generated recipe provenance keep their existing structural proofs.
 - **CREATE TABLE decisions** (24d.1; `create.go`, `inheritance_create.go`,
   `like.go`, `like_index.go`, `identity.go`, `serial.go`,
   `foreign_key_stage.go`), all over `Host`: `StageCreateTable` (the body of

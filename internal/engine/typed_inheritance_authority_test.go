@@ -52,7 +52,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				nn.Origins = append(nn.Origins, catalog.InheritanceOrigin{Parent: other.Address(), Attribute: 1, Constraint: 23010})
 				check.Origins = append(check.Origins, catalog.InheritanceOrigin{Parent: other.Address(), Constraint: 23011})
 			}
-			child.Inheritance = &catalog.TableInheritance{Parents: parents, Columns: map[int32]catalog.InheritedColumn{7: column}, NotNull: map[int32]catalog.InheritedConstraint{7: nn}, Checks: map[string]catalog.InheritedConstraint{"positive": check}}
+			child.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parents...), Columns: map[int32]catalog.InheritedColumn{7: column}, NotNull: map[int32]catalog.InheritedConstraint{7: nn}, Checks: map[string]catalog.InheritedConstraint{"positive": check}}
 			// The parent's attribute and its owned constraints/default are retired;
 			// the child attribute remains independently live.
 			parent.Columns, parent.Attributes, parent.Index = nil, nil, map[string]int{}
@@ -100,7 +100,7 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 	for i, attribute := range child.Attributes {
 		child.Columns[i].OriginTable, child.Columns[i].OriginAttribute = uint32(child.Address().ObjectID), int16(attribute)
 	}
-	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{tbl.Address()}, Columns: map[int32]catalog.InheritedColumn{3: {Origins: []catalog.InheritanceOrigin{{Parent: tbl.Address(), Attribute: 1}}}, 8: {Origins: []catalog.InheritanceOrigin{{Parent: tbl.Address(), Attribute: 7}}}}}
+	child.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(tbl.Address()), Columns: map[int32]catalog.InheritedColumn{3: {Origins: []catalog.InheritanceOrigin{{Parent: tbl.Address(), Attribute: 1}}}, 8: {Origins: []catalog.InheritanceOrigin{{Parent: tbl.Address(), Attribute: 7}}}}}
 	actions, _, _, err := table.TypedInheritedActions(inheritanceUnitView(e, tbl, child), child, map[ids.ObjectAddress]map[int32]bool{tbl.Address(): {1: true}})
 	if err != nil || len(actions) != 1 || actions[0].Action.Action != parser.AlterColumnType || actions[0].Action.Column.Text != "id" {
 		t.Fatal("same-usage inherited TYPE disappeared", actions, err)

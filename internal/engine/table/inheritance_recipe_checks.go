@@ -37,7 +37,8 @@ func prepareGenerationPlaceholders(view catalog.Read, tables []DumpRelation) {
 		table.RecipePlaceholders = true
 		component = append(component, table)
 		if inheritance := table.Descriptor.Inheritance; inheritance != nil {
-			for _, address := range inheritance.Parents {
+			for _, edge := range inheritance.Parents {
+				address := edge.Relation
 				if parent := byAddress[address]; parent != nil {
 					include(parent)
 				}
@@ -256,7 +257,8 @@ func InheritedRecipeConnected(view catalog.Read, target, start ids.ObjectAddress
 			return false
 		}
 		if table.Inheritance != nil {
-			for _, parent := range table.Inheritance.Parents {
+			for _, edge := range table.Inheritance.Parents {
+				parent := edge.Relation
 				if appendTarget(parent) {
 					return true
 				}

@@ -37,7 +37,8 @@ func InheritanceParentActions(state *InheritanceAlterPlan, old *catalog.Relation
 	if old.Inheritance == nil {
 		return actions
 	}
-	for _, parent := range old.Inheritance.Parents {
+	for _, edge := range old.Inheritance.Parents {
+		parent := edge.Relation
 		for _, event := range state.Events[parent] {
 			a := event.Action
 			if a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint {

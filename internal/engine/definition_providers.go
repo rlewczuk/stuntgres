@@ -136,7 +136,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	for _, ref := range refs {
 		mode := lock.AccessShare
 		for _, descriptor := range stage.Descriptors() {
-			if d, ok := descriptor.(*catalog.Relation); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, ref.Address) {
+			if d, ok := descriptor.(*catalog.Relation); ok && d.Inheritance.HasParent(ref.Address) {
 				mode = lock.ShareUpdateExclusive
 				break
 			}

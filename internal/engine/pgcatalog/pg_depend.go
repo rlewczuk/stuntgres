@@ -217,7 +217,7 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			}
 			if d.Inheritance != nil {
 				for _, parent := range d.Inheritance.Parents {
-					add(d.Address(), parent, 'n')
+					add(d.Address(), parent.Relation, 'n')
 				}
 			}
 			if d.Membership != nil {

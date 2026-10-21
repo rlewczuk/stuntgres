@@ -27,7 +27,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, ObjectNamespace: parent.Namespace(), ObjectName: "history_child", ObjectRevision: 1, Owner: parent.Owner}
 			switch edge {
 			case "inheritance":
-				child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
+				child.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address())}
 			case "table_partition":
 				child.Membership = &catalog.PartitionMembership{Parent: parent.Address()}
 			case "index_partition":
@@ -75,7 +75,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "same_stage", ObjectRevision: 7, RowType: 200112, Owner: e.roles.domain.Principal(10)}
-	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, ObjectNamespace: parent.Namespace(), ObjectName: "same_child", ObjectRevision: 8, Owner: parent.Owner, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
+	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, ObjectNamespace: parent.Namespace(), ObjectName: "same_child", ObjectRevision: 8, Owner: parent.Owner, Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address())}}
 	if err := stage.Create(parent); err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 func TestPgClassSubclassReplacement(t *testing.T) {
 	e := New()
 	view, parent := pgClassHistoryCatalog(e)
-	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
+	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address())}}
 	view.State().SetDescriptor(child.Address(), child)
 	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, History: catalog.PublicationHistory{HasSubclasses: true}, Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
 	view.State().SetDescriptor(history.Address(), history)

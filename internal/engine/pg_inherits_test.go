@@ -80,8 +80,8 @@ func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 	for _, relation := range []*catalog.Relation{
 		{ObjectAddress: address(41001), ObjectName: "pi_z_parent"},
 		{ObjectAddress: address(41002), ObjectName: "pi_a_parent"},
-		{ObjectAddress: address(41003), ObjectName: "pi_child", Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{address(41001), address(41002)}}},
-		{ObjectAddress: address(41004), ObjectName: "pi_leaf", Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{address(41003)}}},
+		{ObjectAddress: address(41003), ObjectName: "pi_child", Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(address(41001), address(41002))}},
+		{ObjectAddress: address(41004), ObjectName: "pi_leaf", Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(address(41003))}},
 		{ObjectAddress: address(41005), ObjectName: "pi_partition_root", RelationKind: catalog.PartitionedRelation, Partition: &catalog.PartitionDefinition{Children: []ids.ObjectAddress{address(41006)}}},
 		{ObjectAddress: address(41006), ObjectName: "pi_partition", Membership: &catalog.PartitionMembership{Parent: address(41005)}},
 		{ObjectAddress: address(41007), ObjectName: "pi_index_root", RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: address(41005), Valid: false}},

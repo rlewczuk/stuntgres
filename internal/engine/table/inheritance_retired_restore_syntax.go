@@ -109,7 +109,26 @@ func RestoreRetiredSyntax(raw *parser.Update) (RetiredRepair, error) {
 		if len(row) != 7 {
 			return reject()
 		}
-		parent, text, ok := restoreNoInheritRegclass(row[0])
+		cast, ok := row[0].(parser.CastExpr)
+		if !ok || cast.Syntax != parser.PostfixCast || cast.TypeName.Name != "text" || cast.TypeName.Quoted || cast.TypeName.Schema != nil || len(cast.TypeName.Modifiers) != 0 || len(cast.TypeName.ArrayBounds) != 0 || cast.TypeName.Setof {
+			return reject()
+		}
+		var parent parser.ObjectName
+		var text string
+		var detached ids.OID
+		if literal, literalOK := retiredText(cast.Child); literalOK {
+			if !strings.HasPrefix(literal, "detached:") {
+				return reject()
+			}
+			number := strings.TrimPrefix(literal, "detached:")
+			value, err := strconv.ParseUint(number, 10, 32)
+			if err != nil || value == 0 || strconv.FormatUint(value, 10) != number {
+				return reject()
+			}
+			detached, text, ok = ids.OID(value), literal, true
+		} else {
+			parent, text, ok = restoreNoInheritRegclass(cast.Child)
+		}
 		if !ok {
 			return reject()
 		}
@@ -153,8 +172,8 @@ func RestoreRetiredSyntax(raw *parser.Update) (RetiredRepair, error) {
 		if err != nil || oid == 0 || strconv.FormatUint(oid, 10) != oidText {
 			return reject()
 		}
-		result.Rows = append(result.Rows, RetiredRepairRow{Parent: parent, text: text, Column: oldColumn, Attribute: int32(attribute), Check: kind == "c", Name: name, Lifetime: lifetime, Archive: archive, Constraint: ids.OID(oid)})
-		if !slices.Contains(result.parents, text) {
+		result.Rows = append(result.Rows, RetiredRepairRow{Parent: parent, Detached: detached, text: text, Column: oldColumn, Attribute: int32(attribute), Check: kind == "c", Name: name, Lifetime: lifetime, Archive: archive, Constraint: ids.OID(oid)})
+		if detached == 0 && !slices.Contains(result.parents, text) {
 			result.parents = append(result.parents, text)
 		}
 	}

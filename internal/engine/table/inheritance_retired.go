@@ -12,17 +12,22 @@ import (
 
 func ValidateRetiredInheritance(view catalog.Read, table *catalog.Relation, p catalog.InheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.Retired {
-		parent, ok := view.Relation(history.Parent.Address)
-		if !ok || parent.RelationKind != catalog.TableRelation || !stored.ReferenceEpochValid(view, table, history.Parent) || history.Parent.Address.SubID != 0 || history.Attribute <= 0 || history.Attribute > 1600 || history.Column == "" || history.Name == "" || history.Constraint == 0 || history.Lifetime == 0 || history.Own != own || history.Check != check || !slices.Contains(table.Inheritance.Parents, parent.Address()) {
+		if history.Parent.Address.ClassID != ids.RelationClassID || history.Parent.Address.ObjectID == 0 || history.Parent.Domain() == nil || history.Parent.Epoch == 0 || history.Parent.Address.SubID != 0 || history.Attribute <= 0 || history.Attribute > 1600 || history.Column == "" || history.Name == "" || history.Constraint == 0 || history.Lifetime == 0 || history.Own != own || history.Check != check {
 			return fmt.Errorf("stuntgres: invalid retired inheritance origin")
 		}
 		if history.Replayed != (history.Archive != 0) {
 			return fmt.Errorf("stuntgres: invalid retired inheritance lifetime namespace")
 		}
-		if !history.Replayed {
-			tombstone, exists := parent.ColumnMeta.Dropped[history.Attribute]
-			if !exists || !tombstone.Dropped || parent.HasAttribute(history.Attribute) || catalog.DefinitionOIDUsed(parent, history.Constraint) {
-				return fmt.Errorf("stuntgres: retired inheritance source was not removed")
+		if !history.Detached {
+			parent, ok := view.Relation(history.Parent.Address)
+			if !ok || parent.RelationKind != catalog.TableRelation || !stored.ReferenceEpochValid(view, table, history.Parent) || !table.Inheritance.HasParent(parent.Address()) {
+				return fmt.Errorf("stuntgres: invalid attached retired inheritance origin")
+			}
+			if !history.Replayed {
+				tombstone, exists := parent.ColumnMeta.Dropped[history.Attribute]
+				if !exists || !tombstone.Dropped || parent.HasAttribute(history.Attribute) || catalog.DefinitionOIDUsed(parent, history.Constraint) {
+					return fmt.Errorf("stuntgres: retired inheritance source was not removed")
+				}
 			}
 		}
 		for _, previous := range p.Retired[:i] {
@@ -31,7 +36,7 @@ func ValidateRetiredInheritance(view catalog.Read, table *catalog.Relation, p ca
 			}
 		}
 		for _, live := range p.Origins {
-			if !history.Replayed && history.Lifetime == uint64(view.Epoch()) && live.Parent == history.Parent.Address && live.Constraint == history.Constraint {
+			if !history.Detached && !history.Replayed && history.Lifetime == uint64(view.Epoch()) && live.Parent == history.Parent.Address && live.Constraint == history.Constraint {
 				return fmt.Errorf("stuntgres: live retired inheritance origin")
 			}
 		}
@@ -43,7 +48,8 @@ func ValidateRetiredInheritance(view catalog.Read, table *catalog.Relation, p ca
 }
 
 func InheritRetiredColumnConstraints(state *InheritanceAlterPlan, view catalog.Read, child *catalog.Relation, graph *catalog.TableInheritance, attribute int32) {
-	for _, parent := range graph.Parents {
+	for _, edge := range graph.Parents {
+		parent := edge.Relation
 		for _, event := range state.Events[parent] {
 			if event.Action.Action != parser.DropColumn {
 				continue
@@ -187,7 +193,7 @@ func RetireRebuiltNotNullHistory(old, next *catalog.Relation) error {
 // Released TYPE cleanup internally drops an affected nonlocal definition.
 // Without a live parent fact there is no recursive re-add. Historical count
 // certifies past support; it is not authority to reconstruct a new local fact.
-func ReleaseRetiredTypeConstraints(old *catalog.Relation, actions []parser.AlterTableAction) *catalog.Relation {
+func ReleaseRetiredTypeConstraints(view catalog.Read, old *catalog.Relation, actions []parser.AlterTableAction) *catalog.Relation {
 	if old.Inheritance == nil {
 		return old
 	}
@@ -227,7 +233,7 @@ func ReleaseRetiredTypeConstraints(old *catalog.Relation, actions []parser.Alter
 				copiedNN = true
 			}
 			RemoveDetachedNotNullMetadata(next, fact)
-			if proof, retained := PhysicalNotNullFromType(old, next, fact); retained {
+			if proof, retained := PhysicalNotNullFromType(view, old, next, fact); retained {
 				if !copiedPhysical {
 					next.Constraints.PhysicalNotNull = maps.Clone(old.Constraints.PhysicalNotNull)
 					if next.Constraints.PhysicalNotNull == nil {

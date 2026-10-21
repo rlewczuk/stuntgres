@@ -10,7 +10,7 @@ import (
 
 func InheritanceHasChildren(v Read, parent ids.ObjectAddress) bool {
 	for _, descriptor := range v.Descriptors() {
-		if d, ok := descriptor.(*Relation); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, parent) {
+		if d, ok := descriptor.(*Relation); ok && d.Inheritance.HasParent(parent) {
 			return true
 		}
 	}
@@ -24,7 +24,7 @@ func InheritanceChildren(v Read, parent ids.ObjectAddress) []*Relation {
 			continue
 		}
 		d, ok := v.Relation(address)
-		if ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, parent) {
+		if ok && d.Inheritance.HasParent(parent) {
 			children = append(children, d)
 		}
 	}

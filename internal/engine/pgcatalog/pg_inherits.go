@@ -79,8 +79,8 @@ func capturePGInherits(in Input) ([][]sqltype.Value, error) {
 			continue
 		}
 		if relation.Inheritance != nil {
-			for i, parent := range relation.Inheritance.Parents {
-				if err := emit(relation.Address().ObjectID, parent.ObjectID, int64(i)+1); err != nil {
+			for _, parent := range relation.Inheritance.Parents {
+				if err := emit(relation.Address().ObjectID, parent.Relation.ObjectID, int64(parent.Seqno)); err != nil {
 					return nil, err
 				}
 			}

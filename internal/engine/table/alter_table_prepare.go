@@ -79,6 +79,10 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableActionKind) error {
 	label := "ALTER COLUMN ... SET NOT NULL"
 	switch action {
+	case parser.InheritTable:
+		return RelationshipChildKind(original, action)
+	case parser.NoInheritTable:
+		label = "NO INHERIT"
 	case parser.SetTablespace:
 		return ddl.AlterTablespaceKind(original)
 	case parser.DropNotNull:

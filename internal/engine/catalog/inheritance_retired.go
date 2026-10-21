@@ -19,6 +19,8 @@ type RetiredInheritanceOrigin struct {
 	Archive    uint64
 	Own        ids.OID
 	Check      bool
+	// Detached sources are archival identities, never current catalog providers.
+	Detached bool
 	// Logical import retains the archived source lifetime, not fresh OID/ranks.
 	Replayed bool
 }

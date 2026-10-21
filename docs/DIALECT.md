@@ -1105,10 +1105,19 @@ ATTACH rejects the mismatch rather than validating or replacing the child fact.
 Ordinary inherited UPDATE/DELETE recurse by default, with ONLY exclusion and
 physical INSERT. Existing ordinary column/default/NN/CHECK/generated ALTER
 actions propagate according to their action; identity, RLS and physical keys
-remain nonrecursive. Ordinary LOCK, changing attachment with INHERIT/NO INHERIT,
+remain nonrecursive. Ordinary `ALTER TABLE ... INHERIT` and `NO INHERIT`
+support compatible ordinary-table endpoints, sparse live parent ordinals,
+locality/counter maintenance and atomic mixed lists. Ordinary LOCK,
 provider-CASCADE graph-shape changes and new partition ALTER families remain
 excluded. UPDATE DEFAULT, explicit-transaction SET/DROP DEFAULT, explicit ADD
 NOT NULL NO INHERIT and NOT ENFORCED modifiers are not introduced.
+Relationship parent observations precede waits, but lookup/ownership errors and
+parent grants occur at the corresponding action, preserving mixed-list error
+precedence. NO INHERIT on a typed or partitioned table with an existing ordinary
+nonparent reports the missing relationship; actual partitions remain rejected.
+This boundary correction does not support mixed physical partition ALTER.
+Retained TEMP histories survive native replacement and detach under contextual
+old-reference authority, not general permission to reuse an old catalog epoch.
 Supported ONLY SET NOT NULL preserves its actual local NoInherit fact; PK on
 that fact is rejected rather than silently promoting it. Dump emits the exact
 named validated NN plus immediate paired genuine catalog SQL before descendants.
@@ -1184,7 +1193,8 @@ Read-only `pg_catalog.pg_inherits` has exactly `inhrelid OID`, `inhparent OID`,
 `inhseqno INT4` and `inhdetachpending BOOL`, all nonnullable, with no row `oid`.
 It projects direct ordinary-table inheritance, table partition membership and
 real partition-index ancestry from the current catalog generation. Ordinary
-parent order starts at one; partition and index edges use one. Index edges
+parent order starts at one; detach retains surviving ordinals and attach uses
+one above the greatest live ordinal. Partition and index edges use one. Index edges
 remain visible when their parent index is incomplete/invalid. No endpoint SELECT
 filter, transitive closure, index-to-indexed-table link or reverse duplicate is
 added. LIKE copies, typed-table membership alone, views and local/standalone

@@ -78,11 +78,11 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 		t.Fatal("TEMP identities changed")
 	}
 	imported := next.MustRelation(child.Address())
-	mapped := imported.Inheritance.Parents[0]
+	mapped := imported.Inheritance.Parents[0].Relation
 	if mapped == parent.Address() || mapped.ObjectID <= child.Address().ObjectID || next.Get(mapped).Name() != "p" {
 		t.Fatal("imported parent not remapped", mapped)
 	}
-	if child.Inheritance.Parents[0] != parent.Address() || imported == child {
+	if child.Inheritance.Parents[0].Relation != parent.Address() || imported == child {
 		t.Fatal("source graph mutated")
 	}
 	predecessor, err := control.Resolver{}.Predecessor(e.catalog.read(next), mapped, child.Address())
@@ -136,7 +136,7 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped := next.MustRelation(child.Address()).Inheritance.Parents[0]
+	mapped := next.MustRelation(child.Address()).Inheritance.Parents[0].Relation
 	if mapped.ObjectID == 22000 || next.Get(mapped).Name() != "p" {
 		t.Fatal("imported object did not yield to retained definition identity", mapped)
 	}
@@ -190,7 +190,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 		t.Fatal("retained TEMP graph, storage or definition identity changed")
 	}
 	imported := next.MustRelation(child.Address())
-	mappedParent := next.MustRelation(imported.Inheritance.Parents[0])
+	mappedParent := next.MustRelation(imported.Inheritance.Parents[0].Relation)
 	if mappedParent.Address() == parent.Address() || mappedParent.Constraints.NotNull[0].OID == 23000 || mappedParent.Constraints.Check[0].OID == 23002 {
 		t.Fatal("imported identities did not yield to retained TEMP definitions")
 	}
@@ -205,7 +205,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 			t.Fatal(tbl.Name(), err)
 		}
 	}
-	if parent.Address() != child.Inheritance.Parents[0] || parent.Constraints.NotNull[0].OID != 23000 || parent.Constraints.Check[0].OID != 23002 {
+	if parent.Address() != child.Inheritance.Parents[0].Relation || parent.Constraints.NotNull[0].OID != 23000 || parent.Constraints.Check[0].OID != 23002 {
 		t.Fatal("replacement mutated imported source definitions")
 	}
 }
@@ -270,7 +270,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := next.MustRelation(child.Address())
-	mapped := imported.Inheritance.Parents[0]
+	mapped := imported.Inheritance.Parents[0].Relation
 	if mapped == parent.Address() || next.Get(mapped).Name() != parent.Name() || relations[mapped] != parentStorage || relations[imported.Address()] != childStorage {
 		t.Fatal("imported descriptor/storage did not yield to retained exclusion", mapped)
 	}
@@ -284,7 +284,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if e.catalog.state != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(idx.Address()) != idx || relations[temp.Address()] != retainedParentStorage || relations[tempChild.Address()] != retainedChildStorage || idx.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.Constraints.Exclusion[0], constraint) || !index.BackingConstraintPresent(tempChild, idx) {
 		t.Fatal("retained TEMP descriptors, exclusion attachment, storage or source authority changed")
 	}
-	if source.catalog.state.Get(parent.Address()) != parent || source.catalog.state.Get(child.Address()) != child || child.Inheritance.Parents[0] != parent.Address() || child.Inheritance.Columns[1].Origins[0].Parent != parent.Address() || parent.Columns[0].OriginTable != uint32(parent.Address().ObjectID) || child.Inheritance.NotNull[1].Origins[0].Constraint != 23000 {
+	if source.catalog.state.Get(parent.Address()) != parent || source.catalog.state.Get(child.Address()) != child || child.Inheritance.Parents[0].Relation != parent.Address() || child.Inheritance.Columns[1].Origins[0].Parent != parent.Address() || parent.Columns[0].OriginTable != uint32(parent.Address().ObjectID) || child.Inheritance.NotNull[1].Origins[0].Constraint != 23000 {
 		t.Fatal("imported source authority mutated")
 	}
 	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(next)); err != nil {

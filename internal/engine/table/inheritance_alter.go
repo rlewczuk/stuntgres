@@ -50,7 +50,8 @@ func InheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog
 		}
 		seen[d.Address()] = true
 		if d.Inheritance != nil {
-			for _, parent := range d.Inheritance.Parents {
+			for _, edge := range d.Inheritance.Parents {
+				parent := edge.Relation
 				if p := selected[parent]; p != nil {
 					visit(p)
 				}
@@ -172,9 +173,9 @@ func InheritanceOnlyActions(root *catalog.Relation, children bool, actions []par
 	return next, nil
 }
 
-func InheritedNotNull(view catalog.Read, parents []ids.ObjectAddress, name string) *catalog.NotNullConstraint {
-	for _, address := range parents {
-		parent := view.MustRelation(address)
+func InheritedNotNull(view catalog.Read, parents []catalog.InheritanceParent, name string) *catalog.NotNullConstraint {
+	for _, edge := range parents {
+		parent := view.MustRelation(edge.Relation)
 		if slot, exists := parent.Index[name]; exists {
 			for i := range parent.Constraints.NotNull {
 				c := &parent.Constraints.NotNull[i]

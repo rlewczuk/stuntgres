@@ -200,15 +200,17 @@ func (s *StatementScope) inheritanceRead(current catalog.Read) catalog.Read {
 // ALTER TABLE recursion state. Every query admission writes it, so it is a
 // value group rather than a pointer slot.
 type inheritanceScope struct {
-	relations []exec.Leaf  // Exact physical SELECT grants, separate from SQL occurrences.
-	catalog   catalog.Read // Immutable topology after the last grant/wait reconciliation.
-	alter     *inheritanceAlterState
+	relations     []exec.Leaf  // Exact physical SELECT grants, separate from SQL occurrences.
+	catalog       catalog.Read // Immutable topology after the last grant/wait reconciliation.
+	alter         *inheritanceAlterState
+	relationships []inheritanceRelationshipAdmission
 }
 
 // endStatement drops the statement's physical grants and frozen topology.
 // The ALTER state is released by its own handler.
 func (i *inheritanceScope) endStatement() {
 	i.relations, i.catalog = nil, catalog.Read{}
+	i.relationships = nil
 }
 
 // inheritancePlan is the recursing ALTER's plan record, nil when the statement
