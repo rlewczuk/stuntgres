@@ -8,8 +8,9 @@ records. Step 25 of the engine split created it (25b moved the clean set).
 It is an upper feature package (L12 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)),
 above `index` and `table`: it imports `analyze` (types and pure functions
-only), `authorization`, `catalog`, `dump`, `exec`, `expr`, `ids`, `index`,
-`plan`, `regobj`, `stored`, `table`, `typedef`, `visibility`, `parser`,
+only), `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`, `ids`,
+`index`, `plan`, `regobj`, `sequence`, `stored`, `table`, `typedef`,
+`visibility`, `parser`,
 `sqlstate`, `sqltype` and the standard library. It never imports the
 engine, `view` or `dml`; only the engine imports it. It never builds a
 binder. Partitioned indexes are `index` code. See
@@ -55,28 +56,48 @@ binder. Partitioned indexes are `index` code. See
   `UsingIndexReplay`, `ReplayTeardown` and `CheckReplayActions`, which the
   root leases on its `restoreReplay` slot. Dump code resolves
   predecessors through the `dump.Resolver` the root passes in.
+- **Handler decisions** (`host.go`, `definition.go`, `create.go`,
+  `bounds.go`, `hash_bounds.go`, `attach.go`, `detach.go`, `exclusion.go`,
+  `replay.go`; 25d): `Host` is `table.Host` plus `BindKeyExpression`,
+  implemented by the root `ddlHost`; every method runs with `Engine.mu`
+  held, never takes or releases it and never waits. `BoundBinder` binds
+  bound datums and is self-locking: callers hold nothing, it takes
+  `Engine.mu` for one window and evaluation follows unlocked. `Definition`
+  is the pending edge (parent, child, bound, raw syntax, default leaves,
+  unsupported flag), with `WithChild`, `WithoutChild`,
+  `CheckDefaultConflict` and `CheckSupported`. Under `Engine.mu`:
+  `RejectForeignKeys`, `StageCreate` (the PARTITION OF child or the
+  PARTITION BY table, keys, bound, default leaves), `BindKeys`,
+  `StageIndexChildren` and `StageExclusions`. With nothing held:
+  `EvaluateBounds`, `ValidateBounds`, `CheckOverlap`, `CheckCoverage`,
+  `CheckDefaultRows`, `CheckAttachTarget`, `ValidateAttachRows`,
+  `AttachDescriptors` and `StageDetach`. Restore replay cores:
+  `CheckReplayTarget`, `CaptureUniqueReplay`, `CaptureUsingIndexReplay` and
+  the `Matches` methods of `UniqueReplay` and `UsingIndexReplay`.
 
 ## What stays in the engine
 
-The handlers and everything that holds `Engine`, `StatementScope` or
-`CatalogStage`: `attachPartitionLocked`, `detachPartitionLocked`,
-`stagePartitionDetach`, `schemaPartitionTableLocked`,
-`schemaPartitionChildLocked`, `pendingPartitionDefinition`,
-`bindPartitionKeys`, `executePartitionExclusionAddLocked`, the attach scans
-and captures, lock admission (`partition_locks.go`,
-`partitionConsumerBoundary`), the authorization captures, the
-`*ReplayAllowed` checks and `partitionConstraintReplayImport`, the Restore
-executors (`begin*Replay`, `repairRemappedHashPartitions`, the teardown
-capture), `dropProvider.removePartitionHierarchyLocked`, the storage-read
-fences (`storage_read_fence.go`), and INSERT routing execution with
-`partitionInsertState` (it holds an `AuthorizationView`; step 29 moves
-it). 25c refined the host: `partition.Host` (on the root `ddlHost`) is
-`table.Host` plus `BindKeyExpression`, every method under `Engine.mu` and
-never waiting, for the CREATE side; bound datums bind through the
-self-locking `BoundBinder`; the `finish`, ATTACH and DETACH decisions run
-with nothing held and move as plain functions. 25d moves them (see
-[ENGINE-SPLIT-partition.md](../../../docs/ENGINE-SPLIT-partition.md) Part
-B); the orchestration, waits, fences and trust checks above stay.
+The orchestration and everything that holds `Engine`, `StatementScope` or
+`CatalogStage`: `schemaPartitionTableLocked` (the FOREIGN KEY rejection
+first, the parent resolution, Restore parent authority, locked identity and
+owner check, then the default leaves' storage-read fences and data views
+after `StageCreate`); `pendingPartitionDefinition`, which embeds
+`Definition` and whose `finish` sequences the moved checks in their
+diagnostic order and takes `Engine.mu` for the index children;
+`attachPartitionLocked` and `detachPartitionLocked` (`Engine.mu` windows,
+lock waits, the attach frontier and capture, stage replacement, validation
+and publication); `executePartitionExclusionAddLocked`'s windows; lock
+admission (`partition_locks.go`, `partitionConsumerBoundary`); the
+authorization captures and trust checks (`partitionConstraintReplayImport`,
+`partitionParentAuthorization`, `partitionAttachAuthorization`,
+`partitionDefaultReplayAllowed`); the `begin*Replay` and `*ReplayAllowed`
+hook wrappers and the Restore executors
+(`executePartitionUniqueReplayLocked`, `repairRemappedHashPartitions`, the
+teardown capture); `dropProvider.removePartitionHierarchyLocked` (over
+`WithoutChild`); the storage-read fences (`storage_read_fence.go`); and
+INSERT routing execution with `partitionInsertState` (it holds an
+`AuthorizationView`; step 29 moves it). `partition_host.go` holds
+`ddlHost.BindKeyExpression` and the `partitionBoundBinder` adapter.
 
 ## Invariants
 
@@ -92,6 +113,7 @@ B); the orchestration, waits, fences and trust checks above stay.
 
 No package-local tests: every partition unit test builds an engine and
 stays in the root package, naming the moved code as `partition.X`.
+`TestPartitionHost*` checks the root `ddlHost.BindKeyExpression`.
 
 ```sh
 make check RUN='^Test(Partition|RangePartition|HashPartition)'

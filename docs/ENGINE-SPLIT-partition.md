@@ -660,9 +660,45 @@ too; the root keeps only the orchestration listed above. The checks in
     needed. Attach frontier and capture stay root, row checks move; the
     trust checks stay root for control 30, the replay cores move. 25d stays
     one sub-step.
-- [ ] 25d — Handler decisions moved (linear item 93)
+- [x] 25d — Handler decisions moved (linear item 93) (`f8d726111`,
+  `101986429`, `c7de8cd5b`, `b2cd9d59c`, then the docs commit) · selected
+  unit, `RACE=1` and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request
+  - `f8d726111` (pure helpers): `Definition` in `definition.go`; the root
+    `pendingPartitionDefinition` embeds it and keeps the stage, the
+    authorization and the data view. `WithChild`/`WithoutChild` (revision
+    check, edge edit, bump) serve `finish`, ATTACH, DETACH and
+    `removePartitionHierarchyLocked`; `CheckDefaultConflict` and
+    `CheckSupported` are the shared 42P17 and 0A000.
+  - `101986429` (seam): `partition.Host` and `BoundBinder` in `host.go`;
+    root `partition_host.go` holds `ddlHost.BindKeyExpression` (binder,
+    bind, preflight; returns the derived key and `Sources[0].Uses`) and the
+    `partitionBoundBinder` adapter (`bindPartitionDatum`'s body). Deviation:
+    the volatility, constant and generated-column 42P17s live in `BindKeys`
+    (decision 1), so the new `TestPartitionHost*` units assert the returned
+    key, slots and an unrejected volatile execution;
+    `reference/tables/range_partition_diagnostics_test.go` covers the 42P17
+    texts.
+  - `c7de8cd5b` (port in place, `partmv_*.go`) and `b2cd9d59c` (move,
+    `.cswd/tmp/PG18-ENGINE-SPLIT-PARTITION-DECISIONS/c4.py`): the 25d move
+    set, with the hash overlap as unexported `checkHashOverlap` and the
+    replay `Matches` as methods on `UniqueReplay`/`UsingIndexReplay`.
+    `frontier` OUT over the staging set named only `sqlError`; the
+    string-literal multiset changed only in import paths. New imports:
+    `ddl`, `sequence`.
+  - Notes: the root `finish` keeps its name
+    (`range_partition_publication_test.go` matches the frame
+    `(*pendingPartitionDefinition).finish`); `CheckDefaultRows` reads the
+    input environment from the evaluation context (the same `scope.input`);
+    `AttachDescriptors` returns a copy of the candidate instead of editing
+    it in place; `StageDetach` keeps the child's revision check before
+    `WithoutChild`; `stagePartitionIndexChild` is gone (the constraint tests
+    call `index.StagePartitionIndexChild` over a `ddlHost`),
+    `stagePartitionIndexChildren` stays for the unique-replay executor;
+    `partition_bind.go`, `partition_create_child.go` and
+    `partition_hash_bounds.go` are gone.
 
-Outstanding aliases: none (25a and 25b added none).
+Outstanding aliases: none (25a, 25b and 25d added none).
 
 ### Notes for later steps
 
