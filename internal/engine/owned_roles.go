@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -36,7 +34,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	reassign, sources, target, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Target, plan.Mode, plan.Roots, plan.PrimaryRoot
+	reassign, sources, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Mode, plan.Roots, plan.PrimaryRoot
 	stage := e.ownershipStage(auth, scope.op)
 	stage.dependencyPath, _ = e.referencePath(auth)
 	e.mu.Unlock()
@@ -52,73 +50,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	}
 	e.mu.Lock()
-	providersChanged := false
-	if reassign {
-		for _, a := range roots {
-			d := stage.Base.Get(a)
-			owner, _, _ := access.DescriptorACL(d)
-			if owner == target {
-				continue
-			}
-			// PostgreSQL's schema and generic collation handlers retain their
-			// own eligibility checks; relation/type bulk recursion does not SET.
-			switch d.(type) {
-			case *catalog.ForeignObject:
-				foreign := d.(*catalog.ForeignObject)
-				err = access.ForeignOwnershipEligibility(auth.View, auth, foreign, target)
-				if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
-					stage.domainBases = append(stage.domainBases, auth.Catalog.Get(foreign.Wrapper))
-				}
-			case *catalog.Namespace:
-				err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
-				if err == nil {
-					err = access.OwnershipSuccessor(auth.View, target)
-				}
-				if err == nil {
-					err = access.OwnershipDatabaseCreate(auth.View, auth)
-				}
-			case *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.TSDictionary:
-				err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
-				if err == nil {
-					err = access.OwnershipEligibility(auth.View, auth, target, d.Namespace())
-				}
-			}
-			if err != nil {
-				break
-			}
-			if err = role.StageOwnership(stage, d, target); err != nil {
-				break
-			}
-			switch d.(type) {
-			case *catalog.Procedure, *catalog.Operator, *catalog.TSDictionary:
-				providersChanged = true
-			}
-		}
-		if err == nil && providersChanged {
-			candidate := e.stageRead(stage).State()
-			err = stored.ReownExpressions(e.catalog.read(candidate), candidate, nil, false)
-			if err == nil {
-				for a, d := range candidate.Descriptors() {
-					if old := stage.Get(a); old != nil {
-						if old == d {
-							continue
-						}
-					} else if stage.Base.Get(a) == d {
-						continue
-					}
-					if err = stage.Replace(d); err != nil {
-						break
-					}
-				}
-			}
-		}
-	} else {
-		for _, a := range roots {
-			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
-				break
-			}
-		}
-	}
+	err = stageOwned(ddlHost{e: e, op: scope.op, stage: stage}, auth, plan)
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
@@ -134,14 +66,11 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			primaryRoot = ids.ObjectAddress{}
 		}
 		if err = scope.stageExpressionDependents(stage, roots, mode, nil); err != nil {
-			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "2BP01" {
-				if primaryRoot != (ids.ObjectAddress{}) {
-					diagnostic.Message = "cannot drop " + dependencyObject(stage.Base, primaryRoot, stage.dependencyPath) + " because other objects depend on it"
-				} else {
-					diagnostic.Message = "cannot drop desired object(s) because other objects depend on them"
-				}
+			primary := ""
+			if primaryRoot != (ids.ObjectAddress{}) {
+				primary = dependencyObject(stage.Base, primaryRoot, stage.dependencyPath)
 			}
-			return Result{}, err
+			return Result{}, ownedDependentsError(err, primary)
 		}
 		if err = scope.stageOwnedSequences(stage, roots, mode, nil); err != nil {
 			return Result{}, err
