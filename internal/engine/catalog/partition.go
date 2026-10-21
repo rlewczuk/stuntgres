@@ -37,4 +37,5 @@ type PartitionMembership struct {
 	Modulus, Remainder int32
 	DefaultBound       bool
 	Lower, Upper       []PartitionDatum
+	Values             []PartitionDatum
 }

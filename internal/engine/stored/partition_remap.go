@@ -79,7 +79,8 @@ func RemapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 		membership := *d.Membership
 		membership.Parent = ref(ids.ObjectRef{Address: membership.Parent}).Address
 		membership.Lower, membership.Upper = slices.Clone(membership.Lower), slices.Clone(membership.Upper)
-		for _, tuple := range [][]catalog.PartitionDatum{membership.Lower, membership.Upper} {
+		membership.Values = slices.Clone(membership.Values)
+		for _, tuple := range [][]catalog.PartitionDatum{membership.Lower, membership.Upper, membership.Values} {
 			for i, datum := range tuple {
 				if datum.Kind != 0 {
 					continue

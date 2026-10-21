@@ -579,10 +579,10 @@ make check RUN='^TestReferenceObjectGrantACLValueAuthority$' REFERENCE=1
 ### Demanded partition-key authority
 
 `TestReferenceObjectGrantPartitionKeyAuthority` covers JSON/TEXT recipes in
-HASH/RANGE, actual parent/direct-leaf and same-held writes, current writer versus
-separately authorized owner, real NULL versus zero-input demand, independent SQL
-child rights and complete failed-write atomicity. PostgreSQL also runs the full
-LIST body; native explicitly asserts its existing42601 syntax limit, never Skip.
+HASH/RANGE/LIST on both backends, actual parent/direct-leaf and same-held writes,
+current writer versus separately authorized owner, real NULL versus zero-input
+demand, independent SQL child rights and complete failed-write atomicity. LIST
+uses the same successful and denied-write assertions, not a syntax-rejection branch.
 `TestReferenceObjectGrantPartitionKeyDDLAuthority` exercises populated DEFAULT
 validation and same held CREATE retries. Its warmed PostgreSQL inlined TEXT
 wrapper versus fresh native original-wrapper authority is independently specified;

@@ -226,7 +226,7 @@ func admitRestoreAttachPartition(_ *restoreRun, _ *session.Operation, s *parser.
 	if s.IfExists {
 		return sqlError("0A000", "restore accepts only unconditional partition attachments")
 	}
-	for _, tuple := range [2][]parser.PartitionDatum{s.Bound.Lower, s.Bound.Upper} {
+	for _, tuple := range [3][]parser.PartitionDatum{s.Bound.Lower, s.Bound.Upper, s.Bound.Values} {
 		for _, datum := range tuple {
 			if datum.Kind == 0 {
 				if err := dump.RestoreScalar(datum.Expression, true); err != nil {

@@ -1051,9 +1051,21 @@ Conflict arbitration and MERGE cannot target partition
 hierarchies. Temporary partition definitions and partition definitions nested in
 schema creation are unavailable. Nonunique virtual partition indexes and partition
 reindexing are unavailable; partition key/constraint combinations remain bounded.
-RANGE keys require an admitted btree ordering provider. Native integer-array
+RANGE and LIST keys require an admitted btree ordering provider. Native integer-array
 keys currently retain the existing missing-default-operator-class boundary;
 ordinary array storage does not add a partition ordering provider.
+
+LIST definitions admit exactly one column or immutable expression key, typed
+`IN` bounds, a distinct NULL owner, DEFAULT as the live complement and nested
+partition trees. Equal repeated entries within one IN list normalize; equal
+values or NULL claimed by different siblings fail atomically. Bound expressions
+evaluate once at CREATE, including volatile expressions; routing and replay use
+their frozen typed values. Parent INSERT routes to actual physical descendants;
+direct leaf INSERT checks every ancestor, parent SELECT includes descendant
+rows and ONLY parent is empty. An uncovered key raises23514 at the failing level.
+No new scalar type, collation or operator-class provider is implied. Public
+LIST ATTACH remains0A000 `list partition attachment is unsupported`; native
+Dump/Restore may use private, validated LIST attachment to restore captured state.
 
 HASH definitions use PostgreSQL 18 seeded extended hash support, ordered NULL-skipping
 key combination and unsigned modulus selection. Positive int32 moduli and valid
@@ -1331,16 +1343,21 @@ invented. Dump emits only installed options. Existing arbitrary explicit relatio
 ACL Dump rejection remains unchanged; reading relacl does not widen that serializer.
 
 Table-member `relpartbound` is a genuine PG_NODE_TREE structural carrier of
-immutable typed RANGE/default facts. Native output is
+immutable typed RANGE/LIST/HASH facts. Native RANGE output is
 `{PartitionBound strategy range default true}` or
 `{PartitionBound strategy range default false lower (...) upper (...)}`.
 Finite datums are `{type OID typmod N collation OID value "..."}` with captured
 key Usage and quoted type-owned output; sentinels are MINVALUE/MAXVALUE.
 This is intentionally not PostgreSQL nodeToString or SQL FOR VALUES text.
 HASH bounds use `{PartitionBound strategy hash default false modulus N remainder R}`.
-Index partitions have NULL bounds. LIST and additional hierarchy alterations,
-including member RENAME, are not enabled; native retained-bound witnesses use
-admitted DROP/Restore while PostgreSQL also exercises real RENAME.
+LIST bounds use `{PartitionBound strategy list default true}` or
+`{PartitionBound strategy list default false values (...)}`. Every value carries
+the sole key's Usage; SQL NULL is an unquoted `value NULL`, distinct from text
+`value "NULL"`. For INT4 IN(1,NULL), exact native output is
+`{PartitionBound strategy list default false values ({type 23 typmod -1 collation 0 value "1"} {type 23 typmod -1 collation 0 value NULL})}`.
+Index partitions have NULL bounds. Additional hierarchy alterations, including
+member RENAME, remain unavailable; native retained-bound witnesses use admitted
+DROP/Restore while PostgreSQL also exercises real RENAME.
 
 ## intagg installed wrappers
 

@@ -8,9 +8,8 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// Pinned PostgreSQL 18.0 independently establishes these key initialization
-// frontiers. Native implements HASH/RANGE; LIST retains its explicit existing
-// syntax boundary rather than gaining an adjacent partition implementation.
+// PostgreSQL independently establishes these key initialization frontiers.
+// HASH/RANGE/LIST share the same real recipe-authority assertions on both backends.
 // The existing immutable providers both return INT4; HASH's modulus one avoids
 // making its internal support function or hash algorithm a SQL EXECUTE target.
 func TestReferenceObjectGrantPartitionKeyAuthority(t *testing.T) {
@@ -39,18 +38,6 @@ func TestReferenceObjectGrantPartitionKeyAuthority(t *testing.T) {
 					run(fixture.Exec("GRANT USAGE ON SCHEMA og_partition_key TO og_object_reader", 0))
 					run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+key.target+" FROM PUBLIC", 0))
 					create := "CREATE TABLE og_partition_key.root(id INT,v " + key.typ + ") PARTITION BY " + strategy.name + "((pg_catalog." + key.routine + "(v)))"
-					if !b.PG && strategy.name == "LIST" {
-						fixture.RoleGrantActor(run, "og_object_other", func() {
-							s := fixture.ImplicitError(create, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "LIST"`, Position: fixture.Position(strings.Index(create, "LIST") + 1)})
-							s.ErrorStage = "execute"
-							if prepared {
-								s.ErrorStage = "prepare"
-							}
-							run(s)
-						})
-						return
-					}
-
 					// The genuine non-superuser creator has schema CREATE but no X.
 					// Empty declaration is deliberately tested before owner X is granted.
 					fixture.RoleGrantActor(run, "og_object_other", func() {

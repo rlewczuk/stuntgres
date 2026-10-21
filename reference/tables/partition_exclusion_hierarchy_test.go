@@ -52,11 +52,6 @@ func TestReferencePartitionExclusionHierarchy(t *testing.T) {
 	partitionExclusionCase(t, "equality_family/LIST", func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 		run := partitionConstraintRun(t, p, b, prepared)
 		query := "CREATE TABLE pe_root(id INT,tenant INET,during INT4RANGE,CONSTRAINT pe_ex EXCLUDE USING gist(" + partitionExclusionKeys + ")) PARTITION BY LIST(tenant)"
-		if !b.PG {
-			run(fixture.ImplicitError(query, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "LIST"`, Position: referenceRangePosition(query, "LIST")}))
-			run(fixture.Select("SELECT relname FROM pg_class WHERE relname='pe_root'", []string{"relname"}, []string{"NAME"}, nil))
-			return
-		}
 		run(fixture.Exec(query, 0))
 		run(fixture.Exec("CREATE TABLE pe_low PARTITION OF pe_root DEFAULT", 0))
 		run(fixture.Exec("INSERT INTO pe_root VALUES(1,'10.0.0.1','[1,5)'),(2,'10.0.0.2','[3,7)')", 2))

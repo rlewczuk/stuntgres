@@ -31,6 +31,20 @@ PostgreSQL's dependency notices. Current role-descriptor names still resolve by 
 See [native boundaries](docs/DIALECT.md#information-schema-user-mappings) and
 [selected proof and smoke](reference/catalogs/README.md#information-schema-user-mappings).
 
+## LIST partition definitions — change note
+
+Single-key `PARTITION BY LIST` supports typed `IN` values, NULL ownership,
+DEFAULT and nested trees, with real direct/prepared INSERT routing and parent
+scans. Repeated values within one bound normalize; sibling overlap, occupied
+DEFAULT and uncovered keys have PostgreSQL diagnostics and atomic failure.
+Native metadata and logical Dump/Reset/Restore preserve typed ownership, frozen
+bound values and descendant data. Public LIST ATTACH remains unavailable;
+private validated replay may use it to reconstruct captured leaf-local state.
+No new scalar provider, hierarchy ALTER or physical persistence is implied.
+See [native boundaries](docs/DIALECT.md#tables-hierarchies-and-materializations),
+[table contracts](docs/TABLES.md#inheritance-typed-attachments-and-partition-graphs),
+and [selected checks and smoke](reference/tables/README.md#list-partition-definitions).
+
 ## Scalar SQL routines — change note
 
 Basic `CREATE FUNCTION` accepts anonymous positional typed arguments, a concrete

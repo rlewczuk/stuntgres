@@ -806,8 +806,19 @@ rechecked with the ordinary validator. Descriptor retagging alone is not a chang
 Actual movement and future INSERTs continue enforcing all destination constraints.
 Retained TEMP and published old snapshots are never rewritten. A reminted key with
 no destination or an incompatible leaf-local constraint fails Restore atomically.
-LIST partitions, public HASH ATTACH, row movement, other hierarchy mutations/conflict
-DML, TEMP partition construction and nested schema partition construction remain limits.
+LIST definitions use a single admitted btree key and immutable typed value
+membership, with NULL distinct from every nonnull value. Each bound expression
+executes once; comparator equality normalizes repeated entries within one bound
+and rejects ownership overlap between siblings. DEFAULT remains the live
+complement, including NULL unless explicitly owned. Routing, direct-leaf ancestor
+checks and captured parent scans reuse the same hierarchy and physical storage
+owners as RANGE/HASH, including mixed nested strategies.
+New definitions validate occupied DEFAULT descendants before atomic publication;
+failures and cancellation leave relation/type/index/storage facts unchanged.
+LIST values are cloned/remapped with descriptor generations, destination-owned
+enum/domain/scalar references and captured collation comparison authority.
+Public LIST/HASH ATTACH, row movement, other hierarchy mutations/conflict DML,
+TEMP partition construction and nested schema partition construction remain limits.
 
 ## Logical indexes and copied definitions
 

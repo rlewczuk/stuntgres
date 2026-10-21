@@ -1754,10 +1754,9 @@ make check RUN='^TestReferenceExclusion(MethodBoundaries|ConcurrencyCancellation
 ```
 
 Every changed preexisting definition above also requires both selected modes.
-The LIST equality-family case retains PostgreSQL-valid overlap and independently
-asserts native42601 at LIST, with its exact character Position; it does not skip
-the scenario or claim native LIST support. Controls replay the actual emitted
-native SQL on the pinned server, with no exclusion index ATTACH rewrite.
+The LIST equality-family case uses the same PostgreSQL-valid hierarchy and
+overlap assertions on both backends. Controls replay the actual emitted native
+SQL on the pinned server, with no exclusion index ATTACH rewrite.
 
 GiST capability assertions distinguish key and INCLUDE false/NULL results,
 including clusterable true and backward scans false. TEXT B-tree exclusions
@@ -1786,3 +1785,33 @@ exclusion, and complete-invalid/childless-invalid roots. Recheck provider gaps a
 invalid flags before and after native replay, require canonical bytes and prove
 both unconstrained-gap acceptance and restored covered-provider rejection.
 
+
+### LIST partition definitions
+
+The shared LIST scenarios prescribe direct/prepared routing, NULL and DEFAULT
+ownership, nesting, exact typed values, diagnostics, metadata and atomic failure.
+Same-list duplicate values and NULLs normalize; sibling ownership conflicts fail.
+Compound-bound ownership diagnostics point to the expression's first operand,
+not its operator token: `IN(0+1)` overlap names the position of `0`. Scalar
+operator errors retain their own expression-node diagnostic locations.
+Native Reset/Dump/Restore are explicit native-only phases. Public LIST ATTACH
+remains a native capability boundary; actual native dump fallback replay is not.
+
+Run these small sets in both modes (add `REFERENCE=1` for pinned PostgreSQL18.6),
+with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceListPartition(Definition|Routing|Nesting)$'
+make check RUN='^TestReferenceListPartition(Ownership|Diagnostics)$'
+make check RUN='^TestReferenceListPartition(Types|Metadata)$'
+make check RUN='^TestReferenceListPartition(Atomicity|Cancellation|Authorization)$'
+make check RUN='^TestReferenceListPartition(Controls|ReplayBoundary)$'
+make check RUN='^TestReferencePartitionExclusionHierarchy$'
+make check RUN='^TestReferenceListPartitionFeatureSmoke$'
+```
+
+The feature-smoke scenario checks direct and prepared writes to a nested LIST
+tree, physical leaf contents, NULL/default routing, result metadata, exact direct
+ancestry, overlap and occupied-DEFAULT rejection, reusable failed names, retained
+rows/held statements and native reset/restore/fresh-destination replay. When the
+oracle is enabled it consumes the actual owner-bearing native dump bytes too.

@@ -869,7 +869,7 @@ func ExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *
 		}
 	}
 	if d.Membership != nil {
-		for _, tuple := range [][]catalog.PartitionDatum{d.Membership.Lower, d.Membership.Upper} {
+		for _, tuple := range [][]catalog.PartitionDatum{d.Membership.Lower, d.Membership.Upper, d.Membership.Values} {
 			for _, datum := range tuple {
 				if datum.Kind == 0 {
 					changed = changed || datum.Value.Type() != typ(datum.Value.Type())

@@ -507,6 +507,7 @@ type PartitionStrategy uint8
 const (
 	PartitionRange PartitionStrategy = iota
 	PartitionHash
+	PartitionList
 )
 
 // Partition keys reuse the existing positioned scalar, collation and class
@@ -527,6 +528,7 @@ type PartitionBound struct {
 	ModulusPos, RemainderPos Position
 	Default                  bool
 	Lower, Upper             []PartitionDatum
+	Values                   []PartitionDatum
 	Pos                      Position
 }
 type PartitionParent struct {

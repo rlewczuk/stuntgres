@@ -27,6 +27,21 @@ func (t partitionBoundTree) StructuralOutput(ctx context.Context) (string, error
 	if t.membership.Strategy == parser.PartitionHash {
 		return fmt.Sprintf("{PartitionBound strategy hash default false modulus %d remainder %d}", t.membership.Modulus, t.membership.Remainder), nil
 	}
+	if t.membership.Strategy == parser.PartitionList {
+		if len(t.keys) != 1 {
+			return "", fmt.Errorf("stuntgres: invalid partition bound shape")
+		}
+		if t.membership.DefaultBound {
+			return "{PartitionBound strategy list default true}", nil
+		}
+		var out strings.Builder
+		out.WriteString("{PartitionBound strategy list default false values (")
+		if err := t.appendDatums(ctx, &out, t.membership.Values); err != nil {
+			return "", err
+		}
+		out.WriteString(")}")
+		return out.String(), nil
+	}
 	if t.membership.DefaultBound {
 		return "{PartitionBound strategy range default true}", nil
 	}
@@ -60,13 +75,21 @@ func (t partitionBoundTree) appendDatums(ctx context.Context, out *strings.Build
 		case 1:
 			out.WriteString("MAXVALUE")
 		case 0:
-			usage := t.keys[i].Usage
-			text, err := datum.Value.Type().Output(ctx, datum.Value)
-			if err != nil {
-				return err
+			key := i
+			if t.membership.Strategy == parser.PartitionList {
+				key = 0
 			}
+			usage := t.keys[key].Usage
 			fmt.Fprintf(out, "{type %d typmod %d collation %d value ", usage.Type.ID(), usage.Typmod, usage.Collation.ID)
-			out.WriteString(strconv.Quote(text))
+			if datum.Value.IsNull() {
+				out.WriteString("NULL")
+			} else {
+				text, err := datum.Value.Type().Output(ctx, datum.Value)
+				if err != nil {
+					return err
+				}
+				out.WriteString(strconv.Quote(text))
+			}
 			out.WriteByte('}')
 		default:
 			return fmt.Errorf("stuntgres: invalid partition bound datum")

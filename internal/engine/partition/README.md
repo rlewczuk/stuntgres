@@ -19,7 +19,7 @@ binder. Partitioned indexes are `index` code. See
 ## What it owns
 
 - **Bounds and routing** (`bounds.go`, `bind.go`, `hash_bounds.go`,
-  `insert.go`, `query.go`): `ValidateDescriptor`, `CompareTuple`,
+  `list_bounds.go`, `insert.go`, `query.go`): `ValidateDescriptor`, `CompareTuple`,
   `RowKey` (an `EvaluatedKey`), `Contains`, `RangeContains`, `Accepts`,
   `PhysicalDescendants`; bound preparation (`PrepareBounds`,
   `GeneratedError`); hash bounds (`ValidHashBound`, `HashOverlap`,
@@ -116,12 +116,37 @@ constraint and the per-leaf groups; step 29 moves them to `dml`). `partition_hos
   never iterates maps into output.
 - The package holds no engine state and no mutex. Functions here never
   wait; callers in the root own `Engine.mu`, lock waits and publication.
+- LIST has one key and one immutable typed Values slice per member. Bound
+  expressions execute once before overlap/default-row checks. Same-list
+  duplicates normalize with the key's admitted comparator; sibling value/NULL
+  ownership is exclusive. Routing performs no rendering, sorting or lookup-cache
+  allocation. DEFAULT stays the live sibling complement.
+- LIST metadata, dump literals and logical remap use key0 for every value, never
+  the list ordinal. Typed NULL preserves its descriptor without nonnull output.
+  Private LIST replay uses full-row validation; public LIST ATTACH stays excluded.
 
 ## Testing
 
 No package-local tests: every partition unit test builds an engine and
 stays in the root package, naming the moved code as `partition.X`.
 `TestPartitionHost*` checks the root `ddlHost.BindKeyExpression`.
+
+LIST selected units and real production-phase cancellation proof:
+
+```sh
+make check RUN='^TestListPartitionGrammar$'
+make check RUN='^TestListPartition(Descriptor|Comparison|LogicalRemap)$'
+make check RUN='^TestListPartition(PublicationCancellation|CancellationLockRelease)$' RACE=1
+```
+
+`TestListPartitionLogicalRemap` pins actual destination builtin generations in
+a live TEMP table before cross-engine import. This forces scalar/domain datum
+reownership rather than demanding pointer inequality when unchanged immutable
+codec sharing is valid. It asserts destination catalog authority, NULL/nonnull
+routing and exact preservation of the TEMP descriptor, storage and values.
+
+Public LIST behavior and native control/runtime-smoke instructions are in
+[reference/tables](../../../reference/tables/README.md#list-partition-definitions).
 
 ```sh
 make check RUN='^Test(Partition|RangePartition|HashPartition)'

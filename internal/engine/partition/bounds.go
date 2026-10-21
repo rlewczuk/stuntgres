@@ -30,6 +30,9 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 		if len(p.Keys) == 0 || len(p.Keys) > 32 || len(d.ColumnMeta.Generations) != 0 || len(d.ColumnMeta.Identities) != 0 {
 			return invalid()
 		}
+		if p.Strategy == parser.PartitionList && len(p.Keys) != 1 {
+			return invalid()
+		}
 		for _, check := range d.Constraints.Check {
 			if check.NoInherit {
 				return invalid()
@@ -59,7 +62,7 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 				if hash != key.Hash {
 					return invalid()
 				}
-			} else if p.Strategy == parser.PartitionRange {
+			} else if p.Strategy == parser.PartitionRange || p.Strategy == parser.PartitionList {
 				comparison, err := sqltype.BindIndexOrdering(key.Usage, key.Class)
 				if err != nil {
 					return err
@@ -98,6 +101,29 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 				continue
 			}
 			if child.Membership.DefaultBound != (p.DefaultChild == a) {
+				return invalid()
+			}
+			if p.Strategy == parser.PartitionList {
+				if err := validateListBound(context.Background(), &p.Keys[0], child.Membership); err != nil {
+					return err
+				}
+				if !child.Membership.DefaultBound {
+					for _, earlier := range p.Children[:i] {
+						previous := view.MustRelation(earlier).Membership
+						for _, datum := range previous.Values {
+							overlap, err := listContains(context.Background(), &p.Keys[0], child.Membership.Values, datum.Value, sqltype.InputEnvironment{})
+							if err != nil {
+								return err
+							}
+							if overlap {
+								return invalid()
+							}
+						}
+					}
+				}
+				continue
+			}
+			if len(child.Membership.Values) != 0 {
 				return invalid()
 			}
 			if !child.Membership.DefaultBound {
@@ -149,9 +175,19 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 		if membership.Strategy != parent.Partition.Strategy {
 			return invalid()
 		}
+		if membership.Strategy != parser.PartitionList && len(membership.Values) != 0 {
+			return invalid()
+		}
 		if membership.Strategy == parser.PartitionHash {
 			if !ValidHashBound(membership) {
 				return invalid()
+			}
+		} else if membership.Strategy == parser.PartitionList {
+			if len(parent.Partition.Keys) != 1 {
+				return invalid()
+			}
+			if err := validateListBound(context.Background(), &parent.Partition.Keys[0], membership); err != nil {
+				return err
 			}
 		} else if !membership.DefaultBound {
 			if len(membership.Lower) != len(parent.Partition.Keys) || len(membership.Upper) != len(parent.Partition.Keys) {
@@ -275,6 +311,9 @@ func Contains(ctx context.Context, keys []catalog.PartitionKeyEntry, bound *cata
 	if bound.Strategy == parser.PartitionHash {
 		return key.Hash%uint64(bound.Modulus) == uint64(bound.Remainder), ctx.Err()
 	}
+	if bound.Strategy == parser.PartitionList {
+		return listContains(ctx, &keys[0], bound.Values, key.Values[0].Value, input)
+	}
 	return RangeContains(ctx, keys, bound, key.Values, key.anyNull, input)
 }
 
@@ -324,6 +363,9 @@ func PhysicalDescendants(catalog catalog.Read, d *catalog.Relation, visit func(*
 func EvaluateBounds(ctx context.Context, d *Definition, binder BoundBinder, evaluation *exec.Context) error {
 	if d.Bound.Strategy == parser.PartitionHash {
 		return ctx.Err()
+	}
+	if d.Bound.Strategy == parser.PartitionList {
+		return evaluateListBounds(ctx, d, binder, evaluation)
 	}
 	for side, raw := range [2][]parser.PartitionDatum{d.Raw.Lower, d.Raw.Upper} {
 		tuple := d.Bound.Lower
@@ -383,6 +425,9 @@ func ValidateBounds(ctx context.Context, input sqltype.InputEnvironment, d *Defi
 	if d.Bound.Strategy == parser.PartitionHash {
 		return nil
 	}
+	if d.Bound.Strategy == parser.PartitionList {
+		return validateListBound(ctx, &d.Parent.Partition.Keys[0], d.Bound)
+	}
 	order, deciding, err := CompareTuple(ctx, d.Parent.Partition.Keys, d.Bound.Lower, d.Bound.Upper, input)
 	if err != nil {
 		return err
@@ -408,6 +453,9 @@ func ValidateBounds(ctx context.Context, input sqltype.InputEnvironment, d *Defi
 func CheckOverlap(ctx context.Context, input sqltype.InputEnvironment, base catalog.Read, d *Definition) error {
 	if d.Bound.Strategy == parser.PartitionHash {
 		return checkHashOverlap(ctx, base, d)
+	}
+	if d.Bound.Strategy == parser.PartitionList {
+		return checkListOverlap(ctx, input, base, d)
 	}
 	count := len(d.Parent.Partition.Children)
 	if d.Parent.Partition.DefaultChild != (ids.ObjectAddress{}) {

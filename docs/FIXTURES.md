@@ -315,6 +315,18 @@ Inherited and partition-member row exports use explicit named INSERT targets
 in captured live-column order, so reconstructed hierarchy declarations cannot
 redirect a stored value into a different column. Replay still uses ordinary
 INSERT binding and CHECK enforcement, not import-only expression admission.
+LIST partition replay serializes normalized frozen typed IN values, not the
+original bound expressions; volatile expressions never run again during Dump,
+routing or Restore. Every list datum uses key0's Usage, including typed NULL,
+and is reowned/remapped alongside RANGE endpoints through the existing scalar,
+enum/domain, collation and symbolic catalog-reference import authority.
+Nested topology and physical rows are emitted once. A leaf-local NO INHERIT
+CHECK can require ordinary CREATE plus private LIST ATTACH; the private replay
+uses real full-row validation rather than a range-endpoint proof or an untrusted
+public ATTACH bypass. Public LIST ATTACH remains unavailable. Overlap,
+occupied-DEFAULT, canceled EOF and I/O failures preserve the destination catalog,
+data and retained snapshots. Successful reset/restore and independent-destination
+replay preserve routing and deterministic redumps, not historical allocator IDs.
 Canonical inheritance declarations place current inherited columns before local
 columns. After an inherited column was added later, this can differ from the
 source's live column order. Named row targets preserve values; reconstructed

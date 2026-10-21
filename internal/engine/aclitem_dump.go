@@ -97,6 +97,9 @@ func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[
 			for _, datum := range relation.Membership.Upper {
 				check(datum.Value)
 			}
+			for _, datum := range relation.Membership.Values {
+				check(datum.Value)
+			}
 		}
 		for _, policy := range relation.Security.Policies {
 			if policy.Using != nil {

@@ -475,8 +475,8 @@ package parser
 %type <expr> conflict_predicate
 %type <partitionKey> partition_by
 %type <partitionBound> partition_bound hash_bound_options hash_bound_option
-%type <partitionDatum> partition_datum
-%type <partitionData> partition_data
+%type <partitionDatum> partition_datum list_partition_datum
+%type <partitionData> partition_data list_partition_data
 %type <indexKeys> partition_keys
 %type <indexKey> partition_key
 %type <elements> partition_options partition_elements
@@ -1137,14 +1137,20 @@ partition_by: /* empty */ {$$=nil}
  $$=&PartitionKey{Keys:$5,Pos:$1.pos}
  }
  | PARTITION BY IDENT '(' partition_keys ')' {
- if $3.text!="hash" {sqllex.(*lexer).syntax($3);return 1}
- $$=&PartitionKey{Strategy:PartitionHash,Keys:$5,Pos:$1.pos}
+ strategy:=PartitionHash
+ switch $3.text {
+ case "hash":
+ case "list": strategy=PartitionList
+ default: sqllex.(*lexer).syntax($3);return 1
+ }
+ $$=&PartitionKey{Strategy:strategy,Keys:$5,Pos:$1.pos}
  } ;
 partition_keys: partition_key {$$=[]IndexKey{$1}}
  | partition_keys ',' partition_key {$$=append($1,$3)} ;
 partition_key: index_atom column_collation index_class {$$=$1;$$.Collation=$2;$$.Opclass=$3.Opclass;$$.Options=$3.Options} ;
 partition_bound: DEFAULT {$$=PartitionBound{Default:true,Pos:$1.pos}}
  | FOR VALUES FROM '(' partition_data ')' TO '(' partition_data ')' {$$=PartitionBound{Lower:$5,Upper:$9,Pos:$3.pos}}
+ | FOR VALUES IN '(' list_partition_data ')' {$$=PartitionBound{Strategy:PartitionList,Values:$5,Pos:$3.pos}}
  | FOR VALUES WITH '(' hash_bound_options ')' {
  $$=$5;$$.Strategy=PartitionHash;$$.Pos=$3.pos
  if $$.ModulusPos.Character==0 {sqllex.(*lexer).failAt("42601","modulus for hash partition must be specified",$3.pos.Offset);return 1}
@@ -1166,6 +1172,9 @@ hash_bound_option: name NUMBER {
  $$,ok=sqllex.(*lexer).hashBoundOption($1,$2)
  if !ok{return 1}
  } ;
+list_partition_data: list_partition_datum {$$=[]PartitionDatum{$1}}
+ | list_partition_data ',' list_partition_datum {$$=append($1,$3)} ;
+list_partition_datum: target_or {$$=PartitionDatum{Expression:$1,Pos:ExpressionStart($1)}} ;
 partition_data: partition_datum {$$=[]PartitionDatum{$1}}
  | partition_data ',' partition_datum {$$=append($1,$3)} ;
 /* MINVALUE/MAXVALUE already reduce as unreserved column names. Classify their

@@ -79,9 +79,9 @@ func ProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *ProofGoal
 }
 
 func ConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
-	// Range endpoint implication does not prove seeded hash membership. Private
-	// replay attachment uses the ordinary full-row validation path instead.
-	if bound.Strategy == parser.PartitionHash {
+	// Range endpoint implication does not prove LIST or seeded HASH membership.
+	// Private replay attachment uses ordinary full-row validation instead.
+	if bound.Strategy != parser.PartitionRange {
 		return false, ctx.Err()
 	}
 	var keys [32]expr.Expr

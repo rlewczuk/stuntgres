@@ -45,7 +45,7 @@ func DumpPredecessors(r dump.Resolver, view catalog.Read, d *catalog.Relation, p
 			}
 		}
 		if !d.Membership.DefaultBound {
-			for _, tuple := range [2][]catalog.PartitionDatum{d.Membership.Lower, d.Membership.Upper} {
+			for _, tuple := range [3][]catalog.PartitionDatum{d.Membership.Lower, d.Membership.Upper, d.Membership.Values} {
 				for _, datum := range tuple {
 					if datum.Kind != 0 {
 						continue
@@ -92,6 +92,8 @@ func KeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation) 
 	var text strings.Builder
 	if d.Partition.Strategy == parser.PartitionHash {
 		text.WriteString(" PARTITION BY HASH (")
+	} else if d.Partition.Strategy == parser.PartitionList {
+		text.WriteString(" PARTITION BY LIST (")
 	} else {
 		text.WriteString(" PARTITION BY RANGE (")
 	}
@@ -179,6 +181,13 @@ func AttachDumpSQL(ctx context.Context, view catalog.Read, d *catalog.Relation) 
 	}
 	if d.Membership.Strategy == parser.PartitionHash {
 		return text + hashBoundSQL(d.Membership) + ";\n", nil
+	}
+	if d.Membership.Strategy == parser.PartitionList {
+		bound, err := listBoundSQL(ctx, view, &parent.Partition.Keys[0], d.Membership)
+		if err != nil {
+			return "", err
+		}
+		return text + bound + ";\n", nil
 	}
 	lower, err := tupleDumpSQL(ctx, view, parent.Partition.Keys, d.Membership.Lower)
 	if err != nil {
@@ -307,6 +316,12 @@ func ChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation
 		text.WriteString(" DEFAULT")
 	} else if d.Membership.Strategy == parser.PartitionHash {
 		text.WriteString(hashBoundSQL(d.Membership))
+	} else if d.Membership.Strategy == parser.PartitionList {
+		bound, err := listBoundSQL(ctx, catalogView, &parent.Partition.Keys[0], d.Membership)
+		if err != nil {
+			return "", err
+		}
+		text.WriteString(bound)
 	} else {
 		lower, err := tupleDumpSQL(ctx, catalogView, parent.Partition.Keys, d.Membership.Lower)
 		if err != nil {
@@ -348,4 +363,22 @@ func tupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []catalog.Part
 
 func hashBoundSQL(bound *catalog.PartitionMembership) string {
 	return fmt.Sprintf(" FOR VALUES WITH (MODULUS %d, REMAINDER %d)", bound.Modulus, bound.Remainder)
+}
+
+func listBoundSQL(ctx context.Context, view catalog.Read, key *catalog.PartitionKeyEntry, bound *catalog.PartitionMembership) (string, error) {
+	var text strings.Builder
+	text.WriteString(" FOR VALUES IN (")
+	for i, datum := range bound.Values {
+		if i != 0 {
+			text.WriteString(", ")
+		}
+		literal := plan.LiteralExpr{Info: expr.Info{Usage: key.Usage}, Value: datum.Value}
+		value, err := regobj.Literal(ctx, view, literal)
+		if err != nil {
+			return "", err
+		}
+		text.WriteString(value)
+	}
+	text.WriteByte(')')
+	return text.String(), nil
 }

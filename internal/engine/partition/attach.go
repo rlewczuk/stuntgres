@@ -181,13 +181,16 @@ type AttachRowConstraint struct {
 }
 
 // CheckAttachTarget rejects ATTACH PARTITION on a relation that is not
-// partitioned, then hash partition attachment outside a Restore replay.
+// partitioned, then LIST/HASH attachment outside a Restore replay.
 func CheckAttachTarget(parent *catalog.Relation, replay bool) error {
 	if parent.Partition == nil {
 		return AttachKindError(parent)
 	}
 	if parent.Partition.Strategy == parser.PartitionHash && !replay {
 		return sqlError("0A000", "hash partition attachment is unsupported")
+	}
+	if parent.Partition.Strategy == parser.PartitionList && !replay {
+		return sqlError("0A000", "list partition attachment is unsupported")
 	}
 	return nil
 }

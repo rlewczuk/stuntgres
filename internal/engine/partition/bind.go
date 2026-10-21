@@ -15,9 +15,8 @@ func GeneratedError(_ error, pos parser.Position, name string) error {
 	return d
 }
 
-// PrepareBounds checks both arities before any expression demand.
-// Transformation remains deferred: a later bind error must not mask an earlier
-// NULL or prevent a required nontransactional sequence draw.
+// PrepareBounds checks the strategy and shape before any expression demand.
+// Transformation remains deferred so each required expression executes once.
 func PrepareBounds(parent *catalog.Relation, raw parser.PartitionBound) (*catalog.PartitionMembership, error) {
 	bound := &catalog.PartitionMembership{Parent: parent.Address(), Strategy: parent.Partition.Strategy, DefaultBound: raw.Default}
 	if parent.Partition.Strategy == parser.PartitionHash {
@@ -36,7 +35,17 @@ func PrepareBounds(parent *catalog.Relation, raw parser.PartitionBound) (*catalo
 		bound.Modulus, bound.Remainder = raw.Modulus, raw.Remainder
 		return bound, nil
 	}
-	if raw.Strategy == parser.PartitionHash {
+	if parent.Partition.Strategy == parser.PartitionList {
+		if raw.Default {
+			return bound, nil
+		}
+		if raw.Strategy != parser.PartitionList {
+			return nil, expr.ErrorAt("42P16", "invalid bound specification for a list partition", raw.Pos)
+		}
+		bound.Values = make([]catalog.PartitionDatum, 0, len(raw.Values))
+		return bound, nil
+	}
+	if raw.Strategy != parser.PartitionRange && !raw.Default {
 		return nil, expr.ErrorAt("42P16", "invalid bound specification for a range partition", raw.Pos)
 	}
 	if raw.Default {

@@ -328,6 +328,9 @@ func BindKeys(h Host, auth ddl.Authority, d *catalog.Relation, raw *parser.Parti
 	if raw == nil {
 		return nil, nil
 	}
+	if raw.Strategy == parser.PartitionList && len(raw.Keys) != 1 {
+		return nil, sqlError("42P17", `cannot use "list" partition strategy with more than one column`)
+	}
 	if len(raw.Keys) == 0 || len(raw.Keys) > 32 {
 		return nil, sqlError("54011", "cannot partition using more than 32 columns")
 	}

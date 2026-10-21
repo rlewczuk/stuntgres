@@ -10,7 +10,7 @@ import (
 )
 
 func ValidHashBound(b *catalog.PartitionMembership) bool {
-	return !b.DefaultBound && b.Modulus > 0 && b.Remainder >= 0 && b.Remainder < b.Modulus && len(b.Lower) == 0 && len(b.Upper) == 0
+	return !b.DefaultBound && b.Modulus > 0 && b.Remainder >= 0 && b.Remainder < b.Modulus && len(b.Lower) == 0 && len(b.Upper) == 0 && len(b.Values) == 0
 }
 
 func HashOverlap(a, b *catalog.PartitionMembership) bool {
