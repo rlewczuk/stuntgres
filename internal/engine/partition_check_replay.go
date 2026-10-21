@@ -17,7 +17,7 @@ func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.Al
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK operation")
 	}
 	operationReplay(op).partitionCheck = nil
-	if !partitionCheckReplayActions(raw) {
+	if !PartitionCheckReplayActions(raw) {
 		return nil
 	}
 	e.mu.Lock()
@@ -59,5 +59,5 @@ func partitionConstraintReplayImport(e *Engine, op *session.Operation, auth Auth
 }
 
 func partitionCheckReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
-	return op != nil && operationReplayOrZero(op).partitionCheck == d && d != nil && d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.Catalog.Get(d.Address()) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
+	return op != nil && operationReplayOrZero(op).partitionCheck == d && d != nil && d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.Catalog.Get(d.Address()) == d && PartitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

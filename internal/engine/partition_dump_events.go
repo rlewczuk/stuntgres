@@ -33,7 +33,7 @@ func partitionDumpLateIndexTables(view catalog.Read) map[ids.ObjectAddress]bool 
 		}
 		for _, child := range table.Partition.Children {
 			candidate := view.MustRelation(child)
-			if !partitionDumpNeedsAttach(view, candidate) {
+			if !PartitionDumpNeedsAttach(view, candidate) {
 				continue
 			}
 			backing := index.PartitionDumpIndexBacking(view, idx.Address(), child)
@@ -49,7 +49,7 @@ func partitionDumpLateIndexTables(view catalog.Read) map[ids.ObjectAddress]bool 
 // Extend the existing declaration graph in place. The same source-priority
 // scheduler owns declarations, names, physical data, constraint origins and
 // captured membership/index edges; there is no independent topology sorter.
-func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read, graph dump.Graph, declarations []dump.Event, tables []table.DumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
+func PartitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read, graph dump.Graph, declarations []dump.Event, tables []table.DumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
 	lateTables := partitionDumpLateIndexTables(view)
 	lateIndexes := make(map[ids.OID]bool)
 	for oid := range indexIndices {
@@ -60,7 +60,7 @@ func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read
 		}
 	}
 	membership := func(table *catalog.Relation) dump.Event {
-		if partitionDumpNeedsAttach(view, table) {
+		if PartitionDumpNeedsAttach(view, table) {
 			return dump.Event{OID: table.Address().ObjectID, Phase: dump.TableAttachment}
 		}
 		return dump.Event{OID: table.Address().ObjectID}
@@ -111,7 +111,7 @@ func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read
 				lateDeclarations[event.OID] = true
 			}
 		}
-		if descriptor, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.OID}); ok && descriptor.Membership != nil && !partitionDumpNeedsAttach(view, descriptor) {
+		if descriptor, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.OID}); ok && descriptor.Membership != nil && !PartitionDumpNeedsAttach(view, descriptor) {
 			parent := view.MustRelation(descriptor.Membership.Parent)
 			for _, idx := range index.PartitionIndexDeclarationOrder(view, parent) {
 				if root := index.PartitionReplayVirtualUniqueRoot(view, idx); root != nil && index.PartitionReplayOnlyExclusion(root) && index.PartitionDumpIndexBacking(view, idx.Address(), descriptor.Address()) != nil {
@@ -128,7 +128,7 @@ func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read
 	virtualNameReady := make(map[ids.ObjectAddress]dump.Event)
 	nameReady := func(address ids.ObjectAddress) (dump.Event, bool, error) {
 		address.SubID = 0
-		if _, exists := replay.temporary[address]; exists {
+		if _, exists := replay.Temporary[address]; exists {
 			idx := view.MustRelation(address)
 			if root := index.PartitionReplayVirtualUniqueRoot(view, idx); root != nil && !index.PartitionReplayOnlyExclusion(root) {
 				return virtualNameReady[root.Address()], true, nil
@@ -164,7 +164,7 @@ func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read
 	}
 	ready := earlyTail
 	seen := make(map[dump.Event]bool)
-	renameOrder := replay.finalRenameOrder()
+	renameOrder := replay.FinalRenameOrder()
 	for _, idx := range renameOrder {
 		provider, err := r.Predecessor(view, idx.Address(), ids.ObjectAddress{})
 		if err != nil {
@@ -369,7 +369,7 @@ func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read
 		if deferDefaults && len(t.DeferredDefinitions) != 0 {
 			graph.Add(complete, dump.Event{OID: oid, Phase: dump.Defaults})
 		}
-		if partitionDumpNeedsAttach(view, t.Descriptor) {
+		if PartitionDumpNeedsAttach(view, t.Descriptor) {
 			event := membership(t.Descriptor)
 			graph[event] = []dump.Event{declaration, invalidTail, {OID: t.Descriptor.Membership.Parent.ObjectID}}
 			if !rowAfterMembership[oid] {
@@ -414,7 +414,7 @@ func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read
 				if index.PartitionPreservedReplayLocal(view, idx) || index.PartitionReplayVirtualUniqueRoot(view, idx) != nil {
 					continue
 				}
-				if _, exists := replay.temporary[constraint.Index]; exists {
+				if _, exists := replay.Temporary[constraint.Index]; exists {
 					graph.Add(event, dump.Event{OID: constraint.Index.ObjectID, Phase: dump.Rename})
 				}
 			}
@@ -439,7 +439,7 @@ func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read
 		}
 		parent := view.MustRelation(index.SQLIndex.PartitionParent)
 		table := view.MustRelation(index.SQLIndex.Parent)
-		if parent.SQLIndex.Constraint != nil || partitionDumpNeedsAttach(view, table) && !lateIndexes[parent.Address().ObjectID] {
+		if parent.SQLIndex.Constraint != nil || PartitionDumpNeedsAttach(view, table) && !lateIndexes[parent.Address().ObjectID] {
 			continue // Ordinary ATTACH links this captured backing itself.
 		}
 		event := dump.Event{OID: index.Address().ObjectID, Phase: dump.IndexAttachment}

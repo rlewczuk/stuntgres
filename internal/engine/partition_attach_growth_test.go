@@ -141,7 +141,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal(err)
 			}
 			current := e.catalog.state.MustRelation(parent.Address())
-			if !partitionAppendCompatible(parent, current) {
+			if !PartitionAppendCompatible(parent, current) {
 				t.Fatal("same-authority append rejected")
 			}
 			if replacement {
@@ -171,10 +171,10 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			}
 			captured := reader.partitionCaptureCatalog(e.CatalogRead())
 			var admitted, fresh []ids.ObjectAddress
-			if err := partitionPhysicalDescendants(captured, captured.MustRelation(parent.Address()), func(d *catalog.Relation) error { admitted = append(admitted, d.Address()); return nil }); err != nil {
+			if err := PartitionPhysicalDescendants(captured, captured.MustRelation(parent.Address()), func(d *catalog.Relation) error { admitted = append(admitted, d.Address()); return nil }); err != nil {
 				t.Fatal(err)
 			}
-			if err := partitionPhysicalDescendants(e.CatalogRead(), current, func(d *catalog.Relation) error { fresh = append(fresh, d.Address()); return nil }); err != nil {
+			if err := PartitionPhysicalDescendants(e.CatalogRead(), current, func(d *catalog.Relation) error { fresh = append(fresh, d.Address()); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if !slices.Equal(admitted, []ids.ObjectAddress{old.Address()}) || !slices.Equal(fresh, []ids.ObjectAddress{old.Address(), candidate.Address()}) {
@@ -283,7 +283,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				}
 			}
 			if mode == "default_unproven" {
-				if len(scans) != 1 || scans[0].leaf.Address() != leaf.Address() || !scans[0].exclude {
+				if len(scans) != 1 || scans[0].Leaf.Address() != leaf.Address() || !scans[0].Exclude {
 					t.Fatal("unproven DEFAULT omitted physical scan", scans)
 				}
 			} else if len(scans) != 0 {

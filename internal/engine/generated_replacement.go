@@ -18,7 +18,7 @@ import (
 // after repair; later container writes must use that store's locked methods.
 // When no repair is needed, it returns nil and leaves the containers detached.
 func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *session.Operation, indexes *index.Snapshot) (installedStage *Engine, result error) {
-	needed := indexes.NeedsOwnerRepair() || hasHashPartition(next)
+	needed := indexes.NeedsOwnerRepair() || HasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {
 			continue

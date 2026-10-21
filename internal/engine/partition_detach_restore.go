@@ -13,7 +13,7 @@ import (
 // Only the private importer records exact empty DEFAULT identities before an
 // emitted detach. A name prefix alone cannot grant arbitrary DROP admission.
 func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser.AlterTableDetachPartition) (partitionReplayTeardown, error) {
-	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, partitionReplayStem) {
+	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, PartitionReplayStem) {
 		return partitionReplayTeardown{}, nil
 	}
 	e.mu.Lock()
@@ -42,7 +42,7 @@ func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser
 	if store == nil || len(store.Versions) != 0 {
 		return partitionReplayTeardown{}, nil
 	}
-	return partitionReplayTeardown{child: child, parent: parent}, nil
+	return partitionReplayTeardown{Child: child, Parent: parent}, nil
 }
 
 func (e *Engine) validatePartitionReplayTeardown(op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partitionReplayTeardown) error {
@@ -57,12 +57,12 @@ func (e *Engine) validatePartitionReplayTeardown(op *session.Operation, name par
 		return err
 	}
 	record, ok := records[ref.Address]
-	if !ok || record.child != ref || e.importTargets == nil {
+	if !ok || record.Child != ref || e.importTargets == nil {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	child, ok := auth.Catalog.Relation(ref.Address)
-	parent, live := auth.Catalog.Relation(record.parent.Address)
-	if !ok || !live || record.parent.Epoch != auth.Catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.Children) != 0 {
+	parent, live := auth.Catalog.Relation(record.Parent.Address)
+	if !ok || !live || record.Parent.Epoch != auth.Catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.Children) != 0 {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	store := e.storage.Relations[ref.Address]

@@ -5,7 +5,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func partitionDependsOn(relation *catalog.Relation, target ids.ObjectAddress) bool {
+func PartitionDependsOn(relation *catalog.Relation, target ids.ObjectAddress) bool {
 	if relation.Partition == nil {
 		return false
 	}

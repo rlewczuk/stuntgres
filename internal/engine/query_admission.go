@@ -327,7 +327,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 						source = &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: []exec.InheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.Ref, leaf.Relation)
+					source, err = CapturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
 				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.Session.SessionToken)

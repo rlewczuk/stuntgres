@@ -99,7 +99,7 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	var sql string
 	var err error
 	if virtual != nil {
-		sql, err = partitionVirtualUniqueDefinitionSQL(c.catalogView, r)
+		sql, err = PartitionVirtualUniqueDefinitionSQL(c.catalogView, r)
 	} else {
 		sql, err = index.DefinitionSQL(ctx, c.catalogView, r, index.Presentation{Dump: true})
 	}
@@ -324,7 +324,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			predecessors = append(predecessors, predecessor)
 		}
 	}
-	predecessors, err := partitionDumpPredecessors(dumpResolver{}, c.catalogView, r, predecessors)
+	predecessors, err := PartitionDumpPredecessors(dumpResolver{}, c.catalogView, r, predecessors)
 	if err != nil {
 		return tableDumpEdges{}, err
 	}

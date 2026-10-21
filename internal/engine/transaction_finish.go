@@ -27,7 +27,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.routineDependencies = nil
 		s.routinePrograms = nil
 		s.domains.endAdmission()
-		s.partitionsSlot.dropPrograms()
+		s.partitionsSlot.DropPrograms()
 		for i := range s.mutations {
 			s.mutations[i].routineDependencies = nil
 		}
@@ -266,7 +266,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.view.Release()
 		s.view = nil
 	}
-	s.partitionsSlot.releaseValidationView()
+	s.partitionsSlot.ReleaseValidationView()
 	s.stage.rows = nil
 	s.stage.deletes = nil
 	s.notificationActions = nil

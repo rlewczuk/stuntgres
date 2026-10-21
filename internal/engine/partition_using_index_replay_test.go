@@ -37,7 +37,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !partitionUsingIndexReplayAllowed(op, auth, raw, child) || operationReplayOrZero(op).partitionUsingIndex.index != index {
+	if !partitionUsingIndexReplayAllowed(op, auth, raw, child) || operationReplayOrZero(op).partitionUsingIndex.Index != index {
 		t.Fatal("exact private physical/index origin not captured")
 	}
 	if err := partitionConsumerBoundary(op, auth, raw, child); err != nil {

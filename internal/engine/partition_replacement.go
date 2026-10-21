@@ -56,7 +56,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			destination := root
 			for destination.Partition != nil {
 				var buffer [32]catalog.PartitionDatum
-				key, err := partitionRowKey(destination, partitionReplacementRow(source, destination, version.Values), evaluation, buffer[:])
+				key, err := PartitionRowKey(destination, PartitionReplacementRow(source, destination, version.Values), evaluation, buffer[:])
 				if err != nil {
 					return nil, err
 				}
@@ -66,7 +66,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 					if child.Membership.DefaultBound {
 						continue
 					}
-					contains, err := partitionContains(ctx, destination.Partition.Keys, child.Membership, key, evaluation.Input)
+					contains, err := PartitionContains(ctx, destination.Partition.Keys, child.Membership, key, evaluation.Input)
 					if err != nil {
 						return nil, err
 					}
@@ -80,15 +80,15 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 				}
 				if selected == nil {
 					state := partitionInsertState{catalog: view, auth: auth, target: root}
-					return nil, state.missingPartition(ctx, destination, key.values, evaluation.Output)
+					return nil, state.missingPartition(ctx, destination, key.Values, evaluation.Output)
 				}
 				destination = selected
 			}
-			values := partitionReplacementRow(source, destination, version.Values)
+			values := PartitionReplacementRow(source, destination, version.Values)
 			validation := destination
 			if destination.Address() == address && history.Relation != nil {
 				var err error
-				validation, err = retainedChecks.forRow(ctx, history, destination, original, values, snapshot, evaluation)
+				validation, err = retainedChecks.ForRow(ctx, history, destination, original, values, snapshot, evaluation)
 				if err != nil {
 					return nil, err
 				}
@@ -103,7 +103,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			child := destination
 			for child.Membership != nil {
 				parent := view.MustRelation(child.Membership.Parent)
-				allowed, err := partitionAccepts(view, parent, child, partitionReplacementRow(source, parent, version.Values), evaluation)
+				allowed, err := PartitionAccepts(view, parent, child, PartitionReplacementRow(source, parent, version.Values), evaluation)
 				if err != nil {
 					return nil, err
 				}

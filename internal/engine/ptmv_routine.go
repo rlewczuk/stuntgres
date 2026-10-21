@@ -40,7 +40,7 @@ type partitionRecipeHost interface {
 	RecordPartitionPrograms(identity partitionRoutineIdentity, expressions []expr.Expr, admission exec.RoutineProgram)
 }
 
-func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
+func EvaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
 	key := owner.Partition.Keys[keyIndex].Derived
 	local := index.RecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1
@@ -91,22 +91,22 @@ func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, 
 // programs and the latest-DDL validation scan view (never the retained query
 // snapshot).
 type partitionScope struct {
-	programs       map[partitionRoutineIdentity][]expr.Expr
-	validationView *visibility.View // Latest DDL scan, same owner; never the retained query snapshot.
+	Programs       map[partitionRoutineIdentity][]expr.Expr
+	ValidationView *visibility.View // Latest DDL scan, same owner; never the retained query snapshot.
 }
 
 // dropPrograms drops the consumed partition routine programs together with
 // the borrowed admission context they belong to.
-func (p *partitionScope) dropPrograms() {
+func (p *partitionScope) DropPrograms() {
 	if p != nil {
-		p.programs = nil
+		p.Programs = nil
 	}
 }
 
 // releaseValidationView releases the latest-DDL scan view, if any.
-func (p *partitionScope) releaseValidationView() {
-	if p != nil && p.validationView != nil {
-		p.validationView.Release()
-		p.validationView = nil
+func (p *partitionScope) ReleaseValidationView() {
+	if p != nil && p.ValidationView != nil {
+		p.ValidationView.Release()
+		p.ValidationView = nil
 	}
 }

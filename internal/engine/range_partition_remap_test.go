@@ -159,7 +159,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 		t.Fatal("failed CHECK mutated remapped storage")
 	}
 	for _, name := range []string{"root", "leaf"} {
-		if err := validatePartitionDescriptor(e.CatalogRead(), rangePartitionRelation(t, e, name)); err != nil {
+		if err := ValidatePartitionDescriptor(e.CatalogRead(), rangePartitionRelation(t, e, name)); err != nil {
 			t.Fatal(err)
 		}
 	}

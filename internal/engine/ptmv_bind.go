@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionGeneratedError(_ error, pos parser.Position, name string) error {
+func PartitionGeneratedError(_ error, pos parser.Position, name string) error {
 	d := expr.ErrorAt("42P17", "cannot use generated column in partition key", pos).(*sqlstate.Error)
 	d.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, name)
 	return d
@@ -18,7 +18,7 @@ func partitionGeneratedError(_ error, pos parser.Position, name string) error {
 // preparePartitionBounds checks both arities before any expression demand.
 // Transformation remains deferred: a later bind error must not mask an earlier
 // NULL or prevent a required nontransactional sequence draw.
-func preparePartitionBounds(parent *catalog.Relation, raw parser.PartitionBound) (*catalog.PartitionMembership, error) {
+func PreparePartitionBounds(parent *catalog.Relation, raw parser.PartitionBound) (*catalog.PartitionMembership, error) {
 	bound := &catalog.PartitionMembership{Parent: parent.Address(), Strategy: parent.Partition.Strategy, DefaultBound: raw.Default}
 	if parent.Partition.Strategy == parser.PartitionHash {
 		if raw.Default {

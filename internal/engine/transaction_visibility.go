@@ -56,7 +56,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 	}
 	existing := s.view
 	if latest {
-		existing = s.partitionsOrZero().validationView
+		existing = s.partitionsOrZero().ValidationView
 	}
 	if existing != nil {
 		data := existing.Load()
@@ -195,7 +195,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 	}
 	captured := visibility.NewView(data)
 	if latest {
-		s.partitions().validationView = captured
+		s.partitions().ValidationView = captured
 	} else {
 		s.view = captured
 	}

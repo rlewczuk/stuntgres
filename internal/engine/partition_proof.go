@@ -18,40 +18,40 @@ import (
 // therefore performed only in the non-NULL key domain; explicit RANGE must first
 // prove that domain, whereas its complement already accepts every NULL key.
 type partitionProofGoal struct {
-	left, right *partitionProofGoal
+	left, Right *partitionProofGoal
 	key         int
-	op          string
+	Op          string
 	value       sqltype.Value
 }
 
 func partitionProofAnd(a, b *partitionProofGoal) *partitionProofGoal {
-	if a.op == "false" || b.op == "false" {
-		return &partitionProofGoal{op: "false"}
+	if a.Op == "false" || b.Op == "false" {
+		return &partitionProofGoal{Op: "false"}
 	}
-	if a.op == "true" {
+	if a.Op == "true" {
 		return b
 	}
-	if b.op == "true" {
+	if b.Op == "true" {
 		return a
 	}
-	return &partitionProofGoal{op: "and", left: a, right: b}
+	return &partitionProofGoal{Op: "and", left: a, Right: b}
 }
 func partitionProofOr(a, b *partitionProofGoal) *partitionProofGoal {
-	if a.op == "true" || b.op == "true" {
-		return &partitionProofGoal{op: "true"}
+	if a.Op == "true" || b.Op == "true" {
+		return &partitionProofGoal{Op: "true"}
 	}
-	if a.op == "false" {
+	if a.Op == "false" {
 		return b
 	}
-	if b.op == "false" {
+	if b.Op == "false" {
 		return a
 	}
-	return &partitionProofGoal{op: "or", left: a, right: b}
+	return &partitionProofGoal{Op: "or", left: a, Right: b}
 }
 
 // Tuple predicates are lexicographic. Infinite suffixes terminate the finite
 // prefix; they are not ordinary type infinity values.
-func partitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *partitionProofGoal {
+func PartitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *partitionProofGoal {
 	datum := tuple[at]
 	if datum.Kind != 0 {
 		truth := datum.Kind < 0
@@ -59,26 +59,26 @@ func partitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *
 			truth = !truth
 		}
 		if truth {
-			return &partitionProofGoal{op: "true"}
+			return &partitionProofGoal{Op: "true"}
 		}
-		return &partitionProofGoal{op: "false"}
+		return &partitionProofGoal{Op: "false"}
 	}
 	op := "<"
 	if greater {
 		op = ">="
 	}
 	if at == len(tuple)-1 {
-		return &partitionProofGoal{key: at, op: op, value: datum.Value}
+		return &partitionProofGoal{key: at, Op: op, value: datum.Value}
 	}
-	rest := partitionProofTuple(tuple, at+1, greater)
+	rest := PartitionProofTuple(tuple, at+1, greater)
 	strict := "<"
 	if greater {
 		strict = ">"
 	}
-	return partitionProofOr(&partitionProofGoal{key: at, op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, op: "=", value: datum.Value}, rest))
+	return partitionProofOr(&partitionProofGoal{key: at, Op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, Op: "=", value: datum.Value}, rest))
 }
 
-func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
+func PartitionConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
 	// Range endpoint implication does not prove seeded hash membership. Private
 	// replay attachment uses the ordinary full-row validation path instead.
 	if bound.Strategy == parser.PartitionHash {
@@ -115,11 +115,11 @@ func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 	proof := partitionProof{ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
 	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*partitionProofGoal, bool) {
 		if complement {
-			return partitionProofOr(partitionProofTuple(membership.Lower, 0, false), partitionProofTuple(membership.Upper, 0, true)), true
+			return partitionProofOr(PartitionProofTuple(membership.Lower, 0, false), PartitionProofTuple(membership.Upper, 0, true)), true
 		}
-		return partitionProofAnd(partitionProofTuple(membership.Lower, 0, true), partitionProofTuple(membership.Upper, 0, false)), false
+		return partitionProofAnd(PartitionProofTuple(membership.Lower, 0, true), PartitionProofTuple(membership.Upper, 0, false)), false
 	}
-	goal := &partitionProofGoal{op: "true"}
+	goal := &partitionProofGoal{Op: "true"}
 	nullAllowed := exclude || bound.DefaultBound
 	if bound.DefaultBound {
 		for _, address := range parent.Partition.Children {
@@ -133,7 +133,7 @@ func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 	} else {
 		goal, _ = goalFor(bound, exclude)
 	}
-	if goal.op == "true" && nullAllowed {
+	if goal.Op == "true" && nullAllowed {
 		return true, nil
 	}
 	if !nullAllowed {
@@ -194,15 +194,15 @@ func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
 	if err := p.ctx.Err(); err != nil {
 		return false, err
 	}
-	if goal.op == "true" {
+	if goal.Op == "true" {
 		return true, nil
 	}
-	if goal.op == "and" {
+	if goal.Op == "and" {
 		a, err := p.implies(goal.left)
 		if err != nil || !a {
 			return a, err
 		}
-		return p.implies(goal.right)
+		return p.implies(goal.Right)
 	}
 	for _, check := range p.relation.Constraints.Check {
 		if check.NotValid {
@@ -217,15 +217,15 @@ func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
 }
 
 func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, error) {
-	if goal.op == "true" {
+	if goal.Op == "true" {
 		return true, nil
 	}
-	if goal.op == "and" {
+	if goal.Op == "and" {
 		a, err := p.fact(node, goal.left)
 		if err != nil || !a {
 			return a, err
 		}
-		return p.fact(node, goal.right)
+		return p.fact(node, goal.Right)
 	}
 	// An OR fact needs every possible non-false branch. Different branches may
 	// establish different alternatives of a lexicographic target predicate.
@@ -236,12 +236,12 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		}
 		return p.fact(e.Right, goal)
 	}
-	if goal.op == "or" {
+	if goal.Op == "or" {
 		a, err := p.fact(node, goal.left)
 		if err != nil || a {
 			return a, err
 		}
-		a, err = p.fact(node, goal.right)
+		a, err = p.fact(node, goal.Right)
 		if err != nil || a {
 			return a, err
 		}
@@ -256,7 +256,7 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		}
 		return p.fact(e.Right, goal)
 	}
-	if goal.op == "or" {
+	if goal.Op == "or" {
 		return false, nil
 	}
 	if e, ok := node.(plan.LiteralExpr); ok && e.Value.Type().ID() == sqltype.Bool {
@@ -272,7 +272,7 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		return false, nil
 	}
 	e, ok := node.(plan.ComparisonExpr)
-	if !ok || goal.op == "false" {
+	if !ok || goal.Op == "false" {
 		return false, nil
 	}
 	key := p.keys[goal.key]
@@ -318,7 +318,7 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 			return false, err
 		}
 	}
-	switch goal.op {
+	switch goal.Op {
 	case ">=":
 		return (operator == ">" || operator == ">=" || operator == "=") && order >= 0, nil
 	case ">":

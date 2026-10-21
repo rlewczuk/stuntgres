@@ -98,7 +98,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	pending := &pendingPartitionDefinition{stage: stage, parent: parent, child: child, auth: auth}
 	if parent != nil {
 		pending.rawBounds = syntax.PartitionOf.Bound
-		pending.bound, err = preparePartitionBounds(parent, pending.rawBounds)
+		pending.bound, err = PreparePartitionBounds(parent, pending.rawBounds)
 		if err != nil {
 			return nil, err
 		}
@@ -110,7 +110,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 		if !pending.bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
 			defaultRelation := auth.Catalog.MustRelation(parent.Partition.DefaultChild)
-			err = partitionPhysicalDescendants(auth.Catalog, defaultRelation, func(leaf *catalog.Relation) error {
+			err = PartitionPhysicalDescendants(auth.Catalog, defaultRelation, func(leaf *catalog.Relation) error {
 				ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), leaf.Address())
 				pending.defaultLeaves = append(pending.defaultLeaves, ref)
 				stage.domainBases = append(stage.domainBases, leaf)
@@ -199,12 +199,12 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 			}
 			for i := range source.Count() {
 				var values [32]catalog.PartitionDatum
-				key, err := partitionRowKey(p.parent, mapping.MapValues(source.Row(i)), &evaluation, values[:0])
+				key, err := PartitionRowKey(p.parent, mapping.MapValues(source.Row(i)), &evaluation, values[:0])
 				if err != nil {
 					source.Close()
 					return err
 				}
-				contains, err := partitionContains(ctx, p.parent.Partition.Keys, p.bound, key, scope.input)
+				contains, err := PartitionContains(ctx, p.parent.Partition.Keys, p.bound, key, scope.input)
 				if err != nil {
 					source.Close()
 					return err
@@ -260,16 +260,16 @@ func (p *pendingPartitionDefinition) validateBounds(scope *StatementScope) error
 		return nil
 	}
 	ctx := scope.op.Context()
-	order, deciding, err := comparePartitionTuple(ctx, p.parent.Partition.Keys, p.bound.Lower, p.bound.Upper, scope.input)
+	order, deciding, err := ComparePartitionTuple(ctx, p.parent.Partition.Keys, p.bound.Lower, p.bound.Upper, scope.input)
 	if err != nil {
 		return err
 	}
 	if order >= 0 {
-		lower, err := partitionTupleSQL(ctx, p.bound.Lower)
+		lower, err := PartitionTupleSQL(ctx, p.bound.Lower)
 		if err != nil {
 			return err
 		}
-		upper, err := partitionTupleSQL(ctx, p.bound.Upper)
+		upper, err := PartitionTupleSQL(ctx, p.bound.Upper)
 		if err != nil {
 			return err
 		}
@@ -308,10 +308,10 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 			partitionBoundary{sibling.Membership.Upper, sibling, false})
 	}
 	compare := func(a, b partitionBoundary) (int, int, error) {
-		order, component, err := comparePartitionTuple(scope.op.Context(), p.parent.Partition.Keys, a.tuple, b.tuple, scope.input)
-		if err == nil && order == 0 && a.lower != b.lower {
+		order, component, err := ComparePartitionTuple(scope.op.Context(), p.parent.Partition.Keys, a.Tuple, b.Tuple, scope.input)
+		if err == nil && order == 0 && a.Lower != b.Lower {
 			order = -1
-			if a.lower {
+			if a.Lower {
 				order = 1
 			}
 		}
@@ -335,7 +335,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 	unique := bounds[:0]
 	for _, bound := range bounds {
 		if len(unique) != 0 {
-			order, _, err := comparePartitionTuple(scope.op.Context(), p.parent.Partition.Keys, unique[len(unique)-1].tuple, bound.tuple, scope.input)
+			order, _, err := ComparePartitionTuple(scope.op.Context(), p.parent.Partition.Keys, unique[len(unique)-1].Tuple, bound.Tuple, scope.input)
 			if err != nil {
 				return err
 			}
@@ -346,7 +346,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 		unique = append(unique, bound)
 	}
 	bounds = unique
-	probe := partitionBoundary{tuple: p.bound.Lower, lower: true}
+	probe := partitionBoundary{Tuple: p.bound.Lower, Lower: true}
 	lo, hi := -1, len(bounds)-1
 	lastOrder, lastComponent := 0, 0
 	for lo < hi {
@@ -370,7 +370,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 	}
 	next := bounds[lo+1]
 	position := p.bound.Lower[lastComponent].Pos
-	if !next.lower {
+	if !next.Lower {
 		// The lower endpoint is already inside a sibling. PostgreSQL exposes
 		// the search's final comparison component, with equality at the first.
 		if lastOrder == 0 {
@@ -379,7 +379,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 	} else {
 		// The lower endpoint is in a gap. Only its next partition can be the
 		// first overlap; point to the deciding new upper component.
-		order, component, err := compare(next, partitionBoundary{tuple: p.bound.Upper})
+		order, component, err := compare(next, partitionBoundary{Tuple: p.bound.Upper})
 		if err != nil {
 			return err
 		}
@@ -388,5 +388,5 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 		}
 		position = p.bound.Upper[component].Pos
 	}
-	return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.Name(), next.relation.Name()), position)
+	return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.Name(), next.Relation.Name()), position)
 }

@@ -35,15 +35,15 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				}
 			}
 			view := e.catalog.read(state)
-			_, replay := partitionConstraintDumpCatalog(dumpResolver{}, view)
+			_, replay := PartitionConstraintDumpCatalog(dumpResolver{}, view)
 			// Exact ordinals, not just uniqueness, define canonical table allocation.
 			for i, index := range indexes {
 				want := fmt.Sprintf("__stuntgres_partition_key_%d", i+1)
-				if got := replay.temporary[index.Address()]; got != want {
+				if got := replay.Temporary[index.Address()]; got != want {
 					t.Errorf("allocation %s/%s = %q, want %q", view.Get(index.Namespace()).Name(), tables[i].Name(), got, want)
 				}
 			}
-			got := replay.finalRenameOrder()
+			got := replay.FinalRenameOrder()
 			want := []*catalog.Relation{indexes[0], indexes[1], indexes[2]}
 			if !slices.Equal(got, want) {
 				var actual []string

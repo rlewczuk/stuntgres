@@ -206,15 +206,15 @@ func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser
 	if err != nil {
 		return err
 	}
-	if record.child.Domain() != nil {
-		r.partitionTeardowns[record.child.Address] = record
+	if record.Child.Domain() != nil {
+		r.partitionTeardowns[record.Child.Address] = record
 	}
 	return nil
 }
 
 // admitRestoreDropTable admits only a generated partition replay teardown.
 func admitRestoreDropTable(r *restoreRun, op *session.Operation, s *parser.DropTable) error {
-	if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, partitionReplayStem) {
+	if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, PartitionReplayStem) {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	return r.stage.validatePartitionReplayTeardown(op, s.Names[0], r.partitionTeardowns)

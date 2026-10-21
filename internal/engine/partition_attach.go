@@ -37,7 +37,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
 	if parent.Partition == nil {
-		return fail(partitionAttachKindError(parent))
+		return fail(PartitionAttachKindError(parent))
 	}
 	if parent.Partition.Strategy == parser.PartitionHash && !operationReplayOrZero(op).partitionAttach {
 		return fail(sqlError("0A000", "hash partition attachment is unsupported"))
@@ -51,7 +51,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
-	bound, err := preparePartitionBounds(parent, raw.Bound)
+	bound, err := PreparePartitionBounds(parent, raw.Bound)
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return fail(err)
@@ -108,7 +108,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err != nil {
 		return Result{}, err
 	}
-	if err = partitionAttachEligibility(catalog, parent, child); err != nil {
+	if err = PartitionAttachEligibility(catalog, parent, child); err != nil {
 		return Result{}, err
 	}
 	if err = scope.acquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
@@ -156,10 +156,10 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	stage.domainBases = append(stage.domainBases, parent, child)
 	e.mu.Unlock()
-	if err = partitionAttachEligibility(auth.Catalog, parent, child); err != nil {
+	if err = PartitionAttachEligibility(auth.Catalog, parent, child); err != nil {
 		return Result{}, err
 	}
-	next, err := partitionAttachSchema(scope.op.Context(), auth.Catalog, parent, child)
+	next, err := PartitionAttachSchema(scope.op.Context(), auth.Catalog, parent, child)
 	if err != nil {
 		return Result{}, err
 	}

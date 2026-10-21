@@ -8,14 +8,14 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionDetachMembership(parent, child *catalog.Relation) error {
+func PartitionDetachMembership(parent, child *catalog.Relation) error {
 	if child.Membership == nil || child.Membership.Parent != parent.Address() || !slices.Contains(parent.Partition.Children, child.Address()) {
 		return sqlError("42P01", fmt.Sprintf(`relation "%s" is not a partition of relation "%s"`, child.Name(), parent.Name()))
 	}
 	return nil
 }
 
-func partitionDetachKindError(view catalog.Read, d *catalog.Relation, opening bool) error {
+func PartitionDetachKindError(view catalog.Read, d *catalog.Relation, opening bool) error {
 	kind := "relations"
 	switch d.RelationKind {
 	case catalog.TableRelation:

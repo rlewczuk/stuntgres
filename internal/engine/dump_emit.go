@@ -130,25 +130,25 @@ func dumpEventRelation(view catalog.Read, event dump.Event) *catalog.Relation {
 }
 
 func emitDumpRename(_ context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	return w.emit(s.constraintReplay.finalRenameSQL(dumpEventRelation(s.originalCatalog, event)))
+	return w.emit(s.constraintReplay.FinalRenameSQL(dumpEventRelation(s.originalCatalog, event)))
 }
 
 func emitDumpIndexAttachment(_ context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	return w.emit(partitionIndexDumpAttachmentSQL(s.originalCatalog, dumpEventRelation(s.originalCatalog, event)))
+	return w.emit(PartitionIndexDumpAttachmentSQL(s.originalCatalog, dumpEventRelation(s.originalCatalog, event)))
 }
 
 func emitDumpTableAttachment(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	descriptor := dumpEventRelation(s.originalCatalog, event)
-	text, err := partitionAttachDumpSQL(ctx, s.originalCatalog, descriptor)
+	text, err := PartitionAttachDumpSQL(ctx, s.originalCatalog, descriptor)
 	if err != nil {
 		return err
 	}
-	text += s.constraintReplay.membershipRenames(s.catalogView, descriptor, event)
+	text += s.constraintReplay.MembershipRenames(s.catalogView, descriptor, event)
 	return w.emit(text)
 }
 
 func emitDumpInvalidIndex(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	text, err := s.invalidReplay[event.OID].sql(ctx, s.originalCatalog, event.Phase)
+	text, err := s.invalidReplay[event.OID].SQL(ctx, s.originalCatalog, event.Phase)
 	if err != nil {
 		return err
 	}

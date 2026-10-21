@@ -70,9 +70,9 @@ func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *ind
 	proposal := *candidate
 	if s.partitionInsert != nil {
 		group := s.partitionReturningGroup(ref)
-		ref = group.ref
+		ref = group.Ref
 		proposal.Values = s.partitionStoredRow(row)
-		defer func() { group.unique = s.uniqueBinding }()
+		defer func() { group.Unique = s.uniqueBinding }()
 	}
 	for {
 		admitted := true
@@ -183,14 +183,14 @@ func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionIn
 	address := state.destination.Address()
 	group := state.groups[address]
 	if group == nil {
-		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}
+		group = &partitionInsertGroup{Ref: ref.Domain().Ref(ref.Epoch, address)}
 		if state.groups == nil {
 			state.groups = make(map[ids.ObjectAddress]*partitionInsertGroup)
 		}
 		state.groups[address] = group
 		state.order = append(state.order, group)
 	}
-	s.uniqueBinding = group.unique
+	s.uniqueBinding = group.Unique
 	return group
 }
 

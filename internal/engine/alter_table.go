@@ -74,7 +74,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if partitionUniqueReplayAllowed(op, auth, s, old) {
 		return e.executePartitionUniqueReplayLocked(scope, op, auth, s, old)
 	}
-	if catalog.HierarchyRelation(old) && partitionExclusionAddActions(s) {
+	if catalog.HierarchyRelation(old) && PartitionExclusionAddActions(s) {
 		return e.executePartitionExclusionAddLocked(scope, op, auth, s, old)
 	}
 	if catalog.HierarchyRelation(old) && index.PartitionConstraintDropActions(old, s.Actions) {

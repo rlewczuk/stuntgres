@@ -6,7 +6,7 @@ import (
 )
 
 type partitionInsertGroup struct {
-	ref    ids.ObjectRef
-	rows   index.WriteBatch
-	unique *index.UniqueWriteBinding
+	Ref    ids.ObjectRef
+	Rows   index.WriteBatch
+	Unique *index.UniqueWriteBinding
 }

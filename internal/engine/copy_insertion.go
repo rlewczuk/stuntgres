@@ -76,11 +76,11 @@ func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, row
 		if group == nil {
 			_, err = s.admitInsertProducer(b, &candidate, rows.Prefix(position), evaluation)
 		} else {
-			s.uniqueBinding = group.unique
-			err = s.checkUniqueRow(group.ref, &candidate, nil, group.rows)
-			group.unique = s.uniqueBinding
+			s.uniqueBinding = group.Unique
+			err = s.checkUniqueRow(group.Ref, &candidate, nil, group.Rows)
+			group.Unique = s.uniqueBinding
 			if err == nil {
-				group.rows.Append(candidate)
+				group.Rows.Append(candidate)
 			}
 		}
 		if err != nil {

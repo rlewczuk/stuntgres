@@ -4,4 +4,4 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-type partitionReplayTeardown struct{ child, parent ids.ObjectRef }
+type partitionReplayTeardown struct{ Child, Parent ids.ObjectRef }

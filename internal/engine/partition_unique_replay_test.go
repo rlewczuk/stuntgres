@@ -232,11 +232,11 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, replay := partitionConstraintDumpCatalog(dumpResolver{}, view)
-	if err = partitionDumpEvents(context.Background(), dumpResolver{}, view, graph, declarations, tables, indices, replay, false); err != nil {
+	_, replay := PartitionConstraintDumpCatalog(dumpResolver{}, view)
+	if err = PartitionDumpEvents(context.Background(), dumpResolver{}, view, graph, declarations, tables, indices, replay, false); err != nil {
 		t.Fatal(err)
 	}
-	partitionInvalidDumpEvents(view, graph, indices)
+	PartitionInvalidDumpEvents(view, graph, indices)
 	order, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal("virtual definition closes initial membership cycle", err)

@@ -6,9 +6,9 @@ import (
 )
 
 type partitionUniqueReplay struct {
-	target      *catalog.Relation
-	syntax      *parser.AlterTable
-	definition  *parser.UniqueConstraint
-	snapshot    parser.UniqueConstraint
-	descriptors []*catalog.Relation
+	Target      *catalog.Relation
+	Syntax      *parser.AlterTable
+	Definition  *parser.UniqueConstraint
+	Snapshot    parser.UniqueConstraint
+	Descriptors []*catalog.Relation
 }

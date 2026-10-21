@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hasHashPartition(snapshot *catalog.State) bool {
+func HasHashPartition(snapshot *catalog.State) bool {
 	for _, d := range snapshot.Descriptors() {
 		if relation, ok := d.(*catalog.Relation); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
 			return true
@@ -17,7 +17,7 @@ func hasHashPartition(snapshot *catalog.State) bool {
 
 // Partition rows have equal named columns, but private replay may preserve a
 // different physical order. Borrow values unless a real layout change is needed.
-func partitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []sqltype.Value {
+func PartitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []sqltype.Value {
 	same := true
 	for i, c := range to.Columns {
 		if from.Columns[i].Name != c.Name {

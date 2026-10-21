@@ -27,14 +27,14 @@ func (h *statementHost) ReferentialActor() (authorization.PrincipalRef, bool) {
 
 // PartitionPrograms reads the partitions slot without allocating it.
 func (h *statementHost) PartitionPrograms(identity partitionRoutineIdentity) []expr.Expr {
-	return h.scope().partitionsOrZero().programs[identity]
+	return h.scope().partitionsOrZero().Programs[identity]
 }
 
 func (h *statementHost) RecordPartitionPrograms(identity partitionRoutineIdentity, expressions []expr.Expr, admission exec.RoutineProgram) {
 	slot := h.scope().partitions()
-	if slot.programs == nil {
-		slot.programs = make(map[partitionRoutineIdentity][]expr.Expr)
+	if slot.Programs == nil {
+		slot.Programs = make(map[partitionRoutineIdentity][]expr.Expr)
 	}
-	slot.programs[identity] = expressions
+	slot.Programs[identity] = expressions
 	h.routinePrograms = append(h.routinePrograms, commandRoutineProgram{admission: admission})
 }

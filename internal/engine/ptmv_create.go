@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func partitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (string, error) {
+func PartitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (string, error) {
 	var text strings.Builder
 	for i, datum := range tuple {
 		if i > 0 {
@@ -32,7 +32,7 @@ func partitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (str
 // partitionBoundary is a statement-local projection of the one immutable child
 // topology. Tuples and descriptors are referenced, not copied or persisted.
 type partitionBoundary struct {
-	tuple    []catalog.PartitionDatum
-	relation *catalog.Relation
-	lower    bool
+	Tuple    []catalog.PartitionDatum
+	Relation *catalog.Relation
+	Lower    bool
 }

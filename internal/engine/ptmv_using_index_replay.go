@@ -6,6 +6,6 @@ import (
 )
 
 type partitionUsingIndexReplay struct {
-	target, index *catalog.Relation
-	syntax        *parser.AlterTable
+	Target, Index *catalog.Relation
+	Syntax        *parser.AlterTable
 }

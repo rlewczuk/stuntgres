@@ -6,13 +6,13 @@ import (
 )
 
 type partitionAttachScan struct {
-	leaf    *catalog.Relation
-	exclude bool
+	Leaf    *catalog.Relation
+	Exclude bool
 }
 
 type partitionAttachRowConstraint struct {
-	parent  *catalog.Relation
-	child   catalog.Relation
-	layout  []int
-	scratch []sqltype.Value
+	Parent  *catalog.Relation
+	Child   catalog.Relation
+	Layout  []int
+	Scratch []sqltype.Value
 }

@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionAttachKindError(d *catalog.Relation) error {
+func PartitionAttachKindError(d *catalog.Relation) error {
 	kind := "relations"
 	switch d.RelationKind {
 	case catalog.TableRelation:
@@ -29,9 +29,9 @@ func partitionAttachKindError(d *catalog.Relation) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ATTACH PARTITION cannot be performed on relation "%s"`, d.Name()), Detail: "This operation is not supported for " + kind + "."}
 }
 
-func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relation) error {
+func PartitionAttachEligibility(view catalog.Read, parent, child *catalog.Relation) error {
 	if child.RelationKind != catalog.TableRelation && child.RelationKind != catalog.PartitionedRelation {
-		return partitionAttachKindError(child)
+		return PartitionAttachKindError(child)
 	}
 	for ancestor := parent; ancestor != nil; {
 		if ancestor.Address() == child.Address() {
@@ -79,7 +79,7 @@ func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relati
 	return nil
 }
 
-func partitionAttachSchema(ctx context.Context, view catalog.Read, parent, child *catalog.Relation) (*catalog.Relation, error) {
+func PartitionAttachSchema(ctx context.Context, view catalog.Read, parent, child *catalog.Relation) (*catalog.Relation, error) {
 	for _, column := range child.Columns {
 		if _, ok := parent.Index[column.Name]; !ok {
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`table "%s" contains column "%s" not found in parent "%s"`, child.Name(), column.Name, parent.Name()), Detail: "The new partition may contain only the columns present in parent."}

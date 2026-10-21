@@ -94,7 +94,7 @@ func partitionRetainedCheckAffected(ctx context.Context, h index.PartitionRowHis
 // their ownership. Only material literal payloads or an owner-sensitive result,
 // not Type/Domain/Procedure/Collation address renumbering, change that recipe's
 // retained-row inputs. Compare literals before any identity normalization.
-func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, ownerChanged bool) (bool, error) {
+func PartitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, ownerChanged bool) (bool, error) {
 	if ownerChanged && plan.GenerationHasTableOID(before) {
 		return true, ctx.Err()
 	}
@@ -148,7 +148,7 @@ type partitionRetainedChecks struct {
 	recipeAffected []bool
 }
 
-func (p *partitionRetainedChecks) forRow(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *index.Snapshot, evaluation *exec.Context) (*catalog.Relation, error) {
+func (p *partitionRetainedChecks) ForRow(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *index.Snapshot, evaluation *exec.Context) (*catalog.Relation, error) {
 	if !p.initialized {
 		p.descriptor = *d
 		p.descriptor.Constraints.Check = slices.Clone(d.Constraints.Check)
@@ -168,7 +168,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h index.PartitionR
 			if original == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			affected, err := partitionCheckRecipeAffected(ctx, original.Expression, check.Expression, ownerChanged)
+			affected, err := PartitionCheckRecipeAffected(ctx, original.Expression, check.Expression, ownerChanged)
 			if err != nil {
 				return nil, err
 			}
@@ -189,7 +189,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h index.PartitionR
 					if !exists {
 						return nil, ids.ErrCatalogReplaced
 					}
-					different, err := partitionCheckRecipeAffected(ctx, generation.Planned, current.Planned, ownerChanged)
+					different, err := PartitionCheckRecipeAffected(ctx, generation.Planned, current.Planned, ownerChanged)
 					if err != nil {
 						return nil, err
 					}

@@ -164,7 +164,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.ForeignRelation && len(r.Constraints.Check) != 0 {
 		return fmt.Errorf("stuntgres: CHECK requires a table descriptor")
 	}
-	if err := validatePartitionDescriptor(v, r); err != nil {
+	if err := ValidatePartitionDescriptor(v, r); err != nil {
 		return err
 	}
 	if r.RelationKind == catalog.SequenceRelation {
@@ -1438,7 +1438,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			candidate := e.catalog.read(next)
 			for _, descriptor := range next.Descriptors() {
 				if relation, ok := descriptor.(*catalog.Relation); ok && catalog.HierarchyRelation(relation) {
-					if err := validatePartitionDescriptor(candidate, relation); err != nil {
+					if err := ValidatePartitionDescriptor(candidate, relation); err != nil {
 						return ChangeSet{}, err
 					}
 				}

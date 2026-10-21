@@ -34,7 +34,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
 	if parent.Partition == nil {
-		return fail(partitionDetachKindError(auth.Catalog, parent, false))
+		return fail(PartitionDetachKindError(auth.Catalog, parent, false))
 	}
 	if err := e.partitionAttachName(auth, raw.Name, scope.lockedRef); err != nil {
 		return fail(err)
@@ -62,7 +62,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err == nil {
 		child := auth.Catalog.MustRelation(candidate.Address)
 		if child.RelationKind == catalog.IndexRelation || child.RelationKind == catalog.CompositeRelation {
-			err = partitionDetachKindError(auth.Catalog, child, true)
+			err = PartitionDetachKindError(auth.Catalog, child, true)
 		}
 		if err == nil {
 			err = scope.observePartitionRelationLocked(e, candidate)
@@ -79,7 +79,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err != nil {
 		return Result{}, err
 	}
-	if err = partitionDetachMembership(parent, child); err != nil {
+	if err = PartitionDetachMembership(parent, child); err != nil {
 		return Result{}, err
 	}
 	if err = scope.acquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
@@ -128,7 +128,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 // Only descriptors of the immediate edge are replaced. Stores, logical roots,
 // rowtype, stable attributes, local definitions and descendant edges are shared.
 func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *catalog.Relation) error {
-	if err := partitionDetachMembership(parent, child); err != nil {
+	if err := PartitionDetachMembership(parent, child); err != nil {
 		return err
 	}
 	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) || child.Revision() == ids.DefinitionRevision(^uint64(0)) {

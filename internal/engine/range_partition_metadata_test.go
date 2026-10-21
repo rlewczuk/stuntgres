@@ -63,7 +63,7 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 		{[]int64{3, 4}, []int64{3, 4}, 0, 1},
 		{[]int64{4, -999}, []int64{3, 999}, 1, 0},
 	} {
-		order, component, err := comparePartitionTuple(context.Background(), keys, rangePartitionIntegerTuple(t, keys, test.left...), rangePartitionIntegerTuple(t, keys, test.right...), sqltype.InputEnvironment{})
+		order, component, err := ComparePartitionTuple(context.Background(), keys, rangePartitionIntegerTuple(t, keys, test.left...), rangePartitionIntegerTuple(t, keys, test.right...), sqltype.InputEnvironment{})
 		if err != nil || order != test.order || component != test.component {
 			t.Fatal(test, order, component, err)
 		}
@@ -76,30 +76,30 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 		{[]int64{2, -999}, true}, {[]int64{3, 3}, true}, {[]int64{3, 4}, false},
 	} {
 		tuple := rangePartitionIntegerTuple(t, keys, test.values...)
-		inside, err := partitionRangeContains(context.Background(), keys, bounded.Membership, tuple, false, sqltype.InputEnvironment{})
+		inside, err := PartitionRangeContains(context.Background(), keys, bounded.Membership, tuple, false, sqltype.InputEnvironment{})
 		if err != nil || inside != test.explicit {
 			t.Fatal(test, inside, err)
 		}
 		row := []sqltype.Value{tuple[0].Value, tuple[1].Value}
-		accepted, err := partitionAccepts(e.CatalogRead(), root, rest, row, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+		accepted, err := PartitionAccepts(e.CatalogRead(), root, rest, row, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || accepted == test.explicit {
 			t.Fatal(test, accepted, err)
 		}
 	}
 	nullRow := []sqltype.Value{sqltype.Null(keys[0].Usage.Type), rangePartitionIntegerTuple(t, keys, 1, 1)[1].Value}
-	accepted, err := partitionAccepts(e.CatalogRead(), root, rest, nullRow, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	accepted, err := PartitionAccepts(e.CatalogRead(), root, rest, nullRow, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || !accepted {
 		t.Fatal("NULL must reach DEFAULT", accepted, err)
 	}
 	sentinels := []catalog.PartitionDatum{{Kind: -1}, {Kind: -1}}
 	finite := rangePartitionIntegerTuple(t, keys, -999, -999)
-	order, component, err := comparePartitionTuple(context.Background(), keys, sentinels, finite, sqltype.InputEnvironment{})
+	order, component, err := ComparePartitionTuple(context.Background(), keys, sentinels, finite, sqltype.InputEnvironment{})
 	if err != nil || order != -1 || component != 0 {
 		t.Fatal(order, component, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err := comparePartitionTuple(canceled, keys, finite, finite, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) {
+	if _, _, err := ComparePartitionTuple(canceled, keys, finite, finite, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
@@ -112,17 +112,17 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 		if catalog.State() == e.CatalogRead().State() {
 			parent, child = newRoot, newRest
 		}
-		accepted, err := partitionAccepts(catalog, parent, child, row, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+		accepted, err := PartitionAccepts(catalog, parent, child, row, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		if err != nil || !accepted {
 			t.Fatal(accepted, err)
 		}
 	}
 	formerlyExplicit := rangePartitionIntegerTuple(t, keys, 1, 2)
-	accepted, err = partitionAccepts(e.CatalogRead(), newRoot, newRest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	accepted, err = PartitionAccepts(e.CatalogRead(), newRoot, newRest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || !accepted {
 		t.Fatal("DEFAULT did not track removal", accepted, err)
 	}
-	oldAccepted, err := partitionAccepts(retained, root, rest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	oldAccepted, err := PartitionAccepts(retained, root, rest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil || oldAccepted {
 		t.Fatal("retained topology changed", oldAccepted, err)
 	}
@@ -155,7 +155,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	}
 	e.mu.Unlock()
 	for _, relation := range []*catalog.Relation{root, middle, leaf, rest} {
-		if err := validatePartitionDescriptor(e.CatalogRead(), relation); err != nil {
+		if err := ValidatePartitionDescriptor(e.CatalogRead(), relation); err != nil {
 			t.Fatal(relation.Name(), err)
 		}
 	}
@@ -177,19 +177,19 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		if other == nil || other.Semantics == provider.Semantics {
 			t.Fatal("distinct owned collation capabilities required")
 		}
-		if err := validatePartitionDescriptor(view, relation); err != nil {
+		if err := ValidatePartitionDescriptor(view, relation); err != nil {
 			t.Fatal("valid owned key authority", err)
 		}
 		missing := catalog.CloneState(view.State())
 		missing.RemoveDescriptor(address)
-		if err := validatePartitionDescriptor(e.catalog.read(missing), relation); err == nil {
+		if err := ValidatePartitionDescriptor(e.catalog.read(missing), relation); err == nil {
 			t.Fatal("admitted key whose immutable comparator outlived its provider")
 		}
 		mismatch := catalog.CloneState(view.State())
 		changed := *provider
 		changed.Semantics = other.Semantics
 		mismatch.SetDescriptor(address, &changed)
-		if err := validatePartitionDescriptor(e.catalog.read(mismatch), relation); err == nil {
+		if err := ValidatePartitionDescriptor(e.catalog.read(mismatch), relation); err == nil {
 			t.Fatal("admitted key with a different live provider capability")
 		}
 		candidate := *relation
@@ -197,16 +197,16 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		definition.Keys = slices.Clone(definition.Keys)
 		definition.Keys[0].Collation = uint32(other.OID)
 		candidate.Partition = &definition
-		if err := validatePartitionDescriptor(view, &candidate); err == nil {
+		if err := ValidatePartitionDescriptor(view, &candidate); err == nil {
 			t.Fatal("admitted raw explicit identity inconsistent with effective authority")
 		}
 		definition.Keys[0].Collation = 0
-		if err := validatePartitionDescriptor(view, &candidate); err != nil {
+		if err := ValidatePartitionDescriptor(view, &candidate); err != nil {
 			t.Fatal("effective authority without explicit clause", err)
 		}
 	})
 	var physical []ids.ObjectAddress
-	if err := partitionPhysicalDescendants(e.CatalogRead(), root, func(d *catalog.Relation) error { physical = append(physical, d.Address()); return nil }); err != nil || !reflect.DeepEqual(physical, []ids.ObjectAddress{leaf.Address(), rest.Address()}) {
+	if err := PartitionPhysicalDescendants(e.CatalogRead(), root, func(d *catalog.Relation) error { physical = append(physical, d.Address()); return nil }); err != nil || !reflect.DeepEqual(physical, []ids.ObjectAddress{leaf.Address(), rest.Address()}) {
 		t.Fatal(physical, err)
 	}
 	for _, test := range []struct {
@@ -231,7 +231,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			candidate := *root
 			test.mutate(&candidate)
-			if err := validatePartitionDescriptor(e.CatalogRead(), &candidate); err == nil {
+			if err := ValidatePartitionDescriptor(e.CatalogRead(), &candidate); err == nil {
 				t.Fatal("admitted malformed root")
 			}
 		})
@@ -250,7 +250,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 			membership := *middle.Membership
 			candidate.Membership = &membership
 			test.mutate(&membership)
-			if err := validatePartitionDescriptor(e.CatalogRead(), &candidate); err == nil {
+			if err := ValidatePartitionDescriptor(e.CatalogRead(), &candidate); err == nil {
 				t.Fatal("admitted malformed bounds")
 			}
 		})
@@ -259,7 +259,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	membership := *rest.Membership
 	membership.Lower = rangePartitionIntegerTuple(t, root.Partition.Keys, 0, 0)
 	badDefault.Membership = &membership
-	if err := validatePartitionDescriptor(e.CatalogRead(), &badDefault); err == nil {
+	if err := ValidatePartitionDescriptor(e.CatalogRead(), &badDefault); err == nil {
 		t.Fatal("DEFAULT retained explicit tuple")
 	}
 	cyclic := catalog.CloneState(e.CatalogRead().State())
@@ -271,7 +271,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	cyclicMiddle.Partition = &middleDefinition
 	cyclic.SetDescriptor(root.Address(), &cyclicRoot)
 	cyclic.SetDescriptor(middle.Address(), &cyclicMiddle)
-	if err := validatePartitionDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
+	if err := ValidatePartitionDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
 	overlapping := catalog.CloneState(e.CatalogRead().State())
@@ -282,7 +282,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	overlappingRest.Membership = &catalog.PartitionMembership{Parent: root.Address(), Lower: slices.Clone(middle.Membership.Lower), Upper: slices.Clone(middle.Membership.Upper)}
 	overlapping.SetDescriptor(root.Address(), &overlappingRoot)
 	overlapping.SetDescriptor(rest.Address(), &overlappingRest)
-	if err := validatePartitionDescriptor(e.catalog.read(overlapping), &overlappingRoot); err == nil {
+	if err := ValidatePartitionDescriptor(e.catalog.read(overlapping), &overlappingRoot); err == nil {
 		t.Fatal("overlapping catalog child bounds admitted")
 	}
 	if len(root.Partition.Children) != 2 || root.Partition.DefaultChild != rest.Address() || middle.Membership.Lower[1].Kind != -1 {

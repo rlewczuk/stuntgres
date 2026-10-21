@@ -748,7 +748,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	}
 	for address, captured := range s.partitionRelations {
 		current, _ := view.Relation(address)
-		if current != captured && !partitionAppendCompatible(captured, current) {
+		if current != captured && !PartitionAppendCompatible(captured, current) {
 			return ids.ErrCatalogReplaced
 		}
 	}

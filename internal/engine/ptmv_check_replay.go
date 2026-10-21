@@ -4,7 +4,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func partitionCheckReplayActions(raw *parser.AlterTable) bool {
+func PartitionCheckReplayActions(raw *parser.AlterTable) bool {
 	if raw == nil || len(raw.Actions) == 0 {
 		return false
 	}

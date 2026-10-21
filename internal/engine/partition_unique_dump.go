@@ -28,7 +28,7 @@ func partitionConstraintCreator(r dump.Resolver, view catalog.Read, idx *catalog
 	creator := dump.Event{OID: table.Address().ObjectID}
 	for idx.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		table = view.MustRelation(idx.SQLIndex.Parent)
-		if partitionDumpNeedsAttach(view, table) {
+		if PartitionDumpNeedsAttach(view, table) {
 			creator = dump.Event{OID: table.Address().ObjectID, Phase: dump.TableAttachment}
 		}
 		idx = view.MustRelation(idx.SQLIndex.PartitionParent)
@@ -51,7 +51,7 @@ func partitionExclusionDefaultBefore(view catalog.Read, gap, sibling *catalog.Re
 	return false
 }
 
-func partitionVirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relation) (string, error) {
+func PartitionVirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relation) (string, error) {
 	table := view.MustRelation(idx.SQLIndex.Parent)
 	if idx.SQLIndex.IsExclusion() {
 		text, err := index.DefinitionSQL(context.Background(), view, idx, index.Presentation{Dump: true, Exclusion: true})
@@ -80,7 +80,7 @@ func partitionVirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relatio
 // Reserve the real recursive creation sequence before any RENAME frees a stem,
 // exactly like existing inline partition constraint replay. Final names remain
 // owned by the scheduler's existing terminal rename barriers.
-func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, idx *catalog.Relation) string {
+func (r *partitionConstraintReplay) VirtualUniqueRenames(view catalog.Read, idx *catalog.Relation) string {
 	if index.PartitionReplayOnlyExclusion(idx) {
 		return ""
 	}
@@ -98,10 +98,10 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, idx 
 		for _, address := range table.Partition.Children {
 			childIndex := index.PartitionDumpIndexBacking(view, parentIndex.Address(), address)
 			child := view.MustRelation(address)
-			used := r.occupied[child.Namespace()]
+			used := r.Occupied[child.Namespace()]
 			if used == nil {
 				used = make(map[string]bool)
-				r.occupied[child.Namespace()] = used
+				r.Occupied[child.Namespace()] = used
 			}
 			suffix, addition := "key", ""
 			if childIndex.SQLIndex.IsExclusion() {
@@ -125,9 +125,9 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, idx 
 	reserve(idx)
 	var sql strings.Builder
 	for _, rename := range renames {
-		target := r.temporary[rename.index.Address()]
+		target := r.Temporary[rename.index.Address()]
 		sql.WriteString("ALTER INDEX " + catalog.QuoteIdentifier(view.Get(rename.index.Namespace()).Name()) + "." + catalog.QuoteIdentifier(rename.generated) + " RENAME TO " + catalog.QuoteIdentifier(target) + ";\n")
-		used := r.occupied[rename.index.Namespace()]
+		used := r.Occupied[rename.index.Namespace()]
 		delete(used, rename.generated)
 		used[target] = true
 	}
@@ -136,7 +136,7 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, idx 
 
 func partitionVirtualUniqueMembershipReady(view catalog.Read, graph dump.Graph, event dump.Event, table *catalog.Relation) {
 	member := dump.Event{OID: table.Address().ObjectID}
-	if partitionDumpNeedsAttach(view, table) {
+	if PartitionDumpNeedsAttach(view, table) {
 		member.Phase = dump.TableAttachment
 	}
 	graph.Add(event, member)

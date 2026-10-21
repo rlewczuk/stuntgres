@@ -24,6 +24,6 @@ func (s *StatementScope) partitionsOrZero() partitionScope {
 // never allocates the slot.
 func (s *StatementScope) setPartitionValidationView(view *visibility.View) {
 	if view != nil || s.partitionsSlot != nil {
-		s.partitions().validationView = view
+		s.partitions().ValidationView = view
 	}
 }
