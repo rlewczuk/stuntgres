@@ -95,7 +95,7 @@ Imports of the set: `analyze` (`NamespaceSelection`, the lookup kinds,
 | `regtype_persistence.go` | 103 | 65 | `scalarRenderer.recordCatalogAliasDependencies`, `recordCatalogAliasReferences` (21a) |
 | `regobjects_output.go` | 89 | 50 | `Engine.captureRegObjectRowsValueLocked`, `StatementScope.FormatRegcollation`, `FormatRegnamespace` |
 | `aclitem_input.go` | 63 | 46 | `Engine.captureACLItemInput` |
-| `aclitem_dump.go` | 150 | 39 | `Engine.preflightACLItemDump` (step 18a) |
+| `aclitem_dump.go` | 150 | 39 | `preflightACLItemDump` (a function since 18a) |
 | `domain_remap.go` | 215 | 39 | everything but `remapRegclassDatum` |
 | `regclass_capture.go` | 141 | 36 | `Engine.captureRegclassInput`, `Engine.regclassLocked`; `capturedRegclassInput` (21c) |
 | `visibility_metadata.go` | 45 | 35 | — |

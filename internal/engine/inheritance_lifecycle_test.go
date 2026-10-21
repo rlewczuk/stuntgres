@@ -139,7 +139,7 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 }
 
 func TestInheritanceControlsTopology(t *testing.T) {
-	order, err := viewDumpOrder(context.Background(), map[dumpEventKey][]dumpEventKey{{oid: 20001}: {{oid: 20003}, {oid: 20002}}, {oid: 20002}: nil, {oid: 20003}: nil}, nil)
+	order, err := dumpOrder(context.Background(), map[dumpEventKey][]dumpEventKey{{oid: 20001}: {{oid: 20003}, {oid: 20002}}, {oid: 20002}: nil, {oid: 20003}: nil}, nil)
 	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{20002, 20003, 20001}) {
 		t.Fatal(order, err)
 	}

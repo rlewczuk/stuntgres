@@ -317,7 +317,7 @@ func TestPartitionConstraintsDumpLogicalOrder(t *testing.T) {
 	for _, root := range []ids.OID{10, 90000} {
 		graph := map[dumpEventKey][]dumpEventKey{{oid: root}: nil, {oid: 20}: {{oid: root}}, {oid: 30}: {{oid: 20}}, {oid: 40}: nil, {oid: 50}: {{oid: 40}}, {oid: 60}: {{oid: 50}}}
 		priorities := map[ids.OID]ids.OID{root: 10}
-		order, err := viewDumpOrder(context.Background(), graph, priorities)
+		order, err := dumpOrder(context.Background(), graph, priorities)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -355,11 +355,11 @@ func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 		t.Fatal("retired address retained replay provenance")
 	}
 	graph := map[dumpEventKey][]dumpEventKey{{oid: 90}: nil, {oid: 20}: nil, {oid: 30}: {{oid: 90}}}
-	order, err := viewDumpOrder(context.Background(), graph, nil)
+	order, err := dumpOrder(context.Background(), graph, nil)
 	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{20, 90, 30}) {
 		t.Fatal("ordinary source order changed", order, err)
 	}
-	order, err = viewDumpOrder(context.Background(), graph, map[ids.OID]ids.OID{90: 10})
+	order, err = dumpOrder(context.Background(), graph, map[ids.OID]ids.OID{90: 10})
 	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{90, 20, 30}) {
 		t.Fatal("collision priority lost or bypassed dependencies", order, err)
 	}
@@ -392,7 +392,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 			t.Fatal("collision provenance missing or broadened", maps.Collect(next.DumpPriorities()))
 		}
 		graph := map[dumpEventKey][]dumpEventKey{{oid: mapped.ObjectID}: nil, {oid: child.Address().ObjectID}: {{oid: mapped.ObjectID}}, {oid: manual.Address().ObjectID}: nil}
-		order, err := viewDumpOrder(context.Background(), graph, map[ids.OID]ids.OID{mapped.ObjectID: next.DumpPriority(mapped)})
+		order, err := dumpOrder(context.Background(), graph, map[ids.OID]ids.OID{mapped.ObjectID: next.DumpPriority(mapped)})
 		if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{mapped.ObjectID, child.Address().ObjectID, manual.Address().ObjectID}) {
 			t.Fatal("repeated replacement lost original declaration order", order, err)
 		}

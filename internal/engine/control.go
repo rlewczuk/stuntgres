@@ -12,8 +12,6 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
@@ -130,7 +128,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	aclOutput := capturedACLItemOutput{owner: e.catalog.owner(), roles: originalRoles, lossless: true}
 	ctx = aclItemOutputContext(ctx, aclOutput)
-	if err := e.preflightACLItemDump(ctx, originalCatalog, aclOutput); err != nil {
+	if err := preflightACLItemDump(ctx, originalCatalog, e.storage.Relations, e.visibility.CommitSeq(), aclOutput); err != nil {
 		e.mu.Unlock()
 		return err
 	}
@@ -159,7 +157,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var views []dumpView
 	var materialized []dumpRelation
 	var indexes []dumpView
-	viewDependencies := make(map[dumpEventKey][]dumpEventKey)
+	graph := make(map[dumpEventKey][]dumpEventKey)
 	viewIndices := make(map[ids.OID]int)
 	tableIndices := make(map[ids.OID]int)
 	indexIndices := make(map[ids.OID]int)
@@ -371,7 +369,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return err
 				}
 				text := "CREATE EXTENSION " + catalog.QuoteIdentifier(t.Name()) + " WITH SCHEMA " + catalog.QuoteIdentifier(ns.Name()) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
-				viewDependencies[dumpEventKey{oid: t.Address().ObjectID}] = nil
+				graph[dumpEventKey{oid: t.Address().ObjectID}] = nil
 				viewIndices[t.Address().ObjectID] = len(views)
 				views = append(views, dumpView{principal.Name, text})
 				continue
@@ -479,7 +477,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		if r.RelationKind == catalog.CompositeRelation {
 			composites[r.Address().ObjectID] = r
-			viewDependencies[dumpEventKey{oid: r.Address().ObjectID}] = nil
+			graph[dumpEventKey{oid: r.Address().ObjectID}] = nil
 			continue
 		}
 		if r.SQLIndex != nil {
@@ -514,7 +512,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				sql += "ALTER TABLE " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(parent.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(r.Name()) + " " + kind + " USING INDEX " + catalog.QuoteIdentifier(r.Name()) + ";\n"
 			}
 			event := dumpEventKey{oid: oid}
-			viewDependencies[event] = []dumpEventKey{{oid: r.SQLIndex.Parent.ObjectID}}
+			graph[event] = []dumpEventKey{{oid: r.SQLIndex.Parent.ObjectID}}
 			for _, key := range r.SQLIndex.Keys {
 				if key.Derived == nil {
 					continue
@@ -526,8 +524,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						return err
 					}
 					source := dumpEventKey{oid: predecessor}
-					if predecessor != 0 && !slices.Contains(viewDependencies[event], source) {
-						viewDependencies[event] = append(viewDependencies[event], source)
+					if predecessor != 0 && !slices.Contains(graph[event], source) {
+						graph[event] = append(graph[event], source)
 					}
 				}
 			}
@@ -624,9 +622,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			oid := r.Address().ObjectID
 			event := dumpEventKey{oid: oid}
-			viewDependencies[event] = make([]dumpEventKey, 0, len(predecessors))
+			graph[event] = make([]dumpEventKey, 0, len(predecessors))
 			for predecessor := range predecessors {
-				viewDependencies[event] = append(viewDependencies[event], dumpEventKey{oid: predecessor})
+				graph[event] = append(graph[event], dumpEventKey{oid: predecessor})
 			}
 			viewIndices[oid] = len(views)
 			views = append(views, dumpView{principal.Name, sql})
@@ -765,7 +763,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
-		viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
+		graph[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
 		if len(deferredPredecessors) != 0 && !deferDefaults {
 			if inlinePredecessors == nil {
 				inlinePredecessors = make(map[ids.OID][]ids.OID)
@@ -777,7 +775,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					combined = append(combined, predecessor)
 				}
 			}
-			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(combined)
+			graph[dumpEventKey{oid: oid}] = dumpDeclarationEvents(combined)
 		}
 		tableIndices[oid] = len(tables)
 		linked := make(map[ids.ObjectAddress]sequence.Dump, len(r.ColumnMeta.Identities))
@@ -814,14 +812,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for _, d := range domains {
 		id := d.Address().ObjectID
 		domainNodes[id] = d
-		viewDependencies[dumpEventKey{oid: id}] = nil
+		graph[dumpEventKey{oid: id}] = nil
 		if d.SQLType.IsDomain() {
 			predecessor, err := dumpPredecessor(catalogView, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, d.Address())
 			if err != nil {
 				return err
 			}
 			if predecessor != 0 {
-				viewDependencies[dumpEventKey{oid: id}] = []dumpEventKey{{oid: predecessor}}
+				graph[dumpEventKey{oid: id}] = []dumpEventKey{{oid: predecessor}}
 			}
 			if d.DomainDefault != nil {
 				for _, dependency := range d.DomainDefault.Dependencies {
@@ -830,8 +828,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						return err
 					}
 					event, dependencyEvent := dumpEventKey{oid: id}, dumpEventKey{oid: predecessor}
-					if predecessor != 0 && !slices.Contains(viewDependencies[event], dependencyEvent) {
-						viewDependencies[event] = append(viewDependencies[event], dependencyEvent)
+					if predecessor != 0 && !slices.Contains(graph[event], dependencyEvent) {
+						graph[event] = append(graph[event], dependencyEvent)
 					}
 				}
 			}
@@ -846,8 +844,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					}
 					event := dumpEventKey{oid: id}
 					dependencyEvent := dumpEventKey{oid: predecessor}
-					if predecessor != 0 && !slices.Contains(viewDependencies[event], dependencyEvent) {
-						viewDependencies[event] = append(viewDependencies[event], dependencyEvent)
+					if predecessor != 0 && !slices.Contains(graph[event], dependencyEvent) {
+						graph[event] = append(graph[event], dependencyEvent)
 					}
 				}
 			}
@@ -858,7 +856,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		id := d.Address().ObjectID
-		viewDependencies[dumpEventKey{oid: id}] = nil
+		graph[dumpEventKey{oid: id}] = nil
 		for _, dependency := range routine.OperatorDependencyAddresses(catalogView, d) {
 			if dependency.ClassID == ids.NamespaceClassID {
 				continue
@@ -868,17 +866,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return err
 			}
 			if predecessor != 0 {
-				viewDependencies[dumpEventKey{oid: id}] = append(viewDependencies[dumpEventKey{oid: id}], dumpEventKey{oid: predecessor})
+				graph[dumpEventKey{oid: id}] = append(graph[dumpEventKey{oid: id}], dumpEventKey{oid: predecessor})
 			}
 		}
 	}
 	// Reconstruct final links, not allocation history: asymmetric links remain
 	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
-	operatorDumpEvents(catalogView, operators, viewDependencies)
-	if err := sqlRoutineDumpEvents(catalogView, sqlRoutines, viewDependencies); err != nil {
+	operatorDumpEvents(catalogView, operators, graph)
+	if err := sqlRoutineDumpEvents(catalogView, sqlRoutines, graph); err != nil {
 		return err
 	}
-	for event, predecessors := range viewDependencies {
+	for event, predecessors := range graph {
 		id := event.oid
 		relation, ok := catalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id})
 		if !ok {
@@ -888,7 +886,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if err != nil {
 			return err
 		}
-		viewDependencies[event] = dumpDeclarationEvents(columns)
+		graph[event] = dumpDeclarationEvents(columns)
 		if inline, ok := inlinePredecessors[id]; ok {
 			inline, err = dumpColumnPredecessors(catalogView, relation, inline)
 			if err != nil {
@@ -915,34 +913,34 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	if deferDefaults {
 		for oid, predecessors := range inlinePredecessors {
-			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
+			graph[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
 		}
 	}
 	// Capture collision-remap provenance from the same immutable snapshot as
 	// the graph, before any dump-private naming substitutions.
 	var priorities map[ids.OID]ids.OID
 	for address, priority := range originalCatalog.State().DumpPriorities() {
-		if _, emitted := viewDependencies[dumpEventKey{oid: address.ObjectID}]; emitted {
+		if _, emitted := graph[dumpEventKey{oid: address.ObjectID}]; emitted {
 			if priorities == nil {
 				priorities = make(map[ids.OID]ids.OID)
 			}
 			priorities[address.ObjectID] = priority
 		}
 	}
-	if err := physicalNotNullDumpDependencies(originalCatalog, viewDependencies); err != nil {
+	if err := physicalNotNullDumpDependencies(originalCatalog, graph); err != nil {
 		return err
 	}
-	normalizeOperatorDumpPredecessors(catalogView, viewDependencies)
-	declarationOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
+	normalizeOperatorDumpPredecessors(catalogView, graph)
+	declarationOrder, err := dumpOrder(ctx, graph, priorities)
 	if err != nil && !deferDefaults && ctx.Err() == nil && len(inlinePredecessors) != 0 {
 		for oid, predecessors := range inlinePredecessors {
-			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
+			graph[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
 		}
-		if err := physicalNotNullDumpDependencies(originalCatalog, viewDependencies); err != nil {
+		if err := physicalNotNullDumpDependencies(originalCatalog, graph); err != nil {
 			return err
 		}
-		normalizeOperatorDumpPredecessors(catalogView, viewDependencies)
-		declarationOrder, err = viewDumpOrder(ctx, viewDependencies, priorities)
+		normalizeOperatorDumpPredecessors(catalogView, graph)
+		declarationOrder, err = dumpOrder(ctx, graph, priorities)
 		deferDefaults = err == nil
 	}
 	if err != nil {
@@ -954,15 +952,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	viewOrder := dumpDeclarationIDs(declarationOrder)
-	if err := partitionDumpEvents(ctx, originalCatalog, viewDependencies, dumpDeclarationEvents(viewOrder), tables, indexIndices, constraintReplay, deferDefaults); err != nil {
+	if err := partitionDumpEvents(ctx, originalCatalog, graph, dumpDeclarationEvents(viewOrder), tables, indexIndices, constraintReplay, deferDefaults); err != nil {
 		return err
 	}
-	invalidReplay := partitionInvalidDumpEvents(originalCatalog, viewDependencies, indexIndices)
-	if err := domainInvalidDumpEvents(ctx, catalogView, viewDependencies, domainNodes); err != nil {
+	invalidReplay := partitionInvalidDumpEvents(originalCatalog, graph, indexIndices)
+	if err := domainInvalidDumpEvents(ctx, catalogView, graph, domainNodes); err != nil {
 		return err
 	}
-	normalizeOperatorDumpPredecessors(catalogView, viewDependencies)
-	eventOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
+	normalizeOperatorDumpPredecessors(catalogView, graph)
+	eventOrder, err := dumpOrder(ctx, graph, priorities)
 	if err != nil {
 		return err
 	}
@@ -2286,232 +2284,4 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	}
 	_, err = e.replaceCatalog(ctx, stage, stage.CatalogRead(), op)
 	return err
-}
-
-// Explicit escape strings are independent of the destination string setting.
-func commentLiteral(text string) string {
-	return "E'" + strings.ReplaceAll(strings.ReplaceAll(text, "\\", "\\\\"), "'", "''") + "'"
-}
-
-// Stored CREATE expressions retain their binder's admission rules. INSERT
-// expressions retain the existing Restore whitelist. Both modes reject every
-// parameter reached through the shared recursive visitor.
-func restoreScalar(raw parser.Expr, stored bool) error {
-	switch r := raw.(type) {
-	case parser.SQLJSONExpr:
-		for _, child := range r.Args {
-			if err := restoreScalar(child, stored); err != nil {
-				return err
-			}
-		}
-		if r.Query != nil {
-			return restoreSQLJSONQuery(r.Query, stored)
-		}
-		return nil
-	case parser.JSONPredicateExpr:
-		return restoreScalar(r.Child, stored)
-	case parser.SubqueryExpr:
-		if r.Left != nil {
-			if err := restoreScalar(r.Left, stored); err != nil {
-				return err
-			}
-		}
-		if err := restoreSQLJSONQuery(r.Query, stored); err != nil {
-			return err
-		}
-		if !stored {
-			return fmt.Errorf("stuntgres: invalid restore scalar")
-		}
-		return nil
-	case parser.FunctionExpr:
-		if !stored {
-			if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
-				return fmt.Errorf("stuntgres: invalid restore scalar")
-			}
-			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
-			case "split_part", "string_to_array", "parse_ident":
-			case "acldefault", "makeaclitem":
-				// These typed scalar constructors are also emitted by the
-				// ordinary lossless datum renderer. Their binder owns the
-				// signature and value checks; recurse below to reject parameters.
-			case "array_position", "array_positions", "array_remove", "array_replace":
-			case "array_dims", "array_length", "array_lower", "array_upper", "array_ndims", "cardinality":
-			case "array_append", "array_prepend", "array_cat", "array_fill", "array_reverse", "array_sort", "trim_array", "array_to_string":
-			case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":
-			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "json_strip_nulls", "jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first":
-			case "json_typeof", "jsonb_typeof", "jsonb_pretty", "json_array_length", "jsonb_array_length":
-			case "to_json", "to_jsonb", "array_to_json", "row_to_json", "json_build_array", "jsonb_build_array", "json_build_object", "jsonb_build_object":
-			case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
-			case "to_bin", "to_oct", "to_hex":
-			case "pg_size_bytes", "pg_size_pretty":
-			case "age", "isfinite":
-			case "overlaps":
-			case "date_trunc", "date_bin":
-			case "timezone", "date_add", "date_subtract":
-			case "justify_days", "justify_hours", "justify_interval":
-			case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
-			case "gen_random_uuid", "uuidv4", "uuidv7":
-			case "uuid_extract_timestamp", "uuid_extract_version":
-			case "abbrev", "host", "family", "masklen", "inet_same_family", "broadcast", "hostmask", "netmask", "network", "inet_merge", "set_masklen":
-			case "format", "concat", "concat_ws", "quote_ident", "quote_literal", "quote_nullable", "pg_client_encoding":
-			case "convert", "convert_from", "convert_to", "encode", "decode", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
-			case "regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_replace", "regexp_split_to_array":
-				_, _, _, valid := functions.RegexpSignature(r.Name.Parts[len(r.Name.Parts)-1].Text, len(r.Args), true)
-				if !valid || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "like_escape":
-				if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "similar_to_escape":
-				if r.Syntax != parser.SimilarEscapeFunctionSyntax || len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) < 1 || len(r.Args) > 2 || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "left", "right":
-				if len(r.Args) != 2 || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "substring", "substr":
-				if (len(r.Args) != 2 && len(r.Args) != 3) || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			default:
-				return fmt.Errorf("stuntgres: invalid restore scalar")
-			}
-		}
-		for _, child := range r.Args {
-			if err := restoreScalar(child, stored); err != nil {
-				return err
-			}
-		}
-		return nil
-	case parser.CaseExpr:
-		if r.Test != nil {
-			if err := restoreScalar(r.Test, stored); err != nil {
-				return err
-			}
-		}
-		for _, arm := range r.Arms {
-			if err := restoreScalar(arm.Condition, stored); err != nil {
-				return err
-			}
-			if err := restoreScalar(arm.Result, stored); err != nil {
-				return err
-			}
-		}
-		if r.Else != nil {
-			return restoreScalar(r.Else, stored)
-		}
-		return nil
-	case parser.ConditionalExpr:
-		for _, child := range r.Args {
-			if err := restoreScalar(child, stored); err != nil {
-				return err
-			}
-		}
-		return nil
-	case parser.LogicalExpr:
-		if err := restoreScalar(r.Left, stored); err != nil {
-			return err
-		}
-		if r.Right != nil {
-			return restoreScalar(r.Right, stored)
-		}
-		return nil
-	case parser.PredicateExpr:
-		if err := restoreScalar(r.Left, stored); err != nil {
-			return err
-		}
-		if r.Right != nil {
-			return restoreScalar(r.Right, stored)
-		}
-		return nil
-	case parser.CollateExpr:
-		return restoreScalar(r.Child, stored)
-	case parser.CastExpr:
-		return restoreScalar(r.Child, stored)
-	case parser.RegclassExpr:
-		return restoreScalar(r.Child, stored)
-	case parser.FieldExpr:
-		return restoreScalar(r.Base, stored)
-	case parser.RowExpr:
-		for _, field := range r.Fields {
-			if err := restoreScalar(field, stored); err != nil {
-				return err
-			}
-		}
-		return nil
-	case parser.InListExpr:
-		if err := restoreScalar(r.Left, stored); err != nil {
-			return err
-		}
-		for _, item := range r.Items {
-			if err := restoreScalar(item, stored); err != nil {
-				return err
-			}
-		}
-		return nil
-	case parser.ArrayComparisonExpr:
-		if err := restoreScalar(r.Left, stored); err != nil {
-			return err
-		}
-		return restoreScalar(r.Right, stored)
-	case parser.ArrayExpr:
-		for _, element := range r.Elements {
-			if err := restoreScalar(element, stored); err != nil {
-				return err
-			}
-		}
-		return nil
-	case parser.SubscriptExpr:
-		var storage [13]parser.Expr
-		for _, child := range r.Children(&storage) {
-			if err := restoreScalar(child, stored); err != nil {
-				return err
-			}
-		}
-		return nil
-	case parser.TimeZoneExpr:
-		if err := restoreScalar(r.Value, stored); err != nil {
-			return err
-		}
-		if !r.Local {
-			return restoreScalar(r.Zone, stored)
-		}
-		return nil
-	case parser.ParameterExpr:
-		return expr.ErrorAt("42P02", "parameters are not allowed in restore", r.Pos)
-	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:
-		return nil
-	case parser.OperatorExpr:
-		if !stored {
-			if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
-				return fmt.Errorf("stuntgres: invalid restore scalar")
-			}
-			spelling := r.Name.Parts[len(r.Name.Parts)-1].Text
-			if r.SQLSimilar {
-				if (spelling != "~" && spelling != "!~") || len(r.Args) != 2 {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-				normalizer, ok := r.Args[1].(parser.FunctionExpr)
-				if !ok || normalizer.Syntax != parser.SimilarEscapeFunctionSyntax {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			} else if functions.PosixName(spelling) && len(r.Args) != 2 && (spelling != "~" || len(r.Args) != 1) {
-				return fmt.Errorf("stuntgres: invalid restore scalar")
-			}
-		}
-		for _, child := range r.Args {
-			if err := restoreScalar(child, stored); err != nil {
-				return err
-			}
-		}
-		return nil
-	default:
-		if stored {
-			return nil
-		} // Existing stored binder owns unsupported syntax.
-		return fmt.Errorf("stuntgres: invalid restore scalar")
-	}
 }

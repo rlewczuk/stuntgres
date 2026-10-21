@@ -55,7 +55,7 @@ private restore stage, and install the replacement catalog atomically.
 | `Engine.Dump` | 73–1661 | dirty | locked capture (80–800), graph assembly (800–1080), emission (1080–1661) |
 | `contextReader` | 1662 | clean | cancellable reader for Restore input |
 | `Engine.Restore` | 1682–2291 | dirty | parse with decoders, restore session, statement loop, finish, publish |
-| `commentLiteral`, `restoreScalar` | 2292, 2299 | clean | move to `dump` in 18a/18b |
+| `commentLiteral`, `restoreScalar` | 2292, 2299 | clean | moved to `dump_restore_scalar.go` in 18a; to `dump` in 18b |
 
 ### The three central switches and four central walks
 
@@ -67,7 +67,7 @@ private restore stage, and install the replacement catalog atomically.
 | `remapPreparedCatalog` (descriptor-kind switch over owners and ACLs) | `principal_remap.go:16` | `catalog` 5i (`RemapPrincipals`); mapper construction stays in the root |
 | `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `view_catalog_remap.go:14` | `stored` 22c (`ReownExpressions`) |
 | `remapViewRuleOIDs` | `view_remap.go:984` | stays in the root: it allocates OIDs (the `stored` prompt) |
-| `dumpPredecessor` (descriptor-kind dependency resolver) | `view_dump.go:16` (`dump_graph.go` after 18a) | root `dump.Resolver` (18b); 30b decides whether it moves with the drivers |
+| `dumpPredecessor` (descriptor-kind dependency resolver) | `dump_graph.go:16` (was `view_dump.go`) | root `dump.Resolver` (18b); 30b decides whether it moves with the drivers |
 
 `reownCatalogScalarTypes` (`domain_remap.go:14`) is a fifth walk of the
 same kind; it goes with `ReownExpressions` in 22c.

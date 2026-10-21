@@ -131,7 +131,7 @@ Logical replay validates virtual constraint-backed dependencies and renders thei
 captured identities with names usable at each emission stage. Existing naming,
 reservation, declaration order and diagnostic contracts remain unchanged.
 
-`dumpPredecessor` in `internal/engine/view_dump.go:12–86` must accept legitimate
+`dumpPredecessor` in `internal/engine/dump_graph.go` (formerly `view_dump.go`) must accept legitimate
 UNIQUE/PRIMARY KEY backings owned by exactly an ordinary or partitioned table,
 matching `unique.go:28`. Materialized-view standalone indexes are not constraint
 owners. Keep actual descriptor resolution, reciprocal `unique.Index` and

@@ -346,7 +346,19 @@ place. Dump output is byte-identical and the checks in §8.3 pass.
 
 ## Status
 
-- [ ] 18a — In place (renames, `preflightACLItemDump` as a function)
+- [x] 18a — In place (renames, `preflightACLItemDump` as a function)
+  (`35544f886`, `c201b0a69`, then the docs commit). Re-measured at
+  `1dad6120d`: every primitive still clean, line numbers unchanged.
+  `view_dump.go` is `dump_graph.go` (`dumpOrder`, `dumpReady`; the local
+  graph in `Engine.Dump` is `graph`); `commentLiteral`, `restoreScalar` and
+  `restoreSQLJSONQuery` moved unchanged into `dump_restore_scalar.go`
+  (`sqljson_restore.go` deleted); `preflightACLItemDump` takes the relation
+  roots and the commit frontier, passed by `Engine.Dump` under `Engine.mu`.
+  Tests adapted (renames only): 10 engine test files calling `dumpOrder`.
+  Targeted units, quick-mode `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)`
+  and `^TestReferenceControl`, `REFERENCE=1` for the five tests named under
+  Targeted tests plus `TestReferenceACLItemDumpSnapshot`, and quickcheck
+  passed; racecheck/finalcheck skipped at user request.
 - [ ] 18b — `dump` created; records, order and capabilities moved
 - [ ] 18c — Collect and Emit tables in `Engine.Dump`
 

@@ -6,9 +6,9 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `c154e14fb`. Steps 8–17 were planned at
-`75fe0d710`; steps 18–30 and the second-round follow-ups (items 55–114) at
-`c154e14fb`.
+Last verified against `master` at `1dad6120d` (item 55). Steps 8–17 were
+planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
+55–114) at `c154e14fb`.
 
 ## Next ready sub-steps
 
@@ -18,8 +18,8 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams, in place:** 55 (dump 18a), 58 (copyfmt 19a), 60 (ddl 20a),
-  64 (regobj 21a), 67 (stored 22a).
+- **Seams:** 56 (dump 18b), 58 (copyfmt 19a), 60 (ddl 20a), 64 (regobj
+  21a), 67 (stored 22a).
 - **Follow-ups in existing packages:** 71 (functions F6), 72 (catalog 5i),
   73 (plan 10e), 74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f),
   78 (session 13f), 79 (access B6).
@@ -27,7 +27,8 @@ after each lands.
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
-planning round: steps 18–30 and the follow-ups have prompt files. Step 3
+planning round: steps 18–30 and the follow-ups have prompt files. Item 55
+(dump 18a) is done. Step 3
 stays open until F6 (item 71) closes F2.
 
 ## Task tree
@@ -394,7 +395,8 @@ stays open until F6 (item 71) closes F2.
   is split between step 20 (`ddl`), `catalog` 5i, `regobj` and `table`
   ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#steps-1830--the-postponed-packages-and-their-seams)).
 - [ ] **Step 18 — `dump`** ([prompt](ENGINE-SPLIT-dump.md); needs —)
-  - [ ] 18a — In place: `dump_graph.go`, snapshot functions
+  - [x] 18a — In place: `dump_graph.go`, snapshot functions (`35544f886`,
+    `c201b0a69`, then the docs commit)
   - [ ] 18b — `dump` created and graph records moved
   - [ ] 18c — Collect/Emit provider tables replace Dump switches #1 and #2
 - [ ] **Step 19 — `copyfmt`** ([prompt](ENGINE-SPLIT-copyfmt.md); needs —)
@@ -810,7 +812,11 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 
 ### Group H — shared seams (steps 18–22)
 
-55. [ ] Dump 18a: in place — [dump](ENGINE-SPLIT-dump.md) 18a · needs —
+55. [x] Dump 18a: in place — [dump](ENGINE-SPLIT-dump.md) 18a · needs —
+    (`35544f886`, `c201b0a69`, then the docs commit) · `dump_graph.go`,
+    `dump_restore_scalar.go`, ACL preflight as a function · selected unit
+    and dual-mode proof and quickcheck passed; racecheck/finalcheck skipped
+    at user request
 56. [ ] Dump 18b: `dump` created, graph records moved —
     [dump](ENGINE-SPLIT-dump.md) 18b · needs 55
 57. [ ] Dump 18c: Collect/Emit provider tables, in place —

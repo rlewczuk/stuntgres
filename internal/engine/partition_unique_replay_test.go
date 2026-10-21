@@ -225,7 +225,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	view = view.WithState(&state)
 	graph[dumpEventKey{oid: consumer.Address().ObjectID}] = []dumpEventKey{{oid: local.Address().ObjectID}}
 	tables = append(tables, dumpRelation{descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value, leafValue}}}})
-	declarations, err := viewDumpOrder(context.Background(), graph, nil)
+	declarations, err := dumpOrder(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	partitionInvalidDumpEvents(view, graph, indices)
-	order, err := viewDumpOrder(context.Background(), graph, nil)
+	order, err := dumpOrder(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal("virtual definition closes initial membership cycle", err)
 	}

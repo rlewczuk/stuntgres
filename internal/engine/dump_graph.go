@@ -169,13 +169,13 @@ func dumpDeclarationIDs(events []dumpEventKey) []ids.OID {
 	return ids
 }
 
-type viewDumpReady struct {
+type dumpReady struct {
 	ids        []dumpEventKey
 	priorities map[ids.OID]ids.OID
 }
 
-func (h viewDumpReady) Len() int { return len(h.ids) }
-func (h viewDumpReady) Less(i, j int) bool {
+func (h dumpReady) Len() int { return len(h.ids) }
+func (h dumpReady) Less(i, j int) bool {
 	left, right := h.ids[i], h.ids[j]
 	a, b := left.oid, right.oid
 	if priority := h.priorities[a]; priority != 0 {
@@ -192,9 +192,9 @@ func (h viewDumpReady) Less(i, j int) bool {
 	}
 	return left.phase < right.phase
 }
-func (h viewDumpReady) Swap(i, j int)   { h.ids[i], h.ids[j] = h.ids[j], h.ids[i] }
-func (h *viewDumpReady) Push(value any) { h.ids = append(h.ids, value.(dumpEventKey)) }
-func (h *viewDumpReady) Pop() any {
+func (h dumpReady) Swap(i, j int)   { h.ids[i], h.ids[j] = h.ids[j], h.ids[i] }
+func (h *dumpReady) Push(value any) { h.ids = append(h.ids, value.(dumpEventKey)) }
+func (h *dumpReady) Pop() any {
 	last := len(h.ids) - 1
 	value := h.ids[last]
 	h.ids = h.ids[:last]
@@ -203,10 +203,10 @@ func (h *viewDumpReady) Pop() any {
 
 // This sorts the captured dump graph, without reading a possibly replaced
 // catalog after unlock. Cyclic replacement graphs, including self edges, fail.
-func viewDumpOrder(ctx context.Context, predecessors map[dumpEventKey][]dumpEventKey, priorities map[ids.OID]ids.OID) ([]dumpEventKey, error) {
+func dumpOrder(ctx context.Context, predecessors map[dumpEventKey][]dumpEventKey, priorities map[ids.OID]ids.OID) ([]dumpEventKey, error) {
 	indegree := make(map[dumpEventKey]int, len(predecessors))
 	dependents := make(map[dumpEventKey][]dumpEventKey, len(predecessors))
-	ready := viewDumpReady{ids: make([]dumpEventKey, 0, len(predecessors)), priorities: priorities}
+	ready := dumpReady{ids: make([]dumpEventKey, 0, len(predecessors)), priorities: priorities}
 	for oid, sources := range predecessors {
 		if err := ctx.Err(); err != nil {
 			return nil, err

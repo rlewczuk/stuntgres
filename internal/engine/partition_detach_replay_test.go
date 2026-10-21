@@ -40,7 +40,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 				t.Fatal(err)
 			}
 			plans := partitionInvalidDumpEvents(f.view, graph, indices)
-			order, err := viewDumpOrder(context.Background(), graph, nil)
+			order, err := dumpOrder(context.Background(), graph, nil)
 			if err != nil {
 				t.Fatal("replay introduced cycle", err)
 			}
@@ -123,7 +123,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	graph := map[dumpEventKey][]dumpEventKey{{oid: r}: nil, {oid: c}: {{oid: r}}, {oid: pi}: {{oid: r}}, {oid: ci}: {{oid: c}}, {oid: li}: {{oid: c}}, {oid: consumer.Address().ObjectID}: {{oid: provider}}}
-	declarations, err := viewDumpOrder(context.Background(), graph, nil)
+	declarations, err := dumpOrder(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	partitionInvalidDumpEvents(f.view, graph, indices)
-	order, err := viewDumpOrder(context.Background(), graph, nil)
+	order, err := dumpOrder(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal("deferred local origin created cycle", err)
 	}
