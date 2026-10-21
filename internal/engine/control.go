@@ -128,7 +128,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	aclOutput := capturedACLItemOutput{owner: e.catalog.owner(), roles: originalRoles, lossless: true}
 	ctx = aclItemOutputContext(ctx, aclOutput)
-	if err := e.preflightACLItemDump(ctx, originalCatalog, aclOutput); err != nil {
+	if err := preflightACLItemDump(ctx, originalCatalog, e.storage.Relations, e.visibility.CommitSeq(), aclOutput); err != nil {
 		e.mu.Unlock()
 		return err
 	}

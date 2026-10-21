@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -53,7 +54,11 @@ func preflightACLItemValue(ctx context.Context, output capturedACLItemOutput, va
 	return err
 }
 
-func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, output capturedACLItemOutput) error {
+// preflightACLItemDump checks every ACL leaf a dump would write: domain
+// defaults, live rows of persistent relations, stored expressions and bound
+// literals. The caller holds Engine.mu and passes the captured relation roots
+// and commit frontier.
+func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, frontier ids.CommitSeq, output capturedACLItemOutput) error {
 	var failure error
 	check := func(value sqltype.Value) {
 		if failure == nil {
@@ -81,9 +86,9 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 		if relation.RelationKind == catalog.CatalogRelation {
 			continue
 		}
-		if storage := e.storage.Relations[relation.Address()]; storage != nil {
-			for _, version := range storage.Versions {
-				if !visibility.LiveVersion(version, e.visibility.CommitSeq(), storage.Ends, nil) {
+		if root := relations[relation.Address()]; root != nil {
+			for _, version := range root.Versions {
+				if !visibility.LiveVersion(version, frontier, root.Ends, nil) {
 					continue
 				}
 				for i, value := range version.Values {
