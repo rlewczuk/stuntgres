@@ -137,7 +137,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			for _, pretty := range []bool{false, true} {
-				got, err := (pgRenderer{View: view, Pretty: pretty}).SQL(context.Background(), c.node, pgRenderParent{})
+				got, err := (stored.Deparser{View: view, Pretty: pretty}).SQL(context.Background(), c.node, stored.DeparseParent{})
 				want := c.display
 				if pretty {
 					want = c.pretty
@@ -165,11 +165,11 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		got, err := (pgRenderer{View: view}).SQL(context.Background(), effect, pgRenderParent{})
+		got, err := (stored.Deparser{View: view}).SQL(context.Background(), effect, stored.DeparseParent{})
 		if err != nil || got != "JSON_ARRAY(random(), '{}'::text ABSENT ON NULL)" {
 			t.Fatal(got, err)
 		}
-		got, err = (scalarRenderer{Owner: &catalog.Relation{}}).SQL(context.Background(), view, effect)
+		got, err = (stored.ScalarRenderer{Owner: &catalog.Relation{}}).SQL(context.Background(), view, effect)
 		if err != nil || got != "JSON_ARRAY(pg_catalog.random(), '{}' ABSENT ON NULL)" {
 			t.Fatal(got, err)
 		}

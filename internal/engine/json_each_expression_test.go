@@ -90,7 +90,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
-		text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
+		text, err := (stored.Deparser{View: view}).SQL(context.Background(), original, stored.DeparseParent{})
 		if err != nil || !strings.Contains(text, name+"(") || !strings.Contains(text, "::json") {
 			t.Fatal("symbolic rendering", text, err)
 		}

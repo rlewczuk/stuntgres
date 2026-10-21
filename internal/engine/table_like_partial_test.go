@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -72,7 +73,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			}
 		}
 		for _, node := range []expr.Expr{predicate.Definition, predicate.Execution} {
-			if _, err := (scalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
+			if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
 				t.Fatal("wrong owner in predicate tree", err)
 			}
 		}
@@ -93,7 +94,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			}
 		}
 		var executionDependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{Owner: destination, Dependencies: &executionDependencies}).SQL(context.Background(), e.stageRead(stage), predicate.Execution); err != nil {
+		if _, err := (stored.ScalarRenderer{Owner: destination, Dependencies: &executionDependencies}).SQL(context.Background(), e.stageRead(stage), predicate.Execution); err != nil {
 			t.Fatal(err)
 		}
 		if slices.Contains(executionDependencies, external) || slices.Contains(executionDependencies, externalType) {
@@ -120,7 +121,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 				t.Fatal("dropped attribute mapping lost", key.Dependencies)
 			}
 			for _, node := range []expr.Expr{key.Definition, key.Execution} {
-				if _, err := (scalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
+				if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
 					t.Fatal(err)
 				}
 			}

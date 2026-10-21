@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -135,7 +136,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		t.Fatal("structural metadata omitted the original analyzed predicate")
 	}
 	var dependencies []ids.ObjectRef
-	if _, err := (scalarRenderer{Owner: f.parent, Dependencies: &dependencies}).SQL(ctx, candidate, metadata.Predicate); err != nil {
+	if _, err := (stored.ScalarRenderer{Owner: f.parent, Dependencies: &dependencies}).SQL(ctx, candidate, metadata.Predicate); err != nil {
 		t.Fatal(err)
 	}
 	var attributes []ids.ObjectRef

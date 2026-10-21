@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -44,7 +45,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalogView c
 		if !c.NotValid || !dumpCheckDeclaration(catalogView, t.descriptor, c) {
 			continue
 		}
-		text, err := (scalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, catalogView, c.Expression)
+		text, err := (stored.ScalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, catalogView, c.Expression)
 		if err != nil {
 			return err
 		}
@@ -60,7 +61,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalogView c
 		if !f.NotValid {
 			continue
 		}
-		text, err := (pgRenderer{View: catalogView}).ForeignKeyConstraintSQL(t.descriptor, f)
+		text, err := (stored.Deparser{View: catalogView}).ForeignKeyConstraintSQL(t.descriptor, f)
 		if err != nil {
 			return err
 		}

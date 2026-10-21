@@ -2,10 +2,11 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/stored"
 )
 
 // policyPayloadOf stores e as a payload; a nil condition stays a nil payload.
-func policyPayloadOf(e *policyExpression) catalog.PolicyPayload {
+func policyPayloadOf(e *stored.Policy) catalog.PolicyPayload {
 	if e == nil {
 		return nil
 	}

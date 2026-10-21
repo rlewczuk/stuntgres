@@ -174,7 +174,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if err != nil || !exec.SourceReturnsSet(folded) {
 		t.Fatal("conditional folded set", folded, err)
 	}
-	text, err = (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
+	text, err = (stored.Deparser{View: view}).SQL(context.Background(), original, stored.DeparseParent{})
 	if err != nil || !strings.Contains(text, "json_object_keys(") || !strings.Contains(text, "::json") {
 		t.Fatal("symbolic rendering", text, err)
 	}

@@ -90,7 +90,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 						t.Fatal("mapped row lacks fresh destination authority", ref)
 					}
 				}
-				if _, err := (scalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
+				if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
 					t.Fatal("mapped analyzed/execution tree not renderable", err)
 				}
 			}

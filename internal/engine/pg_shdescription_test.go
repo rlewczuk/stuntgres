@@ -312,7 +312,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName, view.RelationKind = name, catalog.ViewRelation
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
-		view.View = stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []viewLeaf{{Ref: leaf, Attributes: []int32{1, 2, 3}, Reads: []int32{1, 2, 3}}}})
+		view.View = stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []stored.ViewLeaf{{Ref: leaf, Attributes: []int32{1, 2, 3}, Reads: []int32{1, 2, 3}}}})
 		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}

@@ -72,14 +72,14 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if !analyze.SameGroupExpression(original, original) {
 			t.Fatal("lost expression identity")
 		}
-		persistent, err := (scalarRenderer{}).ScalarFunctionSQL(context.Background(), view, original)
+		persistent, err := (stored.ScalarRenderer{}).ScalarFunctionSQL(context.Background(), view, original)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !strings.HasPrefix(persistent, "pg_catalog.json_object(") {
 			t.Fatal("lost symbolic call", persistent)
 		}
-		public, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
+		public, err := (stored.Deparser{View: view}).SQL(context.Background(), original, stored.DeparseParent{})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -65,8 +65,8 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), rebound, pgRenderParent{})
-			want, err2 := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), node, pgRenderParent{})
+			got, err := (stored.Deparser{View: e.CatalogRead()}).SQL(context.Background(), rebound, stored.DeparseParent{})
+			want, err2 := (stored.Deparser{View: e.CatalogRead()}).SQL(context.Background(), node, stored.DeparseParent{})
 			if err != nil || err2 != nil || got != want || !strings.Contains(got, ".1234") {
 				t.Fatal(got, want, err, err2)
 			}
@@ -107,7 +107,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := (pgRenderer{View: target.CatalogRead()}).SQL(context.Background(), remapped, pgRenderParent{})
+		got, err := (stored.Deparser{View: target.CatalogRead()}).SQL(context.Background(), remapped, stored.DeparseParent{})
 		if err != nil || !strings.Contains(got, "NULL::unknown") {
 			t.Fatal(got, err)
 		}
@@ -136,7 +136,7 @@ func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
 		off  bool
 		want string
 	}{{false, "'a''b\\c'::text"}, {true, "'a''b\\\\c'::text"}} {
-		got, err := (pgRenderer{View: e.CatalogRead(), NonstandardStrings: tc.off}).SQL(context.Background(), literal, pgRenderParent{})
+		got, err := (stored.Deparser{View: e.CatalogRead(), NonstandardStrings: tc.off}).SQL(context.Background(), literal, stored.DeparseParent{})
 		if err != nil || got != tc.want {
 			t.Fatal(got, tc.want, err)
 		}
@@ -235,7 +235,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	if leaf.UnknownNull || leaf.Usage.Type.ID() != sqltype.Int4 || !leaf.Value.IsNull() {
 		t.Fatal(leaf)
 	}
-	text, err := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), node, pgRenderParent{})
+	text, err := (stored.Deparser{View: e.CatalogRead()}).SQL(context.Background(), node, stored.DeparseParent{})
 	if err != nil || text != "num_nulls(NULL::integer)" {
 		t.Fatal(text, err)
 	}
@@ -332,7 +332,7 @@ func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
 							if !pretty {
 								want = "(" + want + ")"
 							}
-							got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
+							got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), node, stored.DeparseParent{})
 							if err != nil || got != want {
 								t.Fatalf("got %q, %v; want %q", got, err, want)
 							}
@@ -359,7 +359,7 @@ func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
+				got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), d.Constraints.Check[0].Expression, stored.DeparseParent{})
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}
@@ -389,7 +389,7 @@ func TestDeparseConstraintsReviewConditionalPresentation(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
+				got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), d.Constraints.Check[0].Expression, stored.DeparseParent{})
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}
@@ -426,7 +426,7 @@ func TestDeparseConstraintsReviewPrinterContexts(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
+				got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), node, stored.DeparseParent{})
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}

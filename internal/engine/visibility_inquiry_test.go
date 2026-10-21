@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -46,7 +47,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		t.Fatal("missing CHECK capture manifest")
 	}
 	inquiry := relation.Constraints.Check[0].Expression.(plan.NullTestExpr).Child.(functions.VisibilityInquiry)
-	renderer := scalarRenderer{Owner: relation}
+	renderer := stored.ScalarRenderer{Owner: relation}
 	intType, _ := view.LookupType(sqltype.Int4)
 	for _, tc := range []struct {
 		name   string
@@ -72,7 +73,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 			if tc.name != "origin" {
 				// Exercise both newly integrated stored-tree consumers with the
 				// independently malformed signature/property contract.
-				if _, err := (pgRenderer{View: view, Relation: relation}).SQL(context.Background(), n, pgRenderParent{}); err == nil {
+				if _, err := (stored.Deparser{View: view, Relation: relation}).SQL(context.Background(), n, stored.DeparseParent{}); err == nil {
 					t.Fatal("PostgreSQL renderer accepted malformed inquiry")
 				}
 				if _, err := (plan.BoundTree{Expression: n}).StructuralOutput(context.Background()); err == nil {

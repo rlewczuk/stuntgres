@@ -13,7 +13,7 @@ func refreshRuleActionCTEs(auth ruleAuthority, b analyze.Binding) (analyze.Bindi
 	if len(b.CTEs) == 0 {
 		return b, nil
 	}
-	mapper := stored.NewRuleTreeMapper(auth.Access().Catalog, nil, 0, nil, ruleTreeMapping{Mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
+	mapper := stored.NewRuleTreeMapper(auth.Access().Catalog, nil, 0, nil, stored.RuleTreeMapping{Mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		body := *mutation
 		// Stored modifier recipes need a private execution workspace even when

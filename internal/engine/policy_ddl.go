@@ -78,7 +78,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.PartitionedRelation {
 		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, old.Name())))
 	}
-	var using, check *policyExpression
+	var using, check *stored.Policy
 	if !drop {
 		using, err = e.bindPolicyExpression(scope, auth, old, rawUsing)
 		if err == nil {
@@ -138,7 +138,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	for _, p := range next.Security.Policies {
-		for _, expression := range []*policyExpression{stored.PolicyOf(p.Using), stored.PolicyOf(p.Check)} {
+		for _, expression := range []*stored.Policy{stored.PolicyOf(p.Using), stored.PolicyOf(p.Check)} {
 			if expression == nil {
 				continue
 			}

@@ -265,7 +265,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{Validation: true, Provenance: r, CapturedManifest: definition.Dependencies, Dependencies: &dependencies, CommentSnapshot: &catalogSnapshot}).SQL(context.Background(), v, definition.Expression)
+		_, err := (stored.ScalarRenderer{Validation: true, Provenance: r, CapturedManifest: definition.Dependencies, Dependencies: &dependencies, CommentSnapshot: &catalogSnapshot}).SQL(context.Background(), v, definition.Expression)
 		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot || stored.OmitColumnDefault(v, definition.Expression, r.Columns[slot].Usage) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
@@ -302,7 +302,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{Validation: true, Owner: r, CapturedManifest: definition.Dependencies, Dependencies: &dependencies, CommentSnapshot: &catalogSnapshot}).SQL(context.Background(), v, definition.Expression)
+		_, err := (stored.ScalarRenderer{Validation: true, Owner: r, CapturedManifest: definition.Dependencies, Dependencies: &dependencies, CommentSnapshot: &catalogSnapshot}).SQL(context.Background(), v, definition.Expression)
 		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot {
 			return fmt.Errorf("stuntgres: invalid column generation expression")
 		}

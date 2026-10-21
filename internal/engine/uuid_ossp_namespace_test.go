@@ -58,13 +58,13 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if got.Name != name || got.Procedure != n.Procedure || got.Ref != n.Ref || exec.PlannedVolatility(got) != expr.Immutable {
 				t.Fatal("rebuild/retag erased identity", got)
 			}
-			rendered, err := (scalarRenderer{}).SQL(context.Background(), view, got)
+			rendered, err := (stored.ScalarRenderer{}).SQL(context.Background(), view, got)
 			if err != nil || !strings.Contains(rendered, name) || !strings.Contains(rendered, "public") {
 				t.Fatal("symbolic constant", rendered, err)
 			}
 			foreign := n
 			foreign.Ref.Epoch++
-			if _, err := (scalarRenderer{}).SQL(context.Background(), view, foreign); err == nil {
+			if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), view, foreign); err == nil {
 				t.Fatal("renderer accepted foreign-epoch constant")
 			}
 			grouped, err := binder.RewriteGroup(n, nil)

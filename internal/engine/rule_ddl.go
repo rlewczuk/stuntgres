@@ -164,7 +164,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		}
 		next.Rules = stored.RulesPayload(append(stored.RulesOf(&next)[:index], stored.RulesOf(&next)[index+1:]...))
 	}
-	slices.SortFunc(stored.RulesOf(&next), func(a, b ruleDefinition) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(stored.RulesOf(&next), func(a, b stored.Rule) int { return strings.Compare(a.Name, b.Name) })
 	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)

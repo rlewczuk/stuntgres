@@ -19,7 +19,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	action := ruleUnitInsert(e, sink, 1, 10)
 	recipe := &analyze.InsertConflict{Targets: action.Binding().Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
 	action = action.With(func(p *stored.RuleActionParts) { p.Binding.Insert.Conflict = recipe })
-	first, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
+	first, err := composeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	if first.Insert.Conflict.Predicate == nil {
 		t.Fatal("conflict state does not execute the command's clause")
 	}
-	second, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
+	second, err := composeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 				original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
 			}
 			action := ruleUnitInsert(e, sink, 7, 8)
-			composed, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
+			composed, err := composeRuleAction(auth, original, event, stored.Rule{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -109,7 +109,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			action = action.With(func(p *stored.RuleActionParts) {
 				p.Binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
 			})
-			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
+			dependent, err := composeRuleAction(auth, original, event, stored.Rule{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}

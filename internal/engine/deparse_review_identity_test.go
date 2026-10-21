@@ -62,7 +62,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			original := node
 			t.Run("SQL printer", func(t *testing.T) {
 				for _, pretty := range []bool{false, true} {
-					got, err := (pgRenderer{View: e.CatalogRead(), Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
+					got, err := (stored.Deparser{View: e.CatalogRead(), Pretty: pretty}).SQL(context.Background(), node, stored.DeparseParent{})
 					if err != nil || got != tc.golden {
 						t.Fatalf("pretty=%t got %q, %v; want %q", pretty, got, err, tc.golden)
 					}
@@ -98,7 +98,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			if copy.Kind != node.Kind || copy.OrdinaryCall != node.OrdinaryCall || copy.Pos != node.Pos || copy.Properties() != node.Properties() || copy.ResultUsage().Type == node.ResultUsage().Type {
 				t.Fatal(copy, node)
 			}
-			got, err := (pgRenderer{View: target.CatalogRead()}).SQL(context.Background(), copy, pgRenderParent{})
+			got, err := (stored.Deparser{View: target.CatalogRead()}).SQL(context.Background(), copy, stored.DeparseParent{})
 			if err != nil || got != tc.golden {
 				t.Fatal(got, err)
 			}

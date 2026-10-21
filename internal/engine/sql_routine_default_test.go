@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -32,7 +33,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 	if err := (relationProvider{}).Validate(read, relation); err != nil {
 		t.Fatal("valid closed SQL default rejected or evaluated", err)
 	}
-	if _, err := (scalarRenderer{}).SQL(ctx, read, original); err != nil {
+	if _, err := (stored.ScalarRenderer{}).SQL(ctx, read, original); err != nil {
 		t.Fatal("valid stored SQL call rejected or evaluated", err)
 	}
 	for _, test := range []struct {
@@ -55,7 +56,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 			if err := bad.ValidateStoredProvider(); err == nil {
 				t.Fatal("forged SQL provider accepted")
 			}
-			if _, err := (scalarRenderer{}).SQL(ctx, read, bad); err == nil {
+			if _, err := (stored.ScalarRenderer{}).SQL(ctx, read, bad); err == nil {
 				t.Fatal("forged stored SQL default rendered")
 			}
 			candidate := *relation
@@ -69,7 +70,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 	}
 	foreign := original
 	foreign.Ref = New().catalog.Domain.Ref(original.Ref.Epoch, original.Ref.Address)
-	if _, err := (scalarRenderer{}).SQL(ctx, read, foreign); err == nil {
+	if _, err := (stored.ScalarRenderer{}).SQL(ctx, read, foreign); err == nil {
 		t.Fatal("foreign SQL lifetime accepted")
 	}
 }

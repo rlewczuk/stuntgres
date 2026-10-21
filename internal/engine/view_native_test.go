@@ -104,7 +104,7 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	replacement := *old
 	replacement.ObjectRevision++
 	definition := stored.ViewOf(old).Parts()
-	definition.Sources = append([]viewLeaf(nil), definition.Sources...)
+	definition.Sources = append([]stored.ViewLeaf(nil), definition.Sources...)
 	previous := definition.Sources[0].Ref
 	definition.Sources[0].Ref = wref
 	root, err := stored.RemapViewQuery(New().CatalogRead(), definition.Query.Root, func(ref ids.ObjectRef) ids.ObjectRef {

@@ -61,7 +61,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	references(before, survivor, source.Attributes[1])
 	original := survivor.DomainDefault.Expression
 	originalRefs := slices.Clone(survivor.DomainDefault.Dependencies)
-	originalText, err := (pgRenderer{View: before}).SQL(op.Context(), original, pgRenderParent{})
+	originalText, err := (stored.Deparser{View: before}).SQL(op.Context(), original, stored.DeparseParent{})
 	if err != nil || !strings.Contains(originalText, "ROW(17, 18, 19)") {
 		t.Fatal(originalText, err)
 	}
@@ -151,11 +151,11 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if numberErr != nil || number != 18 {
 		t.Fatal("selected field demanded retired siblings", value, numberErr)
 	}
-	text, err := (pgRenderer{View: after}).SQL(op.Context(), mapped.DomainDefault.Expression, pgRenderParent{})
+	text, err := (stored.Deparser{View: after}).SQL(op.Context(), mapped.DomainDefault.Expression, stored.DeparseParent{})
 	if err != nil || text != originalText {
 		t.Fatal("source metadata rewrote written constructor", text, originalText, err)
 	}
-	nativeText, err := (scalarRenderer{CurrentRowShape: true}).SQL(op.Context(), after, mapped.DomainDefault.Expression)
+	nativeText, err := (stored.ScalarRenderer{CurrentRowShape: true}).SQL(op.Context(), after, mapped.DomainDefault.Expression)
 	if err != nil || !strings.Contains(nativeText, "ROW(18)") || strings.Contains(nativeText, "17") || strings.Contains(nativeText, "19") {
 		t.Fatal("native replay retained retired constructor arity", nativeText, err)
 	}
@@ -172,7 +172,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if pair.SQLType.CompositeLen() != 3 || before.Get(survivor.Address()) != survivor || !slices.Equal(originalRefs, survivor.DomainDefault.Dependencies) || !analyze.SameGroupExpression(survivor.DomainDefault.Expression, original) {
 		t.Fatal("retag mutated immutable predecessor")
 	}
-	oldText, err := (pgRenderer{View: before}).SQL(op.Context(), original, pgRenderParent{})
+	oldText, err := (stored.Deparser{View: before}).SQL(op.Context(), original, stored.DeparseParent{})
 	if err != nil || oldText != originalText {
 		t.Fatal("predecessor metadata changed", oldText, err)
 	}

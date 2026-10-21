@@ -148,7 +148,7 @@ func TestDatetimeMakeArgumentAssociation(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := viewRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID(), Presentation: viewPresentation{Deparse: true, Pretty: true}}
+	renderer := stored.QueryRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID(), Presentation: stored.Presentation{Deparse: true, Pretty: true}}
 	got, err := renderer.ExpressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || got != "make_interval(secs => '1.5'::double precision, days => 2)" {
 		t.Fatal("written literal association/default omission", got, err)

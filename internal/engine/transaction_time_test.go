@@ -101,11 +101,11 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if err != nil || sql != kind.Name()+"()" || spec.Replay.Text != "" {
 			t.Fatal(sql, err)
 		}
-		rendered, err := (scalarRenderer{}).SQL(ctx, engine.CatalogRead(), leaf)
+		rendered, err := (stored.ScalarRenderer{}).SQL(ctx, engine.CatalogRead(), leaf)
 		if err != nil || rendered != sql {
 			t.Fatal(rendered, err)
 		}
-		rendered, err = (pgRenderer{View: engine.CatalogRead()}).SQL(ctx, leaf, pgRenderParent{})
+		rendered, err = (stored.Deparser{View: engine.CatalogRead()}).SQL(ctx, leaf, stored.DeparseParent{})
 		if err != nil || rendered != sql {
 			t.Fatal(rendered, err)
 		}
@@ -182,7 +182,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if !analyze.ClosedTransactionTimeDefault(node) {
 			t.Error("closed selected wrapper rejected")
 		}
-		if _, err := (scalarRenderer{}).SQL(ctx, engine.CatalogRead(), node); err != nil {
+		if _, err := (stored.ScalarRenderer{}).SQL(ctx, engine.CatalogRead(), node); err != nil {
 			t.Fatal(err)
 		}
 	}

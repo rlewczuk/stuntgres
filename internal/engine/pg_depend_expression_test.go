@@ -79,7 +79,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 			pgDependUnitRefs(t, got, tc.want)
 		})
 	}
-	collection := pgDependRefs{Context: context.Background(), Catalog: view}
+	collection := stored.DependRefs{Context: context.Background(), Catalog: view}
 	collection.Add(parent)
 	collection.Add(column)
 	collection.Add(column)
@@ -90,7 +90,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column, provider})
 	for _, bad := range []ids.ObjectAddress{pgDependUnitAddress(1259, 49999, 0), pgDependUnitAddress(1259, 48001, 2)} {
-		r := pgDependRefs{Context: context.Background(), Catalog: view}
+		r := stored.DependRefs{Context: context.Background(), Catalog: view}
 		r.Add(bad)
 		if _, err := r.Finish(); err == nil {
 			t.Fatal("missing authority accepted", bad)

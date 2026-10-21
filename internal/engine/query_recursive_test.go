@@ -381,7 +381,7 @@ func TestQueryRecursiveCTEStoredNamespaceIdentity(t *testing.T) {
 	if stored.ViewCTETable(project, table) != self || stored.ViewCTEOrdinal(project, -1) != self {
 		t.Fatal("stored self scan lost opaque node identity")
 	}
-	renderer := &viewRenderer{Slots: map[plan.Node]map[int]string{self: {0: "r.n"}}}
+	renderer := &stored.QueryRenderer{Slots: map[plan.Node]map[int]string{self: {0: "r.n"}}}
 	text, err := renderer.SlotSQL(context.Background(), catalog.Read{}, stored.ViewCTETable(project, table), 0)
 	if err != nil || text != "r.n" {
 		t.Fatal("worktable namespace slot", text, err)

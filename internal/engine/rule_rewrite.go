@@ -341,7 +341,7 @@ func ruleSetAction(b analyze.Binding, syntax parser.Statement) bool {
 	return set
 }
 
-func composeRuleAction(auth ruleAuthority, original analyze.Binding, event string, r ruleDefinition, action ruleAction) (analyze.Binding, error) {
+func composeRuleAction(auth ruleAuthority, original analyze.Binding, event string, r stored.Rule, action stored.RuleAction) (analyze.Binding, error) {
 	qualified := original.Predicate != nil || original.Update != nil && original.Update.Predicate != nil
 	if (qualified || r.Condition() != nil) && ruleSetAction(action.Binding(), action.Syntax()) {
 		return analyze.Binding{}, sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
@@ -523,7 +523,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	}
 	var opaque map[plan.Node]bool
 	finish := ruleQueryFinalizer(catalog)
-	tree := stored.NewRuleTreeMapper(catalog, nil, 0, original.CTEs, ruleTreeMapping{
+	tree := stored.NewRuleTreeMapper(catalog, nil, 0, original.CTEs, stored.RuleTreeMapping{
 		Leaf:   substitute,
 		Finish: finish,
 		Boundary: func(node plan.Node) (plan.Node, bool) {
@@ -764,7 +764,7 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 		b.Storage = auth.StorageLocked(b.Ref.Address)
 	}
 	rules := stored.RulesOf(b.Relation)
-	matched := slices.ContainsFunc(rules, func(r ruleDefinition) bool { return r.Event() == event })
+	matched := slices.ContainsFunc(rules, func(r stored.Rule) bool { return r.Event() == event })
 	if matched {
 		dependency := catalog.ExpressionDependency{Ref: b.Ref, Revision: current.Revision()}
 		if !slices.Contains(program.events, dependency) {
@@ -907,7 +907,7 @@ func markRuleCommandSource(program *ruleProgram, start int, source ruleCommandSo
 	}
 }
 
-func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []ruleDefinition) (analyze.Binding, error) {
+func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []stored.Rule) (analyze.Binding, error) {
 	catalog := auth.Access().Catalog
 	p, err := makeRuleProducer(catalog, b, event)
 	if err != nil {
@@ -944,7 +944,7 @@ func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []r
 			b.Prepared.SequenceConstants = append(slices.Clone(b.Prepared.SequenceConstants), cb.Prepared.SequenceConstants...)
 			b.Prepared.RegtypeConstants = append(slices.Clone(b.Prepared.RegtypeConstants), cb.Prepared.RegtypeConstants...)
 		}
-		tree := stored.NewRuleTreeMapper(catalog, nil, 0, b.CTEs, ruleTreeMapping{Finish: ruleQueryFinalizer(catalog), Leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
+		tree := stored.NewRuleTreeMapper(catalog, nil, 0, b.CTEs, stored.RuleTreeMapping{Finish: ruleQueryFinalizer(catalog), Leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 			if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 				recipes := p.old
 				if column.Frame == 2 {

@@ -104,7 +104,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	if imported.Left.(plan.LiteralExpr).Value != sameDescriptor || imported.Right.(plan.LiteralExpr).Value != sameDescriptor || comparison.Left.(plan.LiteralExpr).Value != value {
 		t.Fatal("enclosing import lost mapped carriers or mutated source")
 	}
-	if _, err := (scalarRenderer{Validation: true}).SQL(context.Background(), target.catalog.read(next), imported); err != nil {
+	if _, err := (stored.ScalarRenderer{Validation: true}).SQL(context.Background(), target.catalog.read(next), imported); err != nil {
 		t.Fatal("target validation ran with source CHECK carriers", err)
 	}
 	retained, changed, err := stored.RetagTypes(target.catalog.read(next), imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
@@ -203,10 +203,10 @@ func TestACLItemStaleDump(t *testing.T) {
 	if text, err := regobj.Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
 		t.Fatal("captured role snapshot consulted live roles", text, err)
 	}
-	if _, err := (pgRenderer{View: e.CatalogRead()}).Literal(context.Background(), literal); err == nil {
+	if _, err := (stored.Deparser{View: e.CatalogRead()}).Literal(context.Background(), literal); err == nil {
 		t.Fatal("renderer accepted missing ACL authority")
 	}
-	if text, err := (pgRenderer{View: e.CatalogRead(), Output: sqltype.OutputEnvironment{ACLItem: ordinary}}).Literal(context.Background(), literal); err != nil || text == "" {
+	if text, err := (stored.Deparser{View: e.CatalogRead(), Output: sqltype.OutputEnvironment{ACLItem: ordinary}}).Literal(context.Background(), literal); err != nil || text == "" {
 		t.Fatal("ordinary renderer inherited dump lossless policy", text, err)
 	}
 }

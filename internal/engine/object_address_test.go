@@ -93,7 +93,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 	d.Constraints.Exclusion = []catalog.ExclusionConstraint{{OID: 48015, Name: "ex"}}
 	d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 48016}}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{3: {OID: 48017}}
-	d.Rules = stored.RulesPayload([]ruleDefinition{{OID: 48018, Name: "rule_unit"}})
+	d.Rules = stored.RulesPayload([]stored.Rule{{OID: 48018, Name: "rule_unit"}})
 	d.Security.Policies = []catalog.PolicyDefinition{{OID: 48019, Name: "policy_unit"}}
 	d.View = stored.NewView(stored.ViewParts{Rule: 48022})
 	for _, tc := range []struct {

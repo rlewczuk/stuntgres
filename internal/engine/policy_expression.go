@@ -12,7 +12,7 @@ import (
 
 // Engine.mu is held. Analysis shares the ordinary Boolean binder and frozen
 // query presentation; no condition is evaluated and no row storage is opened.
-func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, raw parser.Expr) (*policyExpression, error) {
+func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, raw parser.Expr) (*stored.Policy, error) {
 	if raw == nil {
 		return nil, nil
 	}

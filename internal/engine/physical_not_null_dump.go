@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/stored"
 )
 
 func physicalPrimaryDeferred(table *catalog.Relation, primary *catalog.UniqueConstraint) bool {
@@ -81,7 +82,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 		if index.PartitionReplaySeparateConstraint(view, idx) {
 			continue
 		}
-		text, err := (pgRenderer{View: view}).UniqueConstraintSQL(t.descriptor, primary)
+		text, err := (stored.Deparser{View: view}).UniqueConstraintSQL(t.descriptor, primary)
 		if err != nil {
 			return err
 		}

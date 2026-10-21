@@ -12,7 +12,7 @@ import (
 )
 
 type viewWriteOccurrence struct {
-	definition *viewDefinition
+	definition *stored.View
 	ordinal    int
 }
 
@@ -23,7 +23,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 	if !ok {
 		return plan.RewriteQueryExpressions(root, rewrite)
 	}
-	var definition *viewDefinition
+	var definition *stored.View
 	var consumer *catalog.Relation
 	for _, layer := range w.layers {
 		if _, found := stored.ViewOf(layer.relation).Queries()[project.Syntax]; found {

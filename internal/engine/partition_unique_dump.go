@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/stored"
 )
 
 func partitionConstraintCreator(view catalog.Read, idx *catalog.Relation) dump.Event {
@@ -67,7 +68,7 @@ func partitionVirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relatio
 		if constraint.Index != idx.Address() {
 			continue
 		}
-		text, err := (pgRenderer{View: view}).UniqueConstraintSQL(table, &constraint)
+		text, err := (stored.Deparser{View: view}).UniqueConstraintSQL(table, &constraint)
 		if err != nil {
 			return "", err
 		}

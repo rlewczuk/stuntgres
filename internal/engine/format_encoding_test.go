@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -147,7 +148,7 @@ func TestFormatEncodingCanonicalDeparse(t *testing.T) {
 		}
 		node := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		for _, precision := range []int32{0, -1, -15} {
-			renderer := pgRenderer{View: view, Output: sqltype.OutputEnvironment{FloatPrecisionSet: true, ExtraFloatDigits: precision}}
+			renderer := stored.Deparser{View: view, Output: sqltype.OutputEnvironment{FloatPrecisionSet: true, ExtraFloatDigits: precision}}
 			got, err := renderer.Literal(ctx, node)
 			if err != nil || got != tc.want {
 				t.Fatal("rounded precision leaked into persistent scalar source", precision, got, err)

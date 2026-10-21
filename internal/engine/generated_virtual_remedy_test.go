@@ -147,7 +147,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	syntax := &parser.Select{}
 	join := &plan.JoinNode{Left: &plan.SourceNode{Ref: ref, Occurrence: 0}, Right: &plan.SourceNode{Ref: ref, Occurrence: 1}}
 	project := &plan.ProjectNode{Frame: 4, Syntax: syntax, Child: join, Expressions: []expr.Expr{left, right, add, test, choice, outside}}
-	definition := stored.NewView(stored.ViewParts{Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []viewLeaf{{Ref: ref}, {Ref: ref}}})
+	definition := stored.NewView(stored.ViewParts{Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []stored.ViewLeaf{{Ref: ref}, {Ref: ref}}})
 	consumer := *d
 	consumer.View = stored.ViewPayload(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}

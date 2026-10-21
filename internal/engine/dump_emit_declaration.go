@@ -256,7 +256,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 					text = "NULL"
 				} else {
 					var err error
-					text, err = (scalarRenderer{Owner: t.descriptor}).SQL(ctx, s.catalogView, definition.Expression)
+					text, err = (stored.ScalarRenderer{Owner: t.descriptor}).SQL(ctx, s.catalogView, definition.Expression)
 					if err != nil {
 						return "", err
 					}
@@ -307,7 +307,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if !dumpCheckDeclaration(s.originalCatalog, t.descriptor, c) {
 				continue
 			}
-			text, err := (scalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, s.catalogView, c.Expression)
+			text, err := (stored.ScalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, s.catalogView, c.Expression)
 			if err != nil {
 				return "", err
 			}
@@ -336,7 +336,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if index.PartitionReplaySeparateConstraint(s.catalogView, idx) {
 				continue
 			}
-			text, err := (pgRenderer{View: s.catalogView}).UniqueConstraintSQL(t.descriptor, &c)
+			text, err := (stored.Deparser{View: s.catalogView}).UniqueConstraintSQL(t.descriptor, &c)
 			if err != nil {
 				return "", err
 			}
@@ -371,7 +371,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if f.NotValid || physicalSelfForeignKeyDeferred(t.descriptor, f) || inheritedForeignKeyDeferred(s.originalCatalog, t.descriptor, &f) {
 				continue
 			}
-			text, err := (pgRenderer{View: s.catalogView}).ForeignKeyConstraintSQL(t.descriptor, f)
+			text, err := (stored.Deparser{View: s.catalogView}).ForeignKeyConstraintSQL(t.descriptor, f)
 			if err != nil {
 				return "", err
 			}

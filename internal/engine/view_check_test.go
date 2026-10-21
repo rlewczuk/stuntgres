@@ -24,7 +24,7 @@ import (
 func TestViewCheckOptions(t *testing.T) {
 	for _, tc := range []struct {
 		value string
-		mode  viewCheckMode
+		mode  stored.CheckMode
 		valid bool
 	}{{"local", stored.CheckLocal, true}, {"LoCaL", stored.CheckLocal, true}, {"CASCADED", stored.CheckCascaded, true}, {"loc", stored.CheckNone, false}, {" local ", stored.CheckNone, false}, {"true", stored.CheckNone, false}} {
 		_, _, mode, err := stored.ViewOptions([]parser.ViewOption{{Name: parser.Identifier{Text: "check_option"}, Value: tc.value}})
@@ -103,7 +103,7 @@ func TestViewCheckStack(t *testing.T) {
 			origin.Address.SubID = source.Attributes[i]
 			expressions[i] = plan.ColumnExpr{Info: expr.Info{Usage: column.Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: i}
 		}
-		view.View = stored.NewView(stored.ViewParts{Syntax: syntax, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, Sources: []viewLeaf{{Ref: ref, Attributes: source.Attributes}}})
+		view.View = stored.NewView(stored.ViewParts{Syntax: syntax, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, Sources: []stored.ViewLeaf{{Ref: ref, Attributes: source.Attributes}}})
 		f.e.catalog.state.SetDescriptor(view.Address(), &view)
 		layers = append(layers, &view)
 		refs = append(refs, f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), view.Address()))
@@ -114,7 +114,7 @@ func TestViewCheckStack(t *testing.T) {
 		for middle := range 3 {
 			for leaf := range 3 {
 				for i, mode := range []int{leaf, middle, top} {
-					layers[i].View = stored.ViewOf(layers[i]).With(func(p *stored.ViewParts) { p.CheckOption = viewCheckMode(mode) })
+					layers[i].View = stored.ViewOf(layers[i]).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckMode(mode) })
 				}
 				b := analyze.Binding{Relation: layers[2], Ref: refs[2]}
 				if err := bindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
@@ -307,7 +307,7 @@ func TestViewCheckFinish(t *testing.T) {
 
 func TestViewCheckControlRemap(t *testing.T) {
 	f := viewWriteMechanics(t)
-	for _, mode := range []viewCheckMode{stored.CheckNone, stored.CheckLocal, stored.CheckCascaded} {
+	for _, mode := range []stored.CheckMode{stored.CheckNone, stored.CheckLocal, stored.CheckCascaded} {
 		f.view.View = stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.CheckOption = mode })
 		ref := func(old ids.ObjectRef) ids.ObjectRef { old.Epoch++; return old }
 		copy, err := stored.RemapView(f.e.CatalogRead(), stored.ViewOf(f.view), nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)

@@ -36,7 +36,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	if !ok {
 		t.Fatal("missing int4 type")
 	}
-	renderer := scalarRenderer{Owner: relation}
+	renderer := stored.ScalarRenderer{Owner: relation}
 	if _, err := renderer.SQL(ctx, view, inquiry); err != nil {
 		t.Fatal(err)
 	}

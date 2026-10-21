@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition) ([]ids.ObjectAddress, error) {
+func ruleReferences(ctx context.Context, catalog catalog.Read, r stored.Rule) ([]ids.ObjectAddress, error) {
 	var refs []ids.ObjectAddress
 	add := func(items []ids.ObjectAddress) {
 		for _, a := range items {
@@ -172,7 +172,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 	return refs, nil
 }
 
-func ruleDepends(catalog catalog.Read, r ruleDefinition, target ids.ObjectAddress) bool {
+func ruleDepends(catalog catalog.Read, r stored.Rule, target ids.ObjectAddress) bool {
 	for _, a := range r.References() {
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true
@@ -203,7 +203,7 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 		if !ok || len(stored.RulesOf(d)) == 0 {
 			continue
 		}
-		var kept []ruleDefinition
+		var kept []stored.Rule
 		for _, r := range stored.RulesOf(d) {
 			drop := false
 			for _, target := range targets {

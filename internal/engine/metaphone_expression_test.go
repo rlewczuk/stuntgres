@@ -123,7 +123,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		} else {
 			stale.Ref.Epoch = e.CatalogRead().Epoch() + 1
 		}
-		if _, err := (scalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), stale); err == nil {
+		if _, err := (stored.ScalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), stale); err == nil {
 			t.Fatal("foreign/stale stored reference admitted")
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -52,7 +53,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 		if c.Name != oldChecks[i].Name || c.Ordinal != oldChecks[i].Ordinal || c.NoInherit != oldChecks[i].NoInherit {
 			t.Fatal("lost identity", c, oldChecks[i])
 		}
-		if _, err := (scalarRenderer{Owner: next}).SQL(context.Background(), e.CatalogRead(), c.Expression); err != nil {
+		if _, err := (stored.ScalarRenderer{Owner: next}).SQL(context.Background(), e.CatalogRead(), c.Expression); err != nil {
 			t.Fatal("stale usage/origin/provider", c.Name, err)
 		}
 		for _, dep := range c.Dependencies {
@@ -181,17 +182,17 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {
 				t.Fatal("public CHECK parameter admission changed", err)
 			}
-			ordinary, err := (scalarRenderer{Owner: original}).SQL(context.Background(), e.CatalogRead(), original.Constraints.Check[0].Expression)
+			ordinary, err := (stored.ScalarRenderer{Owner: original}).SQL(context.Background(), e.CatalogRead(), original.Constraints.Check[0].Expression)
 			if err != nil || strings.Contains(ordinary, "$") {
 				t.Fatal("changed ordinary CHECK serialization", ordinary, err)
 			}
 			if tc.id == sqltype.Float4 {
 				literal := pending.literals[0]
-				ordinaryLiteral, err := (scalarRenderer{}).SQL(context.Background(), e.CatalogRead(), literal)
+				ordinaryLiteral, err := (stored.ScalarRenderer{}).SQL(context.Background(), e.CatalogRead(), literal)
 				if err != nil || ordinaryLiteral != "'1.0000001'" {
 					t.Fatal("ordinary FLOAT4 output changed", ordinaryLiteral, err)
 				}
-				replayLiteral, err := (scalarRenderer{CheckReplayPrecision: true}).SQL(context.Background(), e.CatalogRead(), literal)
+				replayLiteral, err := (stored.ScalarRenderer{CheckReplayPrecision: true}).SQL(context.Background(), e.CatalogRead(), literal)
 				if err != nil || replayLiteral != "'1.0000001192092896'" {
 					t.Fatal("lost exact promoted CHECK value", replayLiteral, err)
 				}
@@ -202,17 +203,17 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 					}
 					special := literal
 					special.Value = value
-					before, err := (scalarRenderer{}).SQL(context.Background(), e.CatalogRead(), special)
+					before, err := (stored.ScalarRenderer{}).SQL(context.Background(), e.CatalogRead(), special)
 					if err != nil {
 						t.Fatal(err)
 					}
-					after, err := (scalarRenderer{CheckReplayPrecision: true}).SQL(context.Background(), e.CatalogRead(), special)
+					after, err := (stored.ScalarRenderer{CheckReplayPrecision: true}).SQL(context.Background(), e.CatalogRead(), special)
 					if err != nil || before != after {
 						t.Fatal("special float encoding changed", raw, before, after, err)
 					}
 				}
 				typedNull := pending.literals[1]
-				replayNull, err := (scalarRenderer{CheckReplayPrecision: true}).SQL(context.Background(), e.CatalogRead(), typedNull)
+				replayNull, err := (stored.ScalarRenderer{CheckReplayPrecision: true}).SQL(context.Background(), e.CatalogRead(), typedNull)
 				if err != nil || replayNull != "NULL" {
 					t.Fatal("typed NULL replay changed", replayNull, err)
 				}

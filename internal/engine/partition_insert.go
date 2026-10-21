@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -218,7 +219,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 		}
 	}
 	var names, values strings.Builder
-	renderer := pgRenderer{View: state.catalog, Relation: parent, Output: output}
+	renderer := stored.Deparser{View: state.catalog, Relation: parent, Output: output}
 	for i, entry := range parent.Partition.Keys {
 		if i != 0 {
 			names.WriteString(", ")
@@ -241,7 +242,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 				// not its simple operand, as in PostgreSQL's partition key label.
 				keyRenderer.Pretty = true
 			}
-			text, renderErr := keyRenderer.SQL(ctx, entry.Derived.Definition, pgRenderParent{})
+			text, renderErr := keyRenderer.SQL(ctx, entry.Derived.Definition, stored.DeparseParent{})
 			if renderErr != nil {
 				return renderErr
 			}

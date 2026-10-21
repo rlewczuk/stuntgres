@@ -242,7 +242,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	if err != nil || !analyze.SameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}
-	text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
+	text, err := (stored.Deparser{View: view}).SQL(context.Background(), original, stored.DeparseParent{})
 	if err != nil || !strings.Contains(text, "generate_series(") || strings.Count(text, ",") != 2 {
 		t.Fatal(text, err)
 	}

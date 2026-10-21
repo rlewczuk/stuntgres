@@ -118,7 +118,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if err := forged.Validate(); err == nil {
 		t.Fatal("stale provider survived validation")
 	}
-	text, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), next)
+	text, err := (stored.ScalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), next)
 	if err != nil || !strings.Contains(text, `OPERATOR("pg_catalog".+)`) {
 		t.Fatal("namespace spelling", text, err)
 	}

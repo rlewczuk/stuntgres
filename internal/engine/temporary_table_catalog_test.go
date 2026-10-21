@@ -228,19 +228,19 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	var manifest []ids.ObjectRef
-	renderer := scalarRenderer{Owner: table, Dependencies: &manifest, CapturedManifest: []ids.ObjectRef{typeRef, ref}}
+	renderer := stored.ScalarRenderer{Owner: table, Dependencies: &manifest, CapturedManifest: []ids.ObjectRef{typeRef, ref}}
 	if text, err := renderer.SQL(context.Background(), retained, literal); err != nil || text == "" {
 		t.Fatal("retained literal rejected", err)
 	}
 	if len(manifest) != 2 || manifest[0] != typeRef || manifest[1] != ref {
 		t.Fatal("retained builtin/provider manifest rewritten", manifest)
 	}
-	if _, err := (scalarRenderer{}).SQL(context.Background(), retained, literal); err == nil {
+	if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), retained, literal); err == nil {
 		t.Fatal("generic renderer forgave stale regclass")
 	}
 	persistent := *table
 	persistent.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	if _, err := (scalarRenderer{Owner: &persistent}).SQL(context.Background(), retained, literal); err == nil {
+	if _, err := (stored.ScalarRenderer{Owner: &persistent}).SQL(context.Background(), retained, literal); err == nil {
 		t.Fatal("persistent consumer gained stale TEMP authority")
 	}
 	future := literal
@@ -320,7 +320,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	}
 	for attribute, definition := range consumer.ColumnMeta.Generations {
 		var manifest []ids.ObjectRef
-		renderer := scalarRenderer{Owner: consumer, CapturedManifest: definition.Dependencies, Dependencies: &manifest}
+		renderer := stored.ScalarRenderer{Owner: consumer, CapturedManifest: definition.Dependencies, Dependencies: &manifest}
 		if text, err := renderer.SQL(context.Background(), retained, definition.Expression); err != nil || text == "" {
 			t.Fatal("retained generation rendering", attribute, text, err)
 		}
@@ -401,7 +401,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	} {
 		bad := column
 		change(&bad)
-		if _, err := (scalarRenderer{Owner: consumer}).SQL(context.Background(), retained, bad); err == nil {
+		if _, err := (stored.ScalarRenderer{Owner: consumer}).SQL(context.Background(), retained, bad); err == nil {
 			t.Fatal("invalid concrete row authority admitted", bad)
 		}
 	}

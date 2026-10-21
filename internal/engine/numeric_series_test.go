@@ -122,7 +122,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 			t.Fatal("retag", err)
 		}
 	}
-	text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
+	text, err := (stored.Deparser{View: view}).SQL(context.Background(), original, stored.DeparseParent{})
 	if err != nil {
 		t.Fatal(err)
 	}

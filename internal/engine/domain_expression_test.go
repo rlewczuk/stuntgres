@@ -135,7 +135,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	if err = b.CaptureViewLiterals(ast.Targets[0], node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := viewRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+	renderer := stored.QueryRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
 	old := e.CatalogRead()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER SCHEMA public RENAME TO moved"))
 	text, err := renderer.ExpressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
@@ -148,7 +148,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	}
 	// Use a coherent path that does not expose the domain's namespace, so
 	// canonical presentation must spell the current qualified identity.
-	renderer.Presentation = viewPresentation{Deparse: true, Pretty: true, Path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
+	renderer.Presentation = stored.Presentation{Deparse: true, Pretty: true, Path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
 	text, err = renderer.ExpressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != "7::moved.a" {
 		t.Fatal("renamed domain canonical cast", text, err)

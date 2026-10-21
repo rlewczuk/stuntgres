@@ -268,7 +268,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++
-		frozen := stored.NewView(stored.ViewParts{Sources: []viewLeaf{{Ref: old, Only: only}}, Query: &plan.Query{Root: &plan.SourceNode{Ref: old}}})
+		frozen := stored.NewView(stored.ViewParts{Sources: []stored.ViewLeaf{{Ref: old, Only: only}}, Query: &plan.Query{Root: &plan.SourceNode{Ref: old}}})
 		mapped, err := stored.RemapView(e.CatalogRead(), frozen, nil, func(source ids.ObjectRef) ids.ObjectRef {
 			if source == old {
 				return ref

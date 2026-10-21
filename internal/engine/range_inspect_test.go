@@ -68,13 +68,13 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil || value.Type() != fresh.Type(sqltype.Numeric) {
 		t.Fatal("folded authority", value, err)
 	}
-	recipe, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), next)
+	recipe, err := (stored.ScalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), next)
 	if err != nil || !strings.Contains(recipe, "pg_catalog.lower(") {
 		t.Fatal(recipe, err)
 	}
 	forged := next
 	forged.Plan = original.Plan
-	if _, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), forged); err == nil {
+	if _, err := (stored.ScalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), forged); err == nil {
 		t.Fatal("stale stored plan")
 	}
 }

@@ -256,7 +256,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 			t.Fatal(n, err)
 		}
 	}
-	text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
+	text, err := (stored.Deparser{View: view}).SQL(context.Background(), original, stored.DeparseParent{})
 	if err != nil || !strings.Contains(text, "generate_subscripts(") || !strings.Contains(text, "ARRAY") && !strings.Contains(text, "{NULL") {
 		t.Fatal("symbolic deparse", text, err)
 	}

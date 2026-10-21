@@ -35,7 +35,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 		t.Fatal("path reference remap", err)
 	}
 	demand := false
-	text, err := (scalarRenderer{CommentSnapshot: &demand}).ScalarFunctionSQL(context.Background(), e.CatalogRead(), mapped)
+	text, err := (stored.ScalarRenderer{CommentSnapshot: &demand}).ScalarFunctionSQL(context.Background(), e.CatalogRead(), mapped)
 	if err != nil || !strings.Contains(text, "pg_catalog.pg_extension_update_paths(") || !demand {
 		t.Fatal("path symbolic render and demand", text, err)
 	}

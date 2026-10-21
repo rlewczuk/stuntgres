@@ -51,7 +51,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			queryCreatePublish(t, e, stage)
 			sourceRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), source.Address())
 			d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
-				p.Sources = []viewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
+				p.Sources = []stored.ViewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)

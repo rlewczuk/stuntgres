@@ -147,7 +147,7 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 						return err
 					}
 					derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: d.Attributes}
-					if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), stage.Base, e.operationRolesLocked(op))}, Owner: d, Dependencies: &derived.Dependencies}).SQL(op.Context(), stage.Base, node); err != nil {
+					if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), stage.Base, e.operationRolesLocked(op))}, Owner: d, Dependencies: &derived.Dependencies}).SQL(op.Context(), stage.Base, node); err != nil {
 						return err
 					}
 					key.Derived = derived

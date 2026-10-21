@@ -83,7 +83,7 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 						return err
 					}
 					definition := catalog.ColumnDefault{Expression: node}
-					if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Provenance: in.Source, CapturedManifest: old.Dependencies, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, node); err != nil {
+					if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Provenance: in.Source, CapturedManifest: old.Dependencies, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, node); err != nil {
 						return err
 					}
 					// Validate the original published recipe first. Old callable
@@ -125,7 +125,7 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 						return err
 					}
 					definition := catalog.ColumnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
-					if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
+					if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
 						return err
 					}
 					if destination.ColumnMeta.Generations == nil {
@@ -177,7 +177,7 @@ func (e *Engine) stageLikeChecks(op *session.Operation, auth AuthorizationView, 
 			}
 			definition := catalog.CheckConstraint{Name: old.Name, NoInherit: old.NoInherit, Ordinal: ordinal, Expression: node}
 			var dependencies []ids.ObjectRef
-			if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
+			if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {

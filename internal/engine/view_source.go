@@ -83,7 +83,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 
 // Called before unlocked preflight and immediately before source capture. Each
 // leaf checks current ACLs; an ordinary outer owner never replaces the invoker.
-func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark) (AuthorizationView, error) {
+func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark) (AuthorizationView, error) {
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
 		return AuthorizationView{}, err
@@ -95,7 +95,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 
 // The source collector and execution fences use the same captured owner/invoker
 // checks; neither substitutes a live role/catalog sample during recursion.
-func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark) error {
+func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark) error {
 	d, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != auth.Owner.Domain || ref.Epoch != auth.Catalog.Epoch() || stored.ViewOf(d) != definition {
 		return ids.ErrCatalogReplaced

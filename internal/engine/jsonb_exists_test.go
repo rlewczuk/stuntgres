@@ -85,8 +85,8 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		renderer := pgRenderer{View: engine.CatalogRead()}
-		text, err := renderer.SQL(context.Background(), expr, pgRenderParent{})
+		renderer := stored.Deparser{View: engine.CatalogRead()}
+		text, err := renderer.SQL(context.Background(), expr, stored.DeparseParent{})
 		if err != nil || text == "" {
 			t.Fatal(text, err)
 		}

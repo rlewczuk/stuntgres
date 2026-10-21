@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -55,7 +56,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	var err error
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 	var deps []ids.ObjectRef
-	if _, err = (scalarRenderer{Dependencies: &deps}).SQL(context.Background(), view, literal); err != nil || len(deps) != 2 || deps[0].Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}) || deps[1].Address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}) {
+	if _, err = (stored.ScalarRenderer{Dependencies: &deps}).SQL(context.Background(), view, literal); err != nil || len(deps) != 2 || deps[0].Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}) || deps[1].Address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}) {
 		t.Fatal(deps, err)
 	}
 	array, err := sqltype.OwnedArrayValue(arrayTyp, []sqltype.ArrayDimension{{Length: 1, Lower: 1}}, []sqltype.Value{value})
@@ -64,7 +65,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	}
 	opaque := plan.LiteralExpr{Info: expr.Info{Usage: arrayTyp.Usage()}, Value: array}
 	deps = nil
-	if _, err = (scalarRenderer{Dependencies: &deps}).SQL(context.Background(), view, opaque); err != nil {
+	if _, err = (stored.ScalarRenderer{Dependencies: &deps}).SQL(context.Background(), view, opaque); err != nil {
 		t.Fatal(err)
 	}
 	for _, dep := range deps {

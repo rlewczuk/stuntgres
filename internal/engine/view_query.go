@@ -14,7 +14,7 @@ import (
 
 // prepareStoredQueryLocked consumes Engine.mu on all returns. Both ordinary
 // views and refresh execute the frozen tree through current attribute bridges.
-func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (plan.Node, *exec.Source, error) {
+func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (plan.Node, *exec.Source, error) {
 	ctx := scope.op.Context()
 	if scope.authority == nil {
 		scope.authority = &exec.Authority{Host: hostOf(scope)}
@@ -143,7 +143,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 
 // Legality and source opening consume the same execution-owned projection and
 // scheduled producers. Frozen authorization reads and dependencies are unchanged.
-func prepareStoredExecutionRoot(c *exec.Context, definition *viewDefinition, outputUses []int) (plan.Node, map[int][]int32, error) {
+func prepareStoredExecutionRoot(c *exec.Context, definition *stored.View, outputUses []int) (plan.Node, map[int][]int32, error) {
 	demanded := definition.Query().Root
 	if project, ok := demanded.(*plan.ProjectNode); ok {
 		var err error

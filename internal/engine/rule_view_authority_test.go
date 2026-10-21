@@ -41,7 +41,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			inner.View = stored.NewView(stored.ViewParts{
 				Query:   &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(base.Columns), Ref: baseRef}},
 				Invoker: shape == "invoker" || shape == "definer_over_invoker",
-				Sources: []viewLeaf{{Ref: baseRef, Reads: []int32{1}, Attributes: []int32{1, 2}}},
+				Sources: []stored.ViewLeaf{{Ref: baseRef, Reads: []int32{1}, Attributes: []int32{1, 2}}},
 			})
 			root := inner
 			if shape == "definer_over_invoker" || shape == "invoker_over_definer" {
@@ -51,7 +51,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				outer.View = stored.NewView(stored.ViewParts{
 					Query:   &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(inner.Columns), Ref: ruleUnitRef(e, inner)}},
 					Invoker: shape == "invoker_over_definer",
-					Sources: []viewLeaf{{Ref: ruleUnitRef(e, inner), Reads: []int32{1}, Attributes: []int32{1, 2}}},
+					Sources: []stored.ViewLeaf{{Ref: ruleUnitRef(e, inner), Reads: []int32{1}, Attributes: []int32{1, 2}}},
 				})
 				next := catalog.CloneState(e.catalog.state)
 				next.SetDescriptor(outer.Address(), &outer)

@@ -94,9 +94,9 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if tc.name == "position" {
 				view := binderEngine(b).CatalogRead()
 				binary.Syntax = parser.OrdinaryFunctionSyntax
-				ordinary, err := (scalarRenderer{}).ScalarFunctionSQL(context.Background(), view, binary)
+				ordinary, err := (stored.ScalarRenderer{}).ScalarFunctionSQL(context.Background(), view, binary)
 				binary.Syntax = parser.SQLFunctionSyntax
-				special, specialErr := (scalarRenderer{}).ScalarFunctionSQL(context.Background(), view, binary)
+				special, specialErr := (stored.ScalarRenderer{}).ScalarFunctionSQL(context.Background(), view, binary)
 				if err != nil || specialErr != nil || ordinary != "pg_catalog.position(B'10110', B'11')" || special != "POSITION((B'11') IN (B'10110'))" {
 					t.Fatal(ordinary, special, err, specialErr)
 				}

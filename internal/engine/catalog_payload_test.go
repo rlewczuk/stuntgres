@@ -25,7 +25,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	captured := &catalog.Relation{ObjectAddress: source}
 	ref := domain.Ref(7, source)
 	token := domain.Session(5)
-	definition := stored.NewView(stored.ViewParts{Rule: 30001, Consumer: consumer, Temporary: token, Sources: []viewLeaf{{Ref: ref}}, Dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, References: map[ids.ObjectRef]catalog.Descriptor{ref: captured}})
+	definition := stored.NewView(stored.ViewParts{Rule: 30001, Consumer: consumer, Temporary: token, Sources: []stored.ViewLeaf{{Ref: ref}}, Dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, References: map[ids.ObjectRef]catalog.Descriptor{ref: captured}})
 	d := &catalog.Relation{ObjectAddress: consumer, View: stored.ViewPayload(definition)}
 	if stored.ViewOf(d) != definition || d.View.RuleOID() != 30001 {
 		t.Fatal("view payload identity")
@@ -69,11 +69,11 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	if stored.RulesOf(&catalog.Relation{}) != nil || stored.RulesPayload(nil) != nil {
 		t.Fatal("absent rules payload")
 	}
-	empty := &catalog.Relation{Rules: stored.RulesPayload([]ruleDefinition{})}
+	empty := &catalog.Relation{Rules: stored.RulesPayload([]stored.Rule{})}
 	if empty.Rules == nil || stored.RulesOf(empty) == nil || len(stored.RulesOf(empty)) != 0 {
 		t.Fatal("empty rule list collapsed")
 	}
-	rules := []ruleDefinition{{OID: 40001, Name: "a"}, {OID: 40002, Name: "b"}}
+	rules := []stored.Rule{{OID: 40001, Name: "a"}, {OID: 40002, Name: "b"}}
 	withRules := &catalog.Relation{Rules: stored.RulesPayload(rules)}
 	if got := stored.RulesOf(withRules); len(got) != 2 || &got[0] != &rules[0] {
 		t.Fatal("rule list identity")

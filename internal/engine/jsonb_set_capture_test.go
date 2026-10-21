@@ -78,12 +78,12 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	}
 	// A row-dependent projection is never a stored default. Independently bind
 	// a closed witness with the same written and contextual conversion boundary.
-	if _, err := (scalarRenderer{}).SQL(ctx, engine.CatalogRead(), node); err == nil {
+	if _, err := (stored.ScalarRenderer{}).SQL(ctx, engine.CatalogRead(), node); err == nil {
 		t.Fatal("row-dependent projection admitted as a stored default")
 	}
 	closed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), `SELECT jsonb_set('{}',ARRAY[('ab'::text)::varchar(1)]::text[],'9')`)
 	conversion := pathConversion(closed)
-	persisted, err := (scalarRenderer{}).SQL(ctx, engine.CatalogRead(), conversion)
+	persisted, err := (stored.ScalarRenderer{}).SQL(ctx, engine.CatalogRead(), conversion)
 	if err != nil {
 		t.Fatal("explicit plan/default validation changed", err)
 	}

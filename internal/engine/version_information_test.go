@@ -105,11 +105,11 @@ func TestVersionInformationRemap(t *testing.T) {
 			t.Fatal("lost result ownership", value, err)
 		}
 		want := kind.Name() + "()"
-		text, err := (scalarRenderer{}).SQL(ctx, target.CatalogRead(), copy)
+		text, err := (stored.ScalarRenderer{}).SQL(ctx, target.CatalogRead(), copy)
 		if err != nil || text != want {
 			t.Fatal(text, err)
 		}
-		text, err = (pgRenderer{View: target.CatalogRead()}).SQL(ctx, copy, pgRenderParent{})
+		text, err = (stored.Deparser{View: target.CatalogRead()}).SQL(ctx, copy, stored.DeparseParent{})
 		if err != nil || text != want {
 			t.Fatal(text, err)
 		}
