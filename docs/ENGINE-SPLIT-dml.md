@@ -359,6 +359,11 @@ Outstanding aliases: none yet.
 
 ### Notes for later steps
 
+- View 27c (item 101), for 29c: 27d moves `rowSecurityMutation` to `view`
+  as `RowSecurity` (exported fields; `statementMutation.rls` keeps its
+  name) and the selection to `view.RowSecurityTarget` and
+  `view.SelectRowSecurity`; `configureRowSecurityLocked` in
+  `execute_bound.go` stays the root authority wrapper that writes it.
 - 29a deviations and names, for 29b–29d:
   - The INSERT executor is `Engine.executeInsertLocked`, not
     `executeInsertValuesLocked`: it also runs INSERT ... SELECT

@@ -1045,6 +1045,15 @@ Notes for 24d (from index 23d.1, item 85a, merged in `0ab96a3a8`):
   (`alterTablespaceKind`, decision 2); `inheritanceQueryLeaves` needs
   `viewLeafRowMark` (view 27b may move both into `view` or keep them with
   query admission).
+- View 27c (item 101): `viewLeafRowMark` stayed in the root
+  (`query_lock_admission.go`); it is pure over `stored.View` and
+  `plan.RowMark`, so `stored` can take it if 24d.2 moves
+  `inheritanceQueryLeaves`. `creationError` becomes `ddl.CreationError`;
+  24d.1 and view 27d both need it, and whichever lands first moves it.
+  CREATE MATERIALIZED VIEW (`prepareQueryTableLocked`, decision 8) calls
+  `view.FreezeDefinition` after 27d (today `freezeViewDefinitionLocked`),
+  and its `OldNameCount`/reown pair matches the new
+  `ddlHost.ReownDisplacedTypes`.
 
 ### Notes for later steps
 
