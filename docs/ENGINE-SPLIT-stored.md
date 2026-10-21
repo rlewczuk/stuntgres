@@ -436,14 +436,19 @@ aliases remain; the checks in §8.3 pass.
   `020d1a446`, `b6960ba81`, then the docs commit) · selected unit and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request
-- [ ] 22c — Rule and policy payloads, `ReownExpressions` (item 69)
+- [x] 22c — Rule and policy payloads, `ReownExpressions` (item 69)
+  (`7eb30702d`, `06b8adad6`, `a3cd3577f`, `c06636d9f`, `751c1a011`, then the docs commit) · selected unit and dual-mode proof,
+  byte-identical dump smoke and quickcheck passed; racecheck/finalcheck
+  skipped at user request
 - [ ] 22d — Aliases removed *(broad)* (item 70)
 
 Outstanding aliases (`internal/engine/stored_aliases.go`, types only):
 `pgDependRefs`, `pgRenderer`, `pgRenderParent`, `policyExpression`,
-`procedureProvider`, `scalarRenderer`, `viewCheckMode`, `viewDefinition`,
-`viewLeaf`, `viewPresentation`, `viewQueryRemapper`, `viewRenderer`.
-Functions, constants and `ViewParts` are qualified directly.
+`procedureProvider`, `ruleAction`, `ruleDefinition`, `ruleTreeMapping`,
+`scalarRenderer`, `viewCheckMode`, `viewDefinition`, `viewLeaf`,
+`viewPresentation`, `viewQueryRemapper`, `viewRenderer` (15; 22c added the
+three rule types). Functions, constants, `ViewParts`, `RuleParts`,
+`RuleActionParts` and `RuleList` are qualified directly.
 
 ### 22b record
 
@@ -496,6 +501,59 @@ Deviations from the plan above:
   `remapLikeExpression` to `expression_remap.go`; it moved as
   `RemapLikeExpression`. The README has the full table.
 
+### 22c record
+
+Measured at `d12bb058f`: the fixed point from the rule payload, dump and
+remap files had OUT = {`sqlError`} plus seven `stored` aliases; after the
+staging commit, which left the five rule DDL helpers in the root, OUT held
+only the aliases. Commits, each replayable by a script in
+`.cswd/tmp/PG18-ENGINE-SPLIT-STORED-RULES/` (`c2.sh`, `c5.sh`,
+`c5-post.sh`, `c3-tests.py`, `payloadapi/`, `docs-edit.py`):
+
+1. Reown cut: `Engine.reownCatalogExpressions` became a function over
+   `(catalog.Read, *catalog.State, mapping, typesOnly)`. It reads the
+   domain from `view.Owner()`, and callers pass `e.catalog.read(next)`.
+2. Staging (`movedecl`): the rule payload types, `ruleEvent` and
+   `ruleEventCode` (`rule_definition.go`), `refreshRuleBinding`/
+   `refreshRuleConflict` (`rule_rewrite.go`), `constraintName`/
+   `constraintParent` (`view_dependencies.go`), `rewriteViewExpression`
+   (`view_write.go`), `refreshGenerationChecks` (`generated_virtual.go`)
+   and the reowner went to `stored_*.go` files.
+   `checkTemporaryRuleSourcesReplacementLocked` moved next to its only
+   caller in `temporary_preservation.go`, so `rule_remap.go` moved whole.
+3. Payload API, following the `View` precedent: `RuleParts`/`NewRule` and
+   `RuleActionParts`/`NewRuleAction`, `Parts`, `With` and read accessors.
+   `OID` and `Name` stay exported fields (`definition_identity.go` assigns
+   `OID` in place). A go/types pass (`payloadapi`) rewrote 161 reads and
+   22 literals. CREATE RULE binding builds `RuleParts`, and the 33 test
+   writes use `With`. Tests that took `&action.binding` for
+   `CTEDefinition.Mutation` identity now use a local copy.
+   `TestRulePartsRoundTrip` (new) pins the API.
+4. Export in place (`expspec`/`movex`, 29 rows).
+5. Move: 21 files, three type aliases, `movex` qualify (about 70 engine
+   files). `TestRulePartsRoundTrip` moved into `stored` and shares
+   `nonZero` with `TestViewPartsRoundTrip`. Every other affected test
+   builds an engine or a catalog fixture and stays in the root, rewritten.
+
+Deviations from the plan above:
+
+- `ruleDuplicate`, `ruleIndex`, `ruleMissing`, `ruleResultCheck` and
+  `ruleReturning` stay in the root. The 22c set did not need them, and
+  view 27b takes them. `ruleEventCode` moved here (`RuleList.Visit` needs
+  it), not to `view`.
+- `refreshGenerationChecks` moved too: `ReownExpressions` needs it. The
+  root CHECK and ALTER paths call `stored.RefreshGenerationChecks`.
+- `refreshRuleConflict`, `ruleAssignmentSQL`, `ruleUpdateAssignmentsSQL`
+  and `ruleEventCode` stay unexported: nothing outside `stored` uses them
+  yet.
+- Item 4 (`DeparseInquiry`): measured and not moved. The constraint branch
+  renders exclusion constraints, and `deparseRelation` renders
+  `pg_get_indexdef`, through `indexDefinitionSQL` (index code, which sits
+  above `stored` after step 23). The view-name form resolves through
+  `Engine.resolveRelationSnapshot`, and `pg_get_serial_sequence` evaluates
+  through the scope. That is more than the allowed input record.
+- `remapLikeExpression` had already moved in 22b (`RemapLikeExpression`).
+
 ### Notes for later steps
 
 - 22c and 27: `View` and `Policy` fields are private to `stored`. Root code
@@ -516,6 +574,20 @@ Deviations from the plan above:
   (`index_partition_attach.go` since 23a); `catalogCoverage` is the plain-catalog
   implementation.
 
+- 22d: the three rule aliases join the others; `rule_*_test.go` name
+  them often (`ruleDefinition` in literals, `ruleAction` in helpers).
+- Step 27 and DML 29b: rule records are values with private fields. Build
+  them with `stored.NewRule`/`NewRuleAction` and edit copies with `With`.
+  `stored.RulesOf(d)[i] = ...` replaces a rule only in an unpublished
+  descriptor copy. `ruleAssignmentSQL` and `ruleUpdateAssignmentsSQL` are
+  unexported; export them in the step that first calls them from outside.
+- Pre-existing Dump bug found by the 22c smoke (unchanged by this step):
+  a rule action `INSERT ... SELECT` whose target list mixes `OLD`/`NEW`
+  columns with literals and has no `FROM` (`CREATE RULE r AS ON DELETE TO
+  a DO ALSO INSERT INTO b SELECT OLD.id, 'x'`) makes Dump fail with
+  `missing analyzed view literal`. The `VALUES` form and `SELECT ... FROM`
+  dump fine. It needs a dual-mode reference test and a fix outside the
+  split.
 - Step 27 (`view`) loses `rule_tree_mapper.go`, `rule_binding_map.go`,
   `refreshRuleBinding` and `refreshRuleConflict` to 22c: the rule remap
   needs them. Rule rewriting proper (`ruleRewriter` and the rule
