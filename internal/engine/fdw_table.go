@@ -8,57 +8,12 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
-func foreignTableDeclaration(s *parser.CreateTable) error {
-	if len(s.Parents) != 0 || s.PartitionOf != nil || s.PartitionBy != nil {
-		return sqlError("0A000", "foreign table hierarchies are unsupported in embedded mode")
-	}
-	for _, element := range s.Elements {
-		if element.Unique != nil || element.ForeignKey != nil || element.Exclusion != nil {
-			return sqlError("0A000", "unique, primary key, exclusion and foreign key constraints are unsupported on foreign tables")
-		}
-		if element.Column != nil {
-			for _, constraint := range element.Column.Constraints {
-				if constraint.Unique != nil || constraint.ForeignKey != nil || constraint.Identity != nil {
-					return sqlError("0A000", "unique, primary key, foreign key and identity constraints are unsupported on foreign tables")
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// PostgreSQL accepts these LIKE options for foreign destinations but does not
-// copy their physical/identity properties. Apply that policy before the common
-// binder or stage can create an index, sequence or physical column metadata.
-func foreignTableSyntax(table *parser.CreateTable) *parser.CreateTable {
-	next := table
-	for i, element := range table.Elements {
-		if element.Like == nil {
-			continue
-		}
-		if next == table {
-			copy := *table
-			copy.Elements = slices.Clone(table.Elements)
-			next = &copy
-		}
-		like := *element.Like
-		options := make([]parser.LikeOption, len(like.Options)+4)
-		copy(options, like.Options)
-		for j, name := range [...]string{"indexes", "identity", "storage", "compression"} {
-			options[len(like.Options)+j] = parser.LikeOption{Name: name}
-		}
-		like.Options = options
-		next.Elements[i].Like = &like
-	}
-	return next
-}
-
-func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]foreignValidation, []ids.ObjectAddress, error) {
+func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
 	if s.Action == "drop" {
 		var roots []ids.ObjectAddress
 		for _, name := range s.Names {
@@ -99,17 +54,17 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		}
 		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 	}
-	server, err := findForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
+	server, err := fdw.Find(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = auth.Check(access.Requirement{Object: foreignRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: fdw.ObjectRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
 		return nil, nil, err
 	}
-	if err = foreignTableDeclaration(s.Table); err != nil {
+	if err = fdw.CheckTableDeclaration(s.Table); err != nil {
 		return nil, nil, err
 	}
-	if err = e.schemaTableLocked(scope.op, auth, stage, foreignTableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
+	if err = e.schemaTableLocked(scope.op, auth, stage, fdw.TableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
 		return nil, nil, err
 	}
 	d, ok := stage.Get(stage.LookupName(key)).(*catalog.Relation)
@@ -118,7 +73,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	}
 	d.RelationKind = catalog.ForeignRelation
 	d.Foreign = &catalog.ForeignTableDefinition{Server: server.Address(), Columns: make(map[int32][]catalog.ForeignOption)}
-	d.Foreign.Options, err = transformForeignOptions(nil, s.Options)
+	d.Foreign.Options, err = fdw.TransformOptions(nil, s.Options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -131,10 +86,10 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return nil, nil, err
 	}
-	jobs := []foreignValidation{job}
+	jobs := []fdw.Validation{job}
 	for _, attribute := range d.Attributes {
 		column := d.Columns[d.IndexForAttribute(attribute)]
-		options, er := transformForeignOptions(nil, s.ColumnOptions[column.Name])
+		options, er := fdw.TransformOptions(nil, s.ColumnOptions[column.Name])
 		if er != nil {
 			return nil, nil, er
 		}
@@ -146,13 +101,6 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		jobs = append(jobs, job)
 	}
 	return jobs, nil, nil
-}
-
-func foreignAlterAdmission(s *parser.ForeignDDL) parser.Statement {
-	if s.Inner != nil {
-		return s.Inner
-	}
-	return &parser.AlterTable{Name: s.Name, IfExists: s.IfExists, Pos: s.Pos}
 }
 
 func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
@@ -219,7 +167,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	foreign := *old.Foreign
 	foreign.Columns = maps.Clone(old.Foreign.Columns)
 	next.Foreign = &foreign
-	var jobs []foreignValidation
+	var jobs []fdw.Validation
 	var pendingChecks []alterTypeCheck
 	var typeActions []parser.AlterTableAction
 	if len(old.Constraints.Check) != 0 {
@@ -256,7 +204,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					options = next.Foreign.Columns[attribute]
 					kind = catalog.ForeignAttribute
 				}
-				options, err = transformForeignOptions(options, action.Options)
+				options, err = fdw.TransformOptions(options, action.Options)
 				if err != nil {
 					return Result{}, err
 				}
@@ -312,7 +260,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				candidate, err = scope.dropColumnCandidate(stage, &next, ref, a, nil)
 			case parser.AddColumn:
 				declaration := &parser.CreateTable{Elements: []parser.TableElement{{Column: a.Definition}}}
-				if err = foreignTableDeclaration(declaration); err != nil {
+				if err = fdw.CheckTableDeclaration(declaration); err != nil {
 					return Result{}, err
 				}
 				var added addedColumn
@@ -334,7 +282,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 					}
 					if err == nil {
-						options, er := transformForeignOptions(nil, action.ColumnOptions)
+						options, er := fdw.TransformOptions(nil, action.ColumnOptions)
 						if er != nil {
 							return Result{}, er
 						}
@@ -398,7 +346,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		e.replacementMu.RUnlock()
 		scope.replacementRead = false
 	}
-	if err = runForeignValidations(scope.op.Context(), jobs); err != nil {
+	if err = fdw.RunValidations(scope.op.Context(), jobs); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
@@ -407,16 +355,4 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	}
 	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 	return Result{}, err
-}
-
-func foreignImportError(err error, name string) error {
-	if d, ok := err.(*sqlstate.Error); ok {
-		copy := *d
-		if copy.Context != "" {
-			copy.Context += "\n"
-		}
-		copy.Context += fmt.Sprintf(`importing foreign table "%s"`, name)
-		return &copy
-	}
-	return err
 }

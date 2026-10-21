@@ -1,4 +1,4 @@
-package engine
+package fdw
 
 import (
 	"database/sql/driver"
@@ -15,7 +15,7 @@ func fdwIdentityMembership(t *testing.T) {
 	t.Run("DriverExtensions", fdwIdentityDriverExtensions)
 	t.Run("DistinctBucketWorkBound", func(t *testing.T) {
 		const count = 50000
-		set := foreignIdentitySet{heads: make(map[uint64]int)}
+		set := IdentitySet{heads: make(map[uint64]int)}
 		for i := range count {
 			if !set.addHashed(catalog.ForeignRowIdentity{int64(i)}, uint64(i)) {
 				t.Fatal("lost distinct identity", i)
@@ -40,7 +40,7 @@ func fdwIdentityMembership(t *testing.T) {
 		}
 	})
 	t.Run("ForcedCollisions", func(t *testing.T) {
-		set := foreignIdentitySet{heads: make(map[uint64]int)}
+		set := IdentitySet{heads: make(map[uint64]int)}
 		clock := time.Date(2026, 1, 2, 3, 4, 5, 6, time.UTC)
 		for _, tc := range []struct {
 			identity catalog.ForeignRowIdentity
@@ -68,17 +68,17 @@ func fdwIdentityMembership(t *testing.T) {
 		}
 	})
 	t.Run("TypedHashMembership", func(t *testing.T) {
-		var set foreignIdentitySet
+		var set IdentitySet
 		const count = 8192
 		for i := range count {
 			identity := catalog.ForeignRowIdentity{int64(i), []byte{byte(i), byte(i >> 8)}, true}
-			if !set.add(identity) {
+			if !set.Add(identity) {
 				t.Fatal("distinct typed identity suppressed", i)
 			}
 		}
 		for i := range count {
 			identity := catalog.ForeignRowIdentity{int64(i), []byte{byte(i), byte(i >> 8)}, true}
-			if set.add(identity) {
+			if set.Add(identity) {
 				t.Fatal("equal typed identity hash diverged", i)
 			}
 		}
@@ -87,11 +87,11 @@ func fdwIdentityMembership(t *testing.T) {
 		}
 		original := []byte("borrowed")
 		owned := exec.CopyForeignCells(catalog.ForeignRowIdentity{original})
-		if !set.add(owned) {
+		if !set.Add(owned) {
 			t.Fatal("owned identity was not distinct")
 		}
 		original[0] = 'X'
-		if set.add(catalog.ForeignRowIdentity{[]byte("borrowed")}) {
+		if set.Add(catalog.ForeignRowIdentity{[]byte("borrowed")}) {
 			t.Fatal("membership lost already-owned bytes")
 		}
 	})
@@ -106,7 +106,7 @@ func fdwIdentityMembership(t *testing.T) {
 			{{float64(0)}, {math.Copysign(0, -1)}},
 			{{clock}, {clock}},
 		} {
-			if !foreignIdentityEqual(pair[0], pair[1]) || foreignIdentityHash(seed, pair[0]) != foreignIdentityHash(seed, pair[1]) {
+			if !identityEqual(pair[0], pair[1]) || identityHash(seed, pair[0]) != identityHash(seed, pair[1]) {
 				t.Fatal("equal identities do not share a hash", pair)
 			}
 		}
@@ -143,7 +143,7 @@ func fdwIdentityDriverExtensions(t *testing.T) {
 		if !driver.IsValue(value) {
 			t.Fatal("extension witness is not driver-valid", value)
 		}
-		if foreignIdentityComparable(value) {
+		if IdentityComparable(value) {
 			t.Fatal("runtime-unhashable identity admitted", value)
 		}
 	}
@@ -152,7 +152,7 @@ func fdwIdentityDriverExtensions(t *testing.T) {
 	pointer := &value
 	otherPointer := &equal
 	pointerWithSlice := &fdwUnitDecimalToken{coefficient: 7, metadata: []byte{1}}
-	var set foreignIdentitySet
+	var set IdentitySet
 	seed := maphash.MakeSeed()
 	for _, tc := range []struct {
 		cell  driver.Value
@@ -162,15 +162,55 @@ func fdwIdentityDriverExtensions(t *testing.T) {
 		{pointer, true}, {pointer, false}, {otherPointer, true},
 		{pointerWithSlice, true}, {pointerWithSlice, false},
 	} {
-		if !driver.IsValue(tc.cell) || !foreignIdentityComparable(tc.cell) {
+		if !driver.IsValue(tc.cell) || !IdentityComparable(tc.cell) {
 			t.Fatal("comparable driver extension rejected", tc.cell)
 		}
 		identity := catalog.ForeignRowIdentity{tc.cell}
-		if !foreignIdentityEqual(identity, identity) || foreignIdentityHash(seed, identity) != foreignIdentityHash(seed, identity) {
+		if !identityEqual(identity, identity) || identityHash(seed, identity) != identityHash(seed, identity) {
 			t.Fatal("comparable extension lost exact equality/hash", tc.cell)
 		}
-		if set.add(identity) != tc.fresh {
+		if set.Add(identity) != tc.fresh {
 			t.Fatal("comparable extension identity was normalized", tc.cell, tc.fresh)
 		}
+	}
+}
+
+func TestFDWModifyIdentity(t *testing.T) {
+	t.Run("KeyedMembership", fdwIdentityMembership)
+	bytes := []byte("key")
+	identity := catalog.ForeignRowIdentity{int64(7), bytes, nil}
+	owned := exec.CopyForeignCells(identity)
+	bytes[0] = 'X'
+	if !identityEqual(owned, catalog.ForeignRowIdentity{int64(7), []byte("key"), nil}) || identityEqual(identity, owned) {
+		t.Fatal("identity ownership/equality")
+	}
+	if identityEqual(owned, catalog.ForeignRowIdentity{int64(7)}) || identityEqual(owned, catalog.ForeignRowIdentity{int64(8), []byte("key"), nil}) {
+		t.Fatal("identity aliases a different target")
+	}
+	clock := time.Date(2026, 1, 2, 3, 4, 5, 6, time.UTC)
+	for _, tc := range []struct {
+		name  string
+		a, b  catalog.ForeignRowIdentity
+		equal bool
+	}{
+		{"empty", nil, catalog.ForeignRowIdentity{}, true},
+		{"nil-cell", catalog.ForeignRowIdentity{nil}, catalog.ForeignRowIdentity{nil}, true},
+		{"nil-byte-vs-nil", catalog.ForeignRowIdentity{[]byte(nil)}, catalog.ForeignRowIdentity{nil}, false},
+		{"nil-vs-empty-bytes", catalog.ForeignRowIdentity{[]byte(nil)}, catalog.ForeignRowIdentity{[]byte{}}, true},
+		{"owned-bytes", catalog.ForeignRowIdentity{[]byte("key")}, catalog.ForeignRowIdentity{[]byte("key")}, true},
+		{"bytes-vs-text", catalog.ForeignRowIdentity{[]byte("key")}, catalog.ForeignRowIdentity{"key"}, false},
+		{"cell-boundaries", catalog.ForeignRowIdentity{[]byte("ab"), []byte("c")}, catalog.ForeignRowIdentity{[]byte("a"), []byte("bc")}, false},
+		{"numeric-types", catalog.ForeignRowIdentity{int64(1)}, catalog.ForeignRowIdentity{float64(1)}, false},
+		{"signed-zero", catalog.ForeignRowIdentity{float64(0)}, catalog.ForeignRowIdentity{math.Copysign(0, -1)}, true},
+		{"nan", catalog.ForeignRowIdentity{math.NaN()}, catalog.ForeignRowIdentity{math.NaN()}, false},
+		{"boolean", catalog.ForeignRowIdentity{true}, catalog.ForeignRowIdentity{true}, true},
+		{"strict-time-equal", catalog.ForeignRowIdentity{clock}, catalog.ForeignRowIdentity{clock}, true},
+		{"strict-time-location", catalog.ForeignRowIdentity{clock}, catalog.ForeignRowIdentity{clock.In(time.FixedZone("other", 0))}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if identityEqual(tc.a, tc.b) != tc.equal || identityEqual(tc.b, tc.a) != tc.equal {
+				t.Fatal("typed opaque identity equality changed", tc.a, tc.b, tc.equal)
+			}
+		})
 	}
 }

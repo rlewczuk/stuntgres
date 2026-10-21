@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
@@ -73,7 +74,7 @@ type dumpSource struct {
 	sequences map[ids.ObjectAddress]*storage.SequenceGenerator
 	frontier  ids.CommitSeq
 	bootstrap authorization.PrincipalRef
-	foreign   foreignRegistry
+	foreign   fdw.Registry
 }
 
 // dumpCollection is one locked collection pass: the capture the collectors
@@ -112,7 +113,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err
 	}
-	for address, name := range e.foreign.namespaceEntries() {
+	for address, name := range e.foreign.NamespaceEntries() {
 		ns, ok := state.Namespace(address)
 		if !ok || ns.Name() != name {
 			return nil, fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")

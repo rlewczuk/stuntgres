@@ -6,13 +6,10 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
-
-func foreignGrantKind(kind string) bool {
-	return kind == "foreign server" || kind == "foreign-data wrapper"
-}
 
 // The class-specific target adapter uses the same role closure, grant-source,
 // ACL transformation and transactional publication authorities as other GRANTs.
@@ -73,7 +70,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if len(name.Parts) != 1 {
 			return Result{}, sqlError("42601", "SQL/MED global names cannot be qualified")
 		}
-		d, er := findForeign(auth.Catalog, class, name.Parts[0].Text)
+		d, er := fdw.Find(auth.Catalog, class, name.Parts[0].Text)
 		if er != nil {
 			return Result{}, er
 		}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -37,7 +38,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relatio
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
-		handler, err := foreignHandlerFor(auth.Catalog, wrapper)
+		handler, err := fdw.HandlerFor(auth.Catalog, wrapper)
 		if err != nil {
 			return err
 		}

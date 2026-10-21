@@ -26,7 +26,7 @@ func (e *Engine) Reset(ctx context.Context) error {
 		return err
 	}
 	fresh := NewWithSettings(nil, e.databaseName, false)
-	if err := fresh.InstallForeignDefinitions(e.foreign.definitions()); err != nil {
+	if err := fresh.InstallForeignDefinitions(e.foreign.Definitions()); err != nil {
 		return err
 	}
 	_, err := e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())

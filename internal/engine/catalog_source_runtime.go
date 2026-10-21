@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -116,10 +117,10 @@ func (r engineCatalogRuntime) ForeignServerVisible(server *catalog.ForeignObject
 	if err != nil {
 		return false, err
 	}
-	owner := a.Check(access.Requirement{Object: foreignRef(a.View, server), OwnerOnly: true}) == nil
+	owner := a.Check(access.Requirement{Object: fdw.ObjectRef(a.View, server), OwnerOnly: true}) == nil
 	visible := actor.Superuser || mapped == (authorization.PrincipalRef{}) && owner
 	if mapped == a.State.CurrentUser {
-		visible = visible || owner || a.Check(access.Requirement{Object: foreignRef(a.View, server), Privileges: authorization.UsagePrivilege}) == nil
+		visible = visible || owner || a.Check(access.Requirement{Object: fdw.ObjectRef(a.View, server), Privileges: authorization.UsagePrivilege}) == nil
 	}
 	return visible, nil
 }

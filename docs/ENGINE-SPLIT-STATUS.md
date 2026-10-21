@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `559d40ad7` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94 and 99). Steps 8–17 were
+Last verified against `master` at `ca969c312` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95 and 99). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -21,7 +21,7 @@ after each lands.
 - **Seams:** 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
 - **Upper features, in place:** 103 (role 28a).
-- **Upper features, packages:** 95 (fdw 26b).
+- **Upper features, refined:** 96 (fdw 26c, docs only).
 - **DML, in place:** 107 (dml 29a).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -53,6 +53,8 @@ wait for their other items.
 Item 86 (table 24a) is done; table 24b (item 87) still waits for 83,
 and DML 29a (item 107) for 82. Item 94 (fdw 26a) is done, so fdw 26b
 (item 95) is ready; fdw 26c (item 96) then needs 95 and 61.
+Item 95 (fdw 26b) is done, so fdw 26c (item 96) is ready; DML 29b
+(item 108) still waits for 83, 87, 91, 100 and its other items.
 Item 82 (index 23a) is done, so DML 29a (item 107) is ready; index 23b
 (item 83) now waits only for 68.
 Item 90 (partition 25a) is done; partition 25b (item 91) still waits
@@ -488,7 +490,8 @@ waits for stored 22c (item 69) and table 24b (item 87).
 - [ ] **Step 26 — `fdw`** ([prompt](ENGINE-SPLIT-fdw.md); 26e needs 24d)
   - [x] 26a — In place: `fdw_` files, `foreignRegistry`, cuts
     (`6cb327eb1`, `c3a7cf7e1`, `1ba975174`, `0c991e6c8`, `d7405f486`, `a02ccecb1`, then the docs commit)
-  - [ ] 26b — `fdw` created and clean set moved
+  - [x] 26b — `fdw` created and clean set moved
+    (`6bce27045`, `f2df07054`, `fe35300c3`, `5e3147354`, then the docs commit)
   - [ ] 26c — Host refined (docs only)
   - [ ] 26d — Wrapper, server, mapping, import and grant decisions moved
   - [ ] 26e — Foreign-table decisions moved
@@ -1112,8 +1115,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     participant methods, pure `foreignScanRequest`, `foreignWriteRuntime`;
     every 26b move-set declaration clean · selected unit and dual-mode proof
     and quickcheck passed; racecheck/finalcheck skipped at user request
-95. [ ] FDW 26b: `fdw` created, clean set moved — [fdw](ENGINE-SPLIT-fdw.md)
-    26b · needs 94
+95. [x] FDW 26b: `fdw` created, clean set moved — [fdw](ENGINE-SPLIT-fdw.md)
+    26b · needs 94 (`6bce27045`, `f2df07054`, `fe35300c3`, `5e3147354`, then the docs commit) ·
+    definition types, registry, options, identity set, write protocol,
+    participants and DDL helpers in `fdw`; the driver imports `fdw`; no
+    aliases · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 96. [ ] FDW 26c: host refined (docs only) — [fdw](ENGINE-SPLIT-fdw.md) 26c ·
     needs 95, 61
 97. [ ] FDW 26d: wrapper, server, mapping, import and grant decisions —

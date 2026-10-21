@@ -4,14 +4,13 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
-	"math"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -105,8 +104,8 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			op := transactionOperation(t, session)
 			defer op.Done()
 			s := newStatementScope(op, session.Transactions, statementOperationStart(op))
-			m := &foreignModification{source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
-			count, err := m.insertRows(context.Background(), s.foreignWrites(), make([][]sqltype.Value, 5), false, nil)
+			m := &fdw.Modification{Source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
+			count, err := m.InsertRows(context.Background(), s.foreignWrites(), make([][]sqltype.Value, 5), false, nil)
 			if (err != nil) != tc.bad || count != tc.count {
 				t.Fatalf("count=%d err=%v", count, err)
 			}
@@ -129,53 +128,14 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			}
 		})
 	}
-	if foreignOperationSupported(fdwUnitScanWrapper{}, catalog.ForeignInsert, "f") == nil {
+	if fdw.OperationSupported(fdwUnitScanWrapper{}, catalog.ForeignInsert, "f") == nil {
 		t.Fatal("scan-only INSERT accepted")
 	}
-	if foreignOperationSupported(fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{}}, catalog.ForeignUpdate, "f") == nil {
+	if fdw.OperationSupported(fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{}}, catalog.ForeignUpdate, "f") == nil {
 		t.Fatal("INSERT implied UPDATE")
 	}
-	if foreignOperationSupported(fdwUnitBatchOnly{ForeignBatchInserter: &fdwUnitBatch{size: 2}}, catalog.ForeignInsert, "f") == nil {
+	if fdw.OperationSupported(fdwUnitBatchOnly{ForeignBatchInserter: &fdwUnitBatch{size: 2}}, catalog.ForeignInsert, "f") == nil {
 		t.Fatal("batch-only provider implied INSERT")
-	}
-}
-func TestFDWModifyIdentity(t *testing.T) {
-	t.Run("KeyedMembership", fdwIdentityMembership)
-	bytes := []byte("key")
-	identity := catalog.ForeignRowIdentity{int64(7), bytes, nil}
-	owned := exec.CopyForeignCells(identity)
-	bytes[0] = 'X'
-	if !foreignIdentityEqual(owned, catalog.ForeignRowIdentity{int64(7), []byte("key"), nil}) || foreignIdentityEqual(identity, owned) {
-		t.Fatal("identity ownership/equality")
-	}
-	if foreignIdentityEqual(owned, catalog.ForeignRowIdentity{int64(7)}) || foreignIdentityEqual(owned, catalog.ForeignRowIdentity{int64(8), []byte("key"), nil}) {
-		t.Fatal("identity aliases a different target")
-	}
-	clock := time.Date(2026, 1, 2, 3, 4, 5, 6, time.UTC)
-	for _, tc := range []struct {
-		name  string
-		a, b  catalog.ForeignRowIdentity
-		equal bool
-	}{
-		{"empty", nil, catalog.ForeignRowIdentity{}, true},
-		{"nil-cell", catalog.ForeignRowIdentity{nil}, catalog.ForeignRowIdentity{nil}, true},
-		{"nil-byte-vs-nil", catalog.ForeignRowIdentity{[]byte(nil)}, catalog.ForeignRowIdentity{nil}, false},
-		{"nil-vs-empty-bytes", catalog.ForeignRowIdentity{[]byte(nil)}, catalog.ForeignRowIdentity{[]byte{}}, true},
-		{"owned-bytes", catalog.ForeignRowIdentity{[]byte("key")}, catalog.ForeignRowIdentity{[]byte("key")}, true},
-		{"bytes-vs-text", catalog.ForeignRowIdentity{[]byte("key")}, catalog.ForeignRowIdentity{"key"}, false},
-		{"cell-boundaries", catalog.ForeignRowIdentity{[]byte("ab"), []byte("c")}, catalog.ForeignRowIdentity{[]byte("a"), []byte("bc")}, false},
-		{"numeric-types", catalog.ForeignRowIdentity{int64(1)}, catalog.ForeignRowIdentity{float64(1)}, false},
-		{"signed-zero", catalog.ForeignRowIdentity{float64(0)}, catalog.ForeignRowIdentity{math.Copysign(0, -1)}, true},
-		{"nan", catalog.ForeignRowIdentity{math.NaN()}, catalog.ForeignRowIdentity{math.NaN()}, false},
-		{"boolean", catalog.ForeignRowIdentity{true}, catalog.ForeignRowIdentity{true}, true},
-		{"strict-time-equal", catalog.ForeignRowIdentity{clock}, catalog.ForeignRowIdentity{clock}, true},
-		{"strict-time-location", catalog.ForeignRowIdentity{clock}, catalog.ForeignRowIdentity{clock.In(time.FixedZone("other", 0))}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if foreignIdentityEqual(tc.a, tc.b) != tc.equal || foreignIdentityEqual(tc.b, tc.a) != tc.equal {
-				t.Fatal("typed opaque identity equality changed", tc.a, tc.b, tc.equal)
-			}
-		})
 	}
 }
 
@@ -262,7 +222,7 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = m.begin(op.Context(), s.foreignWrites())
+		err = m.Begin(op.Context(), s.foreignWrites())
 		if partial && !errors.Is(err, failure) {
 			t.Fatal(err)
 		}
@@ -270,7 +230,7 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		if !errors.Is(err, failure) || p.begins != 1 || p.ends != 1 {
 			t.Fatal(err, p.begins, p.ends)
 		}
-		if err := m.end(context.Background()); !errors.Is(err, p.endError) {
+		if err := m.End(context.Background()); !errors.Is(err, p.endError) {
 			t.Fatal(err)
 		}
 		_ = s.Finish(failure)
@@ -280,12 +240,12 @@ func TestFDWModifyLifecycle(t *testing.T) {
 func fdwUnitCopyVeto(t *testing.T) {
 	e := New()
 	provider := &fdwUnitLifecycle{fdwUnitSingle: fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{present: true}}, tx: &fdwUnitTransaction{}}
-	def, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "public", Name: "unit_copy_handler"}, Wrapper: provider})
+	def, err := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "public", Name: "unit_copy_handler"}, Wrapper: provider})
 	if err != nil {
 		t.Fatal(err)
 	}
 	unexpected := errors.New("codec must not run before terminal input acceptance")
-	if err := e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil,
+	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil,
 		func(context.Context, driver.Value, sqltype.Usage, sqltype.InputEnvironment) (sqltype.Value, error) {
 			return sqltype.Value{}, unexpected
 		},
@@ -309,7 +269,7 @@ func fdwUnitCopyVeto(t *testing.T) {
 	defer scope.Finish(failure)
 	syntax := &parser.Copy{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unit_copy_target"}}}, From: true, Endpoint: parser.CopyStdin}
 	count, err := scope.CopyProtocol(syntax, strings.NewReader("1\n"), nil, CopyProtocolHooks{FinishInput: func() error { return failure }})
-	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || len(ownerExtensionOrZero(scope.owner).foreign.participants) != 0 {
+	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || ownerHasForeign(scope.owner) {
 		t.Fatal("input veto admitted remote work", count, err, provider.calls, provider.begins)
 	}
 	if err := scope.Finish(err); !errors.Is(err, failure) {

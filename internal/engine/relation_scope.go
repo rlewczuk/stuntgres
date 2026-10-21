@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -21,7 +22,7 @@ import (
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
 		if foreign.Kind == "table" && foreign.Action == "alter" {
-			stmt = foreignAlterAdmission(foreign)
+			stmt = fdw.AlterAdmission(foreign)
 		} else {
 			return nil
 		}

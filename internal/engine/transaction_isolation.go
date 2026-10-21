@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -253,7 +254,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.ForeignDDL:
-		return foreignCommandTag(stmt.(*parser.ForeignDDL))
+		return fdw.CommandTag(stmt.(*parser.ForeignDDL))
 	case *parser.CreateTablespace:
 		return "CREATE TABLESPACE"
 	case *parser.Truncate:
@@ -470,7 +471,7 @@ func explicitUtility(stmt parser.Statement) bool {
 	if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
 		return false
 	}
-	if grant, ok := stmt.(*parser.ObjectGrant); ok && foreignGrantKind(grant.Kind) {
+	if grant, ok := stmt.(*parser.ObjectGrant); ok && fdw.GrantKind(grant.Kind) {
 		return false
 	}
 	switch stmt.(type) {

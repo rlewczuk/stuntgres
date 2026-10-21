@@ -75,7 +75,7 @@ func (e *Engine) restoreStage() *Engine {
 	database := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
-	if err := stage.InstallForeignDefinitions(e.foreign.definitions()); err != nil {
+	if err := stage.InstallForeignDefinitions(e.foreign.Definitions()); err != nil {
 		panic(err)
 	}
 	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.Root.Read(authorization.PrincipalRef{}).RoleCount())

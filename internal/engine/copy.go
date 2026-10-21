@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"stuntgres/internal/engine/copyfmt"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/regobj"
 
 	"stuntgres/internal/engine/analyze"
@@ -122,7 +123,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		return s.copyOutput(rows, options, destination)
 	}
-	var foreign *foreignModification
+	var foreign *fdw.Modification
 	if b.Relation.RelationKind == catalog.ForeignRelation {
 		e.mu.Lock()
 		target, captureErr := e.captureForeignSourceLocked(s, b.Ref, b.Relation, authorization.PrincipalRef{}, nil, plan.RowMark{})
@@ -270,10 +271,10 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	if foreign != nil {
 		// Terminal input/FinishInput acceptance precedes all provider mutation.
-		if err := foreign.begin(s.op.Context(), s.foreignWrites()); err != nil {
+		if err := foreign.Begin(s.op.Context(), s.foreignWrites()); err != nil {
 			return 0, err
 		}
-		n, err := foreign.insertRows(s.op.Context(), s.foreignWrites(), rows.values, false, nil)
+		n, err := foreign.InsertRows(s.op.Context(), s.foreignWrites(), rows.values, false, nil)
 		if err != nil {
 			return 0, cursor.diagnostic(err)
 		}

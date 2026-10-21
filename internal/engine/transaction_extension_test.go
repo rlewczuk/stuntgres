@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 	"testing"
 )
@@ -25,7 +26,7 @@ func TestOwnerExtensionAllocatedWithSession(t *testing.T) {
 func TestOwnerExtensionOfLiteralOwner(t *testing.T) {
 	owner := &session.TransactionOwner{}
 	allocs := testing.AllocsPerRun(10, func() {
-		if zero := ownerExtensionOrZero(owner); len(zero.foreign.participants) != 0 || zero.cursorCleanup != nil {
+		if zero := ownerExtensionOrZero(owner); zero.foreign.HasParticipants() || zero.cursorCleanup != nil {
 			t.Fatal("missing extension does not read as zero")
 		}
 	})
@@ -36,9 +37,9 @@ func TestOwnerExtensionOfLiteralOwner(t *testing.T) {
 	if x == nil || owner.Extension != x || ownerExtensionOf(owner) != x {
 		t.Fatal("ownerExtensionOf did not store one extension")
 	}
-	x.foreign.participants = []*foreignParticipant{{}}
+	x.foreign.Enlist(&fdw.Participant{})
 	x.retireForeign()
-	if len(x.foreign.participants) != 0 || len(ownerExtensionOrZero(owner).foreign.cleanup) != 1 {
+	if x.foreign.HasParticipants() || len(ownerExtensionOf(owner).foreign.TakeCleanup()) != 1 {
 		t.Fatal("retireForeign did not move participants to cleanup")
 	}
 }

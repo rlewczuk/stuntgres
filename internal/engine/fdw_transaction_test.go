@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 )
 
@@ -98,7 +99,8 @@ func TestFDWTransactionParticipants(t *testing.T) {
 		t.Fatal(err)
 	}
 	second, err := s.enlistForeign(op.Context(), p, r, false)
-	if err != nil || first != second || len(ownerExtensionOrZero(s.owner).foreign.participants) != 1 {
+	foreign := ownerExtensionOrZero(s.owner).foreign
+	if shared := foreign.Participant(fdw.ParticipantKey{Handler: 1, Server: 2, Mapping: 3, Role: 4}); err != nil || first != second || shared == nil || shared.Tx != first {
 		t.Fatal("participant not shared", err)
 	}
 	if !reflect.DeepEqual(p.tx.calls, []string{"begin-statement"}) {
@@ -119,7 +121,8 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	if err := commitForeign(s.owner, op.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := rollbackForeign(op.Context(), ownerExtensionOrZero(s.owner).foreign.participants); err != nil {
+	ownerExtensionOf(s.owner).retireForeign()
+	if err := fdw.Rollback(op.Context(), ownerExtensionOf(s.owner).foreign.TakeCleanup()); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(p.tx.calls, []string{"begin-statement", "statement-success", "save:stuntgres_sql_7", "rollback:stuntgres_sql_7", "release:stuntgres_sql_7", "commit"}) {
@@ -130,7 +133,9 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	a := &fdwUnitTransaction{name: "a", order: &order}
 	b := &fdwUnitTransaction{name: "b", order: &order, commitError: failure}
 	c := &fdwUnitTransaction{name: "c", order: &order}
-	ownerExtensionOf(s.owner).foreign.participants = []*foreignParticipant{{tx: a}, {tx: b}, {tx: c}}
+	for _, tx := range []*fdwUnitTransaction{a, b, c} {
+		ownerExtensionOf(s.owner).foreign.Enlist(&fdw.Participant{Tx: tx})
+	}
 	if err := commitForeign(s.owner, op.Context(), ref); !errors.Is(err, failure) {
 		t.Fatal(err)
 	}

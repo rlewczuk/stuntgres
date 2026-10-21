@@ -3,6 +3,7 @@ package stuntgres
 import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 )
 
 // Foreign callback types use only standard Go values. Registration installs
@@ -10,8 +11,8 @@ import (
 type ForeignOption = catalog.ForeignOption
 type ForeignObjectKind = catalog.ForeignObjectKind
 type ForeignFunctionName = catalog.ForeignFunctionName
-type ForeignDataWrapperDefinition = engine.ForeignDataWrapperDefinition
-type ForeignValidatorDefinition = engine.ForeignValidatorDefinition
+type ForeignDataWrapperDefinition = fdw.WrapperDefinition
+type ForeignValidatorDefinition = fdw.ValidatorDefinition
 type ForeignColumn = catalog.ForeignColumn
 type ForeignScanParameters = catalog.ForeignScanParameters
 type ForeignRequest = catalog.ForeignRequest
@@ -21,10 +22,10 @@ type ForeignPlan = catalog.ForeignPlan
 type ForeignRow = catalog.ForeignRow
 type ForeignDataWrapper = catalog.ForeignDataWrapper
 type ForeignScan = catalog.ForeignScan
-type ForeignImportRequest = engine.ForeignImportRequest
-type ForeignColumnDefinition = engine.ForeignColumnDefinition
-type ForeignTableDefinition = engine.ForeignTableDefinition
-type ForeignSchemaImporter = engine.ForeignSchemaImporter
+type ForeignImportRequest = fdw.ImportRequest
+type ForeignColumnDefinition = fdw.ColumnDefinition
+type ForeignTableDefinition = fdw.TableDefinition
+type ForeignSchemaImporter = fdw.SchemaImporter
 type ForeignModifyOperation = catalog.ForeignModifyOperation
 type ForeignModifyPlan = catalog.ForeignModifyPlan
 type ForeignUpdateTargets = catalog.ForeignUpdateTargets
@@ -68,7 +69,7 @@ const (
 // procedure name. Registrations freeze on first connector construction, are
 // Driver-local, and apply to every exact-DSN database owned by that Driver.
 func (d *Driver) RegisterForeignDataWrapper(def ForeignDataWrapperDefinition) error {
-	v, err := engine.ValidateForeignDataWrapper(def)
+	v, err := fdw.ValidateWrapper(def)
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func (d *Driver) RegisterForeignDataWrapper(def ForeignDataWrapperDefinition) er
 // RegisterForeignValidator installs an option validator with the PostgreSQL
 // (text[],oid) identity. Application callbacks never run during registration.
 func (d *Driver) RegisterForeignValidator(def ForeignValidatorDefinition) error {
-	v, err := engine.ValidateForeignValidator(def)
+	v, err := fdw.ValidateValidator(def)
 	if err != nil {
 		return err
 	}

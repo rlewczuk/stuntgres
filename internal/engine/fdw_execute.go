@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bytes"
 	"context"
 	"database/sql/driver"
 	"errors"
@@ -9,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -47,7 +47,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err = foreignOperationSupported(target.Foreign.Wrapper, op, b.Relation.Name()); err != nil {
+	if err = fdw.OperationSupported(target.Foreign.Wrapper, op, b.Relation.Name()); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -69,11 +69,11 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	}
 	state := &exec.State{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Ctes: s.cteInvocation}
 	defer state.ReleaseMemberships()
-	m.request.Parameters, err = exec.ForeignParameters(s.op.Context(), state, target.Foreign)
+	m.Request.Parameters, err = exec.ForeignParameters(s.op.Context(), state, target.Foreign)
 	if err != nil {
 		return Result{}, err
 	}
-	if err = m.begin(s.op.Context(), s.foreignWrites()); err != nil {
+	if err = m.Begin(s.op.Context(), s.foreignWrites()); err != nil {
 		return Result{}, err
 	}
 	if err = exec.SelectQuerySources(s.op.Context(), inputs); err != nil {
@@ -149,14 +149,14 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	return s.executeForeignRowMutation(m, b, state, &evaluation)
 }
 
-func (s *StatementScope) foreignInsertResult(m *foreignModification, b analyze.Binding, rows [][]sqltype.Value, evaluation *exec.Context) (Result, error) {
+func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Binding, rows [][]sqltype.Value, evaluation *exec.Context) (Result, error) {
 	var output *exec.FinalRows
 	if b.Returning != nil {
 		output = exec.NewFinalRows(b.Returning.Schema, 0)
 		output.Output = s.output
 	}
 	rowByRow := b.Returning != nil || b.ViewWrite != nil && len(viewWriteOf(b.ViewWrite).checks) != 0
-	count, err := m.insertRows(s.op.Context(), s.foreignWrites(), rows, rowByRow, func(row []sqltype.Value) error {
+	count, err := m.InsertRows(s.op.Context(), s.foreignWrites(), rows, rowByRow, func(row []sqltype.Value) error {
 		if err := s.engine().checkViewRow(s, &b, row, evaluation); err != nil {
 			return err
 		}
@@ -220,10 +220,10 @@ type foreignMutationRow struct {
 	identity catalog.ForeignRowIdentity
 }
 
-func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope) ([]foreignMutationRow, error) {
-	f := m.source
-	r := exec.CopyForeignRequest(m.request.ForeignRequest)
-	r.Identity = &m.request.Targets
+func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modification) ([]foreignMutationRow, error) {
+	f := m.Source
+	r := exec.CopyForeignRequest(m.Request.ForeignRequest)
+	r.Identity = &m.Request.Targets
 	execution := &exec.ForeignExecution{}
 	planning := exec.CopyForeignRequest(r)
 	planning.Transaction = nil
@@ -252,14 +252,14 @@ func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope)
 		if !present {
 			break
 		}
-		if len(identity) != len(m.request.Targets.Names) {
+		if len(identity) != len(m.Request.Targets.Names) {
 			return nil, errors.New("stuntgres: foreign row identity width does not match its descriptor")
 		}
 		for _, cell := range identity {
 			if !driver.IsValue(cell) {
 				return nil, errors.New("stuntgres: foreign row identity contains a non-driver value")
 			}
-			if !foreignIdentityComparable(cell) {
+			if !fdw.IdentityComparable(cell) {
 				return nil, errors.New("stuntgres: foreign row identity contains a noncomparable driver value")
 			}
 		}
@@ -271,25 +271,9 @@ func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope)
 	}
 	return rows, nil
 }
-func foreignIdentityEqual(a, b catalog.ForeignRowIdentity) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, cell := range a {
-		if x, ok := cell.([]byte); ok {
-			y, ok := b[i].([]byte)
-			if !ok || !bytes.Equal(x, y) {
-				return false
-			}
-		} else if cell != b[i] {
-			return false
-		}
-	}
-	return true
-}
-func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (Result, error) {
+func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (Result, error) {
 	ctx := s.op.Context()
-	rows, err := m.targetRows(ctx, s)
+	rows, err := foreignTargetRows(ctx, s, m)
 	if err != nil {
 		return Result{}, err
 	}
@@ -343,7 +327,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 			}
 		}()
 	}
-	var seen foreignIdentitySet
+	var seen fdw.IdentitySet
 	var count int64
 	for _, candidate := range rows {
 		identityChecked := false
@@ -369,7 +353,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 				continue
 			}
 			identityChecked = true
-			if !seen.add(candidate.identity) {
+			if !seen.Add(candidate.identity) {
 				continue
 			}
 			var returned catalog.ForeignRow
@@ -382,20 +366,20 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 				if err := evaluateGenerations(ctx, b.Relation, row, evaluation); err != nil {
 					return Result{}, err
 				}
-				input, err := m.export(ctx, row, s.foreignWrites())
+				input, err := m.Export(ctx, row, s.foreignWrites())
 				if err != nil {
 					return Result{}, err
 				}
-				returned, present, err = m.source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.callbackRequest(), m.state, exec.CopyForeignCells(candidate.identity), input)
+				returned, present, err = m.Source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.identity), input)
 				if err != nil {
 					return Result{}, exec.ForeignCallbackError(err)
 				}
 			} else {
-				input, exportErr := m.export(ctx, candidate.row, s.foreignWrites())
+				input, exportErr := m.Export(ctx, candidate.row, s.foreignWrites())
 				if exportErr != nil {
 					return Result{}, exportErr
 				}
-				returned, present, err = m.source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.callbackRequest(), m.state, exec.CopyForeignCells(candidate.identity), input)
+				returned, present, err = m.Source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.identity), input)
 			}
 			if err != nil {
 				return Result{}, exec.ForeignCallbackError(err)
@@ -403,7 +387,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 			if !present {
 				continue
 			}
-			actual, err := m.returned(ctx, returned, s.foreignWrites())
+			actual, err := m.Returned(ctx, returned, s.foreignWrites())
 			if err != nil {
 				return Result{}, err
 			}
@@ -429,8 +413,8 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 type foreignTableScope struct {
 	owner          *exec.ForeignScanOwner
 	cursor         *sqlCursor
-	statements     []*foreignParticipant
-	modifications  []*foreignModification
+	statements     []*fdw.Participant
+	modifications  []*fdw.Modification
 	holdPromotions []*sqlCursor // Exact new promotions owned by this completion.
 }
 
@@ -477,7 +461,7 @@ func (f *foreignTableScope) clearHoldPromotions() {
 // The setters below install a value, allocating the slot only for a
 // non-nil value: a missing slot already reads as nil.
 
-func (s *StatementScope) setForeignStatements(statements []*foreignParticipant) {
+func (s *StatementScope) setForeignStatements(statements []*fdw.Participant) {
 	if statements != nil || s.foreignTablesSlot != nil {
 		s.foreignTables().statements = statements
 	}
