@@ -146,7 +146,7 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			for _, policy := range d.Security.Policies {
 				owner := ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}
 				add(owner, d.Address(), 'a')
-				if err := runtime.VisitPolicyExpressions(policy, func(condition expr.Expr) error {
+				if err := policy.VisitExpressions(func(condition expr.Expr) error {
 					return expression(owner, condition, d.Address(), 'n')
 				}); err != nil {
 					return nil, err
@@ -364,7 +364,7 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 					return nil, err
 				}
 			}
-			if err := runtime.VisitRules(d, func(rule RuleFact) error {
+			if err := d.VisitRules(func(rule catalog.RuleFact) error {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}
 				add(owner, d.Address(), 'a')
 				for _, ref := range rule.References {

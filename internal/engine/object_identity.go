@@ -429,10 +429,15 @@ func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) 
 		if d.View != nil && d.View.RuleOID() == a.ObjectID {
 			return "_RETURN", 0
 		}
-		for _, x := range rulesOf(d) {
-			if x.OID == a.ObjectID {
-				return x.Name, 0
+		name, found := "", false
+		_ = d.VisitRules(func(rule catalog.RuleFact) error {
+			if !found && rule.OID == a.ObjectID {
+				name, found = rule.Name, true
 			}
+			return nil
+		})
+		if found {
+			return name, 0
 		}
 	case 3256:
 		for _, x := range d.Security.Policies {
@@ -612,10 +617,16 @@ func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID
 		if name == "_RETURN" && d.View != nil {
 			return d.View.RuleOID()
 		}
-		for _, x := range rulesOf(d) {
-			if x.Name == name {
-				return x.OID
+		var oid ids.OID
+		found := false
+		_ = d.VisitRules(func(rule catalog.RuleFact) error {
+			if !found && rule.Name == name {
+				oid, found = rule.OID, true
 			}
+			return nil
+		})
+		if found {
+			return oid
 		}
 	case 3256:
 		for _, x := range d.Security.Policies {

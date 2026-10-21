@@ -44,12 +44,6 @@ type ForeignKeyComparison struct {
 	Child, Parent int
 	Comparison    sqltype.IndexForeignKeyComparison
 }
-type RuleFact struct {
-	OID         ids.OID
-	Name, Event string
-	Instead     bool
-	References  []ids.ObjectAddress
-}
 
 // Capabilities take values, not query bindings or live authority objects.
 // Constructing the adapter does not perform any of these operations.
@@ -69,16 +63,12 @@ type Runtime interface {
 	SelectColumns(ids.ObjectRef, *catalog.Relation) error
 	ValidateParameter(catalog.Read, *catalog.Parameter) error
 	ForeignServerVisible(*catalog.ForeignObject, authorization.PrincipalRef) (bool, error)
-	VisitPolicyExpressions(catalog.PolicyDefinition, func(expr.Expr) error) error
 	VisitCheckAttributes(context.Context, *catalog.Relation, expr.Expr, func(int32) error) error
 	ExpressionReferences(context.Context, catalog.Read, expr.Expr) ([]ids.ObjectAddress, error)
 	ViewReferences(context.Context, catalog.Read, *catalog.Relation) ([]ids.ObjectAddress, error)
 	IndexSimpleAttribute(ids.ObjectAddress, catalog.IndexKey) (int32, bool)
 	IndexReferences(context.Context, catalog.Read, *catalog.IndexDefinition) ([]ids.ObjectAddress, error)
 	PartitionReferences(context.Context, catalog.Read, *catalog.Relation) ([]ids.ObjectAddress, error)
-	HasRules(*catalog.Relation) bool
-	VisitRules(*catalog.Relation, func(RuleFact) error) error
-	ViewOptions(*catalog.Relation) []string
 	ViewDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)

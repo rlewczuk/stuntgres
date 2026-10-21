@@ -27,13 +27,3 @@ func TestViewWriteSlotReportsBaseRelation(t *testing.T) {
 		t.Fatal("the view-write slot must report the base relation the write lands on", got)
 	}
 }
-
-func TestAnalysisHostReportsRelationRules(t *testing.T) {
-	host := (&Engine{}).analysisHost(nil)
-	if host.RelationHasRules(&catalog.Relation{}) || host.RelationHasRules(&catalog.Relation{Rules: ruleList{}}) {
-		t.Fatal("a relation without rules reported rules")
-	}
-	if !host.RelationHasRules(&catalog.Relation{Rules: ruleList{{}}}) {
-		t.Fatal("a relation with a rule reported none")
-	}
-}
