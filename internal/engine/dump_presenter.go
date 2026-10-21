@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,13 +15,13 @@ type dumpPresenter struct{}
 var _ dump.Presenter = dumpPresenter{}
 
 func (dumpPresenter) TypeDeclaration(view catalog.Read, reader catalog.DefinitionReader, u sqltype.Usage) (string, error) {
-	return catalogTypeDeclarationAt(view, reader, u)
+	return regobj.TypeDeclarationAt(view, reader, u)
 }
 
 func (dumpPresenter) ColumnDeclaration(view catalog.Read, column catalog.Column) (string, error) {
-	return catalogColumnDeclaration(view, column)
+	return regobj.ColumnDeclaration(view, column)
 }
 
 func (dumpPresenter) RoutineIdentity(view catalog.Read, oid ids.OID) (catalog.RoutineIdentity, bool) {
-	return routineIdentityByOID(view, oid)
+	return regobj.RoutineIdentityByOID(view, oid)
 }

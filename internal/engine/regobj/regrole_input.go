@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type capturedRegroleInput struct{ roles authorization.Read }
+type RoleInput struct{ Roles authorization.Read }
 
-func (r capturedRegroleInput) ResolveRegrole(ctx context.Context, input string) (uint32, error) {
+func (r RoleInput) ResolveRegrole(ctx context.Context, input string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -20,7 +20,7 @@ func (r capturedRegroleInput) ResolveRegrole(ctx context.Context, input string) 
 		return 0, sqlError("42602", "invalid name syntax")
 	}
 	name := parts.Parts[0].Text
-	role, ok := r.roles.Lookup(name)
+	role, ok := r.Roles.Lookup(name)
 	if !ok {
 		return 0, sqlError("42704", `role "`+name+`" does not exist`)
 	}

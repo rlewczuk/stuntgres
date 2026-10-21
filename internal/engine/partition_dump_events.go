@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 )
 
 func partitionDumpIndexBacking(view catalog.Read, index, table ids.ObjectAddress) *catalog.Relation {
@@ -277,7 +278,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 				continue
 			}
 			add := collect(&sources, &late)
-			if err := regclassReplayReferences(view, check.Expression, add); err != nil {
+			if err := regobj.ClassReplayReferences(view, check.Expression, add); err != nil {
 				return err
 			}
 			for _, dependency := range check.Dependencies {
@@ -301,7 +302,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 					continue
 				}
 				add := collect(&sources, &late)
-				if err := regclassReplayReferences(view, definition.Expression, add); err != nil {
+				if err := regobj.ClassReplayReferences(view, definition.Expression, add); err != nil {
 					return err
 				}
 				for _, dependency := range definition.Dependencies {

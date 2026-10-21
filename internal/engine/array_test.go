@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -295,7 +296,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	}
 	rows := exec.NewFinalRows(next.MustRelation(table.Address()).Columns, 1)
 	defer rows.Close()
-	if err := captureRegclassOutputValue(rows, view, nil, imported); err != nil {
+	if err := regobj.CaptureClassOutputValue(rows, view, nil, imported); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := rows.FormatRegclass(60021); err != nil || got != "public.array_target" {

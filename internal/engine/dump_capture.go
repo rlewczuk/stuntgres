@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 )
@@ -36,7 +37,7 @@ type dumpCapture struct {
 	originalRoles, domainRoles   authorization.Read
 	constraintReplay             *partitionConstraintReplay
 	recipePlan                   map[ids.ObjectAddress]*dumpRelation
-	aclOutput                    capturedACLItemOutput
+	aclOutput                    regobj.ACLItemOutput
 
 	// preamble reconstructs bootstrap identity changes before ordinary
 	// namespaces are created.
@@ -99,8 +100,8 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	if err != nil {
 		return nil, err
 	}
-	aclOutput := capturedACLItemOutput{owner: e.catalog.owner(), roles: originalRoles, lossless: true}
-	ctx = aclItemOutputContext(ctx, aclOutput)
+	aclOutput := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: originalRoles, Lossless: true}
+	ctx = regobj.ACLItemOutputContext(ctx, aclOutput)
 	if err := preflightACLItemDump(ctx, originalCatalog, e.storage.Relations, e.visibility.CommitSeq(), aclOutput); err != nil {
 		return nil, err
 	}

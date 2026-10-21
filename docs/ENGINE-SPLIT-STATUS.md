@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `57b18359c` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 67, 71, 72, 73, 74, 75, 76, 77 and 78). Steps 8–17 were
+Last verified against `master` at `e13730bdb` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77 and 78). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -14,11 +14,12 @@ planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); none of these is broad. They touch different
+as another broad item (§8); only 68 is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 63 (ddl 20d), 65 (regobj 21b), 111 (control 30a).
+- **Seams:** 63 (ddl 20d), 66 (regobj 21c), 111 (control 30a).
+- **Stored-SQL package:** 68 (stored 22b, **broad**).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
 - **Follow-ups in existing packages:** 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
@@ -27,9 +28,9 @@ after each lands.
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (dump 18a), 58 (copyfmt 19a), 60 (ddl 20a), 64 (regobj 21a) and 67
-(stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Item 74
-(catalog 5j) is done, so regobj 21b (item 65) is ready; stored 22c
-(item 69) still waits for 22b (item 68). Item 73 (plan 10e) is done;
+(stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Items 74
+(catalog 5j) and 65 (regobj 21b) are done, so regobj 21c (item 66) is
+ready; stored 22c (item 69) still waits for 22b (item 68). Item 73 (plan 10e) is done;
 index 23b (item 83) still waits for 82 and 68. Item 56 (dump
 18b) is done, so dump 18c (item 57), routine 14e (item 80) and typedef 15e
 (item 81) are ready; stored 22b (item 68) then waited for 65 and 77.
@@ -43,7 +44,7 @@ done and closes step 19; DML 29b (item 108) still waits for 107, 83, 87,
 30a (item 111) is ready; control 30b (item 112) still waits for 111 and the
 Part A moves. Item 76 (exec 11f) is done; only the end-state review
 (item 114) needs it, and that still waits for its other items. Item 77
-(analyze 12f) is done, so stored 22b (item 68) now waits only for 65. Item 78
+(analyze 12f) is done, and with 65 done stored 22b (item 68) is ready. Item 78
 (session 13f) is done; only item 114 needs it. Item 62 (ddl 20c, docs
 only) is done, so ddl 20d (item 63) is ready.
 
@@ -436,7 +437,8 @@ only) is done, so ddl 20d (item 63) is ready.
   - [x] 21a — In place: regclass and visibility files, renderer split
     (`faabae6f1`, `fdea22a7e`, `bc4972dc4`, `4c5e82e76`, `c8c5d6f0c`,
     `108381a52`, `3a26d7fbb`, `46a317e4d`, then the docs commit)
-  - [ ] 21b — `regobj` created and clean set moved
+  - [x] 21b — `regobj` created and clean set moved (`91fc9de2f`,
+    `8ea91a2eb`, `ca7c8d575`, then the docs commit)
   - [ ] 21c — Captured input resolvers moved
 - [ ] **Step 22 — `stored`** ([prompt](ENGINE-SPLIT-stored.md); 22b needs
   21b, F6, 18b and 12f, 22c needs 5j)
@@ -908,8 +910,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     namespace-visibility, identity and presentation files gathered;
     `pgIdentifier` is `catalog.Identifier` · selected unit and dual-mode
     proof and quickcheck passed; racecheck/finalcheck skipped at user request
-65. [ ] regobj 21b: `regobj` created, clean set moved —
-    [regobj](ENGINE-SPLIT-regobj.md) 21b · needs 64, 74
+65. [x] regobj 21b: `regobj` created, clean set moved —
+    [regobj](ENGINE-SPLIT-regobj.md) 21b · needs 64, 74 (`91fc9de2f`,
+    `8ea91a2eb`, `ca7c8d575`, then the docs commit) · 23 files (about 2.8k
+    lines) in `regobj`; names settled in its README; `regtypeAnalysis`
+    stays in the root; no aliases · selected unit and dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 66. [ ] regobj 21c: captured input resolvers moved —
     [regobj](ENGINE-SPLIT-regobj.md) 21c · needs 65
 67. [x] stored 22a: in place (coverage cut, freeze cuts, accessors,

@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -285,7 +286,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 	for _, name := range []string{"handler", "validator"} {
 		t.Run(name, func(t *testing.T) {
 			base := e.CatalogRead()
-			selected, count := selectRoutine(base, analyze.NamespaceSelection{Qualified: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}, name, nil)
+			selected, count := regobj.SelectRoutine(base, analyze.NamespaceSelection{Qualified: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}, name, nil)
 			if count != 1 {
 				t.Fatal("registered procedure identity not unique", count)
 			}

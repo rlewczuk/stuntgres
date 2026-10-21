@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,7 +30,7 @@ func TestRegclassNumericClassification(t *testing.T) {
 		{"08", true, 0, "22P02"}, {"4294967296", true, 0, "22003"}, {"", false, 0, ""}, {"+1", false, 0, ""}, {"-1", false, 0, ""}, {" 42 ", false, 0, ""}, {"a.b", false, 0, ""},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
-			oid, numeric, err := regclassNumeric(tc.input, typ)
+			oid, numeric, err := regobj.ClassNumeric(tc.input, typ)
 			if numeric != tc.numeric || oid != tc.oid {
 				t.Fatal(oid, numeric, err)
 			}
@@ -72,11 +73,11 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 		}
 	}
 	var replay []ids.ObjectAddress
-	if err = regclassReplayReferences(view, opaque, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || !reflect.DeepEqual(replay, []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: 1259}}) {
+	if err = regobj.ClassReplayReferences(view, opaque, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || !reflect.DeepEqual(replay, []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: 1259}}) {
 		t.Fatal(replay, err)
 	}
 	sentinel := errors.New("replay sentinel")
-	if err = regclassReplayReferences(view, opaque, func(ids.ObjectAddress) error { return sentinel }); !errors.Is(err, sentinel) {
+	if err = regobj.ClassReplayReferences(view, opaque, func(ids.ObjectAddress) error { return sentinel }); !errors.Is(err, sentinel) {
 		t.Fatal(err)
 	}
 	intTyp, _ := view.LookupType(sqltype.Int4)
@@ -90,7 +91,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	}
 	numeric := plan.CoercionExpr{Info: expr.Info{Usage: typ.Usage()}, Child: plan.LiteralExpr{Info: expr.Info{Usage: intTyp.Usage()}, Value: integer}, Plan: coercionPlan, Mode: sqltype.Explicit}
 	replay = nil
-	if err = regclassReplayReferences(view, numeric, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || len(replay) != 0 {
+	if err = regobj.ClassReplayReferences(view, numeric, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || len(replay) != 0 {
 		t.Fatal(replay, err)
 	}
 	if !defaultReplayDeferrable(catalog.ColumnDefault{Expression: numeric}) {
@@ -249,7 +250,7 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 				}
 			}
 			var refs []ids.ObjectAddress
-			if err := regclassReplayReferences(view, definition.Expression, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil {
+			if err := regobj.ClassReplayReferences(view, definition.Expression, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if !reflect.DeepEqual(refs, []ids.ObjectAddress{targetRef.Address}) {

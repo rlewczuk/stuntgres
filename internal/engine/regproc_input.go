@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -115,7 +116,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		}
 		selection = analyze.NamespaceSelection{Qualified: namespace}
 	}
-	selected, count := selectRoutine(r.types.auth.Catalog, selection, parts[len(parts)-1].Text, exact)
+	selected, count := regobj.SelectRoutine(r.types.auth.Catalog, selection, parts[len(parts)-1].Text, exact)
 	if count == 0 {
 		return missing()
 	}
@@ -123,7 +124,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		return 0, sqlError("42725", fmt.Sprintf(`more than one function named "%s"`, text))
 	}
 	if r.operands != nil {
-		if owner := routineDescriptorOwner(r.types.auth.Catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {
+		if owner := regobj.RoutineDescriptorOwner(r.types.auth.Catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {
 			ref := r.types.auth.Ref(owner.Address())
 			for _, operand := range *r.operands {
 				if operand.Ref == ref {

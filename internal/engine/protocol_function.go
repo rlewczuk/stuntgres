@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -55,7 +56,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	d, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(oid)})
 	if !ok {
-		identity, found := routineIdentityByOID(auth.Catalog, ids.OID(oid))
+		identity, found := regobj.RoutineIdentityByOID(auth.Catalog, ids.OID(oid))
 		e.mu.Unlock()
 		if found {
 			return ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.Name))

@@ -51,7 +51,7 @@ holds `*Engine`, so code that takes it is dirty even when it only reads its
 | Group | Files (lines) | Owner after the split |
 |---|---|---|
 | View capture and the public facade | `authorization.go` (341: `AuthorizationView`, `authorizationLocked`, `statementAuthorizationLocked`, `operationAuthorization`, `SetObjectACL`, `SetRoleReferences`), `transaction_roles.go` (75: `installOperationRolesLocked`, `operationRolesLocked`, `roleRetirementPreflightLocked`), `role_store.go` (100, clean, `roleStore`) | root |
-| aclitem I/O | `aclitem_input.go` (62), `aclitem_output.go` (117), `acl_empty.go` (30), `aclitem_dump.go` (149; `preflightACLItemValue` clean) | `regobj` (21); the dump preflight with `control` |
+| aclitem I/O | `aclitem_input.go` (62), `aclitem_output.go` (117), `acl_empty.go` (30), `aclitem_dump.go` (149; `preflightACLItemValue` clean) | `regobj` (done in 21b; `regrole_input.go` too); the dump preflight `preflightACLItemDump` with `control` |
 | Restore remap | `aclitem_remap.go` (70), `principal_remap.go` (303) | `catalog` 5i (descriptor switch), `control` (30) |
 | Role DDL | `role_attributes.go` (105), `roles.go` (354), `role_membership.go` (30), `role_password.go` (16), `role_connection_limit.go` (25) | `role` |
 | GRANT/REVOKE | `role_grant.go` (464), `role_grant_objects.go` (135), `role_grant_routines.go` (126), `database_grant.go` (134) | `role` |
@@ -78,7 +78,9 @@ holds `*Engine`, so code that takes it is dirty even when it only reads its
 **Clean declarations** (about 0.5k lines):
 - aclitem I/O (`capturedACLItemInput`, `capturedACLItemOutput`,
   `aclItemContextFormatter`, `captureACLItemOutputValue`,
-  `containsEmptyACL`, `preflightACLItemValue`; about 280 lines): `regobj`.
+  `containsEmptyACL`, `preflightACLItemValue`; about 280 lines): `regobj`
+  (done in 21b: `ACLItemInput`, `ACLItemOutput`, `ACLItemContextFormatter`,
+  `CaptureACLItemOutputValue`, `ContainsEmptyACL`, `PreflightACLItemValue`).
 - `roleStore` and its methods (77): root (role publication).
 - Pure ownership helpers (`ownershipRoot`, `ownedRoots`,
   `ownershipRelationLocks`, `ownedMembershipCandidate`, `ownedPolicies`;

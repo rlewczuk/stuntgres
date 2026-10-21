@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -82,7 +83,7 @@ func (h *statementHost) RowSecurityActive(c *exec.Context, relation functions.Ac
 		if err != nil {
 			return false, sqlError("42602", "invalid name syntax")
 		}
-		name, err = regclassQualifiedName(name, relation.Name, auth.session.DatabaseName)
+		name, err = regobj.ClassQualifiedName(name, relation.Name, auth.session.DatabaseName)
 		if err != nil {
 			return false, err
 		}

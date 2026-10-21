@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
@@ -25,7 +26,7 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *session.Operati
 		input.Regproc, err = e.captureRoutineInput(auth, input.Regtype.(capturedRegtypeInput))
 	}
 	if input.Regrole == nil {
-		input.Regrole = capturedRegroleInput{roles: auth.Roles}
+		input.Regrole = regobj.RoleInput{Roles: auth.Roles}
 	}
 	if err == nil && input.Operator == nil {
 		input.Operator, err = e.captureOperatorInput(auth, op)

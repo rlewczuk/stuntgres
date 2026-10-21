@@ -892,11 +892,10 @@ membership, which calls `BindACLContains`; raw/bound view literal pairing
 (`view_literals.go`); the closed-DEFAULT check (`aclexplode` is never
 closed); and the stored-default guard that rejects `pg_get_acl` and the
 access inquiries outside a relation-owned definition (`scalar_renderer.go`). The
-aclitem and regrole input and output adapters (`aclitem_input.go`,
-`aclitem_output.go`, `regrole_input.go`, `regrole_output.go`) are statement
-input and output state over the role store, not function nodes, and stay
-with the engine's presentation code; `containsEmptyACL` (`acl_empty.go`)
-serves Dump and deparse.
+aclitem and regrole input and output adapters (`regobj.ACLItemInput`,
+`ACLItemOutput`, `RoleInput`, `RoleOutput`) are statement input and output
+state over the role store, not function nodes; they live in `regobj` with
+`regobj.ContainsEmptyACL`, which serves Dump and deparse.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay outside
 `functions`: the state is `session.RandomState` and the UUID clock in

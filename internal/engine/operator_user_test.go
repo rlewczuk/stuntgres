@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -336,11 +337,11 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unchanged, err := remapOperatorDatum(value, func(id ids.OID) ids.OID { return id })
+	unchanged, err := regobj.RemapOperatorDatum(value, func(id ids.OID) ids.OID { return id })
 	if err != nil || unchanged != value {
 		t.Fatal("unchanged datum copied", err)
 	}
-	remapped, err := remapOperatorDatum(value, func(id ids.OID) ids.OID {
+	remapped, err := regobj.RemapOperatorDatum(value, func(id ids.OID) ids.OID {
 		if id == 90000 {
 			return 90001
 		}
@@ -451,11 +452,11 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	same, err := remapOperatorDatum(nested, func(id ids.OID) ids.OID { return id })
+	same, err := regobj.RemapOperatorDatum(nested, func(id ids.OID) ids.OID { return id })
 	if err != nil || same != nested {
 		t.Fatal("unchanged nested storage copied", err)
 	}
-	moved, err := remapOperatorDatum(nested, func(id ids.OID) ids.OID {
+	moved, err := regobj.RemapOperatorDatum(nested, func(id ids.OID) ids.OID {
 		if id == 90000 {
 			return 90001
 		}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 )
@@ -210,7 +211,7 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		}
 	}
 	for _, literal := range viewOf(r).Literals() {
-		if err := regclassReplayReferences(c.originalCatalog, literal, addPredecessor); err != nil {
+		if err := regobj.ClassReplayReferences(c.originalCatalog, literal, addPredecessor); err != nil {
 			return err
 		}
 	}
@@ -338,7 +339,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			}
 			return nil
 		}
-		if err := regclassReplayReferences(c.catalogView, check.Expression, add); err != nil {
+		if err := regobj.ClassReplayReferences(c.catalogView, check.Expression, add); err != nil {
 			return tableDumpEdges{}, err
 		}
 		for _, dependency := range check.Dependencies {
@@ -378,7 +379,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 		}
 		// Opaque literal payloads need replay ordering even when their BOOL/
 		// TEXT result is inline and intentionally has no relation DROP edge.
-		if err := regclassReplayReferences(c.catalogView, definition.Expression, addPredecessor); err != nil {
+		if err := regobj.ClassReplayReferences(c.catalogView, definition.Expression, addPredecessor); err != nil {
 			return tableDumpEdges{}, err
 		}
 		for _, dependency := range definition.Dependencies {

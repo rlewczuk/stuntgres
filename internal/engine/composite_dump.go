@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -54,7 +55,7 @@ func compositeDumpStatement(ctx context.Context, view catalog.Read, roles author
 		if i != 0 {
 			sql.WriteString(", ")
 		}
-		declaration, err := catalogColumnDeclaration(view, c)
+		declaration, err := regobj.ColumnDeclaration(view, c)
 		if err != nil {
 			return dump.Statement{}, err
 		}

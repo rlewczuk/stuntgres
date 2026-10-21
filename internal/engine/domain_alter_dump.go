@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -41,7 +42,7 @@ func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph dump.
 				}
 				return nil
 			}
-			if err := regclassReplayReferences(view, check.Expression, add); err != nil {
+			if err := regobj.ClassReplayReferences(view, check.Expression, add); err != nil {
 				return err
 			}
 			for _, dependency := range check.Dependencies {
@@ -58,7 +59,7 @@ func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph dump.
 }
 
 func domainInvalidDumpStatement(ctx context.Context, view catalog.Read, domain *catalog.Type) (string, error) {
-	qualified, err := catalogTypeDeclaration(view, domain.SQLType.Usage())
+	qualified, err := regobj.TypeDeclaration(view, domain.SQLType.Usage())
 	if err != nil {
 		return "", err
 	}

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -135,39 +136,39 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 	// requests rounded floats, including nested array and domain leaves.
 	output.FloatPrecisionSet = false
 	if v.Type().BaseType().IsArray() && v.Type().ContainsRegclass() {
-		output.Regclass = catalogRegclassOutput{view: r.view, path: r.path}
+		output.Regclass = regobj.ClassOutput{View: r.view, Path: r.path}
 	}
 	if v.Type().ContainsRegtype() {
-		output.Regtype = catalogRegtypeOutput{view: r.view, path: r.path}
+		output.Regtype = regobj.TypeOutput{View: r.view, Path: r.path}
 	}
 	if v.Type().ContainsRegObject() {
 		if output.Regcollation == nil {
-			output.Regcollation = dumpCatalogAliasOutput{view: r.view}
+			output.Regcollation = regobj.DumpAliasOutput{View: r.view}
 		}
 		if output.Regnamespace == nil {
-			output.Regnamespace = dumpCatalogAliasOutput{view: r.view}
+			output.Regnamespace = regobj.DumpAliasOutput{View: r.view}
 		}
 	}
 	if v.Type().ContainsRegrole() && output.Regrole == nil {
-		output.Regrole = regroleContextFormatter(ctx)
+		output.Regrole = regobj.RoleContextFormatter(ctx)
 	}
 	if v.Type().ContainsOperatorAlias() {
-		output.Operator = dumpOperatorOutput{}
+		output.Operator = regobj.DumpOperatorOutput{}
 	}
 	if v.Type().ContainsRegproc() {
-		output.Regproc = catalogRoutineOutput{view: r.view, path: r.path}
+		output.Regproc = regobj.RoutineOutput{View: r.view, Path: r.path}
 	}
 	if v.Type().ContainsRegTS() {
-		output.RegTS = dumpRegTSOutput{view: r.view}
+		output.RegTS = regobj.DumpTextSearchOutput{View: r.view}
 	}
 	if v.Type().ContainsACLItem() && output.ACLItem == nil {
-		output.ACLItem = aclItemContextFormatter(ctx)
+		output.ACLItem = regobj.ACLItemContextFormatter(ctx)
 	}
-	if containsEmptyACL(v) {
-		return catalogLiteralWithACL(ctx, r.view, n, output.ACLItem)
+	if regobj.ContainsEmptyACL(v) {
+		return regobj.LiteralWithACL(ctx, r.view, n, output.ACLItem)
 	}
 	if sqltype.IsRoutineAlias(v.Type().BaseType().ID()) {
-		text, err := routineLiteralSQL(r.view, v)
+		text, err := regobj.RoutineLiteral(r.view, v)
 		if err != nil {
 			return "", err
 		}
@@ -177,10 +178,10 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 		return text, nil
 	}
 	if sqltype.IsOperatorAlias(v.Type().BaseType().ID()) && !r.pretty {
-		return operatorLiteralSQL(r.view, v)
+		return regobj.OperatorLiteral(r.view, v)
 	}
 	if v.Type().ContainsRegproc() || v.Type().ContainsOperatorAlias() {
-		return catalogLiteralSQL(ctx, r.view, n)
+		return regobj.Literal(ctx, r.view, n)
 	}
 	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
 	if err != nil {
@@ -201,7 +202,7 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 			if err != nil {
 				return "", err
 			}
-			text = regclassSpelling(r.view, r.path, ids.OID(id))
+			text = regobj.ClassSpelling(r.view, r.path, ids.OID(id))
 		}
 		return quote(text) + "::" + typ, nil
 	}
@@ -233,7 +234,7 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 		return quote(text) + "::" + typ, nil
 	case sqltype.Regclass:
 		if id, err := strconv.ParseUint(text, 10, 32); err == nil {
-			text = regclassSpelling(r.view, r.path, ids.OID(id))
+			text = regobj.ClassSpelling(r.view, r.path, ids.OID(id))
 		}
 		return quote(text) + "::regclass", nil
 	case sqltype.Regtype:

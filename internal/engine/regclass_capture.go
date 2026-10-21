@@ -6,34 +6,14 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func regclassNumeric(text string, typ *sqltype.Descriptor) (uint32, bool, error) {
-	input := text
-	if input == "-" {
-		input = "0"
-	}
-	if input == "" {
-		return 0, false, nil
-	}
-	for _, c := range input {
-		if c < '0' || c > '9' {
-			return 0, false, nil
-		}
-	}
-	value, err := typ.Input(context.Background(), input, -1)
-	if err != nil {
-		return 0, true, err
-	}
-	n, err := value.OID()
-	return n, true, err
-}
-
 func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.ObjectRef, error) {
 	typ, _ := auth.definitionType(sqltype.Oid)
-	if oid, numeric, err := regclassNumeric(text, typ); numeric {
+	if oid, numeric, err := regobj.ClassNumeric(text, typ); numeric {
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
@@ -47,24 +27,11 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 	if auth.session != nil {
 		database = auth.session.DatabaseName
 	}
-	name, err = regclassQualifiedName(name, text, database)
+	name, err = regobj.ClassQualifiedName(name, text, database)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
 	return e.resolveRelationReference(auth, name, false)
-}
-
-func regclassQualifiedName(name parser.ObjectName, text, database string) (parser.ObjectName, error) {
-	if len(name.Parts) > 3 {
-		return parser.ObjectName{}, sqlError("42601", "improper relation name (too many dotted names): "+text)
-	}
-	if len(name.Parts) == 3 {
-		if name.Parts[0].Text != database {
-			return parser.ObjectName{}, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, catalog.ObjectNameText(name)))
-		}
-		name.Parts = name.Parts[1:]
-	}
-	return name, nil
 }
 
 // Element input retains the statement's immutable authority, including its
@@ -97,14 +64,14 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 		return 0, err
 	}
 	typ, _ := r.auth.definitionType(sqltype.Oid)
-	if oid, numeric, err := regclassNumeric(text, typ); numeric {
+	if oid, numeric, err := regobj.ClassNumeric(text, typ); numeric {
 		return oid, err
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return 0, sqlError("42602", "invalid name syntax")
 	}
-	name, err = regclassQualifiedName(name, text, r.database)
+	name, err = regobj.ClassQualifiedName(name, text, r.database)
 	if err != nil {
 		return 0, err
 	}

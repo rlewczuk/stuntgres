@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -33,15 +34,15 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		if helper.ID == proc.Address().ObjectID || helper.ID == enum.Address().ObjectID || helper.ID == 2333 || helper.ID == 2334 || helper.ID == 0 {
 			t.Fatal("helper identity substituted", helper)
 		}
-		identity, ok := routineIdentityByOID(view, helper.ID)
-		if !ok || identity != helper || routineDescriptorOwner(view, helper.ID) != proc {
+		identity, ok := regobj.RoutineIdentityByOID(view, helper.ID)
+		if !ok || identity != helper || regobj.RoutineDescriptorOwner(view, helper.ID) != proc {
 			t.Fatal("owned alias lookup", i, identity)
 		}
-		selected, n := selectExactRoutine(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature)
+		selected, n := regobj.SelectExactRoutine(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature)
 		if n != 1 || selected != helper {
 			t.Fatal("owned exact signature", selected, n)
 		}
-		selected, n = selectRoutine(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, nil)
+		selected, n = regobj.SelectRoutine(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, nil)
 		if n != 1 || selected != helper {
 			t.Fatal("owned bare alias", selected, n)
 		}
@@ -59,7 +60,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		var refs []ids.ObjectAddress
-		if err := walkRoutineReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{proc.Address()}) {
+		if err := regobj.WalkRoutineReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{proc.Address()}) {
 			t.Fatal("helper dependency is not real aggregate owner", refs, err)
 		}
 	}
@@ -88,7 +89,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	removed.UnbindName(catalog.DescriptorNameKey(proc))
 	retired := e.catalog.read(removed)
 	for _, helper := range proc.Aggregate.Helpers {
-		if _, ok := routineIdentityByOID(retired, helper.ID); ok {
+		if _, ok := regobj.RoutineIdentityByOID(retired, helper.ID); ok {
 			t.Fatal("retired helper still resolves")
 		}
 	}
@@ -189,7 +190,7 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		mapped, err := remapRoutineDatum(value, func(id ids.OID) ids.OID {
+		mapped, err := regobj.RemapRoutineDatum(value, func(id ids.OID) ids.OID {
 			if next, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}]; ok {
 				return next.ObjectID
 			}

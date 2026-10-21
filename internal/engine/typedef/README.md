@@ -126,11 +126,9 @@ TEMP collation cleanup and `collationCreationNamespaceLocked`
 (`conversion_create_check.go`, shared with `routine.DDLHost`); the dump
 statements that produce the dump record
 `dump.Statement` (`collationDumpStatements`,
-`conversionDumpStatements`, `compositeDumpStatement`); type-declaration
-and literal rendering (`catalogTypeDeclaration*`, `catalogLiteral*`), which
-use the engine's definition reader and reg* formatters; `typeProvider`
+`conversionDumpStatements`, `compositeDumpStatement`); `typeProvider`
 (its `Validate` reaches the expression binder); domain check programs and
-evaluation; `reownCatalogScalarTypes` and `remapRegclassDatum`; the typed
+evaluation; `reownCatalogScalarTypes`; the typed
 inheritance and mutation steps that use ALTER TABLE records; the column
 default records (`domain_default.go`); `domainDependency` and
 `conversionDefault`.

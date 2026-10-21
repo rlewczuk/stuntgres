@@ -2,67 +2,26 @@ package engine
 
 import (
 	"context"
-	"fmt"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
-// Validate only ACL leaves; the regular serializers retain every other lossless
-// boundary. This runs under the existing capture lock before any writer call.
-func preflightACLItemValue(ctx context.Context, output capturedACLItemOutput, value sqltype.Value) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if value.Type() == nil || value.IsNull() || !value.Type().ContainsACLItem() {
-		return nil
-	}
-	if value.Type().BaseType().IsComposite() {
-		for i := range value.CompositeLen() {
-			if err := preflightACLItemValue(ctx, output, value.CompositeField(i)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	if value.Type().BaseType().IsArray() {
-		if value.Type().BaseType().ID() != sqltype.ACLItemArray && containsEmptyACL(value) {
-			return fmt.Errorf("stuntgres: dump cannot serialize rank-one empty ACL inside an array of composite carriers")
-		}
-		for i := range value.ArrayLen() {
-			if err := preflightACLItemValue(ctx, output, value.ArrayElement(i)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	authority, grantee, grantor, _, _, err := value.ACLItem()
-	if err != nil {
-		return err
-	}
-	if grantee != 0 {
-		if _, err := output.FormatACLRole(authority, grantee); err != nil {
-			return err
-		}
-	}
-	_, err = output.FormatACLRole(authority, grantor)
-	return err
-}
-
 // preflightACLItemDump checks every ACL leaf a dump would write: domain
 // defaults, live rows of persistent relations, stored expressions and bound
 // literals. The caller holds Engine.mu and passes the captured relation roots
 // and commit frontier.
-func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, frontier ids.CommitSeq, output capturedACLItemOutput) error {
+func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, frontier ids.CommitSeq, output regobj.ACLItemOutput) error {
 	var failure error
 	check := func(value sqltype.Value) {
 		if failure == nil {
-			failure = preflightACLItemValue(ctx, output, value)
+			failure = regobj.PreflightACLItemValue(ctx, output, value)
 		}
 	}
 	expression := func(node expr.Expr) {

@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -214,7 +215,7 @@ func TestPGAttributeDeclaredRank(t *testing.T) {
 	}{{0, `"pg_catalog"."_int4"`}, {1, "INTEGER[]"}, {2, "INTEGER[][]"}} {
 		column := next.Columns[1]
 		column.DeclaredDimensions = tc.rank
-		text, err := catalogColumnDeclaration(auth.Catalog, column)
+		text, err := regobj.ColumnDeclaration(auth.Catalog, column)
 		if err != nil || text != tc.want {
 			t.Fatal("rank rendering", tc, text, err)
 		}

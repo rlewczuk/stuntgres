@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -144,7 +145,7 @@ func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		return "extension " + catalog.DependencyIdentifier(d.Name())
 	}
 	if _, ok := view.Operator(base); ok {
-		return "operator " + operatorSpelling(view, path, collectOperatorGroups(view), base.ObjectID, sqltype.Regoperator)
+		return "operator " + regobj.OperatorSpelling(view, path, regobj.CollectOperatorGroups(view), base.ObjectID, sqltype.Regoperator)
 	}
 	if d, ok := view.Procedure(base); ok {
 		name := catalog.DependencyIdentifier(d.Name())
@@ -165,7 +166,7 @@ func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		text.WriteString("function ")
 		text.WriteString(name)
 		text.WriteByte('(')
-		writeRoutineArguments(&text, view, path, d.Signature, true)
+		regobj.WriteRoutineArguments(&text, view, path, d.Signature, true)
 		text.WriteByte(')')
 		return text.String()
 	}

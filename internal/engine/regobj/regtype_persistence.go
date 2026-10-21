@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -21,33 +21,33 @@ func regtypeReference(view catalog.Read, id uint32) string {
 	if d, ok := view.Find(address); ok {
 		return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 	}
-	return regtypeSpelling(view, nil, ids.OID(id))
+	return TypeSpelling(view, nil, ids.OID(id))
 }
 
-type dumpCatalogAliasOutput struct{ view catalog.Read }
+type DumpAliasOutput struct{ View catalog.Read }
 
-func (r dumpCatalogAliasOutput) FormatRegtype(id uint32) (string, error) {
-	return regtypeReference(r.view, id), nil
+func (r DumpAliasOutput) FormatRegtype(id uint32) (string, error) {
+	return regtypeReference(r.View, id), nil
 }
-func (r dumpCatalogAliasOutput) FormatRegcollation(id uint32) (string, error) {
-	return regObjectSpelling(r.view, nil, ids.CollationClassID, ids.OID(id)), nil
+func (r DumpAliasOutput) FormatRegcollation(id uint32) (string, error) {
+	return ObjectSpelling(r.View, nil, ids.CollationClassID, ids.OID(id)), nil
 }
-func (r dumpCatalogAliasOutput) FormatRegnamespace(id uint32) (string, error) {
-	return regObjectSpelling(r.view, nil, ids.NamespaceClassID, ids.OID(id)), nil
+func (r DumpAliasOutput) FormatRegnamespace(id uint32) (string, error) {
+	return ObjectSpelling(r.View, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }
 
-func remapCatalogAliasDatum(value sqltype.Value, destination func(ids.ObjectAddress) ids.ObjectAddress) (sqltype.Value, error) {
+func RemapAliasDatum(value sqltype.Value, destination func(ids.ObjectAddress) ids.ObjectAddress) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsRegtype() && !value.Type().ContainsRegObject() {
 		return value, nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
-			return remapCatalogAliasDatum(member, destination)
+			return RemapAliasDatum(member, destination)
 		})
 	}
 	if value.Type().BaseType().IsArray() {
 		return value.MapArray(value.Type(), func(element sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
-			return remapCatalogAliasDatum(element, destination)
+			return RemapAliasDatum(element, destination)
 		})
 	}
 	address, err := catalog.AliasAddress(value)

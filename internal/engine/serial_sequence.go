@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -30,7 +31,7 @@ func evalSerialSequence(c *exec.Context, values [3]sqltype.Value, result *sqltyp
 	if scope.inquiry.deparseAuth.session != nil {
 		database = scope.inquiry.deparseAuth.session.DatabaseName
 	}
-	name, err = regclassQualifiedName(name, table, database)
+	name, err = regobj.ClassQualifiedName(name, table, database)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

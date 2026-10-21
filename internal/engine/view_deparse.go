@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -624,7 +625,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 				r := pgRenderer{view: catalogView, pretty: v.presentation.pretty, path: v.presentation.path, output: v.presentation.output, nonstandardStrings: v.presentation.nonstandardStrings}
 				return r.sql(ctx, literal, pgRenderParent{})
 			}
-			return catalogLiteralSQL(ctx, catalogView, literal)
+			return regobj.Literal(ctx, catalogView, literal)
 		}
 	}
 	currentOrderedSetDirect := parent.orderedSetDirect
@@ -673,7 +674,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 			}
 			return r.cast(text, usage, simple)
 		}
-		declaration, err := catalogTypeDeclaration(catalogView, usage)
+		declaration, err := regobj.TypeDeclaration(catalogView, usage)
 		if err != nil {
 			return "", err
 		}
@@ -946,7 +947,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 			}
 			return r.cast(text, usage, simpleColumn || simpleLiteral || simpleSleepCall || v.presentation.pretty && parent.functionArgument && nestedCast)
 		}
-		declaration, err := catalogTypeDeclaration(catalogView, usage)
+		declaration, err := regobj.TypeDeclaration(catalogView, usage)
 		if err != nil {
 			return "", err
 		}
@@ -1096,7 +1097,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 				return "", fmt.Errorf("stuntgres: missing SQL/JSON returning usage")
 			}
 			var err error
-			declaration, err = catalogTypeDeclaration(catalogView, usage)
+			declaration, err = regobj.TypeDeclaration(catalogView, usage)
 			if err != nil {
 				return "", err
 			}
@@ -1199,7 +1200,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 				if !ok {
 					return "", fmt.Errorf("stuntgres: missing SQL/JSON returning usage")
 				}
-				declaration, err := catalogTypeDeclaration(catalogView, usage)
+				declaration, err := regobj.TypeDeclaration(catalogView, usage)
 				if err != nil {
 					return "", err
 				}
@@ -1705,7 +1706,7 @@ func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog catalog.
 				return "", err
 			}
 		} else {
-			declaration, err := catalogTypeDeclaration(catalog, usage)
+			declaration, err := regobj.TypeDeclaration(catalog, usage)
 			if err != nil {
 				return "", err
 			}

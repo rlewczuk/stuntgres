@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 )
 
 func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n plan.ArrayExpr) (string, error) {
@@ -19,7 +20,7 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n plan.
 	}
 	text := "ARRAY[" + strings.Join(parts, ", ") + "]"
 	if len(parts) == 0 {
-		declaration, err := catalogTypeDeclarationAt(view, r.definition, n.Usage)
+		declaration, err := regobj.TypeDeclarationAt(view, r.definition, n.Usage)
 		if err != nil {
 			return "", err
 		}

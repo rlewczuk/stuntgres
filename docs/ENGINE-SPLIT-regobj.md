@@ -367,16 +367,73 @@ no aliases remain; the checks in §8.3 pass.
     `ruleDefinition.OID`) only.
   - No engine test moved or changed; `sequence_output_test.go` tests
     sequence prepared behavior, not regclass output, so it keeps its name.
-- [ ] 21b — `regobj` created and clean set moved (item 65)
+- [x] 21b — `regobj` created and clean set moved (item 65) (`91fc9de2f`,
+  `8ea91a2eb`, `ca7c8d575`, then the docs commit) · selected unit and
+  dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at user
+  request
+  - Re-measured at `205d59485` with `frontier -decls` over `set1.txt`
+    (without the deleted `routineContainerLiteral`, plus
+    `remapRegclassDatum`): 112 members; OUT is `sqlError` only, so the rule
+    payload edge is gone (5j, step 1 confirmed). Started at `205d59485`;
+    replayed onto `f51e6d8f9` (ddl 20b), `8cf863131` (copyfmt 19b,
+    dump 18c), `92d17ca19` (exec 11f) and `e13730bdb` (ddl 20c, analyze
+    12f, session 13f) with
+    `.cswd/tmp/PG18-ENGINE-SPLIT-REGOBJ-PACKAGE/replay.sh`, which gave the
+    same specs and diff.
+  - `91fc9de2f` (split): `movedecl` put the set members of twelve mixed
+    files into root `regobj_*.go` staging files, unchanged. Two files the
+    inventory lists as mixed, `regproc_persistence.go` and
+    `regtype_persistence.go`, were whole after 21a.
+  - `8ea91a2eb` (export): `expspec` plus `movex` member mode exported the 87
+    functions and fields the root uses, with the settled names (table in
+    `internal/engine/regobj/README.md`). `collationCandidate`'s fields were
+    added by hand: `collation.go` and `regobjects_input.go` build it with
+    unkeyed literals, which `frontier` does not report.
+  - `ca7c8d575` (move): 11 whole files and 12 staging files (2.8k lines)
+    moved with `git mv`; `movex` qualify mode renamed the types (for example
+    `capturedACLItemOutput` → `ACLItemOutput`, `catalogRegclassOutput` →
+    `ClassOutput`, `objectIdentity` → `ObjectIdentity`) and qualified 101
+    root files; `keylit` keyed 16 `CollationCandidate` literals; `regobj`
+    got its own `sqlError` (`errors.go`). Set-internal helpers keep their
+    lower-case names. `regobj` imports `analyze`, `authorization`,
+    `catalog`, `exec`, `expr`, `ids`, `pgcatalog`, `plan`, `routine`,
+    `session`, `parser`, `sqlstate` and `sqltype` (not `sequence` or
+    `access`, which the inventory expected); only the root imports it.
+    `routine.ObjectRoutineKind` stays in `routine`.
+  - Deviation: `regtypeAnalysis` stays in the root. It is the prepared
+    statement's regtype analysis cell, built and read only by
+    `Engine.regtypeAnalysisLocked`/`regtypeAnalysisValidLocked`,
+    `execute.go` and `expected_inputs.go`; no set member uses it. Moving it
+    would only export eight state fields.
+  - Aliases: none. The widest type, `ACLItemOutput`, is named by about 33
+    root files (under the 40-file threshold).
+  - Tests: `TestVisibilityInquiryCollationSelection` moved to
+    `regobj/namespace_visibility_test.go`, its catalog state fixture
+    inlined (`catalog.NewState`, `SetDescriptor`, `BindName`); the name is
+    kept so the `^TestVisibilityInquiry` selector still matches it. The
+    other 48 engine tests that use moved names build an `Engine` and were
+    only qualified. None deleted.
+  - Verification: build and vet (only the known `composites`, `copylocks`
+    and `lostcancel` findings, the `RoutineIdentity` ones now reported under
+    `regobj/`) after every commit; the 49 targeted unit tests; the two
+    reference selections under Targeted tests in quick mode and with
+    `REFERENCE=1` (on the `8cf863131` replay); `make quickcheck` on the replayed branch. `make bench`
+    not needed.
 - [ ] 21c — Input resolvers moved (item 66)
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (21b added none).
 
 ### Notes for later steps
 
-- 21b: `set1.txt` still lists `routineContainerLiteral`, which 21a deleted;
-  `frontier` ignores the missing key. Add `remapRegclassDatum` and drop the
-  dead name when building the move list.
+- 21c: the root resolvers already call the moved helpers
+  (`regobj.CollectOperatorGroups`, `VisibleOperators`, `ClassNumeric`,
+  `ClassQualifiedName`, `SelectRoutine`, `SelectCollation`,
+  `CollationCandidate`), so moving them adds no new `regobj` exports for
+  those. `regclass_capture.go`, `regoperator_input.go` and the four
+  `*_input.go` files with the resolver types are the 21c move set.
+- `frontier` does not count fields set by unkeyed composite literals as
+  outside uses; check unkeyed literals of moving types by hand before the
+  export commit.
 - Step 22 (`stored`) imports `regobj` for the type-declaration, literal,
   dump-spelling and remap helpers; the `stored` fixed point uses only
   21b items, not the 21c resolvers.

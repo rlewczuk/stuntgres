@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -55,7 +56,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	if err != nil || value.Type() != d.SQLType || sqltype.Null(usage.Type).Type() != d.SQLType {
 		t.Fatal("logical value generation", value, err)
 	}
-	declaration, err := catalogTypeDeclaration(current, usage)
+	declaration, err := regobj.TypeDeclaration(current, usage)
 	if err != nil || declaration != `"information_schema"."time_stamp"` {
 		t.Fatal(declaration, err)
 	}
@@ -96,7 +97,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if rebound.SQLType == d.SQLType || rebound.SQLType.DomainBase().Type != base || base == d.SQLType.DomainBase().Type || rebound.SQLType.DomainBase().Typmod != 2 || !rebound.SQLType.IsBuiltin() || rebound.SQLType.IsUserDefined() || rebound.ObjectRevision != 1 || rebound.SQLType.AssociatedArray() != d.Array || rebound.SQLType.NamespaceName() != "information_schema" {
 		t.Fatal("reowned builtin provenance", rebound)
 	}
-	declaration, err := catalogTypeDeclaration(view, rebound.SQLType.Usage())
+	declaration, err := regobj.TypeDeclaration(view, rebound.SQLType.Usage())
 	if err != nil || declaration != `"renamed_info"."time_stamp"` || rebound.SQLType.SQLName() != "renamed_info.time_stamp" {
 		t.Fatal(declaration, err)
 	}

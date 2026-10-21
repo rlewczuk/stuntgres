@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -46,7 +47,7 @@ func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecess
 						continue
 					}
 					literal := plan.LiteralExpr{Info: expr.Info{Usage: datum.Value.Type().Usage()}, Value: datum.Value}
-					if err := regclassReplayReferences(view, literal, add); err != nil {
+					if err := regobj.ClassReplayReferences(view, literal, add); err != nil {
 						return nil, err
 					}
 					var buffer [1]ids.ObjectRef
@@ -331,7 +332,7 @@ func partitionTupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []cat
 			text.WriteString("MAXVALUE")
 		default:
 			literal := plan.LiteralExpr{Info: expr.Info{Usage: keys[i].Usage}, Value: datum.Value}
-			value, err := catalogLiteralSQL(ctx, catalog, literal)
+			value, err := regobj.Literal(ctx, catalog, literal)
 			if err != nil {
 				return "", err
 			}

@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/sqltype"
+)
 
 // captureFormalInputLocked is shared by ordinary binding and direct fastpath
 // invocation. The caller holds Engine.mu; the captured readers own immutable
@@ -24,7 +27,7 @@ func (s *StatementScope) captureFormalInputLocked(auth AuthorizationView, types 
 			}
 		}
 		if usage.Type.ContainsRegrole() && s.input.Regrole == nil {
-			s.input.Regrole = capturedRegroleInput{roles: auth.Roles}
+			s.input.Regrole = regobj.RoleInput{Roles: auth.Roles}
 		}
 		if usage.Type.ContainsOperatorAlias() && s.input.Operator == nil {
 			s.input.Operator, err = e.captureOperatorInput(auth, op)

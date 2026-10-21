@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -174,7 +175,7 @@ func TestSerialSequenceNameInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	name, err = regclassQualifiedName(name, `current."Mixed.Schema"."Owned"`, "current")
+	name, err = regobj.ClassQualifiedName(name, `current."Mixed.Schema"."Owned"`, "current")
 	if err != nil || len(name.Parts) != 2 || name.Parts[0].Text != "Mixed.Schema" || name.Parts[1].Text != "Owned" {
 		t.Fatal(name, err)
 	}

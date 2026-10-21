@@ -73,7 +73,7 @@ top-level declarations with their methods: about 10.2k lines in 67 files,
 
 | Edge | Owner after the prerequisite |
 |---|---|
-| reg* spellings, dump outputs, remap and walker helpers, `catalogTypeDeclaration*`, `catalogLiteral*`, `catalogRegclassOutput`, `catalogRoutineOutput`, `catalogRegtypeOutput`, `aclItemContextFormatter`, `aclItemValidationOutput` (its `owner` field), `containsEmptyACL`, `regroleContextFormatter` | `regobj` (21b) |
+| reg* spellings, dump outputs, remap and walker helpers, `catalogTypeDeclaration*`, `catalogLiteral*`, `catalogRegclassOutput`, `catalogRoutineOutput`, `catalogRegtypeOutput`, `aclItemContextFormatter`, `aclItemValidationOutput` (its `owner` field), `containsEmptyACL`, `regroleContextFormatter` | `regobj` (done in 21b; new names in `internal/engine/regobj/README.md`) |
 | `commentLiteral` (used by `cycleConstantSQL`) | `dump.CommentLiteral` (done in 18b) |
 | `pgIdentifier` (`deparse_renderer.go`) | `catalog.Identifier` (done in 21a) |
 | `sqlError` | the package's own `errors.go` |
@@ -117,7 +117,7 @@ are used only by `expression_retag.go`; they move here, not to `exec`.
 | `deparse_renderer.go` | everything (`pgIdentifier` is `catalog.Identifier` since 21a) | — |
 | `view_dependencies.go` | `viewDefinition.Validate`, `validateViewLeaves`, `validateStoredSetNode` | dependency staging (step 27); the drop diagnostics go to a root `drop_diagnostics.go` (27a) |
 | `view.go` | `viewDefinition`, `viewLeaf`, `viewOptions`, `validateNamespaces`, `namespaceRoot` | CREATE VIEW handling (step 27) |
-| `scalar_function_sql.go` | `scalarRenderer.scalarFunctionSQL` | `literalSQL` (in `catalog_literal.go` since 21a) goes to `regobj` (21b) |
+| `scalar_function_sql.go` | `scalarRenderer.scalarFunctionSQL` | `literalSQL` is `regobj.ConstantLiteral` (21b) |
 | `foreign_key_lifecycle.go` | `pgRenderer.foreignKeyConstraintSQL`, `foreignKeyConstraintSQLWithPrimary`, `foreignKeyActionSQL` | FK lifecycle (step 24) |
 | `query_graph.go` | nothing: analyze 12f (item 77) moved the whole file (`analyze.CollectQueryFrames`, ...); the set calls `analyze`'s exported names | — |
 | `view_write.go` | `viewWriteShape`, `viewDirectColumn`, `sameViewRelation` | view-write lowering (step 27) |

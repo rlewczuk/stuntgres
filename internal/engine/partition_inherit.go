@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -157,7 +158,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				return nil, err
 			}
 			var refs []ids.ObjectRef
-			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, owner: d, dependencies: &refs, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, definition.Expression)
+			_, err = (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: d, dependencies: &refs, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, definition.Expression)
 			if err != nil {
 				return nil, err
 			}

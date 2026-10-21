@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -167,7 +168,7 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 		return sqltype.Value{}, err
 	}
 	if !value.IsNull() && target.ContainsRegclass() {
-		value, err = remapRegclassDatum(value, func(id ids.OID) ids.OID {
+		value, err = regobj.RemapClassDatum(value, func(id ids.OID) ids.OID {
 			return snapshot.destination(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
@@ -175,13 +176,13 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 		}
 	}
 	if !value.IsNull() && (target.ContainsRegtype() || target.ContainsRegObject()) {
-		value, err = remapCatalogAliasDatum(value, snapshot.destination)
+		value, err = regobj.RemapAliasDatum(value, snapshot.destination)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 	}
 	if !value.IsNull() && target.ContainsRegproc() {
-		value, err = remapRoutineDatum(value, func(id ids.OID) ids.OID {
+		value, err = regobj.RemapRoutineDatum(value, func(id ids.OID) ids.OID {
 			return snapshot.destination(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
@@ -189,7 +190,7 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 		}
 	}
 	if !value.IsNull() && target.ContainsOperatorAlias() {
-		value, err = remapOperatorDatum(value, func(id ids.OID) ids.OID {
+		value, err = regobj.RemapOperatorDatum(value, func(id ids.OID) ids.OID {
 			return snapshot.destination(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
@@ -197,7 +198,7 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 		}
 	}
 	if !value.IsNull() && target.ContainsRegTS() {
-		value, err = remapRegTSDatum(value, snapshot.destination)
+		value, err = regobj.RemapTextSearchDatum(value, snapshot.destination)
 	}
 	return value, err
 }

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -120,10 +121,10 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 			} else if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range || base == sqltype.NumRange || base == sqltype.DateRange || base == sqltype.TimestampRange || base == sqltype.TimestamptzRange || base == sqltype.Int4Multirange || base == sqltype.Int8Multirange || base == sqltype.NumMultirange) {
 				// The INSERT destination reconstructs the domain via ordinary
 				// contextual input without unsupported range/multirange casts;
-				// non-contextual stored expressions keep catalogLiteralSQL.
+				// non-contextual stored expressions keep regobj.Literal.
 				literal, err = destination.SQLLiteral(ctx, v)
 			} else {
-				literal, err = catalogLiteralSQL(ctx, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.columns[i].Usage}, Value: v})
+				literal, err = regobj.Literal(ctx, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.columns[i].Usage}, Value: v})
 			}
 			if err != nil {
 				return err
@@ -160,14 +161,14 @@ func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.
 			continue
 		}
 		for i, column := range t.columns {
-			if err := walkRoutineReferences(catalog, version.Values[i], add); err != nil {
+			if err := regobj.WalkRoutineReferences(catalog, version.Values[i], add); err != nil {
 				return err
 			}
 			if !column.Usage.Type.ContainsRegclass() {
 				continue
 			}
 			literal := plan.LiteralExpr{Info: expr.Info{Usage: column.Usage}, Value: version.Values[i]}
-			if err := regclassReplayReferences(catalog, literal, add); err != nil {
+			if err := regobj.ClassReplayReferences(catalog, literal, add); err != nil {
 				return err
 			}
 		}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -74,7 +75,7 @@ func (e *Engine) resolveGrantRoutine(op *session.Operation, v AuthorizationView,
 			}
 		}
 	} else {
-		selected, count = selectRoutine(v.Catalog, path, name, exact)
+		selected, count = regobj.SelectRoutine(v.Catalog, path, name, exact)
 	}
 	noun := "function"
 	if kind == "procedure" {

@@ -9,41 +9,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-func collectOperatorGroups(view catalog.Read) exec.OperatorGroups {
-	groups := make(exec.OperatorGroups)
-	for key, addresses := range view.State().OperatorNames().Buckets {
-		for _, address := range addresses {
-			d := view.MustOperator(address)
-			groups[key.Name] = append(groups[key.Name], d)
-		}
-	}
-	return groups
-}
-
-// Earlier namespaces mask only the same ordered operand signature.
-func visibleOperators(groups exec.OperatorGroups, path []ids.ObjectAddress, name string) []*catalog.Operator {
-	var result []*catalog.Operator
-	seen := make(map[analyze.OperatorSignature]bool)
-	for _, ns := range path {
-		for _, d := range groups[name] {
-			if d.Namespace() != ns {
-				continue
-			}
-			signature := analyze.OperatorSignature{Left: d.Left, Right: d.Right}
-			if !seen[signature] {
-				seen[signature] = true
-				result = append(result, d)
-			}
-		}
-	}
-	return result
-}
 
 type capturedOperatorInput struct {
 	types     capturedRegtypeInput
@@ -62,7 +33,7 @@ func (e *Engine) captureOperatorInput(auth AuthorizationView, op *session.Operat
 	if err != nil {
 		return capturedOperatorInput{}, err
 	}
-	return capturedOperatorInput{types: types, path: path, groups: collectOperatorGroups(auth.Catalog)}, nil
+	return capturedOperatorInput{types: types, path: path, groups: regobj.CollectOperatorGroups(auth.Catalog)}, nil
 }
 func (r capturedOperatorInput) OperatorParameter(slot int, empty bool) sqltype.OperatorResolver {
 	r.types = r.types.RegtypeParameter(slot, empty).(capturedRegtypeInput)
@@ -122,7 +93,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, err
 		}
 		path = []ids.ObjectAddress{ns}
 	}
-	return visibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
+	return regobj.VisibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
 }
 func (r capturedOperatorInput) ResolveRegoper(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {

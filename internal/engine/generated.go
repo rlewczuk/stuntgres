@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -127,7 +128,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 		return catalog.ColumnGeneration{}, err
 	}
 	definition := catalog.ColumnGeneration{Kind: kind, Expression: analyzed, Planned: node}
-	_, err = (scalarRenderer{definition: op.Definition, aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, owner: d, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, analyzed)
+	_, err = (scalarRenderer{definition: op.Definition, aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: d, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, analyzed)
 	return definition, err
 }
 

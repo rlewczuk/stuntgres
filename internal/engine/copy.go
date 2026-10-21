@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"stuntgres/internal/engine/copyfmt"
+	"stuntgres/internal/engine/regobj"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -366,7 +367,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth
 			s.input.Regtype, err = e.captureRegtypeInput(auth, s.op)
 		}
 		if err == nil && usage.Type.ContainsRegrole() && s.input.Regrole == nil {
-			s.input.Regrole = capturedRegroleInput{roles: auth.Roles}
+			s.input.Regrole = regobj.RoleInput{Roles: auth.Roles}
 		}
 		if err == nil && usage.Type.ContainsOperatorAlias() && s.input.Operator == nil {
 			s.input.Operator, err = e.captureOperatorInput(auth, s.op)

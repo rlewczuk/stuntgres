@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -64,9 +65,9 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	rows := exec.NewFinalRows([]catalog.Column{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
 	rows.Values = []sqltype.Value{value, arrayValue}
 	defer rows.Close()
-	output := capturedACLItemOutput{owner: e.catalog.owner(), roles: oldRoles}
+	output := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: oldRoles}
 	for _, v := range rows.Values {
-		if err := captureACLItemOutputValue(rows, output, v); err != nil {
+		if err := regobj.CaptureACLItemOutputValue(rows, output, v); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -77,7 +78,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	putFixtureRole(next, a)
 	e.roles.published = next
 	e.mu.Unlock()
-	fresh := capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles()}
+	fresh := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: fresh})
 	if err != nil || text != "acl_unit_renamed=rw*/acl_unit_b" {
 		t.Fatal("new spelling", text, err)
@@ -133,7 +134,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		putFixtureRole(next, role)
 		bootstrapEngine.roles.published = next
 		bootstrapEngine.mu.Unlock()
-		output := capturedACLItemOutput{owner: bootstrapEngine.catalog.owner(), roles: bootstrapEngine.Roles()}
+		output := regobj.ACLItemOutput{Owner: bootstrapEngine.catalog.owner(), Roles: bootstrapEngine.Roles()}
 		text, err := typeACL.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: output})
 		if err != nil || text != "=r/acl_unit_bootstrap" {
 			t.Fatal("default grantor followed a name rather than identity10", text, err)

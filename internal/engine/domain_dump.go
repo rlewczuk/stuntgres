@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -18,7 +19,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	if !typedef.DefaultDomainACL(d) {
 		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
 	}
-	qualified, err := catalogTypeDeclaration(view, d.SQLType.Usage())
+	qualified, err := regobj.TypeDeclaration(view, d.SQLType.Usage())
 	if err != nil {
 		return dump.Statement{}, err
 	}
@@ -34,7 +35,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 		return dump.Statement{Owner: owner.Name, SQL: "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"}, nil
 	}
 	base := d.SQLType.DomainBase()
-	declaration, err := catalogTypeDeclaration(view, base)
+	declaration, err := regobj.TypeDeclaration(view, base)
 	if err != nil {
 		return dump.Statement{}, err
 	}

@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"fmt"
@@ -13,10 +13,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type objectIdentity struct {
-	kind, schema, name, identity, description string
-	names, args                               []string
-	found                                     bool
+type ObjectIdentity struct {
+	Kind, Schema, Name, Identity, Description string
+	Names, Args                               []string
+	Found                                     bool
 }
 
 // These are released address classes, not a whitelist of native providers.
@@ -117,7 +117,7 @@ func objectNamespace(view catalog.Read, namespace ids.ObjectAddress) (actual, ca
 	}
 	return
 }
-func objectRelationKind(view catalog.Read, d *catalog.Relation) string {
+func ObjectRelationKind(view catalog.Read, d *catalog.Relation) string {
 	switch pgcatalog.ClassKind(view, d) {
 	case "S":
 		return "sequence"
@@ -132,7 +132,7 @@ func objectRelationKind(view catalog.Read, d *catalog.Relation) string {
 	}
 	return "table"
 }
-func objectAttributeName(view catalog.Read, d *catalog.Relation, sub int32) string {
+func ObjectAttributeName(view catalog.Read, d *catalog.Relation, sub int32) string {
 	sub = int32(int16(sub))
 	for i, attr := range d.Attributes {
 		if attr == sub {
@@ -151,33 +151,33 @@ func objectQualifiedType(view catalog.Read, id ids.OID) string {
 	return regtypeSpellingMode(view, nil, id, true)
 }
 
-func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress) (objectIdentity, error) {
+func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress) (ObjectIdentity, error) {
 	kind, known := objectAddressClassKind(a.ClassID)
 	if !known {
-		return objectIdentity{}, sqlError("XX000", fmt.Sprintf("unsupported object class: %d", a.ClassID))
+		return ObjectIdentity{}, sqlError("XX000", fmt.Sprintf("unsupported object class: %d", a.ClassID))
 	}
-	r := objectIdentity{kind: kind}
+	r := ObjectIdentity{Kind: kind}
 	key := a
 	key.SubID = 0
 	d := view.Get(key)
 	if a.ClassID == ids.ProcedureClassID {
-		p, ok := routineIdentityByOID(view, a.ObjectID)
+		p, ok := RoutineIdentityByOID(view, a.ObjectID)
 		if !ok {
 			return r, nil
 		}
-		r.found = true
-		r.kind = routine.ObjectRoutineKind(p.ID)
+		r.Found = true
+		r.Kind = routine.ObjectRoutineKind(p.ID)
 		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
-		r.schema = catalog.Identifier(ns)
-		r.names = []string{ns, p.Name}
+		r.Schema = catalog.Identifier(ns)
+		r.Names = []string{ns, p.Name}
 		if p.Signature != "" {
 			for arg := range strings.SplitSeq(string(p.Signature), ",") {
 				id, _ := strconv.ParseUint(arg, 10, 32)
-				r.args = append(r.args, objectQualifiedType(view, ids.OID(id)))
+				r.Args = append(r.Args, objectQualifiedType(view, ids.OID(id)))
 			}
 		}
-		r.identity = catalog.Identifier(ns) + "." + catalog.Identifier(p.Name) + "(" + strings.Join(r.args, ",") + ")"
-		r.description = "function " + routineSpelling(view, path, p.ID, true, false)
+		r.Identity = catalog.Identifier(ns) + "." + catalog.Identifier(p.Name) + "(" + strings.Join(r.Args, ",") + ")"
+		r.Description = "function " + RoutineSpelling(view, path, p.ID, true, false)
 		return r, nil
 	}
 	if a.ClassID == 1260 {
@@ -185,11 +185,11 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		if !ok {
 			return r, nil
 		}
-		r.found = true
-		r.name = catalog.Identifier(role.Name)
-		r.identity = r.name
-		r.names = []string{role.Name}
-		r.description = "role " + r.name
+		r.Found = true
+		r.Name = catalog.Identifier(role.Name)
+		r.Identity = r.Name
+		r.Names = []string{role.Name}
+		r.Description = "role " + r.Name
 		return r, nil
 	}
 	if a.ClassID == 1213 {
@@ -203,11 +203,11 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		if name == "" {
 			return r, nil
 		}
-		r.found = true
-		r.name = name
-		r.identity = name
-		r.names = []string{name}
-		r.description = "tablespace " + name
+		r.Found = true
+		r.Name = name
+		r.Identity = name
+		r.Names = []string{name}
+		r.Description = "tablespace " + name
 		return r, nil
 	}
 	if a.ClassID == 2605 {
@@ -217,11 +217,11 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 				continue
 			}
 			source, target := objectQualifiedType(view, ids.OID(fact.Source)), objectQualifiedType(view, ids.OID(fact.Target))
-			r.found = true
-			r.names = []string{source}
-			r.args = []string{target}
-			r.identity = "(" + source + " AS " + target + ")"
-			r.description = "cast from " + regtypeSpelling(view, path, ids.OID(fact.Source)) + " to " + regtypeSpelling(view, path, ids.OID(fact.Target))
+			r.Found = true
+			r.Names = []string{source}
+			r.Args = []string{target}
+			r.Identity = "(" + source + " AS " + target + ")"
+			r.Description = "cast from " + TypeSpelling(view, path, ids.OID(fact.Source)) + " to " + TypeSpelling(view, path, ids.OID(fact.Target))
 			break
 		}
 		return r, nil
@@ -247,12 +247,12 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		if method == 405 {
 			am = "hash"
 		}
-		r.found = true
-		r.schema = "pg_catalog"
-		r.name = catalog.Identifier(name)
-		r.names = []string{am, "pg_catalog", name}
-		r.identity = "pg_catalog." + r.name + " USING " + am
-		r.description = kind + " " + r.name + " for access method " + am
+		r.Found = true
+		r.Schema = "pg_catalog"
+		r.Name = catalog.Identifier(name)
+		r.Names = []string{am, "pg_catalog", name}
+		r.Identity = "pg_catalog." + r.Name + " USING " + am
+		r.Description = kind + " " + r.Name + " for access method " + am
 		return r, nil
 	}
 	if a.ClassID == 2606 || a.ClassID == 2604 || a.ClassID == 2618 || a.ClassID == 3256 {
@@ -261,93 +261,93 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 	if d == nil {
 		return r, nil
 	}
-	r.found = true
+	r.Found = true
 	actual, canonical := objectNamespace(view, d.Namespace())
 	if actual != "" {
-		r.schema = catalog.Identifier(actual)
+		r.Schema = catalog.Identifier(actual)
 	}
-	r.name = catalog.Identifier(d.Name())
-	r.identity = r.name
-	r.names = []string{d.Name()}
+	r.Name = catalog.Identifier(d.Name())
+	r.Identity = r.Name
+	r.Names = []string{d.Name()}
 	if actual != "" {
-		r.identity = catalog.Identifier(canonical) + "." + r.name
-		r.names = []string{canonical, d.Name()}
+		r.Identity = catalog.Identifier(canonical) + "." + r.Name
+		r.Names = []string{canonical, d.Name()}
 	}
-	display := r.identity
-	if actual == "" || namedObjectVisible(view, path, d) {
-		display = r.name
+	display := r.Identity
+	if actual == "" || NamedObjectVisible(view, path, d) {
+		display = r.Name
 	}
 	switch d := d.(type) {
 	case *catalog.Namespace:
 		_, canonical = objectNamespace(view, d.Address())
-		r.identity = catalog.Identifier(canonical)
-		r.names = []string{canonical}
-		display = r.name
+		r.Identity = catalog.Identifier(canonical)
+		r.Names = []string{canonical}
+		display = r.Name
 	case *catalog.Relation:
-		r.kind = objectRelationKind(view, d)
-		display = regclassSpelling(view, path, d.Address().ObjectID)
+		r.Kind = ObjectRelationKind(view, d)
+		display = ClassSpelling(view, path, d.Address().ObjectID)
 		if a.SubID != 0 {
-			r.kind += " column"
-			attr := objectAttributeName(view, d, a.SubID)
+			r.Kind += " column"
+			attr := ObjectAttributeName(view, d, a.SubID)
 			if attr == "" {
-				return objectIdentity{kind: r.kind}, nil
+				return ObjectIdentity{Kind: r.Kind}, nil
 			}
-			r.identity += "." + catalog.Identifier(attr)
-			r.names = append(r.names, attr)
-			r.description = "column " + attr + " of " + objectRelationKind(view, d) + " " + display
+			r.Identity += "." + catalog.Identifier(attr)
+			r.Names = append(r.Names, attr)
+			r.Description = "column " + attr + " of " + ObjectRelationKind(view, d) + " " + display
 			return r, nil
 		}
 	case *catalog.Type:
-		r.identity = objectQualifiedType(view, a.ObjectID)
-		r.names = []string{r.identity}
-		display = regtypeSpelling(view, path, a.ObjectID)
+		r.Identity = objectQualifiedType(view, a.ObjectID)
+		r.Names = []string{r.Identity}
+		display = TypeSpelling(view, path, a.ObjectID)
 	case *catalog.Operator:
-		r.name = ""
+		r.Name = ""
 		left, right := "NONE", "NONE"
 		if d.Left != 0 {
 			left = objectQualifiedType(view, d.Left)
-			r.args = append(r.args, left)
+			r.Args = append(r.Args, left)
 		}
 		if d.Right != 0 {
 			right = objectQualifiedType(view, d.Right)
-			r.args = append(r.args, right)
+			r.Args = append(r.Args, right)
 		}
-		r.identity = catalog.Identifier(canonical) + "." + d.Name() + "(" + left + "," + right + ")"
+		r.Identity = catalog.Identifier(canonical) + "." + d.Name() + "(" + left + "," + right + ")"
 		display = d.Name()
-		if !namedObjectVisible(view, path, d) {
+		if !NamedObjectVisible(view, path, d) {
 			display = catalog.Identifier(canonical) + "." + display
 		}
 		humanLeft, humanRight := "NONE", "NONE"
 		if d.Left != 0 {
-			humanLeft = regtypeSpelling(view, path, d.Left)
+			humanLeft = TypeSpelling(view, path, d.Left)
 		}
 		if d.Right != 0 {
-			humanRight = regtypeSpelling(view, path, d.Right)
+			humanRight = TypeSpelling(view, path, d.Right)
 		}
 		display += "(" + humanLeft + "," + humanRight + ")"
 	}
-	r.description = r.kind + " " + display
+	r.Description = r.Kind + " " + display
 	return r, nil
 }
 
 // Owned definitions retain their actual owning relation/type OIDs. They are not
 // descriptors and never get an invented namespace or simple-name field.
-func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r objectIdentity) objectIdentity {
+func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity) ObjectIdentity {
 	for _, descriptor := range view.Descriptors() {
 		if domain, ok := descriptor.(*catalog.Type); ok && a.ClassID == 2606 {
 			for _, check := range domain.DomainChecks {
 				if check.OID != a.ObjectID {
 					continue
 				}
-				r.found = true
-				r.kind = "domain constraint"
+				r.Found = true
+				r.Kind = "domain constraint"
 				ns, _ := objectNamespace(view, domain.Namespace())
-				r.schema = catalog.Identifier(ns)
+				r.Schema = catalog.Identifier(ns)
 				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()))
-				r.identity = catalog.Identifier(check.Name) + " on " + typeName
-				r.names = []string{typeName}
-				r.args = []string{check.Name}
-				r.description = "constraint " + check.Name
+				r.Identity = catalog.Identifier(check.Name) + " on " + typeName
+				r.Names = []string{typeName}
+				r.Args = []string{check.Name}
+				r.Description = "constraint " + check.Name
 				return r
 			}
 		}
@@ -359,28 +359,28 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 		if name == "" {
 			continue
 		}
-		r.found = true
+		r.Found = true
 		actual, canonical := objectNamespace(view, d.Namespace())
 		relation := catalog.Identifier(canonical) + "." + catalog.Identifier(d.Name())
-		r.names = []string{canonical, d.Name(), name}
-		description := objectRelationKind(view, d) + " " + regclassSpelling(view, path, d.Address().ObjectID)
+		r.Names = []string{canonical, d.Name(), name}
+		description := ObjectRelationKind(view, d) + " " + ClassSpelling(view, path, d.Address().ObjectID)
 		switch a.ClassID {
 		case 2606:
-			r.kind = "table constraint"
-			r.schema = catalog.Identifier(actual)
-			r.identity = catalog.Identifier(name) + " on " + relation
-			r.description = "constraint " + name + " on " + description
+			r.Kind = "table constraint"
+			r.Schema = catalog.Identifier(actual)
+			r.Identity = catalog.Identifier(name) + " on " + relation
+			r.Description = "constraint " + name + " on " + description
 		case 2604:
-			attr := objectAttributeName(view, d, sub)
-			r.names[2] = attr
-			r.identity = "for " + relation + "." + catalog.Identifier(attr)
-			r.description = "default value for column " + attr + " of " + description
+			attr := ObjectAttributeName(view, d, sub)
+			r.Names[2] = attr
+			r.Identity = "for " + relation + "." + catalog.Identifier(attr)
+			r.Description = "default value for column " + attr + " of " + description
 		case 2618:
-			r.identity = catalog.Identifier(name) + " on " + relation
-			r.description = "rule " + name + " on " + description
+			r.Identity = catalog.Identifier(name) + " on " + relation
+			r.Description = "rule " + name + " on " + description
 		case 3256:
-			r.identity = catalog.Identifier(name) + " on " + relation
-			r.description = "policy " + name + " on " + description
+			r.Identity = catalog.Identifier(name) + " on " + relation
+			r.Description = "policy " + name + " on " + description
 		}
 		return r
 	}
@@ -449,7 +449,7 @@ func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) 
 	return "", 0
 }
 
-func objectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Value, error) {
+func ObjectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Value, error) {
 	values := make([]sqltype.Value, len(names))
 	for i, name := range names {
 		values[i] = sqltype.String(d.Element(), name)
@@ -461,7 +461,7 @@ func objectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Valu
 	return sqltype.OwnedArrayValue(d, dims, values)
 }
 
-func objectInputClass(kind string) (ids.OID, error) {
+func ObjectInputClass(kind string) (ids.OID, error) {
 	switch kind {
 	case "table", "index", "sequence", "view", "materialized view", "foreign table", "table column", "foreign table column":
 		return 1259, nil
@@ -549,7 +549,7 @@ func objectInputClass(kind string) (ids.OID, error) {
 	return 0, sqlError("22023", fmt.Sprintf("unrecognized object type %q", kind))
 }
 
-func objectInputArray(value sqltype.Value) ([]string, error) {
+func ObjectInputArray(value sqltype.Value) ([]string, error) {
 	out := make([]string, value.ArrayLen())
 	for i := range out {
 		cell := value.ArrayElement(i)
@@ -565,7 +565,7 @@ func objectInputArray(value sqltype.Value) ([]string, error) {
 	return out, nil
 }
 
-func objectListLength(list string, n int, exact bool) error {
+func ObjectListLength(list string, n int, exact bool) error {
 	word := "at least"
 	if exact {
 		word = "exactly"
@@ -573,7 +573,7 @@ func objectListLength(list string, n int, exact bool) error {
 	return sqlError("22023", fmt.Sprintf("%s list length must be %s %d", list, word, n))
 }
 
-func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID {
+func OwnedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID {
 	switch class {
 	case 2606:
 		for _, x := range d.Constraints.NotNull {
