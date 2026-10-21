@@ -224,7 +224,7 @@ Tier C has a refined plan.
 
 - [x] F1 — Generics removed (`69aeb6167` generics, `5ec01573f`
   `functionInfo`, docs `937962c4f`)
-- [ ] F2 — Switches converted: [x] retag [x] remap [x] volatility
+- [x] F2 — Switches converted (closed by F6): [x] retag [x] remap [x] volatility
   [x] deparse [x] node tree [x] generated admission [x] conditional plan
   [x] join legality [x] stored scalar SQL (session 1: `c6de24e8f` members,
   `144458647` join, `5d7935b7d` volatility, `4c54eaf54` conditional,
@@ -294,8 +294,10 @@ Tier C has a refined plan.
   record below) [x] transaction identity and commit timestamps
   [x] advisory locks (with blocking inquiry; integrated as `a85e7d747`)
   [x] sequence calls (Group A Item 10, record below)
-- [ ] F6 — Step 3 closed: aggregate provider remap hook, remaining glue
-  recorded, F2 and step 3 ticked (linear item 71)
+- [x] F6 — Step 3 closed: aggregate provider remap hook, remaining glue
+  recorded, F2 and step 3 ticked (linear item 71; `c3ba6773d` seam,
+  `95f4feb13` engine cutover, then the docs commit; record in "F6 — step 3
+  closed" below)
 
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
 pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
@@ -2159,3 +2161,85 @@ Notes for later steps (Item 10):
 - `nextval('s'::text::regclass)` reports 42883 `function nextval(regclass) does
   not exist`; PostgreSQL accepts it. Existing gap; needs reference coverage first.
 
+### F6 — step 3 closed (linear item 71)
+
+Measured at `351822746`; file names as of `1bf7d5e83` (after stored 22a). `functions.RemappableProvider`
+(`aggregate_remap.go`) replaces both provider switches in `expression_remap.go` (formerly
+`view_remap.go`):
+the 24-type aggregate switch and the window switch over `IntegralSum`,
+`NumericSum` and `FloatSum`. Window SUM is the only provider a `WindowCall`
+carries, so the shared hook leaves window behavior unchanged. Each `Remap`
+holds the old case body. Usage and type mapping and binder calls keep their
+order, and the first usage (collation) error returns before any binder runs,
+as the old `err == nil` guards did. The type check comes before the shared
+error check, so "unpersistable view aggregate" keeps its precedence.
+"inconsistent remapped range aggregate result" is byte-identical. `Binder`
+is unchanged.
+
+The prompt expected the other `case functions.` matches to be constant
+switches only. Several are node-type cases. Each one is a deliberate,
+already-documented exception, not a node-operation switch left over from F2.
+
+Operation constants and argument intents (binder vocabulary):
+
+- `comment_inquiry.go` — `CommentInquiryKind`.
+- `session_identity.go` — `IdentityKind`.
+- `view_deparse_composite.go` — `NullCountKind`.
+- `analyze/expression.go` — argument intents (`ComparisonArgument` …
+  `ExactFormalArgument`).
+- `analyze/operator_binding.go` — JSON operator-name predicates.
+- `analyze/query_bind.go`, `analyze/query_expression_walk.go` —
+  `AggregateOperation` sets.
+- `analyze/installed_routine.go` (first switch) — `Extension`.
+
+Node-type cases kept, with the reason:
+
+- `expression_remap.go`, `expression_references.go`, `exec/context_runtimes.go` —
+  `SequenceCall` catalog identity: Ref remap, the pg_depend edge, COPY
+  nextval volatility ("Sequence calls — Group A Item 10" above).
+- `scalar_renderer.go` — stored-default SQL: `SequenceCall` checks, and the guard
+  that rejects `ObjectACL`/`AccessInquiry` outside a relation-owned
+  definition (README "What stays in the engine").
+- `plan/expression_walk.go`, `analyze/aggregate_bind.go` (RewriteGroup,
+  AggregateOccurrence) — `Timezone`'s value-first lexical walk. This is the
+  known divergence in the F2 notes. Fix all three together with reference
+  coverage, outside the split.
+- `analyze/installed_routine.go` (Attach) — wraps installed extension nodes
+  in their `plan.Installed*` procedure-identity wrappers.
+- `analyze/default_closure.go` — closed DEFAULT admission predicates
+  (sequence, transaction time, sleep, UUID, datetime).
+- `analyze/overlaps.go` — the OVERLAPS inline-cost table.
+- `analyze/retained_input.go` — retained diagnostic input for `Enum` and
+  `JSONBRecord`.
+- `view_write.go` — the writable-view demand flag for non-immutable `Binary`.
+- `routine/body.go` — polymorphic SQL-body arguments of fixed builtin OIDs.
+- `view_deparse_functions.go` — the column-definition shape of JSON record
+  function tables in view SQL.
+
+The glue that stays in the root, and why, is in the README's "What stays in
+the engine". The `statementHost` capability bodies stay by design. The
+`validateInstalled*` validators and the function deparse helpers move with
+`stored` (step 22).
+
+Tests: new leaf units `TestAggregateProviderRemap(MapsEveryDescriptor|ReturnsUsageError|OrderedSetArgument|RangeInconsistentResult)`
+(a mutation that skips one mapping fails them). Engine remap units and
+reference goldens are unchanged. Proof and selectors: README "Aggregate
+provider remap" Testing section. A throwaway public `database/sql` probe ran
+on master and the branch and produced byte-identical output (271 lines). It
+covered 14 views across every persisted provider family and window SUM, over
+domain, enum and collated columns; enum ADD/RENAME VALUE, domain constraint
+and collation rename; and native Dump→Restore→redump.
+
+Notes for later steps (F6), existing gaps seen by the probe, identical on
+master:
+
+- `max(enum)` reports 42883; PostgreSQL has `max(anyenum)`.
+- `ORDER BY` over json or a multirange column fails ("could not identify an
+  ordering operator for type json"; "invalid ordering type" with no
+  SQLSTATE).
+- `ALTER DOMAIN … RENAME TO`, `ALTER DOMAIN … SET DEFAULT` and
+  `ALTER TYPE … RENAME TO` are syntax errors.
+- After `ALTER COLLATION mycoll RENAME TO mycoll2`, `COLLATE mycoll2` reports
+  42704 "collation … for encoding "UTF8" does not exist".
+
+Each needs PostgreSQL 18 reference coverage first, in its own task.

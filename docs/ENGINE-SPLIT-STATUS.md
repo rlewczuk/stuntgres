@@ -20,16 +20,16 @@ after each lands.
 
 - **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 61 (ddl 20b), 64 (regobj
   21a).
-- **Follow-ups in existing packages:** 71 (functions F6), 72 (catalog 5i),
-  73 (plan 10e), 74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f),
-  78 (session 13f), 79 (access B6).
+- **Follow-ups in existing packages:** 72 (catalog 5i), 73 (plan 10e),
+  74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f), 78 (session 13f),
+  79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
-(dump 18a), 58 (copyfmt 19a), 60 (ddl 20a) and 67 (stored 22a) are done. Step 3
-stays open until F6 (item 71) closes F2.
+(dump 18a), 58 (copyfmt 19a), 60 (ddl 20a) and 67 (stored 22a) are done.
+Item 71 (functions F6) closed F2 and step 3.
 
 ## Task tree
 
@@ -53,10 +53,10 @@ stays open until F6 (item 71) closes F2.
     *(full racecheck skipped at user request)*
   - [x] 2d — Aliases removed (`a30776ce9`, `d981cc9c0`, `f70e8a7d9`,
     `f6107872e`, docs `7dfcd7b80`) *(racecheck skipped at user request)*
-- [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs
+- [x] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs
   2b, and 2c for F2)
   - [x] F1 — Generics removed (`69aeb6167`, `5ec01573f`, docs `937962c4f`)
-  - [ ] F2 — Switches converted to the node protocol *(broad rewrite; needs
+  - [x] F2 — Switches converted to the node protocol (closed by F6) *(broad rewrite; needs
     2c)*
     - [x] retag (`1e6bd8aec`)
     - [x] remap (`c703fd8d9`)
@@ -151,8 +151,10 @@ stays open until F6 (item 71) closes F2.
       quickcheck-only waiver; synchronized proof, review and integration pending)*
     - [x] sequence calls *(Group A Item 10; selected dual-mode, quickcheck and
       byte-identical public probe passed; racecheck/finalcheck skipped at user request)*
-  - [ ] F6 — Step 3 closed: aggregate provider remap hook, remaining glue
-    recorded; ticks F2 and step 3 (second round, item 71)
+  - [x] F6 — Step 3 closed: aggregate provider remap hook, remaining glue
+    recorded; ticks F2 and step 3 (second round, item 71; `c3ba6773d`,
+    `95f4feb13`, then the docs commit) *(racecheck/finalcheck skipped at
+    user request)*
 - [x] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
     (`78265dd49`, `d4a96abb9`, `e9c2356cd`, docs `ad4693205`)
@@ -867,8 +869,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 
 ### Group I — follow-ups in existing packages
 
-71. [ ] Functions F6: step 3 closed — [functions](ENGINE-SPLIT-functions.md)
-    F6 · needs —
+71. [x] Functions F6: step 3 closed — [functions](ENGINE-SPLIT-functions.md)
+    F6 · needs — · (`c3ba6773d` seam, `95f4feb13` engine cutover, then the
+    docs commit) · `RemappableProvider` replaces both provider switches in
+    `view_remap.go`; remaining `case functions.` matches recorded · selected
+    unit and dual-mode proof, quickcheck and a byte-identical public probe
+    passed; racecheck/finalcheck skipped at user request
 72. [ ] Catalog 5i: pure helpers moved down —
     [catalog](ENGINE-SPLIT-catalog.md) 5i · needs —
 73. [ ] Plan 10e: node-tree output and generation helpers —
