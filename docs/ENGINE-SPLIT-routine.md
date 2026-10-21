@@ -348,8 +348,9 @@ and move with `stored` (22b); `procedureProvider` imports `routine` and
 
 Part A: the clean set lives in `routine`, builtin seeding is a pure
 constructor, and file names match their owners. Part B: operator and routine
-DDL handlers live in `routine` behind `DDLHost`; the dumps wait for a dump
-seam (14c). The checks in §8.3 pass.
+DDL handlers live in `routine` behind `DDLHost`. 14e: the operator and SQL
+routine dumps live in `routine` behind `dump.Presenter` and `dump.Resolver`.
+The checks in §8.3 pass.
 
 ## Status
 
@@ -498,7 +499,68 @@ seam (14c). The checks in §8.3 pass.
     quick mode and with `REFERENCE=1`, `make quickcheck` and `make deps`
     passed. No `make bench`: seeding and startup are untouched. Racecheck
     and finalcheck skipped at user request.
-- [ ] 14e — Operator and SQL routine dumps moved (linear item 80)
+- [x] 14e — Operator and SQL routine dumps moved (linear item 80)
+  (`a921ae3f5`, `d507782c3`, then the docs commit) *(racecheck/finalcheck
+  skipped at user request)*
+  - Re-measured at `92d17ca19`, started from `e13730bdb`: `operator_dump.go`
+    used only `catalogTypeDeclaration` and `routineIdentityByOID` from the
+    root, `sqlRoutineDumpEvents` only `dumpPredecessor`,
+    `sqlRoutineDumpStatement` only `catalogColumnDeclaration`; the 18b
+    adapters `dumpPresenter` and `dumpResolver` had no caller yet. Rebased
+    onto `e68b939e8` (regobj 21b, which had qualified those helpers as
+    `regobj.*`; the presenter replaces those calls), `1eabe1ff6`
+    (access B6) and `7578fc125` (typedef 15e: 15e added `DomainDefault`
+    and `DomainCheck` to `dump.Presenter`, so the seam test's fake
+    presenter gained both, failing if called).
+  - `a921ae3f5` (port in place): the dump functions take `dump.Presenter`
+    (`TypeDeclaration(view, nil, u)`, `ColumnDeclaration`,
+    `RoutineIdentity`) and `dump.Resolver`; the root passes
+    `dumpPresenter{}` and `dumpResolver{}`. The operator loops of
+    `dumpScript.addDeclarationEdges` and `renderDeclarations` became
+    `operatorDumpDependencies` and `operatorDumpStatements`, and the body
+    of `collectOperatorDump` became `operatorDumped`, so the 18c Collect
+    entry hand-over and the `OperatorLinks` text move with the set.
+    `frontier` OUT was empty.
+  - `d507782c3` (move): `routine/operator_dump.go` and
+    `routine/function_dump.go`. Exported `OperatorDumped`,
+    `OperatorDumpDependencies`, `OperatorDumpEvents`,
+    `NormalizeOperatorDumpPredecessors`, `OperatorDumpStatements`,
+    `OperatorDumpDeclaration` (engine test only), `OperatorShellGenerator`
+    (`dumpPredecessor`), `SQLRoutineDumpEvents`, `SQLRoutineDumpStatement`;
+    the rendering helpers stay private. `sql_routine_dump.go` kept only
+    `validateRestoredSQLRoutines` (a Restore hook under `Engine.mu`) and is
+    now `sql_routine_restore.go`. `routine` adds the import `dump` (L3.5);
+    still never `analyze`, a feature package or the root (`go list`).
+  - Stays in the root: the Collect and Emit entries
+    (`collectOperatorDump` is a wrapper over `routine.OperatorDumped`,
+    `emitDumpOperatorLinks` writes the captured text), because their types
+    name root records until step 30; `collectProcedureDump`, whose every
+    branch calls the root `procedureProvider` (moves with `stored`, 22b);
+    the call order in `dump_script.go`, so the first error and every edge
+    are unchanged.
+  - Tests: new seam tests `TestSQLRoutineDumpEventsUseResolver` and
+    `TestOperatorDumpLinksUsePresenter` (written first, observed failing).
+    `TestUserOperatorDumpFinalGraph` moved to `routine/operator_dump_test.go`
+    and builds its catalog read with `catalog.NewState`/`NewRead` instead of
+    an engine stage (the body only reads `view.Operator`; assertions
+    unchanged). `TestUserOperatorDumpPartitionInterleaving` (needs
+    `partitionDumpEvents`) and
+    `TestUserOperatorCatalogOrphanShellDumpNameCollision` stay, qualified
+    and given `dumpPresenter{}`. None deleted.
+  - Verification: build, vet (only the existing
+    `composites`/`copylocks`/`lostcancel` findings), targeted units after
+    each commit; the 18c byte-identity smoke plus an operator scenario
+    (reciprocal and asymmetric links, forward and orphan shells,
+    estimators, HASHES/MERGES, a prefix operator, a non-postgres owner, SQL
+    functions over a domain and an array) and an explicit routine ACL
+    error matched the baseline after each commit
+    (`.cswd/tmp/PG18-ENGINE-SPLIT-ROUTINE-DUMPS/`); quick-mode
+    `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)` (226 tests),
+    `^TestReferenceControl` and the operator/routine selection (86 tests);
+    `REFERENCE=1` for
+    `^TestReference(UserOperator|BitOperatorsStoredReplay|RoutineCore|RoutineSmoke|RoutineLateChild|RoutineRule|RoutineReview|IntaggControls)`
+    (53 tests), `make quickcheck` and `make deps` passed. No `make bench`:
+    startup is untouched. Racecheck and finalcheck skipped at user request.
 
 Outstanding aliases: none (14b qualified every reference; no type aliases;
 14d moved only functions).
@@ -540,10 +602,11 @@ Notes for later steps:
   15c's `StagedCreationNamespace` is 14d's `CreationNamespace`, and 14d has
   no host `Check` (see 14d above). 15d took the defined type
   (`typedefHost`) and reused 14d's `CreationNamespace` name.
-- Dump seam (postponed `control`): `operator_dump.go`,
-  `sqlRoutineDumpEvents`, `sqlRoutineDumpStatement` and
-  `routineIdentityByOID` move once the dump graph (`dumpEventKey`,
-  `dumpDomain`, `dumpPredecessor`, type-declaration rendering) has a seam.
+- Dump seam: done in 14e over `dump.Presenter` and `dump.Resolver`.
+  The root `dumpPresenter` forwards to `regobj` (21b), so `routine` reaches
+  type and routine presentation only through the interface. 30b/30c: the Restore hook
+  `validateRestoredSQLRoutines` is in `sql_routine_restore.go`; the
+  procedure Collect entry waits for `procedureProvider` (22b).
 - Steps 15c and 17c: schema DDL handlers run without a scope. 16c's
   staging-host shape (one root adapter over engine, operation and stage)
   applies; where handlers copy or recapture the authorization view per

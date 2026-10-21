@@ -1,9 +1,10 @@
 # internal/engine/routine
 
-Builtin routine and operator inventories, their lookups and validation, and
-the operator and CREATE FUNCTION DDL handlers. The package sits at layer L10
+Builtin routine and operator inventories, their lookups and validation, the
+operator and CREATE FUNCTION DDL handlers, and the operator and SQL routine
+dump statements. The package sits at layer L10
 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `access`, `authorization`, `catalog`, `ddl`, `expr`,
+It imports only `access`, `authorization`, `catalog`, `ddl`, `dump`, `expr`,
 `functions`, `ids`, `parser`, `proc`, `session`, `sqltype`, `sqlstate` and the standard
 library; never `analyze` (which imports `routine`), another feature package
 or the engine. Step 14 of the split moves it here; see
@@ -51,6 +52,19 @@ or the engine. Step 14 of the split moves it here; see
 - **CREATE FUNCTION** (`function_ddl.go`): `StageCreateFunction` for
   LANGUAGE SQL functions. `function_restore.go` holds the pure Restore
   helpers `RestoreDirective`, `ReplayDirective` and `RebindSQLDefinitions`.
+- **Dumps** (`operator_dump.go`, `function_dump.go`): what native Dump
+  writes for user operators and SQL functions. `OperatorDumped` is the
+  operator Collect decision; `OperatorDumpDependencies`, `OperatorDumpEvents`
+  and `NormalizeOperatorDumpPredecessors` add the declaration and deferred
+  link events to the `dump.Graph`; `OperatorDumpStatements` (one
+  `OperatorDumpDeclaration` per operator, orphan shells through a temporary
+  generator) renders CREATE OPERATOR, owner changes and the `OperatorLinks`
+  phase text; `OperatorShellGenerator` picks the defined operator that
+  creates a forward shell. `SQLRoutineDumpEvents` and
+  `SQLRoutineDumpStatement` do the same for LANGUAGE SQL functions. They
+  render types and routine identities through `dump.Presenter` and find
+  predecessors through `dump.Resolver`; both are pure, so these functions
+  read only their arguments.
 - **Operator dependencies** (`operator_dependencies.go`):
   `OperatorDependencyAddresses` and `OperatorDependsOn`.
 - **Small helpers**: `GrantRoutineKindMatches` (`grant_kind.go`) and
@@ -102,17 +116,18 @@ adapter, `ddlHost`, built once per DDL statement (the routine methods are in
 The `ddlHost` adapter and the schema statement dispatch (`ddl_host.go`,
 `routine_host.go`, `schema.go`), SQL routine binding (`sql_routine_binding.go`:
 `executeCreateFunction`, `bindSQLRoutineLocked`,
-`validateSQLRoutineResult`), SQL routine dumps and Restore validation
-(`sql_routine_dump.go`) and SQL routine invocation (`sql_routine.go`,
+`validateSQLRoutineResult`), the Restore validation of SQL routine bodies
+(`sql_routine_restore.go`) and SQL routine invocation (`sql_routine.go`,
 `sql_routine_scope.go`), the catalog writes that install the seed
 (`builtin_catalog.go`), call resolution (`function*.go`,
 `operator_binding.go`, `operator_routine_binding.go`; step 12), routine call
 inquiry admission (`routine_inquiry.go`), `dropProvider.clearOperatorLinks`,
 `procedureReturnsSet` (it needs the intagg extension provider, step 16;
-`exec` reaches it through `Preparation.ReturnsSet`), and
-operator dump rendering (`operator_dump.go`), which needs the engine's dump
-graph and type-declaration rendering until a dump seam exists; the SQL
-routine dumps wait for the same seam.
+`exec` reaches it through `Preparation.ReturnsSet`), and the Dump
+orchestration: the Collect and Emit table entries (`collectOperatorDump`,
+`collectProcedureDump`, which needs the root `procedureProvider`, and
+`emitDumpOperatorLinks`), the `dumpPresenter` and `dumpResolver` adapters
+and the calls in `dump_script.go`.
 
 ## Testing
 
@@ -120,6 +135,12 @@ Package seams and option validation:
 
 ```sh
 make check RUN='^Test(BuiltinRoutineLookup|OperatorRoutineLookup|SeededOperatorNamesIsOneIndex|UserOperatorCatalogEstimatorVariants|UserOperatorCatalogEstimatorMetadata|UserOperatorOptionExtraction)$'
+```
+
+Dump seams and graph events:
+
+```sh
+make check RUN='^Test(SQLRoutineDumpEventsUseResolver|OperatorDumpLinksUsePresenter|UserOperatorDumpFinalGraph)$'
 ```
 
 Engine witnesses that exercise the package through the catalog seed and
@@ -131,3 +152,5 @@ make check RUN='^Test(BuiltinCatalogValidatesForEveryEngineConfiguration|Builtin
 
 Public behavior is covered by `reference/operators` and the regproc,
 regoperator and `pg_proc` selections listed in the step 14 prompt file.
+Dump output must stay byte-identical: also run the Dump, Restore and Control
+selections in the [`dump` README](../dump/README.md#testing).

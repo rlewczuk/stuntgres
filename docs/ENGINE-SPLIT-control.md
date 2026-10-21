@@ -132,7 +132,7 @@ table and NOT NULL (`not_null_restore.go`, `physical_not_null_*.go`,
 `inheritance_recipe_checks.go`; 10), partition (`partition_*_replay.go`,
 `partition_detach_restore.go`; 5), typedef (`domain_alter_dump.go`,
 `domain_default_restore.go`; 3), extension (`extension_owner_import.go`;
-1), view (`materialized_snapshot.go`; 1), routine (`sql_routine_dump.go`;
+1), view (`materialized_snapshot.go`; 1), routine (`sql_routine_restore.go`;
 1). The per-run state is a dozen local maps (`partitionTeardowns`,
 `notNullOrigins`, `physicalIndexes`, `placeholderOrigins`,
 `historicalRefs`, `historicalAuthority`, pending foreign keys, extension

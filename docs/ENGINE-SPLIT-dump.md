@@ -472,11 +472,15 @@ Outstanding aliases: none (18b and 18c added none).
 
 - 14e (routine) and 15e (typedef) move their dump statements onto
   `dump.Statement`, `dump.Resolver` and `dump.Presenter`; each adds only the
-  `Presenter` methods its statements call.
+  `Presenter` methods its statements call. 14e (done) needed no new method:
+  the operator and SQL routine dumps use `TypeDeclaration` (nil reader),
+  `ColumnDeclaration`, `RoutineIdentity` and `Predecessor`.
 - `dumpRelation` (`table_dump.go:21`, 15 methods in 9 files) is the table
   dump record; it moves with `table` (24b), not here.
-- 18c entries per feature step: 14e takes the operator and procedure
-  collectors and the `OperatorLinks` emitter; 15e the type, collation and
+- 18c entries per feature step: 14e took the operator collector's decision
+  (`routine.OperatorDumped`) and the `OperatorLinks` text
+  (`routine.OperatorDumpStatements`); the root entries are thin wrappers,
+  and the procedure collector stays until `procedureProvider` moves (22b); 15e the type, collation and
   conversion collectors and the `DomainChecks` emitter; 23b the index
   collector and `emitDumpIndex`; 24b the table collector,
   `tableDumpPredecessors`, `emitDumpTable`/`dumpTableCreateSQL` and the

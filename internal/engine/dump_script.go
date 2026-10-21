@@ -107,29 +107,13 @@ func (s *dumpScript) addDeclarationEdges() error {
 			}
 		}
 	}
-	for _, d := range s.operators {
-		if d.Function == 0 && operatorShellGenerator(s.catalogView, d) != nil {
-			continue
-		}
-		id := d.Address().ObjectID
-		s.graph[dump.Event{OID: id}] = nil
-		for _, dependency := range routine.OperatorDependencyAddresses(s.catalogView, d) {
-			if dependency.ClassID == ids.NamespaceClassID {
-				continue
-			}
-			predecessor, err := dumpPredecessor(s.catalogView, dependency, d.Address())
-			if err != nil {
-				return err
-			}
-			if predecessor != 0 {
-				s.graph[dump.Event{OID: id}] = append(s.graph[dump.Event{OID: id}], dump.Event{OID: predecessor})
-			}
-		}
+	if err := routine.OperatorDumpDependencies(dumpResolver{}, s.catalogView, s.operators, s.graph); err != nil {
+		return err
 	}
 	// Reconstruct final links, not allocation history: asymmetric links remain
 	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
-	operatorDumpEvents(s.catalogView, s.operators, s.graph)
-	if err := sqlRoutineDumpEvents(s.catalogView, s.sqlRoutines, s.graph); err != nil {
+	routine.OperatorDumpEvents(s.catalogView, s.operators, s.graph)
+	if err := routine.SQLRoutineDumpEvents(dumpResolver{}, s.catalogView, s.sqlRoutines, s.graph); err != nil {
 		return err
 	}
 	for event, predecessors := range s.graph {
@@ -193,7 +177,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if err := physicalNotNullDumpDependencies(s.originalCatalog, s.graph); err != nil {
 		return nil, err
 	}
-	normalizeOperatorDumpPredecessors(s.catalogView, s.graph)
+	routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
 	declarationOrder, err := dump.Order(ctx, s.graph, priorities)
 	if err != nil && !s.deferDefaults && ctx.Err() == nil && len(s.inlinePredecessors) != 0 {
 		for oid, predecessors := range s.inlinePredecessors {
@@ -202,7 +186,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		if err := physicalNotNullDumpDependencies(s.originalCatalog, s.graph); err != nil {
 			return nil, err
 		}
-		normalizeOperatorDumpPredecessors(s.catalogView, s.graph)
+		routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
 		declarationOrder, err = dump.Order(ctx, s.graph, priorities)
 		s.deferDefaults = err == nil
 	}
@@ -222,7 +206,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if err := domainInvalidDumpEvents(ctx, s.catalogView, s.graph, s.domainNodes); err != nil {
 		return nil, err
 	}
-	normalizeOperatorDumpPredecessors(s.catalogView, s.graph)
+	routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
 	if s.eventOrder, err = dump.Order(ctx, s.graph, priorities); err != nil {
 		return nil, err
 	}
@@ -237,31 +221,12 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 		return err
 	}
 	for _, d := range s.sqlRoutines {
-		declaration, err := sqlRoutineDumpStatement(s.catalogView, s.domainRoles, d)
+		declaration, err := routine.SQLRoutineDumpStatement(dumpPresenter{}, s.catalogView, s.domainRoles, d)
 		if err != nil {
 			return err
 		}
 		s.declarations[d.Address().ObjectID] = declaration
 	}
-	s.operatorLinks = make(map[ids.OID]string)
-	for _, d := range s.operators {
-		if d.Function == 0 && operatorShellGenerator(s.catalogView, d) != nil {
-			continue
-		}
-		declaration, err := operatorDumpDeclaration(ctx, s.catalogView, s.domainRoles, d)
-		if err != nil {
-			return err
-		}
-		s.declarations[d.Address().ObjectID] = declaration
-		if d.Function != 0 {
-			text, err := operatorDumpLinks(s.catalogView, d)
-			if err != nil {
-				return err
-			}
-			if text != "" {
-				s.operatorLinks[d.Address().ObjectID] = text
-			}
-		}
-	}
-	return nil
+	s.operatorLinks, err = routine.OperatorDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, s.operators, s.declarations)
+	return err
 }

@@ -47,7 +47,7 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		if operator.Function != 0 {
 			return operator.Address().ObjectID, nil
 		}
-		if source := operatorShellGenerator(view, operator); source != nil {
+		if source := routine.OperatorShellGenerator(view, operator); source != nil {
 			return source.Address().ObjectID, nil
 		}
 		return operator.Address().ObjectID, nil

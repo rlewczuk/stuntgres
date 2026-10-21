@@ -1,4 +1,4 @@
-package engine
+package routine
 
 import (
 	"context"
@@ -10,15 +10,74 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
+
+// OperatorDumped validates a collected operator and reports whether Dump
+// writes it; seeded operators are part of every destination.
+func OperatorDumped(view catalog.Read, d *catalog.Operator) (bool, error) {
+	if err := (OperatorProvider{}).Validate(view, d); err != nil {
+		return false, err
+	}
+	return !OperatorSeeded(d), nil
+}
+
+// OperatorDumpDependencies adds each emitted operator's declaration event and
+// the events of the objects it depends on. A shell some defined operator
+// generates has no declaration of its own.
+func OperatorDumpDependencies(r dump.Resolver, view catalog.Read, operators []*catalog.Operator, graph dump.Graph) error {
+	for _, d := range operators {
+		if d.Function == 0 && OperatorShellGenerator(view, d) != nil {
+			continue
+		}
+		id := d.Address().ObjectID
+		graph[dump.Event{OID: id}] = nil
+		for _, dependency := range OperatorDependencyAddresses(view, d) {
+			if dependency.ClassID == ids.NamespaceClassID {
+				continue
+			}
+			predecessor, err := r.Predecessor(view, dependency, d.Address())
+			if err != nil {
+				return err
+			}
+			if predecessor != 0 {
+				graph[dump.Event{OID: id}] = append(graph[dump.Event{OID: id}], dump.Event{OID: predecessor})
+			}
+		}
+	}
+	return nil
+}
+
+// OperatorDumpStatements renders each emitted operator's declaration into
+// declarations and returns the deferred link statements of defined operators.
+func OperatorDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, operators []*catalog.Operator, declarations map[ids.OID]dump.Statement) (map[ids.OID]string, error) {
+	links := make(map[ids.OID]string)
+	for _, d := range operators {
+		if d.Function == 0 && OperatorShellGenerator(view, d) != nil {
+			continue
+		}
+		declaration, err := OperatorDumpDeclaration(ctx, p, view, roles, d)
+		if err != nil {
+			return nil, err
+		}
+		declarations[d.Address().ObjectID] = declaration
+		if d.Function != 0 {
+			text, err := operatorDumpLinks(p, view, d)
+			if err != nil {
+				return nil, err
+			}
+			if text != "" {
+				links[d.Address().ObjectID] = text
+			}
+		}
+	}
+	return links, nil
+}
 
 func operatorSQLName(view catalog.Read, d *catalog.Operator) string {
 	return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + d.Name()
 }
-func operatorSQLSignature(view catalog.Read, d *catalog.Operator) (string, error) {
+func operatorSQLSignature(p dump.Presenter, view catalog.Read, d *catalog.Operator) (string, error) {
 	arguments := [2]string{"NONE", "NONE"}
 	for i, id := range [...]ids.OID{d.Left, d.Right} {
 		if id == 0 {
@@ -28,7 +87,7 @@ func operatorSQLSignature(view catalog.Read, d *catalog.Operator) (string, error
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing operator signature type")
 		}
-		text, err := regobj.TypeDeclaration(view, t.Usage())
+		text, err := p.TypeDeclaration(view, nil, t.Usage())
 		if err != nil {
 			return "", err
 		}
@@ -36,8 +95,8 @@ func operatorSQLSignature(view catalog.Read, d *catalog.Operator) (string, error
 	}
 	return operatorSQLName(view, d) + " (" + arguments[0] + ", " + arguments[1] + ")", nil
 }
-func operatorRoutineSQLName(view catalog.Read, id ids.OID) (string, error) {
-	identity, ok := regobj.RoutineIdentityByOID(view, id)
+func operatorRoutineSQLName(p dump.Presenter, view catalog.Read, id ids.OID) (string, error) {
+	identity, ok := p.RoutineIdentity(view, id)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing operator routine identity")
 	}
@@ -47,24 +106,27 @@ func operatorRoutineSQLName(view catalog.Read, id ids.OID) (string, error) {
 	}
 	return catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(identity.Name), nil
 }
-func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator) (dump.Statement, error) {
+
+// OperatorDumpDeclaration renders one operator as CREATE OPERATOR with its
+// owner changes; an orphan shell is created through a temporary generator.
+func OperatorDumpDeclaration(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Operator) (dump.Statement, error) {
 	if err := ctx.Err(); err != nil {
 		return dump.Statement{}, err
 	}
-	if err := (routine.OperatorProvider{}).Validate(view, d); err != nil {
+	if err := (OperatorProvider{}).Validate(view, d); err != nil {
 		return dump.Statement{}, err
 	}
 	if d.Function == 0 {
-		return orphanOperatorShellDump(ctx, view, roles, d)
+		return orphanOperatorShellDump(ctx, p, view, roles, d)
 	}
-	return operatorDumpDefined(ctx, view, roles, d, false)
+	return operatorDumpDefined(ctx, p, view, roles, d, false)
 }
 
 // Reciprocal links between defined custom operators are established only after
 // both declarations. Shell targets must instead be created by a forward link.
 func operatorDumpDeferredLink(view catalog.Read, source *catalog.Operator, kind int, id ids.OID) bool {
 	peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-	if peer == nil || peer.Function == 0 || routine.OperatorSeeded(peer) {
+	if peer == nil || peer.Function == 0 || OperatorSeeded(peer) {
 		return false
 	}
 	reciprocal := peer.Commutator
@@ -74,14 +136,14 @@ func operatorDumpDeferredLink(view catalog.Read, source *catalog.Operator, kind 
 	return reciprocal == source.Address().ObjectID
 }
 
-func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator, keepForwardLinks bool) (dump.Statement, error) {
+func operatorDumpDefined(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Operator, keepForwardLinks bool) (dump.Statement, error) {
 	options := make([]string, 0, 10)
 	for i, id := range [...]ids.OID{d.Left, d.Right} {
 		if id == 0 {
 			continue
 		}
 		t, _ := view.LookupType(sqltype.ID(id))
-		text, err := regobj.TypeDeclaration(view, t.Usage())
+		text, err := p.TypeDeclaration(view, nil, t.Usage())
 		if err != nil {
 			return dump.Statement{}, err
 		}
@@ -91,7 +153,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 		}
 		options = append(options, key+" = "+text)
 	}
-	function, err := operatorRoutineSQLName(view, d.Function)
+	function, err := operatorRoutineSQLName(p, view, d.Function)
 	if err != nil {
 		return dump.Statement{}, err
 	}
@@ -117,7 +179,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 		if id == 0 {
 			continue
 		}
-		name, err := operatorRoutineSQLName(view, id)
+		name, err := operatorRoutineSQLName(p, view, id)
 		if err != nil {
 			return dump.Statement{}, err
 		}
@@ -146,7 +208,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 		if err != nil {
 			return dump.Statement{}, err
 		}
-		signature, err := operatorSQLSignature(view, owned)
+		signature, err := operatorSQLSignature(p, view, owned)
 		if err != nil {
 			return dump.Statement{}, err
 		}
@@ -157,8 +219,9 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 	return dump.Statement{Owner: "postgres", SQL: text}, nil
 }
 
-// Select a deterministic extant forward reference for an unfilled shell.
-func operatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog.Operator {
+// OperatorShellGenerator selects a deterministic extant forward reference for
+// an unfilled shell, or nil when none exists.
+func OperatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog.Operator {
 	var selected *catalog.Operator
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Operator)
@@ -168,10 +231,10 @@ func operatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog
 	}
 	return selected
 }
-func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles authorization.Read, shell *catalog.Operator) (dump.Statement, error) {
+func orphanOperatorShellDump(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, shell *catalog.Operator) (dump.Statement, error) {
 	var implementation *catalog.Procedure
 	negator := false
-	for key, declaration := range routine.OperatorRoutines() {
+	for key, declaration := range OperatorRoutines() {
 		comm := shell.Left != 0 && key.Left == shell.Right && key.Right == shell.Left
 		neg := key.Left == shell.Left && key.Right == shell.Right && declaration.Result == ids.OID(sqltype.Bool)
 		if !comm && !neg {
@@ -224,13 +287,13 @@ func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles autho
 	}
 	generator.Hash, generator.Merge = false, false
 	generator.Restriction, generator.Join = 0, 0
-	declaration, err := operatorDumpDefined(ctx, view, roles, &generator, true)
+	declaration, err := operatorDumpDefined(ctx, p, view, roles, &generator, true)
 	if err != nil {
 		return dump.Statement{}, err
 	}
 	// Emitted DDL creates a collision-free temporary operator using the genuine
 	// selected routine, generates the original shell, then retires the helper.
-	signature, err := operatorSQLSignature(view, &generator)
+	signature, err := operatorSQLSignature(p, view, &generator)
 	if err != nil {
 		return dump.Statement{}, err
 	}
@@ -238,9 +301,10 @@ func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles autho
 	return declaration, nil
 }
 
+// OperatorDumpEvents adds the deferred link events of defined operators.
 // Link events use raw endpoint declarations. Only semantic consumers are
 // redirected to completion; redirecting structural edges would invent cycles.
-func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph dump.Graph) {
+func OperatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph dump.Graph) {
 	for _, source := range operators {
 		if source.Function == 0 {
 			continue
@@ -248,7 +312,7 @@ func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph 
 		declaration := dump.Event{OID: source.Address().ObjectID}
 		for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 			peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-			if peer == nil || peer.Function == 0 || routine.OperatorSeeded(peer) {
+			if peer == nil || peer.Function == 0 || OperatorSeeded(peer) {
 				continue
 			}
 			target := dump.Event{OID: id}
@@ -264,7 +328,9 @@ func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph 
 	}
 }
 
-func normalizeOperatorDumpPredecessors(view catalog.Read, graph dump.Graph) {
+// NormalizeOperatorDumpPredecessors redirects semantic dependencies on an
+// operator declaration to its link completion and drops duplicate edges.
+func NormalizeOperatorDumpPredecessors(view catalog.Read, graph dump.Graph) {
 	for event, predecessors := range graph {
 		_, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.OID})
 		structural := event.Phase == dump.OperatorLinks || operator && event.Phase == dump.Declaration
@@ -284,7 +350,7 @@ func normalizeOperatorDumpPredecessors(view catalog.Read, graph dump.Graph) {
 	}
 }
 
-func operatorDumpLinks(view catalog.Read, source *catalog.Operator) (string, error) {
+func operatorDumpLinks(p dump.Presenter, view catalog.Read, source *catalog.Operator) (string, error) {
 	var options []string
 	for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 		if id == 0 || !operatorDumpDeferredLink(view, source, kind, id) {
@@ -300,7 +366,7 @@ func operatorDumpLinks(view catalog.Read, source *catalog.Operator) (string, err
 	if len(options) == 0 {
 		return "", nil
 	}
-	signature, err := operatorSQLSignature(view, source)
+	signature, err := operatorSQLSignature(p, view, source)
 	if err != nil {
 		return "", err
 	}

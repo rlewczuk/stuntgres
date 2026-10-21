@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `1eabe1ff6` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79 and 81). Steps 8–17 were
+Last verified against `master` at `7578fc125` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80 and 81). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,7 +20,6 @@ after each lands.
 
 - **Seams:** 63 (ddl 20d), 66 (regobj 21c), 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
-- **Dump statements onto `dump`:** 80 (routine 14e).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
@@ -47,9 +46,9 @@ Part A moves. Item 76 (exec 11f) is done; only the end-state review
 (session 13f) is done; only item 114 needs it. Item 62 (ddl 20c, docs
 only) is done, so ddl 20d (item 63) is ready. Item 79
 (access B6) is done; table 24b (item 87) still waits for 86 and 83, and
-role 28b (item 104) for 103. Item 81 (typedef 15e) is done; control 30b
-(item 112) and the end-state review (item 114) still wait for their other
-items.
+role 28b (item 104) for 103. Items 80 (routine 14e) and 81 (typedef 15e)
+are done; control 30b (item 112) and the end-state review (item 114) still
+wait for their other items.
 
 ## Task tree
 
@@ -498,7 +497,7 @@ items.
   - [ ] 30a — Restore hook table replaces the statement switch, in place
   - [ ] 30b — Host refined (docs only)
   - [ ] 30c — `control` created and drivers moved
-- [ ] **Second-round follow-ups in existing packages** (each in its step's
+- [x] **Second-round follow-ups in existing packages** (each in its step's
   prompt file; F6 is listed under step 3)
   - [x] 5i — Pure helpers moved into `catalog` ([catalog](ENGINE-SPLIT-catalog.md))
     (`a81741ca9`, `167ed0a8e`, `cab75ed1a`, `bd4de2c3f`, `7fcac5c5a`,
@@ -525,8 +524,9 @@ items.
   - [x] B6 — Ownership helpers and RLS action rules moved into `access`
     ([authorization](ENGINE-SPLIT-authorization.md); `27d60116f`, `53410d65b`,
     docs) *(racecheck/finalcheck skipped at user request)*
-  - [ ] 14e — Operator and SQL routine dumps moved
-    ([routine](ENGINE-SPLIT-routine.md))
+  - [x] 14e — Operator and SQL routine dumps moved
+    ([routine](ENGINE-SPLIT-routine.md); `a921ae3f5`, `d507782c3`, docs)
+    *(racecheck/finalcheck skipped at user request)*
   - [x] 15e — Type dump statements moved ([typedef](ENGINE-SPLIT-typedef.md);
     `daaaf0da3`, `f1b6a78c7`, `27fe76274`, docs) *(racecheck/finalcheck skipped at user request)*
 
@@ -1012,8 +1012,16 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     are passed as values (`routine` and `analyze` import `access`); no
     aliases · selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-80. [ ] Routine 14e: operator and SQL routine dumps —
-    [routine](ENGINE-SPLIT-routine.md) 14e · needs 56, 67
+80. [x] Routine 14e: operator and SQL routine dumps —
+    [routine](ENGINE-SPLIT-routine.md) 14e · needs 56, 67 (`a921ae3f5`,
+    `d507782c3`, then the docs commit) · `routine/operator_dump.go` and
+    `function_dump.go` render through `dump.Presenter` and `dump.Resolver`
+    (the root passes `dumpPresenter{}`/`dumpResolver{}`); the operator
+    Collect decision and the `OperatorLinks` text moved, the table entries,
+    the procedure collector (`procedureProvider`, 22b) and the Restore hook
+    (`sql_routine_restore.go`) stay in the root · selected unit and
+    dual-mode proof, byte-identical dump smoke and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 81. [x] Typedef 15e: type dump statements —
     [typedef](ENGINE-SPLIT-typedef.md) 15e · needs 56, 67
     (`daaaf0da3`, `f1b6a78c7`, `27fe76274`, then the docs commit) · collation, conversion,
