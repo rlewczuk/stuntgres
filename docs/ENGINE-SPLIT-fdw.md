@@ -615,6 +615,9 @@ Outstanding aliases: none yet.
 
 ### Notes for later steps
 
+- Role 28c, for 28d: `OwnershipEligibility` goes down to `access` as
+  `ForeignOwnershipEligibility` (REASSIGN OWNED needs it and `role` cannot
+  import `fdw`); `stage.go` calls it there and the `fdw` README drops it.
 - 26a deviations from the plan above, for 26b:
   - `foreignRegistry` has no lookups by handler or validator name: nothing
     reads the definitions except re-install. Its methods are `install`,

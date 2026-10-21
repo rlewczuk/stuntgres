@@ -184,7 +184,7 @@ The second planning round gave schema-level DDL no package of its own
 | `namespace_inquiry.go`, `parameter_input.go` | root (function and protocol glue) | — |
 | `builtin_catalog.go`, `initializeTablespaces` | root (seeding) | — |
 | `parameter_catalog.go` (`parameterProvider`, GRANT ON PARAMETER) | root; 5i moved `installParameterGrant` to `catalog.InstallParameterGrant` | 5i |
-| `resolveGrantTablespace` | `role` | 28 |
+| `resolveGrantTablespace` | `ddl` as `TablespaceRef` (role 28c: GRANT, ALTER TABLESPACE and ALTER TABLE SET TABLESPACE share it) | 28d |
 
 ## Part A
 
@@ -616,4 +616,7 @@ Outstanding aliases: none.
 - 5i moved `tablespaceLocation`, `tablespaceName` and `namespaceChildren`
   into `catalog` (`ValidateTablespaceLocation`, `ValidateTablespaceName`,
   `NamespaceChildren`); 20d calls them there.
-- Step 28 takes `resolveGrantTablespace`.
+- Role 28d moves `resolveGrantTablespace` down to `ddl` as
+  `TablespaceRef(view access.View, name string)`, not to `role`:
+  `alter_tablespace.go` and `alter_table_prepare.go` call it too (28c
+  refine).
