@@ -627,12 +627,17 @@ OUT was `sqlError` alone. No aliases.
   removal interface) exposes prepared drops, or the prepare side stays.
 - `table.DropDependencyReader` has 18 exported methods implemented by
   `*dropProvider`; 24c's `Removal()` can start from it.
-- Index 23d.1 (item 85a) plans `incompatibleNotValid` →
-  `index.IncompatibleNotValid` and `rejectVirtualIndexUses` into `index`;
-  both are now `table.X`, so 23d.1 moves them down from `table` (the index
-  prompt says so). The other edges its notes name are table code now:
-  `table.UsingIndexNotNullCandidate`, `table.NotNullCandidate`,
-  `table.NotNullDirect`.
+- Index 23d.1 (item 85a, done) moved `table.IncompatibleNotValid` and
+  `table.RejectVirtualIndexUses` down to `index.IncompatibleNotValid` and
+  `index.RejectVirtualUses`. The other edges its notes name are table code
+  now: `table.UsingIndexNotNullCandidate`, `table.NotNullCandidate`,
+  `table.NotNullDirect`. The constraint-index staging the table handlers
+  call is `index.StageCreateUniques`/`StageUniqueDefinitions`,
+  `StageCreateExclusions`/`StageExclusion`, `RebuildAlterUniques`,
+  `RebuildAlterExclusions`, `CaptureUsingIndexes` and `StageUsingIndex`
+  over a `ddlHost`; the root wrappers `stageUsingIndex`,
+  `prepareUsingIndexMetadata` and `stagePartitionConstraintDrop` remain
+  for 24d (see the index prompt's 23d.1 record).
 - `alterTableActionKind` needs the SET TABLESPACE check
   (`alterTablespaceKind`); `inheritanceQueryLeaves` needs `viewLeafRowMark`
   (view 27b may move both into `view` or keep them with query admission).
