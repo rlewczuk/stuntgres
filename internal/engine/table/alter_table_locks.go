@@ -1,11 +1,11 @@
-package engine
+package table
 
 import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
-func alterTableLockMode(raw *parser.AlterTable) lock.Mode {
+func AlterTableLockMode(raw *parser.AlterTable) lock.Mode {
 	for _, action := range raw.Actions {
 		if action.Action != parser.AddForeignKey {
 			return lock.AccessExclusive

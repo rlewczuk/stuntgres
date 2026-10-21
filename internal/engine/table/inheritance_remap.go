@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 // Copy only graph metadata. Stable attributes are relation-local and do not
 // change when a whole relation address is remapped.
-func remapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAddress) ids.ObjectAddress, constraint func(catalog.InheritanceOrigin) ids.OID) *catalog.TableInheritance {
+func RemapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAddress) ids.ObjectAddress, constraint func(catalog.InheritanceOrigin) ids.OID) *catalog.TableInheritance {
 	if graph == nil {
 		return nil
 	}
@@ -54,7 +54,7 @@ func remapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAd
 // Definition identities can collide independently of relation addresses. Use
 // each parent's captured identity, never a global old-OID map (TEMP and imported
 // constraints can have the same old number).
-func remapInheritanceConstraintOrigins(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {
+func RemapInheritanceConstraintOrigins(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
 		if !ok || table.Inheritance == nil {
@@ -64,7 +64,7 @@ func remapInheritanceConstraintOrigins(next *catalog.State, previous map[ids.Obj
 			continue
 		}
 		var remapErr error
-		graph := remapInheritance(table.Inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin catalog.InheritanceOrigin) ids.OID {
+		graph := RemapInheritance(table.Inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin catalog.InheritanceOrigin) ids.OID {
 			if origin.Constraint == 0 {
 				return 0
 			}

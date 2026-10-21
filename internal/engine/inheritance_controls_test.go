@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -105,7 +106,7 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 	next := catalog.CloneState(e.catalog.state)
 	next.SetDescriptor(parent.Address(), &changed)
 	next.SetDescriptor(child.Address(), child)
-	if err := remapInheritanceConstraintOrigins(next, old); err != nil {
+	if err := table.RemapInheritanceConstraintOrigins(next, old); err != nil {
 		t.Fatal(err)
 	}
 	current := next.MustRelation(child.Address())
@@ -198,9 +199,9 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []*catalog.Relation{tempChild, imported} {
-		if err := validateInheritance(e.catalog.read(next), table); err != nil {
-			t.Fatal(table.Name(), err)
+	for _, tbl := range []*catalog.Relation{tempChild, imported} {
+		if err := table.ValidateInheritance(e.catalog.read(next), tbl); err != nil {
+			t.Fatal(tbl.Name(), err)
 		}
 	}
 	if parent.Address() != child.Inheritance.Parents[0] || parent.Constraints.NotNull[0].OID != 23000 || parent.Constraints.Check[0].OID != 23002 {
@@ -288,9 +289,9 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal("combined definition identities invalid", err)
 	}
-	for _, table := range []*catalog.Relation{tempChild, imported} {
-		if err := validateInheritance(e.catalog.read(next), table); err != nil {
-			t.Fatal(table.Name(), err)
+	for _, tbl := range []*catalog.Relation{tempChild, imported} {
+		if err := table.ValidateInheritance(e.catalog.read(next), tbl); err != nil {
+			t.Fatal(tbl.Name(), err)
 		}
 	}
 }

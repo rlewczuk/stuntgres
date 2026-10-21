@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -209,10 +210,10 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if count != 5 {
 		t.Fatal("lexical children omitted or analysis-only duplicate visited", count)
 	}
-	if err := validateGenerationPlan(e.CatalogRead(), nil, selected); err != nil {
+	if err := table.ValidateGenerationPlan(e.CatalogRead(), nil, selected); err != nil {
 		t.Fatal("owned anonymous tree", err)
 	}
-	if defaultReplayDeferrable(catalog.ColumnDefault{Expression: selected}) {
+	if table.DefaultReplayDeferrable(catalog.ColumnDefault{Expression: selected}) {
 		t.Fatal("immutable constructor acquired deferred sequence replay")
 	}
 	other := New()
@@ -231,7 +232,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if mappedRow.Usage.Type == row.Usage.Type || mappedRow.Fields[1].ResultUsage().Type == row.Fields[1].ResultUsage().Type || mappedRow.Expansions[0].Base.ResultUsage().Type == row.Expansions[0].Base.ResultUsage().Type {
 		t.Fatal("runtime or retained analysis shape borrowed old owner")
 	}
-	if err := validateGenerationPlan(view, nil, remapped); err != nil {
+	if err := table.ValidateGenerationPlan(view, nil, remapped); err != nil {
 		t.Fatal("remapped closure", err)
 	}
 	value, err := remapped.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
@@ -244,12 +245,12 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	}
 	broken := mappedRow
 	broken.Fields = nil
-	if err := validateGenerationPlan(view, nil, broken); err == nil {
+	if err := table.ValidateGenerationPlan(view, nil, broken); err == nil {
 		t.Fatal("malformed row width admitted")
 	}
 	badField := remapped.(plan.FieldExpr)
 	badField.Attribute = 99
-	if err := validateGenerationPlan(view, nil, badField); err == nil {
+	if err := table.ValidateGenerationPlan(view, nil, badField); err == nil {
 		t.Fatal("retired field plan admitted")
 	}
 	empty, err := sqltype.RecordShape(nil)
@@ -274,7 +275,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := (stored.NewView(stored.ViewParts{})).ValidateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}
-	if err := validateGenerationPlan(view, nil, selected); err == nil {
+	if err := table.ValidateGenerationPlan(view, nil, selected); err == nil {
 		t.Fatal("foreign record owner admitted")
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -56,7 +57,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		check.Dependencies = append(check.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: descriptor.Revision()})
 	}
 	relation.Constraints.Check = []catalog.CheckConstraint{check}
-	if err := validateChecks(view, relation, make(map[string]bool)); err != nil {
+	if err := table.ValidateChecks(view, relation, make(map[string]bool)); err != nil {
 		t.Fatal("live CHECK provider validation", err)
 	}
 	role, _ := e.Roles().Lookup("acl_render_a")
@@ -65,7 +66,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	retireFixtureRole(next, role.Ref)
 	e.roles.published = next
 	e.mu.Unlock()
-	if err := validateChecks(view, relation, make(map[string]bool)); err != nil {
+	if err := table.ValidateChecks(view, relation, make(map[string]bool)); err != nil {
 		t.Fatal("DROP invalidated stored CHECK datum", err)
 	}
 	validation := stored.ScalarRenderer{Validation: true}

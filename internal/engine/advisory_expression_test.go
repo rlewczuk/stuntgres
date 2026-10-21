@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -320,7 +321,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	oldRow := []sqltype.Value{falseValue}
 	eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 9, Frame: 7, Row: oldRow}}
 	for i := 0; i < 2; i++ {
-		failed, err := validateCheckRow(d, []sqltype.Value{trueValue}, eval)
+		failed, err := table.ValidateCheckRow(d, []sqltype.Value{trueValue}, eval)
 		if err != nil || failed != nil {
 			t.Fatal("prepared constant NULL must not demand a session", failed, err)
 		}
@@ -333,7 +334,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 		t.Fatal("constant-NULL executable CHECK was not detached", cached[1])
 	}
 	first := &cached[0]
-	failed, err := validateCheckRow(d, []sqltype.Value{falseValue}, eval)
+	failed, err := table.ValidateCheckRow(d, []sqltype.Value{falseValue}, eval)
 	if err != nil || failed != &d.Constraints.Check[0] || &eval.PreparedChecks[d][0] != first {
 		t.Fatal("row changes must reuse preparation and return original constraint", failed, err)
 	}
@@ -347,22 +348,22 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	// Descriptor identity, not a relation name/address, bounds cache reuse;
 	// fresh command contexts never inherit a previous command's preparation.
 	other := *d
-	if failed, err := validateCheckRow(&other, []sqltype.Value{trueValue}, eval); err != nil || failed != nil || &eval.PreparedChecks[&other][0] == first {
+	if failed, err := table.ValidateCheckRow(&other, []sqltype.Value{trueValue}, eval); err != nil || failed != nil || &eval.PreparedChecks[&other][0] == first {
 		t.Fatal("distinct descriptor reused executable cache", failed, err)
 	}
 	fresh := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}
-	if failed, err := validateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.PreparedChecks[d][0] == first {
+	if failed, err := table.ValidateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.PreparedChecks[d][0] == first {
 		t.Fatal("new command inherited executable CHECK cache", failed, err)
 	}
 	plain := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "plain", Expression: trueNode}}}}
-	if failed, err := validateCheckRow(plain, nil, eval); err != nil || failed != nil {
+	if failed, err := table.ValidateCheckRow(plain, nil, eval); err != nil || failed != nil {
 		t.Fatal(failed, err)
 	}
 	if nodes, ok := eval.PreparedChecks[plain]; !ok || nodes != nil {
 		t.Fatal("unchanged CHECK preparation allocated an expression slice", nodes, ok)
 	}
 	emptyEval := &exec.Context{}
-	if failed, err := validateCheckRow(&catalog.Relation{}, nil, emptyEval); err != nil || failed != nil || emptyEval.PreparedChecks != nil {
+	if failed, err := table.ValidateCheckRow(&catalog.Relation{}, nil, emptyEval); err != nil || failed != nil || emptyEval.PreparedChecks != nil {
 		t.Fatal("no-CHECK path initialized preparation state", failed, err)
 	}
 }
@@ -381,7 +382,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 	}
 	d := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "a_effect", Expression: nodes[0]}, {Name: "z_error", Expression: nodes[1]}}}}
 	eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 9, Frame: 7}}
-	failed, err := validateCheckRow(d, nil, eval)
+	failed, err := table.ValidateCheckRow(d, nil, eval)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 	if failed != nil || eval.PreparedChecks != nil || eval.Scope != 9 || eval.Frame != 7 {
 		t.Fatal("failed preparation cached a partial set or leaked a frame", failed)

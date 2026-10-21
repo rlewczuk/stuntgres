@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -242,7 +243,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 			appendOption(option.String())
 		}
 	}
-	for _, constraint := range orderedChecks(d) {
+	for _, constraint := range table.OrderedChecks(d) {
 		expression, err := (stored.ScalarRenderer{Owner: d, CheckReplayPrecision: true}).SQL(ctx, catalogView, constraint.Expression)
 		if err != nil {
 			return "", err

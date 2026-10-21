@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -264,7 +265,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			}
 			var source *exec.Source
 			if captureErr == nil {
-				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: stored.ViewOf(view).Sources()[0].Only}, op.Session.SessionToken)
+				source, captureErr = table.CaptureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: stored.ViewOf(view).Sources()[0].Only}, op.Session.SessionToken)
 			}
 			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.Catalog, parent.Address()) == parentStorage
 			e.mu.Unlock()

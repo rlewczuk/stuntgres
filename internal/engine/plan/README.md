@@ -124,7 +124,7 @@ the `Eval*` bodies, `OpenNode` and the node openers (including
 `OpenFunctionCall`), the runtime records, `RowCursor` and `RowResult`. The
 engine keeps the binder that constructs the nodes; the central switches
 that list node types (deparse, remap, retag, conditional planning, join
-legality, aggregate binding, defaults, `validateGenerationPlan`); the installed-node validators
+legality, aggregate binding, defaults, `table.ValidateGenerationPlan`); the installed-node validators
 (`validateInstalled*`; `ValidInstalledText` and `ClosedPgcryptoDefault` are in
 `analyze`) and `bindExtensionPaths`. The engine names the types here directly; no aliases
 remain.

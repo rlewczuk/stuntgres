@@ -78,7 +78,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Rel
 	if err != nil {
 		return old, capture, err
 	}
-	if err := provider.applyViewDependents([]ids.ObjectAddress{identity.Sequence}, parser.DropRestrict); err != nil {
+	if err := provider.ApplyViewDependents([]ids.ObjectAddress{identity.Sequence}, parser.DropRestrict); err != nil {
 		return old, capture, err
 	}
 	if err := provider.remove(ref); err != nil {
@@ -186,27 +186,23 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 	return next, nil
 }
 
-// delta reports only real effects. The caller's linked reader owns authentic
-// fallback and resolution observations, never this preparation's input reader.
-func (prepared *preparedIdentityDrop) delta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
+// DefinitionDelta reports only real effects. The caller's linked reader owns
+// authentic fallback and resolution observations, never this preparation's
+// input reader.
+func (prepared *preparedIdentityDrop) DefinitionDelta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
 	if address == prepared.ref.Address {
 		return prepared.next, true, true
 	}
-	if slot := prepared.drop.slots[address]; slot.descriptor != 0 {
-		if slot.removed {
-			return nil, false, true
-		}
-		effect := prepared.drop.effects[slot.descriptor-1]
-		if effect.after != nil {
-			return effect.after, true, true
-		}
-		return effect.descriptor, effect.descriptor != nil, true
-	}
-	return nil, false, false
+	return prepared.drop.DefinitionDelta(address)
+}
+
+// LayoutDelta is the identity drop's index layout, as IndexLayout reads it.
+func (prepared *preparedIdentityDrop) LayoutDelta(address ids.ObjectAddress) (index.LayoutLineage, bool) {
+	return prepared.IndexLayout(address)
 }
 
 func (prepared *preparedIdentityDrop) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
-	if descriptor, present, handled := prepared.delta(address); handled {
+	if descriptor, present, handled := prepared.DefinitionDelta(address); handled {
 		return descriptor, present
 	}
 	return prepared.drop.Descriptor(address)

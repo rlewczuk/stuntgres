@@ -7,21 +7,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
-
-type preparedAddedChecks struct {
-	old, next *catalog.Relation
-	raw       []*parser.CheckConstraint
-	scans     []catalog.CheckConstraint
-	ordinal   int
-}
 
 // Definition cooking is independent of stage ownership. Admission retains this
 // exact result; the sole physical pipeline installs it and scans rows once.
-func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (preparedAddedChecks, error) {
-	prepared := preparedAddedChecks{old: parent, next: parent, raw: raw}
+func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (table.PreparedAddedChecks, error) {
+	prepared := table.PreparedAddedChecks{Old: parent, Next: parent, Raw: raw}
 	if len(raw) == 0 {
 		return prepared, nil
 	}
@@ -43,7 +36,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 				if c.Name != a.Name.Text {
 					continue
 				}
-				merge := scope.inheritance.alter.descendant
+				merge := scope.inheritance.alter.Descendant
 				if parent.Inheritance != nil {
 					provenance := parent.Inheritance.Checks[c.Name]
 					merge = merge || !provenance.Local && provenance.Count() != 0
@@ -67,7 +60,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 	if err := scope.inheritanceOnlyCreatedConstraint(parent, &next); err != nil {
 		return prepared, err
 	}
-	if scope.inheritance.alter != nil && scope.inheritance.alter.descendant && next.Inheritance != nil {
+	if scope.inheritance.alter != nil && scope.inheritance.alter.Descendant && next.Inheritance != nil {
 		for _, check := range next.Constraints.Check {
 			if !slices.ContainsFunc(raw, func(declaration *parser.CheckConstraint) bool { return declaration.Name.Text == check.Name }) {
 				continue
@@ -79,7 +72,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 			next.Inheritance.Checks[check.Name] = provenance
 		}
 	}
-	if scope.inheritance.alter != nil && !scope.inheritance.alter.descendant && next.Inheritance != nil && len(inherited) != 0 {
+	if scope.inheritance.alter != nil && !scope.inheritance.alter.Descendant && next.Inheritance != nil && len(inherited) != 0 {
 		graph := catalog.CloneInheritance(next.Inheritance)
 		for name := range inherited {
 			provenance := graph.Checks[name]
@@ -88,22 +81,22 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 		}
 		next.Inheritance = graph
 	}
-	for _, c := range orderedChecks(&next) {
+	for _, c := range table.OrderedChecks(&next) {
 		if c.Ordinal >= ordinal && !c.NotValid {
-			prepared.scans = append(prepared.scans, c)
+			prepared.Scans = append(prepared.Scans, c)
 		}
 	}
-	prepared.next = &next
-	prepared.ordinal = ordinal
+	prepared.Next = &next
+	prepared.Ordinal = ordinal
 	return prepared, nil
 }
 
 func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
-	var prepared preparedAddedChecks
+	var prepared table.PreparedAddedChecks
 	var err error
 	if definition := scope.inheritancePreparedNode(); definition != nil && !definition.phaseZeroOnly {
 		prepared = definition.checks
-		if prepared.old != parent {
+		if prepared.Old != parent {
 			return nil, ids.ErrCatalogReplaced
 		}
 		err = definition.checksError
@@ -118,50 +111,13 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, 
 	}
 	// The cached definition stays immutable even when OIDs/revision are assigned
 	// by the later normal pipeline.
-	next := *prepared.next
+	next := *prepared.Next
 	if err := stage.Replace(&next); err != nil {
 		return nil, err
 	}
-	*scans = append(*scans, prepared.scans...)
-	scope.recordInheritanceChecks(parent, &next, raw, prepared.ordinal)
+	*scans = append(*scans, prepared.Scans...)
+	scope.recordInheritanceChecks(parent, &next, raw, prepared.Ordinal)
 	return &next, nil
-}
-
-// Fresh PK preparation observes statement-start NN validity, before DROP/SET
-// candidates can remove or validate it. New keys remain with the later binder.
-func verifyAlterPrimaryPrerequisites(parent *catalog.Relation, actions []parser.AlterTableAction) error {
-	for _, action := range actions {
-		if action.Action != parser.AddUnique || !action.Unique.Primary {
-			continue
-		}
-		for _, column := range action.Unique.Columns {
-			if slot, exists := parent.Index[column.Text]; exists {
-				if err := verifyNotNullPKCompatible(parent, parent.Attributes[slot:slot+1]); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func verifyNotNullPKCompatible(parent *catalog.Relation, attributes []int32) error {
-	for _, n := range parent.Constraints.NotNull {
-		if (!n.NotValid && !n.NoInherit) || !slices.Contains(attributes, n.Attribute) {
-			continue
-		}
-		column := parent.Columns[slices.Index(parent.Attributes, n.Attribute)].Name
-		d := sqlError("55000", fmt.Sprintf(`cannot create primary key on column "%s"`, column)).(*sqlstate.Error)
-		modifier := "NOT VALID"
-		d.Hint = "You might need to validate it using ALTER TABLE ... VALIDATE CONSTRAINT."
-		if n.NoInherit {
-			modifier = "NO INHERIT"
-			d.Hint = "You might need to make the existing constraint inheritable using ALTER TABLE ... ALTER CONSTRAINT ... INHERIT."
-		}
-		d.Detail = fmt.Sprintf(`The constraint "%s" on column "%s" of table "%s", marked %s, is incompatible with a primary key.`, n.Name, column, parent.Name(), modifier)
-		return d
-	}
-	return nil
 }
 
 func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
@@ -174,10 +130,10 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 	}
 	definition, err := analyze.BindUniqueAttributes(raw, nil, parent.Index, parent.Attributes)
 	if err != nil {
-		return nil, alterCookingError(err)
+		return nil, table.AlterCookingError(err)
 	}
 	if raw.Primary {
-		if err := verifyNotNullPKCompatible(parent, definition.Attributes); err != nil {
+		if err := table.VerifyNotNullPKCompatible(parent, definition.Attributes); err != nil {
 			return nil, err
 		}
 		for _, attribute := range definition.Attributes {
@@ -187,7 +143,7 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 				continue
 			}
 			column := parent.Columns[slices.Index(parent.Attributes, attribute)].Name
-			parent, err = notNullCandidate(op, e.stageRead(stage), parent, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: column}}, notNullDirect)
+			parent, err = table.NotNullCandidate(op, e.stageRead(stage), parent, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: column}}, table.NotNullDirect)
 			if err != nil {
 				return nil, err
 			}
@@ -213,7 +169,7 @@ func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStag
 	err := e.stageForeignKey(auth, stage, &next, *raw, target, supporting)
 	e.mu.Unlock()
 	if err != nil {
-		return nil, alterCookingError(err)
+		return nil, table.AlterCookingError(err)
 	}
 	return &next, nil
 }

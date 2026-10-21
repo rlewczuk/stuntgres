@@ -198,7 +198,7 @@ binder's `SequenceArgument`/`SequenceTemporary` keep regclass input,
 prepared sequence-literal capture and DEFAULT TEMP validation here; the node
 caches no session, scope or owner. Catalog-identity consumers keep explicit
 `functions.SequenceCall` cases: stored DEFAULT SQL and replay eligibility,
-`validateCookedDefaultTemporary`, `analyze.ClosedSequenceDefault`, dependency references,
+`table.ValidateCookedDefaultTemporary`, `analyze.ClosedSequenceDefault`, dependency references,
 view `Ref` remapping, COPY's nextval volatility and the identity DEFAULT
 constructor in `BindInsertDefaults`.
 

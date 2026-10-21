@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ func TestAttributeRankRestoreSyntax(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		name, column, rank, err := restoreAttributeRankSyntax(statements[0].(*parser.Update))
+		name, column, rank, err := table.RestoreAttributeRankSyntax(statements[0].(*parser.Update))
 		if err != nil || len(name.Parts) != 2 || name.Parts[0].Text != "S" || name.Parts[1].Text != "T" || column != "a" || rank < 0 {
 			t.Fatal("canonical syntax", name, column, rank, err)
 		}
@@ -46,7 +47,7 @@ func TestAttributeRankRestoreSyntax(t *testing.T) {
 		if err != nil {
 			t.Fatal("syntax fixture", tc.query, err)
 		}
-		_, _, _, err = restoreAttributeRankSyntax(statements[0].(*parser.Update))
+		_, _, _, err = table.RestoreAttributeRankSyntax(statements[0].(*parser.Update))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal("noncanonical syntax admitted", tc.query, err)
@@ -63,7 +64,7 @@ func TestAttributeRankRestoreSyntax(t *testing.T) {
 		}
 		update := statements[0].(*parser.Update)
 		mutation(update)
-		_, _, _, err = restoreAttributeRankSyntax(update)
+		_, _, _, err = table.RestoreAttributeRankSyntax(update)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal("noncanonical AST admitted", err)

@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"context"
@@ -9,18 +9,18 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (t *dumpRelation) hasInvalidConstraints() bool {
-	for _, n := range t.notNullConstraints {
+func (t *DumpRelation) HasInvalidConstraints() bool {
+	for _, n := range t.NotNullConstraints {
 		if n.NotValid {
 			return true
 		}
 	}
-	for _, c := range t.descriptor.Constraints.Check {
+	for _, c := range t.Descriptor.Constraints.Check {
 		if c.NotValid {
 			return true
 		}
 	}
-	for _, f := range t.descriptor.Constraints.ForeignKeys {
+	for _, f := range t.Descriptor.Constraints.ForeignKeys {
 		if f.NotValid {
 			return true
 		}
@@ -30,22 +30,22 @@ func (t *dumpRelation) hasInvalidConstraints() bool {
 
 // Invalid definitions follow all ordinary rows: no validation bypass, no
 // validity promotion, and the same captured owner as their table definition.
-func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
-	prefix := "ALTER TABLE " + catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name) + " ADD CONSTRAINT "
-	for _, n := range t.notNullConstraints {
-		if !n.NotValid || !dumpNotNullDeclaration(catalogView, t.descriptor, n.Attribute) {
+func (t *DumpRelation) EmitInvalidConstraints(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
+	prefix := "ALTER TABLE " + catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name) + " ADD CONSTRAINT "
+	for _, n := range t.NotNullConstraints {
+		if !n.NotValid || !DumpNotNullDeclaration(catalogView, t.Descriptor, n.Attribute) {
 			continue
 		}
-		slot := t.descriptor.IndexForAttribute(n.Attribute)
-		if err := emit(prefix + catalog.QuoteIdentifier(n.Name) + " NOT NULL " + catalog.QuoteIdentifier(t.columns[slot].Name) + " NOT VALID;\n"); err != nil {
+		slot := t.Descriptor.IndexForAttribute(n.Attribute)
+		if err := emit(prefix + catalog.QuoteIdentifier(n.Name) + " NOT NULL " + catalog.QuoteIdentifier(t.Columns[slot].Name) + " NOT VALID;\n"); err != nil {
 			return err
 		}
 	}
-	for _, c := range orderedChecks(t.descriptor) {
-		if !c.NotValid || !dumpCheckDeclaration(catalogView, t.descriptor, c) {
+	for _, c := range OrderedChecks(t.Descriptor) {
+		if !c.NotValid || !DumpCheckDeclaration(catalogView, t.Descriptor, c) {
 			continue
 		}
-		text, err := (stored.ScalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, catalogView, c.Expression)
+		text, err := (stored.ScalarRenderer{Owner: t.Descriptor, CheckReplayPrecision: true}).SQL(ctx, catalogView, c.Expression)
 		if err != nil {
 			return err
 		}
@@ -57,11 +57,11 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalogView c
 			return err
 		}
 	}
-	for _, f := range t.descriptor.Constraints.ForeignKeys {
+	for _, f := range t.Descriptor.Constraints.ForeignKeys {
 		if !f.NotValid {
 			continue
 		}
-		text, err := (stored.Deparser{View: catalogView}).ForeignKeyConstraintSQL(t.descriptor, f)
+		text, err := (stored.Deparser{View: catalogView}).ForeignKeyConstraintSQL(t.Descriptor, f)
 		if err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalogView c
 	return nil
 }
 
-func restoreAlterConstraints(raw *parser.AlterTable) error {
+func RestoreAlterConstraints(raw *parser.AlterTable) error {
 	if len(raw.Actions) == 0 {
 		return sqlError("0A000", "restore accepts only existing-index or NOT VALID constraint attachments")
 	}
@@ -104,7 +104,7 @@ func restoreAlterConstraints(raw *parser.AlterTable) error {
 			}
 		case parser.SetNotNull:
 			if !raw.Only || raw.IfExists || len(raw.Actions) != 1 || len(raw.Name.Parts) != 2 {
-				return sqlError("0A000", restoreNoInheritBoundary)
+				return sqlError("0A000", RestoreNoInheritBoundary)
 			}
 		case parser.AddNotNull:
 			if !action.NotValid {

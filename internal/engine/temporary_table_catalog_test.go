@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -315,7 +316,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	if !sameVersionRoot(store.Versions, rows) || store.Ends != ends || store.Generation != generation {
 		t.Fatal("replacement changed immutable row predecessors")
 	}
-	if err := validateGenerationProviders(retained, consumer); err != nil {
+	if err := table.ValidateGenerationProviders(retained, consumer); err != nil {
 		t.Fatal("live table/index generation providers rejected", err)
 	}
 	for attribute, definition := range consumer.ColumnMeta.Generations {
@@ -418,14 +419,14 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	columns := map[int32]int{}
 	ownedIndexes := 0
 	for _, edge := range edges {
-		if edge.address == providerIndex.Address() {
-			if !edge.automatic || edge.relation != providerIndex {
+		if edge.Address == providerIndex.Address() {
+			if !edge.Automatic || edge.Relation != providerIndex {
 				t.Fatal("lost actual owned-index adjacency", edge)
 			}
 			ownedIndexes++
 		}
-		if edge.column != "" && edge.relation.Address() == consumer.Address() {
-			columns[edge.address.SubID]++
+		if edge.Column != "" && edge.Relation.Address() == consumer.Address() {
+			columns[edge.Address.SubID]++
 		}
 	}
 	if ownedIndexes != 1 || columns[2] != 1 || columns[3] != 1 || columns[5] != 0 {

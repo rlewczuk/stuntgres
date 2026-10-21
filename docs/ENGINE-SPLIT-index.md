@@ -786,7 +786,10 @@ callers).
 1. Pure helpers: `generatedRelationName` → `ddl.GeneratedRelationName`
    (callers in `identity.go`, `table_like_index.go`, `index.go`);
    `incompatibleNotValid` → `index.IncompatibleNotValid`;
-   `rejectVirtualIndexUses` into `index`; `index.MethodOf`; delete the
+   `rejectVirtualIndexUses` into `index` (table 24b moved both to
+   `table`: move `table.IncompatibleNotValid` and
+   `table.RejectVirtualIndexUses` down, since `table` imports `index`);
+   `index.MethodOf`; delete the
    dead `partitionIndexPromotionPath`.
 2. Seam: `index.Host`, `DropStage`, `ValidityTarget`; root
    `index_host.go` on `ddlHost` with the assertion and the new methods;

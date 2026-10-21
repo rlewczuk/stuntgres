@@ -7,13 +7,14 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
 // Metadata-only graph evolution shares the same one-stage atomic publication
 // contract as shape ALTER, without running a physical row rewrite.
 func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
-	candidate, err := renameColumnCandidate(root, column, destination)
+	candidate, err := table.RenameColumnCandidate(root, column, destination)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -27,7 +28,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *sessio
 		return Result{}, err
 	}
 	if current := targets[0]; current != root {
-		candidate, err = renameColumnCandidate(current, column, destination)
+		candidate, err = table.RenameColumnCandidate(current, column, destination)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -54,7 +55,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *sessio
 					return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited column "%s"`, column))
 				}
 			}
-			next, err = renameColumnCandidate(old, column, destination)
+			next, err = table.RenameColumnCandidate(old, column, destination)
 			if err != nil {
 				return Result{}, err
 			}
@@ -148,7 +149,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 				}
 			}
 		}
-		next, err := renameLocalConstraint(old, name, raw.NewName.Text, kind)
+		next, err := table.RenameLocalConstraint(old, name, raw.NewName.Text, kind)
 		if err != nil {
 			return Result{}, err
 		}
@@ -198,7 +199,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relatio
 		}
 		for address, old := range captured {
 			current, _ := view.Relation(address)
-			if !inheritanceMarkerPublication(old, current) {
+			if !table.InheritanceMarkerPublication(old, current) {
 				return fail(ids.ErrCatalogReplaced)
 			}
 			if current != old {
@@ -208,7 +209,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relatio
 		root = captured[root.Address()]
 		var targets []*catalog.Relation
 		if recurse {
-			targets = inheritanceAlterOrder(view, root)
+			targets = table.InheritanceAlterOrder(view, root)
 		} else {
 			targets = []*catalog.Relation{root}
 		}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -90,12 +91,12 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 				}
 				found := false
 				for _, edge := range edges {
-					if edge.address == event.Address() {
+					if edge.Address == event.Address() {
 						t.Fatal("constraint dependency retired event relation")
 					}
-					if edge.address == (ids.ObjectAddress{ClassID: 2618, ObjectID: r.OID}) {
+					if edge.Address == (ids.ObjectAddress{ClassID: 2618, ObjectID: r.OID}) {
 						found = true
-						if edge.target != constraint || edge.root != constraint || edge.relation != event || edge.automatic {
+						if edge.Target != constraint || edge.Root != constraint || edge.Relation != event || edge.Automatic {
 							t.Fatal("constraint edge lost normal rule-owned authority", edge)
 						}
 					}
@@ -130,7 +131,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						mode = "CASCADE"
 					}
 					actions := statement(t, "ALTER TABLE sink DROP CONSTRAINT sink_key "+mode).(*parser.AlterTable).Actions
-					next, err := notNullCandidate(op, auth.Catalog, parent, actions[0], notNullDirect)
+					next, err := table.NotNullCandidate(op, auth.Catalog, parent, actions[0], table.NotNullDirect)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -320,8 +321,8 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}
 			found := false
 			for _, edge := range edges {
-				if edge.address == (ids.ObjectAddress{ClassID: 2618, ObjectID: mappedRule.OID}) {
-					found = edge.target == provider && edge.root == provider && !edge.automatic
+				if edge.Address == (ids.ObjectAddress{ClassID: 2618, ObjectID: mappedRule.OID}) {
+					found = edge.Target == provider && edge.Root == provider && !edge.Automatic
 				}
 			}
 			if !found {

@@ -122,15 +122,16 @@ predicates, `partitionConstraintReplay` renames, ...).
 |---|---|---|
 | `partitionRowHistory` (with `nextRow`), `partitionNeedsRowHistory` | `partition_retained_checks.go` | `index` (23a; index snapshots read them) |
 | `partitionReplayUsingIndex`, `partitionReplayVirtualUniqueRoot`, `partitionReplaySeparateConstraint`, `partitionReplayOnlyExclusion` | `partition_invalid_dump.go`, `partition_unique_dump.go` | `index` (23a moved them to `index_partition_replay.go`; table NOT NULL dump code and `dumpPredecessor` use them, and `table` sits below `partition`) |
-| `partitionHashReplayTarget` | `partition_dump.go` | `table` (24b; only `table_dump.go` uses it, and it needs nothing from the root) |
+| `partitionHashReplayTarget` | `partition_dump.go` | done: `index.PartitionHashReplayTarget` (23b moved it with the replay chain; `table`'s dump record calls it) |
 | `addDumpDependency`, `dumpEventDependsOn` | `partition_dump_events.go` | `dump` (18b; graph operations on dump events, used by 14 table, inheritance and type dump sites) |
 | `remapPartitionDescriptor` | `partition_remap.go` | done: `stored.RemapPartitionDescriptor` (22c; the catalog-wide reowner calls it, and `stored` sits below `partition`) |
 | `hierarchyRelation`, `samePartitionColumnUsage` | `partition.go`, `partition_attach_schema.go` | `catalog` (5i) |
 | the partitioned-index files | see above | `index` (23a) |
 
 The table prompt relies on these two rows: 23a moves
-`partitionReplaySeparateConstraint` into `index`, and 24b takes
-`partitionHashReplayTarget`, so `table` never imports `partition`.
+`partitionReplaySeparateConstraint` into `index`, and 23b moved
+`partitionHashReplayTarget` there too, so `table` never imports
+`partition`.
 
 ### Dirty, and why
 

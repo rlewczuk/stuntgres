@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -116,7 +117,7 @@ func (p *dropProvider) Replacement(address ids.ObjectAddress) catalog.Descriptor
 	return nil
 }
 
-func (p *dropProvider) descriptor(address ids.ObjectAddress) catalog.Descriptor {
+func (p *dropProvider) Descriptor(address ids.ObjectAddress) catalog.Descriptor {
 	p.observe(address)
 	return p.projectedDescriptor(address)
 }
@@ -184,7 +185,7 @@ func (p *dropProvider) Replace(d catalog.Descriptor) error {
 	return nil
 }
 
-func (p *dropProvider) revision(revision ids.DefinitionRevision) (ids.DefinitionRevision, error) {
+func (p *dropProvider) Revision(revision ids.DefinitionRevision) (ids.DefinitionRevision, error) {
 	if p.stage != nil {
 		return p.stage.cascadeMetadataRevision(revision)
 	}
@@ -248,25 +249,25 @@ func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, catalog
 	}
 }
 
-func (p *dropProvider) inheritanceAlterGuard(relation *catalog.Relation) error {
-	return inheritanceDependencyAlterGuard(p.Descriptors(), p.Replacement, p.Removed, relation)
+func (p *dropProvider) InheritanceAlterGuard(relation *catalog.Relation) error {
+	return table.InheritanceDependencyAlterGuard(p.Descriptors(), p.Replacement, p.Removed, relation)
 }
 
-func (p *dropProvider) applyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
+func (p *dropProvider) ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
 	p.owner.mu.Lock()
 	defer p.owner.mu.Unlock()
 	return p.viewDependents(targets, mode, foreign...)
 }
 
-func (p *dropProvider) applyForeignKeyDependents(edges []domainDependency) error {
+func (p *dropProvider) applyForeignKeyDependents(edges []table.DomainDependency) error {
 	if p.stage != nil {
 		p.owner.mu.Lock()
 		defer p.owner.mu.Unlock()
 	}
-	return foreignKeyDependents(p, edges)
+	return table.ForeignKeyDependents(p, edges)
 }
 
-func (p *dropProvider) missingColumnNotice(column, relation string) {
+func (p *dropProvider) MissingColumnNotice(column, relation string) {
 	notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, column, relation)}
 	if p.prepared == nil {
 		p.scope.op.EmitNotice(session.LevelNotice, notice)
@@ -453,7 +454,7 @@ func (p *dropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {
 	return nil
 }
 
-func (p *dropProvider) acquire(ref ids.ObjectRef, reserveReplacement bool) error {
+func (p *dropProvider) Acquire(ref ids.ObjectRef, reserveReplacement bool) error {
 	if err := p.scope.acquireSequence(ref, lock.AccessExclusive, reserveReplacement); err != nil {
 		return err
 	}
@@ -484,7 +485,7 @@ func (scope *StatementScope) prepareColumnDropAfter(auth AuthorizationView, old 
 	if err != nil {
 		return nil, err
 	}
-	next, err := ordinaryColumnDrop(provider, old, ref, action)
+	next, err := table.OrdinaryColumnDrop(provider, old, ref, action)
 	if err != nil {
 		return nil, err
 	}
@@ -869,6 +870,29 @@ func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.De
 		return descriptor
 	}
 	return p.readInputDescriptor(address)
+}
+
+// DefinitionDelta reports only the prepared drop's own descriptor effects.
+func (prepared *preparedDrop) DefinitionDelta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
+	if slot := prepared.slots[address]; slot.descriptor != 0 {
+		if slot.removed {
+			return nil, false, true
+		}
+		effect := prepared.effects[slot.descriptor-1]
+		if effect.after != nil {
+			return effect.after, true, true
+		}
+		return effect.descriptor, effect.descriptor != nil, true
+	}
+	return nil, false, false
+}
+
+// LayoutDelta reports only the prepared drop's own index layout effects.
+func (prepared *preparedDrop) LayoutDelta(address ids.ObjectAddress) (index.LayoutLineage, bool) {
+	if slot := prepared.slots[address]; slot.layout != 0 {
+		return *prepared.effects[slot.layout-1].layout, true
+	}
+	return index.LayoutLineage{}, false
 }
 
 func (prepared *preparedDrop) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {

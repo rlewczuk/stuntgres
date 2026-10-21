@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -19,7 +20,7 @@ import (
 type typedRelationMutation struct {
 	old, next  *catalog.Relation
 	transforms []index.ColumnTransformation
-	additions  []addedColumn
+	additions  []table.AddedColumn
 	checks     []catalog.CheckConstraint
 }
 
@@ -41,11 +42,11 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 			case parser.DropColumn:
 				mutation.next, err = scope.dropColumnCandidate(stage, mutation.next, ref, a, nil)
 			case parser.AddColumn:
-				var added addedColumn
+				var added table.AddedColumn
 				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.Usage)
-				if err == nil && added.column != nil {
+				if err == nil && added.Column != nil {
 					if planned.Usage != nil {
-						mutation.next.Columns[mutation.next.IndexForAttribute(added.attribute)].DeclaredDimensions = planned.DeclaredDimensions
+						mutation.next.Columns[mutation.next.IndexForAttribute(added.Attribute)].DeclaredDimensions = planned.DeclaredDimensions
 					}
 					mutation.additions = append(mutation.additions, added)
 				}
@@ -55,7 +56,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 			}
 		}
 		if pass == 0 {
-			checks, err := captureAlterTypeChecks(op, auth.Catalog, old, mutation.next, raw)
+			checks, err := table.CaptureAlterTypeChecks(op, auth.Catalog, old, mutation.next, raw)
 			if err != nil {
 				return mutation, err
 			}
@@ -76,7 +77,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 					return mutation, prepareErr
 				}
 				if planned.Usage != nil {
-					prepared.declaredDimensions = planned.DeclaredDimensions
+					prepared.DeclaredDimensions = planned.DeclaredDimensions
 				}
 				var transform index.ColumnTransformation
 				mutation.next, transform, err = e.alterTypeCandidate(scope, op, auth, stage, old, mutation.next, ref, planned.Action, prepared)
@@ -168,11 +169,11 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 	}
 	schema := auth.Catalog.Get(old.Namespace()).Name()
-	validator := newAlterRowValidator(next, schema)
+	validator := table.NewAlterRowValidator(next, schema)
 	if len(mutation.checks) != 0 {
 		checks := *next
 		checks.Constraints.Check = mutation.checks
-		validator.checks = validCheckTraversal(&checks)
+		validator.Checks = table.ValidCheckTraversal(&checks)
 		e.mu.Lock()
 		err = e.captureCheckCommentSnapshotLocked(scope, &checks)
 		if err == nil {
@@ -211,7 +212,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			if !visibility.LiveVersion(row, frontier, replacement.Ends, nil) {
 				continue
 			}
-			if err := validator.validate(row.Values, &evaluation); err != nil {
+			if err := validator.Validate(row.Values, &evaluation); err != nil {
 				return err
 			}
 		}

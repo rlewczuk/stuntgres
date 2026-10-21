@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/table"
 	"testing"
 )
 
@@ -39,7 +40,7 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 			view := target.CatalogRead()
 			ref := catalogRef(t, target, view, "imported")
 			descriptor := view.MustRelation(ref.Address)
-			if err := validateChecks(view, descriptor, map[string]bool{}); err != nil {
+			if err := table.ValidateChecks(view, descriptor, map[string]bool{}); err != nil {
 				t.Fatal(err)
 			}
 			if target.catalog.state.Get(tempRef.Address) != temp {
@@ -80,10 +81,10 @@ func TestCheckFailedRestorePreservesEpochAndStage(t *testing.T) {
 }
 
 func TestCheckAbsentValidatorHasNoAllocation(t *testing.T) {
-	table := &catalog.Relation{}
+	tbl := &catalog.Relation{}
 	eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	if allocations := testing.AllocsPerRun(100, func() {
-		constraint, err := validateCheckRow(table, nil, eval)
+		constraint, err := table.ValidateCheckRow(tbl, nil, eval)
 		if constraint != nil || err != nil {
 			panic("unexpected validator failure")
 		}

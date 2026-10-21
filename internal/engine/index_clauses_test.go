@@ -581,7 +581,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if dependencyType && (len(queue) != 1 || !strings.Contains(queue[0].sql, "bpchar_ops") || !strings.Contains(queue[0].sql, "INCLUDE (p)")) || !dependencyType && len(queue) != 0 {
+			if dependencyType && (len(queue) != 1 || !strings.Contains(queue[0].SQL, "bpchar_ops") || !strings.Contains(queue[0].SQL, "INCLUDE (p)")) || !dependencyType && len(queue) != 0 {
 				t.Fatal("TYPE did not capture the decorated original definition once", queue)
 			}
 			stage := e.BeginCatalogStage(compactedView)

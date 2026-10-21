@@ -23,7 +23,7 @@ func (p *dropProvider) clearOperatorLinks(d *catalog.Operator) error {
 		if next.Negator == d.Address().ObjectID {
 			next.Negator = 0
 		}
-		revision, err := p.revision(peer.Revision())
+		revision, err := p.Revision(peer.Revision())
 		if err != nil {
 			return err
 		}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -39,7 +40,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if err := stored.ValidateInstalledUUIDOssp(n, view); err != nil {
 				t.Fatal(err)
 			}
-			if err := validateGenerationPlan(view, nil, n); err != nil {
+			if err := table.ValidateGenerationPlan(view, nil, n); err != nil {
 				t.Fatal(err)
 			}
 			refs, err := stored.ExpressionDependRefs(context.Background(), view, n)

@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -276,7 +277,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if err != nil || !analyze.SameGroupExpression(n, persisted) {
 			t.Fatal("symbolic remapping", err)
 		}
-		if err := validateGenerationPlan(e.CatalogRead(), nil, n); err != nil {
+		if err := table.ValidateGenerationPlan(e.CatalogRead(), nil, n); err != nil {
 			t.Fatal("original provider", err)
 		}
 		captured, err := exec.ExpressionRoutineDescriptor(n)

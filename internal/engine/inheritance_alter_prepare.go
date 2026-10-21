@@ -8,14 +8,14 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 type inheritancePreparedAction struct {
 	old, next *catalog.Relation
-	added     addedColumn
+	added     table.AddedColumn
 	drop      *preparedDrop
 	identity  *preparedIdentityDrop
 	types     []catalog.Descriptor
@@ -29,9 +29,9 @@ type inheritancePreparedNode struct {
 	graph                                          *catalog.TableInheritance
 	steps                                          map[int]inheritancePreparedAction
 	inline                                         []inheritancePreparedAction
-	checks                                         preparedAddedChecks
+	checks                                         table.PreparedAddedChecks
 	afterDrop                                      *preparedDrop
-	reader                                         inheritanceDefinitionReader
+	reader                                         table.InheritanceDefinitionReader
 	phaseZeroOnly                                  bool
 	usingIndexes                                   []index.UsingIndexAttachment
 	usingNotNull                                   []inheritancePreparedAction
@@ -41,20 +41,20 @@ type inheritancePreparedNode struct {
 
 func (e *Engine) prepareInheritanceNode(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, actions []parser.AlterTableAction) (*inheritancePreparedNode, error) {
 	state := scope.inheritance.alter
-	prepared := &inheritancePreparedNode{old: old, actions: actions, graph: state.graph, steps: make(map[int]inheritancePreparedAction)}
-	prepared.phaseZeroOnly = state.only && !inheritancePureDefinitionPreparation(actions)
-	reader := state.definition
-	reader.observations = &inheritanceDefinitionObservations{}
+	prepared := &inheritancePreparedNode{old: old, actions: actions, graph: state.Graph, steps: make(map[int]inheritancePreparedAction)}
+	prepared.phaseZeroOnly = state.Only && !table.InheritancePureDefinitionPreparation(actions)
+	reader := state.Definition
+	reader.Observations = &table.InheritanceDefinitionObservations{}
 	previousDefinition := op.Definition
 	defer func() { op.Definition = previousDefinition }()
 	next := old
-	var additions []addedColumn
+	var additions []table.AddedColumn
 	var prior *preparedDrop
 	attachmentIndex := 0
 phases:
 	for phase := 0; phase <= 6; phase++ {
 		for index, action := range actions {
-			if alterActionPhase(action.Action) != phase {
+			if table.AlterActionPhase(action.Action) != phase {
 				continue
 			}
 			if err := op.Context().Err(); err != nil {
@@ -72,8 +72,8 @@ phases:
 					break phases
 				}
 				next = actual.Next
-				reader.appendDescriptor(actual.Replacement)
-				reader.appendDescriptor(next)
+				reader.AppendDescriptor(actual.Replacement)
+				reader.AppendDescriptor(next)
 				continue
 			}
 			op.Definition = reader
@@ -89,20 +89,20 @@ phases:
 				if err == nil {
 					next = step.drop.next
 					prior = step.drop
-					reader.appendDrop(step.drop)
+					reader.AppendDelta(step.drop)
 				}
 			case parser.AddColumn:
 				next, step.added, err = e.addColumnCandidate(scope, op, auth, next, action, nil)
-				if err == nil && step.added.column != nil {
+				if err == nil && step.added.Column != nil {
 					additions = append(additions, step.added)
 				}
 			case parser.SetNotNull, parser.AddNotNull, parser.DropNotNull, parser.DropConstraint:
-				next, err = notNullCandidate(op, auth.Catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
+				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
 			case parser.DropIdentity:
 				step.identity, err = e.prepareIdentityDropDefinition(scope, auth, next, action)
 				if err == nil {
 					next = step.identity.next
-					reader.appendIdentity(step.identity)
+					reader.AppendDelta(step.identity)
 				}
 			default:
 				// These providers require preparatory all-closure grants and therefore
@@ -116,8 +116,8 @@ phases:
 			}
 			if err == nil {
 				step.next = next
-				reader.appendDescriptor(next)
-				step.types, err = prepareInheritanceRowType(&reader, next)
+				reader.AppendDescriptor(next)
+				step.types, err = table.PrepareInheritanceRowType(&reader, next)
 			}
 			if err != nil {
 				step.err = err
@@ -143,7 +143,7 @@ phases:
 			if prepared.afterDrop != nil {
 				next = prepared.afterDrop.next
 				prior = prepared.afterDrop
-				reader.appendDrop(prepared.afterDrop)
+				reader.AppendDelta(prepared.afterDrop)
 			}
 		}
 		if prepared.phaseZeroOnly {
@@ -160,25 +160,25 @@ phases:
 		}
 		if phase == 4 {
 			for _, added := range additions {
-				if !added.declaration.ColumnNotNull {
+				if !added.Declaration.ColumnNotNull {
 					continue
 				}
-				action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.ColumnName}}
+				action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.Column.Name}, Constraint: parser.Identifier{Text: added.Declaration.ColumnName}}
 				before := next
 				var err error
-				next, err = notNullCandidate(op, auth.Catalog, next, action, notNullDirect)
+				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, table.NotNullDirect)
 				prepared.inline = append(prepared.inline, inheritancePreparedAction{old: before, next: next, err: err})
 				if err != nil {
 					next = before
 					break phases
 				}
-				reader.appendDescriptor(next)
+				reader.AppendDescriptor(next)
 				scope.recordInheritanceAlterAction(before, next, action)
 			}
 			for i, captured := range prepared.usingIndexes {
 				before := next
 				var err error
-				next, err = usingIndexNotNullCandidate(op, auth.Catalog, reader, next, captured)
+				next, err = table.UsingIndexNotNullCandidate(op, auth.Catalog, reader, next, captured)
 				if err == nil {
 					err = scope.inheritanceOnlyCreatedConstraint(before, next)
 				}
@@ -188,7 +188,7 @@ phases:
 					break phases
 				}
 				prepared.usingIndexes[i].NotNullPrepared = true
-				reader.appendDescriptor(next)
+				reader.AppendDescriptor(next)
 				scope.recordInheritanceAlterAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
 			}
 		}
@@ -200,7 +200,7 @@ phases:
 				}
 			}
 			for _, added := range additions {
-				for _, constraint := range added.column.Constraints {
+				for _, constraint := range added.Column.Constraints {
 					if constraint.Check != nil {
 						raw = append(raw, constraint.Check)
 					}
@@ -214,45 +214,20 @@ phases:
 			var err error
 			prepared.checks, err = e.prepareAddedChecks(scope, op, auth, next, raw)
 			if err != nil {
-				prepared.checks = preparedAddedChecks{old: next}
+				prepared.checks = table.PreparedAddedChecks{Old: next}
 				prepared.checksError = err
 				break phases
 			}
 			if len(raw) != 0 {
-				scope.recordInheritanceChecks(next, prepared.checks.next, raw, prepared.checks.ordinal)
-				next = prepared.checks.next
-				reader.appendDescriptor(next)
+				scope.recordInheritanceChecks(next, prepared.checks.Next, raw, prepared.checks.Ordinal)
+				next = prepared.checks.Next
+				reader.AppendDescriptor(next)
 			}
 		}
 	}
 	prepared.reader = reader
-	state.definition = reader
+	state.Definition = reader
 	return prepared, nil
-}
-
-func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *catalog.Relation) ([]catalog.Descriptor, error) {
-	if relation.RowType == 0 {
-		return nil, nil
-	}
-	descriptor, _ := reader.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-	row, ok := descriptor.(*catalog.Type)
-	if !ok {
-		return nil, nil
-	}
-	var effects []catalog.Descriptor
-	err := synchronizeRowTypeMetadata(relation, row, func(address ids.ObjectAddress) catalog.Descriptor {
-		descriptor, _ := reader.Descriptor(address)
-		return descriptor
-	}, func(namespace ids.ObjectAddress, name string) string {
-		return typedef.ChooseAssociatedArrayName(name, func(candidate string) bool {
-			return reader.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
-		})
-	}, func(descriptor catalog.Descriptor) error {
-		reader.appendDescriptor(descriptor)
-		effects = append(effects, descriptor)
-		return nil
-	})
-	return effects, err
 }
 
 func (scope *StatementScope) inheritancePreparedNode() *inheritancePreparedNode {
@@ -262,26 +237,26 @@ func (scope *StatementScope) inheritancePreparedNode() *inheritancePreparedNode 
 	return scope.inheritance.alter.prepared[scope.lockedRef.Address]
 }
 
-func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, addedColumn, bool, error) {
+func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, table.AddedColumn, bool, error) {
 	if prepared == nil {
-		return nil, addedColumn{}, false, nil
+		return nil, table.AddedColumn{}, false, nil
 	}
 	step, exists := prepared.steps[idx]
 	if !exists {
-		return nil, addedColumn{}, false, nil
+		return nil, table.AddedColumn{}, false, nil
 	}
 	if step.old != old {
-		return nil, addedColumn{}, true, ids.ErrCatalogReplaced
+		return nil, table.AddedColumn{}, true, ids.ErrCatalogReplaced
 	}
 	if len(step.notices) != 0 {
 		scope.op.Notices = append(scope.op.Notices, step.notices...)
 	}
 	if step.err != nil {
-		return nil, addedColumn{}, true, step.err
+		return nil, table.AddedColumn{}, true, step.err
 	}
 	for _, descriptor := range step.types {
 		if err := stage.replaceDescriptor(descriptor, false); err != nil {
-			return nil, addedColumn{}, true, err
+			return nil, table.AddedColumn{}, true, err
 		}
 	}
 	if step.drop != nil {
@@ -297,11 +272,4 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		return next, step.added, true, err
 	}
 	return step.next, step.added, true, nil
-}
-
-func detachPreparedInheritanceDefinition(next *catalog.Relation) *catalog.Relation {
-	copy := *next
-	copy.Constraints.NotNull = slices.Clone(next.Constraints.NotNull)
-	copy.Constraints.Check = slices.Clone(next.Constraints.Check)
-	return &copy
 }

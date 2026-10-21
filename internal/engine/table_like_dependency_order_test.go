@@ -38,8 +38,8 @@ func TestTableLikeDefinitionDependencyOrder(t *testing.T) {
 	}
 	var labels []string
 	for _, edge := range edges {
-		if !edge.automatic {
-			labels = append(labels, edge.label)
+		if !edge.Automatic {
+			labels = append(labels, edge.Label)
 		}
 	}
 	expected := []string{"view prior_view", "column r of table ordinary", "constraint c2 on table ordinary", "constraint c1 on table ordinary", "index later_index"}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -184,7 +185,7 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 			}
 			roleExecute(t, e, op, mutation)
 			before := e.catalog.state
-			if err := e.bindRestoredForeignKeys(context.Background(), op, []restoredForeignKeys{pending}); !errors.Is(err, ids.ErrCatalogReplaced) || e.catalog.state != before {
+			if err := e.bindRestoredForeignKeys(context.Background(), op, []table.RestoredForeignKeys{pending}); !errors.Is(err, ids.ErrCatalogReplaced) || e.catalog.state != before {
 				t.Fatal("stale source/key/provider receipt rebound or published", err)
 			}
 		})
@@ -199,7 +200,7 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		before := e.catalog.state
-		if err := e.bindRestoredForeignKeys(ctx, op, []restoredForeignKeys{pending}); !errors.Is(err, context.Canceled) || e.catalog.state != before {
+		if err := e.bindRestoredForeignKeys(ctx, op, []table.RestoredForeignKeys{pending}); !errors.Is(err, context.Canceled) || e.catalog.state != before {
 			t.Fatal("canceled post-data validation published staged metadata", err)
 		}
 	})

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -34,7 +35,7 @@ func restoreNNRaw(relation, column, name string) *parser.Update {
 
 func TestRestoreNotNullNoInheritSyntax(t *testing.T) {
 	raw := restoreNNRaw(`public."quoted"`, "a", "captured")
-	name, column, label, err := restoreNoInheritSyntax(raw)
+	name, column, label, err := table.RestoreNoInheritSyntax(raw)
 	if err != nil || len(name.Parts) != 2 || name.Parts[1].Text != "quoted" || column != "a" || label != "captured" {
 		t.Fatal(name, column, label, err)
 	}
@@ -107,9 +108,9 @@ func TestRestoreNotNullNoInheritSyntax(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			raw := restoreNNRaw("public.p", "a", "captured")
 			mutate(raw)
-			_, _, _, err := restoreNoInheritSyntax(raw)
+			_, _, _, err := table.RestoreNoInheritSyntax(raw)
 			var diagnostic *sqlstate.Error
-			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: restoreNoInheritBoundary}
+			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: table.RestoreNoInheritBoundary}
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 				t.Fatal("noncanonical repair admitted or wrong diagnostic", diagnostic, err)
 			}
@@ -130,9 +131,9 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	old = e.CatalogRead().MustRelation(old.Address())
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	origin := restoredNotNull{ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), old.Address()), attribute: 1, constraint: old.Constraints.NotNull[0].OID}
+	origin := table.RestoredNotNull{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), old.Address()), Attribute: 1, Constraint: old.Constraints.NotNull[0].OID}
 	raw := restoreNNRaw("public.p", "a", "captured")
-	for name, mutate := range map[string]func(*restoredNotNull){"epoch": func(r *restoredNotNull) { r.ref.Epoch++ }, "attribute": func(r *restoredNotNull) { r.attribute++ }, "constraint": func(r *restoredNotNull) { r.constraint++ }, "missing_pair": func(r *restoredNotNull) { *r = restoredNotNull{} }} {
+	for name, mutate := range map[string]func(*table.RestoredNotNull){"epoch": func(r *table.RestoredNotNull) { r.Ref.Epoch++ }, "attribute": func(r *table.RestoredNotNull) { r.Attribute++ }, "constraint": func(r *table.RestoredNotNull) { r.Constraint++ }, "missing_pair": func(r *table.RestoredNotNull) { *r = table.RestoredNotNull{} }} {
 		t.Run(name, func(t *testing.T) {
 			candidate := origin
 			mutate(&candidate)
@@ -193,7 +194,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead().MustRelation(old.Address())
-	if !current.Constraints.NotNull[0].NoInherit || old.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != origin.constraint || current.Columns[0].Nullable || current.Revision() != old.Revision()+1 {
+	if !current.Constraints.NotNull[0].NoInherit || old.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != origin.Constraint || current.Columns[0].Nullable || current.Revision() != old.Revision()+1 {
 		t.Fatal("repair changed identity/local nullability or old capture", current)
 	}
 }

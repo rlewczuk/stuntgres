@@ -4,53 +4,13 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-const restoreNoInheritBoundary = "restore accepts only paired canonical pg_constraint no-inherit repairs"
-
-type restoredNotNull struct {
-	ref        ids.ObjectRef
-	attribute  int32
-	constraint ids.OID
-}
-
-// The declaration supplies the exact captured name, even when another object
-// occupies the usual generated stem. The temporary ordinary fact is repaired
-// before any descendant declaration can inherit it. SET is genuine supported
-// PostgreSQL syntax; only the narrowly paired catalog repair is importer-only.
-func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner func(string) error) error {
-	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
-	for _, constraint := range t.notNullConstraints {
-		if !constraint.NoInherit {
-			continue
-		}
-		if constraint.NotValid {
-			return fmt.Errorf("stuntgres: invalid no-inherit not-null replay fact")
-		}
-		column := t.columns[t.descriptor.IndexForAttribute(constraint.Attribute)].Name
-		if err := setOwner(t.owner); err != nil {
-			return err
-		}
-		if err := emit("ALTER TABLE ONLY " + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(column) + " SET NOT NULL;\n"); err != nil {
-			return err
-		}
-		if err := setOwner("postgres"); err != nil {
-			return err
-		}
-		literal := dump.CommentLiteral(qualified)
-		repair := "UPDATE pg_catalog.pg_constraint SET connoinherit = true WHERE conrelid = " + literal + "::regclass AND conname = " + dump.CommentLiteral(constraint.Name) + " AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = " + literal + "::regclass AND attname = " + dump.CommentLiteral(column) + ")];\n"
-		if err := emit(repair); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.CreateTable, origins map[ids.OID]restoredNotNull) {
+func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.CreateTable, origins map[ids.OID]table.RestoredNotNull) {
 	relation, ok := e.CatalogRead().Relation(created.Address)
 	if !ok {
 		return
@@ -72,7 +32,7 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 						return
 					}
 				}
-				origins[constraint.OID] = restoredNotNull{created, attribute, constraint.OID}
+				origins[constraint.OID] = table.RestoredNotNull{Ref: created, Attribute: attribute, Constraint: constraint.OID}
 				return
 			}
 		}
@@ -91,42 +51,42 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 	}
 }
 
-func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]restoredNotNull) (restoredNotNull, error) {
+func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]table.RestoredNotNull) (table.RestoredNotNull, error) {
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.SetNotNull {
-		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
+		return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	auth, err := operationAuthorization(op)
 	if err != nil {
-		return restoredNotNull{}, err
+		return table.RestoredNotNull{}, err
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, false)
 	if err != nil {
-		return restoredNotNull{}, err
+		return table.RestoredNotNull{}, err
 	}
 	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
-		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
+		return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	slot, ok := relation.Index[raw.Actions[0].Column.Text]
 	if !ok {
-		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
+		return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	for _, constraint := range relation.Constraints.NotNull {
 		if constraint.Attribute != relation.Attributes[slot] || constraint.NotValid {
 			continue
 		}
 		origin, exists := origins[constraint.OID]
-		if exists && origin.ref == ref && origin.attribute == constraint.Attribute {
+		if exists && origin.Ref == ref && origin.Attribute == constraint.Attribute {
 			return origin, nil
 		}
 	}
-	return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
+	return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 }
 
 // Unlike public UPDATE, this interpreter can only run inside isolated Restore,
 // after an imported explicit validated local NN and its immediately paired SET.
-func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Update, origin restoredNotNull) error {
-	name, column, label, err := restoreNoInheritSyntax(raw)
+func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Update, origin table.RestoredNotNull) error {
+	name, column, label, err := table.RestoreNoInheritSyntax(raw)
 	if err != nil {
 		return err
 	}
@@ -155,33 +115,33 @@ func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Upda
 		return err
 	}
 	old, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != catalog.TableRelation || origin.ref != ref {
+	if !ok || old.RelationKind != catalog.TableRelation || origin.Ref != ref {
 		e.mu.Unlock()
-		return sqlError("0A000", restoreNoInheritBoundary)
+		return sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	slot, ok := old.Index[column]
-	if !ok || old.Attributes[slot] != origin.attribute || old.Columns[slot].Nullable {
+	if !ok || old.Attributes[slot] != origin.Attribute || old.Columns[slot].Nullable {
 		e.mu.Unlock()
-		return sqlError("0A000", restoreNoInheritBoundary)
+		return sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	index := slices.IndexFunc(old.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
-		return c.OID == origin.constraint && c.Name == label && c.Attribute == origin.attribute && !c.NotValid
+		return c.OID == origin.Constraint && c.Name == label && c.Attribute == origin.Attribute && !c.NotValid
 	})
 	if index < 0 {
 		e.mu.Unlock()
-		return sqlError("0A000", restoreNoInheritBoundary)
+		return sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	for _, constraint := range old.Constraints.Unique {
-		if constraint.Primary && slices.Contains(constraint.Attributes, origin.attribute) {
+		if constraint.Primary && slices.Contains(constraint.Attributes, origin.Attribute) {
 			e.mu.Unlock()
-			return sqlError("0A000", restoreNoInheritBoundary)
+			return sqlError("0A000", table.RestoreNoInheritBoundary)
 		}
 	}
 	if graph := old.Inheritance; graph != nil {
-		fact := graph.NotNull[origin.attribute]
+		fact := graph.NotNull[origin.Attribute]
 		if !fact.Local || fact.Count() != 0 {
 			e.mu.Unlock()
-			return sqlError("0A000", restoreNoInheritBoundary)
+			return sqlError("0A000", table.RestoreNoInheritBoundary)
 		}
 	}
 	if old.Constraints.NotNull[index].NoInherit {
@@ -209,116 +169,4 @@ func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Upda
 	}
 	_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: ref.Epoch})
 	return err
-}
-
-func restoreNoInheritSyntax(raw *parser.Update) (parser.ObjectName, string, string, error) {
-	reject := func() (parser.ObjectName, string, string, error) {
-		return parser.ObjectName{}, "", "", sqlError("0A000", restoreNoInheritBoundary)
-	}
-	if !restoreCatalogName(raw.Name, "pg_constraint") || raw.Only || raw.Star || raw.WithRecursive || len(raw.With) != 0 || raw.Alias.Text != "" || raw.From != nil || raw.CurrentOf != nil || raw.Returning != nil || len(raw.Assignments) != 1 {
-		return reject()
-	}
-	assignment := raw.Assignments[0]
-	value, ok := assignment.Value.(parser.LiteralExpr)
-	if assignment.Target.Text != "connoinherit" || len(assignment.Steps) != 0 || !ok || value.Value.Kind != parser.BooleanValue || !value.Value.Boolean {
-		return reject()
-	}
-	outer, ok := raw.Where.(parser.LogicalExpr)
-	if !ok || outer.Op != parser.LogicalAnd {
-		return reject()
-	}
-	pair, ok := outer.Left.(parser.LogicalExpr)
-	if !ok || pair.Op != parser.LogicalAnd {
-		return reject()
-	}
-	relation, ok := restoreAttributeRankEquality(pair.Left, "conrelid")
-	if !ok {
-		return reject()
-	}
-	name, text, ok := restoreNoInheritRegclass(relation)
-	if !ok {
-		return reject()
-	}
-	label, ok := restoreAttributeRankEquality(pair.Right, "conname")
-	if !ok {
-		return reject()
-	}
-	literal, ok := label.(parser.LiteralExpr)
-	if !ok || literal.Value.Kind != parser.StringValue {
-		return reject()
-	}
-	key, ok := restoreAttributeRankEquality(outer.Right, "conkey")
-	if !ok {
-		return reject()
-	}
-	array, ok := key.(parser.ArrayExpr)
-	if !ok || len(array.Elements) != 1 {
-		return reject()
-	}
-	column, ok := restoreConstraintAttribute(array.Elements[0], text)
-	if !ok {
-		return reject()
-	}
-	return name, column, literal.Value.Text, nil
-}
-
-func restoreConstraintAttribute(raw parser.Expr, relation string) (string, bool) {
-	subquery, ok := raw.(parser.SubqueryExpr)
-	if !ok || subquery.Kind != parser.SubqueryScalar || subquery.Left != nil || subquery.Negate || len(subquery.Operator.Parts) != 0 || subquery.Query == nil {
-		return "", false
-	}
-	query := subquery.Query
-	if len(query.With) != 0 || query.WithRecursive || query.Values != nil || len(query.Targets) != 1 || query.GroupBy != nil || query.Having != nil || len(query.Windows) != 0 || query.Order != nil || query.Into != nil || len(query.Locking) != 0 || query.Bounds != nil || query.Distinct != nil || query.Set != nil {
-		return "", false
-	}
-	for _, label := range query.Labels {
-		if label.Text != "" {
-			return "", false
-		}
-	}
-	from, ok := query.From.(*parser.TableReference)
-	if !ok || from.Only || !restoreCatalogName(from.Name, "pg_attribute") {
-		return "", false
-	}
-	target, ok := query.Targets[0].(parser.ColumnExpr)
-	if !ok || len(target.Name.Parts) != 1 || target.Name.Parts[0].Text != "attnum" {
-		return "", false
-	}
-	attribute, ok := query.Where.(parser.LogicalExpr)
-	if !ok || attribute.Op != parser.LogicalAnd {
-		return "", false
-	}
-	attributeRelation, ok := restoreAttributeRankEquality(attribute.Left, "attrelid")
-	if !ok {
-		return "", false
-	}
-	_, attributeText, ok := restoreNoInheritRegclass(attributeRelation)
-	if !ok || attributeText != relation {
-		return "", false
-	}
-	column, ok := restoreAttributeRankEquality(attribute.Right, "attname")
-	if !ok {
-		return "", false
-	}
-	literal, ok := column.(parser.LiteralExpr)
-	if !ok || literal.Value.Kind != parser.StringValue {
-		return "", false
-	}
-	return literal.Value.Text, true
-}
-
-func restoreCatalogName(name parser.ObjectName, relation string) bool {
-	return len(name.Parts) == 2 && name.Parts[0].Text == "pg_catalog" && name.Parts[1].Text == relation
-}
-func restoreNoInheritRegclass(raw parser.Expr) (parser.ObjectName, string, bool) {
-	cast, ok := raw.(parser.RegclassExpr)
-	if !ok {
-		return parser.ObjectName{}, "", false
-	}
-	literal, ok := cast.Child.(parser.LiteralExpr)
-	if !ok || literal.Value.Kind != parser.StringValue {
-		return parser.ObjectName{}, "", false
-	}
-	name, err := parser.ParseRegclassName(literal.Value.Text)
-	return name, literal.Value.Text, err == nil && len(name.Parts) == 2
 }

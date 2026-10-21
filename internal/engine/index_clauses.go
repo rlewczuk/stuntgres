@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -175,7 +176,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 			if !exists {
 				return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Column.Text)))
 			}
-			if err := rejectVirtualIndexUses(parent, []int{slot}); err != nil {
+			if err := table.RejectVirtualIndexUses(parent, []int{slot}); err != nil {
 				return fail(err)
 			}
 			columns[i] = parent.Columns[slot]

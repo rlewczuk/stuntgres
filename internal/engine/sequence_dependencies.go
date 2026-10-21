@@ -14,10 +14,10 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ids.
 }
 
 func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error) error {
-	return stageDropProvider(ctx, stage, scope, changes, project).ownedExpressionDependencies(targets, mode)
+	return stageDropProvider(ctx, stage, scope, changes, project).OwnedExpressionDependencies(targets, mode)
 }
 
-func (provider *dropProvider) ownedExpressionDependencies(targets []ids.ObjectAddress, mode parser.DropMode) error {
+func (provider *dropProvider) OwnedExpressionDependencies(targets []ids.ObjectAddress, mode parser.DropMode) error {
 	var closure []ids.ObjectAddress
 	extended := false
 	// Include removed hierarchy owners, not unrelated removals staged by an
@@ -49,7 +49,7 @@ func (provider *dropProvider) ownedExpressionDependencies(targets []ids.ObjectAd
 			return err
 		}
 		if provider.scope != nil {
-			return provider.acquire(ref, false)
+			return provider.Acquire(ref, false)
 		}
 		return nil
 	})

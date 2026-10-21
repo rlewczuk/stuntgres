@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -68,7 +69,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 				}
 				copied := old
 				copied.OID = 0
-				if err := validateCookedDefaultTemporary(copied.Expression, auth.Catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
+				if err := table.ValidateCookedDefaultTemporary(copied.Expression, auth.Catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
 					return err
 				}
 				if d.ColumnMeta.Defaults == nil {
@@ -101,7 +102,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 				d.ColumnMeta.Generations[target] = copied
 			}
 		}
-		for _, old := range orderedChecks(in.Source) {
+		for _, old := range table.OrderedChecks(in.Source) {
 			if old.NoInherit {
 				continue
 			}

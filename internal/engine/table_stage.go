@@ -1,26 +1,19 @@
 package engine
 
-import "stuntgres/internal/engine/catalog"
-
-// tableStage is a catalog stage's table work. Only CREATE TABLE ... LIKE
-// writes it: the exact source descriptors it copied, which publication
-// re-checks but which are not dependencies.
-type tableStage struct {
-	likeSources []catalog.Descriptor
-}
+import "stuntgres/internal/engine/table"
 
 // table returns the table slot, allocating it on first use.
-func (s *CatalogStage) table() *tableStage {
+func (s *CatalogStage) table() *table.Stage {
 	if s.tableSlot == nil {
-		s.tableSlot = new(tableStage)
+		s.tableSlot = new(table.Stage)
 	}
 	return s.tableSlot
 }
 
 // tableOrZero reads the table slot; a nil slot reads as zero.
-func (s *CatalogStage) tableOrZero() tableStage {
+func (s *CatalogStage) tableOrZero() table.Stage {
 	if s.tableSlot == nil {
-		return tableStage{}
+		return table.Stage{}
 	}
 	return *s.tableSlot
 }

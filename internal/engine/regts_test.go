@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -358,9 +359,9 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 		}
 	}
 	for name, validate := range map[string]func(catalog.Read, *catalog.Relation) error{
-		"check":      validateCheckProviders,
-		"default":    validateDefaultProviders,
-		"generation": validateGenerationProviders,
+		"check":      table.ValidateCheckProviders,
+		"default":    table.ValidateDefaultProviders,
+		"generation": table.ValidateGenerationProviders,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := validate(view, consumer(ref)); err != nil {

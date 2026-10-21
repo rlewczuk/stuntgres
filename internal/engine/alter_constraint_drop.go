@@ -4,34 +4,9 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
-
-func droppedConstraint(parent *catalog.Relation, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
-	if action.Action == parser.DropConstraint {
-		for _, c := range parent.Constraints.Unique {
-			if c.Name == action.Constraint.Text {
-				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
-			}
-		}
-		for _, c := range parent.Constraints.Exclusion {
-			if c.Name == action.Constraint.Text {
-				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
-			}
-		}
-		for _, c := range parent.Constraints.Check {
-			if c.Name == action.Constraint.Text {
-				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
-			}
-		}
-		for _, c := range parent.Constraints.NotNull {
-			if c.Name == action.Constraint.Text {
-				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
-			}
-		}
-	}
-	return ids.ObjectAddress{}, ids.ObjectAddress{}
-}
 
 // Retire named constraint identities and original backing generations after
 // logical DROP, before ADD naming.
@@ -39,7 +14,7 @@ func droppedConstraint(parent *catalog.Relation, action parser.AlterTableAction)
 // neither retirement nor dependency traversal publishes the private candidate.
 // Each action classifies its own dependencies before any later backing removal.
 func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *catalog.Relation, actions []parser.AlterTableAction, changes *session.Journal) (*catalog.Relation, *CatalogStage, error) {
-	if !hasDroppedConstraintIndexes(old, actions) {
+	if !table.HasDroppedConstraintIndexes(old, actions) {
 		return next, stage, nil
 	}
 	if stage == nil {
@@ -50,20 +25,11 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 	return next, stage, err
 }
 
-func hasDroppedConstraintIndexes(old *catalog.Relation, actions []parser.AlterTableAction) bool {
-	for _, action := range actions {
-		if constraint, _ := droppedConstraint(old, action); constraint != (ids.ObjectAddress{}) {
-			return true
-		}
-	}
-	return false
-}
-
 // The same ordered provider retires named constraint identities, including
 // constraints without backing indexes, during staging and pure preparation.
 func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, actions []parser.AlterTableAction) (*catalog.Relation, error) {
 	for _, action := range actions {
-		constraint, address := droppedConstraint(old, action)
+		constraint, address := table.DroppedConstraint(old, action)
 		if constraint == (ids.ObjectAddress{}) {
 			continue
 		}
@@ -85,13 +51,13 @@ func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, 
 			return next, err
 		}
 		// CASCADE can remove a self-reference from this same parent.
-		next = provider.descriptor(old.Address()).(*catalog.Relation)
+		next = provider.Descriptor(old.Address()).(*catalog.Relation)
 	}
 	return next, nil
 }
 
 func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *catalog.Relation, actions []parser.AlterTableAction, prior *preparedDrop) (*preparedDrop, error) {
-	if !hasDroppedConstraintIndexes(old, actions) {
+	if !table.HasDroppedConstraintIndexes(old, actions) {
 		return nil, nil
 	}
 	provider, err := scope.prepareDropDefinitionProvider(auth, next, scope.lockedRef, prior)

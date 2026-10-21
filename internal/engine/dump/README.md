@@ -53,8 +53,8 @@ helpers, so it stays in the root behind the `dumpResolver` adapter.
 presentation to `regobj` and the domain expressions to the root's
 `stored.ScalarRenderer` (`stored`, step 22). The
 root passes both adapters to the feature dump functions; `routine` (14e)
-and `typedef` (15e) call them. The table dump record `dumpRelation` moves
-with `table` (step 24).
+and `typedef` (15e) call them. The table dump record is
+`table.DumpRelation` (step 24b).
 
 ### How `Engine.Dump` runs (root)
 
@@ -91,7 +91,7 @@ state only through `dumpCollection.source`, which never outlives
 runs (`nil`: the emitter sets it, as `Declaration` and `DomainChecks` do;
 domain checks render before the owner switch so an error writes nothing)
 and an `emit`; an empty entry (`TableCompletion`) writes nothing. Table
-phases emit a copy of the captured `dumpRelation`.
+phases emit a copy of the captured `table.DumpRelation`.
 
 A feature package takes over an entry when its dump code moves (14e, 15e,
 23b, 24b, 25b, 27b): it exports the entry's function, and the root table

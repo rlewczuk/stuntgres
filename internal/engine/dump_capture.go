@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 )
 
 // dumpSchema is one ordinary namespace Dump creates.
@@ -37,7 +38,7 @@ type dumpCapture struct {
 	catalogView, originalCatalog catalog.Read
 	originalRoles, domainRoles   authorization.Read
 	constraintReplay             *partitionConstraintReplay
-	recipePlan                   map[ids.ObjectAddress]*dumpRelation
+	recipePlan                   map[ids.ObjectAddress]*table.DumpRelation
 	aclOutput                    regobj.ACLItemOutput
 
 	// preamble reconstructs bootstrap identity changes before ordinary
@@ -51,8 +52,8 @@ type dumpCapture struct {
 	conversions    []*catalog.Conversion
 	operators      []*catalog.Operator
 	sqlRoutines    []*catalog.Procedure
-	tables         []dumpRelation
-	materialized   []dumpRelation
+	tables         []table.DumpRelation
+	materialized   []table.DumpRelation
 	views          []dumpView
 	indexes        []dumpView
 	viewIndices    map[ids.OID]int
@@ -97,7 +98,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	catalogView := e.catalog.read(state)
 	originalCatalog := catalogView
 	originalRoles := e.roles.read(e.catalog.owner(), originalCatalog, e.roles.published)
-	recipePlan, err := capturedGenerationReplayPlan(originalCatalog)
+	recipePlan, err := table.CapturedGenerationReplayPlan(originalCatalog)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +134,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 			recipePlan:       recipePlan,
 			aclOutput:        aclOutput,
 			preamble:         preamble,
-			tables:           make([]dumpRelation, 0),
+			tables:           make([]table.DumpRelation, 0),
 			viewIndices:      make(map[ids.OID]int),
 			tableIndices:     make(map[ids.OID]int),
 			indexIndices:     make(map[ids.OID]int),

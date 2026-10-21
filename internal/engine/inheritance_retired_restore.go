@@ -4,65 +4,13 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
-	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dump"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
-
-const restoreRetiredBoundary = "restore accepts only paired canonical retired constraint origins"
-
-type restoredHistoricalFact struct {
-	ref                 ids.ObjectRef
-	oid                 ids.OID
-	name                string
-	check               bool
-	attributes          []int32
-	expression          expr.Expr
-	notValid, noInherit bool
-	local               bool
-	count               int
-}
-
-type retiredRepairRow struct {
-	parent             parser.ObjectName
-	text, column, name string
-	attribute          int32
-	constraint         ids.OID
-	lifetime, archive  uint64
-	check              bool
-}
-type retiredRepair struct {
-	relation                  parser.ObjectName
-	text, name                string
-	check, local, beforeLocal bool
-	before                    int
-	columns                   []string
-	rows                      []retiredRepairRow
-	parents                   []string
-}
-type retiredSourceIdentity struct {
-	parent            ids.ObjectRef
-	archive, lifetime uint64
-	constraint        ids.OID
-}
-type retiredSourceDescription struct {
-	column, name string
-	attribute    int32
-	check        bool
-}
-type restoredHistoryAuthority struct {
-	facts       map[ids.OID]restoredHistoricalFact
-	archives    map[uint64]uint64
-	sources     map[retiredSourceIdentity]retiredSourceDescription
-	nextArchive uint64
-}
 
 func (e *Engine) retiredArchiveHighWater() uint64 {
 	view := e.CatalogRead()
@@ -84,176 +32,26 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 	return maximum
 }
 
-func constraintAttributeKeys(table *catalog.Relation, expression expr.Expr) []int32 {
-	var keys []int32
-	plan.WalkExpression(expression, func(node expr.Expr) {
-		if column, ok := node.(plan.ColumnExpr); ok && column.Origin.Address.ClassID == ids.RelationClassID && column.Origin.Address.ObjectID == table.Address().ObjectID && !slices.Contains(keys, column.Origin.Address.SubID) {
-			keys = append(keys, column.Origin.Address.SubID)
-		}
-	})
-	return keys
-}
-
-func captureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
-	table, ok := view.Relation(ref.Address)
-	if !ok || table.Inheritance == nil {
-		return
-	}
-	namespace, ok := view.Namespace(table.Namespace())
-	if !ok || namespace.Temporary != (ids.SessionToken{}) {
-		return
-	}
-	for _, c := range table.Constraints.NotNull {
-		p := table.Inheritance.NotNull[c.Attribute]
-		if len(p.Retired) != 0 {
-			continue
-		}
-		if old, exists := facts[c.OID]; exists && old.local == p.Local && old.count == len(p.Origins) && old.notValid == c.NotValid && old.noInherit == c.NoInherit {
-			continue
-		}
-		facts[c.OID] = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, attributes: []int32{c.Attribute}, notValid: c.NotValid, noInherit: c.NoInherit, local: p.Local, count: len(p.Origins)}
-	}
-	for _, c := range table.Constraints.Check {
-		p := table.Inheritance.Checks[c.Name]
-		if len(p.Retired) != 0 {
-			continue
-		}
-		if old, exists := facts[c.OID]; exists && old.local == p.Local && old.count == len(p.Origins) && old.notValid == c.NotValid && old.noInherit == c.NoInherit {
-			continue
-		}
-		facts[c.OID] = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, check: true, attributes: constraintAttributeKeys(table, c.Expression), expression: c.Expression, notValid: c.NotValid, noInherit: c.NoInherit, local: p.Local, count: len(p.Origins)}
-	}
-}
-
-func (e *Engine) captureHistoricalFacts(refs map[ids.ObjectAddress]ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
+func (e *Engine) captureHistoricalFacts(refs map[ids.ObjectAddress]ids.ObjectRef, facts map[ids.OID]table.RestoredHistoricalFact) {
 	view := e.CatalogRead()
 	for _, ref := range refs {
-		captureHistoricalRelation(view, ref, facts)
+		table.CaptureHistoricalRelation(view, ref, facts)
 	}
 }
 
-func retiredDeclarationNeeded(view catalog.Read, table *catalog.Relation, p catalog.InheritedConstraint, check, notValid bool) bool {
-	if p.Local {
-		return true
-	}
-	if len(p.Retired) == 0 {
-		return false
-	}
-	if notValid {
-		return len(p.Origins) == 0
-	}
-	// An invalid parent fact is emitted after data, and cannot provide this
-	// captured valid enforcement during CREATE/valid-CHECK reconstruction.
-	for _, origin := range p.Origins {
-		parent, ok := view.Relation(origin.Parent)
-		if !ok {
-			continue
-		}
-		if check {
-			for _, c := range parent.Constraints.Check {
-				if c.OID == origin.Constraint && !c.NotValid {
-					return false
-				}
-			}
-		} else {
-			for _, c := range parent.Constraints.NotNull {
-				if c.OID == origin.Constraint && !c.NotValid {
-					return false
-				}
-			}
-		}
-	}
-	return true
-}
-
-func dumpNotNullDeclaration(view catalog.Read, table *catalog.Relation, attribute int32) bool {
-	if table.Inheritance == nil {
-		return true
-	}
-	for _, c := range table.Constraints.NotNull {
-		if c.Attribute == attribute {
-			return retiredDeclarationNeeded(view, table, table.Inheritance.NotNull[attribute], false, c.NotValid)
-		}
-	}
-	return false
-}
-
-func dumpCheckDeclaration(view catalog.Read, table *catalog.Relation, c catalog.CheckConstraint) bool {
-	return table.Inheritance == nil || retiredDeclarationNeeded(view, table, table.Inheritance.Checks[c.Name], true, c.NotValid)
-}
-
-func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, emit func(string) error, setOwner func(string) error) error {
-	graph := t.descriptor.Inheritance
-	if graph == nil {
-		return nil
-	}
-	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
-	emitFact := func(name string, keys []int32, p catalog.InheritedConstraint, check, notValid bool) error {
-		if len(p.Retired) == 0 {
-			return nil
-		}
-		if err := setOwner("postgres"); err != nil {
-			return err
-		}
-		beforeLocal := retiredDeclarationNeeded(view, t.descriptor, p, check, notValid)
-		var rows, parents, keyQueries []string
-		for _, attribute := range keys {
-			slot := t.descriptor.IndexForAttribute(attribute)
-			if slot < 0 {
-				return fmt.Errorf("stuntgres: missing historical constraint key")
-			}
-			keyQueries = append(keyQueries, "(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = "+dump.CommentLiteral(qualified)+"::regclass AND attname = "+dump.CommentLiteral(t.columns[slot].Name)+")")
-		}
-		kind := "n"
-		if check {
-			kind = "c"
-		}
-		for _, history := range p.Retired {
-			parent, ok := view.Relation(history.Parent.Address)
-			if !ok {
-				return fmt.Errorf("stuntgres: missing retired constraint parent")
-			}
-			parentName := catalog.QuoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name())
-			rows = append(rows, "("+dump.CommentLiteral(parentName)+"::regclass, "+dump.CommentLiteral(history.Column)+", "+strconv.FormatInt(int64(history.Attribute), 10)+", "+dump.CommentLiteral(kind)+", "+dump.CommentLiteral(history.Name)+", "+dump.CommentLiteral(strconv.FormatUint(history.Archive, 10)+":"+strconv.FormatUint(history.Lifetime, 10))+", "+dump.CommentLiteral(strconv.FormatUint(uint64(history.Constraint), 10))+")")
-			if !slices.Contains(parents, parentName) {
-				parents = append(parents, parentName)
-			}
-		}
-		sql := "UPDATE pg_catalog.pg_constraint SET conislocal = " + strconv.FormatBool(p.Local) + ", coninhcount = " + strconv.Itoa(len(p.Origins)) + " + (SELECT count(DISTINCT (retired.column1, retired.column6, retired.column7)) FROM (VALUES " + strings.Join(rows, ", ") + ") AS retired) WHERE conrelid = " + dump.CommentLiteral(qualified) + "::regclass AND conname = " + dump.CommentLiteral(name) + " AND contype = " + dump.CommentLiteral(kind) + " AND conkey = ARRAY[" + strings.Join(keyQueries, ", ") + "] AND conislocal = " + strconv.FormatBool(beforeLocal) + " AND coninhcount = " + strconv.Itoa(len(p.Origins))
-		for _, parent := range parents {
-			sql += " AND EXISTS (SELECT 1 FROM pg_catalog.pg_inherits WHERE inhrelid = " + dump.CommentLiteral(qualified) + "::regclass AND inhparent = " + dump.CommentLiteral(parent) + "::regclass)"
-		}
-		return emit(sql + ";\n")
-	}
-	if checks {
-		for _, c := range t.descriptor.Constraints.Check {
-			if err := emitFact(c.Name, constraintAttributeKeys(t.descriptor, c.Expression), graph.Checks[c.Name], true, c.NotValid); err != nil {
-				return err
-			}
-		}
-	} else {
-		for _, c := range t.notNullConstraints {
-			if err := emitFact(c.Name, []int32{c.Attribute}, graph.NotNull[c.Attribute], false, c.NotValid); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Update, authority *restoredHistoryAuthority) error {
-	repair, err := restoreRetiredSyntax(raw)
+func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Update, authority *table.RestoredHistoryAuthority) error {
+	repair, err := table.RestoreRetiredSyntax(raw)
 	if err != nil {
 		return err
 	}
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	reject := func() error { return sqlError("0A000", restoreRetiredBoundary) }
-	if authority == nil || authority.facts == nil || authority.archives == nil || authority.sources == nil {
+	reject := func() error { return sqlError("0A000", table.RestoreRetiredBoundary) }
+	if authority == nil || authority.Facts == nil || authority.Archives == nil || authority.Sources == nil {
 		return reject()
 	}
-	facts, archives, sources := authority.facts, authority.archives, authority.sources
+	facts, archives, sources := authority.Facts, authority.Archives, authority.Sources
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
@@ -268,7 +66,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 		e.mu.Unlock()
 		return reject()
 	}
-	ref, err := e.resolveRelationReference(auth, repair.relation, false)
+	ref, err := e.resolveRelationReference(auth, repair.Relation, false)
 	if err != nil {
 		e.mu.Unlock()
 		return err
@@ -283,33 +81,33 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 		e.mu.Unlock()
 		return reject()
 	}
-	var fact restoredHistoricalFact
+	var fact table.RestoredHistoricalFact
 	var provenance catalog.InheritedConstraint
-	if repair.check {
+	if repair.Check {
 		for _, c := range old.Constraints.Check {
-			if c.Name == repair.name {
-				fact = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, check: true, attributes: constraintAttributeKeys(old, c.Expression), expression: c.Expression, notValid: c.NotValid, noInherit: c.NoInherit}
+			if c.Name == repair.Name {
+				fact = table.RestoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: table.ConstraintAttributeKeys(old, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NoInherit: c.NoInherit}
 				provenance = old.Inheritance.Checks[c.Name]
 				break
 			}
 		}
 	} else {
 		for _, c := range old.Constraints.NotNull {
-			if c.Name == repair.name {
-				fact = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, attributes: []int32{c.Attribute}, notValid: c.NotValid, noInherit: c.NoInherit}
+			if c.Name == repair.Name {
+				fact = table.RestoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Attributes: []int32{c.Attribute}, NotValid: c.NotValid, NoInherit: c.NoInherit}
 				provenance = old.Inheritance.NotNull[c.Attribute]
 				break
 			}
 		}
 	}
-	captured, exists := facts[fact.oid]
-	if !exists || captured.oid != fact.oid || fact.oid == 0 || captured.ref != ref || captured.name != fact.name || captured.check != fact.check || captured.notValid != fact.notValid || captured.noInherit != fact.noInherit || !slices.Equal(captured.attributes, fact.attributes) || !analyze.SameGroupExpression(captured.expression, fact.expression) || captured.local != repair.beforeLocal || captured.count != repair.before || provenance.Local != repair.beforeLocal || provenance.Count() != repair.before || len(provenance.Retired) != 0 || len(fact.attributes) != len(repair.columns) {
+	captured, exists := facts[fact.OID]
+	if !exists || captured.OID != fact.OID || fact.OID == 0 || captured.Ref != ref || captured.Name != fact.Name || captured.Check != fact.Check || captured.NotValid != fact.NotValid || captured.NoInherit != fact.NoInherit || !slices.Equal(captured.Attributes, fact.Attributes) || !analyze.SameGroupExpression(captured.Expression, fact.Expression) || captured.Local != repair.BeforeLocal || captured.Count != repair.Before || provenance.Local != repair.BeforeLocal || provenance.Count() != repair.Before || len(provenance.Retired) != 0 || len(fact.Attributes) != len(repair.Columns) {
 		e.mu.Unlock()
 		return reject()
 	}
-	for i, attribute := range fact.attributes {
+	for i, attribute := range fact.Attributes {
 		slot := old.IndexForAttribute(attribute)
-		if slot < 0 || old.Columns[slot].Name != repair.columns[i] {
+		if slot < 0 || old.Columns[slot].Name != repair.Columns[i] {
 			e.mu.Unlock()
 			return reject()
 		}
@@ -317,9 +115,9 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	var records []catalog.RetiredInheritanceOrigin
 	nextArchives := maps.Clone(archives)
 	nextSources := maps.Clone(sources)
-	nextArchive := authority.nextArchive
-	for _, row := range repair.rows {
-		parent, err := e.resolveRelationReference(auth, row.parent, false)
+	nextArchive := authority.NextArchive
+	for _, row := range repair.Rows {
+		parent, err := e.resolveRelationReference(auth, row.Parent, false)
 		if err != nil {
 			e.mu.Unlock()
 			return err
@@ -328,7 +126,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 			e.mu.Unlock()
 			return reject()
 		}
-		archive, known := nextArchives[row.archive]
+		archive, known := nextArchives[row.Archive]
 		if !known {
 			if nextArchive == ^uint64(0) {
 				e.mu.Unlock()
@@ -336,11 +134,11 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 			}
 			nextArchive++
 			archive = nextArchive
-			nextArchives[row.archive] = archive
+			nextArchives[row.Archive] = archive
 		}
-		record := catalog.RetiredInheritanceOrigin{Parent: parent, Attribute: row.attribute, Column: row.column, Name: row.name, Constraint: row.constraint, Lifetime: row.lifetime, Archive: archive, Own: fact.oid, Check: fact.check, Replayed: true}
-		identity := retiredSourceIdentity{parent: parent, archive: archive, lifetime: row.lifetime, constraint: row.constraint}
-		description := retiredSourceDescription{column: row.column, name: row.name, attribute: row.attribute, check: row.check}
+		record := catalog.RetiredInheritanceOrigin{Parent: parent, Attribute: row.Attribute, Column: row.Column, Name: row.Name, Constraint: row.Constraint, Lifetime: row.Lifetime, Archive: archive, Own: fact.OID, Check: fact.Check, Replayed: true}
+		identity := table.RetiredSourceIdentity{Parent: parent, Archive: archive, Lifetime: row.Lifetime, Constraint: row.Constraint}
+		description := table.RetiredSourceDescription{Column: row.Column, Name: row.Name, Attribute: row.Attribute, Check: row.Check}
 		if previous, known := nextSources[identity]; known && previous != description {
 			e.mu.Unlock()
 			return reject()
@@ -361,12 +159,12 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	next := *old
 	next.ObjectRevision++
 	next.Inheritance = catalog.CloneInheritance(old.Inheritance)
-	provenance.Local = repair.local
+	provenance.Local = repair.Local
 	provenance.Retired = records
-	if fact.check {
-		next.Inheritance.Checks[fact.name] = provenance
+	if fact.Check {
+		next.Inheritance.Checks[fact.Name] = provenance
 	} else {
-		next.Inheritance.NotNull[fact.attributes[0]] = provenance
+		next.Inheritance.NotNull[fact.Attributes[0]] = provenance
 	}
 	staged := e.BeginCatalogStage(auth.Catalog)
 	staged.authorizeLocked(auth, op.Session)
@@ -388,43 +186,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	for identity, description := range nextSources {
 		sources[identity] = description
 	}
-	authority.nextArchive = nextArchive
-	delete(facts, fact.oid)
+	authority.NextArchive = nextArchive
+	delete(facts, fact.OID)
 	return nil
-}
-
-func retiredConstraintEvents(view catalog.Read, events dump.Graph, tables []dumpRelation) {
-	for i := range tables {
-		table := tables[i].descriptor
-		graph := table.Inheritance
-		if graph == nil {
-			continue
-		}
-		has := false
-		for _, p := range graph.NotNull {
-			has = has || len(p.Retired) != 0
-		}
-		for _, p := range graph.Checks {
-			has = has || len(p.Retired) != 0
-		}
-		if !has {
-			continue
-		}
-		event := dump.Event{OID: table.Address().ObjectID, Phase: dump.RetiredConstraints}
-		seen := make(map[ids.ObjectAddress]bool)
-		var ready func(ids.ObjectAddress)
-		ready = func(address ids.ObjectAddress) {
-			if seen[address] {
-				return
-			}
-			seen[address] = true
-			events.Add(event, dump.Event{OID: address.ObjectID, Phase: dump.TableCompletion})
-			if parent, ok := view.Relation(address); ok && parent.Inheritance != nil {
-				for _, ancestor := range parent.Inheritance.Parents {
-					ready(ancestor)
-				}
-			}
-		}
-		ready(table.Address())
-	}
 }

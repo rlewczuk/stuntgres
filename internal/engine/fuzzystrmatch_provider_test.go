@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -228,7 +229,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{
 		1: {Expression: n, Dependencies: []ids.ObjectRef{n.Ref}},
 	}}}
-	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
+	if err := table.ValidateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal("installed generation procedure dependency", err)
 	}
 	badRef := n.Ref
@@ -237,14 +238,14 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	invalid.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{
 		1: {Expression: n, Dependencies: []ids.ObjectRef{badRef}},
 	}
-	if err := validateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
+	if err := table.ValidateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("procedure subobject generation dependency admitted")
 	}
 	state := catalog.CloneState(e.catalog.state)
 	badProcedure := *n.Procedure
 	badProcedure.Result = 25
 	state.SetDescriptor(n.Ref.Address, &badProcedure)
-	if err := validateGenerationProviders(e.catalog.read(state), consumer); err == nil {
+	if err := table.ValidateGenerationProviders(e.catalog.read(state), consumer); err == nil {
 		t.Fatal("corrupt installed generation manifest admitted")
 	}
 	children := 0

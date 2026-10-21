@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -52,7 +53,7 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.ColumnMeta.HighWater != 4 || !reflect.DeepEqual(next.Attributes, []int32{1, 4}) || next.Columns[1].OriginAttribute != 4 || next.Columns[1].OriginTable != 20000 || added.attribute != 4 || len(old.Columns) != 1 || old.ColumnMeta.HighWater != 3 || len(old.ColumnMeta.Defaults) != 0 {
+	if next.ColumnMeta.HighWater != 4 || !reflect.DeepEqual(next.Attributes, []int32{1, 4}) || next.Columns[1].OriginAttribute != 4 || next.Columns[1].OriginTable != 20000 || added.Attribute != 4 || len(old.Columns) != 1 || old.ColumnMeta.HighWater != 3 || len(old.ColumnMeta.Defaults) != 0 {
 		t.Fatal("stable identities/source changed", old, next, added)
 	}
 	if &next.Columns[0] == &old.Columns[0] || &next.Attributes[0] == &old.Attributes[0] {
@@ -63,7 +64,7 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 		t.Fatal("candidate shares index")
 	}
 	delete(next.Index, "sentinel")
-	fills, volatile, err := planAddedColumns(scope, []addedColumn{added})
+	fills, volatile, err := planAddedColumns(scope, []table.AddedColumn{added})
 	if err != nil || volatile {
 		t.Fatal(fills, volatile, err)
 	}
@@ -74,7 +75,7 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	// A syntactically valid skipped declaration never resolves its unknown type.
 	skip := alterAddUnitAction(t, "ALTER TABLE t ADD IF NOT EXISTS a nonexistent_type DEFAULT 'oops'")
 	same, ignored, err := e.addColumnCandidate(scope, scope.op, auth, old, skip, nil)
-	if err != nil || same != old || ignored.column != nil || old.ColumnMeta.HighWater != 3 {
+	if err != nil || same != old || ignored.Column != nil || old.ColumnMeta.HighWater != 3 {
 		t.Fatal(same, ignored, err)
 	}
 	limit := *old
@@ -96,9 +97,9 @@ func TestAlterAddColumnNonvolatileDemandOnce(t *testing.T) {
 	for _, volatility := range []expr.Volatility{expr.Immutable, expr.Stable} {
 		calls := 0
 		expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: volatility}}, eval: func(*exec.Context) (sqltype.Value, error) { calls++; return value, nil }}
-		additions := []addedColumn{{attribute: 4, expression: expression, value: sqltype.Null(u.Type)}}
+		additions := []table.AddedColumn{{Attribute: 4, Expression: expression, Value: sqltype.Null(u.Type)}}
 		fills, volatile, err := planAddedColumns(scope, additions)
-		if err != nil || volatile || calls != 1 || fills[4] != value || additions[0].value != value {
+		if err != nil || volatile || calls != 1 || fills[4] != value || additions[0].Value != value {
 			t.Fatal(fills, volatile, calls, err)
 		}
 		// Empty backfill does not suppress the earlier one-time demand.
@@ -125,7 +126,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	next.ColumnMeta.HighWater = 4
 	calls := 0
 	expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Integer(u.Type, int64(calls)) }}
-	additions := []addedColumn{{attribute: 4, column: &parser.Column{Name: "b"}, expression: expression, value: sqltype.Null(u.Type)}}
+	additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "b"}, Expression: expression, Value: sqltype.Null(u.Type)}}
 	fills, volatile, err := planAddedColumns(scope, additions)
 	if err != nil || !volatile || calls != 0 || len(fills) != 0 {
 		t.Fatal(fills, volatile, calls, err)
@@ -151,7 +152,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		return transformed, nil
 	}}
 	transforms := []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}
-	replacement, own, deleted, err := rewriteTypeRows(scope, scope.op, old, &next, store, 2, transforms, additions, nil, newAlterRowValidator(&next, ""))
+	replacement, own, deleted, err := rewriteTypeRows(scope, scope.op, old, &next, store, 2, transforms, additions, nil, table.NewAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(own) != 2 || deleted != nil {
 		t.Fatal(replacement, own, calls, err)
 	}

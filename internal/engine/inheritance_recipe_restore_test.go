@@ -7,12 +7,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[string]ids.ObjectRef, map[restoredGenerationKey]restoredGenerationRecipe) {
+func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[string]ids.ObjectRef, map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE captured_owner")
@@ -26,7 +27,7 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[str
 		"CREATE TABLE public.unrelated(a INT)",
 	}
 	refs := make(map[string]ids.ObjectRef)
-	origins := make(map[restoredGenerationKey]restoredGenerationRecipe)
+	origins := make(map[table.RestoredGenerationKey]table.RestoredGenerationRecipe)
 	for _, sql := range declarations {
 		raw := statement(t, sql).(*parser.CreateTable)
 		roleExecute(t, e, op, sql)
@@ -47,20 +48,20 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[str
 func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	e, op, refs, origins := inheritedRestoreFixture(t)
 	raw := statement(t, "ALTER TABLE ONLY public.p ALTER g SET EXPRESSION AS(a+1)").(*parser.AlterTable)
-	key := restoredGenerationKey{refs["p"].Address, 2}
+	key := table.RestoredGenerationKey{Relation: refs["p"].Address, Attribute: 2}
 	if len(origins) != 2 {
 		t.Fatal("actual root/inherited typed-NULL declarations were not captured", origins)
 	}
 	if err := e.pairRestoredGeneration(op, raw, origins); err != nil {
 		t.Fatal(err)
 	}
-	for name, mutate := range map[string]func(*restoredGenerationRecipe){
-		"epoch":     func(r *restoredGenerationRecipe) { r.ref.Epoch++ },
-		"owner":     func(r *restoredGenerationRecipe) { r.ref = New().catalog.Domain.Ref(r.ref.Epoch, r.ref.Address) },
-		"attribute": func(r *restoredGenerationRecipe) { r.attribute++ },
-		"identity":  func(r *restoredGenerationRecipe) { r.generation++ },
-		"kind":      func(r *restoredGenerationRecipe) { r.kind = catalog.GenerationStored },
-		"usage":     func(r *restoredGenerationRecipe) { r.usage = testUsage(e, sqltype.Int8) },
+	for name, mutate := range map[string]func(*table.RestoredGenerationRecipe){
+		"epoch":     func(r *table.RestoredGenerationRecipe) { r.Ref.Epoch++ },
+		"owner":     func(r *table.RestoredGenerationRecipe) { r.Ref = New().catalog.Domain.Ref(r.Ref.Epoch, r.Ref.Address) },
+		"attribute": func(r *table.RestoredGenerationRecipe) { r.Attribute++ },
+		"identity":  func(r *table.RestoredGenerationRecipe) { r.Generation++ },
+		"kind":      func(r *table.RestoredGenerationRecipe) { r.Kind = catalog.GenerationStored },
+		"usage":     func(r *table.RestoredGenerationRecipe) { r.Usage = testUsage(e, sqltype.Int8) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := maps.Clone(origins)
@@ -85,7 +86,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 		t.Fatal(err)
 	}
 	check := statement(t, "ALTER TABLE public.q ADD CONSTRAINT positive CHECK(a>0)").(*parser.AlterTable)
-	if err := e.restoreInheritedCheck(op, check, []restoredGenerationRecipe{repair}); err != nil {
+	if err := e.restoreInheritedCheck(op, check, []table.RestoredGenerationRecipe{repair}); err != nil {
 		t.Fatal("actual connected other-parent CHECK rejected", err)
 	}
 	// Start every private rejection with an admitted parser shape. Unsupported
@@ -108,19 +109,19 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 		candidate := statement(t, admitted).(*parser.AlterTable)
 		test.change(candidate)
 		before := e.catalog.state
-		if err := e.restoreInheritedCheck(op, candidate, []restoredGenerationRecipe{repair}); err == nil || e.catalog.state != before {
+		if err := e.restoreInheritedCheck(op, candidate, []table.RestoredGenerationRecipe{repair}); err == nil || e.catalog.state != before {
 			t.Fatal("unpaired CHECK shape admitted", test.name, err)
 		}
 	}
 	if err := e.restoreInheritedCheck(op, check, nil); err == nil {
 		t.Fatal("CHECK admitted without actual generation repair")
 	}
-	for _, bad := range []restoredGenerationRecipe{
-		{ref: repair.ref, attribute: repair.attribute, generation: repair.generation + 1, usage: repair.usage, kind: repair.kind},
-		{ref: refs["unrelated"], attribute: repair.attribute, generation: repair.generation, usage: repair.usage, kind: repair.kind},
-		{ref: repair.ref, attribute: repair.attribute, generation: repair.generation, usage: testUsage(e, sqltype.Int8), kind: repair.kind},
+	for _, bad := range []table.RestoredGenerationRecipe{
+		{Ref: repair.Ref, Attribute: repair.Attribute, Generation: repair.Generation + 1, Usage: repair.Usage, Kind: repair.Kind},
+		{Ref: refs["unrelated"], Attribute: repair.Attribute, Generation: repair.Generation, Usage: repair.Usage, Kind: repair.Kind},
+		{Ref: repair.Ref, Attribute: repair.Attribute, Generation: repair.Generation, Usage: testUsage(e, sqltype.Int8), Kind: repair.Kind},
 	} {
-		if err := e.restoreInheritedCheck(op, check, []restoredGenerationRecipe{bad}); err == nil {
+		if err := e.restoreInheritedCheck(op, check, []table.RestoredGenerationRecipe{bad}); err == nil {
 			t.Fatal("foreign definition authorized CHECK", bad)
 		}
 	}
@@ -139,7 +140,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	e.catalog.state = before
 	targets := e.importTargets
 	e.importTargets = nil
-	if err := e.restoreInheritedCheck(op, check, []restoredGenerationRecipe{repair}); err == nil {
+	if err := e.restoreInheritedCheck(op, check, []table.RestoredGenerationRecipe{repair}); err == nil {
 		t.Fatal("ordinary CHECK gained importer authority")
 	}
 	e.importTargets = targets
@@ -150,7 +151,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	}
 	defer done()
 	cancel()
-	if err := e.restoreInheritedCheck(cancelOp, check, []restoredGenerationRecipe{repair}); !errors.Is(err, context.Canceled) {
+	if err := e.restoreInheritedCheck(cancelOp, check, []table.RestoredGenerationRecipe{repair}); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled CHECK gained authority", err)
 	}
 	roleExecute(t, e, op, "ALTER TABLE public.q ADD CONSTRAINT positive CHECK(a>0)")
@@ -158,7 +159,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	if provenance := current.Inheritance.Checks["positive"]; provenance.Local || len(provenance.Origins) != 1 || provenance.Origins[0].Parent != refs["q"].Address {
 		t.Fatal("actual ADD did not rebuild exact other-parent support", provenance)
 	}
-	retained, err := e.closeRestoredRecipesForData(op, statement(t, "INSERT INTO public.c(a) VALUES(1)").(*parser.Insert), []restoredGenerationRecipe{repair})
+	retained, err := e.closeRestoredRecipesForData(op, statement(t, "INSERT INTO public.c(a) VALUES(1)").(*parser.Insert), []table.RestoredGenerationRecipe{repair})
 	if err != nil || len(retained) != 0 {
 		t.Fatal("data did not close actual component repair lifetime", retained, err)
 	}
@@ -189,11 +190,11 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 			t.Fatal("foreign owner target accepted", sql, err)
 		}
 	}
-	for name, mutate := range map[string]func(*restoredInheritedOwner){
-		"missing": func(r *restoredInheritedOwner) { *r = restoredInheritedOwner{} },
-		"epoch":   func(r *restoredInheritedOwner) { r.ref.Epoch++ },
-		"creator": func(r *restoredInheritedOwner) { r.creator = owner.Ref },
-		"target":  func(r *restoredInheritedOwner) { r.ref = refs["unrelated"] },
+	for name, mutate := range map[string]func(*table.RestoredInheritedOwner){
+		"missing": func(r *table.RestoredInheritedOwner) { *r = table.RestoredInheritedOwner{} },
+		"epoch":   func(r *table.RestoredInheritedOwner) { r.Ref.Epoch++ },
+		"creator": func(r *table.RestoredInheritedOwner) { r.Creator = owner.Ref },
+		"target":  func(r *table.RestoredInheritedOwner) { r.Ref = refs["unrelated"] },
 	} {
 		t.Run(name, func(t *testing.T) {
 			candidate := pair
@@ -211,10 +212,10 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	}
 	e.importTargets = targets
 	before := e.CatalogRead().MustRelation(refs["c"].Address)
-	nn := restoredNotNull{ref: refs["c"], attribute: 1, constraint: before.Constraints.NotNull[0].OID}
+	nn := table.RestoredNotNull{Ref: refs["c"], Attribute: 1, Constraint: before.Constraints.NotNull[0].OID}
 	roleExecute(t, e, op, "ALTER TABLE public.c OWNER TO captured_owner")
 	after := e.CatalogRead().MustRelation(refs["c"].Address)
-	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.Constraints.NotNull[0].OID != nn.constraint {
+	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.Constraints.NotNull[0].OID != nn.Constraint {
 		t.Fatal("actual owner transfer changed source capture or physical NN identity")
 	}
 	if err := e.restoreInheritedOwner(op, raw, pair); err == nil {
@@ -227,7 +228,7 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	if err := e.restoreNoInheritNotNull(op, restoreNNRaw("public.c", "a", "local_nn"), nn); err != nil {
 		t.Fatal("legal owner metadata copy invalidated actual NN identity", err)
 	}
-	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != nn.constraint {
+	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != nn.Constraint {
 		t.Fatal("paired NN repair changed final captured owner/identity")
 	}
 }

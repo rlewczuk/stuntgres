@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -39,7 +40,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if err != nil || !strings.Contains(text, "pg_catalog.pg_extension_update_paths(") || !demand {
 		t.Fatal("path symbolic render and demand", text, err)
 	}
-	if err := validateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
+	if err := table.ValidateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
 		t.Fatal("persisted typed plan validation", err)
 	}
 	args := expr.Expr(call).(expr.Composite).Children()

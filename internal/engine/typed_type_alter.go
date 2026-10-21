@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -54,8 +55,8 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	stage.dependencyPath = path
 	stage.domainBases = append(stage.domainBases, typ)
 	stage.typedState().Source = typ.Address()
-	stage.typedState().Observed = typedClosure(auth.Catalog, typ.Address())
-	targets := typedPropagationOrder(auth.Catalog, typ.Address())
+	stage.typedState().Observed = table.TypedClosure(auth.Catalog, typ.Address())
+	targets := table.TypedPropagationOrder(auth.Catalog, typ.Address())
 	if len(targets) != 0 {
 		restrict := s.Rename != nil && s.Mode != parser.DropCascade
 		for _, action := range s.Actions {
@@ -112,7 +113,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	}
 	var sourceMutation typedRelationMutation
 	if s.Rename != nil {
-		next, renameErr := renameColumnCandidate(source, s.Column.Text, s.Rename.Text)
+		next, renameErr := table.RenameColumnCandidate(source, s.Column.Text, s.Rename.Text)
 		if renameErr != nil {
 			return Result{}, renameErr
 		}
@@ -172,21 +173,21 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 			}
 		}
 	}
-	for _, table := range targets {
+	for _, tbl := range targets {
 		var actions []typedef.TypedColumnAction
 		var renames map[int32]string
 		var graph *catalog.TableInheritance
 		view := e.stageRead(stage)
-		table = view.MustRelation(table.Address())
-		if table.OfType == typ.Address() {
-			actions, renames = typedef.TypedShapeActions(source, sourceMutation.next, table, forced[source.Address()])
+		tbl = view.MustRelation(tbl.Address())
+		if tbl.OfType == typ.Address() {
+			actions, renames = typedef.TypedShapeActions(source, sourceMutation.next, tbl, forced[source.Address()])
 		} else {
-			actions, renames, graph, err = typedInheritedActions(view, table, forced)
+			actions, renames, graph, err = table.TypedInheritedActions(view, tbl, forced)
 			if err != nil {
 				return Result{}, err
 			}
 		}
-		mutation, err := e.typedMutation(scope, op, auth, stage, table, actions)
+		mutation, err := e.typedMutation(scope, op, auth, stage, tbl, actions)
 		if err != nil {
 			return Result{}, err
 		}
@@ -194,9 +195,9 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 			if forced == nil {
 				forced = make(map[ids.ObjectAddress]map[int32]bool)
 			}
-			forced[table.Address()] = typedTransformAttributes(mutation.transforms)
+			forced[tbl.Address()] = table.TypedTransformAttributes(mutation.transforms)
 		}
-		for _, attribute := range table.Attributes {
+		for _, attribute := range tbl.Attributes {
 			destination, rename := renames[attribute]
 			if !rename {
 				continue
@@ -205,17 +206,17 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 			if slot < 0 {
 				continue
 			}
-			mutation.next, err = renameColumnCandidate(mutation.next, mutation.next.Columns[slot].Name, destination)
+			mutation.next, err = table.RenameColumnCandidate(mutation.next, mutation.next.Columns[slot].Name, destination)
 			if err != nil {
 				return Result{}, err
 			}
 		}
 		if graph != nil || len(renames) != 0 {
 			next := *mutation.next
-			if table.Revision() == ids.DefinitionRevision(^uint64(0)) {
+			if tbl.Revision() == ids.DefinitionRevision(^uint64(0)) {
 				return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 			}
-			next.ObjectRevision = table.Revision() + 1
+			next.ObjectRevision = tbl.Revision() + 1
 			mutation.next = &next
 			if graph != nil {
 				typedef.FinishTypedInheritance(view, &next, graph)

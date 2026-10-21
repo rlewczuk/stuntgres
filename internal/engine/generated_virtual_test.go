@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	ten, _ := sqltype.Integer(typ, 10)
 	row := []sqltype.Value{two, seven}
 	eval := exec.Context{}
-	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() || row[1].Type() != typ {
+	if err := table.EvaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() || row[1].Type() != typ {
 		t.Fatal(row, err)
 	}
 	generated := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 2}.WithGeneration(d, 1, 1)
@@ -61,7 +62,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: base, Planned: base}}
-	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil {
+	if err := table.EvaluateGenerations(context.Background(), d, row, &eval); err != nil {
 		t.Fatal(err)
 	}
 	if n, err := row[1].Integer(); err != nil || n != 2 {
@@ -92,7 +93,7 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 		typ    *sqltype.Descriptor
 		domain bool
 	}{{domain, true}, {array, true}, {enum, false}, {enumArray, false}} {
-		err := virtualDestination(catalog.Column{Name: "b", Usage: tc.typ.Usage()})
+		err := table.VirtualDestination(catalog.Column{Name: "b", Usage: tc.typ.Usage()})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal(tc, err)
@@ -109,17 +110,17 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 	if !ok {
 		t.Fatal("int[] missing")
 	}
-	if err := virtualDestination(catalog.Column{Name: "b", Usage: builtinArray.Usage()}); err != nil {
+	if err := table.VirtualDestination(catalog.Column{Name: "b", Usage: builtinArray.Usage()}); err != nil {
 		t.Fatal(err)
 	}
 	hidden := plan.LiteralExpr{Info: expr.Info{Usage: domain.Usage(), Pos: parser.Position{Character: 17}}, Value: sqltype.Null(domain)}
 	otherwise := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
 	tree := plan.CaseExpr{Info: expr.Info{Usage: integer.Usage()}, Arms: []plan.CaseBranch{{Result: hidden}}, Otherwise: otherwise}
 	var diagnostic *sqlstate.Error
-	if err := virtualGenerationSecurity(tree); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Position != "17" || diagnostic.Message != "generation expression uses user-defined type" {
+	if err := table.VirtualGenerationSecurity(tree); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Position != "17" || diagnostic.Message != "generation expression uses user-defined type" {
 		t.Fatal(err)
 	}
-	if err := virtualGenerationSecurity(otherwise); err != nil {
+	if err := table.VirtualGenerationSecurity(otherwise); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -146,8 +147,8 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 		t.Fatal(v, err)
 	}
 	d.Columns[1].Nullable = false
-	validator := newAlterRowValidator(d, "public")
-	if err := validator.validate(row, &eval); err != nil {
+	validator := table.NewAlterRowValidator(d, "public")
+	if err := validator.Validate(row, &eval); err != nil {
 		t.Fatal("physical NULL rejected logical nine", err)
 	}
 	detail, err := exec.FailingRowDetail(row, sqltype.OutputEnvironment{}, nil, nil, d)
@@ -180,7 +181,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 		t.Fatal("virtual owner was materialized")
 	}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: store.Versions[0].Values}}
-	v, err := logicalColumnValue(d, 1, eval.Row, &eval)
+	v, err := table.LogicalColumnValue(d, 1, eval.Row, &eval)
 	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.Address().ObjectID {
 		t.Fatal(v, err, e)
 	}

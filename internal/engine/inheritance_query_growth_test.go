@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -141,7 +142,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, parent, op.Session.SessionToken)
+		source, err = table.CaptureInheritanceQueryPrefix(scope.inheritance.catalog, view, parent, op.Session.SessionToken)
 	}
 	e.mu.Unlock()
 	if err != nil {

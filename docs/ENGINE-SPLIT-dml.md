@@ -88,8 +88,8 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 | `checkTemporaryStorageAccess` | root (`temporary_access.go`) | done (29a) |
 | `Engine.queryTableRefsLocked` | root query admission (`query_table_refs.go`) | done (29a) |
 | `physicalRowEvent`, `flushPhysicalEvents` | root row-lock area (`statement_host_row_lock.go`) | done (29a) |
-| FK probe records (`foreign_key_probe.go`: `findForeignKeyParent`, `prepareForeignKeyChild`, `foreignKeyRows`, `probeForeignKeyIndex`); also used by `foreign_key_restore.go` | `table` | 24b; `dml` imports them |
-| `inheritance_query*.go` (`captureInheritanceQueryPrefix`, `inheritanceQueryClosure`, `inheritanceQueryLeaves`, `sourceOnly`); also used by SELECT admission (`query_admission.go`) | `table` (clean helpers, 24b); the scope methods stay with root query admission | 24b |
+| FK probe records (`foreign_key_probe.go`: `findForeignKeyParent`, `prepareForeignKeyChild`, `foreignKeyRows`, `probeForeignKeyIndex`); also used by `foreign_key_restore.go` | `table` | done (24b: `table.FindForeignKeyParent`, `table.ForeignKeyRows`, ...); `dml` imports them |
+| `inheritance_query*.go` (`captureInheritanceQueryPrefix`, `inheritanceQueryClosure`, `inheritanceQueryLeaves`, `sourceOnly`); also used by SELECT admission (`query_admission.go`) | `table` (clean helpers, 24b); the scope methods and `inheritanceQueryLeaves` (it calls `viewLeafRowMark`) stay with root query admission | done (24b) |
 | COPY codecs (options, FORCE binding, `ResolveColumns`, text/CSV `LineReader`, `BinaryReader`) | `copyfmt` (done, 19b) | 19 |
 | COPY execution (`copy.go`, `copy_text.go`, `copy_binary.go`, `copy_insertion.go`: cursors' `Next`/`diagnostic`, `copyOutput`, `copyBinaryOutput`) | `dml` | 29b |
 | COPY protocol and reservation (`copy_admission.go`, `protocol_copy.go`, `protocol_copy_query.go`, `CopyBoundary`, `StatementScope.Copy`/`CopyProtocol`) | root (public facade) | — |

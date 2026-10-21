@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -158,12 +159,12 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		return children.each(func(child storage.RowVersion) (bool, error) {
-			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
+		return children.Each(func(child storage.RowVersion) (bool, error) {
+			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
-			if err = s.foreignKeyGrant(ref, child.Row, lock.ForKeyShare, children.storage); err != nil {
+			if err = s.foreignKeyGrant(ref, child.Row, lock.ForKeyShare, children.Storage); err != nil {
 				return false, err
 			}
 			latest, live, err := s.foreignActionRow(ref, child)
@@ -173,11 +174,11 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err := s.physicalRowEvent(ref, latest, lock.MultiKeyShare, 0); err != nil {
 				return false, err
 			}
-			match, err = foreignKeyRowsMatch(s.op.Context(), job.comparisons, latest.Values, event.old.Values, s.input)
+			match, err = table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, latest.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
-			d := foreignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
+			d := table.ForeignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
 			var diagnostic *sqlstate.Error
 			if !errors.As(d, &diagnostic) {
 				return false, d
@@ -210,9 +211,9 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	// live-successor crosscheck below run before any latest-key match/staging.
 	var candidates []storage.RowVersion
 	var retainedMatches map[ids.RowID]struct{}
-	if retained.storage != nil {
-		err = retained.each(func(child storage.RowVersion) (bool, error) {
-			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
+	if retained.Storage != nil {
+		err = retained.Each(func(child storage.RowVersion) (bool, error) {
+			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
@@ -227,11 +228,11 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return err
 		}
 	}
-	err = children.each(func(child storage.RowVersion) (bool, error) {
+	err = children.Each(func(child storage.RowVersion) (bool, error) {
 		if _, exists := retainedMatches[child.Row]; exists {
 			return false, nil
 		}
-		match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
+		match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 		if match {
 			candidates = append(candidates, child)
 		}
@@ -254,7 +255,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if deletion {
 			mode = lock.ForUpdate
 		}
-		if err = s.foreignKeyGrant(ref, candidate.Row, mode, children.storage); err != nil {
+		if err = s.foreignKeyGrant(ref, candidate.Row, mode, children.Storage); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		e.mu.Lock()
@@ -280,7 +281,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
-		match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, old.Values, event.old.Values, s.input)
+		match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, old.Values, event.old.Values, s.input)
 		if err != nil {
 			return err
 		}
@@ -325,7 +326,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		if keyChanged {
-			if err = s.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.storage); err != nil {
+			if err = s.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
 				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
@@ -364,8 +365,8 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		return final.each(func(child storage.RowVersion) (bool, error) {
-			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
+		return final.Each(func(child storage.RowVersion) (bool, error) {
+			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
@@ -373,7 +374,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err != nil || found {
 				return false, err
 			}
-			return false, foreignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
+			return false, table.ForeignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
 		})
 	}
 	return nil
@@ -441,8 +442,8 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 		parentSlot := slices.Index(job.parent.Attributes, job.definition.Referenced[i])
 		var comparison sqltype.IndexForeignKeyComparison
 		for _, c := range job.comparisons {
-			if c.child == childSlot {
-				comparison = c.comparison
+			if c.Child == childSlot {
+				comparison = c.Comparison
 				break
 			}
 		}

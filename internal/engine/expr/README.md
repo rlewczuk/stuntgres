@@ -223,7 +223,7 @@ without a hook gets the switch's previous generic behavior:
 
 Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
 (`joinExpressionSides`), planned volatility, generated admission
-(`plan.GenerationImmutable`, `plan.GenerationHasTableOID`, `validateGenerationPlan`),
+(`plan.GenerationImmutable`, `plan.GenerationHasTableOID`, `table.ValidateGenerationPlan`),
 conditional planning (`exec`'s `simplifyConditionalNode`, `ConditionalConstantInputs`),
 retag (`stored.MapExpressionReader`), remap (`stored.RemapScalar`), node-tree
 output (`plan.AppendBoundTree`), SQL deparse (`stored.Deparser.SQL`, interpreted in

@@ -51,7 +51,7 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 		}
 		copy := *d
 		copy.Security.Policies = kept
-		revision, err := provider.revision(copy.Revision())
+		revision, err := provider.Revision(copy.Revision())
 		if err != nil {
 			return err
 		}

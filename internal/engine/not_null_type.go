@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/table"
 )
 
 // TYPE recreates affected NN identities without changing names or validity.
@@ -51,7 +52,7 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog
 	if next == nil {
 		return parent, nil
 	}
-	if err := retireRebuiltNotNullHistory(parent, next); err != nil {
+	if err := table.RetireRebuiltNotNullHistory(parent, next); err != nil {
 		return nil, err
 	}
 	if err := stage.Replace(next); err != nil {

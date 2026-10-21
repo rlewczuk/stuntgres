@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -26,19 +27,19 @@ type restoreRun struct {
 	snapshots         []materializedSnapshot
 
 	// Table, NOT NULL and foreign key captures.
-	pendingForeignKeys      []restoredForeignKeys
-	notNullOrigins          map[ids.OID]restoredNotNull
-	pairedNotNull           restoredNotNull
+	pendingForeignKeys      []table.RestoredForeignKeys
+	notNullOrigins          map[ids.OID]table.RestoredNotNull
+	pairedNotNull           table.RestoredNotNull
 	pairedPhysical          *restoredPhysicalNotNull
 	deferredPhysical        *restoredPhysicalNotNull
 	physicalIndexes         map[ids.ObjectAddress]*catalog.Relation
 	physicalForeignProvider *restoredPhysicalForeignKeyProvider
 
 	// Inheritance captures.
-	placeholderOrigins  map[restoredGenerationKey]restoredGenerationRecipe
-	generationRepairs   []restoredGenerationRecipe
+	placeholderOrigins  map[table.RestoredGenerationKey]table.RestoredGenerationRecipe
+	generationRepairs   []table.RestoredGenerationRecipe
 	historicalRefs      map[ids.ObjectAddress]ids.ObjectRef
-	historicalAuthority *restoredHistoryAuthority
+	historicalAuthority *table.RestoredHistoryAuthority
 
 	// Partition captures.
 	partitionTeardowns map[ids.ObjectAddress]partitionReplayTeardown
@@ -47,7 +48,7 @@ type restoreRun struct {
 	// following CREATE inherits, and the owner pairs a following ALTER OWNER
 	// consumes.
 	lastAuthorization, createOwner authorization.PrincipalRef
-	pairedOwner                    restoredInheritedOwner
+	pairedOwner                    table.RestoredInheritedOwner
 	pairedDomainOwner              typedef.RestoredDomainOwner
 
 	cur restoreStatement
@@ -57,12 +58,12 @@ type restoreRun struct {
 // resets it before each statement.
 type restoreStatement struct {
 	index               int
-	physicalConstructor *physicalNotNullConstructor
+	physicalConstructor *table.PhysicalNotNullConstructor
 	physicalIndexBase   catalog.Read
-	pending             restoredForeignKeys // CREATE TABLE foreign keys bound at finish
+	pending             table.RestoredForeignKeys // CREATE TABLE foreign keys bound at finish
 	// Owner directive state as it was before this statement.
 	priorAuthorization, ownerForCreate authorization.PrincipalRef
-	ownerPair                          restoredInheritedOwner
+	ownerPair                          table.RestoredInheritedOwner
 	domainOwnerPair                    typedef.RestoredDomainOwner
 }
 
@@ -71,9 +72,9 @@ type restoreStatement struct {
 // already in the target catalog.
 func (r *restoreRun) startCaptures(archiveHighWater uint64) {
 	r.partitionTeardowns = make(map[ids.ObjectAddress]partitionReplayTeardown)
-	r.notNullOrigins = make(map[ids.OID]restoredNotNull)
+	r.notNullOrigins = make(map[ids.OID]table.RestoredNotNull)
 	r.physicalIndexes = make(map[ids.ObjectAddress]*catalog.Relation)
-	r.placeholderOrigins = make(map[restoredGenerationKey]restoredGenerationRecipe)
+	r.placeholderOrigins = make(map[table.RestoredGenerationKey]table.RestoredGenerationRecipe)
 	r.historicalRefs = make(map[ids.ObjectAddress]ids.ObjectRef)
-	r.historicalAuthority = &restoredHistoryAuthority{facts: make(map[ids.OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: archiveHighWater}
+	r.historicalAuthority = &table.RestoredHistoryAuthority{Facts: make(map[ids.OID]table.RestoredHistoricalFact), Archives: make(map[uint64]uint64), Sources: make(map[table.RetiredSourceIdentity]table.RetiredSourceDescription), NextArchive: archiveHighWater}
 }

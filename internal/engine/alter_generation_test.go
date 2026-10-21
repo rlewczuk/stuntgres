@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -81,7 +82,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	target := ref.Address
 	target.SubID = 1
 	originalDrop, _, err := e.generationCandidate(scope, admin, auth, old, drop)
-	if err != nil || !generationDepends(old, target) || generationDepends(next, target) || generationDepends(originalDrop, target) || originalDrop.ColumnMeta.Generations[3].OID != unaffected.OID {
+	if err != nil || !table.GenerationDepends(old, target) || table.GenerationDepends(next, target) || table.GenerationDepends(originalDrop, target) || originalDrop.ColumnMeta.Generations[3].OID != unaffected.OID {
 		t.Fatal("SET/DROP dependency edges or unaffected definition wrong", err)
 	}
 	drop.IfExists = true
@@ -147,8 +148,8 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 		}
 		return integer(31), nil
 	}}
-	additions := []addedColumn{{attribute: 4, column: &parser.Column{Name: "c"}, value: integer(5)}}
-	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, newAlterRowValidator(&next, ""))
+	additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "c"}, Value: integer(5)}}
+	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(writes) != 2 || deletes != nil || replacement.Generation != 2 {
 		t.Fatal(replacement, writes, calls, err)
 	}
@@ -202,7 +203,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	replacement, writes, deletes, err := rewriteTypeRows(scope, op, &old, &next, store, 1, nil, nil, []int32{2}, newAlterRowValidator(&next, ""))
+	replacement, writes, deletes, err := rewriteTypeRows(scope, op, &old, &next, store, 1, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""))
 	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.Generation != 7 || len(store.Versions[0].Values) != 2 || store.Versions[0].Values[1] != value {
 		t.Fatal("real rewrite cancellation leaked candidate", replacement, writes, deletes, calls, err)
 	}

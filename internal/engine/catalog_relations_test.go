@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -88,7 +89,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 		if err != nil || !strings.Contains(text, "pg_catalog."+sample.name+"(") || !demand {
 			t.Fatal("symbolic serialization and catalog demand", text, demand, err)
 		}
-		if err := validateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
+		if err := table.ValidateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
 			t.Fatal("typed persisted plan validation", err)
 		}
 		args := expr.Expr(sample.node).(expr.Composite).Children()

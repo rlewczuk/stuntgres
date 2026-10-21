@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -23,7 +24,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 	if err == nil && ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if s.IfExists && renameMissing(err) {
+	if s.IfExists && table.RenameMissing(err) {
 		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
 		op.Session.Mu.Unlock()

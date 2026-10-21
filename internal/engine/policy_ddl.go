@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -24,20 +25,20 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if err != nil {
 		return fail(err)
 	}
-	var table parser.ObjectName
+	var tbl parser.ObjectName
 	var name string
 	var rawRoles []parser.GrantGrantee
 	var rawUsing, rawCheck parser.Expr
 	create, alter, drop := false, false, false
 	switch s := stmt.(type) {
 	case *parser.CreatePolicy:
-		table, name, rawRoles, rawUsing, rawCheck = s.Table, s.Name.Text, s.Roles, s.Using, s.Check
+		tbl, name, rawRoles, rawUsing, rawCheck = s.Table, s.Name.Text, s.Roles, s.Using, s.Check
 		create = true
 	case *parser.AlterPolicy:
-		table, name, rawRoles, rawUsing, rawCheck = s.Table, s.Name.Text, s.Roles, s.Using, s.Check
+		tbl, name, rawRoles, rawUsing, rawCheck = s.Table, s.Name.Text, s.Roles, s.Using, s.Check
 		alter = true
 	case *parser.DropPolicy:
-		table, name = s.Table, s.Name.Text
+		tbl, name = s.Table, s.Name.Text
 		drop = true
 	}
 	if err = policyPreflight(op, auth.View, stmt, false); err != nil {
@@ -47,11 +48,11 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if err != nil {
 		return fail(err)
 	}
-	ref, err := e.resolveRelationReference(auth, table, true)
-	if s, ok := stmt.(*parser.DropPolicy); ok && s.IfExists && renameMissing(err) {
-		message := fmt.Sprintf(`relation "%s" does not exist, skipping`, table.Parts[len(table.Parts)-1].Text)
+	ref, err := e.resolveRelationReference(auth, tbl, true)
+	if s, ok := stmt.(*parser.DropPolicy); ok && s.IfExists && table.RenameMissing(err) {
+		message := fmt.Sprintf(`relation "%s" does not exist, skipping`, tbl.Parts[len(tbl.Parts)-1].Text)
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "3F000" {
-			message = fmt.Sprintf(`schema "%s" does not exist, skipping`, table.Parts[0].Text)
+			message = fmt.Sprintf(`schema "%s" does not exist, skipping`, tbl.Parts[0].Text)
 		}
 		return e.finishPolicyNoticeLocked(scope, message)
 	}

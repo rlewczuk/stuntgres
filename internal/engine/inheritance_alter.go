@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -15,180 +16,17 @@ import (
 // pipeline still owns cooking, row/index rewrites and physical validation.
 // Nothing is installed in the transaction owner or live catalog between nodes.
 type inheritanceAlterState struct {
-	inheritanceAlterPlan
+	table.InheritanceAlterPlan
 	stage   *CatalogStage
 	changes *session.Journal
+	// prepared holds the root's prepared nodes, keyed by relation.
+	prepared map[ids.ObjectAddress]*inheritancePreparedNode
 }
 
-// inheritanceAlterPlan is the statement's recursion plan: the ordered targets,
-// the actions and the events each node recorded for its children. It holds no
-// stage or journal; inheritanceAlterState carries those.
-type inheritanceAlterPlan struct {
-	root       *catalog.Relation
-	targets    []*catalog.Relation
-	selected   map[ids.ObjectAddress]bool
-	graph      *catalog.TableInheritance
-	descendant bool
-	only       bool
-	actions    []parser.AlterTableAction
-	events     map[ids.ObjectAddress][]inheritanceAlterEvent
-	validating map[string]bool
-	preparing  bool
-	definition inheritanceDefinitionReader
-	prepared   map[ids.ObjectAddress]*inheritancePreparedNode
-	tablespace ids.ObjectRef          // Prepared root-only destination; never propagated.
-	types      []alterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
-}
-
-// Unlike the OF-type entry, ordinary propagation includes its named root.
-func inheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog.Relation {
-	selected := map[ids.ObjectAddress]*catalog.Relation{}
-	var collect func(*catalog.Relation)
-	collect = func(d *catalog.Relation) {
-		if selected[d.Address()] != nil {
-			return
-		}
-		selected[d.Address()] = d
-		for _, child := range catalog.InheritanceChildren(view, d.Address()) {
-			collect(child)
-		}
-	}
-	collect(root)
-	var result []*catalog.Relation
-	seen := map[ids.ObjectAddress]bool{}
-	var visit func(*catalog.Relation)
-	visit = func(d *catalog.Relation) {
-		if seen[d.Address()] {
-			return
-		}
-		seen[d.Address()] = true
-		if d.Inheritance != nil {
-			for _, parent := range d.Inheritance.Parents {
-				if p := selected[parent]; p != nil {
-					visit(p)
-				}
-			}
-		}
-		result = append(result, d)
-	}
-	addresses := make([]ids.ObjectAddress, 0, len(selected))
-	for address := range selected {
-		addresses = append(addresses, address)
-	}
-	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
-		if a.ObjectID < b.ObjectID {
-			return -1
-		}
-		if a.ObjectID > b.ObjectID {
-			return 1
-		}
-		return 0
-	})
-	for _, address := range addresses {
-		visit(selected[address])
-	}
-	return result
-}
-
-func inheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableAction, only bool) bool {
-	switch a.Action {
-	case parser.SetTablespace:
-		return false // Assignment is always root-only, independent of ONLY/star.
-	case parser.AddColumn, parser.DropColumn, parser.AlterColumnType:
-		return true
-	case parser.SetExpression, parser.DropExpression:
-		return !only
-	case parser.SetNotNull, parser.AddNotNull:
-		if a.NoInherit {
-			return false
-		}
-		if slot, ok := root.Index[a.Column.Text]; ok {
-			for _, c := range root.Constraints.NotNull {
-				if c.Attribute == root.Attributes[slot] && (!c.NotValid || a.Action == parser.AddNotNull) {
-					return false
-				}
-			}
-		}
-		return true
-	case parser.DropNotNull:
-		if slot, ok := root.Index[a.Column.Text]; ok {
-			for _, c := range root.Constraints.NotNull {
-				if c.Attribute == root.Attributes[slot] {
-					return !c.NoInherit
-				}
-			}
-		}
-	case parser.DropConstraint:
-		for _, c := range root.Constraints.NotNull {
-			if c.Name == a.Constraint.Text {
-				return !c.NoInherit
-			}
-		}
-		for _, c := range root.Constraints.Check {
-			if c.Name == a.Constraint.Text {
-				return !c.NoInherit
-			}
-		}
-	case parser.AddCheck:
-		for _, c := range root.Constraints.Check {
-			if a.Check.Name.Text != "" && c.Name == a.Check.Name.Text {
-				return false
-			}
-		}
-		return !a.Check.NoInherit
-	case parser.AddUsingIndex:
-		return a.UsingIndex.Primary
-	case parser.AddUnique:
-		if a.Unique.Primary {
-			for _, column := range a.Unique.Columns {
-				if slot, ok := root.Index[column.Text]; !ok || root.Columns[slot].Nullable {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func inheritanceOnlyActions(root *catalog.Relation, children bool, actions []parser.AlterTableAction) ([]parser.AlterTableAction, error) {
-	if !children {
-		return actions, nil
-	}
-	next := slices.Clone(actions)
-	for i, a := range next {
-		switch a.Action {
-		case parser.AddColumn:
-			return nil, sqlError("42P16", "column must be added to child tables too")
-		case parser.AlterColumnType:
-			return nil, sqlError("42P16", fmt.Sprintf(`type of inherited column "%s" must be changed in child tables too`, a.Column.Text))
-		case parser.AddCheck:
-			existing := slices.ContainsFunc(root.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == a.Check.Name.Text })
-			if !a.Check.NoInherit && !existing {
-				return nil, sqlError("42P16", "constraint must be added to child tables too")
-			}
-		case parser.AddNotNull:
-			existing := false
-			if slot, ok := root.Index[a.Column.Text]; ok {
-				existing = slices.ContainsFunc(root.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.Attribute == root.Attributes[slot] })
-			}
-			if !a.NoInherit && !existing {
-				return nil, sqlError("42P16", "constraint must be added to child tables too")
-			}
-		case parser.SetNotNull:
-			// Retain ONLY intent for an existing invalid fact too; validation cannot
-			// silently stop above children. Existing valid facts remain genuine no-ops.
-			next[i].NoInherit = true
-		case parser.DropExpression:
-			return nil, sqlError("0A000", "ALTER TABLE / DROP EXPRESSION must be applied to child tables too")
-		}
-	}
-	return next, nil
-}
-
-func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []alterTypePreparation) (Result, error) {
+func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (Result, error) {
 	root := scope.lockedDescriptor.(*catalog.Relation)
 	actions := raw.Actions
-	if err := inheritanceAlterActionsGuard(auth.Catalog, root, actions); err != nil {
+	if err := table.InheritanceAlterActionsGuard(auth.Catalog, root, actions); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -205,25 +43,25 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 			}
 		}
 		var err error
-		actions, err = inheritanceOnlyActions(root, len(children) != 0, actions)
+		actions, err = table.InheritanceOnlyActions(root, len(children) != 0, actions)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	preparatory := inheritancePreparatoryLocks(actions, raw.Only)
+	preparatory := table.InheritancePreparatoryLocks(actions, raw.Only)
 	recurse := preparatory || slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool {
-		return inheritanceRecursiveAction(root, a, raw.Only) || a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint
+		return table.InheritanceRecursiveAction(root, a, raw.Only) || a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint
 	})
 	targets := []*catalog.Relation{root}
 	if recurse {
-		targets = inheritanceAlterOrder(auth.Catalog, root)
+		targets = table.InheritanceAlterOrder(auth.Catalog, root)
 	}
 	original := scope.statementMutation
 	var stage *CatalogStage
-	state := &inheritanceAlterState{changes: scope.owner.Catalog.Clone(), inheritanceAlterPlan: inheritanceAlterPlan{root: root, targets: targets, selected: map[ids.ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}}
-	state.tablespace = tablespace
-	state.types = types
+	state := &inheritanceAlterState{changes: scope.owner.Catalog.Clone(), InheritanceAlterPlan: table.InheritanceAlterPlan{Root: root, Targets: targets, Selected: map[ids.ObjectAddress]bool{}, Only: raw.Only, Actions: actions, Events: make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)}}
+	state.Tablespace = tablespace
+	state.Types = types
 	scope.inheritance.alter = state
 	scope.catalog = state.changes
 	e.mu.Unlock()
@@ -237,21 +75,21 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 	if err := e.admitInheritanceAlter(scope, op, auth, raw, preparatory); err != nil {
 		return Result{}, err
 	}
-	if preparatory && inheritancePureDefinitionPreparation(actions) {
+	if preparatory && table.InheritancePureDefinitionPreparation(actions) {
 		if err := e.admitInheritanceAlter(scope, op, auth, raw, false); err != nil {
 			return Result{}, err
 		}
 	}
-	state.events = make(map[ids.ObjectAddress][]inheritanceAlterEvent)
-	state.selected = make(map[ids.ObjectAddress]bool)
+	state.Events = make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)
+	state.Selected = make(map[ids.ObjectAddress]bool)
 	e.mu.Lock()
 	current := e.privateCatalogLocked(scope.owner.Catalog)
 	stage = e.BeginCatalogStage(current)
 	stage.authorizeLocked(auth, op.Session)
 	state.stage = stage
 	e.mu.Unlock()
-	for index, old := range state.targets {
-		if index != 0 && len(inheritanceParentActions(&state.inheritanceAlterPlan, old)) == 0 {
+	for index, old := range state.Targets {
+		if index != 0 && len(table.InheritanceParentActions(&state.InheritanceAlterPlan, old)) == 0 {
 			continue
 		}
 		e.mu.Lock()
@@ -265,32 +103,32 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 		refForOwner.Address = old.Address()
 		incoming := actions
 		if index != 0 {
-			incoming = inheritanceParentActions(&state.inheritanceAlterPlan, old)
+			incoming = table.InheritanceParentActions(&state.InheritanceAlterPlan, old)
 		}
-		if err == nil && (index == 0 || inheritanceEntryOwner(incoming)) {
+		if err == nil && (index == 0 || table.InheritanceEntryOwner(incoming)) {
 			err = currentAuth.Check(access.Requirement{Object: refForOwner, OwnerOnly: true})
 		}
 		e.mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}
-		state.selected[old.Address()] = true
+		state.Selected[old.Address()] = true
 		ref := original.lockedRef
 		ref.Address = old.Address()
-		state.descendant = index != 0
-		state.graph = catalog.CloneInheritance(old.Inheritance)
+		state.Descendant = index != 0
+		state.Graph = catalog.CloneInheritance(old.Inheritance)
 		planned := actions
 		if cached := state.prepared[old.Address()]; cached != nil {
 			planned = cached.actions
-			state.graph = catalog.CloneInheritance(cached.graph)
-		} else if state.descendant {
+			state.Graph = catalog.CloneInheritance(cached.graph)
+		} else if state.Descendant {
 			var err error
-			planned, state.graph, err = e.inheritedAlterActions(state, old)
+			planned, state.Graph, err = e.inheritedAlterActions(state, old)
 			if err != nil {
 				return Result{}, err
 			}
 		}
-		if index != 0 && !inheritanceEntryOwner(incoming) && len(planned) != 0 {
+		if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 {
 			e.mu.Lock()
 			err = currentAuth.Check(access.Requirement{Object: refForOwner, OwnerOnly: true})
 			e.mu.Unlock()
@@ -338,8 +176,8 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	for _, old := range state.targets {
-		if state.selected[old.Address()] && e.privateCatalogLocked(scope.owner.Catalog).Get(old.Address()) != old {
+	for _, old := range state.Targets {
+		if state.Selected[old.Address()] && e.privateCatalogLocked(scope.owner.Catalog).Get(old.Address()) != old {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
@@ -361,16 +199,16 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 
 func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalog.Relation) ([]parser.AlterTableAction, *catalog.TableInheritance, error) {
 	graph := catalog.CloneInheritance(old.Inheritance)
-	view := state.definition.base
+	view := state.Definition.Base
 	if state.stage != nil {
 		view = e.stageRead(state.stage)
 	}
 	var actions []parser.AlterTableAction
 	droppedColumns := make(map[string]bool)
-	for _, a := range inheritanceParentActions(&state.inheritanceAlterPlan, old) {
+	for _, a := range table.InheritanceParentActions(&state.InheritanceAlterPlan, old) {
 		switch a.Action {
 		case parser.AddColumn:
-			if state.only {
+			if state.Only {
 				continue
 			}
 			name := a.Definition.Name
@@ -379,7 +217,7 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 			if existing {
 				slot := old.Index[name]
 				for _, parentAddress := range graph.Parents {
-					parent := state.definitionRelation(view, parentAddress)
+					parent := state.DefinitionRelation(view, parentAddress)
 					if pslot, ok := parent.Index[name]; ok {
 						if err := analyze.InheritanceColumnConflict(view, old.Columns[slot], parent.Columns[pslot], true); err != nil {
 							return nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.Name(), name))
@@ -409,26 +247,26 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 			var origins []catalog.InheritanceOrigin
 			removed := false
 			for _, origin := range provenance.Origins {
-				if inheritanceRemovedOrigin(&state.inheritanceAlterPlan, origin, parser.DropColumn) {
+				if table.InheritanceRemovedOrigin(&state.InheritanceAlterPlan, origin, parser.DropColumn) {
 					removed = true
 				} else {
 					origins = append(origins, origin)
 				}
 			}
 			provenance.Origins = origins
-			if state.only && removed {
+			if state.Only && removed {
 				provenance.Local = true
 			}
 			graph.Columns[attribute] = provenance
 			if provenance.Local || len(origins) != 0 {
-				inheritRetiredColumnConstraints(&state.inheritanceAlterPlan, state.retiredBase(), old, graph, attribute)
+				table.InheritRetiredColumnConstraints(&state.InheritanceAlterPlan, state.retiredBase(), old, graph, attribute)
 			}
 			if !provenance.Local && len(origins) == 0 {
 				actions = append(actions, a)
 				droppedColumns[a.Column.Text] = true
 			}
 		case parser.AlterColumnType:
-			if state.only {
+			if state.Only {
 				continue
 			}
 			slot, exists := old.Index[a.Column.Text]
@@ -436,17 +274,17 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 				continue
 			}
 			for _, origin := range graph.Columns[old.Attributes[slot]].Origins {
-				if !state.selected[origin.Parent] {
+				if !state.Selected[origin.Parent] {
 					return nil, nil, sqlError("42P16", fmt.Sprintf(`cannot alter inherited column "%s" of relation "%s"`, a.Column.Text, old.Name()))
 				}
 			}
 			actions = append(actions, a)
 		case parser.SetExpression, parser.DropExpression:
-			if !state.only {
+			if !state.Only {
 				actions = append(actions, a)
 			}
 		case parser.SetNotNull, parser.AddNotNull:
-			if state.only || a.NoInherit {
+			if state.Only || a.NoInherit {
 				continue
 			}
 			actions = append(actions, a)
@@ -465,9 +303,9 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 				matched = true
 				provenance := graph.NotNull[c.Attribute]
 				provenance.Origins = slices.DeleteFunc(slices.Clone(provenance.Origins), func(origin catalog.InheritanceOrigin) bool {
-					return inheritanceRemovedOrigin(&state.inheritanceAlterPlan, origin, parser.DropNotNull)
+					return table.InheritanceRemovedOrigin(&state.InheritanceAlterPlan, origin, parser.DropNotNull)
 				})
-				if state.only && provenance.Count() == 0 {
+				if state.Only && provenance.Count() == 0 {
 					provenance.Local = true
 				}
 				graph.NotNull[c.Attribute] = provenance
@@ -482,9 +320,9 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 				if c.Name == a.Constraint.Text {
 					provenance := graph.Checks[c.Name]
 					provenance.Origins = slices.DeleteFunc(slices.Clone(provenance.Origins), func(origin catalog.InheritanceOrigin) bool {
-						return inheritanceRemovedOrigin(&state.inheritanceAlterPlan, origin, parser.DropConstraint)
+						return table.InheritanceRemovedOrigin(&state.InheritanceAlterPlan, origin, parser.DropConstraint)
 					})
-					if state.only && provenance.Count() == 0 {
+					if state.Only && provenance.Count() == 0 {
 						provenance.Local = true
 					}
 					graph.Checks[c.Name] = provenance
@@ -494,16 +332,16 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 				}
 			}
 		case parser.AddCheck:
-			if state.only || a.Check.NoInherit {
+			if state.Only || a.Check.NoInherit {
 				continue
 			}
 			copy := *a.Check
 			a.Check = &copy
 			actions = append(actions, a)
 		case parser.AddUnique:
-			if !state.only && a.Unique.Primary {
+			if !state.Only && a.Unique.Primary {
 				for _, column := range a.Unique.Columns {
-					if c := inheritedNotNull(view, graph.Parents, column.Text); c != nil {
+					if c := table.InheritedNotNull(view, graph.Parents, column.Text); c != nil {
 						actions = append(actions, parser.AlterTableAction{Action: parser.AddNotNull, Column: column, Constraint: parser.Identifier{Text: c.Name}, NotValid: c.NotValid})
 					}
 				}
@@ -513,38 +351,23 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 	return actions, graph, nil
 }
 
-func inheritedNotNull(view catalog.Read, parents []ids.ObjectAddress, name string) *catalog.NotNullConstraint {
-	for _, address := range parents {
-		parent := view.MustRelation(address)
-		if slot, exists := parent.Index[name]; exists {
-			for i := range parent.Constraints.NotNull {
-				c := &parent.Constraints.NotNull[i]
-				if c.Attribute == parent.Attributes[slot] && !c.NoInherit {
-					return c
-				}
-			}
-		}
-	}
-	return nil
-}
-
 func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.Relation) (*catalog.Relation, error) {
 	state := scope.inheritance.alter
 	if state == nil || old.Inheritance == nil {
 		return next, nil
 	}
-	graph := state.graph
-	if !state.descendant && next.Inheritance != nil {
+	graph := state.Graph
+	if !state.Descendant && next.Inheritance != nil {
 		graph = catalog.CloneInheritance(next.Inheritance)
 	}
 	view := scope.engine().stageRead(state.stage)
 	for i, attribute := range next.Attributes {
 		provenance, exists := graph.Columns[attribute]
 		if !exists {
-			provenance.Local = !state.descendant
+			provenance.Local = !state.Descendant
 		}
-		if !state.descendant {
-			for _, a := range state.actions {
+		if !state.Descendant {
+			for _, a := range state.Actions {
 				if a.Action == parser.AddColumn && a.Definition.Name == next.Columns[i].Name {
 					for _, constraint := range a.Definition.Constraints {
 						provenance.ExplicitDefault = provenance.ExplicitDefault || constraint.Default != nil
@@ -556,7 +379,7 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.
 				}
 			}
 		}
-		if state.descendant {
+		if state.Descendant {
 			var origins []catalog.InheritanceOrigin
 			for _, parentAddress := range graph.Parents {
 				parent := view.MustRelation(parentAddress)
@@ -566,9 +389,9 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.
 			}
 			provenance.Origins = origins
 		}
-		if state.descendant {
+		if state.Descendant {
 			var err error
-			provenance, err = retainInheritedRecipes(view, next, attribute, provenance)
+			provenance, err = table.RetainInheritedRecipes(view, next, attribute, provenance)
 			if err != nil {
 				return nil, err
 			}
@@ -584,16 +407,16 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.
 	for _, c := range next.Constraints.Check {
 		provenance, exists := graph.Checks[c.Name]
 		if !exists {
-			provenance.Local = !state.descendant
+			provenance.Local = !state.Descendant
 		}
-		if !state.descendant {
-			for _, action := range state.actions {
+		if !state.Descendant {
+			for _, action := range state.Actions {
 				if action.Action == parser.AddCheck && action.Check.Name.Text == c.Name {
 					provenance.Local = true
 				}
 			}
 		}
-		if state.descendant {
+		if state.Descendant {
 			var origins []catalog.InheritanceOrigin
 			for _, address := range graph.Parents {
 				parent := view.MustRelation(address)
@@ -615,16 +438,16 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.
 	for _, c := range next.Constraints.NotNull {
 		provenance, exists := graph.NotNull[c.Attribute]
 		if !exists {
-			provenance.Local = !state.descendant
+			provenance.Local = !state.Descendant
 		}
-		if !state.descendant {
-			for _, action := range state.actions {
+		if !state.Descendant {
+			for _, action := range state.Actions {
 				if (action.Action == parser.SetNotNull || action.Action == parser.AddNotNull) && action.Column.Text == next.Columns[next.IndexForAttribute(c.Attribute)].Name {
 					provenance.Local = true
 				}
 			}
 		}
-		if state.descendant {
+		if state.Descendant {
 			var origins []catalog.InheritanceOrigin
 			name := next.Columns[next.IndexForAttribute(c.Attribute)].Name
 			for _, address := range graph.Parents {

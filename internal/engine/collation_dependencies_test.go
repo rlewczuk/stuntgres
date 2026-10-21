@@ -43,14 +43,14 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	column.SubID = 7
 	foundColumn, foundDomain := false, false
 	for _, edge := range edges {
-		if edge.address == table.Address() {
+		if edge.Address == table.Address() {
 			t.Fatal("collation cascade dropped containing table", edge)
 		}
-		if edge.address == column {
-			foundColumn = edge.target == d.Address() && edge.root == d.Address() && edge.column == "v" && edge.ordinal == 7
+		if edge.Address == column {
+			foundColumn = edge.Target == d.Address() && edge.Root == d.Address() && edge.Column == "v" && edge.Ordinal == 7
 		}
-		if edge.address == typ.Address() {
-			foundDomain = edge.target == d.Address() && edge.root == d.Address()
+		if edge.Address == typ.Address() {
+			foundDomain = edge.Target == d.Address() && edge.Root == d.Address()
 		}
 	}
 	if !foundColumn || !foundDomain {

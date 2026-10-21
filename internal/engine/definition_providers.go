@@ -59,7 +59,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		}
 		return nil
 	}
-	for _, descriptor := range stage.tableOrZero().likeSources {
+	for _, descriptor := range stage.tableOrZero().LikeSources {
 		ref := stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), descriptor.Address())
 		if err := add(ref, nil); err != nil {
 			return err

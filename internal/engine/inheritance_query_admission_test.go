@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -158,7 +159,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(fresh.inheritance.catalog, view, parent, freshOp.Session.SessionToken)
+		source, err = table.CaptureInheritanceQueryPrefix(fresh.inheritance.catalog, view, parent, freshOp.Session.SessionToken)
 	}
 	e.mu.Unlock()
 	if err != nil {

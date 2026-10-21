@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 )
 
 // Expand recursive view bases before the first capture. Capture callers pass
@@ -116,7 +117,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 		}
 		if relation.RelationKind == catalog.TableRelation && !only {
-			return inheritanceQueryClosure(view, relation, token, func(physical *catalog.Relation) error {
+			return table.InheritanceQueryClosure(view, relation, token, func(physical *catalog.Relation) error {
 				child := ref
 				child.Address = physical.Address()
 				return collect(child, true)

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -255,10 +256,10 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				late := inheritanceMetadataChild(t, e, child, "late_grandchild", 40, child.Owner)
 				grown := e.CatalogRead()
 				currentChild := grown.MustRelation(child.Address())
-				if grown.Epoch() != before.Epoch() || (!sticky && (currentChild == child || !inheritanceMarkerPublication(child, currentChild) || currentChild.History.SubclassPredecessor != child || currentChild.Revision() != currentChild.History.SubclassPublication)) || sticky && currentChild != child {
+				if grown.Epoch() != before.Epoch() || (!sticky && (currentChild == child || !table.InheritanceMarkerPublication(child, currentChild) || currentChild.History.SubclassPredecessor != child || currentChild.Revision() != currentChild.History.SubclassPublication)) || sticky && currentChild != child {
 					t.Fatal("fixture did not publish genuine additive growth/marker identity")
 				}
-				originals := inheritanceAlterOrder(grown, grown.MustRelation(command.scope.lockedRef.Address))
+				originals := table.InheritanceAlterOrder(grown, grown.MustRelation(command.scope.lockedRef.Address))
 				stores := maps.Clone(e.storage.Relations)
 				rows := inheritanceAlterRowRoots(e)
 				for _, old := range originals {
@@ -347,7 +348,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 							t.Fatal(err)
 						}
 						queryCreatePublish(t, e, stage)
-						if inheritanceMarkerPublication(child, e.CatalogRead().MustRelation(child.Address())) {
+						if table.InheritanceMarkerPublication(child, e.CatalogRead().MustRelation(child.Address())) {
 							t.Fatal("actual later mutation accidentally has first-marker authority")
 						}
 					}

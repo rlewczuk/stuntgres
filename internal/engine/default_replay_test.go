@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -19,11 +20,11 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	d := e.catalog.state.MustRelation(roleTableRef(t, e, "consumer").Address)
 	for _, attribute := range d.Attributes {
 		definition := d.ColumnMeta.Defaults[attribute]
-		if !defaultReplayDeferrable(definition) {
+		if !table.DefaultReplayDeferrable(definition) {
 			t.Fatalf("captured definition %d not deferrable", attribute)
 		}
 		definition.Dependencies = nil
-		if defaultReplayDeferrable(definition) {
+		if table.DefaultReplayDeferrable(definition) {
 			t.Fatalf("definition %d deferred without captured provider authority", attribute)
 		}
 	}
@@ -35,14 +36,14 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	ref := roleTableRef(t, e, "provider")
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, Value: sqltype.String(regclass, "10000")}
 	definition := catalog.ColumnDefault{Expression: literal, Dependencies: []ids.ObjectRef{ref}}
-	if !defaultReplayDeferrable(definition) {
+	if !table.DefaultReplayDeferrable(definition) {
 		t.Fatal("genuine scalar Const not deferrable")
 	}
 	for _, properties := range []expr.Properties{{Volatility: expr.Stable}, {Volatility: expr.Volatile}, {RowDependent: true}, {ParameterDependent: true}, {StageDependent: true}} {
 		changed := literal
 		changed.Property = properties
 		definition.Expression = changed
-		if defaultReplayDeferrable(definition) {
+		if table.DefaultReplayDeferrable(definition) {
 			t.Fatalf("nonclosed scalar properties %#v admitted", properties)
 		}
 	}
@@ -64,11 +65,11 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 		// These mutations must not create captured authority for a pure BOOL
 		// result. REGCLASS results independently belong to the selected subset.
 		definition.Expression = plan.NullTestExpr{Info: expr.Info{Usage: boolean.Usage()}, Child: changed, Not: true}
-		if defaultReplayDeferrable(definition) {
+		if table.DefaultReplayDeferrable(definition) {
 			t.Fatal("noncaptured, mismatched, nonscalar or NULL reference admitted")
 		}
 	}
-	if defaultReplayDeferrable(catalog.ColumnDefault{}) {
+	if table.DefaultReplayDeferrable(catalog.ColumnDefault{}) {
 		t.Fatal("missing definition admitted")
 	}
 }

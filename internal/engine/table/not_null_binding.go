@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func nameCreateNotNull(d *catalog.Relation, read catalog.Read) error {
+func NameCreateNotNull(d *catalog.Relation, read catalog.Read) error {
 	if len(d.Constraints.NotNull) == 0 {
 		return nil
 	}

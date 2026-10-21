@@ -19,6 +19,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -530,7 +531,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if !stored.ViewReferenceValid(e.CatalogRead(), retainedView, procedureRef) {
 		t.Fatal("exact retained procedure manifest lost contextual epoch authority")
 	}
-	if err := validateDefaultProviders(e.CatalogRead(), local); err != nil {
+	if err := table.ValidateDefaultProviders(e.CatalogRead(), local); err != nil {
 		t.Fatal("retained procedure DEFAULT authority", err)
 	}
 	procedureCopy := *e.catalog.state.MustProcedure(procedureRef.Address)

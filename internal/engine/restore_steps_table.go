@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -16,7 +17,7 @@ import (
 // physical NOT NULL repair sequence.
 func beforeRestorePhysicalBoundary(r *restoreRun, _ *session.Operation, stmt parser.Statement) (bool, error) {
 	if r.pairedPhysical != nil && !r.pairedPhysical.admits(stmt) {
-		return false, sqlError("0A000", restorePhysicalNotNullBoundary)
+		return false, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return false, nil
 }
@@ -30,7 +31,7 @@ func beforeRestorePhysicalConstructor(r *restoreRun, op *session.Operation, stmt
 		return false, nil
 	}
 	var err error
-	r.cur.physicalConstructor, err = r.stage.preparePhysicalNotNullConstructor(op, alteration, physicalNotNullFollowing(r.statements, r.cur.index), r.historicalRefs)
+	r.cur.physicalConstructor, err = r.stage.preparePhysicalNotNullConstructor(op, alteration, table.PhysicalNotNullFollowing(r.statements, r.cur.index), r.historicalRefs)
 	if err != nil || r.cur.physicalConstructor != nil {
 		return false, err
 	}
@@ -81,7 +82,7 @@ func beforeRestorePhysicalSelfForeignKey(r *restoreRun, op *session.Operation, s
 	}
 	if admitted {
 		r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
-		r.pairedNotNull = restoredNotNull{}
+		r.pairedNotNull = table.RestoredNotNull{}
 		return true, nil
 	}
 	r.cur.physicalConstructor, err = r.stage.preparePhysicalCompetingUnique(op, alteration, r.physicalForeignProvider, r.historicalRefs)
@@ -98,7 +99,7 @@ func beforeRestorePhysicalSelfForeignKey(r *restoreRun, op *session.Operation, s
 // other than an owner directive.
 func prepareRestoreNotNullPairReset(r *restoreRun, _ *session.Operation, stmt parser.Statement) error {
 	if _, ownerDirective := stmt.(*parser.SessionAuthorization); !ownerDirective {
-		r.pairedNotNull = restoredNotNull{}
+		r.pairedNotNull = table.RestoredNotNull{}
 	}
 	return nil
 }
@@ -137,7 +138,7 @@ func afterRestorePhysicalForeignKeyProvider(r *restoreRun, op *session.Operation
 	if err != nil {
 		return err
 	}
-	if r.physicalForeignProvider != nil && r.cur.physicalConstructor != nil && r.cur.physicalConstructor.competing {
+	if r.physicalForeignProvider != nil && r.cur.physicalConstructor != nil && r.cur.physicalConstructor.Competing {
 		r.physicalForeignProvider.permuted = true
 	}
 	return nil
@@ -167,10 +168,10 @@ func afterRestoreNotNullOrigins(r *restoreRun, _ *session.Operation, stmt parser
 // afterRestoreForeignKeys resolves the foreign keys admission stripped from
 // a CREATE TABLE; finish binds them.
 func afterRestoreForeignKeys(r *restoreRun, _ *session.Operation, _ parser.Statement, result Result) error {
-	if result.created == (ids.ObjectRef{}) || len(r.cur.pending.definitions) == 0 {
+	if result.created == (ids.ObjectRef{}) || len(r.cur.pending.Definitions) == 0 {
 		return nil
 	}
-	r.cur.pending.child = result.created
+	r.cur.pending.Child = result.created
 	if err := r.stage.resolveRestoredForeignKeyTargets(&r.cur.pending); err != nil {
 		return err
 	}
@@ -190,7 +191,7 @@ func afterRestoreDefault(r *restoreRun, op *session.Operation, stmt parser.State
 // physical NOT NULL repair sequence.
 func finishRestorePhysicalBoundary(r *restoreRun, _ context.Context, _ *session.Operation) error {
 	if r.pairedPhysical != nil {
-		return sqlError("0A000", restorePhysicalNotNullBoundary)
+		return sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return nil
 }

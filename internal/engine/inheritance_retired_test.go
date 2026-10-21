@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -72,14 +73,14 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		if h.Parent.Address != p.Address() || h.Parent.Epoch != before.Epoch() || h.Archive != 0 || h.Replayed || h.Attribute != 1 || h.Column != "a" || h.Constraint != pair.source || h.Own != pair.own || h.Check != pair.check || h.Lifetime != uint64(before.Epoch()) {
 			t.Fatal("wrong actual removed provider certificate", h)
 		}
-		if err := validateRetiredInheritance(e.CatalogRead(), current, pair.p, pair.own, pair.check); err != nil {
+		if err := table.ValidateRetiredInheritance(e.CatalogRead(), current, pair.p, pair.own, pair.check); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if parent.HasAttribute(1) || parent.Index["b"] != 0 || parent.Attributes[0] != 2 {
 		t.Fatal("DROP lost actual source tombstone or surviving stable rank")
 	}
-	if err := validateInheritance(e.CatalogRead(), current); err != nil {
+	if err := table.ValidateInheritance(e.CatalogRead(), current); err != nil {
 		t.Fatal(err)
 	}
 	for _, pair := range []struct {
@@ -121,7 +122,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 			t.Fatal("distinct DROP lifetimes collapsed or inflated", pair.p)
 		}
 	}
-	if err := validateInheritance(e.CatalogRead(), final); err != nil {
+	if err := table.ValidateInheritance(e.CatalogRead(), final); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -132,7 +133,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	c := retiredUnitTable(t, e, "c")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	state := &inheritanceAlterState{stage: stage, inheritanceAlterPlan: inheritanceAlterPlan{events: map[ids.ObjectAddress][]inheritanceAlterEvent{}}}
+	state := &inheritanceAlterState{stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Events: map[ids.ObjectAddress][]table.InheritanceAlterEvent{}}}
 	scope := &StatementScope{inheritance: inheritanceScope{alter: state}}
 	next := *p
 	next.Columns = slices.Clone(p.Columns[1:])
@@ -141,24 +142,24 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	next.Constraints.Check = nil
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}}
 	scope.recordInheritanceAlterAction(p, &next, action)
-	event := state.events[p.Address()]
-	if len(event) != 1 || len(event[0].retiredNotNull) != 1 || len(event[0].retiredChecks) != 1 {
+	event := state.Events[p.Address()]
+	if len(event) != 1 || len(event[0].RetiredNotNull) != 1 || len(event[0].RetiredChecks) != 1 {
 		t.Fatal("actual DROP callback failed to capture removed facts", event)
 	}
 	graph := catalog.CloneInheritance(c.Inheritance)
-	inheritRetiredColumnConstraints(&state.inheritanceAlterPlan, state.retiredBase(), c, graph, c.Attributes[c.Index["a"]])
+	table.InheritRetiredColumnConstraints(&state.InheritanceAlterPlan, state.retiredBase(), c, graph, c.Attributes[c.Index["a"]])
 	if len(graph.NotNull[1].Retired) != 1 || len(graph.Checks["ck"].Retired) != 1 {
 		t.Fatal("recorded DROP failed to issue historical support")
 	}
 	// A caller flag, a DROP CONSTRAINT, or an unrelated source OID is not a
 	// certificate of an actual removed contributing column provider.
-	for _, bad := range []inheritanceAlterEvent{
-		{action: parser.AlterTableAction{Action: parser.DropConstraint}, retiredNotNull: p.Constraints.NotNull, retiredChecks: p.Constraints.Check},
-		{action: action, attribute: 1, retiredNotNull: []catalog.NotNullConstraint{{OID: p.Constraints.NotNull[0].OID + 100000, Name: "nn", Attribute: 1}}},
+	for _, bad := range []table.InheritanceAlterEvent{
+		{Action: parser.AlterTableAction{Action: parser.DropConstraint}, RetiredNotNull: p.Constraints.NotNull, RetiredChecks: p.Constraints.Check},
+		{Action: action, Attribute: 1, RetiredNotNull: []catalog.NotNullConstraint{{OID: p.Constraints.NotNull[0].OID + 100000, Name: "nn", Attribute: 1}}},
 	} {
-		state.events[p.Address()] = []inheritanceAlterEvent{bad}
+		state.Events[p.Address()] = []table.InheritanceAlterEvent{bad}
 		g := catalog.CloneInheritance(c.Inheritance)
-		inheritRetiredColumnConstraints(&state.inheritanceAlterPlan, state.retiredBase(), c, g, 1)
+		table.InheritRetiredColumnConstraints(&state.InheritanceAlterPlan, state.retiredBase(), c, g, 1)
 		if len(g.NotNull[1].Retired) != 0 || len(g.Checks["ck"].Retired) != 0 {
 			t.Fatal("noncontributing event issued history", bad)
 		}
@@ -179,14 +180,14 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 			bad := provenance
 			bad.Retired = slices.Clone(provenance.Retired)
 			mutate(&bad.Retired[0])
-			if err := validateRetiredInheritance(view, current, bad, current.Constraints.NotNull[0].OID, false); err == nil {
+			if err := table.ValidateRetiredInheritance(view, current, bad, current.Constraints.NotNull[0].OID, false); err == nil {
 				t.Fatal("forged runtime lineage validated", name)
 			}
 		})
 	}
 	duplicate := provenance
 	duplicate.Retired = append(slices.Clone(provenance.Retired), provenance.Retired[0])
-	if err := validateRetiredInheritance(view, current, duplicate, current.Constraints.NotNull[0].OID, false); err == nil {
+	if err := table.ValidateRetiredInheritance(view, current, duplicate, current.Constraints.NotNull[0].OID, false); err == nil {
 		t.Fatal("duplicate source lifetime validated")
 	}
 	// Retirement must not relax exact current provider OID/key validation.
@@ -196,7 +197,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	live.Origins = slices.Clone(live.Origins)
 	live.Origins[0].Constraint++
 	forged.Inheritance.NotNull[1] = live
-	if err := validateInheritance(view, &forged); err == nil {
+	if err := table.ValidateInheritance(view, &forged); err == nil {
 		t.Fatal("historical support laundered a forged live provider")
 	}
 }
@@ -228,7 +229,7 @@ func TestInheritanceConstraintHistoryValidity(t *testing.T) {
 			t.Fatal("retained history pinned the removed live source column")
 		}
 	}
-	if err := validateInheritance(e.CatalogRead(), current); err != nil {
+	if err := table.ValidateInheritance(e.CatalogRead(), current); err != nil {
 		t.Fatal(err)
 	}
 }

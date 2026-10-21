@@ -538,11 +538,104 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
     `inheritance_retired_test.go`, `inheritance_alter_test.go`,
     `alter_tablespace_prefix_test.go` and
     `primary_key_authorization_test.go`.
-- [ ] 24b — `table` created and clean set moved — linear item 87
+- [x] 24b — `table` created and clean set moved — linear item 87 (`7e9873c11`,
+  `b05bbcdf9`, `8797fe715`, `a0ef76b6c`, `e0eb9d15d`, `30ed6f576`, then the
+  docs commit) · selected unit and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 24b record below
 - [ ] 24c — Host refined (docs only) — linear item 88
 - [ ] 24d — Handler decisions moved — linear item 89
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (24a and 24b added none).
+
+### 24b record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-TABLE-PACKAGE`, started at
+`42a45f774` (index 23b merged) and replayed onto `e2fef61ae` (stored 22d,
+role 28c, index 23c: the three cuts cherry-picked, the move commits
+rebuilt by the scripts in `.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-PACKAGE/`,
+`c1-moves.sh`, `c2.sh`, `c3.sh`, `docs-edit.py`), then rebased onto
+`9528f845f` (role 28d; it touched two root call sites). Re-measured after
+the replay: the same 250 declarations; 22d had removed the stored aliases, so
+OUT was `sqlError` alone. No aliases.
+
+| Commit | Change |
+|---|---|
+| `7e9873c11` | Cut: the inheritance definition reader overlays prepared drops through `definitionDelta` (`DefinitionDelta`, `LayoutDelta`, implemented by `*preparedDrop` and `*preparedIdentityDrop`); `prepared` moves from `inheritanceAlterPlan` to the root holder `inheritanceAlterState` |
+| `b05bbcdf9` | Cut: `restoredInheritedForeignKey.validate` (reads the engine) becomes the root function `validateRestoredInheritedForeignKey` |
+| `8797fe715` | `synchronizeRowTypeMetadata` → `typedef.SynchronizeRowTypeMetadata` |
+| `a0ef76b6c` | Staging: the clean declarations of 49 mixed files to `tblmv_*.go` (`movedecl`) |
+| `e0eb9d15d` | Export in place: `dropDependencyReader`'s methods and `*dropProvider`'s implementations (`ifacern`, 14 methods), then the inbound functions, fields and methods (`expspec`/`movex`, 355 rows) |
+| `30ed6f576` | Move: 63 files to `table`, `table/errors.go`, `movex -qual table`, 21 root locals named `table` renamed `tbl` |
+
+- **Re-measure.** `reach` over the 24a files plus `typed_inheritance.go`,
+  `rename.go`, `domain_dependencies.go` and `partition_dump.go`: 465
+  declarations, 281 clean (7.27k of 18.5k lines). Minus the "Not table
+  code" rows (FK actions and `foreignKeyJob` for `dml`,
+  `mutation_targets.go`, `materialized_snapshot.go` for `view`,
+  `partition_dump.go` for `partition`) and the 24a answers
+  (`bindCreateDefaults`, `projectColumnShapeRoots`), the `frontier` fixed
+  point gave 250 declarations, about 6.3k lines (the plan expected 5.6k;
+  `partitionHashReplayTarget` had already gone to `index` in 23b). OUT was
+  then `sqlError` and three stored aliases.
+- **Blockers the plan did not list** (approved before the move):
+  `inheritanceDefinitionEffect`, `inheritancePreparedAction`/`Node` and the
+  plan record's `prepared` map held the root DROP records
+  (`preparedDrop`, `preparedIdentityDrop`); without the first cut the
+  reader, the plan record, `inheritanceParentActions`,
+  `inheritanceRemovedOrigin`, `inheritRetiredColumnConstraints` and
+  `prepareInheritanceRowType` (about 0.4k lines) could not move. Each
+  effect held exactly one kind of drop, so the lookup order is unchanged.
+  `restoredInheritedForeignKey.validate` was the only dirty method on a
+  clean type.
+- **Stayed in the root** (they call root-only code):
+  `inheritancePreparedAction`/`inheritancePreparedNode` (24c question 4),
+  `alterTableActionKind` (the SET TABLESPACE check),
+  `inheritanceQueryLeaves` (`viewLeafRowMark`, query admission),
+  `physicalNotNullDumpDependencies` (the dump driver; `dumpPredecessor`),
+  `validateRestoredInheritedForeignKey`.
+- **Deviation.** `captureDomainReplayNode` (table dump rows) was planned for
+  `typedef`, but it calls `regobj.Literal` and `regobj` imports `typedef`;
+  it moved with `table` (`domain_default_restore.go`), its only caller
+  being `DumpRelation.emitRows`.
+- **Names.** Every moved name is capitalized; `tableStage` is `Stage`. The
+  embedded plan record makes the holder's field `InheritanceAlterPlan`.
+  Unexported types named by exported signatures were exported
+  (`DefinitionDelta`, `RestoredInheritedForeignColumn`, `RetiredRepair`,
+  `RetiredRepairRow`); `restoredGenerationKey`'s fields were exported by
+  hand because root code builds it with unkeyed literals, which `frontier`
+  does not report. `table` imports no `partition`, `view`, `dml`,
+  `control` or root package (`go list`).
+- **Tests.** None moved or deleted: every table unit test builds an engine
+  or uses root fixtures; they name the moved code as `table.X`. The 558
+  unit tests of the 154 root test files that reference `table` passed, the
+  38 ALTER/inheritance/NOT NULL lock and cancellation tests passed with
+  `RACE=1`.
+- **Checks.** String-literal multiset unchanged apart from
+  `table/errors.go`; a Dump→Restore→Dump smoke (six scenarios, one with
+  inheritance, NOT NULL, NO INHERIT CHECK, virtual generation and NOT VALID
+  FK) produced byte-identical output before and after; quickcheck passed;
+  the prompt's reference selection passed in quick mode and with
+  `REFERENCE=1` apart from known drift (see the report). racecheck,
+  finalcheck and bench skipped at user request (no startup change).
+
+### Notes for 24c
+
+- The inheritance prepare side stays in the root: `prepareInheritanceNode`,
+  `inheritancePreparedNode`, `inheritancePreparedAction` and the
+  `prepared` map on `inheritanceAlterState`. They hold `*preparedDrop` and
+  `*preparedIdentityDrop`; 24c decides whether `table.Host` (or the `ddl`
+  removal interface) exposes prepared drops, or the prepare side stays.
+- `table.DropDependencyReader` has 18 exported methods implemented by
+  `*dropProvider`; 24c's `Removal()` can start from it.
+- Index 23d.1 (item 85a) plans `incompatibleNotValid` →
+  `index.IncompatibleNotValid` and `rejectVirtualIndexUses` into `index`;
+  both are now `table.X`, so 23d.1 moves them down from `table` (the index
+  prompt says so). The other edges its notes name are table code now:
+  `table.UsingIndexNotNullCandidate`, `table.NotNullCandidate`,
+  `table.NotNullDirect`.
+- `alterTableActionKind` needs the SET TABLESPACE check
+  (`alterTablespaceKind`); `inheritanceQueryLeaves` needs `viewLeafRowMark`
+  (view 27b may move both into `view` or keep them with query admission).
 
 ### Notes for later steps
 

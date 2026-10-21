@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -151,7 +152,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	broken := *relation
 	broken.Constraints.Check = append([]catalog.CheckConstraint(nil), relation.Constraints.Check...)
 	broken.Constraints.Check[0].CommentSnapshot = false
-	if err := validateChecks(view, &broken, map[string]bool{}); err == nil {
+	if err := table.ValidateChecks(view, &broken, map[string]bool{}); err == nil {
 		t.Fatal("invalid stored snapshot manifest accepted")
 	}
 	sourceRef := catalogRef(t, engine, view, "regclass_source")

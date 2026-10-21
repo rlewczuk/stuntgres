@@ -1,11 +1,11 @@
-package engine
+package table
 
 import (
 	"stuntgres/internal/parser"
 )
 
 // Both preparation and consumption use the incumbent physical phase ordering.
-func alterActionPhase(action parser.AlterTableActionKind) int {
+func AlterActionPhase(action parser.AlterTableActionKind) int {
 	switch action {
 	case parser.SetTablespace:
 		// Root destination preparation consumes unchanged placement before phases.

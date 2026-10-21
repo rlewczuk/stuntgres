@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -210,9 +211,9 @@ func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef
 	return auth
 }
 
-func foreignActionSameKey(comparisons []foreignKeyComparison, old, next []sqltype.Value) bool {
+func foreignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []sqltype.Value) bool {
 	for _, comparison := range comparisons {
-		if !sqltype.SameDatum(old[comparison.parent], next[comparison.parent]) {
+		if !sqltype.SameDatum(old[comparison.Parent], next[comparison.Parent]) {
 			return false
 		}
 	}
@@ -222,22 +223,22 @@ func foreignActionSameKey(comparisons []foreignKeyComparison, old, next []sqltyp
 // Borrow both current and retained images under stable isolation. Current
 // matches discover new/moved-in children; retained matches preserve moved-away
 // successor conflicts. Neither image creates another snapshot or copies values.
-func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKeyRows, foreignKeyRows, error) {
+func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (table.ForeignKeyRows, table.ForeignKeyRows, error) {
 	rows, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
-		return rows, foreignKeyRows{}, err
+		return rows, table.ForeignKeyRows{}, err
 	}
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	var retained foreignKeyRows
+	var retained table.ForeignKeyRows
 	if stableIsolation(s.owner.Isolation) && s.owner.SnapshotSet {
 		if root, exists := s.owner.Roots[ref.Address]; exists {
-			if root.Storage != rows.storage {
-				return foreignKeyRows{}, retained, ids.ErrCatalogReplaced
+			if root.Storage != rows.Storage {
+				return table.ForeignKeyRows{}, retained, ids.ErrCatalogReplaced
 			}
 			retained = rows
-			retained.committed, retained.ends, retained.frontier = root.Versions, root.Ends, s.owner.Frontier
+			retained.Committed, retained.Ends, retained.Frontier = root.Versions, root.Ends, s.owner.Frontier
 		}
 	}
 	return rows, retained, nil
@@ -253,7 +254,7 @@ type foreignActionScope struct {
 	exclusionAdded bool // a new event admitted while settling actions
 	jobs           []foreignKeyJob
 	keyTargets     []ids.ObjectRef
-	alterKeys      []alterForeignKeyAdmission
+	alterKeys      []table.AlterForeignKeyAdmission
 }
 
 // foreignActions returns the statement's foreignActions slot, allocating it on first use.

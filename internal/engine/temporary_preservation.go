@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -394,7 +395,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				n := *r
 				n.ObjectAddress = target
 				if r.Inheritance != nil {
-					n.Inheritance = remapInheritance(r.Inheritance, func(address ids.ObjectAddress) ids.ObjectAddress {
+					n.Inheritance = table.RemapInheritance(r.Inheritance, func(address ids.ObjectAddress) ids.ObjectAddress {
 						if destination, ok := mapping[address]; ok {
 							return destination
 						}
@@ -420,7 +421,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 						}
 					}
 				}
-				if err := remapPhysicalNotNullReferences(r, &n, mapping); err != nil {
+				if err := table.RemapPhysicalNotNullReferences(r, &n, mapping); err != nil {
 					return err
 				}
 				if len(r.Constraints.Exclusion) != 0 {
@@ -591,7 +592,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := e.remapViewRuleOIDs(next); err != nil {
 		return err
 	}
-	if err := remapInheritanceConstraintOrigins(next, previous); err != nil {
+	if err := table.RemapInheritanceConstraintOrigins(next, previous); err != nil {
 		return err
 	}
 	if err := e.remapRetiredConstraints(next, previous); err != nil {
@@ -612,7 +613,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			}
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Inheritance != nil {
-			if err := validateInheritance(e.catalog.read(next), relation); err != nil {
+			if err := table.ValidateInheritance(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}

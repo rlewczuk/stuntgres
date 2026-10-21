@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -75,42 +76,42 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 }
 
 func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
-	e, source, table := typedUnitCatalog(t, false)
+	e, source, tbl := typedUnitCatalog(t, false)
 	view := e.CatalogRead()
-	if err := typedef.ValidateTypedAttachment(view, table); err != nil {
+	if err := typedef.ValidateTypedAttachment(view, tbl); err != nil {
 		t.Fatal(err)
 	}
-	if table.RowType == source.RowType || !reflect.DeepEqual(table.Attributes, []int32{1, 7}) || table.ColumnMeta.HighWater != 7 {
-		t.Fatal("source identity copied into destination", table)
+	if tbl.RowType == source.RowType || !reflect.DeepEqual(tbl.Attributes, []int32{1, 7}) || tbl.ColumnMeta.HighWater != 7 {
+		t.Fatal("source identity copied into destination", tbl)
 	}
-	next, err := renameColumnCandidate(source, "note", "label")
+	next, err := table.RenameColumnCandidate(source, "note", "label")
 	if err != nil {
 		t.Fatal(err)
 	}
-	actions, renames := typedef.TypedShapeActions(source, next, table, nil)
+	actions, renames := typedef.TypedShapeActions(source, next, tbl, nil)
 	if len(actions) != 0 || !reflect.DeepEqual(renames, map[int32]string{7: "label"}) || source.Columns[1].Name != "note" {
 		t.Fatal("unstable rename correspondence", actions, renames)
 	}
 	removed := *source
 	removed.Columns, removed.Attributes, removed.Index = source.Columns[:1], source.Attributes[:1], map[string]int{"id": 0}
-	actions, _ = typedef.TypedShapeActions(source, &removed, table, nil)
+	actions, _ = typedef.TypedShapeActions(source, &removed, tbl, nil)
 	if len(actions) != 1 || actions[0].Action.Column.Text != "note" || actions[0].Action.Action != parser.DropColumn {
 		t.Fatal(actions)
 	}
 	for _, bad := range []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: source.Address().ObjectID}, {ClassID: ids.TypeClassID, ObjectID: 999999}} {
-		invalid := *table
+		invalid := *tbl
 		invalid.OfType = bad
 		if err := typedef.ValidateTypedAttachment(view, &invalid); err == nil {
 			t.Fatal("invalid attachment admitted", bad)
 		}
 	}
-	invalid := *table
-	invalid.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}
+	invalid := *tbl
+	invalid.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(tbl.RowType)}
 	if err := typedef.ValidateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("physical own-row source admitted")
 	}
-	invalid = *table
-	invalid.Columns = append([]catalog.Column(nil), table.Columns...)
+	invalid = *tbl
+	invalid.Columns = append([]catalog.Column(nil), tbl.Columns...)
 	invalid.Columns[0].Usage = testUsage(e, sqltype.Int8)
 	if err := typedef.ValidateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("different member usage admitted")
@@ -141,13 +142,13 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 	}
 }
 
-func typedRenameStage(t *testing.T, e *Engine, source, table *catalog.Relation) *CatalogStage {
+func typedRenameStage(t *testing.T, e *Engine, source, tbl *catalog.Relation) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.typedState().Source = table.OfType
-	stage.typedState().Observed = typedClosure(stage.Base, table.OfType)
-	for _, old := range []*catalog.Relation{source, table} {
-		next, err := renameColumnCandidate(old, "note", "label")
+	stage.typedState().Source = tbl.OfType
+	stage.typedState().Observed = table.TypedClosure(stage.Base, tbl.OfType)
+	for _, old := range []*catalog.Relation{source, tbl} {
+		next, err := table.RenameColumnCandidate(old, "note", "label")
 		if err != nil {
 			t.Fatal(err)
 		}

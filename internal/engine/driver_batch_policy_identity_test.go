@@ -58,7 +58,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(closure) != 1 || closure[0].automatic || closure[0].label != "policy renamed on table policy_owner" {
+			if len(closure) != 1 || closure[0].Automatic || closure[0].Label != "policy renamed on table policy_owner" {
 				t.Fatal("private altered policy dependency closure lost identity", closure)
 			}
 			if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{dependency.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {

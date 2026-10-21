@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -15,36 +14,15 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// Added defaults are execution-private. Only captured nonvolatile values enter
-// transaction shape projections; persistent definitions retain their bound tree.
-type addedColumn struct {
-	attribute    int32
-	column       *parser.Column
-	declaration  analyze.ColumnDeclaration
-	expression   expr.Expr
-	dependencies []ids.ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
-	consumer     *catalog.Relation
-	value        sqltype.Value
-}
-
-func alterCookingError(err error) error {
-	var diagnostic *sqlstate.Error
-	if errors.As(err, &diagnostic) {
-		copy := *diagnostic
-		copy.Position = ""
-		return &copy
-	}
-	return err
-}
-
-func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, addedColumn, error) {
+func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, table.AddedColumn, error) {
 	scope.routineAuth = auth
-	fail := func(err error) (*catalog.Relation, addedColumn, error) { return nil, addedColumn{}, err }
+	fail := func(err error) (*catalog.Relation, table.AddedColumn, error) { return nil, table.AddedColumn{}, err }
 	column := action.Definition
 	if column == nil {
 		return fail(fmt.Errorf("stuntgres: missing ADD column declaration"))
@@ -63,7 +41,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 			return fail(sqlError("42701", message))
 		}
 		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42701", Message: message + ", skipping"})
-		return old, addedColumn{}, nil
+		return old, table.AddedColumn{}, nil
 	}
 	if old.ColumnMeta.HighWater >= 1600 {
 		return fail(sqlError("54011", "tables can have at most 1600 columns"))
@@ -112,10 +90,10 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 	definition := catalog.Column{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.Address().ObjectID), OriginAttribute: int16(attribute)}
 	next.Columns = append(next.Columns, definition)
 	next.Attributes = append(next.Attributes, attribute)
-	added := addedColumn{attribute: attribute, column: column, declaration: declaration, value: sqltype.Null(usage.Type)}
+	added := table.AddedColumn{Attribute: attribute, Column: column, Declaration: declaration, Value: sqltype.Null(usage.Type)}
 	node, origin := analyze.ColumnDefault(auth.Catalog, &next, len(next.Columns)-1)
-	added.expression = node
-	added.dependencies, added.consumer = origin.Definition.Dependencies, origin.Consumer
+	added.Expression = node
+	added.Dependencies, added.Consumer = origin.Definition.Dependencies, origin.Consumer
 	if sqltype.ContainsDomainConstraints(usage.Type) && scope.input.TypeDiagnosticName == nil {
 		var err error
 		scope.input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
@@ -129,19 +107,19 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 		binder.Consumer.DefaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
 		node, err := binder.BindDefault(declaration.DefaultExpr, definition)
 		if err != nil {
-			return fail(alterCookingError(err))
+			return fail(table.AlterCookingError(err))
 		}
 		if !stored.OmitColumnDefault(auth.Catalog, node, usage) {
 			persisted := catalog.ColumnDefault{Expression: node}
 			if _, err := (stored.ScalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &persisted.Dependencies, CommentSnapshot: &persisted.CatalogSnapshot, CatalogAliasReferences: &persisted.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, node); err != nil {
-				return fail(alterCookingError(err))
+				return fail(table.AlterCookingError(err))
 			}
 			if next.ColumnMeta.Defaults == nil {
 				next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
 			}
 			next.ColumnMeta.Defaults[attribute] = persisted
-			added.expression = node
-			added.dependencies, added.consumer = persisted.Dependencies, old
+			added.Expression = node
+			added.Dependencies, added.Consumer = persisted.Dependencies, old
 		}
 	}
 	if err := stored.RefreshGenerationChecks(&next, auth.Catalog); err != nil {
@@ -150,38 +128,38 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 	return &next, added, nil
 }
 
-func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32]sqltype.Value, bool, error) {
+func planAddedColumns(scope *StatementScope, additions []table.AddedColumn) (map[int32]sqltype.Value, bool, error) {
 	var fills map[int32]sqltype.Value
 	perRow := false
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for i := range additions {
 		added := &additions[i]
-		if added.expression != nil {
+		if added.Expression != nil {
 			recipe := evaluation
 			recipe.RoutineRecipe, recipe.RoutineGraft = true, false
-			recipe.RoutineReferences, recipe.RoutineConsumer = added.dependencies, added.consumer
-			planned, _, err := exec.PreflightCoercionsWithPolicy(&recipe, added.expression, true)
+			recipe.RoutineReferences, recipe.RoutineConsumer = added.Dependencies, added.Consumer
+			planned, _, err := exec.PreflightCoercionsWithPolicy(&recipe, added.Expression, true)
 			if err != nil {
-				return nil, false, alterCookingError(err)
+				return nil, false, table.AlterCookingError(err)
 			}
 			if err := exec.AdmitExpression(&recipe, planned, recipe.Catalog); err != nil {
-				return nil, false, alterCookingError(err)
+				return nil, false, table.AlterCookingError(err)
 			}
-			added.expression = planned
+			added.Expression = planned
 			properties := planned.Properties()
 			if properties.Volatility > expr.Stable || properties.RuntimeDomainConversion {
 				perRow = true
 				continue
 			}
-			added.value, err = planned.Eval(&evaluation)
+			added.Value, err = planned.Eval(&evaluation)
 			if err != nil {
-				return nil, false, alterCookingError(err)
+				return nil, false, table.AlterCookingError(err)
 			}
 		}
 		if fills == nil {
 			fills = make(map[int32]sqltype.Value, len(additions))
 		}
-		fills[added.attribute] = added.value
+		fills[added.Attribute] = added.Value
 	}
 	return fills, perRow, nil
 }

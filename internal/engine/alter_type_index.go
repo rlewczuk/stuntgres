@@ -4,17 +4,11 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-type alterTypeIndex struct {
-	index     *catalog.Relation
-	keys      []int
-	predicate bool
-	sql       string
-}
-
-func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
+func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]table.AlterTypeIndex, error) {
 	op := scope.op
 	hasType := false
 	for _, action := range actions {
@@ -23,13 +17,13 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 	if !hasType {
 		return nil, nil
 	}
-	var queue []alterTypeIndex
+	var queue []table.AlterTypeIndex
 	for _, descriptor := range view.Descriptors() {
 		idx, ok := descriptor.(*catalog.Relation)
 		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Parent != original.Address() {
 			continue
 		}
-		pending := alterTypeIndex{index: idx}
+		pending := table.AlterTypeIndex{Index: idx}
 		dropped := false
 		for _, key := range idx.SQLIndex.Keys {
 			if key.Derived == nil {
@@ -53,7 +47,7 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 				for _, action := range actions {
 					slot, exists := original.Index[action.Column.Text]
 					if exists && action.Action == parser.AlterColumnType && original.Attributes[slot] == a.SubID {
-						pending.predicate = true
+						pending.Predicate = true
 					}
 				}
 			}
@@ -87,23 +81,23 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 			if !affected {
 				continue
 			}
-			pending.keys = append(pending.keys, i)
+			pending.Keys = append(pending.Keys, i)
 		}
-		if len(pending.keys) > 0 || pending.predicate {
+		if len(pending.Keys) > 0 || pending.Predicate {
 			text, err := index.DefinitionSQL(op.Context(), view, idx, index.Presentation{Reconstruct: true, Path: scope.inquiry.deparsePath, Output: scope.output})
 			if err != nil {
 				return nil, err
 			}
-			pending.sql = text
+			pending.SQL = text
 			queue = append(queue, pending)
 		}
 	}
 	return queue, nil
 }
 
-func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []alterTypeIndex) error {
+func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []table.AlterTypeIndex) error {
 	for _, pending := range queue {
-		copy := *pending.index
+		copy := *pending.Index
 		definition := *copy.SQLIndex
 		definition.Keys = append([]catalog.IndexKey(nil), definition.Keys...)
 		copy.SQLIndex = &definition
@@ -111,11 +105,11 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 		// descriptor evolution. Publish these flags only with the validated
 		// private candidate; later producers must enforce its rebuilt tuples.
 		definition.Ready, definition.Valid, definition.Live = true, true, true
-		syntax, err := parser.ParseWithOptions(pending.sql, parser.Options{Context: scope.op.Context(), StandardConformingStrings: true})
+		syntax, err := parser.ParseWithOptions(pending.SQL, parser.Options{Context: scope.op.Context(), StandardConformingStrings: true})
 		if err != nil {
 			return err
 		}
-		if pending.predicate {
+		if pending.Predicate {
 			e.mu.Lock()
 			predicate, err := e.bindIndexPredicate(scope.op, scope.input, auth, parent, syntax[0].(*parser.CreateIndex).Predicate)
 			e.mu.Unlock()
@@ -124,7 +118,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			}
 			definition.Predicate = predicate
 		}
-		for _, slot := range pending.keys {
+		for _, slot := range pending.Keys {
 			e.mu.Lock()
 			derived, _, err := e.bindIndexExpression(scope.op, scope.input, auth, parent, syntax[0].(*parser.CreateIndex).Keys[slot].Expression, nil)
 			e.mu.Unlock()
@@ -135,7 +129,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 		}
 		oldParent := stage.Base.MustRelation(parent.Address())
 		for i, key := range definition.Keys {
-			oldUsage, err := index.KeyBaseUsage(oldParent, pending.index.SQLIndex.Keys[i])
+			oldUsage, err := index.KeyBaseUsage(oldParent, pending.Index.SQLIndex.Keys[i])
 			if err != nil {
 				return err
 			}
@@ -152,7 +146,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			return err
 		}
 		if next != nil {
-			if next.Revision() == pending.index.Revision() {
+			if next.Revision() == pending.Index.Revision() {
 				next.ObjectRevision++
 				if next.Revision() == 0 {
 					return fmt.Errorf("stuntgres: index revision exhausted")

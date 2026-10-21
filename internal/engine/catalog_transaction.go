@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -225,7 +226,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						}
 					}
 				case *catalog.Relation:
-					if viewDepends(owner, target) || materializedExtensionDepends(owner, target) || checkDepends(owner, target) || defaultDepends(owner, target) || generationDepends(owner, target) || index.ExpressionDepends(owner, target) {
+					if viewDepends(owner, target) || materializedExtensionDepends(owner, target) || table.CheckDepends(owner, target) || table.DefaultDepends(owner, target) || table.GenerationDepends(owner, target) || index.ExpressionDepends(owner, target) {
 						return catalog.Conflict{}
 					}
 					if candidate.Get(target) == nil {

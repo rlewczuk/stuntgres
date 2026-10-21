@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -200,7 +201,7 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 	if !ok || definition.OID == 0 || definition.Expression == nil || definition.Expression.ResultUsage() != parent.Columns[slot].Usage {
 		return fmt.Errorf("stuntgres: invalid rule DEFAULT source")
 	}
-	if err := validateColumnDefaultProviders(view, parent, definition); err != nil {
+	if err := table.ValidateColumnDefaultProviders(view, parent, definition); err != nil {
 		return err
 	}
 	var failure error

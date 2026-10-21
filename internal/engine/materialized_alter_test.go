@@ -258,14 +258,14 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 		}
 		automatic, ordinary := 0, 0
 		for _, edge := range edges {
-			if edge.address == d.Address() {
-				if !edge.automatic || edge.target != ext.Address() || edge.root != ext.Address() {
+			if edge.Address == d.Address() {
+				if !edge.Automatic || edge.Target != ext.Address() || edge.Root != ext.Address() {
 					t.Fatal("normal edge won over x", edge)
 				}
 				automatic++
 			}
-			if edge.address == child {
-				if edge.automatic {
+			if edge.Address == child {
+				if edge.Automatic {
 					t.Fatal("automatic flavor leaked into descendant")
 				}
 				ordinary++
