@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func rebuildPrimaryKeyTypeLocked(e *Engine, stage *CatalogStage, parent *catalog
 	if err != nil {
 		return nil, err
 	}
-	return e.rebuildAlterNotNullsLocked(stage, next, transformations)
+	return table.RebuildAlterNotNulls(ddlHost{e: e, stage: stage}, next, transformations)
 }
 
 func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {

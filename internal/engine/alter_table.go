@@ -539,7 +539,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	h := ddlHost{e: e, op: op, stage: stage}
 	next, err = index.RebuildAlterUniques(h, next, transformations)
 	if err == nil {
-		next, err = e.rebuildAlterNotNullsLocked(stage, next, transformations)
+		next, err = table.RebuildAlterNotNulls(ddlHost{e: e, stage: stage}, next, transformations)
 	}
 	if err == nil {
 		next, err = index.RebuildAlterExclusions(h, next, transformations)
@@ -548,10 +548,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		err = e.evolveStageIndexesLocked(stage, ref.Address, transformations)
 	}
 	if err == nil {
-		next, err = e.rebuildAlterForeignKeysLocked(stage, next, transformations)
+		next, err = table.RebuildAlterForeignKeys(ddlHost{e: e, stage: stage}, next, transformations)
 	}
 	if err == nil {
-		next, err = rebindPhysicalNotNullType(stage, next, transformations)
+		next, err = table.RebindPhysicalNotNullType(stage, next, transformations)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -566,7 +566,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		capture := scope.foreignActionsOrZero().AlterKeys[fkIndex]
-		next, err = e.stageAddedForeignKey(auth, stage, next, action.ForeignKey, capture.Target.Address, capture.Index)
+		next, err = e.stageAddedForeignKey(scope, auth, stage, next, action.ForeignKey, capture.Target.Address, capture.Index)
 		if err != nil {
 			return Result{}, err
 		}

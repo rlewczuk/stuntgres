@@ -1,22 +1,21 @@
-package engine
+package table
 
 import (
 	"slices"
-
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/table"
 )
 
 // TYPE recreates affected NN identities without changing names or validity.
 // It runs right after index.RebuildAlterUniques; with no changes it is a no-op.
 // New attachments already describe the completed shape and are not recreated.
-func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog.Relation, changes []index.ColumnTransformation) (*catalog.Relation, error) {
+func RebuildAlterNotNulls(h ddl.Host, parent *catalog.Relation, changes []index.ColumnTransformation) (*catalog.Relation, error) {
 	if len(changes) == 0 {
 		return parent, nil
 	}
-	original, ok := stage.Base.Relation(parent.Address())
+	original, ok := h.StageBase().Relation(parent.Address())
 	if !ok {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -47,7 +46,7 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog
 			copy.Constraints.NotNull = slices.Clone(parent.Constraints.NotNull)
 			next = &copy
 		}
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := h.AllocateOID()
 		if err != nil {
 			return nil, err
 		}
@@ -56,10 +55,10 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog
 	if next == nil {
 		return parent, nil
 	}
-	if err := table.RetireRebuiltNotNullHistory(parent, next); err != nil {
+	if err := RetireRebuiltNotNullHistory(parent, next); err != nil {
 		return nil, err
 	}
-	if err := stage.Replace(next); err != nil {
+	if err := h.Stage().Replace(next); err != nil {
 		return nil, err
 	}
 	return next, nil

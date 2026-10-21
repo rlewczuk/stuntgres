@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -10,15 +9,11 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -63,238 +58,19 @@ func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref 
 	return &analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: original.Columns}
 }
 
-func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage) (expr.Expr, []catalog.ExpressionDependency, error) {
-	if action.Using == nil {
-		source := original.Index[action.Column.Text]
-		return plan.ColumnExpr{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: source}.WithGeneration(original, source, 0), nil, nil
-	}
-	return (alterHost{ddlHost{e: e, op: scope.op}, scope}).BindAlterTypeUsing(auth, original, ref, action.Using, usage)
-}
-
-// Complete phase-one TYPE work against the immutable original row. The caller
-// holds Engine.mu; neither row evaluation nor candidate mutation belongs here.
-// suppliedUsage is used only by typed propagation of an already resolved type.
+// prepareAlterTypeLocked admits and completes one TYPE action; the caller holds
+// Engine.mu. suppliedUsage is used only by typed propagation of an already
+// resolved type.
 func (e *Engine) prepareAlterTypeLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, suppliedUsage *sqltype.Usage) (table.AlterTypePreparation, error) {
-	prepared, err := e.admitAlterTypeLocked(scope, op, auth, original, ref, a, suppliedUsage)
-	if err != nil {
-		return table.AlterTypePreparation{}, err
-	}
-	return e.completeAlterTypeLocked(scope, auth, original, a, prepared)
+	return table.PrepareAlterType(alterHost{ddlHost{e: e, op: op}, scope}, auth, original, ref, a, suppliedUsage)
 }
 
-// Admission resolves the target and binds USING once, before sequence AS.
-// Its raw expression is replaced by the completed storage transformation.
-func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, suppliedUsage *sqltype.Usage) (table.AlterTypePreparation, error) {
-	fail := func(err error) (table.AlterTypePreparation, error) {
-		return table.AlterTypePreparation{}, err
-	}
-	source, err := table.AlterTypeColumn(original, a.Column.Text)
-	if err != nil {
-		return fail(err)
-	}
-	if ref.Epoch != e.catalog.state.Epoch() {
-		return fail(ids.ErrCatalogReplaced)
-	}
-	if _, generated := original.ColumnMeta.Generations[original.Attributes[source]]; generated {
-		if a.Using != nil {
-			diagnostic := expr.ErrorAt("42611", "cannot specify USING when altering type of generated column", a.Column.Pos).(*sqlstate.Error)
-			diagnostic.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, a.Column.Text)
-			return fail(diagnostic)
-		}
-		return fail(sqlError("0A000", "altering type of a generated column is unsupported"))
-	}
-	var usage sqltype.Usage
-	if suppliedUsage != nil {
-		usage = *suppliedUsage
-	} else {
-		usage, err = e.resolveType(a.TypeName, op)
-		if err != nil {
-			return fail(err)
-		}
-	}
-	usage, err = e.resolveColumnCollation(usage, a.Collation, op)
-	if err != nil {
-		return fail(err)
-	}
-	prepared := table.AlterTypePreparation{Usage: usage, DeclaredDimensions: int16(len(a.TypeName.ArrayBounds))}
-	if original.RelationKind == catalog.CompositeRelation {
-		return prepared, nil
-	}
-	if original.RelationKind == catalog.ForeignRelation {
-		if a.Using != nil {
-			if _, _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage); err != nil {
-				return fail(err)
-			}
-			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, original.Name())))
-		}
-		return prepared, nil
-	}
-	node, dependencies, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage)
-	if err != nil {
-		return fail(err)
-	}
-	prepared.Transformation = index.ColumnTransformation{Attribute: original.Attributes[source], Expression: node, Dependencies: dependencies}
-	return prepared, nil
-}
-
-// Engine.mu remains held. No expression is evaluated during completion.
-func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, a parser.AlterTableAction, prepared table.AlterTypePreparation) (table.AlterTypePreparation, error) {
-	fail := func(err error) (table.AlterTypePreparation, error) {
-		return table.AlterTypePreparation{}, err
-	}
-	if original.RelationKind == catalog.CompositeRelation || original.RelationKind == catalog.ForeignRelation {
-		return prepared, nil
-	}
-	usage := prepared.Usage
-	node := prepared.Transformation.Expression
-	input, annotations := analyze.DomainCoercionInput(node, usage)
-	info, err := analyze.StorageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
-	if err != nil {
-		return fail(err)
-	}
-	coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
-	if err != nil {
-		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
-			d = sqlError("42804", fmt.Sprintf(`column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())).(*sqlstate.Error)
-			declaration, _ := usage.Declaration()
-			if usage.Type.ID() == sqltype.VarChar || usage.Type.ID() == sqltype.BPChar {
-				declaration = usage.Type.DiagnosticName() + strings.TrimPrefix(declaration, usage.Type.SQLName())
-			}
-			identifier := a.Column.Text
-			if parser.IdentifierNeedsQuotes(identifier) {
-				identifier = catalog.QuoteIdentifier(identifier)
-			}
-			d.Hint = fmt.Sprintf(`You might need to specify "USING %s::%s".`, identifier, strings.ToLower(declaration))
-			if a.Using != nil {
-				d.Message = fmt.Sprintf(`result of USING clause for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())
-				d.Hint = "You might need to add an explicit cast."
-			}
-			return fail(d)
-		}
-		return fail(err)
-	}
-	if coercionPlan.RequiresCatalogOutput() {
-		if err := e.captureCommentSnapshotLocked(scope); err != nil {
-			return fail(err)
-		}
-	}
-	info.Property = analyze.CoercionProperties(input, coercionPlan)
-	node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
-	node, err = analyze.StorageDestination(node, usage, info.Pos)
-	if err != nil {
-		return fail(err)
-	}
-	source := original.Index[a.Column.Text]
-	oldUsage := original.Columns[source].Usage
-	prepared.Transformation.Expression = node
-	prepared.Transformation.Rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
-	return prepared, nil
-}
-
-// Candidate-only mutation consumes the completed phase-one result.
+// alterTypeCandidate runs the TYPE candidate under Engine.mu; stage, when
+// begun, supplies the staged dependent views.
 func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	fail := func(err error) (*catalog.Relation, index.ColumnTransformation, error) {
-		return nil, index.ColumnTransformation{}, err
-	}
-	slot, err := table.AlterTypeColumn(next, a.Column.Text)
-	if err != nil {
-		return fail(err)
-	}
-	for _, attribute := range next.Attributes {
-		definition, generated := next.ColumnMeta.Generations[attribute]
-		if !generated {
-			continue
-		}
-		for _, dependency := range definition.Dependencies {
-			if dependency.Address.ClassID == next.Address().ClassID && dependency.Address.ObjectID == next.Address().ObjectID && dependency.Address.SubID == next.Attributes[slot] {
-				diagnostic := sqlError("0A000", "cannot alter type of a column used by a generated column").(*sqlstate.Error)
-				diagnostic.Detail = fmt.Sprintf(`Column "%s" is used by generated column "%s".`, a.Column.Text, next.Columns[next.IndexForAttribute(attribute)].Name)
-				return fail(diagnostic)
-			}
-		}
-	}
-	source := original.Index[a.Column.Text]
-	oldUsage := original.Columns[source].Usage
-	current := next.Columns[slot].Usage
-	if current.Type.ID() != oldUsage.Type.ID() || current.Typmod != oldUsage.Typmod {
-		return fail(sqlError("0A000", fmt.Sprintf(`cannot alter type of column "%s" twice`, a.Column.Text)))
-	}
-	if ref.Epoch != e.catalog.state.Epoch() {
-		return fail(ids.ErrCatalogReplaced)
-	}
-	target := ref.Address
-	target.SubID = original.Attributes[source]
-	if err := (alterHost{ddlHost{e: e, op: op, stage: stage}, scope}).TypeChangeDependents(auth, target, a.Column.Text); err != nil {
-		return fail(err)
-	}
-	usage := prepared.Usage
-	if original.RelationKind == catalog.CompositeRelation {
-		if usage == current && next.Columns[slot].DeclaredDimensions == prepared.DeclaredDimensions {
-			return next, index.ColumnTransformation{}, nil
-		}
-		replacement := *next
-		replacement.Columns = append([]catalog.Column(nil), next.Columns...)
-		replacement.Columns[slot].Usage = usage
-		replacement.Columns[slot].DeclaredDimensions = prepared.DeclaredDimensions
-		return &replacement, index.ColumnTransformation{}, nil
-	}
-	attribute := original.Attributes[source]
-	transformation := prepared.Transformation
-	dimensions := prepared.DeclaredDimensions
-	if usage == current && next.Columns[slot].DeclaredDimensions == dimensions {
-		return next, transformation, nil
-	}
-	replacement := *next
-	replacement.Columns = append([]catalog.Column(nil), next.Columns...)
-	replacement.Columns[slot].Usage = usage
-	replacement.Columns[slot].DeclaredDimensions = dimensions
-	if usage == current {
-		return &replacement, transformation, nil
-	}
-	if definition, exists := next.ColumnMeta.Defaults[attribute]; exists {
-		expression := definition.Expression
-		for {
-			wrapper, ok := expression.(plan.CoercionExpr)
-			if !ok || wrapper.Mode == sqltype.Explicit {
-				break
-			}
-			expression = wrapper.Child
-		}
-		input, annotations := analyze.DomainCoercionInput(expression, usage)
-		info, err := analyze.StorageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
-		if err != nil {
-			return fail(err)
-		}
-		defaultPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
-		if err != nil {
-			return fail(sqlError("42804", fmt.Sprintf(`default for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())))
-		}
-		info.Property = analyze.CoercionProperties(input, defaultPlan)
-		expression = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: defaultPlan, Mode: sqltype.Assignment})
-		expression, err = analyze.StorageDestination(expression, usage, info.Pos)
-		if err != nil {
-			return fail(err)
-		}
-		definition.Dependencies = nil
-		definition.CatalogSnapshot = false
-		_, err = (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, expression)
-		if err != nil {
-			return fail(err)
-		}
-		replacement.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(next.ColumnMeta.Defaults))
-		for id, d := range next.ColumnMeta.Defaults {
-			replacement.ColumnMeta.Defaults[id] = d
-		}
-		definition.Expression = expression
-		definition.OID = 0
-		replacement.ColumnMeta.Defaults[attribute] = definition
-	}
-	if err := e.captureCheckCommentSnapshotLocked(scope, &replacement); err != nil {
-		return fail(err)
-	}
-	return &replacement, transformation, nil
+	return table.AlterTypeCandidate(alterHost{ddlHost{e: e, op: op, stage: stage}, scope}, auth, original, next, ref, a, prepared)
 }
 
 // Rewrite only effective live heads. Own updates become inserts into the private

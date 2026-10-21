@@ -1,18 +1,14 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // The owner-authorized AX grant protects identity; publication changes only the
@@ -40,32 +36,11 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 	if catalog.HierarchyRelation(old) && !partitionDefaultReplayAllowed(e, op, auth, s) {
 		return fail(sqlError("0A000", "altering partition hierarchies is unsupported"))
 	}
-	if err := analyze.TableKindError(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
+	slot, err := table.AlterDefaultColumn(old, s)
+	if err != nil {
 		return fail(err)
 	}
-	if catalog.IsSystemColumn(s.Column.Text) {
-		return fail(sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text)))
-	}
-	slot, exists := old.Index[s.Column.Text]
-	if !exists {
-		return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.Name())))
-	}
 	attr := old.Attributes[slot]
-	if _, generated := old.ColumnMeta.Generations[attr]; generated {
-		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, s.Column.Text, old.Name())).(*sqlstate.Error)
-		diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... SET EXPRESSION instead."
-		if s.Action == parser.DropDefault {
-			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP EXPRESSION instead."
-		}
-		return fail(diagnostic)
-	}
-	if _, ok := old.ColumnMeta.Identities[attr]; ok {
-		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.Name())).(*sqlstate.Error)
-		if s.Action == parser.DropDefault {
-			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP IDENTITY instead."
-		}
-		return fail(diagnostic)
-	}
 	if catalog.InheritanceParticipant(auth.Catalog, old) {
 		return e.alterInheritanceDefaultLocked(scope, op, auth, s, old)
 	}
@@ -88,8 +63,9 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
-		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
+	next, err := table.AlterDefaultCandidate(old, attr, definition)
+	if err != nil {
+		return fail(err)
 	}
 	original := e.authorizationStorageLocked(auth, ref.Address)
 	if original == nil && old.Partition == nil {
@@ -101,36 +77,14 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 	if original != nil {
 		length, generation, ends = len(original.Versions), original.Generation, original.Ends
 	}
-	next := *old
-	next.ObjectRevision++
-	capacity := len(old.ColumnMeta.Defaults)
-	if definition.Expression == nil {
-		if _, present := old.ColumnMeta.Defaults[attr]; present {
-			capacity--
-		}
-	} else if _, present := old.ColumnMeta.Defaults[attr]; !present {
-		capacity++
-	}
-	next.ColumnMeta.Defaults = nil
-	if capacity != 0 {
-		next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, capacity)
-	}
-	for key, value := range old.ColumnMeta.Defaults {
-		if key != attr {
-			next.ColumnMeta.Defaults[key] = value
-		}
-	}
-	if definition.Expression != nil {
-		next.ColumnMeta.Defaults[attr] = definition
-	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if original == nil {
-		err = stage.Replace(&next)
+		err = stage.Replace(next)
 	} else {
-		err = stage.alterRelation(op.Context(), ref, &next, original, original, length, generation, ends)
+		err = stage.alterRelation(op.Context(), ref, next, original, original, length, generation, ends)
 	}
 	if err != nil {
 		return Result{}, err
@@ -149,28 +103,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 	return Result{}, nil
 }
 
+// cookAlterDefaultLocked cooks SET DEFAULT; the caller holds Engine.mu.
 func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
-	var definition catalog.ColumnDefault
-	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-	binder.Query.Auth = &auth
-	binder.Consumer.DefaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
-	var err error
-	definition.Expression, err = binder.BindDefault(expression, old.Columns[slot])
-	if err == nil {
-		_, err = (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, definition.Expression)
-	}
-	if err != nil {
-		var diagnostic *sqlstate.Error
-		if errors.As(err, &diagnostic) {
-			copy := *diagnostic
-			copy.Position = ""
-			err = &copy
-		}
-		return catalog.ColumnDefault{}, err
-	}
-	if stored.OmitColumnDefault(auth.Catalog, definition.Expression, old.Columns[slot].Usage) {
-		return catalog.ColumnDefault{}, nil
-	}
-	definition.OID, err = e.catalog.allocateOIDLocked()
-	return definition, err
+	return table.CookAlterDefault(alterHost{ddlHost{e: e, op: op}, scope}, auth, old, slot, expression)
 }

@@ -599,7 +599,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := table.RemapRetiredConstraints(e.catalog.Domain, next, previous); err != nil {
 		return err
 	}
-	if err := e.remapPhysicalNotNull(next, previous); err != nil {
+	if err := table.RemapPhysicalNotNull(e.catalog.read(next), previous); err != nil {
 		return err
 	}
 	for _, descriptor := range next.Descriptors() {
