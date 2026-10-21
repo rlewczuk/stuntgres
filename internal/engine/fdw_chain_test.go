@@ -44,7 +44,7 @@ func fdwChainReadmission(t *testing.T) {
 		}
 		return nil
 	}
-	ownerExtensionOf(owner).foreign.participants = []*foreignParticipant{{tx: remote}}
+	ownerExtensionOf(owner).foreign.enlist(&foreignParticipant{tx: remote})
 	op := transactionOperation(t, sess)
 	if err := owner.AcquireAdmission(op.Context(), op); err != nil {
 		t.Fatal(err)

@@ -26,7 +26,7 @@ func fdwHoldSettlement(t *testing.T) {
 	s.owner.Mu.Unlock()
 	remote := &fdwUnitTransaction{}
 	participant := &foreignParticipant{tx: remote}
-	ownerExtensionOf(s.owner).foreign.participants = []*foreignParticipant{participant}
+	ownerExtensionOf(s.owner).foreign.enlist(participant)
 	marks := []*foreignParticipant{participant}
 	s.foreignTables().statements = marks
 	frontier := e.visibility.CommitSeq()

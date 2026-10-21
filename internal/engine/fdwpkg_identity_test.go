@@ -174,3 +174,43 @@ func fdwIdentityDriverExtensions(t *testing.T) {
 		}
 	}
 }
+
+func TestFDWModifyIdentity(t *testing.T) {
+	t.Run("KeyedMembership", fdwIdentityMembership)
+	bytes := []byte("key")
+	identity := catalog.ForeignRowIdentity{int64(7), bytes, nil}
+	owned := exec.CopyForeignCells(identity)
+	bytes[0] = 'X'
+	if !foreignIdentityEqual(owned, catalog.ForeignRowIdentity{int64(7), []byte("key"), nil}) || foreignIdentityEqual(identity, owned) {
+		t.Fatal("identity ownership/equality")
+	}
+	if foreignIdentityEqual(owned, catalog.ForeignRowIdentity{int64(7)}) || foreignIdentityEqual(owned, catalog.ForeignRowIdentity{int64(8), []byte("key"), nil}) {
+		t.Fatal("identity aliases a different target")
+	}
+	clock := time.Date(2026, 1, 2, 3, 4, 5, 6, time.UTC)
+	for _, tc := range []struct {
+		name  string
+		a, b  catalog.ForeignRowIdentity
+		equal bool
+	}{
+		{"empty", nil, catalog.ForeignRowIdentity{}, true},
+		{"nil-cell", catalog.ForeignRowIdentity{nil}, catalog.ForeignRowIdentity{nil}, true},
+		{"nil-byte-vs-nil", catalog.ForeignRowIdentity{[]byte(nil)}, catalog.ForeignRowIdentity{nil}, false},
+		{"nil-vs-empty-bytes", catalog.ForeignRowIdentity{[]byte(nil)}, catalog.ForeignRowIdentity{[]byte{}}, true},
+		{"owned-bytes", catalog.ForeignRowIdentity{[]byte("key")}, catalog.ForeignRowIdentity{[]byte("key")}, true},
+		{"bytes-vs-text", catalog.ForeignRowIdentity{[]byte("key")}, catalog.ForeignRowIdentity{"key"}, false},
+		{"cell-boundaries", catalog.ForeignRowIdentity{[]byte("ab"), []byte("c")}, catalog.ForeignRowIdentity{[]byte("a"), []byte("bc")}, false},
+		{"numeric-types", catalog.ForeignRowIdentity{int64(1)}, catalog.ForeignRowIdentity{float64(1)}, false},
+		{"signed-zero", catalog.ForeignRowIdentity{float64(0)}, catalog.ForeignRowIdentity{math.Copysign(0, -1)}, true},
+		{"nan", catalog.ForeignRowIdentity{math.NaN()}, catalog.ForeignRowIdentity{math.NaN()}, false},
+		{"boolean", catalog.ForeignRowIdentity{true}, catalog.ForeignRowIdentity{true}, true},
+		{"strict-time-equal", catalog.ForeignRowIdentity{clock}, catalog.ForeignRowIdentity{clock}, true},
+		{"strict-time-location", catalog.ForeignRowIdentity{clock}, catalog.ForeignRowIdentity{clock.In(time.FixedZone("other", 0))}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if foreignIdentityEqual(tc.a, tc.b) != tc.equal || foreignIdentityEqual(tc.b, tc.a) != tc.equal {
+				t.Fatal("typed opaque identity equality changed", tc.a, tc.b, tc.equal)
+			}
+		})
+	}
+}
