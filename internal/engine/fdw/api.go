@@ -1,38 +1,38 @@
-package engine
+package fdw
 
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 )
 
-type ForeignDataWrapperDefinition struct {
+type WrapperDefinition struct {
 	HandlerName catalog.ForeignFunctionName
 	Wrapper     catalog.ForeignDataWrapper
 }
-type ForeignValidatorDefinition struct {
+type ValidatorDefinition struct {
 	Name     catalog.ForeignFunctionName
 	Validate func(context.Context, catalog.ForeignObjectKind, []catalog.ForeignOption) error
 }
 
-type ForeignImportRequest struct {
+type ImportRequest struct {
 	RemoteSchema, LocalSchema, Server, Role                string
 	WrapperOptions, ServerOptions, MappingOptions, Options []catalog.ForeignOption
 	Tables                                                 []string
 	Except                                                 bool
 }
-type ForeignColumnDefinition struct {
+type ColumnDefinition struct {
 	Name, Type string
 	Options    []catalog.ForeignOption
 	NotNull    bool
 	Default    string
 	Check      string
 }
-type ForeignTableDefinition struct {
+type TableDefinition struct {
 	Name    string
-	Columns []ForeignColumnDefinition
+	Columns []ColumnDefinition
 	Options []catalog.ForeignOption
 	Checks  []string
 }
-type ForeignSchemaImporter interface {
-	ImportForeignSchema(context.Context, ForeignImportRequest) ([]ForeignTableDefinition, error)
+type SchemaImporter interface {
+	ImportForeignSchema(context.Context, ImportRequest) ([]TableDefinition, error)
 }

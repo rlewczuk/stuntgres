@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
@@ -73,7 +74,7 @@ type dumpSource struct {
 	sequences map[ids.ObjectAddress]*storage.SequenceGenerator
 	frontier  ids.CommitSeq
 	bootstrap authorization.PrincipalRef
-	foreign   foreignRegistry
+	foreign   fdw.Registry
 }
 
 // dumpCollection is one locked collection pass: the capture the collectors

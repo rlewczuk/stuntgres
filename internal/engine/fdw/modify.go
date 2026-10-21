@@ -1,4 +1,4 @@
-package engine
+package fdw
 
 import (
 	"context"
@@ -12,16 +12,16 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// foreignWriteRuntime is what the write protocol needs from the statement:
+// WriteRuntime is what the write protocol needs from the statement:
 // participant enlistment, modification tracking for statement end, and the
-// value environments. statementHost implements it.
-type foreignWriteRuntime interface {
+// value environments. The engine's statementHost implements it.
+type WriteRuntime interface {
 	EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
-	TrackForeignModification(m *foreignModification)
+	TrackForeignModification(m *Modification)
 	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
 }
 
-type foreignModification struct {
+type Modification struct {
 	Source         *exec.ForeignQuerySource
 	Request        catalog.ForeignModifyRequest
 	State          any
@@ -30,7 +30,7 @@ type foreignModification struct {
 	endError       error
 }
 
-func ForeignOperationSupported(wrapper catalog.ForeignDataWrapper, op catalog.ForeignModifyOperation, table string) error {
+func OperationSupported(wrapper catalog.ForeignDataWrapper, op catalog.ForeignModifyOperation, table string) error {
 	var ok bool
 	var verb string
 	switch op {
@@ -52,7 +52,7 @@ func ForeignOperationSupported(wrapper catalog.ForeignDataWrapper, op catalog.Fo
 
 // Metadata-only admission also runs for prepared CTE auxiliaries, before any
 // auxiliary executor can open a source or enter a provider transaction.
-func ForeignModifyAdmission(view catalog.Read, relation *catalog.Relation, operation catalog.ForeignModifyOperation) error {
+func ModifyAdmission(view catalog.Read, relation *catalog.Relation, operation catalog.ForeignModifyOperation) error {
 	server, ok := view.Foreign(relation.Foreign.Server)
 	if !ok {
 		return ids.ErrCatalogReplaced
@@ -61,11 +61,11 @@ func ForeignModifyAdmission(view catalog.Read, relation *catalog.Relation, opera
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	handler, err := ForeignHandlerFor(view, wrapper)
+	handler, err := HandlerFor(view, wrapper)
 	if err != nil {
 		return err
 	}
-	if err := ForeignOperationSupported(handler.Wrapper, operation, relation.Name()); err != nil {
+	if err := OperationSupported(handler.Wrapper, operation, relation.Name()); err != nil {
 		return err
 	}
 	if operation != catalog.ForeignInsert {
@@ -76,7 +76,7 @@ func ForeignModifyAdmission(view catalog.Read, relation *catalog.Relation, opera
 	return nil
 }
 
-func (m *foreignModification) Begin(ctx context.Context, rt foreignWriteRuntime) error {
+func (m *Modification) Begin(ctx context.Context, rt WriteRuntime) error {
 	tx, err := rt.EnlistForeign(ctx, m.Source.Wrapper, m.Request.ForeignRequest, true)
 	if err != nil {
 		return err
@@ -94,14 +94,14 @@ func (m *foreignModification) Begin(ctx context.Context, rt foreignWriteRuntime)
 	return exec.ForeignCallbackError(err)
 }
 
-func (m *foreignModification) CallbackRequest() catalog.ForeignModifyRequest {
+func (m *Modification) CallbackRequest() catalog.ForeignModifyRequest {
 	r := m.Request
 	r.ForeignRequest = exec.CopyForeignRequest(r.ForeignRequest)
 	r.Targets.Names = slices.Clone(r.Targets.Names)
 	return r
 }
 
-func (m *foreignModification) End(ctx context.Context) error {
+func (m *Modification) End(ctx context.Context) error {
 	if m.ended || !m.entered {
 		return m.endError
 	}
@@ -118,7 +118,7 @@ func (m *foreignModification) End(ctx context.Context) error {
 	return m.endError
 }
 
-func (m *foreignModification) Export(ctx context.Context, row []sqltype.Value, rt foreignWriteRuntime) (catalog.ForeignRow, error) {
+func (m *Modification) Export(ctx context.Context, row []sqltype.Value, rt WriteRuntime) (catalog.ForeignRow, error) {
 	_, output := rt.Environments()
 	out := make(catalog.ForeignRow, len(row))
 	for i, value := range row {
@@ -134,12 +134,12 @@ func (m *foreignModification) Export(ctx context.Context, row []sqltype.Value, r
 	return out, nil
 }
 
-func (m *foreignModification) Returned(ctx context.Context, row catalog.ForeignRow, rt foreignWriteRuntime) ([]sqltype.Value, error) {
+func (m *Modification) Returned(ctx context.Context, row catalog.ForeignRow, rt WriteRuntime) ([]sqltype.Value, error) {
 	input, output := rt.Environments()
 	return m.Source.ImportValues(ctx, row, nil, input, output, nil)
 }
 
-func (m *foreignModification) InsertRows(ctx context.Context, rt foreignWriteRuntime, rows [][]sqltype.Value, rowByRow bool, accept func([]sqltype.Value) error) (int64, error) {
+func (m *Modification) InsertRows(ctx context.Context, rt WriteRuntime, rows [][]sqltype.Value, rowByRow bool, accept func([]sqltype.Value) error) (int64, error) {
 	batch, hasBatch := m.Source.Wrapper.(catalog.ForeignBatchInserter)
 	sizer, hasSize := m.Source.Wrapper.(catalog.ForeignBatchSizer)
 	size := 1
@@ -221,7 +221,7 @@ func (m *foreignModification) InsertRows(ctx context.Context, rt foreignWriteRun
 	return count, nil
 }
 
-type foreignTruncateGroup struct {
+type TruncateGroup struct {
 	Source  *exec.ForeignQuerySource
 	Request catalog.ForeignTruncateRequest
 }

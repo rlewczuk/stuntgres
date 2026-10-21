@@ -1,13 +1,16 @@
 package engine
 
-import "stuntgres/internal/engine/session"
+import (
+	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/session"
+)
 
 // ownerExtension is the root-owned part of a transaction owner (13c decision
 // 3): foreign transaction participants and cleanup, exclusion constraint modes
 // and the SQL cursors detached for cleanup. startSession allocates it with the
 // session; its fields keep the owner's admission and owner-lock rules.
 type ownerExtension struct {
-	foreign        foreignTransaction
+	foreign        fdw.Transaction
 	exclusionModes exclusionModes
 	cursorCleanup  []*sqlCursor // Detached under owner lock; drained unlocked.
 }

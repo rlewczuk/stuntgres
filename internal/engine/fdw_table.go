@@ -8,11 +8,12 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]foreignValidation, []ids.ObjectAddress, error) {
+func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
 	if s.Action == "drop" {
 		var roots []ids.ObjectAddress
 		for _, name := range s.Names {
@@ -53,17 +54,17 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		}
 		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 	}
-	server, err := FindForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
+	server, err := fdw.Find(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = auth.Check(access.Requirement{Object: ForeignRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: fdw.ObjectRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
 		return nil, nil, err
 	}
-	if err = ForeignTableDeclaration(s.Table); err != nil {
+	if err = fdw.CheckTableDeclaration(s.Table); err != nil {
 		return nil, nil, err
 	}
-	if err = e.schemaTableLocked(scope.op, auth, stage, ForeignTableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
+	if err = e.schemaTableLocked(scope.op, auth, stage, fdw.TableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
 		return nil, nil, err
 	}
 	d, ok := stage.Get(stage.LookupName(key)).(*catalog.Relation)
@@ -72,7 +73,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	}
 	d.RelationKind = catalog.ForeignRelation
 	d.Foreign = &catalog.ForeignTableDefinition{Server: server.Address(), Columns: make(map[int32][]catalog.ForeignOption)}
-	d.Foreign.Options, err = TransformForeignOptions(nil, s.Options)
+	d.Foreign.Options, err = fdw.TransformOptions(nil, s.Options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -85,10 +86,10 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return nil, nil, err
 	}
-	jobs := []foreignValidation{job}
+	jobs := []fdw.Validation{job}
 	for _, attribute := range d.Attributes {
 		column := d.Columns[d.IndexForAttribute(attribute)]
-		options, er := TransformForeignOptions(nil, s.ColumnOptions[column.Name])
+		options, er := fdw.TransformOptions(nil, s.ColumnOptions[column.Name])
 		if er != nil {
 			return nil, nil, er
 		}
@@ -166,7 +167,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	foreign := *old.Foreign
 	foreign.Columns = maps.Clone(old.Foreign.Columns)
 	next.Foreign = &foreign
-	var jobs []foreignValidation
+	var jobs []fdw.Validation
 	var pendingChecks []alterTypeCheck
 	var typeActions []parser.AlterTableAction
 	if len(old.Constraints.Check) != 0 {
@@ -203,7 +204,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					options = next.Foreign.Columns[attribute]
 					kind = catalog.ForeignAttribute
 				}
-				options, err = TransformForeignOptions(options, action.Options)
+				options, err = fdw.TransformOptions(options, action.Options)
 				if err != nil {
 					return Result{}, err
 				}
@@ -259,7 +260,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				candidate, err = scope.dropColumnCandidate(stage, &next, ref, a, nil)
 			case parser.AddColumn:
 				declaration := &parser.CreateTable{Elements: []parser.TableElement{{Column: a.Definition}}}
-				if err = ForeignTableDeclaration(declaration); err != nil {
+				if err = fdw.CheckTableDeclaration(declaration); err != nil {
 					return Result{}, err
 				}
 				var added addedColumn
@@ -281,7 +282,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 					}
 					if err == nil {
-						options, er := TransformForeignOptions(nil, action.ColumnOptions)
+						options, er := fdw.TransformOptions(nil, action.ColumnOptions)
 						if er != nil {
 							return Result{}, er
 						}
@@ -345,7 +346,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		e.replacementMu.RUnlock()
 		scope.replacementRead = false
 	}
-	if err = RunForeignValidations(scope.op.Context(), jobs); err != nil {
+	if err = fdw.RunValidations(scope.op.Context(), jobs); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)

@@ -4,12 +4,13 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
 )
 
-func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error) {
+func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 	e := s.engine()
-	var groups []foreignTruncateGroup
+	var groups []fdw.TruncateGroup
 	for _, selected := range s.truncateOrZero().relations {
 		if selected.relation.RelationKind != catalog.ForeignRelation {
 			continue
@@ -30,7 +31,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 		}
 		if index < 0 {
 			index = len(groups)
-			groups = append(groups, foreignTruncateGroup{Source: f, Request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().foreignCascade, RestartIdentity: s.truncateOrZero().restart}})
+			groups = append(groups, fdw.TruncateGroup{Source: f, Request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().foreignCascade, RestartIdentity: s.truncateOrZero().restart}})
 		}
 		groups[index].Request.Tables = append(groups[index].Request.Tables, exec.CopyForeignRequest(f.Request))
 	}
@@ -48,7 +49,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 	}
 	return groups, nil
 }
-func (s *StatementScope) executeForeignTruncate(groups []foreignTruncateGroup) error {
+func (s *StatementScope) executeForeignTruncate(groups []fdw.TruncateGroup) error {
 	s.foreignUnlocked()
 	for _, g := range groups {
 		if err := g.Source.Wrapper.(catalog.ForeignTruncater).ExecForeignTruncate(s.op.Context(), g.Request); err != nil {

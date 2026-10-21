@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -103,7 +104,7 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			op := transactionOperation(t, session)
 			defer op.Done()
 			s := newStatementScope(op, session.Transactions, statementOperationStart(op))
-			m := &foreignModification{Source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
+			m := &fdw.Modification{Source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
 			count, err := m.InsertRows(context.Background(), s.foreignWrites(), make([][]sqltype.Value, 5), false, nil)
 			if (err != nil) != tc.bad || count != tc.count {
 				t.Fatalf("count=%d err=%v", count, err)
@@ -127,13 +128,13 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			}
 		})
 	}
-	if ForeignOperationSupported(fdwUnitScanWrapper{}, catalog.ForeignInsert, "f") == nil {
+	if fdw.OperationSupported(fdwUnitScanWrapper{}, catalog.ForeignInsert, "f") == nil {
 		t.Fatal("scan-only INSERT accepted")
 	}
-	if ForeignOperationSupported(fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{}}, catalog.ForeignUpdate, "f") == nil {
+	if fdw.OperationSupported(fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{}}, catalog.ForeignUpdate, "f") == nil {
 		t.Fatal("INSERT implied UPDATE")
 	}
-	if ForeignOperationSupported(fdwUnitBatchOnly{ForeignBatchInserter: &fdwUnitBatch{size: 2}}, catalog.ForeignInsert, "f") == nil {
+	if fdw.OperationSupported(fdwUnitBatchOnly{ForeignBatchInserter: &fdwUnitBatch{size: 2}}, catalog.ForeignInsert, "f") == nil {
 		t.Fatal("batch-only provider implied INSERT")
 	}
 }
@@ -239,12 +240,12 @@ func TestFDWModifyLifecycle(t *testing.T) {
 func fdwUnitCopyVeto(t *testing.T) {
 	e := New()
 	provider := &fdwUnitLifecycle{fdwUnitSingle: fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{present: true}}, tx: &fdwUnitTransaction{}}
-	def, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "public", Name: "unit_copy_handler"}, Wrapper: provider})
+	def, err := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "public", Name: "unit_copy_handler"}, Wrapper: provider})
 	if err != nil {
 		t.Fatal(err)
 	}
 	unexpected := errors.New("codec must not run before terminal input acceptance")
-	if err := e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil,
+	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil,
 		func(context.Context, driver.Value, sqltype.Usage, sqltype.InputEnvironment) (sqltype.Value, error) {
 			return sqltype.Value{}, unexpected
 		},

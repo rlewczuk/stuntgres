@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -71,7 +72,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
 	e.mu.Unlock()
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
-		ref := ForeignRef(auth.View, d)
+		ref := fdw.ObjectRef(auth.View, d)
 		for _, grantOptions := range []bool{false, true} {
 			rights, err := auth.Effective(ref, grantOptions)
 			if err != nil || rights != authorization.UsagePrivilege {
@@ -90,7 +91,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 		t.Fatal("missing real predefined reader")
 	}
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
-		ref := ForeignRef(auth.View, d)
+		ref := fdw.ObjectRef(auth.View, d)
 		want := authorization.Privileges(0)
 		if d == server {
 			want = authorization.UsagePrivilege
@@ -174,12 +175,12 @@ func (s *fdwUnitScan) EndForeignScan(ctx context.Context) error {
 
 func TestFDWRegistry(t *testing.T) {
 	w := &fdwUnitWrapper{}
-	def, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	def, err := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
 	if err != nil {
 		t.Fatal(def, err)
 	}
 	e := New()
-	if err = e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
+	if err = e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)})
@@ -195,14 +196,14 @@ func TestFDWRegistry(t *testing.T) {
 func TestFDWProcedureIdentity(t *testing.T) {
 	e := New()
 	w := &fdwUnitWrapper{}
-	def, _ := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
-	if err := e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
+	def, _ := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
 	oldAddress := e.catalog.state.NameAddress(key)
 	wrapper := &catalog.ForeignObject{ObjectName: "wrapper", Handler: oldAddress}
-	if token, err := ForeignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
+	if token, err := fdw.HandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
 		t.Fatal(token, err)
 	}
 	replacement := catalog.CloneState(e.catalog.state)
@@ -211,7 +212,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	copy.ObjectAddress.ObjectID = 40010
 	replacement.SetDescriptor(copy.Address(), &copy)
 	replacement.BindName(key, copy.Address())
-	_, err := ForeignHandlerFor(e.catalog.read(replacement), wrapper)
+	_, err := fdw.HandlerFor(e.catalog.read(replacement), wrapper)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
@@ -221,7 +222,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	procedure := *uncallable.MustProcedure(oldAddress)
 	procedure.Foreign = nil
 	uncallable.SetDescriptor(oldAddress, &procedure)
-	_, err = ForeignHandlerFor(e.catalog.read(uncallable), wrapper)
+	_, err = fdw.HandlerFor(e.catalog.read(uncallable), wrapper)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("a stored procedure name masqueraded as an executable handler", err)
 	}
@@ -230,15 +231,15 @@ func TestFDWProcedureIdentity(t *testing.T) {
 func TestFDWProcedureACLCOW(t *testing.T) {
 	e := New()
 	w := &fdwUnitWrapper{}
-	handler, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	handler, err := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
 	if err != nil {
 		t.Fatal(err)
 	}
-	validator, err := ValidateForeignValidator(ForeignValidatorDefinition{Name: catalog.ForeignFunctionName{Name: "validator"}, Validate: func(context.Context, catalog.ForeignObjectKind, []catalog.ForeignOption) error { return nil }})
+	validator, err := fdw.ValidateValidator(fdw.ValidatorDefinition{Name: catalog.ForeignFunctionName{Name: "validator"}, Validate: func(context.Context, catalog.ForeignObjectKind, []catalog.ForeignOption) error { return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{handler}, []ForeignValidatorDefinition{validator}, nil, nil); err != nil {
+	if err = e.InstallForeignDefinitions([]fdw.WrapperDefinition{handler}, []fdw.ValidatorDefinition{validator}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	op, done := roleOperation(t, e, "postgres")
@@ -432,13 +433,13 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 
 func testFDWForeignMetadataPolicy(t *testing.T) {
 	plain := &parser.CreateTable{}
-	if ForeignTableSyntax(plain) != plain {
+	if fdw.TableSyntax(plain) != plain {
 		t.Fatal("plain foreign syntax was unnecessarily copied")
 	}
 	column := &parser.Column{Name: "keep"}
 	like := &parser.TableLike{Options: []parser.LikeOption{{Name: "all", Including: true}}}
 	syntax := &parser.CreateTable{Elements: []parser.TableElement{{Like: like}, {Column: column}}}
-	got := ForeignTableSyntax(syntax)
+	got := fdw.TableSyntax(syntax)
 	want := analyze.LikeMask(analyze.LikeAll) &^ (analyze.LikeIndexes | analyze.LikeIdentity | analyze.LikeStorage | analyze.LikeCompression)
 	if got == syntax || got.Elements[0].Like == like || analyze.TableLikeOptions(got.Elements[0].Like.Options) != want || analyze.TableLikeOptions(like.Options) != analyze.LikeAll || got.Elements[1].Column != column {
 		t.Fatal("foreign LIKE changed syntax or copied physical properties")
@@ -448,12 +449,12 @@ func testFDWForeignMetadataPolicy(t *testing.T) {
 		uses []int
 		want []int32
 	}{{[]int{2}, []int32{1}}, {nil, []int32{1, 4}}, {[]int{2, 1, 0}, []int32{1, 4}}, {[]int{}, []int32{}}} {
-		attributes, err := ForeignRequiredAttributes(relation, tc.uses)
+		attributes, err := fdw.RequiredAttributes(relation, tc.uses)
 		if err != nil || !slices.Equal(attributes, tc.want) {
 			t.Fatal("virtual source demand", attributes, tc.want, err)
 		}
 	}
-	if _, err := ForeignRequiredAttributes(relation, []int{3}); err == nil {
+	if _, err := fdw.RequiredAttributes(relation, []int{3}); err == nil {
 		t.Fatal("invalid required slot admitted")
 	}
 }

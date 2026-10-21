@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -17,11 +18,11 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *session.Session, *se
 	t.Helper()
 	e := New()
 	if edge == "procedure_wrapper" || edge == "validator_wrapper" || edge == "transitive_procedure_mapping" {
-		definition, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "fdw_cap", Name: "handler"}, Wrapper: &fdwUnitWrapper{}})
+		definition, err := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "fdw_cap", Name: "handler"}, Wrapper: &fdwUnitWrapper{}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		validator, err := ValidateForeignValidator(ForeignValidatorDefinition{
+		validator, err := fdw.ValidateValidator(fdw.ValidatorDefinition{
 			Name: catalog.ForeignFunctionName{Schema: "fdw_cap", Name: "validator"},
 			Validate: func(_ context.Context, _ catalog.ForeignObjectKind, options []catalog.ForeignOption) error {
 				for _, option := range options {
@@ -35,7 +36,7 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *session.Session, *se
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{definition}, []ForeignValidatorDefinition{validator}, nil, nil); err != nil {
+		if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, []fdw.ValidatorDefinition{validator}, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

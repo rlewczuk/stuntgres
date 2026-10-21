@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/fdw"
 	"testing"
 	"time"
 )
@@ -25,9 +26,9 @@ func fdwHoldSettlement(t *testing.T) {
 	s.attachTransactionLocked()
 	s.owner.Mu.Unlock()
 	remote := &fdwUnitTransaction{}
-	participant := &foreignParticipant{Tx: remote}
+	participant := &fdw.Participant{Tx: remote}
 	ownerExtensionOf(s.owner).foreign.Enlist(participant)
-	marks := []*foreignParticipant{participant}
+	marks := []*fdw.Participant{participant}
 	s.foreignTables().statements = marks
 	frontier := e.visibility.CommitSeq()
 	if err := e.holdPrecommit(op, s.owner, time.Now(), s); err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -40,7 +41,7 @@ func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.Ob
 			server := view.Get(d.Server)
 			return "user mapping for " + user + " on server " + catalog.DependencyIdentifier(server.Name())
 		}
-		return ForeignLabel(d.Address().ClassID) + " " + catalog.DependencyIdentifier(d.Name())
+		return fdw.Label(d.Address().ClassID) + " " + catalog.DependencyIdentifier(d.Name())
 	}
 	if d, ok := view.Extension(base); ok {
 		return "extension " + catalog.DependencyIdentifier(d.Name())

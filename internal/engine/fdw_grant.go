@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -69,7 +70,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if len(name.Parts) != 1 {
 			return Result{}, sqlError("42601", "SQL/MED global names cannot be qualified")
 		}
-		d, er := FindForeign(auth.Catalog, class, name.Parts[0].Text)
+		d, er := fdw.Find(auth.Catalog, class, name.Parts[0].Text)
 		if er != nil {
 			return Result{}, er
 		}

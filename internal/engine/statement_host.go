@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +23,7 @@ type statementHost StatementScope
 
 var _ exec.Host = (*statementHost)(nil)
 var _ regobj.NoticeHost = (*statementHost)(nil)
-var _ foreignWriteRuntime = (*statementHost)(nil)
+var _ fdw.WriteRuntime = (*statementHost)(nil)
 
 // hostOf returns an untyped nil for a nil scope, never a typed nil.
 func hostOf(scope *StatementScope) exec.Host {
@@ -67,13 +68,13 @@ func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.Forei
 }
 
 // TrackForeignModification records m so statement end finishes it.
-func (h *statementHost) TrackForeignModification(m *foreignModification) {
+func (h *statementHost) TrackForeignModification(m *fdw.Modification) {
 	s := h.scope()
 	s.foreignTables().modifications = append(s.foreignTablesOrZero().modifications, m)
 }
 
 // foreignWrites is the statement's foreign write runtime.
-func (s *StatementScope) foreignWrites() foreignWriteRuntime { return (*statementHost)(s) }
+func (s *StatementScope) foreignWrites() fdw.WriteRuntime { return (*statementHost)(s) }
 
 func (h *statementHost) FormatRegclass(id uint32) (string, error) {
 	return h.scope().FormatRegclass(id)

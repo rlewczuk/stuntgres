@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
@@ -20,7 +21,7 @@ func (h *statementHost) TouchForeignScan(ctx context.Context, source *exec.Forei
 		return nil
 	}
 	r := source.Request
-	key := foreignParticipantKey{r.HandlerOID, r.ServerOID, r.MappingOID, r.RoleOID}
+	key := fdw.ParticipantKey{Handler: r.HandlerOID, Server: r.ServerOID, Mapping: r.MappingOID, Role: r.RoleOID}
 	for _, p := range s.foreignTablesOrZero().statements {
 		if p.Key == key {
 			if p.Closed {
@@ -46,12 +47,12 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 	provider, ok := wrapper.(catalog.ForeignTransactionProvider)
 	if !ok {
 		if writing {
-			return nil, ForeignCapabilityError()
+			return nil, fdw.CapabilityError()
 		}
 		return nil, nil
 	}
 	t := s.owner
-	key := foreignParticipantKey{request.HandlerOID, request.ServerOID, request.MappingOID, request.RoleOID}
+	key := fdw.ParticipantKey{Handler: request.HandlerOID, Server: request.ServerOID, Mapping: request.MappingOID, Role: request.RoleOID}
 	t.Mu.Lock()
 	if err := t.Validate(s.txRef); err != nil {
 		t.Mu.Unlock()
@@ -67,7 +68,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 			return nil, exec.ForeignCallbackError(err)
 		}
 		if !capabilities.StatementRollback || !capabilities.TransactionRollback {
-			return nil, ForeignCapabilityError()
+			return nil, fdw.CapabilityError()
 		}
 		if len(marks) != 0 && !capabilities.Savepoints {
 			return nil, sqlError("0A000", "foreign transaction does not support savepoints")
@@ -82,7 +83,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		if tx == nil {
 			return nil, errors.New("stuntgres: foreign provider returned no transaction")
 		}
-		participant = &foreignParticipant{Key: key, Tx: tx, Capabilities: capabilities}
+		participant = &fdw.Participant{Key: key, Tx: tx, Capabilities: capabilities}
 		if capabilities.Savepoints {
 			sp, ok := tx.(catalog.ForeignTransactionSavepoints)
 			if !ok {
@@ -90,7 +91,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 				return nil, errors.New("stuntgres: foreign savepoint capability has no implementation")
 			}
 			for _, mark := range marks {
-				if err := sp.Savepoint(ctx, ForeignMarkName(mark.Serial)); err != nil {
+				if err := sp.Savepoint(ctx, fdw.MarkName(mark.Serial)); err != nil {
 					_ = tx.Rollback(context.WithoutCancel(ctx))
 					return nil, exec.ForeignCallbackError(err)
 				}

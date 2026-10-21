@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 	"testing"
 )
@@ -36,7 +37,7 @@ func TestOwnerExtensionOfLiteralOwner(t *testing.T) {
 	if x == nil || owner.Extension != x || ownerExtensionOf(owner) != x {
 		t.Fatal("ownerExtensionOf did not store one extension")
 	}
-	x.foreign.Enlist(&foreignParticipant{})
+	x.foreign.Enlist(&fdw.Participant{})
 	x.retireForeign()
 	if x.foreign.HasParticipants() || len(ownerExtensionOf(owner).foreign.TakeCleanup()) != 1 {
 		t.Fatal("retireForeign did not move participants to cleanup")

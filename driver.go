@@ -9,6 +9,7 @@ import (
 	"errors"
 	"runtime"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -34,8 +35,8 @@ type Driver struct {
 	settings          []settings.Definition
 	settingsFrozen    bool
 	config            DriverConfig
-	foreignWrappers   []engine.ForeignDataWrapperDefinition
-	foreignValidators []engine.ForeignValidatorDefinition
+	foreignWrappers   []fdw.WrapperDefinition
+	foreignValidators []fdw.ValidatorDefinition
 }
 
 func NewDriver() *Driver { return NewDriverWithConfig(DriverConfig{}) }

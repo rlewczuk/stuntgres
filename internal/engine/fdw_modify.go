@@ -7,14 +7,15 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 )
 
-func (s *StatementScope) planForeignModification(ctx context.Context, source *exec.ForeignQuerySource, operation catalog.ForeignModifyOperation, copying bool) (*foreignModification, error) {
+func (s *StatementScope) planForeignModification(ctx context.Context, source *exec.ForeignQuerySource, operation catalog.ForeignModifyOperation, copying bool) (*fdw.Modification, error) {
 	s.foreignUnlocked()
-	if err := ForeignOperationSupported(source.Wrapper, operation, source.Request.Table); err != nil {
+	if err := fdw.OperationSupported(source.Wrapper, operation, source.Request.Table); err != nil {
 		return nil, err
 	}
-	m := &foreignModification{Source: source, Request: catalog.ForeignModifyRequest{ForeignRequest: exec.CopyForeignRequest(source.Request), Operation: operation}, Copy: copying}
+	m := &fdw.Modification{Source: source, Request: catalog.ForeignModifyRequest{ForeignRequest: exec.CopyForeignRequest(source.Request), Operation: operation}, Copy: copying}
 	if operation != catalog.ForeignInsert {
 		provider, ok := source.Wrapper.(catalog.ForeignUpdateTargetProvider)
 		if !ok {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
@@ -44,7 +45,7 @@ func fdwChainReadmission(t *testing.T) {
 		}
 		return nil
 	}
-	ownerExtensionOf(owner).foreign.Enlist(&foreignParticipant{Tx: remote})
+	ownerExtensionOf(owner).foreign.Enlist(&fdw.Participant{Tx: remote})
 	op := transactionOperation(t, sess)
 	if err := owner.AcquireAdmission(op.Context(), op); err != nil {
 		t.Fatal(err)

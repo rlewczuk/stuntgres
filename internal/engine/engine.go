@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 
 	"stuntgres/internal/engine/authorization"
@@ -45,7 +46,7 @@ type Engine struct {
 	prepared          map[string]*preparedTransaction
 	roles             roleStore
 	importTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
-	foreign           foreignRegistry
+	foreign           fdw.Registry
 }
 type Result struct {
 	CommandTag string

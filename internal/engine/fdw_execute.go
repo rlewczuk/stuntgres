@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -46,7 +47,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err = ForeignOperationSupported(target.Foreign.Wrapper, op, b.Relation.Name()); err != nil {
+	if err = fdw.OperationSupported(target.Foreign.Wrapper, op, b.Relation.Name()); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -148,7 +149,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	return s.executeForeignRowMutation(m, b, state, &evaluation)
 }
 
-func (s *StatementScope) foreignInsertResult(m *foreignModification, b analyze.Binding, rows [][]sqltype.Value, evaluation *exec.Context) (Result, error) {
+func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Binding, rows [][]sqltype.Value, evaluation *exec.Context) (Result, error) {
 	var output *exec.FinalRows
 	if b.Returning != nil {
 		output = exec.NewFinalRows(b.Returning.Schema, 0)
@@ -219,7 +220,7 @@ type foreignMutationRow struct {
 	identity catalog.ForeignRowIdentity
 }
 
-func foreignTargetRows(ctx context.Context, s *StatementScope, m *foreignModification) ([]foreignMutationRow, error) {
+func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modification) ([]foreignMutationRow, error) {
 	f := m.Source
 	r := exec.CopyForeignRequest(m.Request.ForeignRequest)
 	r.Identity = &m.Request.Targets
@@ -258,7 +259,7 @@ func foreignTargetRows(ctx context.Context, s *StatementScope, m *foreignModific
 			if !driver.IsValue(cell) {
 				return nil, errors.New("stuntgres: foreign row identity contains a non-driver value")
 			}
-			if !ForeignIdentityComparable(cell) {
+			if !fdw.IdentityComparable(cell) {
 				return nil, errors.New("stuntgres: foreign row identity contains a noncomparable driver value")
 			}
 		}
@@ -270,7 +271,7 @@ func foreignTargetRows(ctx context.Context, s *StatementScope, m *foreignModific
 	}
 	return rows, nil
 }
-func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (Result, error) {
+func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (Result, error) {
 	ctx := s.op.Context()
 	rows, err := foreignTargetRows(ctx, s, m)
 	if err != nil {
@@ -326,7 +327,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 			}
 		}()
 	}
-	var seen foreignIdentitySet
+	var seen fdw.IdentitySet
 	var count int64
 	for _, candidate := range rows {
 		identityChecked := false
@@ -412,8 +413,8 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 type foreignTableScope struct {
 	owner          *exec.ForeignScanOwner
 	cursor         *sqlCursor
-	statements     []*foreignParticipant
-	modifications  []*foreignModification
+	statements     []*fdw.Participant
+	modifications  []*fdw.Modification
 	holdPromotions []*sqlCursor // Exact new promotions owned by this completion.
 }
 
@@ -460,7 +461,7 @@ func (f *foreignTableScope) clearHoldPromotions() {
 // The setters below install a value, allocating the slot only for a
 // non-nil value: a missing slot already reads as nil.
 
-func (s *StatementScope) setForeignStatements(statements []*foreignParticipant) {
+func (s *StatementScope) setForeignStatements(statements []*fdw.Participant) {
 	if statements != nil || s.foreignTablesSlot != nil {
 		s.foreignTables().statements = statements
 	}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -918,7 +919,7 @@ func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope 
 	} else {
 		err = disposeSQLCursors(ctx, cursors)
 	}
-	if failure := RollbackForeign(ctx, participants); err == nil {
+	if failure := fdw.Rollback(ctx, participants); err == nil {
 		err = failure
 	}
 	if payloadOf(t.Session).preparedSQL == nil {

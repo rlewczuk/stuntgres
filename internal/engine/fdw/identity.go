@@ -1,4 +1,4 @@
-package engine
+package fdw
 
 import (
 	"bytes"
@@ -14,42 +14,42 @@ import (
 // Target scans already own these validated identity vectors and byte cells.
 // Membership borrows them until command completion, without another tuple copy.
 // Bucket links are one-based so a missing map entry is an empty chain.
-type foreignIdentitySet struct {
+type IdentitySet struct {
 	seed    maphash.Seed
 	heads   map[uint64]int
-	entries []foreignIdentityEntry
+	entries []identityEntry
 }
 
-type foreignIdentityEntry struct {
+type identityEntry struct {
 	identity catalog.ForeignRowIdentity
 	next     int
 }
 
-func (s *foreignIdentitySet) Add(identity catalog.ForeignRowIdentity) bool {
+func (s *IdentitySet) Add(identity catalog.ForeignRowIdentity) bool {
 	if s.heads == nil {
 		s.seed = maphash.MakeSeed()
 		s.heads = make(map[uint64]int)
 	}
-	return s.addHashed(identity, foreignIdentityHash(s.seed, identity))
+	return s.addHashed(identity, identityHash(s.seed, identity))
 }
 
 // Keeping hash selection separate permits deterministic collision and bucket
 // work-bound tests without counters or alternate equality in production.
-func (s *foreignIdentitySet) addHashed(identity catalog.ForeignRowIdentity, hash uint64) bool {
+func (s *IdentitySet) addHashed(identity catalog.ForeignRowIdentity, hash uint64) bool {
 	head := s.heads[hash]
 	for index := head; index != 0; index = s.entries[index-1].next {
-		if foreignIdentityEqual(s.entries[index-1].identity, identity) {
+		if identityEqual(s.entries[index-1].identity, identity) {
 			return false
 		}
 	}
-	s.entries = append(s.entries, foreignIdentityEntry{identity: identity, next: head})
+	s.entries = append(s.entries, identityEntry{identity: identity, next: head})
 	s.heads[hash] = len(s.entries)
 	return true
 }
 
 // Called after driver.IsValue. Decimal extension values may contain dynamic
 // noncomparable fields; inspect the actual value, not only its static type.
-func ForeignIdentityComparable(cell driver.Value) bool {
+func IdentityComparable(cell driver.Value) bool {
 	switch cell.(type) {
 	case nil, []byte, bool, float64, int64, string, time.Time:
 		return true
@@ -58,7 +58,7 @@ func ForeignIdentityComparable(cell driver.Value) bool {
 	}
 }
 
-func foreignIdentityHash(seed maphash.Seed, identity catalog.ForeignRowIdentity) uint64 {
+func identityHash(seed maphash.Seed, identity catalog.ForeignRowIdentity) uint64 {
 	var hash maphash.Hash
 	hash.SetSeed(seed)
 	var word [8]byte
@@ -81,7 +81,7 @@ func foreignIdentityHash(seed maphash.Seed, identity catalog.ForeignRowIdentity)
 	return hash.Sum64()
 }
 
-func foreignIdentityEqual(a, b catalog.ForeignRowIdentity) bool {
+func identityEqual(a, b catalog.ForeignRowIdentity) bool {
 	if len(a) != len(b) {
 		return false
 	}

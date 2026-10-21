@@ -1,4 +1,4 @@
-package engine
+package fdw
 
 import (
 	"fmt"
@@ -12,10 +12,10 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-// foreignScanRequest resolves relation's server, wrapper, handler and user
+// ScanRequest resolves relation's server, wrapper, handler and user
 // mapping, and builds the scan request. A non-zero invoker replaces the
 // view's current user. It reads only the captured view and calls no wrapper.
-func ForeignScanRequest(view access.View, invoker authorization.PrincipalRef, relation *catalog.Relation, uses []int) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
+func ScanRequest(view access.View, invoker authorization.PrincipalRef, relation *catalog.Relation, uses []int) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
 	if invoker != (authorization.PrincipalRef{}) {
 		view.State.CurrentUser = invoker
 	}
@@ -27,11 +27,11 @@ func ForeignScanRequest(view access.View, invoker authorization.PrincipalRef, re
 	if !ok {
 		return nil, catalog.ForeignRequest{}, ids.ErrCatalogReplaced
 	}
-	handler, err := ForeignHandlerFor(view.Catalog, wrapper)
+	handler, err := HandlerFor(view.Catalog, wrapper)
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}
-	mapping, err := ForeignMappingFor(view, server)
+	mapping, err := MappingFor(view, server)
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}
@@ -46,7 +46,7 @@ func ForeignScanRequest(view access.View, invoker authorization.PrincipalRef, re
 	for i, column := range relation.Columns {
 		request.Columns = append(request.Columns, catalog.ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
 	}
-	request.RequiredAttributes, err = ForeignRequiredAttributes(relation, uses)
+	request.RequiredAttributes, err = RequiredAttributes(relation, uses)
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}
@@ -55,7 +55,7 @@ func ForeignScanRequest(view access.View, invoker authorization.PrincipalRef, re
 
 // Logical virtual-column ACL uses remain unchanged. Only their existing bound
 // expression's base inputs belong in the external row layout.
-func ForeignRequiredAttributes(relation *catalog.Relation, uses []int) ([]int32, error) {
+func RequiredAttributes(relation *catalog.Relation, uses []int) ([]int32, error) {
 	count := len(uses)
 	if uses == nil {
 		count = len(relation.Columns)
