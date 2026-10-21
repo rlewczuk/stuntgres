@@ -68,13 +68,6 @@ func walkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader,
 	return nil
 }
 
-func (r scalarRenderer) recordRoutineReferences(view catalog.Read, value sqltype.Value) error {
-	return walkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
-		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
-		return nil
-	})
-}
-
 func remapRoutineDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return value, nil

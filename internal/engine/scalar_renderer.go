@@ -704,3 +704,38 @@ func (r scalarRenderer) record(ref ids.ObjectRef) {
 	}
 	*r.dependencies = append(*r.dependencies, ref)
 }
+
+func (r scalarRenderer) recordRoutineReferences(view catalog.Read, value sqltype.Value) error {
+	return walkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
+		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		return nil
+	})
+}
+
+func (r scalarRenderer) recordCatalogAliasDependencies(view catalog.Read, value sqltype.Value) error {
+	record := func(address ids.ObjectAddress) error {
+		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		return nil
+	}
+	if err := catalog.WalkAliasDependenciesAt(view, r.definition, value, record); err != nil {
+		return err
+	}
+	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
+		return err
+	}
+	return walkRegTSReferencesAt(view, r.definition, value, record)
+}
+
+func (r scalarRenderer) recordCatalogAliasReferences(view catalog.Read, value sqltype.Value) error {
+	record := func(address ids.ObjectAddress) error {
+		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		return nil
+	}
+	if err := catalog.WalkAliasReferencesAt(view, r.definition, value, record); err != nil {
+		return err
+	}
+	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
+		return err
+	}
+	return walkRegTSReferencesAt(view, r.definition, value, record)
+}
