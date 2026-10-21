@@ -263,10 +263,431 @@ in 29d or stays next to the protocol; one session per statement kind or one
 for all. Write the method list with signatures and lock contracts, the move
 set, the commit sequence, then wait for approval.
 
-### 29d — Move the executors (linear item 110)
+**29c refine (measured at `be8ed733b`).** `reach` over the 34 root files
+that still hold DML code (`insert*.go`, `update*.go`, `delete*.go`,
+`merge*.go`, `cte_mutation_*.go`, `current_of.go`, `truncate*.go`,
+`fdw_truncate.go`, `fdw_execute.go`, `copy.go`, `copy_insertion.go`,
+`copy_text.go`, `copy_binary.go`, `foreign_key_writes.go`,
+`foreign_action*.go`, `mutation_targets.go`, `partition_insert.go`,
+`unique_dml.go`, `exclusion_admission.go`): 176 declarations, 11 clean and
+165 dirty, about 6.2k lines. `frontier` over the same files: 232 root
+declarations used (OUT), led by `StatementScope` (124 users), `statementHost.op`
+(51), `StatementScope.engine` (47), `sessionHost.mu` (38). Output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-DML-REFINE/` (`reach.txt`, `frontier.txt`, and
+the per-area notes `agent{A,B,C}-*`). Findings:
 
-Follow 29c: seam on `statementHost` (seam tests first), port each executor
-in place over `dml.Host`, move with `movex`, unexport, docs.
+- **The cut is already at the unlock.** Dispatch
+  (`executePreparedCommandLocked`) captures the target, the query sources
+  and the comment snapshots under `Engine.mu`, unlocks, and only then calls
+  `executeUpdate`, `executeDelete` and `executeMerge`. INSERT
+  (`executeInsertLocked`) and foreign DML (`executeForeignCommandLocked`)
+  are entered locked and do the same captures before their own unlock; both
+  split there. Writable CTEs re-enter dispatch
+  (`executePreparedCTECommandsLocked`), so their orchestration stays root,
+  and so does `completeCTEMutation` (it consumes the root `Result`).
+- **`WriteStage` is the staging authority** (the `self`/`scope` forgery
+  guard, owner.Mu → Engine.mu, version allocation, SSI evidence,
+  `multiEvents`, FK replacement recording, `ErrCatalogReplaced` gates). But
+  `applyValidated` and `replaceRows` also run DML work before their locked
+  window: key-change classification (`uniqueKeyChanged`), row-grant waits
+  (`acquireUpdateRowMode`), index candidate validation
+  (`validateIndexCandidates`), and on a stale unique binding they unlock and
+  call back into the probe code (`revalidateConflictRows`,
+  `revalidateIndexRows`) before `goto retry`. `multiEvents` is empty outside
+  the staging windows: only `stageDeletionLocked` and the replacement window
+  append, and both flush after unlocking.
+- **The four latest reads share one skeleton** (one Engine.mu window,
+  `validateLockedRelation`, `storage.RowByID`, `visibility.LiveVersion`) but
+  differ in gate, row source, isolation policy and error text:
+  `latestUpdateRow` checks both epochs and `repeatableConflict`;
+  `latestDeleteRow` checks no epoch, only the captured storage generation;
+  `latestMergeRow` looks up own rows first (hint -1) without an isolation
+  check and fails 40001 "concurrent delete" only when not live;
+  `latestConflictUpdateRow` checks the parent row shape, reads
+  `AffectedRows`/`stage.rows`/the write overlay, also excludes
+  `index.UniqueRowDeleted`, and runs `writeAuthorizationLocked` and
+  `analyze.CheckBinding` in the same window. They merge only as a kind
+  switch inside the root.
+- **Row acquisition.** `acquireRow` (DELETE, MERGE delete) checks the full
+  candidate authority, is always FOR UPDATE and retakes the replacement read
+  only after a wait; `acquireUpdateRowMode` checks only the epoch and retakes
+  it whenever implicit. They stay two methods. Chain following is
+  `acquireUpdateRowMode(ForUpdate)` then a second latest read; the sketch's
+  `FollowUpdateChain` is not needed, and `mergeFollowChainStrong` is a pure
+  decision over the MERGE binding and the unique key slots.
+- **The unique and exclusion loops go first.** `bindUniqueWrite`,
+  `probeUniqueRow`, `claimUniqueRow`, `checkUniqueRow`,
+  `uniqueKeyChanged`, `probeExclusion`, `validateIndexCandidates`,
+  `revalidateIndexRows`, the write overlay and ON CONFLICT admission read
+  unlocked statement state (`ownWrites`, `ownDeletes`, `stage.rows`,
+  `stage.deletes`, the mutation groups) and call the index write host. Every
+  executor, `WriteStage.Apply` and `set_constraints.go` (SET CONSTRAINTS
+  IMMEDIATE) call them.
+- **Authority.** `uniqueConflict`, `exclusionScan` and `partitionInsertState`
+  hold an `AuthorizationView` only for its `access.View` plus the operation's
+  environment (`authorization.go:220`: engine, definition, settings,
+  session, materialized population); `writeAuthorizationLocked` and
+  `Recapture` change only the view. The FK actions hold one to act as the
+  constraint owner (`foreignActionOwner` changes only `State.CurrentUser`).
+- **SQL routines swap command state in place.** `installSQLRoutineScratch`
+  swaps `statementMutation`, `input`/`output` and `ownWrites`/`ownDeletes`
+  while an outer executor is on the stack, and restores them after. The
+  executors also write the active mutation (`bindUniqueWrite` sets
+  `uniqueBinding`; MERGE writes `rls.Proposal`). So statement state is read
+  at call time, and the mutation is reached through a pointer to the active
+  slot, never a snapshot.
+- **FK enforcement and actions run only from Finish**
+  (`transaction_finish.go:82-94`: exclusion events, `settleForeignActions`,
+  exclusion events again, `checkForeignKeys`). Their waits all go through
+  `foreignKeyGrant`, never under Engine.mu. `planForeignAction` binds (SET
+  DEFAULT) and so needs the root binder.
+- **TRUNCATE is catalog staging.** `stageTruncate` is one Engine.mu window
+  of journal clone, `BeginCatalogStage`, storage changes, index storage
+  fences, SSI, sequence staging (`CatalogStage.sequenceState`, sequence
+  payload) and the graph fence; `acquireTruncate` is relation admission. It
+  uses no write stage, row lock, unique or FK code. A host for it would wrap
+  nearly every line.
+- **COPY.** The cursors (`copyCursor`, `copyBinaryCursor`) hold the scope
+  only for `op` (`CopyInput`, context), the input environment, the wire flag
+  of `copyCommandError` and the reader (`copyReader{scope}` → `copyIO`,
+  which releases the owner admission and `replacementMu` around each read).
+  `CopyProtocol`, `bindCopyLocked`, `initCopyInputLocked` (it builds a
+  binder) and COPY TO output are protocol.
+- **Foreign DML** never reaches `sqlCursor`: WHERE CURRENT OF is rejected
+  before any capture (`fdw_execute.go:29-32`).
+- **Defaults.** `applyDefaultOrigin` and `evalDefaultExpression`
+  (`domain_default.go`) need only `analyze`, `exec` and `expr`;
+  `evalBindingDefault` also calls `view.BindingDefaultOrigin`.
+- **Corrections to the 29b record.** `evaluateUpdateAssignments`,
+  `evaluateInsertValuesRow`, `preflightConflictUpdate`, `preflightUpdate`,
+  `preflightUpdateWithPlanning` and `preflightMerge` are now reach-clean.
+  The preflights still stay root (decision 9). `insert_conflict.go` is an
+  empty `package engine` stub left by 29b.
+- **No reference test matches a DML frame.** The reference cancellation
+  fixtures match `relationRequest.wait`, `acquireMaterializedRefresh`,
+  `acquireBoundViewRelationModes` and `policyLockExecute` only. One engine
+  unit test does: `range_partition_publication_test.go` matches
+  `"(*StatementScope).applyInsertValidated"`.
+
+Decisions:
+
+1. **Host shape.** `dml/host.go` declares two hosts, like `view.Host` and
+   `view.StageHost`. `*statementHost` implements both in a new root file
+   `statement_host_dml.go` (`var _ dml.FinishHost = (*statementHost)(nil)`).
+   Executors take `dml.Host`; FK enforcement and actions take
+   `dml.FinishHost`; pure helpers take the narrowest piece. Each piece is
+   one owner, so neither host is a service locator (§4.1 pattern 3, §7
+   decision 17).
+   ```go
+   type Host interface {
+   	exec.Host        // Context, Environments, ReleaseReplacementRead, EnlistForeign, ...
+   	index.WriteHost  // unique and exclusion windows and waits (23c)
+   	fdw.WriteRuntime // foreign participants and modification tracking (26c)
+   	Statement
+   	Stage
+   	RowLocks
+   	Presentation
+   }
+   type FinishHost interface {
+   	Host
+   	ForeignKeys
+   }
+   ```
+   The overlap of `exec.Host` and `fdw.WriteRuntime` (`EnlistForeign`,
+   `Environments`) has identical signatures. Executors convert `Host` to
+   `exec.Host` once per entry (for `exec.Source.Host`), not per probe.
+2. **`Statement`: never locks, never waits; read at call time.**
+   - `Command() *Command`: the active command's DML state (decision 3). The
+     pointer is the scope's active slot, so it follows `activateMutation`
+     and the SQL-routine save/restore exactly as today's promoted fields do.
+   - `Target() (ids.ObjectRef, *storage.Relation)`: the admitted target
+     (`lockedRef`, `lockedStorage`); the executors only read it (6 and 3
+     uses).
+   - `PrivateRows(a ids.ObjectAddress) PrivateRows`, with `PrivateRows{Own
+     []storage.RowVersion; OwnDeletes *visibility.PrivateDeletes; Staged
+     []storage.RowVersion; StagedDeletes *visibility.PrivateDeletes}` from
+     `ownWrites`, `ownDeletes`, `stage.rows`, `stage.deletes`. Valid until
+     the next host call that stages or evaluates.
+   - `Snapshot() (stable bool, frontier ids.CommitSeq)`: the owner's
+     isolation (`stableIsolation`) and frontier.
+   - `UniqueJournal() lock.UniqueJournal`: a new value type in `lock`
+     binding the manager and the ticket, with `Checkpoint`, `Restore`,
+     `BeginDelta`, `EndDelta`, `RestoreDelta` (today's
+     `CheckpointUnique`, `RestoreUnique`, `*UniqueDelta`; lock-manager mutex
+     only).
+   - `QueryAuthority() *exec.Authority` (for `view.FreezeWriteSources`).
+   - `ForeignActions() *ForeignActionScope` (allocates on first use, as
+     `foreignActions()`).
+   - `PositionedRow(b analyze.Binding) (MutationRowIdentity, error)`:
+     `positionedMutationRow`, which reads the session cursor registry; once
+     per statement.
+   - `CheckWriteBinding(v access.View, b analyze.Binding) error`: the ON
+     CONFLICT `analyze.CheckBinding` over a root view built from `v`.
+   - `DisclosureEnv(v access.View) access.Environment`: cold path (unique
+     key detail, missing partition).
+   - `CommandError(err error) error` (`op.CommandError`) and
+     `CopyCommandError(err error) error` (`copyCommandError`; the wire flag
+     is fixed per statement).
+3. **`dml.Command` replaces the DML groups.** `statementMutation` becomes
+   `{statement parser.Statement; mutationTarget; dml.Command}`.
+   `mutationTarget` stays root: it is statement lock admission, read by
+   about 40 production files (ALTER TABLE, COMMENT, constraint DDL, ...).
+   `dml.Command` embeds the exported groups `Indexes` (today
+   `mutationIndexes`), `Insert` (`mutationInsert`) and `Partition`
+   (`mutationPartition`, holding `*partition.InsertState`, decision 8), and
+   has the fields `InheritedTargets []exec.Leaf`, `ViewWrite *view.Write`,
+   `RLS view.RowSecurity`. It stays a value, so `activateMutation` still
+   copies it whole. `captureMutationSource`, `mutationStorage` and
+   `mutationTargetRefs` become `Command` methods (they take the target
+   storage as an argument). The promoted field names become capitalized
+   (`s.insertConflict` → `s.InsertConflict`): `fieldrn` over 32
+   production and 18 test files.
+4. **`Stage`: each window takes owner.Mu then Engine.mu (or Engine.mu)
+   itself, never waits; the caller holds nothing.** `WriteStage` stays root
+   and unsplit; the work around its windows moves.
+   - `PrepareReplacement(ref ids.ObjectRef, old []storage.RowVersion)
+     error`: `replaceRows`' prologue (forgery guard, `active`,
+     `validateInheritedReplacements`, FK internal-action admission and row
+     grants), in today's order.
+   - `StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (stale bool,
+     err error)`: `applyValidated`'s window; `stale` when the unique
+     binding's catalog moved, and the caller revalidates and retries.
+   - `StageReplacement(ref ids.ObjectRef, old []storage.RowVersion, batch
+     index.WriteBatch, modes []lock.MultiMode, lane ReplaceLane) (stale bool,
+     err error)`: `replaceRows`' window; `ReplaceMerge` (today `replace`),
+     `ReplaceAppend` (`appendUpdateReplacement`; `update_allocation_test.go`
+     guards its allocations), `ReplaceConflict` (`replaceDistinct`). It
+     flushes the physical events after unlocking on success and drops them
+     on failure, so `FlushPhysicalEvents` is not a host method.
+   - `AppendAcceptedInsert(ref ids.ObjectRef, c *index.WriteCandidate)
+     (accepted, stale bool, err error)`.
+   - `Delete(c visibility.DeleteCandidate) (bool, error)`: `WriteStage.Delete`
+     unchanged (it flushes itself).
+   `dml.ApplyValidated(h, ref, batch)` and `dml.ReplaceRows(h, ref, old,
+   batch, lane)` own the loops: classify keys, acquire grants, validate
+   candidates, call the window, revalidate on `stale`, retry. The root
+   `WriteStage.Apply` (public) and `applyInsertBatch` call them with
+   `(*statementHost)(s)`.
+5. **`RowLocks`.**
+   - `AcquireRow(c visibility.DeleteCandidate) error` and
+     `AcquireUpdateRow(ref ids.ObjectRef, row ids.RowID, mode lock.Mode)
+     error`: wait with the caller holding nothing; release the replacement
+     read across the wait; then lock once to revalidate.
+   - `AcquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) error`: waits.
+   - `LatestRow(r RowRequest) (LatestRow, error)`: locks once, never waits.
+     `RowRequest{Kind RowKind; Ref ids.ObjectRef; Row ids.RowID; Own bool;
+     Hint int; Storage *storage.Relation; Parent *catalog.Relation;
+     Binding *analyze.Binding}` by value (no per-row allocation);
+     `RowKind` is `RowUpdate`, `RowDelete`, `RowMerge`, `RowConflictUpdate`;
+     `LatestRow{Version storage.RowVersion; Live bool; Parent
+     *catalog.Relation; Schema string}`. The root switches on the kind and
+     keeps each kind's gate, isolation policy and error text, so
+     `repeatableConflict` stays root.
+   - `PhysicalRowEvent(ref ids.ObjectRef, row storage.RowVersion, mode
+     lock.MultiMode, successor ids.VersionID) error`: Engine.mu briefly for
+     the XID, then the lock manager; never waits.
+   - `index.WriteHost` gains `EndExclusionRow(ref ids.ObjectRef, row
+     ids.RowID, version ids.VersionID)` (locks, never waits) for the MERGE
+     DELETE arm's direct `projectExclusionDeletionLocked`.
+6. **`Presentation`: locks once, never waits.**
+   - `RowDetail(b *analyze.Binding, row []sqltype.Value, p DetailPurpose)
+     (string, error)`: `rowDiagnosticDetail`; `DetailConstraint` is
+     `rowConstraintDetail` (partition redirect, empty kept),
+     `DetailViewCheck` suppresses an empty detail. Error path only.
+   - `SchemaName(ns ids.ObjectAddress) (string, bool)`.
+   - `CaptureRegclassOutput(rows *exec.FinalRows) error`.
+   Not needed from the sketch: `ValidateLockedRelation` and
+   `RefreshRelationGrants` (every use is inside a root window or dispatch),
+   `RepeatableConflict`, `FlushPhysicalEvents`, `FollowUpdateChain`,
+   `Writes()` (`*WriteStage` is a root type).
+7. **Probe authority.** `index.UniqueProbe` and `index.ExclusionScan` gain
+   `Authority access.View`, filled by the window already recaptured and with
+   the FK action owner applied. The concrete `captureUniqueProbe` and
+   `captureExclusionScan` go away; `uniqueConflict` holds `access.View` by
+   value (no boxing, the same size of return as today) and its diagnostic
+   uses `index.UniqueKeyDetailAllowed(c.auth, h.DisclosureEnv(c.auth), …)`.
+   One root constructor builds the environment for both
+   `authorizationLocked` and `DisclosureEnv`, so they cannot drift.
+8. **Partition routing.** `partitionInsertState` becomes
+   `partition.InsertState{Catalog, Authority access.View, ...}` without an
+   environment field; the routing loop of `validatePartitionInsert`,
+   `rowFor` and `missingPartition` move to `partition` (pure given the view
+   and `DisclosureEnv`). `capturePartitionInsertLocked` stays root and fills
+   it. The order (route, lock a new group through `AcquirePartitionLock`,
+   physical validation, target constraint) is unchanged. `mutationPartition`
+   is then clean.
+9. **Root skeletons** (what stays):
+   - Dispatch and its locked prologues. INSERT splits like UPDATE:
+     `executeInsertLocked` keeps the captures, `dml.BeginInsertReturning` at
+     today's position (`captureCommentSnapshotLocked` rewrites
+     `scope.output` first), source capture, the unlock,
+     `SelectQuerySources`, the freeze and the defers, then calls
+     `dml.ExecuteInsert(h, InsertInput{...})`. Foreign DML keeps
+     `fdw_execute.go:23-68` and calls `dml.ExecuteForeign(h,
+     ForeignCommand{...})`.
+   - Executors return `dml.Outcome{Count int64; Rows *exec.FinalRows}`; the
+     root wraps it in `Result`, never storing a typed nil in `Result.Rows`.
+     Thin root wrappers `executeUpdate`, `executeDelete`, `executeMerge`
+     stay for the engine tests that call them.
+   - Writable-CTE orchestration, `completeCTEMutation`, `WriteStage` and the
+     host windows, the Finish order, all preflight (`preflightUpdate*`,
+     `preflightMerge`, `preflightConflictUpdate`: the `query_preflight.go`
+     and `query_join_legality.go` family is shared with SELECT; moving it to
+     `analyze` is an end-state review item, not `dml`'s),
+     `positionedMutationRow`, `acquireInheritedMutationTargets` and
+     `validateInheritedReplacements`, `foreignTableScope` and the foreign
+     participants, `acquireForeignKeyCreation` (CREATE TABLE admission).
+   - **TRUNCATE stays root** (findings). Optional pure cores move:
+     `dml.TruncateGraph` with `Current(...)` (the fence check over the
+     current catalog, committed sequences and own descriptors; the root
+     `truncateGraphFence` keeps `Kind` and `currentLocked`, and the kind
+     stays in `catalog_fence.go`) and `dml.TruncateStorageChange`
+     (`truncate_storage.go:141-161`).
+   - **COPY:** the protocol stays (`CopyProtocol`, `bindCopyLocked`,
+     `initCopyInputLocked`, `copyTableRows` as skeleton, COPY TO output,
+     `copyIO`). The cursors and insertion move (decision 11).
+10. **Lower-package moves** (no host needed):
+    - `analyze.ApplyDefaultOrigin`, `analyze.EvalDefault`
+      (`applyDefaultOrigin`, `evalDefaultExpression`); `view.EvalBindingDefault`
+      (`evalBindingDefault`). Root callers `execute_bound.go:203` and
+      `copy.go:179` follow.
+    - `table.NotNullDetailError` (`notNullDetailError`) and
+      `validatePhysicalRowConstraints` into `table`, returning the violation
+      instead of taking a detail closure; `partition_replacement.go` keeps
+      using it.
+    - `view.FreezeWriteSources(src *exec.Source, leaves []exec.Leaf, auth
+      *exec.Authority, host exec.Host) *exec.Source` with
+      `frozenViewSource`; root SELECT dispatch and `dml` call it.
+    - `fdw.PlanModification` (`planForeignModification`); callers already
+      release the replacement read first.
+    - `dml.MergeFollowStrong(m *analyze.MergeBinding, keySlots []int) bool`
+      (`mergeFollowChainStrong`).
+11. **COPY cursors.** They move to `dml` holding `op *session.Operation`,
+    the host (input environment read per row, as today) and a plain
+    `io.Reader`; the root passes `copyReader{s, ...}`, so `copyIO` and its
+    lease, `txRef` and command checks stay root. The private `rowDefaults`
+    assertion goes; `dml` keeps the static `CopyInsertionCursor` assertions.
+    `recordCopyInsertion` and `flushCopyInsertion` move with them.
+12. **`ForeignKeys` (Finish only).** `dml.SettleForeignActions(h FinishHost)
+    error` and `dml.CheckForeignKeys(h FinishHost) error`; the root Finish
+    calls them at today's two positions and keeps the `ExclusionAdded`
+    read. The authority crosses as `dml.Authority`, implemented by the root
+    `AuthorizationView` like `view.RuleAuthority` (27a):
+    ```go
+    type Authority interface {
+    	Access() access.View
+    	access.Environment
+    	exec.AdmissionAuthority
+    	ActingAs(owner authorization.PrincipalRef) Authority // copy; zero owner: unchanged
+    }
+    type ForeignKeys interface {
+    	ForeignKeyJobs() ([]ForeignKeyJob, map[ids.ObjectRef]lock.Mode, Authority, error) // locks once (prepareForeignActions' first window)
+    	WriteAuthority(validate bool) (Authority, error)                                  // locks
+    	ForeignKeyRows(ref ids.ObjectRef, idx ids.ObjectAddress) (table.ForeignKeyRows, error) // locks
+    	RefreshForeignKeyRows(ref ids.ObjectRef, rows *table.ForeignKeyRows) error           // locks
+    	RetainedForeignKeyRows(ref ids.ObjectRef, current table.ForeignKeyRows) (table.ForeignKeyRows, error) // locks
+    	GrantForeignKey(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error // waits, then locks to revalidate
+    	RefreshForeignActionJob(job *ForeignKeyJob) error                                  // locks
+    	AdmitForeignAction(ref ids.ObjectRef, job *ForeignKeyJob, writable bool) error       // locks
+    	ForeignActionRow(ref ids.ObjectRef, candidate storage.RowVersion) (storage.RowVersion, bool, error) // locks
+    	DeleteForeignAction(ref ids.ObjectRef, old storage.RowVersion) error                // owner.Mu then Engine.mu; flushes after
+    	PlanForeignActionInput(auth Authority, job *ForeignKeyJob, plan *ForeignActionPlan, action parser.ForeignKeyAction) error // locks; binds SET DEFAULT
+    	SwapForeignActionAuthority(next Authority) Authority                                // no lock; nil clears
+    }
+    ```
+    `foreignActionOwner` becomes `ActingAs` (also at
+    `statement_host_index.go:203-204`). The pure parts of
+    `planForeignAction` become `dml.NewForeignActionPlan`; the reachability
+    walk `dml.ForeignKeyReach`. The root `foreignActionAuth` field and its
+    about 12 root readers stay. `foreignKeyGrant`, `captureForeignKeyRows`
+    and `refreshForeignKeyRows` stay root bodies (ALTER TABLE and FK
+    lifecycle use them too). Flag for the end-state review (114):
+    `ForeignActionScope.KeyTargets` and `AlterKeys` are DDL data in a `dml`
+    record.
+13. **Per-row cost.** Plain INSERT with k unique indexes makes about 1 + 3k
+    host calls per row (`UniqueParent`, then per key `ClaimUniqueKey`,
+    `CaptureUniqueProbe`, `PrivateRows`), 1 + k of them Engine.mu windows
+    and k lock-manager calls; UPDATE and DELETE take Engine.mu at least four
+    times per row. Interface dispatch is well under the cost of those
+    windows, so the executors call the interface: no concrete fast path.
+    29d.2 confirms with `insert_conflict_benchmark_test.go`,
+    `insert_conflict_update_benchmark_test.go` and the
+    `update_allocation_test.go` byte envelopes.
+14. **29d splits into six items** (110a–110f), in order; each needs the one
+    before it. MERGE goes after INSERT (it uses `evaluateInsertValuesRow`,
+    INSERT validation and the RLS proposal), FK last (it uses
+    `ValidateMutationRow`, the replacement loop and the unique loops).
+    None is broad: each touches only DML, host and the files named below.
+
+### 29d — Move the executors (linear items 110a–110f)
+
+Follow the 29c decisions. Every sub-step: seam methods on `statementHost`
+with seam tests first, port in place over `dml.Host` (root-local functions
+taking `h dml.Host`), move with `movex -qual dml`, unexport, rewrite the
+engine tests to the new names, docs. No behavior, error text or error-order
+change. Stack-frame matchers: `range_partition_publication_test.go`'s
+`"(*StatementScope).applyInsertValidated"` follows the router (29d.3);
+grep `reference/` for frame strings before every rename (none today).
+
+**29d.1 — Seam and lower moves (110a).** `dml/host.go` with `Host`,
+`FinishHost`, `Statement`, `Stage`, `RowLocks`, `Presentation`,
+`ForeignKeys`, `Authority`, `RowRequest`, `LatestRow`, `ReplaceLane`,
+`DetailPurpose`, `PrivateRows`, `Outcome`; root `statement_host_dml.go`
+with the assertion and the methods (`LatestRow` merges the four reads by
+kind; `StageInsert`/`StageReplacement`/`PrepareReplacement` cut from
+`applyValidated`/`replaceRows` with the old methods calling them);
+`lock.UniqueJournal`; `index.UniqueProbe`/`ExclusionScan` `Authority`
+and `EndExclusionRow`; `dml.Command` and the `fieldrn` of the groups;
+decision 10's lower moves; delete the `insert_conflict.go` stub. Seam
+tests: `LatestRow` per kind (gate, isolation, error text),
+`StageReplacement` stale and flush, `PrepareReplacement` order.
+
+**29d.2 — Unique and exclusion probing, staging loops (110b).** To `dml`:
+`unique_dml.go` (`BindUniqueWrite`, `ProbeUniqueRow`, `ClaimUniqueRow`,
+`CheckUniqueRow`, `UniqueKeyChanged`, `UniqueConflict` with
+`Diagnostic`), exclusion probing (`probeExclusion`, `probeExclusionRow`,
+`publishExclusionCandidate`; the `*Locked` helpers stay root inside the
+windows), `validateIndexCandidates`, `existingUniqueOutput`,
+`matchesExistingUnique`, `revalidateIndexRows`, the write overlay
+(`insertOwnRow`, `probeInsertWriteOverlay`, `writeOverlay`,
+`addInsertWriteKey`), `dml.ApplyValidated` and `dml.ReplaceRows`. About
+0.9k lines. Root callers (`WriteStage.Apply`, `applyInsertBatch`,
+`set_constraints.go`, the not-yet-moved executors) call `dml.X(h, ...)`.
+`RACE=1`: `^Test(Unique|Exclusion|InsertConflict)`.
+
+**29d.3 — INSERT, ON CONFLICT and COPY FROM (110c).** The INSERT body
+(`dml.ExecuteInsert`), `evaluateInsertQuery`, `assembleInsertRows` (nil
+host legal), `evaluateInsertValuesRow`, RETURNING (`beginInsertReturning`,
+`acceptInsertReturning`, `projectInsertReturning`, `finishInsertReturning`,
+`partitionReturningGroup`, `admitInsertProducer`), ON CONFLICT admission
+and DO UPDATE, partition routing execution (decision 8:
+`applyInsertValidated`, `partitionInsertionGroup`, `partitionStoredRow`,
+`validateTargetPartitionConstraint`, `checkInsertUniqueRow`),
+`validateInsertRow`, `validatePhysicalInsertRow`, `checkViewRow`, the COPY
+cursors and insertion. About 1.4k lines. `RACE=1`: COPY cancellation.
+
+**29d.4 — UPDATE and DELETE (110d).** `executeUpdate` body,
+`evaluateUpdateAssignments`, `validateMutationRow`, `rowConstraintError`,
+`validateInheritedMutationRow`, `deleteSource`, `deleteUsingSource`, the
+`Command` inheritance methods. About 0.8k lines. `RACE=1`: row-lock waits
+(`^Test(Update|Delete)(Lock|Contention|Cancellation)`).
+
+**29d.5 — MERGE and foreign DML (110e).** `executeMerge`,
+`assembleMergeRows`, `appendMergeAction`, `stageMergeRows`,
+`newMergeReturningOutput`; `dml.ExecuteForeign` (`fdw_execute.go:69-381`,
+`foreignTargetRows`, `foreignInsertResult`, `executeForeignRowMutation`,
+`finishForeignResult`). About 0.9k lines.
+
+**29d.6 — FK enforcement and actions; close step 29 (110f).**
+`dml.SettleForeignActions`, `dml.CheckForeignKeys`,
+`foreignKeyParentExists`, `applyForeignAction`, `foreignActionError`, the
+pure plan and reach; optional TRUNCATE cores. About 0.7k lines. Tests in
+`foreign_actions*_test.go` move to the new names. `RACE=1`: FK actions.
+Docs: README, this file, STATUS, ENGINE-SPLIT.md, the `exec` and
+`analyze` READMEs, `AGENTS.md` unchanged in size.
+
+Verify every sub-step with the targeted tests and the reference selections
+below (quick and `REFERENCE=1`) and quickcheck.
 
 ## Invariants
 
@@ -322,10 +743,12 @@ in place over `dml.Host`, move with `movex`, unexport, docs.
 
 Part A: the executors' records and pure algorithms live in `dml`, and every
 misplaced declaration lives with its owner. Part B: the INSERT, UPDATE,
-DELETE, MERGE, TRUNCATE and COPY executors and the FK actions live there
-too, behind a host composed from the upper features' write interfaces;
-dispatch, source capture, writable-CTE orchestration, `WriteStage` and
-publication stay in the root. The checks in §8.3 pass.
+DELETE, MERGE, COPY FROM and foreign DML executors, the unique and
+exclusion probing and FK enforcement and actions live there too, behind
+`dml.Host`/`dml.FinishHost` (29c); dispatch and its locked prologues,
+source capture, writable-CTE orchestration, `WriteStage` and its windows,
+the Finish order, preflight, TRUNCATE (catalog staging; 29c decision 9)
+and the COPY protocol stay in the root. The checks in §8.3 pass.
 
 ## Status
 
@@ -355,8 +778,14 @@ publication stay in the root. The checks in §8.3 pass.
   commit) · selected unit proof and quickcheck passed, `REFERENCE=1`
   selection passed (see the 29b record); racecheck/finalcheck skipped at
   user request
-- [ ] 29c — Host refined (docs only)
-- [ ] 29d — Executors moved
+- [x] 29c — Host refined (docs only; see the 29c record)
+- [ ] 29d — Executors moved, in six items:
+  - [ ] 29d.1 — Seam and lower moves (110a)
+  - [ ] 29d.2 — Unique and exclusion probing, staging loops (110b)
+  - [ ] 29d.3 — INSERT, ON CONFLICT and COPY FROM (110c)
+  - [ ] 29d.4 — UPDATE and DELETE (110d)
+  - [ ] 29d.5 — MERGE and foreign DML (110e)
+  - [ ] 29d.6 — FK enforcement and actions; close step 29 (110f)
 
 Outstanding aliases: none (29b added none).
 
@@ -430,7 +859,37 @@ and the moved files came out byte-identical).
   racecheck, finalcheck and bench skipped at user request (no startup
   change).
 
+### 29c record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-REFINE` from `be8ed733b`
+(the last prerequisite, partition 25d, merged). Docs only: the refine
+(findings and decisions 1–14) is in Part B above, and 29d has its six
+items with move sets and commit sequences. No code commit. Deviations from
+the sketch and the earlier notes:
+
+- Two hosts, not one: FK enforcement and actions (Finish only) take
+  `FinishHost`, so the executors' `Host` has no FK methods.
+- Not needed: `Writes()`, `FollowUpdateChain`, `FlushPhysicalEvents`,
+  `RepeatableConflict`, `ValidateLockedRelation`, `RefreshRelationGrants`
+  (decision 6). `ApplyValidated`/`ReplaceRows` are `dml` loops over the
+  root staging windows, not host methods (decision 4).
+- TRUNCATE stays root, against the inventory and the old "Done when"; only
+  its pure cores may move (decision 9). COPY execution moves (cursors and
+  insertion); the protocol stays.
+- The table row-constraint "interface" is not a host: `table` gets two pure
+  functions and the detail text comes from `Presentation.RowDetail`.
+- `mutationTarget` stays root (DDL reads it); only the DML groups become
+  `dml.Command`.
+- The preflights and `evaluateUpdateAssignments` are reach-clean now
+  (29b listed them as root-bound); the preflights stay root anyway, the
+  default evaluators go to `analyze` and `view`.
+- Baseline at `be8ed733b`: `make build` and quickcheck passed.
+
 ### Notes for later steps
+
+29c (item 109) read every note below; where they differ, its decisions
+1–14 win (for example `preflightConflictUpdate` stays root, decision 9,
+and the probe authority crosses as `access.View`, decision 7).
 
 - 29b, for 29c/29d: the seam functions `stageMergeRows`,
   `recordCopyInsertion`, `flushCopyInsertion`, `addInsertWriteKey` and

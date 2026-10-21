@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `10581f8cc` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
+Last verified against `master` at `be8ed733b` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 111, 112 and 113). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,7 +16,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **DML, host refine (docs only):** 109 (dml 29c).
+- **DML, executors:** 110a (dml 29d.1); 110b–110f follow in order.
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -133,6 +133,9 @@ Item 98 (fdw 26e) is done and closes step 26; the end-state review (item
 the ALTER FOREIGN TABLE loop stays in the root by design.
 Item 93 (partition 25d) is done and closes step 25, so DML 29c (item 109,
 docs only) is ready; the end-state review (item 114) still waits for 110.
+Item 109 (DML 29c, docs only) is done and split 29d into 110a–110f, run
+in order, so 110a (29d.1, seam and lower moves) is ready; the end-state
+review (item 114) now waits for 110f. TRUNCATE stays in the root.
 
 ## Task tree
 
@@ -612,8 +615,14 @@ docs only) is ready; the end-state review (item 114) still waits for 110.
     (`919c6319f`, `3bbec01e0`, `146d99d5b`, `03b5e1c78`, then the docs commit)
   - [x] 29b — `dml` created and clean set moved
     (`8b336c6c1`, `280456a1b`, `c69b2ba66`, `92fe07400`, `bb16abdca`, then the docs commit)
-  - [ ] 29c — Host refined (docs only)
+  - [x] 29c — Host refined (docs only) (the docs commit)
   - [ ] 29d — Executors moved
+    - [ ] 29d.1 — Seam and lower moves
+    - [ ] 29d.2 — Unique and exclusion probing, staging loops
+    - [ ] 29d.3 — INSERT, ON CONFLICT and COPY FROM
+    - [ ] 29d.4 — UPDATE and DELETE
+    - [ ] 29d.5 — MERGE and foreign DML
+    - [ ] 29d.6 — FK enforcement and actions
 - [x] **Step 30 — `control`** ([prompt](ENGINE-SPLIT-control.md); 30a needs
   18c; 30b needs the Part A moves and 14e, 15e)
   - [x] 30a — Restore hook table replaces the statement switch, in place
@@ -1478,9 +1487,32 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      `statementMutation` groups stay in the root; no aliases · selected
      unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
      skipped at user request
-109. [ ] DML 29c: host refined (docs only) — [dml](ENGINE-SPLIT-dml.md) 29c ·
-     needs 108, 85b, 89a, 89b, 93, 97, 102
-110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109
+109. [x] DML 29c: host refined (docs only) — [dml](ENGINE-SPLIT-dml.md) 29c ·
+     needs 108, 85b, 89a, 89b, 93, 97, 102 (the docs commit) · `dml.Host` on
+     `statementHost` = `exec.Host` + `index.WriteHost` + `fdw.WriteRuntime`
+     + `Statement` (`Command`, `Target`, `PrivateRows`, `Snapshot`,
+     `UniqueJournal`, ...), `Stage` (root `WriteStage` windows:
+     `PrepareReplacement`, `StageInsert`, `StageReplacement`,
+     `AppendAcceptedInsert`, `Delete`), `RowLocks` (`AcquireRow`,
+     `AcquireUpdateRow`, `AcquirePartitionLock`, one `LatestRow` by kind,
+     `PhysicalRowEvent`), `Presentation`; `dml.FinishHost` adds
+     `ForeignKeys` for FK enforcement and actions; probe authority as
+     `access.View`; `dml.Command` replaces the DML mutation groups; TRUNCATE,
+     preflight and the COPY protocol stay root; 29d split into 110a–110f ·
+     baseline build and quickcheck passed
+110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109;
+     split by 29c into 110a–110f, run in order:
+     - 110a. [ ] 29d.1: seam and lower moves (`dml.Host`, root
+       `statement_host_dml.go`, `dml.Command`, `lock.UniqueJournal`, probe
+       `Authority`, defaults to `analyze`/`view`, `table`/`view`/`fdw`/
+       `partition` cores) · needs 109
+     - 110b. [ ] 29d.2: unique and exclusion probing, staging loops · needs
+       110a
+     - 110c. [ ] 29d.3: INSERT, ON CONFLICT and COPY FROM · needs 110b
+     - 110d. [ ] 29d.4: UPDATE and DELETE · needs 110c
+     - 110e. [ ] 29d.5: MERGE and foreign DML · needs 110d
+     - 110f. [ ] 29d.6: FK enforcement and actions; closes step 29 · needs
+       110e
 111. [x] Control 30a: Restore hook table, in place —
      [control](ENGINE-SPLIT-control.md) 30a · needs 57 (`dc839f171`,
      `192993651`, `fbcdc7fc9`, `22ef19659`, `6dc277b11`, `2eb9396e7`,
@@ -1525,7 +1557,7 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      ENGINE-SPLIT.md §2 and §3, record what stays in the root and why, and
      decide whether a third round is needed —
      [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 63, 66, 73, 76, 77, 78,
-     80, 81, 89c, 98, 106, 110, 113
+     80, 81, 89c, 98, 106, 110f, 113
 
 ## Updating this file
 
