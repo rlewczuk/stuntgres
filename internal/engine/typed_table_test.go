@@ -36,7 +36,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 		index[column.Name] = i
 	}
 	e.mu.Lock()
-	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.State.CurrentUser, append([]catalog.Column(nil), columns...), index)
+	source, err := table.NewRelation(ddlHost{e: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.State.CurrentUser, append([]catalog.Column(nil), columns...), index)
 	if err == nil {
 		source.RelationKind = catalog.CompositeRelation
 		if !empty {
@@ -47,18 +47,18 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 		}
 		err = e.stageRowTypeLocked(stage, source)
 	}
-	var table *catalog.Relation
+	var tbl *catalog.Relation
 	if err == nil {
-		table, err = e.newTableDescriptorLocked(source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
+		tbl, err = table.NewRelation(ddlHost{e: e}, source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
 	}
 	if err == nil {
-		table.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
+		tbl.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
 		if !empty {
-			table.Attributes = []int32{1, 7}
-			table.ColumnMeta.HighWater = 7
-			table.Columns[1].OriginAttribute = 7
+			tbl.Attributes = []int32{1, 7}
+			tbl.ColumnMeta.HighWater = 7
+			tbl.Columns[1].OriginAttribute = 7
 		}
-		err = e.stageRowTypeLocked(stage, table)
+		err = e.stageRowTypeLocked(stage, tbl)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -67,12 +67,12 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 	if err := stage.Create(source); err != nil {
 		t.Fatal(err)
 	}
-	if err := stage.Create(table); err != nil {
+	if err := stage.Create(tbl); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
 	view := e.CatalogRead()
-	return e, view.MustRelation(source.Address()), view.MustRelation(table.Address())
+	return e, view.MustRelation(source.Address()), view.MustRelation(tbl.Address())
 }
 
 func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
@@ -181,15 +181,15 @@ func TestTypedPublicationFinalCancellationPreservesRoots(t *testing.T) {
 }
 
 func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
-	e, source, table := typedUnitCatalog(t, false)
-	stage := typedRenameStage(t, e, source, table)
+	e, source, tbl := typedUnitCatalog(t, false)
+	stage := typedRenameStage(t, e, source, tbl)
 	defer e.DiscardCatalogStage(stage)
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
 		next := catalog.NewState(stage.Base.Epoch())
 		for address, descriptor := range stage.Base.Descriptors() {
 			next.SetDescriptor(address, descriptor)
 		}
-		late := *table
+		late := *tbl
 		late.ObjectAddress.ObjectID += 1000
 		late.ObjectName = "late"
 		switch kind {
@@ -197,17 +197,17 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 			next.SetDescriptor(late.Address(), &late)
 		case "child":
 			late.OfType = ids.ObjectAddress{}
-			late.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{table.Address()}}
+			late.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{tbl.Address()}}
 			next.SetDescriptor(late.Address(), &late)
 		case "descriptor":
-			replacement := *table
+			replacement := *tbl
 			replacement.ObjectRevision++
-			next.SetDescriptor(table.Address(), &replacement)
+			next.SetDescriptor(tbl.Address(), &replacement)
 		case "unrelated":
 			late.OfType = ids.ObjectAddress{}
 			next.SetDescriptor(late.Address(), &late)
 		}
-		valid := typedObservationValid(stage, e.catalog.read(next))
+		valid := table.TypedObservationValid(stage.typed, e.catalog.read(next))
 		if valid != (kind == "unrelated") {
 			t.Fatal("incorrect dependency-set fence", kind, valid)
 		}

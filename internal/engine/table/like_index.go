@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -11,20 +11,21 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 )
 
-// Clone live definitions, not source roots or validity flags. Invalid concurrent
+// StageLikeIndexes copies the live indexes of LIKE ... INCLUDING INDEXES
+// sources into destination. Clone live definitions, not source roots or validity flags. Invalid concurrent
 // source indexes are rebuilt as ordinary ready/valid/live destination indexes.
-func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []analyze.LikeInput) error {
+func StageLikeIndexes(h Host, auth ddl.Authority, destination *catalog.Relation, inputs []analyze.LikeInput) error {
+	view := h.AccessView(auth)
 	for i := range inputs {
 		in := &inputs[i]
 		if in.Options&analyze.LikeIndexes == 0 {
 			continue
 		}
 		var sources []*catalog.Relation
-		for _, descriptor := range auth.Catalog.Descriptors() {
+		for _, descriptor := range view.Catalog.Descriptors() {
 			index, ok := descriptor.(*catalog.Relation)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == in.Source.Address() && index.SQLIndex.Live {
 				sources = append(sources, index)
@@ -46,7 +47,7 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 			if old.Constraint != nil && old.Constraint.Primary {
 				continue
 			}
-			stage.captureLikeSource(source)
+			h.TableStage().CaptureLikeSource(source)
 			definition := *old
 			definition.Parent = destination.Address()
 			definition.PartitionParent = ids.ObjectAddress{}
@@ -71,33 +72,33 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 					key.Attribute = mapped
 					continue
 				}
-				node, err := stored.RemapLikeExpression(in, key.Derived.Definition, destination, auth.Catalog)
+				node, err := stored.RemapLikeExpression(in, key.Derived.Definition, destination, view.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := stored.RemapLikeExpression(in, key.Derived.Execution, destination, auth.Catalog)
+				execution, err := stored.RemapLikeExpression(in, key.Derived.Execution, destination, view.Catalog)
 				if err != nil {
 					return err
 				}
 				derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: destination.Attributes}
-				if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &derived.Dependencies}).SQL(op.Context(), auth.Catalog, node); err != nil {
+				if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: destination, Dependencies: &derived.Dependencies}).SQL(h.Context(), view.Catalog, node); err != nil {
 					return err
 				}
 				key.Derived = derived
 			}
 			if old.Predicate != nil {
-				node, err := stored.RemapLikeExpression(in, old.Predicate.Definition, destination, auth.Catalog)
+				node, err := stored.RemapLikeExpression(in, old.Predicate.Definition, destination, view.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := stored.RemapLikeExpression(in, old.Predicate.Execution, destination, auth.Catalog)
+				execution, err := stored.RemapLikeExpression(in, old.Predicate.Execution, destination, view.Catalog)
 				if err != nil {
 					return err
 				}
 				predicate := &catalog.IndexPredicate{Definition: node, Execution: execution, Attributes: destination.Attributes}
 				// The analyzed tree retains external dependencies even when the
 				// execution tree has folded their containing arm away.
-				if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &predicate.Dependencies}).SQL(op.Context(), auth.Catalog, node); err != nil {
+				if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: destination, Dependencies: &predicate.Dependencies}).SQL(h.Context(), view.Catalog, node); err != nil {
 					return err
 				}
 				definition.Predicate = predicate
@@ -106,7 +107,7 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 			for i, column := range source.Columns {
 				labels[i] = column.Name
 			}
-			read := e.stageRead(stage)
+			read := h.StageRead()
 			label := "idx"
 			var constraints map[string]bool
 			if old.Constraint != nil {
@@ -119,18 +120,18 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 			name := ddl.GeneratedRelationName(destination.Name(), strings.Join(labels, "_"), label, func(name string) bool {
 				return constraints[name] || name == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: name})) != 0
 			})
-			oid, err := e.catalog.allocateOIDLocked()
+			oid, err := h.AllocateOID()
 			if err != nil {
 				return err
 			}
-			revision, err := e.catalog.revisionLocked()
+			revision, err := h.Revision()
 			if err != nil {
 				return err
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 			if old.Constraint != nil && old.Constraint.Kind == catalog.UniqueBackingKind {
 				c := catalog.UniqueConstraint{Name: name, IsLocal: true, Primary: old.Constraint.Primary, NullsNotDistinct: old.NullsNotDistinct, Index: address, Attributes: make([]int32, len(old.Keys))}
-				c.OID, err = e.catalog.allocateOIDLocked()
+				c.OID, err = h.AllocateOID()
 				if err != nil {
 					return err
 				}
@@ -160,7 +161,7 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 					return err
 				}
 				c.Operators = definition.Exclusion
-				c.OID, err = e.catalog.allocateOIDLocked()
+				c.OID, err = h.AllocateOID()
 				if err != nil {
 					return err
 				}
@@ -178,7 +179,7 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 			if in.Options&analyze.LikeComments != 0 {
 				index.Comment = source.Comment
 			}
-			if err := stage.Create(index); err != nil {
+			if err := h.Stage().Create(index); err != nil {
 				return err
 			}
 		}

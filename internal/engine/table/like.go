@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -6,40 +6,47 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 )
 
-func (s *CatalogStage) captureLikeSource(source catalog.Descriptor) {
-	if table := s.table(); !slices.Contains(table.LikeSources, source) {
-		table.LikeSources = append(table.LikeSources, source)
+// CaptureLikeSource records source once, so publication can check that it
+// did not change.
+func (s *Stage) CaptureLikeSource(source catalog.Descriptor) {
+	if !slices.Contains(s.LikeSources, source) {
+		s.LikeSources = append(s.LikeSources, source)
 	}
 }
 
-func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
-	sources := s.tableOrZero().LikeSources
+// ValidateLikeSources checks the captured LIKE sources: an incumbent of base
+// must be unchanged in current, a source the stage created itself must keep
+// its staged incarnation. A nil stage has no sources.
+func (s *Stage) ValidateLikeSources(base catalog.Read, staged ddl.Stage, current catalog.Read) error {
+	if s == nil {
+		return nil
+	}
+	sources := s.LikeSources
 	if len(sources) == 0 {
 		return nil
 	}
-	if current.Epoch() != s.Base.Epoch() {
+	if current.Epoch() != base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for _, source := range sources {
 		address := source.Address()
-		if original, incumbent := s.Base.Find(address); incumbent {
+		if original, incumbent := base.Find(address); incumbent {
 			if original != source || current.Get(address) != source {
 				return ids.ErrCatalogReplaced
 			}
 		} else {
-			staged, ok := s.Get(address).(*catalog.Relation)
+			stagedRelation, ok := staged.Get(address).(*catalog.Relation)
 			captured, sourceOK := source.(*catalog.Relation)
 			// Private index-history normalization may replace the pointer while
 			// retaining the staged incarnation and definition revision.
-			if !ok || !sourceOK || staged.Revision() != source.Revision() || staged.RelationKind != captured.RelationKind {
+			if !ok || !sourceOK || stagedRelation.Revision() != source.Revision() || stagedRelation.RelationKind != captured.RelationKind {
 				return fmt.Errorf("stuntgres: invalid staged LIKE source")
 			}
 		}
@@ -47,29 +54,32 @@ func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
 	return nil
 }
 
-func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []analyze.LikeInput) error {
+// StageLikeColumns copies the identity, DEFAULT, generation and comment
+// properties LIKE asks for into destination.
+func StageLikeColumns(h Host, auth ddl.Authority, destination *catalog.Relation, inputs []analyze.LikeInput) error {
+	view := h.AccessView(auth)
 	for i := range inputs {
 		in := &inputs[i]
-		stage.captureLikeSource(in.Source)
+		h.TableStage().CaptureLikeSource(in.Source)
 		if in.SourceType != nil {
-			stage.domainBases = append(stage.domainBases, in.SourceType)
+			h.AddDomainBase(in.SourceType)
 		}
 		for slot, attribute := range in.Source.Attributes {
 			target := destination.Attributes[in.TargetSlot(slot)]
 			if in.Options&analyze.LikeIdentity != 0 {
 				if identity, ok := in.Source.ColumnMeta.Identities[attribute]; ok {
-					sequence, ok := auth.Catalog.Relation(identity.Sequence)
+					sequence, ok := view.Catalog.Relation(identity.Sequence)
 					if !ok || sequence.Sequence == nil {
 						return fmt.Errorf("stuntgres: missing LIKE identity provider")
 					}
-					stage.captureLikeSource(sequence)
+					h.TableStage().CaptureLikeSource(sequence)
 					options := *sequence.Sequence
 					options.Persistence = "logged"
-					read := e.stageRead(stage)
+					read := h.StageRead()
 					name := ownedSequenceName(destination.Name(), destination.Columns[in.TargetSlot(slot)].Name, func(n string) bool {
 						return n == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: n})) != 0
 					})
-					if err := e.stageIdentitySequence(stage, destination, in.TargetSlot(slot), name, identity.Mode, options, nil); err != nil {
+					if err := StageIdentitySequence(h, destination, in.TargetSlot(slot), name, identity.Mode, options, nil); err != nil {
 						return err
 					}
 				}
@@ -79,23 +89,23 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
 					node := old.Expression
-					temporary := auth.Catalog.MustNamespace(destination.Namespace()).Temporary
-					if err := table.ValidateCookedDefaultTemporary(node, temporary); err != nil {
+					temporary := view.Catalog.MustNamespace(destination.Namespace()).Temporary
+					if err := ValidateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
 					definition := catalog.ColumnDefault{Expression: node}
-					if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Provenance: in.Source, CapturedManifest: old.Dependencies, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, node); err != nil {
+					if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Provenance: in.Source, CapturedManifest: old.Dependencies, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(h.Context(), view.Catalog, node); err != nil {
 						return err
 					}
 					// Validate the original published recipe first. Old callable
 					// identities may be copied unchanged only into its same physical
 					// TEMP lifetime, not certified through an unpublished destination.
 					for _, dependency := range old.Dependencies {
-						if dependency.Address.ClassID != ids.ProcedureClassID || dependency.Epoch == auth.Catalog.Epoch() {
+						if dependency.Address.ClassID != ids.ProcedureClassID || dependency.Epoch == view.Catalog.Epoch() {
 							continue
 						}
-						sourceNamespace := auth.Catalog.MustNamespace(in.Source.Namespace())
-						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.Temporary || temporary.Domain() != domainOf(e) {
+						sourceNamespace := view.Catalog.MustNamespace(in.Source.Namespace())
+						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.Temporary || temporary.Domain() != view.Owner.Domain {
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}
 					}
@@ -117,16 +127,16 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.TargetSlot(slot)].Name, destination.Name())
 						return diagnostic
 					}
-					node, err := stored.RemapLikeExpression(in, old.Expression, destination, auth.Catalog)
+					node, err := stored.RemapLikeExpression(in, old.Expression, destination, view.Catalog)
 					if err != nil {
 						return err
 					}
-					planned, err := stored.RemapLikeExpression(in, old.Planned, destination, auth.Catalog)
+					planned, err := stored.RemapLikeExpression(in, old.Planned, destination, view.Catalog)
 					if err != nil {
 						return err
 					}
 					definition := catalog.ColumnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
-					if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
+					if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: destination, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(h.Context(), view.Catalog, node); err != nil {
 						return err
 					}
 					if destination.ColumnMeta.Generations == nil {
@@ -148,7 +158,10 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 	return nil
 }
 
-func (e *Engine) stageLikeChecks(op *session.Operation, auth AuthorizationView, destination *catalog.Relation, inputs []analyze.LikeInput) error {
+// StageLikeChecks copies the CHECK constraints of LIKE ... INCLUDING
+// CONSTRAINTS sources into destination.
+func StageLikeChecks(h Host, auth ddl.Authority, destination *catalog.Relation, inputs []analyze.LikeInput) error {
+	view := h.AccessView(auth)
 	names := make(map[string]bool)
 	ordinal := 0
 	for _, constraint := range destination.Constraints.NotNull {
@@ -165,27 +178,27 @@ func (e *Engine) stageLikeChecks(op *session.Operation, auth AuthorizationView, 
 		if in.Options&analyze.LikeConstraints == 0 {
 			continue
 		}
-		for _, old := range table.OrderedChecks(in.Source) {
+		for _, old := range OrderedChecks(in.Source) {
 			if names[old.Name] {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, destination.Name()))
 			}
 			if ordinal == int(^uint(0)>>1) {
 				return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
 			}
-			node, err := stored.RemapLikeExpression(in, old.Expression, destination, auth.Catalog)
+			node, err := stored.RemapLikeExpression(in, old.Expression, destination, view.Catalog)
 			if err != nil {
 				return err
 			}
 			definition := catalog.CheckConstraint{Name: old.Name, NoInherit: old.NoInherit, Ordinal: ordinal, Expression: node}
 			var dependencies []ids.ObjectRef
-			if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
+			if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: destination, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(h.Context(), view.Catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {
 				address := ref.Address
 				address.SubID = 0
 				revision := destination.Revision()
-				if provider, ok := auth.Catalog.Descriptor(address); ok {
+				if provider, ok := view.Catalog.Descriptor(address); ok {
 					revision = provider.Revision()
 				}
 				definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})

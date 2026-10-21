@@ -62,7 +62,7 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 		t.Fatal("CHECK ordering/source invariant", ordered, next.Constraints.Check, old.Constraints.Check)
 	}
 	e.mu.Lock()
-	err := e.assignDefinitionOIDsLocked(&next)
+	err := table.AssignDefinitionOIDs(ddlHost{e: e}, &next)
 	e.mu.Unlock()
 	if err != nil || old.Constraints.Check[0].OID != 0 || next.Constraints.Check[0].OID == 0 {
 		t.Fatal("OID mutation reached source", err)
@@ -113,7 +113,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	source.mu.Lock()
-	err = source.assignDefinitionOIDsLocked(next)
+	err = table.AssignDefinitionOIDs(ddlHost{e: source}, next)
 	source.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

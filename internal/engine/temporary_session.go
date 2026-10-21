@@ -310,7 +310,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *C
 	catalog.PruneNamespaceDefaults(stage.Base.State(), next, namespaces)
 	nextRevision := e.catalog.nextRevision
 	for _, descriptor := range stage.Descriptors() {
-		nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, descriptor)
+		nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
 	}
 	e.catalog.state = next
 	e.storage.ReplaceSequencesLocked(sequences)

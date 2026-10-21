@@ -172,7 +172,7 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 		name = strings.TrimPrefix(dependencyObject(view, d.Address(), path), kind)
 	}
 	if relation, ok := d.(*catalog.Relation); ok {
-		kind = relationDiagnosticKind(relation) + " "
+		kind = catalog.RelationDiagnosticKind(relation) + " "
 		name = relationDiagnosticName(auth, relation)
 		if dep.Address.SubID != 0 {
 			// getObjectDescription interpolates the raw attribute name; only

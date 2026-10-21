@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"sort"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -76,22 +75,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		e.mu.Unlock()
 		return Result{}, nil
 	}
-	owned := make([]*catalog.Relation, 0)
-	for _, d := range auth.Catalog.Descriptors() {
-		r, ok := d.(*catalog.Relation)
-		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == old.Address() {
-			owned = append(owned, r)
-			continue
-		}
-		if !ok || r.RelationKind != catalog.SequenceRelation {
-			continue
-		}
-		a := r.Sequence.Owned
-		if old.RelationKind == catalog.TableRelation && a.ClassID == old.Address().ClassID && a.ObjectID == old.Address().ObjectID && old.HasAttribute(a.SubID) {
-			owned = append(owned, r)
-		}
-	}
-	sort.Slice(owned, func(i, j int) bool { return owned[i].Address().ObjectID < owned[j].Address().ObjectID })
+	owned := table.SetSchemaOwned(auth.Catalog, old)
 	e.mu.Unlock()
 	for _, r := range owned {
 		if r.SQLIndex != nil {
@@ -132,47 +116,13 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 	if err = auth.CheckCreate(destination); err != nil {
 		return fail(err)
 	}
-	group := make([]*catalog.Relation, 0, len(owned)+1)
-	group = append(group, old)
-	for _, r := range owned {
-		live, ok := auth.Catalog.Relation(r.Address())
-		if ok && r.SQLIndex != nil {
-			if live.SQLIndex != r.SQLIndex || live.Namespace() != old.Namespace() || live.Owner != old.Owner {
-				return fail(ids.ErrCatalogReplaced)
-			}
-			group = append(group, live)
-			continue
-		}
-		if !ok || live.RelationKind != catalog.SequenceRelation || live.Sequence.Owned != r.Sequence.Owned || live.Namespace() != old.Namespace() || live.Owner != old.Owner {
-			return fail(ids.ErrCatalogReplaced)
-		}
-		group = append(group, live)
+	group, err := table.SetSchemaGroup(auth.Catalog, old, owned)
+	if err != nil {
+		return fail(err)
 	}
-	collision := func(r *catalog.Relation) error {
-		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists in schema "%s"`, r.Name(), s.Schema.Text))
-	}
-	typeCollision := func(r *catalog.Relation) error {
-		return sqlError("42710", fmt.Sprintf(`type "%s" already exists in schema "%s"`, r.Name(), s.Schema.Text))
-	}
-	next := make([]catalog.Relation, len(group))
-	for i, r := range group {
-		if _, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.Name()}); exists {
-			return fail(collision(r))
-		}
-		if r.RowType != 0 {
-			if winner, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.Name()}); exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}) {
-				return fail(typeCollision(r))
-			}
-		}
-		frontier, terminal := e.catalog.advanceRevisionFrontier(0, r)
-		if terminal {
-			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
-		}
-		next[i] = *r
-		next[i].ObjectNamespace, next[i].ObjectRevision = destination.Address, frontier
-		if r.RelationKind == catalog.SequenceRelation {
-			next[i].SequencePlanStamp = frontier
-		}
+	next, err := table.SetSchemaCandidates(auth.Catalog, group, destination.Address, s.Schema.Text)
+	if err != nil {
+		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
@@ -191,18 +141,8 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		e.mu.Lock()
 		current := e.stageCatalogBaseLocked(stage)
 		if current.Epoch() == ref.Epoch {
-			for _, r := range group {
-				winner, exists := current.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.Name()})
-				if exists && winner != r.Address() {
-					err = collision(r)
-					break
-				}
-				if r.RowType != 0 {
-					if winner, exists := current.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.Name()}); exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}) {
-						err = typeCollision(r)
-						break
-					}
-				}
+			if collision := table.SetSchemaConflict(e.catalog.read(current), group, destination.Address, s.Schema.Text); collision != nil {
+				err = collision
 			}
 		}
 		e.mu.Unlock()

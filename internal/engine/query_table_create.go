@@ -56,74 +56,11 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	if !available {
 		return nil, nil, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
 	}
-	projection, ok := b.Query.Root.(*plan.ProjectNode)
-	if !ok {
-		return nil, nil, false, errors.New("stuntgres: query table lacks final projection")
+	columns, names, bases, err := table.QueryTableColumns(auth.View, auth, s, b)
+	if err != nil {
+		return nil, nil, false, err
 	}
-	schema := projection.Schema()
-	if len(s.Columns) > len(schema) {
-		return nil, nil, false, sqlError("42601", "too many column names were specified")
-	}
-	if len(schema) > 1600 {
-		return nil, nil, false, sqlError("54011", "tables can have at most 1600 columns")
-	}
-	columns := make([]catalog.Column, len(schema))
-	names := make(map[string]int, len(schema))
-	for i, column := range schema {
-		column.Nullable, column.NullabilityKnown = true, true
-		column.OriginTable, column.OriginAttribute = 0, 0
-		column.DeclaredDimensions = 0
-		if i < len(s.Columns) {
-			column.Name = s.Columns[i].Text
-		}
-		if _, exists := names[column.Name]; exists {
-			return nil, nil, false, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, column.Name))
-		}
-		if catalog.IsSystemColumn(column.Name) {
-			return nil, nil, false, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, column.Name))
-		}
-		names[column.Name] = i
-		typ := column.Usage.Type
-		if sqltype.OccurrenceRecordArray(typ) || typ != nil && typ.ID() == 2249 && typ.IsComposite() {
-			typeName := "record"
-			if sqltype.OccurrenceRecordArray(typ) {
-				typeName = "record[]"
-			}
-			return nil, nil, false, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type %s`, column.Name, typeName))
-		}
-		if typ == nil || !typ.Concrete() || typ.ID() == sqltype.Void {
-			typeName := "unknown"
-			if typ != nil {
-				typeName = typ.Name()
-			}
-			return nil, nil, false, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type %s`, column.Name, typeName))
-		}
-		if err = table.ValidateQueryTableOutputType(typ); err != nil {
-			return nil, nil, false, err
-		}
-		if projection.Expressions[i].CollationIndeterminate() {
-			return nil, nil, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`no collation was derived for column "%s" with collatable type %s`, column.Name, typ.Name()), Hint: "Use the COLLATE clause to set the collation explicitly."}
-		}
-		if !column.Usage.Valid() {
-			return nil, nil, false, errors.New("stuntgres: invalid query table usage")
-		}
-		dependencyType := typ
-		for dependencyType.IsArray() {
-			dependencyType = dependencyType.Element()
-		}
-		if dependencyType.IsUserDefined() {
-			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(dependencyType.ID())}
-			if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)); err != nil {
-				return nil, nil, false, err
-			}
-			descriptor := auth.Catalog.Get(address)
-			if descriptor == nil {
-				return nil, nil, false, errors.New("stuntgres: query table type definition is missing")
-			}
-			stage.domainBases = append(stage.domainBases, descriptor)
-		}
-		columns[i] = column
-	}
+	stage.domainBases = append(stage.domainBases, bases...)
 	// Source definitions and namespace lookup authority must still be current at
 	// publication, including for NO DATA. Stored data has no dependency on them.
 	for _, leaf := range b.QuerySources {
@@ -140,7 +77,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		}
 		owner = directive.State.CurrentUser
 	}
-	d, err := e.newTableDescriptorLocked(ns.Address, name, owner, columns, names)
+	d, err := table.NewRelation(ddlHost{e: e}, ns.Address, name, owner, columns, names)
 	if err != nil {
 		return nil, nil, false, err
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -86,7 +87,7 @@ func (h ddlHost) AssociatedArrayName(namespace ids.ObjectAddress, name string) s
 }
 
 func (h ddlHost) NewCompositeRelation(namespace ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []catalog.Column, index map[string]int) (*catalog.Relation, error) {
-	relation, err := h.e.newTableDescriptorLocked(namespace, name, owner, columns, index)
+	relation, err := table.NewRelation(h, namespace, name, owner, columns, index)
 	if err != nil {
 		return nil, err
 	}

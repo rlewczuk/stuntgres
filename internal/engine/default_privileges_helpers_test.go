@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -111,7 +112,7 @@ func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, n
 		t.Fatal("stage has no int4 carrier")
 	}
 	f.e.mu.Lock()
-	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
+	d, err := table.NewRelation(ddlHost{e: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
 		d.Security.ACL = stage.creationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.stageRowTypeLocked(stage, d)

@@ -179,7 +179,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err := e.assignDefinitionOIDsLocked(d)
+	err := table.AssignDefinitionOIDs(ddlHost{e: e}, d)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

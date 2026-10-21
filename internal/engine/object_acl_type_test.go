@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -42,7 +43,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	stage := e.BeginCatalogStage(view)
 	e.mu.Lock()
 	integer, _ := view.LookupType(sqltype.Int4)
-	relation, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []catalog.Column{{Name: "a", Usage: integer.Usage()}}, nil)
+	relation, err := table.NewRelation(ddlHost{e: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []catalog.Column{{Name: "a", Usage: integer.Usage()}}, nil)
 	if err == nil {
 		err = e.stageRowTypeLocked(stage, relation)
 	}

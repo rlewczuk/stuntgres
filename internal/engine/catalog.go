@@ -777,7 +777,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if !typedObservationValid(s, e.catalog.read(current)) {
+		if !table.TypedObservationValid(s.typed, e.catalog.read(current)) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -1234,7 +1234,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			// the allocator. Commit its frontier with the successful publication.
 			nextRevision := e.catalog.nextRevision
 			for _, d := range s.Descriptors() {
-				nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, d)
+				nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
 			}
 			if len(s.initialTables) != 0 || s.materializedOrZero().Replacement != nil {
 				frontier := e.visibility.CommitSeq() + 1
@@ -1418,7 +1418,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
 				return ChangeSet{}, err
 			}
-			nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, d)
+			nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
 		}
 		if e.catalog.state.Epoch() == ids.CatalogEpoch(math.MaxUint64) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
@@ -1529,7 +1529,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
 			return ChangeSet{}, err
 		}
-		nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, d)
+		nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
 	}
 	prepared, err := e.prepareForeignIndexStorage(ctx, next, relations, indexes)
 	if err != nil {

@@ -56,5 +56,11 @@ func (op *Operation) ParseNotice(diagnostic sqlstate.Error) {
 	op.EmitNotice(LevelNotice, diagnostic)
 }
 func (op *Operation) ExistingRelationNotice(name string) {
-	op.EmitNotice(LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: fmt.Sprintf(`relation "%s" already exists, skipping`, name)})
+	op.EmitNotice(LevelNotice, ExistingRelation(name))
+}
+
+// ExistingRelation is the NOTICE of CREATE ... IF NOT EXISTS for a relation
+// name that is taken.
+func ExistingRelation(name string) sqlstate.Error {
+	return sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: fmt.Sprintf(`relation "%s" already exists, skipping`, name)}
 }

@@ -126,9 +126,11 @@ notices), `ownedSequenceLocked`, `statementHost.Sequence`
 `StatementScope.acquireSequence` (the scope's object lock),
 `checkSequenceAny` and `index.RelationDropOwner`; `sequenceEnvironmentLocked`,
 `journalOf` and `preparedDefinitionStamp`, shared with ordinary prepared SQL;
-identity and serial staging on `CatalogStage` and the identity DROP flow
-(table DDL); `CatalogStage.sequenceState`; regclass input and output; and the
-generic relation diagnostic `relationDiagnosticKind`.
+the ALTER identity staging and the identity DROP flow (table DDL; CREATE
+identity and serial staging is `table.StageCreateIdentities` and
+`table.StageCreateSerials`); `CatalogStage.sequenceState`; and regclass
+input and output. The generic relation diagnostic is
+`catalog.RelationDiagnosticKind`.
 
 ## Testing
 

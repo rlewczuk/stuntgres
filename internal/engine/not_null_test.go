@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -198,7 +199,7 @@ func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef
 	next.Columns[0].Nullable = false
 	next.Constraints.NotNull = []catalog.NotNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
 	e.mu.Lock()
-	err := e.assignDefinitionOIDsLocked(&next)
+	err := table.AssignDefinitionOIDs(ddlHost{e: e}, &next)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

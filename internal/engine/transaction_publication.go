@@ -398,7 +398,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if c != nil && materialize {
 			for _, d := range c.Descriptors {
 				if d != nil {
-					nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, d)
+					nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
 				}
 			}
 		}

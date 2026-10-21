@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -6,15 +6,18 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Relation, b analyze.Binding) error {
+// StageInheritance records the INHERITS parents of the new table d: column,
+// NOT NULL and CHECK provenance, the inherited defaults and generations, and
+// the merged CHECK set.
+func StageInheritance(h Host, auth ddl.Authority, d *catalog.Relation, b analyze.Binding) error {
+	view := h.AccessView(auth)
 	if len(b.Create.Inheritance) == 0 {
 		return nil
 	}
@@ -30,7 +33,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 	var defaultConflicts, generationConflicts map[int32]bool
 	for _, in := range b.Create.Inheritance {
 		graph.Parents = append(graph.Parents, in.Source.Address())
-		stage.captureLikeSource(in.Source)
+		h.TableStage().CaptureLikeSource(in.Source)
 		mapper := analyze.LikeInput{Ref: in.Ref, Source: in.Source, TargetSlots: make([]int, len(in.Source.Columns))}
 		for slot, c := range in.Source.Columns {
 			targetSlot := d.Index[c.Name]
@@ -69,7 +72,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 				}
 				copied := old
 				copied.OID = 0
-				if err := table.ValidateCookedDefaultTemporary(copied.Expression, auth.Catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
+				if err := ValidateCookedDefaultTemporary(copied.Expression, view.Catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
 					return err
 				}
 				if d.ColumnMeta.Defaults == nil {
@@ -78,11 +81,11 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 				d.ColumnMeta.Defaults[target] = copied
 			}
 			if old, ok := in.Source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.Generation == nil {
-				node, err := stored.RemapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
+				node, err := stored.RemapLikeExpression(&mapper, old.Expression, d, view.Catalog)
 				if err != nil {
 					return err
 				}
-				planned, err := stored.RemapLikeExpression(&mapper, old.Planned, d, auth.Catalog)
+				planned, err := stored.RemapLikeExpression(&mapper, old.Planned, d, view.Catalog)
 				if err != nil {
 					return err
 				}
@@ -93,7 +96,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 					generationConflicts[target] = true
 				}
 				copied := catalog.ColumnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
-				if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &copied.Dependencies, CommentSnapshot: &copied.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
+				if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: d, Dependencies: &copied.Dependencies, CommentSnapshot: &copied.CatalogSnapshot}).SQL(h.Context(), view.Catalog, node); err != nil {
 					return err
 				}
 				if d.ColumnMeta.Generations == nil {
@@ -102,11 +105,11 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 				d.ColumnMeta.Generations[target] = copied
 			}
 		}
-		for _, old := range table.OrderedChecks(in.Source) {
+		for _, old := range OrderedChecks(in.Source) {
 			if old.NoInherit {
 				continue
 			}
-			node, err := stored.RemapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
+			node, err := stored.RemapLikeExpression(&mapper, old.Expression, d, view.Catalog)
 			if err != nil {
 				return err
 			}
@@ -122,14 +125,14 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 			}
 			copied := catalog.CheckConstraint{Name: old.Name, Ordinal: len(d.Constraints.Check), Expression: node}
 			var dependencies []ids.ObjectRef
-			if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &dependencies, CommentSnapshot: &copied.CommentSnapshot, VisibilitySnapshot: &copied.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
+			if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: d, Dependencies: &dependencies, CommentSnapshot: &copied.CommentSnapshot, VisibilitySnapshot: &copied.VisibilitySnapshot}).SQL(h.Context(), view.Catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {
 				address := ref.Address
 				address.SubID = 0
 				revision := d.Revision()
-				if provider, ok := auth.Catalog.Descriptor(address); ok {
+				if provider, ok := view.Catalog.Descriptor(address); ok {
 					revision = provider.Revision()
 				}
 				copied.Dependencies = append(copied.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})

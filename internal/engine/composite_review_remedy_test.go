@@ -67,7 +67,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		stage := e.BeginCatalogStage(before)
 		stage.typedState().Source = tbl.OfType
 		stage.typedState().Observed = table.TypedClosure(before, tbl.OfType)
-		if typedObservationValid(stage, view) {
+		if table.TypedObservationValid(stage.typed, view) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
 		e.DiscardCatalogStage(stage)

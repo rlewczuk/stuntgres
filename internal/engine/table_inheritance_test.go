@@ -83,7 +83,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	auth.Recapture(auth.Catalog)
 	stage := e.BeginCatalogStage(view)
 	b := analyze.Binding{Create: analyze.CreateTableBinding{Inheritance: []analyze.InheritanceInput{{Source: p}, {Source: q}}, LocalColumns: map[string]bool{"z": true}, Declarations: make([]analyze.ColumnDeclaration, 3)}}
-	if err := e.stageInheritance(op, auth, stage, child, b); err != nil {
+	if err := table.StageInheritance(ddlHost{e: e, op: op, stage: stage}, auth, child, b); err != nil {
 		t.Fatal(err)
 	}
 	if len(child.Constraints.NotNull) != 1 || child.Constraints.NotNull[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
@@ -92,7 +92,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !analyze.SameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
 		t.Fatal(child.ColumnMeta.Defaults, p.ColumnMeta.Defaults)
 	}
-	if err := e.assignDefinitionOIDsLocked(child); err != nil {
+	if err := table.AssignDefinitionOIDs(ddlHost{e: e}, child); err != nil {
 		t.Fatal(err)
 	}
 	if child.Constraints.NotNull[0].OID == p.Constraints.NotNull[0].OID || child.ColumnMeta.Defaults[1].OID == p.ColumnMeta.Defaults[1].OID {
@@ -192,7 +192,7 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 		}
 		b.Create.Declarations[0].CopiedDefault = kind == "copied"
 		stage := e.BeginCatalogStage(view)
-		err := e.stageInheritance(op, auth, stage, child, b)
+		err := table.StageInheritance(ddlHost{e: e, op: op, stage: stage}, auth, child, b)
 		if !override {
 			diagnostic, ok := err.(interface{ SQLState() string })
 			if !ok || diagnostic.SQLState() != "42611" {
@@ -303,7 +303,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		if explicit {
 			b.Create.Declarations[0].Generation = &parser.GenerationDefinition{Kind: "stored"}
 		}
-		if err := e.stageInheritance(op, auth, e.BeginCatalogStage(view), child, b); err != nil {
+		if err := table.StageInheritance(ddlHost{e: e, op: op, stage: e.BeginCatalogStage(view)}, auth, child, b); err != nil {
 			t.Fatal(err)
 		}
 		provenance := child.Inheritance.Columns[1]

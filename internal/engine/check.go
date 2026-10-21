@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -19,20 +18,7 @@ import (
 )
 
 func (e *Engine) bindCreateChecks(op *session.Operation, auth AuthorizationView, syntax *parser.CreateTable, d *catalog.Relation, input sqltype.InputEnvironment, inherited map[string]catalog.CheckConstraint) error {
-	var raw []*parser.CheckConstraint
-	for _, element := range syntax.Elements {
-		if element.Check != nil {
-			raw = append(raw, element.Check)
-		}
-		if element.Column != nil {
-			for _, c := range element.Column.Constraints {
-				if c.Check != nil {
-					raw = append(raw, c.Check)
-				}
-			}
-		}
-	}
-	return e.bindColumnChecks(op, auth, raw, d, input, false, inherited)
+	return e.bindColumnChecks(op, auth, table.CreateCheckSyntax(syntax), d, input, false, inherited)
 }
 
 func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *catalog.Relation, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error {
@@ -172,10 +158,4 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 	}
 	slices.SortFunc(d.Constraints.Check, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
-}
-
-// Provider references join the incumbent dependency stage. Owner-local column
-// dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
-func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.CheckDependencyEdge, error) {
-	return table.CheckDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }

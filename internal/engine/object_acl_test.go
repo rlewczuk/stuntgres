@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 )
 
@@ -99,7 +100,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		}
 		engine.mu.Lock()
 		columns := sequence.Columns(engine.catalog.read(engine.catalog.state))
-		sequence, err := engine.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_unit_sequence", principal, columns, nil)
+		sequence, err := table.NewRelation(ddlHost{e: engine}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_unit_sequence", principal, columns, nil)
 		engine.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

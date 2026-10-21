@@ -3,12 +3,10 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // Called with e.mu held; every return releases it. Preflight the whole group
@@ -22,79 +20,10 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: invalid table drop")
 	}
-	refs := make([]ids.ObjectRef, 0, len(s.Names))
-	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
-	var notices []sqlstate.Error
-	for _, name := range s.Names {
-		if len(name.Parts) < 1 || len(name.Parts) > 2 {
-			e.mu.Unlock()
-			return Result{}, fmt.Errorf("stuntgres: invalid relation name")
-		}
-		kind, missing := "table", name.Parts[len(name.Parts)-1].Text
-		if len(name.Parts) == 2 {
-			_, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
-			if name.Parts[0].Text == "pg_temp" {
-				exists = temporaryNamespace(auth) != (ids.ObjectAddress{})
-			}
-			if !exists {
-				kind, missing = "schema", name.Parts[0].Text
-			}
-		}
-		var ref ids.ObjectRef
-		var err error
-		if kind == "schema" {
-			err = sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, missing))
-		} else {
-			ref, err = e.resolveReference(auth, name)
-			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42P01" {
-				err = sqlError("42P01", fmt.Sprintf(`table "%s" does not exist`, missing))
-			}
-		}
-		if err != nil {
-			d, ok := err.(*sqlstate.Error)
-			if !s.IfExists || !ok || (d.Code != "42P01" && d.Code != "3F000") {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-			notices = append(notices, sqlstate.Error{
-				Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000",
-				Message: fmt.Sprintf(`%s "%s" does not exist, skipping`, kind, missing),
-			})
-			continue
-		}
-		relation := auth.Catalog.MustRelation(ref.Address)
-		if relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation {
-			if relation.RelationKind == catalog.IndexRelation {
-				e.mu.Unlock()
-				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.Name()), Hint: "Use DROP INDEX to remove an index."}
-			}
-			e.mu.Unlock()
-			hint := "Use DROP SEQUENCE to remove a sequence."
-			if relation.RelationKind == catalog.ViewRelation {
-				hint = "Use DROP VIEW to remove a view."
-			}
-			if relation.RelationKind == catalog.CompositeRelation {
-				hint = "Use DROP TYPE to remove a type."
-			}
-			if relation.RelationKind == catalog.MaterializedViewRelation {
-				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
-			}
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.Name()), Hint: hint}
-		}
-		if seen[ref.Address] {
-			continue
-		}
-		tableErr := auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
-		if tableErr != nil {
-			descriptor := auth.Catalog.Get(ref.Address)
-			nsref := e.catalog.Domain.Ref(ref.Epoch, descriptor.Namespace())
-			if err := auth.Check(access.Requirement{Object: nsref, OwnerOnly: true}); err != nil {
-				e.mu.Unlock()
-				return Result{}, tableErr
-			}
-		}
-		seen[ref.Address] = true
-		refs = append(refs, ref)
+	refs, notices, err := table.DropTargets(ddlHost{e: e, op: op}, auth, s)
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
 	}
 	temporary := true
 	for _, ref := range refs {

@@ -91,8 +91,8 @@ lookup and search paths (they need `analyze`), and the schema statement
 dispatch (`schema.go`): `executeSchema` (partition 0A000 pre-checks, locks,
 publication and the cascade notice), `stageSchemaLocked` (capture, the early
 actor read that gates every staged statement, one call per statement),
-`schemaTableLocked` and `newTableDescriptorLocked`
-(`create_table_stage.go`, step 24), `stageSchemaDomainsLocked`, `relationDiagnosticKind`/`Name` and
+`schemaTableLocked` (a forwarder to `table.StageCreateTable`, step 24),
+`stageSchemaDomainsLocked`, `relationDiagnosticName` and
 `schemaNotice` (the fdw DDL still uses it). `ddlHost` implements
 `SchemaHost` in `schema_host.go`. `executeCreateTablespace` keeps the
 argument count check, the lock and the authority capture.
