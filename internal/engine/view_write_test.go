@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -96,7 +97,7 @@ func (f viewWriteFixture) scope(t *testing.T, explicit ...bool) (*StatementScope
 			_ = scope.Finish(errors.New("mechanics cleanup"))
 		}
 	})
-	w := &viewWrite{base: f.base, ref: f.baseRef, layers: []viewWriteLayer{{relation: f.view, ref: f.viewRef, source: f.base, sourceRef: f.baseRef}}}
+	w := &view.Write{BaseRelation: f.base, Ref: f.baseRef, Layers: []view.WriteLayer{{Relation: f.view, Ref: f.viewRef, Source: f.base, SourceRef: f.baseRef}}}
 	scope.lockedRef, scope.lockedDescriptor = f.viewRef, f.view
 	if err := scope.acquireViewWriteTarget(w); err != nil {
 		t.Fatal(err)
@@ -109,10 +110,10 @@ func TestViewWriteMapping(t *testing.T) {
 	scope, op := f.scope(t)
 	auth := f.authorization(t, op)
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := bindViewWrite(f.e.catalog.owner(), auth.Catalog, &b, &parser.Update{}); err != nil {
+	if err := view.BindViewWrite(f.e.catalog.owner(), auth.Catalog, &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
-	if b.Relation != f.view || b.Ref != f.viewRef || b.Targets[0] != 1 || physicalBinding(b).Ref != f.baseRef {
+	if b.Relation != f.view || b.Ref != f.viewRef || b.Targets[0] != 1 || view.PhysicalBinding(b).Ref != f.baseRef {
 		t.Fatal("logical/physical authority conflated", b.Targets)
 	}
 	// Creation slots survive current dense compaction and column renames.
@@ -120,11 +121,11 @@ func TestViewWriteMapping(t *testing.T) {
 	compact.Attributes = []int32{11, 19}
 	compact.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[2]}
 	compact.Columns[0].Name = "renamed"
-	slot, err := stableViewSlot(&compact, stored.ViewOf(f.view).Sources()[0], 1)
+	slot, err := view.StableViewSlot(&compact, stored.ViewOf(f.view).Sources()[0], 1)
 	if err != nil || slot != 0 {
 		t.Fatal(slot, err)
 	}
-	if _, err := stableViewSlot(&compact, stored.ViewOf(f.view).Sources()[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := view.StableViewSlot(&compact, stored.ViewOf(f.view).Sources()[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing identity admitted", err)
 	}
 	// Reject the first released classifier reason rather than a later group
@@ -167,7 +168,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	constant, _ := sqltype.Integer(f.integer, 42)
 	f.base.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{19: {Expression: plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: constant}}}
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Expressions: [][]expr.Expr{{nil}}}
-	if err := bindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
+	if err := view.BindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(b.Insert.Defaults) != 3 || b.Insert.Defaults[2] == nil || b.Targets[0] != 1 {
@@ -182,7 +183,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	})
 	conflict := newInsertConflictState(&analyze.InsertConflict{})
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	if err := conflict.selectArbiters(&evaluation, physicalBinding(b).Relation, f.e.CatalogRead()); err != nil {
+	if err := conflict.selectArbiters(&evaluation, view.PhysicalBinding(b).Relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	if len(conflict.selected) != 1 || conflict.selected[0] != indexAddress || b.Relation != f.view {
@@ -201,7 +202,7 @@ func TestViewWriteDemand(t *testing.T) {
 		return sqltype.Value{}, errors.New("hidden user work")
 	})
 	guard := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, false)}
-	expression := viewWritePredicate([]expr.Expr{guard}, unsafe)
+	expression := view.ViewWritePredicate([]expr.Expr{guard}, unsafe)
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	matched, err := exec.UpdateMatches(&eval, expression)
 	if err != nil || matched || calls != 0 {
@@ -323,7 +324,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 		return sqltype.Boolean(f.boolean, n > 5), nil
 	})
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: current.Values}}
-	matched, err := exec.UpdateMatches(&eval, viewWritePredicate([]expr.Expr{predicate}, nil))
+	matched, err := exec.UpdateMatches(&eval, view.ViewWritePredicate([]expr.Expr{predicate}, nil))
 	if err != nil || matched {
 		t.Fatal("latest predecessor bypassed view qualification", matched, err)
 	}

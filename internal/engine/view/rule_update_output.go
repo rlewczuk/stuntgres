@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"stuntgres/internal/engine/expr"
@@ -7,7 +7,7 @@ import (
 
 // Match PostgreSQL's lexical PARAM_MULTIEXPR check at actual NEW substitution.
 // A scalar SubLink is a graph boundary, not a reason to inspect its query here.
-func validateRuleNewUpdateOutput(recipe expr.Expr) error {
+func ValidateRuleNewUpdateOutput(recipe expr.Expr) error {
 	found := false
 	plan.WalkExpression(recipe, func(node expr.Expr) {
 		switch n := node.(type) {

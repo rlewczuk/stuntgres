@@ -3,43 +3,16 @@ package engine
 import (
 	"fmt"
 	"sort"
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-// PostgreSQL uses different callbacks for column, dependency and other forms.
-// Keep admission and execution on the same action-specific authority contract.
-func alterViewAuthority(view access.View, env access.Environment, ref ids.ObjectRef, s *parser.AlterView) error {
-	d := view.Catalog.MustRelation(ref.Address)
-	kind, label := catalog.ViewRelation, "view"
-	ownerChecked := false
-	if s.Materialized {
-		kind, label = catalog.MaterializedViewRelation, "materialized view"
-		if s.Action == "column" {
-			return view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
-		}
-		if s.Action != "depends" && s.Action != "no_depends" {
-			if err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-				return err
-			}
-			ownerChecked = true
-		}
-	}
-	if d.RelationKind != kind {
-		return sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, d.Name(), label))
-	}
-	if ownerChecked {
-		return nil
-	}
-	return view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
-}
 
 // Utility admission pins the target identity before waiting. Shared rename and
 // namespace operations retain their ordinary descriptor publication path.
@@ -79,7 +52,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
-	if err = alterViewAuthority(auth.View, auth, ref, s); err != nil {
+	if err = view.AlterViewAuthority(auth.View, auth, ref, s); err != nil {
 		return fail(err)
 	}
 	if scope.replacementRead {
@@ -152,7 +125,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				}
 			}
 		}
-		definition.Options = transformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
+		definition.Options = view.TransformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
 		altered := stored.NewView(definition)
 		if altered.CheckOption() != stored.CheckNone {
 			if err := stored.ValidateViewCheckDeclaration(altered); err != nil {
@@ -196,22 +169,6 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	return Result{}, err
 }
 
-func viewDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
-	ownerErr := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
-	if ownerErr == nil {
-		return nil
-	}
-	ns := view.Catalog.MustNamespace(d.Namespace())
-	allowed, err := view.Roles.InheritsRole(view.State.CurrentUser, ns.Owner)
-	if err != nil {
-		return err
-	}
-	if allowed {
-		return nil
-	}
-	return ownerErr
-}
-
 // Resolve the complete group before locking; names are never replayed after a
 // wait. The dependency closure and all removals publish as one catalog stage.
 func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, count int) (Result, error) {
@@ -236,9 +193,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		if err != nil {
 			if !s.IfExists || !table.RenameMissing(err) {
 				e.mu.Unlock()
-				return Result{}, viewDropMissing(err, name, label)
+				return Result{}, view.ViewDropMissing(err, name, label)
 			}
-			diagnostic := viewDropMissing(err, name, label).(*sqlstate.Error)
+			diagnostic := view.ViewDropMissing(err, name, label).(*sqlstate.Error)
 			notices = append(notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: diagnostic.Message + ", skipping"})
 			continue
 		}
@@ -258,7 +215,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			e.mu.Unlock()
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.Name(), label), Hint: hint}
 		}
-		if err := viewDropOwner(auth.View, auth, ref, d); err != nil {
+		if err := view.ViewDropOwner(auth.View, auth, ref, d); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -304,7 +261,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		if err := viewDropOwner(auth.View, auth, ref, d); err != nil {
+		if err := view.ViewDropOwner(auth.View, auth, ref, d); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -362,12 +319,4 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		scope.op.EmitNotice(session.LevelNotice, notice)
 	}
 	return Result{}, nil
-}
-
-func viewDropMissing(err error, name parser.ObjectName, label string) error {
-	diagnostic, ok := err.(*sqlstate.Error)
-	if !ok || diagnostic.Code != "42P01" {
-		return err
-	}
-	return sqlError("42P01", fmt.Sprintf(`%s "%s" does not exist`, label, name.Parts[len(name.Parts)-1].Text))
 }

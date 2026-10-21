@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -60,7 +61,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			return Result{}, err
 		}
 		if evaluation.PlanStaticOperators && deleting {
-			b, err = ruleMutationProducerDemand(b)
+			b, err = view.RuleMutationProducerDemand(b)
 			if err != nil {
 				return Result{}, err
 			}
@@ -72,7 +73,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					return Result{}, err
 				}
 			}
-			if err := conflict.selectArbiters(&evaluation, physicalBinding(b).Relation, auth.Catalog); err != nil {
+			if err := conflict.selectArbiters(&evaluation, view.PhysicalBinding(b).Relation, auth.Catalog); err != nil {
 				return Result{}, err
 			}
 			scope.insertConflict = conflict
@@ -90,7 +91,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			// changed rows and the outer slice need execution-private copies.
 			destination, destinationTargets := b.Relation, b.Targets
 			if b.ViewWrite != nil {
-				destination, destinationTargets = viewWriteOf(b.ViewWrite).logical.Relation, viewWriteOf(b.ViewWrite).logical.Targets
+				destination, destinationTargets = view.ViewWriteOf(b.ViewWrite).Logical.Relation, view.ViewWriteOf(b.ViewWrite).Logical.Targets
 			}
 			for i, row := range b.Expressions {
 				var privateRow []expr.Expr
@@ -125,7 +126,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				b.Update, err = preflightUpdate(&evaluation, b.Update, func(prepared *analyze.UpdateBinding) (plan.Node, error) {
 					demandBinding := b
 					demandBinding.Update = prepared
-					demanded, err := ruleMutationProducerDemand(demandBinding)
+					demanded, err := view.RuleMutationProducerDemand(demandBinding)
 					if err != nil {
 						return nil, err
 					}
@@ -163,30 +164,30 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			return Result{}, err
 		}
 		if b.ViewWrite != nil {
-			var checks []viewCheckGroup
-			for i, group := range viewWriteOf(b.ViewWrite).checks {
+			var checks []view.CheckGroup
+			for i, group := range view.ViewWriteOf(b.ViewWrite).Checks {
 				var predicates []expr.Expr
-				for j, expression := range group.predicates {
+				for j, expression := range group.Predicates {
 					folded, changed, foldErr := exec.PreflightCoercions(&evaluation, expression)
 					if foldErr != nil {
 						return Result{}, foldErr
 					}
 					if changed {
 						if predicates == nil {
-							predicates = append([]expr.Expr(nil), group.predicates...)
+							predicates = append([]expr.Expr(nil), group.Predicates...)
 						}
 						predicates[j] = folded
 					}
 				}
 				if predicates != nil {
 					if checks == nil {
-						checks = append([]viewCheckGroup(nil), viewWriteOf(b.ViewWrite).checks...)
+						checks = append([]view.CheckGroup(nil), view.ViewWriteOf(b.ViewWrite).Checks...)
 					}
-					checks[i].predicates = predicates
+					checks[i].Predicates = predicates
 				}
 			}
 			if checks != nil {
-				viewWriteOf(b.ViewWrite).checks = checks
+				view.ViewWriteOf(b.ViewWrite).Checks = checks
 			}
 		}
 		// Both INSERT paths plan only defaults this binding actually consumes.
@@ -198,7 +199,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				continue
 			}
 			defaultEvaluation := evaluation
-			applyDefaultOrigin(bindingDefaultOrigin(&b, i), &defaultEvaluation)
+			applyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
 			folded, changed, foldErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
 				return Result{}, foldErr
@@ -291,7 +292,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	quoteCaptures.Sealed = true
 	scope.quoteCaptures = quoteCaptures
-	b = physicalBinding(b)
+	b = view.PhysicalBinding(b)
 	if err = partition.WriteExtensionBoundary(stmt, b.Relation); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -451,16 +452,16 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		view, err := scope.acquireDataViewsLocked(e, refs)
+		dataView, err := scope.acquireDataViewsLocked(e, refs)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 		var target *exec.Source
 		if scope.rls.targetDenied {
-			target, err = captureDeniedQuerySource(view, b.Ref)
+			target, err = view.CaptureDeniedQuerySource(dataView, b.Ref)
 		} else {
-			target, err = exec.CaptureSource(ctx, view, b.Ref)
+			target, err = exec.CaptureSource(ctx, dataView, b.Ref)
 		}
 		if err != nil {
 			e.mu.Unlock()

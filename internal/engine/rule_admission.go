@@ -9,18 +9,19 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
 // Enter with Engine.mu held. Success retains it; failure releases it. This
 // acquires the original ticket's locks, not data views or command effects.
-func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *ruleProgram) ([]ids.ObjectRef, error) {
-	commands, events := program.commands, program.events
+func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *view.RuleProgram) ([]ids.ObjectRef, error) {
+	commands, events := program.Commands, program.Events
 	var seen map[*plan.CTEDefinition]bool
 	expanded := false
 	for i := 0; i < len(commands); i++ {
-		for _, definition := range commands[i].binding.CTEs {
-			rewrite := ruleCTEsOf(commands[i].binding.Rule.CTEs)[definition]
+		for _, definition := range commands[i].Binding.CTEs {
+			rewrite := view.RuleCTEsOf(commands[i].Binding.Rule.CTEs)[definition]
 			if rewrite == nil || seen[definition] {
 				continue
 			}
@@ -29,11 +30,11 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			seen[definition] = true
 			mutation, _ := analyze.MutationBinding(definition)
-			if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.caller), *mutation, definition.Statement); err != nil {
+			if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
 				e.mu.Unlock()
 				return nil, err
 			}
-			if _, selectOnly := rewrite.command.syntax.(*parser.Select); selectOnly {
+			if _, selectOnly := rewrite.Command.Syntax.(*parser.Select); selectOnly {
 				continue
 			}
 			if !expanded {
@@ -41,8 +42,8 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 				events = slices.Clone(events)
 				expanded = true
 			}
-			commands = append(commands, rewrite.command)
-			events = append(events, rewrite.events...)
+			commands = append(commands, rewrite.Command)
+			events = append(events, rewrite.Events...)
 		}
 	}
 	var refs []ids.ObjectRef
@@ -57,7 +58,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}{event.Ref, lock.AccessShare})
 	}
 	for _, command := range commands {
-		physical := physicalBinding(command.binding)
+		physical := view.PhysicalBinding(command.Binding)
 		if physical.Relation != nil && physical.Relation.RelationKind != catalog.ViewRelation {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef
@@ -67,7 +68,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 				refs = append(refs, physical.Ref)
 			}
 		}
-		commandAuth := ruleAuthorizationOf(command.auth)
+		commandAuth := ruleAuthorizationOf(command.Auth)
 		collectAuth := commandAuth
 		collectAuth.Recapture(scope.inheritanceRead(commandAuth.Catalog))
 		principal := func(leaf exec.Leaf) authorization.PrincipalRef {
@@ -77,15 +78,15 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			return commandAuth.State.CurrentUser
 		}
 		var queryRefs []ids.ObjectRef
-		for start := 0; start < len(command.binding.QuerySources); {
-			invoker := principal(command.binding.QuerySources[start])
+		for start := 0; start < len(command.Binding.QuerySources); {
+			invoker := principal(command.Binding.QuerySources[start])
 			end := start + 1
-			for end < len(command.binding.QuerySources) && principal(command.binding.QuerySources[end]) == invoker {
+			for end < len(command.Binding.QuerySources) && principal(command.Binding.QuerySources[end]) == invoker {
 				end++
 			}
 			collectAuth.State.CurrentUser = invoker
 			var err error
-			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.QuerySources[start:end], queryRefs, scope.op.Session.SessionToken, plan.RowMark{})
+			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.Binding.QuerySources[start:end], queryRefs, scope.op.Session.SessionToken, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return nil, err
@@ -139,25 +140,25 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}
 	}
 	for i := range commands {
-		principal := commands[i].auth.Access().State.CurrentUser
+		principal := commands[i].Auth.Access().State.CurrentUser
 		current := fresh
 		current.State.CurrentUser = principal
-		if i < len(program.commands) {
-			program.commands[i].auth = current
+		if i < len(program.Commands) {
+			program.Commands[i].Auth = current
 		}
 		if err := current.Roles.ValidatePrincipal(principal); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
-		commands[i].auth = current
-		if err := checkRowSecurityBinding(scope, current, commands[i].binding); err != nil {
+		commands[i].Auth = current
+		if err := checkRowSecurityBinding(scope, current, commands[i].Binding); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
 	}
 	for i := range commands {
-		current := ruleAuthorizationOf(commands[i].auth)
-		if err := analyze.CheckBinding(current, commands[i].binding, commands[i].syntax); err != nil {
+		current := ruleAuthorizationOf(commands[i].Auth)
+		if err := analyze.CheckBinding(current, commands[i].Binding, commands[i].Syntax); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}

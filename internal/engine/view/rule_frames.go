@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"stuntgres/internal/engine/analyze"
@@ -87,7 +87,7 @@ func ruleBindingMaxFrame(b analyze.Binding) uint32 {
 	return max
 }
 
-func offsetRuleSources(view catalog.Read, b analyze.Binding, offset int, retainedCTEs ...[]*plan.CTEDefinition) (analyze.Binding, error) {
+func OffsetRuleSources(view catalog.Read, b analyze.Binding, offset int, retainedCTEs ...[]*plan.CTEDefinition) (analyze.Binding, error) {
 	if offset == 0 {
 		return b, nil
 	}

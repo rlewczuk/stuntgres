@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -51,8 +52,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				return other.diagnostic(s, ref)
 			}
 			if s.viewWrite != nil {
-				b := bindingForConflict(ref, s.viewWrite.base, c)
-				b.ViewWrite = viewWriteSlotOf(s.viewWrite)
+				b := bindingForConflict(ref, s.viewWrite.BaseRelation, c)
+				b.ViewWrite = view.ViewWriteSlotOf(s.viewWrite)
 				b.Targets = c.Targets
 				if err := e.checkViewRow(s, &b, proposal, &evaluation); err != nil {
 					return err
@@ -177,7 +178,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.checkUniqueRow(ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
 			return err
 		}
-		b.ViewWrite = viewWriteSlotOf(s.viewWrite)
+		b.ViewWrite = view.ViewWriteSlotOf(s.viewWrite)
 		if err := e.checkViewRow(s, &b, row, &evaluation); err != nil {
 			return err
 		}

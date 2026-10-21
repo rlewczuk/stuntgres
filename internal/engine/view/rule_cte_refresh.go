@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"stuntgres/internal/engine/analyze"
@@ -9,7 +9,7 @@ import (
 
 // Frozen action-owned modifiers are definitions to refresh, not protected
 // enclosing statement spools. One mapper reconnects declarations and all scans.
-func refreshRuleActionCTEs(auth ruleAuthority, b analyze.Binding) (analyze.Binding, error) {
+func RefreshRuleActionCTEs(auth RuleAuthority, b analyze.Binding) (analyze.Binding, error) {
 	if len(b.CTEs) == 0 {
 		return b, nil
 	}
@@ -34,7 +34,7 @@ func refreshRuleActionCTEs(auth ruleAuthority, b analyze.Binding) (analyze.Bindi
 			return body, err
 		}
 		body.Storage = auth.StorageLocked(body.Ref.Address)
-		return refreshRuleSources(auth, body)
+		return RefreshRuleSources(auth, body)
 	}})
 	mapped, err := stored.MapRuleBindingRecipes(b, mapper)
 	mapped.Rule.CTEs = nil

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -72,7 +73,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			if captured != current {
 				oldRelation, _ := data.Catalog.Relation(ref.Address)
 				liveRelation, _ := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-				if !sameMaterializedLineage(oldRelation, liveRelation, captured, current) {
+				if !view.SameMaterializedLineage(oldRelation, liveRelation, captured, current) {
 					return nil, ids.ErrCatalogReplaced
 				}
 			}
@@ -120,7 +121,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 				}
 				if root.Storage == live {
 					versions, ends = root.Versions, root.Ends
-				} else if sameMaterializedLineage(root.Relation, current, root.Storage, live) {
+				} else if view.SameMaterializedLineage(root.Relation, current, root.Storage, live) {
 					// Concurrent MV publication retains the actual RR root and
 					// its end markers, not the new incarnation with a birth filter.
 					versions, ends = root.Versions, root.Ends

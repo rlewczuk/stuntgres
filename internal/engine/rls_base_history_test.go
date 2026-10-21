@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 )
 
 func TestRLSBaseDeniedTargetHistory(t *testing.T) {
@@ -56,13 +57,13 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	leaf := b.QuerySources[0]
-	view, err := scope.acquireDataViewLocked(e, leaf.Ref)
+	dataView, err := scope.acquireDataViewLocked(e, leaf.Ref)
 	reader := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := view.Data()
+	data := dataView.Data()
 	address := leaf.Ref.Address
 	committedEnd, privateEnd := data.Ends[address], data.Deleted[address]
 	if len(data.Committed[address]) < 4 || committedEnd == nil || len(committedEnd.Rows) == 0 || privateEnd == nil || len(privateEnd.Rows) == 0 {
@@ -90,7 +91,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		if err != nil || decision != access.RLSDefaultDeny {
 			t.Fatal("effective ordinary principal is not denied", command, decision, err)
 		}
-		source, err := captureDeniedQuerySource(view, leaf.Ref)
+		source, err := view.CaptureDeniedQuerySource(dataView, leaf.Ref)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,11 +119,11 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		if pin.Load() != nil {
 			t.Fatal("closing denied target retained its visibility pin")
 		}
-		if view.Data() != data || data.Ends[address] != committedEnd || data.Deleted[address] != privateEnd || data.GenerationAt(address) != generation {
+		if dataView.Data() != data || data.Ends[address] != committedEnd || data.Deleted[address] != privateEnd || data.GenerationAt(address) != generation {
 			t.Fatal("denied close changed shared roots/generation")
 		}
 	}
-	ordinary, err := exec.CaptureSource(op.Ctx, view, leaf.Ref)
+	ordinary, err := exec.CaptureSource(op.Ctx, dataView, leaf.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

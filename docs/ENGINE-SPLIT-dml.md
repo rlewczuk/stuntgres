@@ -84,7 +84,7 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 | `mergeDeletions`, `mergePrivateRows`: write-set helpers, also used by `transaction_finish.go` | root, beside `WriteStage` (`write_set.go`) | done (29a) |
 | `rowByID` (`update_versions.go`) | `storage` (`storage.RowByID`) | index 23a |
 | `ruleUpdateAssignmentsSQL` (`update_row_dump.go`) | `stored` (rule rendering) | done (22c; unexported, export it in 29b if `dml` calls it) |
-| `validateRuleNewUpdateOutput` (`rule_update_output.go`) | `view` (rules) | 29a renamed the file; 27b moves |
+| `validateRuleNewUpdateOutput` (`rule_update_output.go`) | `view` (rules) | done (27b: `view.ValidateRuleNewUpdateOutput`) |
 | `checkTemporaryStorageAccess` | root (`temporary_access.go`) | done (29a) |
 | `Engine.queryTableRefsLocked` | root query admission (`query_table_refs.go`) | done (29a) |
 | `physicalRowEvent`, `flushPhysicalEvents` | root row-lock area (`statement_host_row_lock.go`) | done (29a) |

@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -144,18 +145,6 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 	}
 	return nil
 }
-func bindingDefaultOrigin(b *analyze.Binding, slot int) analyze.DefaultOrigin {
-	if slot < len(b.Insert.DefaultOrigins) {
-		return b.Insert.DefaultOrigins[slot]
-	}
-	physical := physicalBinding(*b)
-	attribute := physical.Relation.Attributes[slot]
-	definition := physical.Relation.ColumnMeta.Defaults[attribute]
-	if definition.Expression == nil {
-		return analyze.DefaultOrigin{}
-	}
-	return analyze.DefaultOrigin{Definition: definition, Consumer: physical.Relation, Quote: exec.QuoteOrigin{Owner: physical.Ref, Attribute: attribute, Definition: definition.OID}}
-}
 
 func evalDefaultExpression(c *exec.Context, node expr.Expr, origin analyze.DefaultOrigin) (sqltype.Value, error) {
 	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
@@ -169,5 +158,5 @@ func evalDefaultExpression(c *exec.Context, node expr.Expr, origin analyze.Defau
 }
 
 func evalBindingDefault(b *analyze.Binding, c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
-	return evalDefaultExpression(c, node, bindingDefaultOrigin(b, slot))
+	return evalDefaultExpression(c, node, view.BindingDefaultOrigin(b, slot))
 }

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -128,14 +129,14 @@ func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 
 // Capture the already admitted manifest, never rediscover a graph after the
 // command view has frozen its roots. Each segment retains real physical rows.
-func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibility.View, b analyze.Binding) (*exec.Source, error) {
+func (s *StatementScope) captureMutationSource(ctx context.Context, dataView *visibility.View, b analyze.Binding) (*exec.Source, error) {
 	if s.rls.targetDenied {
-		return captureDeniedQuerySource(view, b.Ref)
+		return view.CaptureDeniedQuerySource(dataView, b.Ref)
 	}
 	if len(s.inheritedTargets) == 0 {
-		return exec.CaptureSource(ctx, view, b.Ref)
+		return exec.CaptureSource(ctx, dataView, b.Ref)
 	}
-	pin := view.Retain()
+	pin := dataView.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
@@ -151,7 +152,7 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 			source.Close()
 			return nil, err
 		}
-		prefix, err := exec.CaptureSource(ctx, view, target.Ref)
+		prefix, err := exec.CaptureSource(ctx, dataView, target.Ref)
 		if err != nil {
 			source.Close()
 			return nil, err

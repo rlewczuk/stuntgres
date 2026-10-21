@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -136,7 +137,7 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 		return bad()
 	}
 	raw := selectStmt.Targets[0]
-	if err = materializedSnapshotScalar(raw); err != nil {
+	if err = view.MaterializedSnapshotScalar(raw); err != nil {
 		return sqltype.Value{}, 0, err
 	}
 	e.mu.Lock()

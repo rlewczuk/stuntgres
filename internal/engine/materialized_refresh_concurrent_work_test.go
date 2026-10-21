@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -37,13 +38,13 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		entries, err := materializedNewEntries(context.Background(), ordering, rows)
+		entries, err := view.MaterializedNewEntries(context.Background(), ordering, rows)
 		if err != nil {
 			t.Fatal(err)
 		}
 		ctx := &materializedWorkContext{Context: context.Background()}
 		fresh := concurrentUnitRows(t, d, make([]any, count)...)
-		effective, err := materializedConcurrentRows(ctx, e.CatalogRead(), d, old, e.visibility.CommitSeq(), entries, []*catalog.Relation{idx}, fresh, sqltype.OutputEnvironment{})
+		effective, err := view.MaterializedConcurrentRows(ctx, e.CatalogRead(), d, old, e.visibility.CommitSeq(), entries, []*catalog.Relation{idx}, fresh, sqltype.OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,12 +75,12 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		entries, err := materializedNewEntries(context.Background(), ordering, rows)
+		entries, err := view.MaterializedNewEntries(context.Background(), ordering, rows)
 		if err != nil {
 			t.Fatal(err)
 		}
 		ctx := &materializedWorkContext{Context: context.Background()}
-		err = materializedDuplicatePreflight(ctx, e.CatalogRead(), d, ordering, entries, rows, sqltype.OutputEnvironment{})
+		err = view.MaterializedDuplicatePreflight(ctx, e.CatalogRead(), d, ordering, entries, rows, sqltype.OutputEnvironment{})
 		diagnostic := materializedConcurrentUnitError(t, err, "21000", `new data for materialized view "unit_mv" contains duplicate rows without any null columns`)
 		if diagnostic.Detail != "Row: (1,10)" {
 			t.Fatal("earliest producer diagnostic", diagnostic)
@@ -107,13 +108,13 @@ func TestMaterializedRefreshConcurrentDuplicateDiagnosticOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, err := materializedNewEntries(context.Background(), ordering, rows)
+	entries, err := view.MaterializedNewEntries(context.Background(), ordering, rows)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Key order finds duplicate producer position two first. Position one in
 	// a later key group must improve it; unique position zero cannot end search.
-	err = materializedDuplicatePreflight(context.Background(), e.CatalogRead(), d, ordering, entries, rows, sqltype.OutputEnvironment{})
+	err = view.MaterializedDuplicatePreflight(context.Background(), e.CatalogRead(), d, ordering, entries, rows, sqltype.OutputEnvironment{})
 	diagnostic := materializedConcurrentUnitError(t, err, "21000", `new data for materialized view "unit_mv" contains duplicate rows without any null columns`)
 	if diagnostic.Detail != "Row: (8,10)" {
 		t.Fatal("key order replaced earliest producer diagnostic", diagnostic)

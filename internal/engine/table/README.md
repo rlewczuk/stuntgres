@@ -105,7 +105,7 @@ TABLESPACE check), `inheritanceQueryLeaves` and the inheritance query
 scope methods (query admission), `physicalNotNullDumpDependencies` (the
 dump driver), and `validateRestoredInheritedForeignKey`. FK write-time
 enforcement and FK actions (`foreignKeyJob`, `foreign_action*.go`) and
-`mutation_targets.go` go to `dml`; `materialized_snapshot.go` to `view`.
+`mutation_targets.go` go to `dml`; the materialized snapshot codec is in `view`.
 24c refined the hosts: `table.Host` (on the root `ddlHost`) and
 `table.AlterHost` (on a scope-bound root `alterHost`), every method under
 `Engine.mu` and never waiting; 24d.1–24d.3 move the CREATE, ALTER and

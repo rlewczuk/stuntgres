@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"strings"
@@ -9,7 +9,7 @@ import (
 // unmatched old options in their old order, then appends SET keys in statement
 // order. Parser values preserve lexical strings (including explicit false).
 // Every mutation owns its output slice; old definitions remain immutable.
-func transformViewOptions(old []string, changes []parser.ViewOption, reset bool) []string {
+func TransformViewOptions(old []string, changes []parser.ViewOption, reset bool) []string {
 	if len(changes) == 0 {
 		return old
 	}

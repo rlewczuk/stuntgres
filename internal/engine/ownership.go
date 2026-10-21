@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -64,7 +65,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
 	if kind == "materialized view" {
-		if err := alterViewAuthority(auth.View, auth, ref, &parser.AlterView{Materialized: true, Action: "owner"}); err != nil {
+		if err := view.AlterViewAuthority(auth.View, auth, ref, &parser.AlterView{Materialized: true, Action: "owner"}); err != nil {
 			return fail(err)
 		}
 	}

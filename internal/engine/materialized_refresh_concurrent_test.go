@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -79,7 +80,7 @@ func concurrentUnitReplace(t *testing.T, e *Engine, d *catalog.Relation, rows []
 	if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage.Relations[d.Address()], rows, populated, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materialized().replacement.concurrent = concurrent
+	stage.materialized().Replacement.Concurrent = concurrent
 	queryCreatePublish(t, e, stage)
 	return e.catalog.state.MustRelation(d.Address())
 }
@@ -150,7 +151,7 @@ func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
 	e := New()
 	d := concurrentUnitRelation(t, e)
 	want := `cannot refresh materialized view "public.unit_mv" concurrently`
-	diagnostic := materializedConcurrentUnitError(t, materializedConcurrentAdmission(e.CatalogRead(), d, false), "55000", want)
+	diagnostic := materializedConcurrentUnitError(t, view.MaterializedConcurrentAdmission(e.CatalogRead(), d, false), "55000", want)
 	if diagnostic.Hint != "Create a unique index with no WHERE clause on one or more columns of the materialized view." {
 		t.Fatal("eligibility hint", diagnostic)
 	}
@@ -193,23 +194,23 @@ func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
 				definition.NullsNotDistinct = true
 				eligible = true
 			}
-			if materializedIndexEligible(d, &copy) != eligible {
+			if view.MaterializedIndexEligible(d, &copy) != eligible {
 				t.Fatal("descriptor eligibility", phase)
 			}
 		})
 	}
-	if err := materializedConcurrentAdmission(e.CatalogRead(), d, false); err != nil {
+	if err := view.MaterializedConcurrentAdmission(e.CatalogRead(), d, false); err != nil {
 		t.Fatal(err)
 	}
 	materializedConcurrentUnitIndex(t, e, d, "unit_partial", "i,p", " WHERE i>0")
 	d = e.catalog.state.MustRelation(d.Address())
-	if err := materializedConcurrentAdmission(e.CatalogRead(), d, false); err != nil {
+	if err := view.MaterializedConcurrentAdmission(e.CatalogRead(), d, false); err != nil {
 		t.Fatal("any eligible index", err)
 	}
-	materializedConcurrentUnitError(t, materializedConcurrentAdmission(e.CatalogRead(), d, true), "42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
+	materializedConcurrentUnitError(t, view.MaterializedConcurrentAdmission(e.CatalogRead(), d, true), "42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
 	unpopulated := *d
 	unpopulated.Populated = false
-	materializedConcurrentUnitError(t, materializedConcurrentAdmission(e.CatalogRead(), &unpopulated, true), "0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
+	materializedConcurrentUnitError(t, view.MaterializedConcurrentAdmission(e.CatalogRead(), &unpopulated, true), "0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
 }
 
 func TestMaterializedRefreshConcurrentDuplicatePreflight(t *testing.T) {
@@ -222,25 +223,25 @@ func TestMaterializedRefreshConcurrentDuplicatePreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := concurrentUnitRows(t, d, int64(10), int64(20), int64(10))
-	entries, err := materializedNewEntries(context.Background(), ordering, rows)
+	entries, err := view.MaterializedNewEntries(context.Background(), ordering, rows)
 	if err != nil {
 		t.Fatal(err)
 	}
-	diagnostic := materializedConcurrentUnitError(t, materializedDuplicatePreflight(context.Background(), e.CatalogRead(), d, ordering, entries, rows, sqltype.OutputEnvironment{}), "21000", `new data for materialized view "unit_mv" contains duplicate rows without any null columns`)
+	diagnostic := materializedConcurrentUnitError(t, view.MaterializedDuplicatePreflight(context.Background(), e.CatalogRead(), d, ordering, entries, rows, sqltype.OutputEnvironment{}), "21000", `new data for materialized view "unit_mv" contains duplicate rows without any null columns`)
 	if diagnostic.Detail != "Row: (1,10)" {
 		t.Fatal("duplicate detail", diagnostic)
 	}
 	nullable := concurrentUnitRows(t, d, nil, nil)
-	entries, err = materializedNewEntries(context.Background(), ordering, nullable)
+	entries, err = view.MaterializedNewEntries(context.Background(), ordering, nullable)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := materializedDuplicatePreflight(context.Background(), e.CatalogRead(), d, ordering, entries, nullable, sqltype.OutputEnvironment{}); err != nil {
+	if err := view.MaterializedDuplicatePreflight(context.Background(), e.CatalogRead(), d, ordering, entries, nullable, sqltype.OutputEnvironment{}); err != nil {
 		t.Fatal("NULL payload preflight", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := materializedNewEntries(ctx, ordering, rows); !errors.Is(err, context.Canceled) {
+	if _, err := view.MaterializedNewEntries(ctx, ordering, rows); !errors.Is(err, context.Canceled) {
 		t.Fatal("preflight cancel", err)
 	}
 	for _, id := range []sqltype.ID{sqltype.Numeric, sqltype.Float8, sqltype.JSON, sqltype.BPChar} {
@@ -272,7 +273,7 @@ func TestMaterializedRefreshConcurrentDuplicatePreflight(t *testing.T) {
 			t.Fatal(err)
 		}
 		same := id == sqltype.JSON || id == sqltype.BPChar
-		if materializedSameRow([]sqltype.Value{a}, []sqltype.Value{b}) != same {
+		if view.MaterializedSameRow([]sqltype.Value{a}, []sqltype.Value{b}) != same {
 			t.Fatal("image distinction", id)
 		}
 	}
@@ -308,7 +309,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			}
 			old := e.storage.Relations[d.Address()]
 			frontier := e.visibility.CommitSeq()
-			effective, err := materializedConcurrentRows(context.Background(), e.CatalogRead(), d, old, frontier, e.storage.IndexRoots[first.Address()].Entries, indices, produced, sqltype.OutputEnvironment{})
+			effective, err := view.MaterializedConcurrentRows(context.Background(), e.CatalogRead(), d, old, frontier, e.storage.IndexRoots[first.Address()].Entries, indices, produced, sqltype.OutputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -326,7 +327,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			entries, err := materializedNewEntries(context.Background(), ordering, effective)
+			entries, err := view.MaterializedNewEntries(context.Background(), ordering, effective)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -356,8 +357,8 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		if err := e.stageMaterializedRows(context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
-		stage.materialized().replacement.concurrent = true
-		candidate := stage.materializedOrZero().replacement.storage
+		stage.materialized().Replacement.Concurrent = true
+		candidate := stage.materializedOrZero().Replacement.Storage
 		if old.MaterializedLineage != first.MaterializedLineage || candidate.MaterializedLineage != nil {
 			t.Fatal("stage stamped lineage")
 		}
@@ -368,7 +369,7 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		e.DiscardCatalogStage(stage)
 		d = e.catalog.state.MustRelation(d.Address())
 		frontier++
-		if e.visibility.CommitSeq() != frontier || !d.Populated || e.storage.Relations[d.Address()] != candidate || !sameMaterializedLineage(d, d, first, candidate) || len(e.storage.IndexRoots[index.Address()].Entries) != count {
+		if e.visibility.CommitSeq() != frontier || !d.Populated || e.storage.Relations[d.Address()] != candidate || !view.SameMaterializedLineage(d, d, first, candidate) || len(e.storage.IndexRoots[index.Address()].Entries) != count {
 			t.Fatal("atomic roots/frontier/lineage")
 		}
 	}
@@ -376,7 +377,7 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		t.Fatal("retired root changed")
 	}
 	d = concurrentUnitReplace(t, e, d, nil, false, false)
-	if sameMaterializedLineage(d, d, first, e.storage.Relations[d.Address()]) || e.storage.Relations[d.Address()].MaterializedLineage != nil {
+	if view.SameMaterializedLineage(d, d, first, e.storage.Relations[d.Address()]) || e.storage.Relations[d.Address()].MaterializedLineage != nil {
 		t.Fatal("plain NO DATA bridged lineage")
 	}
 }
@@ -404,7 +405,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 			if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
-			stage.materialized().replacement.concurrent = true
+			stage.materialized().Replacement.Concurrent = true
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			fault := errors.New("provider veto")
@@ -442,7 +443,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 					t.Fatal("veto changed publication")
 				}
 			}
-			if err == nil || old.MaterializedLineage != nil || stage.materializedOrZero().replacement.storage.MaterializedLineage != nil {
+			if err == nil || old.MaterializedLineage != nil || stage.materializedOrZero().Replacement.Storage.MaterializedLineage != nil {
 				t.Fatal("failed candidate stamped lineage", phase, err)
 			}
 			if phase == "provider" && !errors.Is(err, fault) {
@@ -467,7 +468,7 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 		if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage.Relations[d.Address()], rows, true, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
-		stage.materialized().replacement.concurrent = concurrent
+		stage.materialized().Replacement.Concurrent = concurrent
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 		if err == nil {
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
@@ -497,7 +498,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage.Relations[d.Address()], refreshUnitRows(t, d, 2), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materialized().replacement.concurrent = true
+	stage.materialized().Replacement.Concurrent = true
 	if len(stage.indexesOrZero().Rebuilds) != 0 {
 		t.Fatal("replacement forged REINDEX intent")
 	}

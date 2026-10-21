@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -315,8 +316,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	callerSequences, callerRegtypes := b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
 	if b.ViewWrite != nil {
 		e.mu.Unlock()
-		if viewWriteOf(b.ViewWrite).base.RelationKind != catalog.ViewRelation {
-			if err := scope.acquireViewWriteTarget(viewWriteOf(b.ViewWrite)); err != nil {
+		if view.ViewWriteOf(b.ViewWrite).BaseRelation.RelationKind != catalog.ViewRelation {
+			if err := scope.acquireViewWriteTarget(view.ViewWriteOf(b.ViewWrite)); err != nil {
 				return Result{}, err
 			}
 		}
@@ -515,7 +516,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	}
 	if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
-		if boundary := partition.WriteExtensionBoundary(stmt, physicalBinding(b).Relation); boundary != nil {
+		if boundary := partition.WriteExtensionBoundary(stmt, view.PhysicalBinding(b).Relation); boundary != nil {
 			// Hierarchies have no conflict-update executor. Complete analysis
 			// and target/source authority before rejecting that capability,
 			// without demanding arbiters, defaults or routed row effects.
@@ -527,7 +528,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, boundary
 		}
 	}
-	if relation := bindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
+	if relation := view.BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
 		return e.executeRuleProgramLocked(scope, stmt, b, auth, canonical, candidate, quoteCapturesChanged)
 	}
 	return e.executeBoundLocked(scope, stmt, b, auth, canonical, candidate, quoteCapturesChanged)

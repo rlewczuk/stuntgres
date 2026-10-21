@@ -109,7 +109,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 				}
 			} else if tc.noData {
 				materializedConcurrentUnitError(t, err, "42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
-				if len(scope.materializedOrZero().sources) != 0 {
+				if len(scope.materializedOrZero().Sources) != 0 {
 					t.Fatal("option conflict acquired sources")
 				}
 			} else {
@@ -142,16 +142,16 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materialized().replacement.concurrent = true
+	stage.materialized().Replacement.Concurrent = true
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}
 	// Cancel inside the actual index candidate builder, before any install owner.
-	entries, err := index.BuildIndexEntries(&exec.Context{EvalStatement: exec.EvalStatement{Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage.materializedOrZero().replacement.descriptor, idx.SQLIndex, stage.materializedOrZero().replacement.storage, nil)
+	entries, err := index.BuildIndexEntries(&exec.Context{EvalStatement: exec.EvalStatement{Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage.materializedOrZero().Replacement.Descriptor, idx.SQLIndex, stage.materializedOrZero().Replacement.Storage, nil)
 	if entries != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("index preparation ignored cancellation", err)
 	}
-	if e.storage.Relations[d.Address()] != old || e.visibility.CommitSeq() != frontier || old.MaterializedLineage != nil || stage.materializedOrZero().replacement.storage.MaterializedLineage != nil {
+	if e.storage.Relations[d.Address()] != old || e.visibility.CommitSeq() != frontier || old.MaterializedLineage != nil || stage.materializedOrZero().Replacement.Storage.MaterializedLineage != nil {
 		t.Fatal("canceled index preparation published or stamped")
 	}
 }

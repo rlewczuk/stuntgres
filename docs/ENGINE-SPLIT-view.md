@@ -522,13 +522,81 @@ in the root. The checks in §8.3 pass.
   `view_write_test.go`, `materialized_refresh_authorization_test.go` and
   `policy_restore_authorization_test.go` use the new signatures. No test
   moved or deleted.
-- [ ] 27b — `view` created and clean set moved
+- [x] 27b — `view` created and clean set moved (`03468b5b6`,
+  `d7cd77e1a`, `b61bed3bb`, `73c98d60b`, then the docs commit) · selected
+  unit proof and quickcheck passed, `REFERENCE=1` pending; racecheck/finalcheck
+  skipped at user request; see the 27b record below
 - [ ] 27c — Host refined (docs only)
 - [ ] 27d — Handler decisions moved
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (27b added none).
+
+### 27b record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-VIEW-PACKAGE`, started at
+`bdba4968a` (table 24b merged), replayed onto `0ab96a3a8` (index 23d.1:
+the export commit conflicted; the scripts `c1.sh`, `c2.sh`, `c3.sh`,
+`c3-post.sh` and `c4.sh` in `.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-PACKAGE/`
+rebuilt the commits, and the moved files came out byte-identical), and
+replayed the same way onto `bd79e7663` (table 24c and partition 25b; the
+move set, its OUT and IN edges and the moved files were unchanged).
+
+| Commit | Change |
+|---|---|
+| `03468b5b6` | Staging: the clean declarations of 17 mixed files to `vwmv_*.go` (`movedecl`), with `bindingDefaultOrigin` |
+| `d7cd77e1a` | Export in place (`expspec`/`movex`, 135 rows): `viewWrite.base` is `BaseRelation` (`Base()` is the `analyze.ViewWriteSlot` method); `ruleRewriter.owner` is `Owner` (root callers build it with an unkeyed literal) |
+| `b61bed3bb` | Move: 35 files (about 4.8k lines) to `view`, `view/errors.go`, `movex -qual view`, 21 root locals named `view` renamed after their type (`catalogView`, `dataView`, `createView`, `viewRelation`, `storedView`), `keylit` for 13 unkeyed literals, doc comments renamed |
+| `73c98d60b` | `binding_slots_test.go` moves to `view` |
+
+- **Re-measure.** `reach` on
+  `^(rule_|view|policy|rls_|row_security|materialized_)`: 190
+  declarations (22b/22c had taken the presentation set). Every declaration
+  in the 27b move lists was clean. The `frontier` fixed point: 126
+  members, OUT `sqlError` alone, 154 IN keys.
+- **Members the plan did not list:** `binding_slots.go` (the `viewWrite`
+  slot methods, `viewWriteOf`, `viewWriteSlotOf`, `ruleCTECommands`,
+  `ruleCTEsOf`, `ruleCTEsSlotOf`),
+  `bindingDefaultOrigin` (`lowerViewInsert` calls it and it calls
+  `physicalBinding`), `rule_update_output.go` (29a's file),
+  `policy_payload.go` (`policyPayloadOf`) and `materialized_alter.go`'s
+  `materializedExtensionDepends`.
+- **Stayed in the root:** `prepareStoredExecutionRoot` (it calls the root
+  `preflightQuery`), `materializedSourceFence` and its methods,
+  `rowSecurityMutation` and `ruleActionScope` (clean, but scope state the
+  root writes), `ruleAuthorizationOf` and the three `AuthorizationView`
+  methods, the `CatalogStage`/`StatementScope` slot accessors, and every
+  handler under "Dirty declarations".
+- **Imports.** `view` also imports `functions`, `sequence` and
+  `visibility`, which the 27b import list above omits; all three are lower
+  layers that `table` imports too. It imports no `regobj`, `partition`,
+  `dml`, `control` or root package (`go list`).
+- **Names.** Types lose a stuttering view prefix (`viewWrite` is `Write`,
+  `viewWriteLayer` is `WriteLayer`, `viewCheckGroup` is `CheckGroup`,
+  `viewCreationScope` is `CreationScope`, `viewDependencyEdge` is
+  `DependencyEdge`); everything else the root names is capitalized.
+  Package-internal names keep their case (`viewWriteOccurrence`,
+  `ruleAncestry`, `lowerViewWrite`, ...).
+- **Tests.** `binding_slots_test.go` moved. Every other view, rule, policy
+  and materialized-view unit test builds an engine (`New`,
+  `AuthorizationView`, the catalog owner) and stays in the root, naming
+  `view.X`. None deleted.
+- **Checks.** String-literal multiset unchanged apart from
+  `view/errors.go`; a Dump→Restore→Dump smoke (seven scenarios, one with
+  check-option views, conditional INSTEAD rules, policies and a
+  concurrently refreshed materialized view) printed identical output on
+  master and the branch, and every restore round-tripped byte-identically;
+  quickcheck passed; quick-mode reference suite passed (in quickcheck);
+  `REFERENCE=1` selections still to run before merge. racecheck, finalcheck and bench skipped at user
+  request (no startup change).
 
 ### Notes for later steps
+
+- 27c: `rowSecurityMutation` and `ruleActionScope` are clean but stay as
+  root scope state; question 3 (RLS layer selection) can return a value
+  the root copies into `rowSecurityMutation`. `prepareStoredExecutionRoot`
+  stays with root query preflight. `view.CreationScope`,
+  `view.MaterializedRefreshScope` and `view.MaterializedStage` are the slot
+  records; their accessors are root methods.
 
 - Role 28c, for 27b/27d: ALTER MATERIALIZED VIEW OWNER keeps its
   `alterViewAuthority` call in the root's `executeRelationOwnership`,

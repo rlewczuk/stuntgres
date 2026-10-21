@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -95,9 +96,9 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 	sessionSQL(t, owner, `CREATE TABLE expr_scheduled_t(id INT,a TEXT COLLATE "C",b TEXT COLLATE "POSIX")`)
 	for _, tc := range []struct{ name, tail string }{{"expr_scheduled_sort", `ORDER BY id`}, {"expr_scheduled_bound", `LIMIT 1`}, {"expr_scheduled_both", `ORDER BY id LIMIT 1`}} {
 		sessionSQL(t, owner, `CREATE VIEW `+tc.name+` AS SELECT id,a=b AS unused,a COLLATE "C"=b AS selected FROM expr_scheduled_t `+tc.tail)
-		view := e.CatalogRead()
-		ref := catalogRef(t, e, view, tc.name)
-		project := stored.ViewOf(view.MustRelation(ref.Address)).Query().Root.(*plan.ProjectNode)
+		catalogView := e.CatalogRead()
+		ref := catalogRef(t, e, catalogView, tc.name)
+		project := stored.ViewOf(catalogView.MustRelation(ref.Address)).Query().Root.(*plan.ProjectNode)
 		unused, ok := project.Expressions[1].(plan.CachedOrderExpr)
 		if !ok {
 			t.Fatal("fixture has no real scheduled producer", tc.name, project.Expressions[1])
@@ -125,8 +126,8 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 			return nil
 		}
 		original := producer(project.Child, unused.Slot)
-		id, _ := view.LookupType(sqltype.Int4)
-		text, _ := view.LookupType(sqltype.Text)
+		id, _ := catalogView.LookupType(sqltype.Int4)
+		text, _ := catalogView.LookupType(sqltype.Text)
 		one, _ := sqltype.Integer(id, 1)
 		ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: project.Frame, Row: []sqltype.Value{one, sqltype.String(text, "A"), sqltype.String(text, "A")}}}
 		_, err := original.Eval(ctx)
@@ -134,7 +135,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 			t.Fatal("fixture lacks reached original conflict", tc.name, err)
 		}
-		demanded, err := storedProjectionDemand(project, []int{0, 2})
+		demanded, err := view.StoredProjectionDemand(project, []int{0, 2})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +157,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		shared := *project
 		shared.Expressions = append([]expr.Expr(nil), project.Expressions...)
 		shared.Expressions[2] = unused
-		demanded, err = storedProjectionDemand(&shared, []int{0, 2})
+		demanded, err = view.StoredProjectionDemand(&shared, []int{0, 2})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -193,7 +194,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		}
 		transitive := *project
 		transitive.Child = chained
-		demanded, err = storedProjectionDemand(&transitive, []int{0, 2})
+		demanded, err = view.StoredProjectionDemand(&transitive, []int{0, 2})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -47,12 +48,12 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
-	index := ruleIndex(old, name)
+	index := view.RuleIndex(old, name)
 	if s, ok := stmt.(*parser.DropRule); ok && index < 0 && !(old.View != nil && name == "_RETURN") {
 		if s.IfExists {
 			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`rule "%s" for relation "%s" does not exist, skipping`, name, old.Name()))
 		}
-		return fail(ruleMissing(name, old))
+		return fail(view.RuleMissing(name, old))
 	}
 	if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
@@ -103,7 +104,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if parser.HasModifyingCTE(query) {
 				return fail(sqlError("0A000", "rules on SELECT must not contain data-modifying statements in WITH"))
 			}
-			if err := ruleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
+			if err := view.RuleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
 			temporary := stored.ViewOf(old).Temporary() != (ids.SessionToken{})
@@ -122,7 +123,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				return fail(sqlError("42P17", "non-view rule must not be named \"_RETURN\""))
 			}
 			if index >= 0 && !s.Replace {
-				return fail(ruleDuplicate(name, old))
+				return fail(view.RuleDuplicate(name, old))
 			}
 			definition, err := e.bindRuleDefinitionLocked(scope, auth, old, ref, s)
 			if err != nil {
@@ -153,10 +154,10 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			return fail(sqlError("42P17", "renaming an ON SELECT rule is not allowed"))
 		}
 		if index < 0 {
-			return fail(ruleMissing(name, old))
+			return fail(view.RuleMissing(name, old))
 		}
-		if ruleIndex(old, s.Rename.Text) >= 0 || old.View != nil && s.Rename.Text == "_RETURN" {
-			return fail(ruleDuplicate(s.Rename.Text, old))
+		if view.RuleIndex(old, s.Rename.Text) >= 0 || old.View != nil && s.Rename.Text == "_RETURN" {
+			return fail(view.RuleDuplicate(s.Rename.Text, old))
 		}
 		stored.RulesOf(&next)[index].Name = s.Rename.Text
 	case *parser.DropRule:

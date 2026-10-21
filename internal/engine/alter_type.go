@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -237,7 +238,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 	}
 	target := ref.Address
 	target.SubID = original.Attributes[source]
-	if err := policyTypeChangeError(auth.Catalog, target); err != nil {
+	if err := view.PolicyTypeChangeError(auth.Catalog, target); err != nil {
 		return fail(err)
 	}
 	if path, pathErr := e.lookupPath(auth, analyze.RelationLookup); pathErr != nil {
@@ -248,7 +249,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 		return fail(d)
 	}
 	if edges := viewDependencyClosure(auth.Catalog, []ids.ObjectAddress{target}, stage); len(edges) != 0 {
-		view := edges[0].view
+		view := edges[0].View
 		name := view.Name()
 		if parser.IdentifierNeedsQuotes(name) {
 			name = catalog.QuoteIdentifier(name)

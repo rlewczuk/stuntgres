@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -19,7 +20,7 @@ type statementMutation struct {
 	statement parser.Statement
 	mutationTarget
 	inheritedTargets []exec.Leaf // Inheritance expansion of the target (table, dml).
-	viewWrite        *viewWrite  // Auto-updatable view lowering (view).
+	viewWrite        *view.Write // Auto-updatable view lowering (view).
 	mutationIndexes
 	mutationInsert
 	mutationPartition
@@ -176,7 +177,7 @@ func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *analyze.Bi
 		scope.activateMutation(index)
 		if execute {
 			e.mu.Unlock()
-			err := scope.acquireViewWriteTarget(viewWriteOf(mutation.ViewWrite))
+			err := scope.acquireViewWriteTarget(view.ViewWriteOf(mutation.ViewWrite))
 			e.mu.Lock()
 			if err != nil {
 				return err

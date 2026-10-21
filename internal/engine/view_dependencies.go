@@ -1,30 +1,21 @@
 package engine
 
 import (
-	"fmt"
 	"slices"
 	"sort"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
-func viewDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
-	return d.View != nil && d.View.DependsOn(target)
-}
-
-type viewDependencyEdge struct {
-	view   *catalog.Relation
-	target ids.ObjectAddress
-}
-
-func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *CatalogStage) []viewDependencyEdge {
+func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *CatalogStage) []view.DependencyEdge {
 	provider := &dropProvider{base: catalog, stage: stage}
 	return provider.viewClosure(targets)
 }
 
-func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDependencyEdge {
+func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []view.DependencyEdge {
 	var views []*catalog.Relation
 	for address, descriptor := range provider.Descriptors() {
 		if provider.Removed(address) {
@@ -44,14 +35,14 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 			seen[target] = true
 		}
 	}
-	var edges []viewDependencyEdge
+	var edges []view.DependencyEdge
 	var visit func(ids.ObjectAddress)
 	visit = func(target ids.ObjectAddress) {
-		for _, view := range views {
-			if !seen[view.Address()] && viewDepends(view, target) {
-				seen[view.Address()] = true
-				edges = append(edges, viewDependencyEdge{view, target})
-				visit(view.Address())
+		for _, viewRelation := range views {
+			if !seen[viewRelation.Address()] && view.ViewDepends(viewRelation, target) {
+				seen[viewRelation.Address()] = true
+				edges = append(edges, view.DependencyEdge{View: viewRelation, Target: target})
+				visit(viewRelation.Address())
 			}
 		}
 	}
@@ -68,7 +59,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		expanded = make([]ids.ObjectAddress, len(targets), len(targets)+len(edges))
 		copy(expanded, targets)
 		for _, edge := range edges {
-			expanded = append(expanded, edge.view.Address())
+			expanded = append(expanded, edge.View.Address())
 		}
 	}
 	policies := provider.policyDependentLabels(expanded)
@@ -101,7 +92,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	}
 	activeEdges := edges[:0]
 	for _, edge := range edges {
-		d := edge.view
+		d := edge.View
 		if provider.Removed(d.Address()) {
 			continue
 		}
@@ -114,11 +105,4 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		provider.cascadeNotice("drop cascades to " + dependent.label)
 	}
 	return nil
-}
-
-func validateViewDefinition(v catalog.Read, d *catalog.Relation) error {
-	if d.View == nil {
-		return fmt.Errorf("stuntgres: invalid view definition")
-	}
-	return d.View.Validate(v, d)
 }

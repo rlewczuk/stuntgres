@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -112,7 +113,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			schema = append(schema, schema[0])
 			input := &plan.EvaluationNode{QuerySchema: plan.QuerySchema(schema), Child: original.Child}
 			slots := make(map[int]int)
-			grafted, err := ruleGraftSchemas(query.Root, original.Child, input, slots)
+			grafted, err := view.RuleGraftSchemas(query.Root, original.Child, input, slots)
 			if err != nil {
 				t.Fatal(err)
 			}

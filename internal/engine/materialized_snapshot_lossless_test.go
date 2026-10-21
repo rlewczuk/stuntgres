@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -87,7 +88,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 			t.Fatal(sample.sql, err)
 		}
 		raw := statements[0].(*parser.Select).Targets[0]
-		if err := materializedSnapshotScalar(raw); (err == nil) != sample.valid {
+		if err := view.MaterializedSnapshotScalar(raw); (err == nil) != sample.valid {
 			t.Fatal("snapshot concatenation boundary", sample.sql, err)
 		}
 	}

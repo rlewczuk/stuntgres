@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -136,14 +137,14 @@ func TestMaterializedViewDefinition(t *testing.T) {
 
 func TestMaterializedViewSnapshotCodec(t *testing.T) {
 	encode := func(raw string) string {
-		return materializedSnapshotMarker + " " + base64.StdEncoding.EncodeToString([]byte(raw))
+		return view.MaterializedSnapshotMarker + " " + base64.StdEncoding.EncodeToString([]byte(raw))
 	}
 	raw := `{"schema":"quote\"\\雪","name":"newline\n*/--","populated":true,"rows":"INSERT INTO public.unit_mv VALUES (NULL);\n"}`
-	record, recognized, err := decodeMaterializedSnapshot(encode(raw))
+	record, recognized, err := view.DecodeMaterializedSnapshot(encode(raw))
 	if err != nil || !recognized || record.Schema != "quote\"\\雪" || record.Name != "newline\n*/--" || record.Rows != "INSERT INTO public.unit_mv VALUES (NULL);\n" {
 		t.Fatalf("lossy codec: %#v %v", record, err)
 	}
-	if _, recognized, err := decodeMaterializedSnapshot("ordinary comment"); recognized || err != nil {
+	if _, recognized, err := view.DecodeMaterializedSnapshot("ordinary comment"); recognized || err != nil {
 		t.Fatal("ordinary comment gained import authority")
 	}
 	for _, raw := range []string{
@@ -155,12 +156,12 @@ func TestMaterializedViewSnapshotCodec(t *testing.T) {
 		`{"schema":"public","name":"unit_mv","populated":true,"rows":""} {}`,
 		`{"schema":"","name":"unit_mv","populated":true,"rows":""}`,
 	} {
-		if _, recognized, err := decodeMaterializedSnapshot(encode(raw)); !recognized || err == nil {
+		if _, recognized, err := view.DecodeMaterializedSnapshot(encode(raw)); !recognized || err == nil {
 			t.Fatalf("accepted malformed envelope %s", raw)
 		}
 	}
 	for _, text := range []string{"stuntgres-matview-v2 e30=", "stuntgres-matview-v1 !!!", "stuntgres-matview-v1 " + base64.StdEncoding.EncodeToString([]byte{0xff})} {
-		if _, recognized, err := decodeMaterializedSnapshot(text); !recognized || err == nil {
+		if _, recognized, err := view.DecodeMaterializedSnapshot(text); !recognized || err == nil {
 			t.Fatalf("accepted framing %q", text)
 		}
 	}
@@ -188,7 +189,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			e.storage.InstallRelationLocked(d.Address(), &storage.Relation{})
 			e.mu.Unlock()
 			before, store := e.catalog.state, e.storage.Relations[d.Address()]
-			if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{{"public", "unit_mv", true, rows}}); err == nil {
+			if err := e.importMaterializedSnapshots(context.Background(), op, []view.MaterializedSnapshot{{Schema: "public", Name: "unit_mv", Populated: true, Rows: rows}}); err == nil {
 				t.Fatal("accepted noncanonical/effectful snapshot")
 			}
 			if e.catalog.state != before || e.storage.Relations[d.Address()] != store || d.Populated {
@@ -203,11 +204,11 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	e.mu.Lock()
 	e.storage.InstallRelationLocked(d.Address(), &storage.Relation{})
 	e.mu.Unlock()
-	record := materializedSnapshot{"public", "unit_mv", true, "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
-	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record, record}); err == nil {
+	record := view.MaterializedSnapshot{Schema: "public", Name: "unit_mv", Populated: true, Rows: "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
+	if err := e.importMaterializedSnapshots(context.Background(), op, []view.MaterializedSnapshot{record, record}); err == nil {
 		t.Fatal("duplicate target accepted")
 	}
-	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record}); err != nil {
+	if err := e.importMaterializedSnapshots(context.Background(), op, []view.MaterializedSnapshot{record}); err != nil {
 		t.Fatal(err)
 	}
 	current := e.catalog.state.MustRelation(d.Address())

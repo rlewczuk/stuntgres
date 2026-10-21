@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -25,7 +26,7 @@ type restoreRun struct {
 	domainReplays     []typedef.PositionedDomainReplay
 	domainReplayPairs map[*parser.Insert]typedef.DomainReplayRecord
 	extensionOwners   []extension.OwnerRecord
-	snapshots         []materializedSnapshot
+	snapshots         []view.MaterializedSnapshot
 
 	// Table, NOT NULL and foreign key captures.
 	pendingForeignKeys      []table.RestoredForeignKeys

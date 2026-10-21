@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -11,86 +10,9 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
-
-func ruleIndex(d *catalog.Relation, name string) int {
-	return slices.IndexFunc(stored.RulesOf(d), func(r stored.Rule) bool { return r.Name == name })
-}
-func ruleMissing(name string, d *catalog.Relation) error {
-	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.Name()))
-}
-func ruleDuplicate(name string, d *catalog.Relation) error {
-	return sqlError("42710", fmt.Sprintf(`rule "%s" for relation "%s" already exists`, name, d.Name()))
-}
-
-func ruleResultCheck(d *catalog.Relation, schema []catalog.Column, selectRule bool) error {
-	prefix := "RETURNING list"
-	if selectRule {
-		prefix = "SELECT rule's target list"
-	}
-	if d.ColumnMeta.HighWater > int32(len(d.Columns)) {
-		message := "cannot create a RETURNING list for a relation containing dropped columns"
-		if selectRule {
-			message = "cannot convert relation containing dropped columns to view"
-		}
-		return sqlError("0A000", message)
-	}
-	if len(schema) < len(d.Columns) {
-		return sqlError("42P17", prefix+" has too few entries")
-	}
-	if len(schema) > len(d.Columns) {
-		return sqlError("42P17", prefix+" has too many entries")
-	}
-	for i, column := range schema {
-		want := d.Columns[i]
-		if selectRule && column.Name != want.Name {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P17", Message: fmt.Sprintf(`SELECT rule's target entry %d has different column name from column "%s"`, i+1, want.Name), Detail: fmt.Sprintf(`SELECT target entry is named "%s".`, column.Name)}
-		}
-		if column.Usage.Type != want.Usage.Type {
-			prefix = "RETURNING list's"
-			if selectRule {
-				prefix = "SELECT rule's target"
-			}
-			detail := "RETURNING list entry"
-			if selectRule {
-				detail = "SELECT target entry"
-			}
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P17", Message: fmt.Sprintf(`%s entry %d has different type from column "%s"`, prefix, i+1, want.Name), Detail: fmt.Sprintf("%s has type %s, but column has type %s.", detail, column.Usage.Type.DiagnosticName(), want.Usage.Type.DiagnosticName())}
-		}
-		if want.Usage.Typmod != -1 && column.Usage.Typmod != -1 && column.Usage.Typmod != want.Usage.Typmod {
-			prefix = "RETURNING list's"
-			detail := "RETURNING list entry"
-			if selectRule {
-				prefix = "SELECT rule's target"
-				detail = "SELECT target entry"
-			}
-			actual, err := analyze.PGType(column.Usage)
-			if err != nil {
-				return err
-			}
-			expected, err := analyze.PGType(want.Usage)
-			if err != nil {
-				return err
-			}
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P17", Message: fmt.Sprintf(`%s entry %d has different size from column "%s"`, prefix, i+1, want.Name), Detail: fmt.Sprintf("%s has type %s, but column has type %s.", detail, actual, expected)}
-		}
-	}
-	return nil
-}
-
-func ruleReturning(s parser.Statement) *parser.Returning {
-	switch s := s.(type) {
-	case *parser.Insert:
-		return s.Returning
-	case *parser.Update:
-		return s.Returning
-	case *parser.Delete:
-		return s.Returning
-	}
-	return nil
-}
 
 func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule) (stored.Rule, error) {
 	p := stored.RuleParts{Name: s.Name.Text, Event: strings.ToUpper(s.Event), Instead: s.Instead}
@@ -151,13 +73,13 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		if err != nil {
 			return stored.NewRule(p), err
 		}
-		if p.Condition != nil && ruleSetAction(b, action) {
+		if p.Condition != nil && view.RuleSetAction(b, action) {
 			return stored.NewRule(p), sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 		}
-		if err := validateRuleActionCTEs(action, b); err != nil {
+		if err := view.ValidateRuleActionCTEs(action, b); err != nil {
 			return stored.NewRule(p), err
 		}
-		b = retainRuleCTEPresentation(auth.Catalog, b)
+		b = view.RetainRuleCTEPresentation(auth.Catalog, b)
 		b.Rule.Template = true
 		if b.Parameters.Count != 0 {
 			return stored.NewRule(p), sqlError("42P02", "there is no parameter $1")
@@ -176,7 +98,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			if providers > 1 {
 				return stored.NewRule(p), sqlError("0A000", "cannot have multiple RETURNING lists in a rule")
 			}
-			if err := ruleResultCheck(d, b.Returning.Schema, false); err != nil {
+			if err := view.RuleResultCheck(d, b.Returning.Schema, false); err != nil {
 				return stored.NewRule(p), err
 			}
 		}
@@ -191,6 +113,6 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		p.Actions = append(p.Actions, stored.NewRuleAction(stored.RuleActionParts{Syntax: action, Binding: b, Presentation: presentation, ModifierPresentations: modifiers}))
 	}
 	var err error
-	p.References, err = ruleReferences(scope.op.Context(), auth.Catalog, stored.NewRule(p))
+	p.References, err = view.RuleReferences(scope.op.Context(), auth.Catalog, stored.NewRule(p))
 	return stored.NewRule(p), err
 }

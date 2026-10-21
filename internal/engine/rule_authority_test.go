@@ -7,13 +7,14 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 )
 
 type foreignRuleAuthority struct{}
 
-func (foreignRuleAuthority) Access() access.View                               { return access.View{} }
-func (f foreignRuleAuthority) AsUser(authorization.PrincipalRef) ruleAuthority { return f }
-func (foreignRuleAuthority) StorageLocked(ids.ObjectAddress) *storage.Relation { return nil }
+func (foreignRuleAuthority) Access() access.View                                    { return access.View{} }
+func (f foreignRuleAuthority) AsUser(authorization.PrincipalRef) view.RuleAuthority { return f }
+func (foreignRuleAuthority) StorageLocked(ids.ObjectAddress) *storage.Relation      { return nil }
 
 func TestRuleAuthorityAsUserAndRecovery(t *testing.T) {
 	domain := new(authorization.Domain)

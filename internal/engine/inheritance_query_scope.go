@@ -69,7 +69,7 @@ func inheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock.Mode) error {
 	e := s.engine()
 	roots := s.querySources
-	if s.materializedOrZero().refresh {
+	if s.materializedOrZero().Refresh {
 		e.mu.Lock()
 		catalog := e.privateCatalogLocked(s.owner.Catalog)
 		d, ok := catalog.Relation(s.lockedRef.Address)

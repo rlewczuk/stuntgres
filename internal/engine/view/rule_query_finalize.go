@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 func ruleQueryFinalizer(view catalog.Read) func(plan.Node) (plan.Node, error) {
 	var finalized map[plan.Node]bool
 	return func(root plan.Node) (plan.Node, error) {
-		result, err := finalizeRuleQuery(view, root, finalized)
+		result, err := FinalizeRuleQuery(view, root, finalized)
 		if err == nil {
 			if finalized == nil {
 				finalized = make(map[plan.Node]bool)
@@ -27,7 +27,7 @@ func ruleQueryFinalizer(view catalog.Read) func(plan.Node) (plan.Node, error) {
 
 // Recover typed recipes from the existing schedule, then use the ordinary
 // finalizers. Cache numbers belong to a query frame, never to a grafted row.
-func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...map[plan.Node]bool) (plan.Node, error) {
+func FinalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...map[plan.Node]bool) (plan.Node, error) {
 	var finalized map[plan.Node]bool
 	if len(alreadyFinalized) != 0 {
 		finalized = alreadyFinalized[0]

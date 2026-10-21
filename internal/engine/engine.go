@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -351,26 +352,26 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
 		return StatementDescription{}, err
 	}
-	if relation := bindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
-		program := ruleProgram{count: -1, returning: -1}
-		if _, err := (ruleRewriter{e.catalog.owner()}).expandLocked(auth, stmt, b, nil, &program); err != nil {
+	if relation := view.BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
+		program := view.RuleProgram{Count: -1, Returning: -1}
+		if _, err := (view.RuleRewriter{Owner: e.catalog.owner()}).ExpandLocked(auth, stmt, b, nil, &program); err != nil {
 			return StatementDescription{}, err
 		}
-		for i := range program.commands {
-			command := &program.commands[i]
-			if err := e.normalizeRuleCTEsLocked(scope, command.auth, command.syntax, &command.binding); err != nil {
+		for i := range program.Commands {
+			command := &program.Commands[i]
+			if err := e.normalizeRuleCTEsLocked(scope, command.Auth, command.Syntax, &command.Binding); err != nil {
 				return StatementDescription{}, err
 			}
 		}
 		if err := checkRowSecurityRuleProgram(scope, auth, b, program); err != nil {
 			return StatementDescription{}, err
 		}
-		b.Dependencies = append(b.Dependencies, program.events...)
-		for _, command := range program.commands {
-			if command.binding.Relation != nil {
-				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: command.binding.Ref, Revision: command.binding.Relation.Revision()})
+		b.Dependencies = append(b.Dependencies, program.Events...)
+		for _, command := range program.Commands {
+			if command.Binding.Relation != nil {
+				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: command.Binding.Ref, Revision: command.Binding.Relation.Revision()})
 			}
-			b.Dependencies = append(b.Dependencies, command.binding.Dependencies...)
+			b.Dependencies = append(b.Dependencies, command.Binding.Dependencies...)
 		}
 	} else if err := checkRowSecurityBinding(scope, auth, b); err != nil {
 		return StatementDescription{}, err

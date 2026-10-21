@@ -7,24 +7,16 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 )
 
-// ruleAuthority is the statement authority a rewritten rule command runs
-// under. AuthorizationView implements it; execution recovers the view with
-// ruleAuthorizationOf.
-type ruleAuthority interface {
-	Access() access.View
-	AsUser(authorization.PrincipalRef) ruleAuthority   // the rule owner
-	StorageLocked(ids.ObjectAddress) *storage.Relation // caller holds Engine.mu
-}
-
-var _ ruleAuthority = AuthorizationView{}
+var _ view.RuleAuthority = AuthorizationView{}
 
 // Access returns the privilege view the authority checks against.
 func (v AuthorizationView) Access() access.View { return v.View }
 
 // AsUser returns a copy whose current user is principal; v is unchanged.
-func (v AuthorizationView) AsUser(principal authorization.PrincipalRef) ruleAuthority {
+func (v AuthorizationView) AsUser(principal authorization.PrincipalRef) view.RuleAuthority {
 	v.State.CurrentUser = principal
 	return v
 }
@@ -36,9 +28,9 @@ func (v AuthorizationView) StorageLocked(a ids.ObjectAddress) *storage.Relation 
 }
 
 // ruleAuthorizationOf recovers the full authorization view of a rule
-// command. Every ruleAuthority is an AuthorizationView; anything else is a
+// command. Every view.RuleAuthority is an AuthorizationView; anything else is a
 // programming error.
-func ruleAuthorizationOf(auth ruleAuthority) AuthorizationView {
+func ruleAuthorizationOf(auth view.RuleAuthority) AuthorizationView {
 	v, ok := auth.(AuthorizationView)
 	if !ok {
 		panic(fmt.Sprintf("stuntgres: rule authority %T is not an AuthorizationView", auth))

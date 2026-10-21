@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -171,7 +172,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			private, err := preflightUpdate(&evaluation, original.Update, func(prepared *analyze.UpdateBinding) (plan.Node, error) {
 				current := original
 				current.Update = prepared
-				demanded, err := ruleMutationProducerDemand(current)
+				demanded, err := view.RuleMutationProducerDemand(current)
 				if err != nil {
 					return nil, err
 				}
@@ -226,7 +227,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			template := query.Root.(*plan.ProjectNode)
 			childTemplate := template.Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
 			action := stored.NewRuleAction(stored.RuleActionParts{Syntax: statement, Binding: analyze.Binding{Query: query, CommandQuery: true}})
-			composed, err := composeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
+			composed, err := view.ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -302,7 +303,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			t.Fatal(err)
 		}
 		original := analyze.Binding{Relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}}, Delete: analyze.DeleteBinding{Using: source}, Predicate: predicate}
-		private, err := ruleMutationProducerDemand(original)
+		private, err := view.RuleMutationProducerDemand(original)
 		if err != nil {
 			t.Fatal(err)
 		}

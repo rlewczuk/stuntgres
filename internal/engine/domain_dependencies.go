@@ -18,6 +18,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -222,7 +223,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
 					continue
 				}
-				if materializedExtensionDepends(d, target) {
+				if view.MaterializedExtensionDepends(d, target) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true, Label: "materialized view " + dependencyRelationName(provider.base, d, provider.path)})
 				}
 				if d.Membership != nil && d.Membership.Parent == target {
@@ -256,7 +257,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 				var name string
 				for _, rule := range stored.RulesOf(d) {
-					if ruleDepends(provider.base, rule, target) {
+					if view.RuleDepends(provider.base, rule, target) {
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)
 						}
@@ -264,7 +265,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					}
 				}
 				if d.View != nil {
-					if viewDepends(d, target) {
+					if view.ViewDepends(d, target) {
 						if compositeDefaultOrder {
 							passive, err := provider.passiveViewTypeDependency(d, target)
 							if err != nil {
@@ -300,7 +301,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					}
 				}
 				for _, policy := range d.Security.Policies {
-					if policyDepends(policy, target) {
+					if view.PolicyDepends(policy, target) {
 						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Target: target, Root: root, OID: policy.OID, Label: "policy " + catalog.DependencyIdentifier(policy.Name) + " on table " + name, Relation: d})
 					}
 				}

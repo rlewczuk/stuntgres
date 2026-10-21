@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"slices"
@@ -36,13 +36,13 @@ func ruleQueryHasPseudo(root plan.Node) bool {
 // Transparent stages preserve the expanded input layout; aggregate and final
 // project stages retain their independently analyzed output layouts. Window
 // slots and direct ORDER keys follow the changed input width, not rule counts.
-func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]int) (plan.Node, error) {
+func RuleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]int) (plan.Node, error) {
 	if root == input {
 		return replacement, nil
 	}
 	switch n := root.(type) {
 	case *plan.ProjectNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -53,7 +53,7 @@ func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]in
 		copy.Child = child
 		return &copy, nil
 	case *plan.FilterNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +65,7 @@ func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]in
 		copy.QuerySchema = plan.QuerySchema(child.Schema())
 		return &copy, nil
 	case *plan.SortNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +77,7 @@ func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]in
 		copy.QuerySchema = plan.QuerySchema(child.Schema())
 		return &copy, nil
 	case *plan.LimitNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +89,7 @@ func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]in
 		copy.QuerySchema = plan.QuerySchema(child.Schema())
 		return &copy, nil
 	case *plan.RowLockNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +101,7 @@ func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]in
 		copy.QuerySchema = plan.QuerySchema(child.Schema())
 		return &copy, nil
 	case *plan.EvaluationNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +113,7 @@ func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]in
 		copy.QuerySchema = plan.QuerySchema(child.Schema())
 		return &copy, nil
 	case *plan.AggregateNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +124,7 @@ func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]in
 		copy.Child = child
 		return &copy, nil
 	case *plan.WindowNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +141,7 @@ func ruleGraftSchemas(root, input, replacement plan.Node, windowSlots map[int]in
 		}
 		return &copy, nil
 	case *plan.SetProjectNode:
-		child, err := ruleGraftSchemas(n.Child, input, replacement, windowSlots)
+		child, err := RuleGraftSchemas(n.Child, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}

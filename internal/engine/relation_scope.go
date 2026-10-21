@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -328,7 +329,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
 	parentAuth := auth
 	if err == nil {
-		err = policyPreflight(s.op, auth.View, stmt, true)
+		err = view.PolicyPreflight(s.op, auth.View, stmt, true)
 	}
 	if _, attaching := stmt.(*parser.AlterTableAttachPartition); attaching && err == nil {
 		parentAuth, err = e.partitionAttachAuthorization(s.op, auth)
@@ -363,14 +364,14 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			// CREATE targets only its creation namespace, not a same-named
 			// relation later in the lookup path. Qualified creation needs
 			// CREATE, not USAGE; body lookup retains its independent authority.
-			ns := s.viewCreationOrZero().namespace
-			if s.viewCreationOrZero().changes != nil {
-				auth.Catalog = e.privateCatalogLocked(s.viewCreationOrZero().changes)
+			ns := s.viewCreationOrZero().Namespace
+			if s.viewCreationOrZero().Changes != nil {
+				auth.Catalog = e.privateCatalogLocked(s.viewCreationOrZero().Changes)
 				auth.Recapture(auth.Catalog)
 			}
 			err = auth.CheckCreate(ns)
 			if err == nil {
-				s.viewCreation().namespace = ns
+				s.viewCreation().Namespace = ns
 				address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text})
 				if address != (ids.ObjectAddress{}) {
 					ref = e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
@@ -405,12 +406,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		case *parser.AlterView:
 			if ref.Domain() != nil {
-				err = alterViewAuthority(parentAuth.View, parentAuth, ref, utility)
+				err = view.AlterViewAuthority(parentAuth.View, parentAuth, ref, utility)
 			}
 		}
 		if ownerOnly && !viewReplacement && err == nil {
 			if ref.Domain() != nil {
-				err = parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
+				err = parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: view.PolicyOwnerNoun(stmt)})
 				if _, altering := stmt.(*parser.AlterTable); altering && err == nil {
 					err = table.AlterTableLookupKind(parentAuth.Catalog.MustRelation(ref.Address))
 				}
@@ -582,7 +583,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if authorityErr != nil {
 			return authorityErr
 		}
-		if authorityErr = alterViewAuthority(currentAuth.View, currentAuth, ref, stmt.(*parser.AlterView)); authorityErr != nil {
+		if authorityErr = view.AlterViewAuthority(currentAuth.View, currentAuth, ref, stmt.(*parser.AlterView)); authorityErr != nil {
 			return authorityErr
 		}
 		return ids.ErrCatalogReplaced
@@ -619,9 +620,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return err
 	}
 	if viewReplacement {
-		ns := s.viewCreationOrZero().namespace
-		if s.viewCreationOrZero().changes != nil {
-			auth.Catalog = e.privateCatalogLocked(s.viewCreationOrZero().changes)
+		ns := s.viewCreationOrZero().Namespace
+		if s.viewCreationOrZero().Changes != nil {
+			auth.Catalog = e.privateCatalogLocked(s.viewCreationOrZero().Changes)
 			auth.Recapture(auth.Catalog)
 		}
 		if auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}) != ref.Address {
@@ -655,7 +656,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				return err
 			}
 		}
-		if err := parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
+		if err := parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: view.PolicyOwnerNoun(stmt)}); err != nil {
 			return err
 		}
 		if _, altering := stmt.(*parser.AlterTable); altering {
@@ -754,9 +755,9 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 		}
 	}
 	if s.viewWrite != nil {
-		for _, layer := range s.viewWrite.layers {
-			current, ok := view.Relation(layer.ref.Address)
-			if !ok || current.View != layer.relation.View || !index.SameRelationRowShape(current, layer.relation) {
+		for _, layer := range s.viewWrite.Layers {
+			current, ok := view.Relation(layer.Ref.Address)
+			if !ok || current.View != layer.Relation.View || !index.SameRelationRowShape(current, layer.Relation) {
 				return ids.ErrCatalogReplaced
 			}
 		}
