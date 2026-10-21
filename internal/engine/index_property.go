@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -19,23 +18,13 @@ func (h *statementHost) IndexProperty(kind functions.IndexPropertyKind, oid uint
 		return false, false, nil
 	}
 	if kind == functions.WholeIndexProperty {
-		switch relation.SQLIndex.Method {
-		case catalog.BtreeMethod, catalog.HashMethod, catalog.GistMethod:
-			switch property {
-			case "clusterable":
-				value, known = relation.SQLIndex.Method != catalog.HashMethod, true
-			case "backward_scan":
-				value, known = relation.SQLIndex.Method != catalog.GistMethod, true
-			case "index_scan", "bitmap_scan":
-				value, known = true, true
-			}
-		}
+		value, known = index.Property(relation.SQLIndex, true, 0, property)
 	} else {
 		ordinal, err := ordinalValue.Integer()
 		if err != nil {
 			return false, false, err
 		}
-		value, known = index.ColumnCapability(relation.SQLIndex, ordinal, property)
+		value, known = index.Property(relation.SQLIndex, false, ordinal, property)
 	}
 	return value, known, nil
 }

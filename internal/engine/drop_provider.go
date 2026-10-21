@@ -212,7 +212,7 @@ func (p *dropProvider) observe(address ids.ObjectAddress) {
 	p.prepared.observed[address] = descriptor
 }
 
-func (p *dropProvider) descriptorCount() int {
+func (p *dropProvider) DescriptorCount() int {
 	count := p.base.DescriptorCount()
 	if p.stage != nil {
 		for address := range p.stage.Descriptors() {
@@ -380,7 +380,7 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	return nil
 }
 
-func (p *dropProvider) replacePartitionDescriptor(d *catalog.Relation) error {
+func (p *dropProvider) ReplacePartitionDescriptor(d *catalog.Relation) error {
 	if p.stage != nil {
 		return index.StagePartitionDescriptor(p.stage, d)
 	}

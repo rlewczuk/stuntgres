@@ -161,7 +161,7 @@ func TestPartitionConstraintsAttachmentAdmission(t *testing.T) {
 				f.child.SQLIndex.PartitionParent = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}
 				code = "55000"
 			}
-			err := index.PartitionIndexAttachCheck(op, f.view, f.parent, f.child)
+			err := index.PartitionIndexAttachCheck(op.Context(), f.view, f.parent, f.child)
 			if code == "" {
 				if err != nil {
 					t.Fatal(err)
@@ -1051,7 +1051,7 @@ func TestPartitionConstraintsStructuralEquivalence(t *testing.T) {
 			before := indexMaintenanceCapture(e)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			err = index.PartitionIndexAttachCheck(op, view, &parent, &child)
+			err = index.PartitionIndexAttachCheck(op.Context(), view, &parent, &child)
 			indexMaintenanceUnchanged(t, e, before)
 			if mode == "mapped_expression" {
 				if err != nil {

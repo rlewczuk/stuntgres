@@ -10,54 +10,14 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// stagePartitionIndexDrop and stagePartitionConstraintDrop serve ALTER
+// TABLE and the partition constraint tests; neither needs Engine.mu.
 func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, idx *catalog.Relation) error {
-	if idx.SQLIndex.Constraint != nil {
-		view := e.stageRead(stage)
-		table := view.MustRelation(idx.SQLIndex.Parent)
-		next := *table
-		next.Constraints.Unique = slices.Clone(table.Constraints.Unique)
-		next.ObjectRevision++
-		next.Constraints.Unique = slices.DeleteFunc(next.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Index == idx.Address() })
-		next.Constraints.Exclusion = slices.DeleteFunc(slices.Clone(table.Constraints.Exclusion), func(c catalog.ExclusionConstraint) bool { return c.Index == idx.Address() })
-		if err := index.StagePartitionDescriptor(stage, &next); err != nil {
-			return err
-		}
-	}
-	return stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), idx.Address()))
+	return index.StagePartitionIndexDrop(stage, idx)
 }
 
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
-	view := e.stageRead(stage)
-	for _, descriptor := range view.Descriptors() {
-		table, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		for _, c := range table.Constraints.Unique {
-			if c.Parent != oid {
-				continue
-			}
-			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
-				return err
-			}
-			index := view.MustRelation(c.Index)
-			if err := e.stagePartitionIndexDrop(stage, index); err != nil {
-				return err
-			}
-		}
-		for _, c := range table.Constraints.Exclusion {
-			if c.Parent != oid {
-				continue
-			}
-			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
-				return err
-			}
-			if err := e.stagePartitionIndexDrop(stage, view.MustRelation(c.Index)); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return index.StagePartitionConstraintDrop(stage, oid)
 }
 
 // The caller owns Engine.mu; all exits release it before candidate validation.
@@ -86,10 +46,10 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			if err := index.PartitionIndexDropDependency(view, idx); err != nil {
 				return Result{}, err
 			}
-			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
+			if err := index.StagePartitionConstraintDrop(stage, c.OID); err != nil {
 				return Result{}, err
 			}
-			if err := e.stagePartitionIndexDrop(stage, idx); err != nil {
+			if err := index.StagePartitionIndexDrop(stage, idx); err != nil {
 				return Result{}, err
 			}
 		}
@@ -105,10 +65,10 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			if err := index.PartitionIndexDropDependency(view, idx); err != nil {
 				return Result{}, err
 			}
-			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
+			if err := index.StagePartitionConstraintDrop(stage, c.OID); err != nil {
 				return Result{}, err
 			}
-			if err := e.stagePartitionIndexDrop(stage, idx); err != nil {
+			if err := index.StagePartitionIndexDrop(stage, idx); err != nil {
 				return Result{}, err
 			}
 		}

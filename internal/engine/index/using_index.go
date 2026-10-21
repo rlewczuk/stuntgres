@@ -90,10 +90,22 @@ func UsingIndexCatalogDuplicate(parent *catalog.Relation, name string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_constraint_conrelid_contypid_conname_index"`, Detail: fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", parent.Address().ObjectID, name), Schema: "pg_catalog", Table: "pg_constraint", Constraint: "pg_constraint_conrelid_contypid_conname_index"}
 }
 
-func StagePreparedUsingIndex(op *session.Operation, stage DescriptorStage, parent *catalog.Relation, prepared *UsingIndexPreparation) (*catalog.Relation, error) {
+// UsingIndexStage is what attaching a prepared USING INDEX needs: the stage
+// and the statement's notices. Neither needs Engine.mu, and attaching takes
+// none.
+type UsingIndexStage interface {
+	DescriptorStage() DescriptorStage
+	EmitNotice(session.NoticeLevel, sqlstate.Error)
+}
+
+// StageUsingIndex attaches a prepared USING INDEX to parent: it emits the
+// rename NOTICE, reports the preparation's deferred error, then renames the
+// index and links it to its constraint.
+func StageUsingIndex(h UsingIndexStage, parent *catalog.Relation, prepared *UsingIndexPreparation) (*catalog.Relation, error) {
 	if prepared == nil || prepared.Parent != parent {
 		return nil, ids.ErrCatalogReplaced
 	}
+	stage := h.DescriptorStage()
 	index, clone := prepared.Index, prepared.Replacement
 	current := stage.Get(index.Address())
 	if current == nil {
@@ -103,7 +115,7 @@ func StagePreparedUsingIndex(op *session.Operation, stage DescriptorStage, paren
 		return nil, ids.ErrCatalogReplaced
 	}
 	if prepared.Notice.Code != "" {
-		op.EmitNotice(session.LevelNotice, prepared.Notice)
+		h.EmitNotice(session.LevelNotice, prepared.Notice)
 	}
 	if prepared.Err != nil {
 		return nil, prepared.Err
@@ -122,4 +134,66 @@ func StagePreparedUsingIndex(op *session.Operation, stage DescriptorStage, paren
 // Emit the actual backing index and attach it through the selected ALTER path.
 func UsingIndexDump(index *catalog.Relation) bool {
 	return index.SQLIndex != nil && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Kind == catalog.UniqueBackingKind && len(index.SQLIndex.Include) != 0
+}
+
+// CaptureUsingIndexes captures every ADD ... USING INDEX of actions before
+// any attachment changes an index's name or ownership; the stage already holds
+// the effective DROP and TYPE shape. An index a TYPE change affects is
+// reminted with a new identity first.
+func CaptureUsingIndexes(h Host, parent *catalog.Relation, actions []parser.AlterTableAction, transformations []ColumnTransformation) ([]UsingIndexAttachment, error) {
+	var captured []UsingIndexAttachment
+	for _, action := range actions {
+		if action.Action != parser.AddUsingIndex {
+			continue
+		}
+		raw := action.UsingIndex
+		attachment, err := CaptureUsingIndexDefinition(h.DefinitionReader(), parent, raw)
+		if err != nil {
+			return nil, err
+		}
+		idx, attributes := attachment.Index, attachment.Attributes
+		// A real TYPE reconstruction precedes attachment and gets a new backing
+		// identity. A previous capture of the same index may already have reminted it.
+		if h.StageBase().Get(idx.Address()) != nil && UniqueIndexTypeAffected(idx.SQLIndex, transformations) {
+			id, allocateErr := h.AllocateOID()
+			var revision ids.DefinitionRevision
+			if allocateErr == nil {
+				revision, allocateErr = h.Revision()
+			}
+			if allocateErr != nil {
+				return nil, allocateErr
+			}
+			clone := *idx
+			clone.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+			clone.ObjectRevision = revision
+			clone.Columns = slices.Clone(idx.Columns)
+			for i, attribute := range attributes {
+				clone.Columns[i].Name = parent.Columns[slices.Index(parent.Attributes, attribute)].Name
+				clone.Columns[i].OriginTable = uint32(id)
+			}
+			for i, attribute := range idx.SQLIndex.Include {
+				clone.Columns[len(attributes)+i].Name = parent.Columns[slices.Index(parent.Attributes, attribute)].Name
+				clone.Columns[len(attributes)+i].OriginTable = uint32(id)
+			}
+			for j, column := range clone.Columns {
+				if column.Name != idx.Columns[j].Name {
+					clone.Index = make(map[string]int, len(clone.Columns))
+					for slot, renamed := range clone.Columns {
+						clone.Index[renamed.Name] = slot
+					}
+					break
+				}
+			}
+			err = h.RemoveObject(stageRef(h, idx.Address()), false)
+			if err == nil {
+				err = h.Stage().Create(&clone)
+			}
+			if err != nil {
+				return nil, err
+			}
+			idx = &clone
+		}
+		captured = append(captured, UsingIndexAttachment{Syntax: raw, Index: idx, Attributes: attributes})
+	}
+	return captured, nil
 }

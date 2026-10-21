@@ -84,12 +84,3 @@ func LogicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *e
 	local.Scope, local.Frame, local.Row = 1, 1, row
 	return column.Eval(&local)
 }
-
-func RejectVirtualIndexUses(parent *catalog.Relation, slots []int) error {
-	for _, slot := range slots {
-		if definition, ok := parent.ColumnMeta.Generations[parent.Attributes[slot]]; ok && definition.Kind == catalog.GenerationVirtual {
-			return sqlError("0A000", "indexes on virtual generated columns are not supported")
-		}
-	}
-	return nil
-}

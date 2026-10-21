@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
@@ -161,10 +162,16 @@ func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView
 			}
 		}
 	}
-	if err := e.stageCreateUniques(op, stage, d, b.Create.Uniques); err != nil {
+	h := ddlHost{e: e, op: op, stage: stage}
+	for _, declaration := range b.Create.Uniques {
+		if declaration.Source != nil {
+			stage.captureLikeSource(declaration.Source)
+		}
+	}
+	if err := index.StageCreateUniques(h, d, b.Create.Uniques); err != nil {
 		return err
 	}
-	if err := e.stageCreateExclusions(op, input, auth, stage, d, s); err != nil {
+	if err := index.StageCreateExclusions(h, auth, input, d, s); err != nil {
 		return err
 	}
 	if err := e.stageLikeIndexes(op, auth, stage, d, b.Create.Likes); err != nil {

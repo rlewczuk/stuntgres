@@ -144,7 +144,7 @@ func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 				return nil, diagnostic
 			}
 			if constraint.NotValid && !a.NotValid {
-				return nil, IncompatibleNotValid(constraint.Name, old.Name())
+				return nil, index.IncompatibleNotValid(constraint.Name, old.Name())
 			}
 			if recursion == NotNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
@@ -181,7 +181,7 @@ func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			return old, nil
 		}
 		if a.Action == parser.AddNotNull {
-			return nil, IncompatibleNotValid(old.Constraints.NotNull[idx].Name, old.Name())
+			return nil, index.IncompatibleNotValid(old.Constraints.NotNull[idx].Name, old.Name())
 		}
 		next := *old
 		next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
@@ -214,12 +214,6 @@ func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 	}
 	TransitionPhysicalNotNull(old, &next)
 	return &next, nil
-}
-
-func IncompatibleNotValid(name, table string) error {
-	diagnostic := sqlError("55000", fmt.Sprintf(`incompatible NOT VALID constraint "%s" on relation "%s"`, name, table)).(*sqlstate.Error)
-	diagnostic.Hint = "You might need to validate it using ALTER TABLE ... VALIDATE CONSTRAINT."
-	return diagnostic
 }
 
 // This is the incumbent USING INDEX NN constructor, shared by admission and

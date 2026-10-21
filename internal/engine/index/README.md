@@ -66,8 +66,8 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   `PGIndexFunctionExpression`; `Metadata` (`pg_index`) and
   `IndexesMetadata` (`pg_indexes`) through `ProjectIndexMetadata` and
   `CatalogMetadata`; `MaintenanceGrant`, `WrongKind`, `RelationDropOwner`;
-  `StageBackingIndexRename`, `StagePreparedUsingIndex` over
-  `DescriptorStage`; the `USING INDEX` records; `RootCandidate`,
+  `StageBackingIndexRename` over `DescriptorStage`; the `USING INDEX`
+  records; `RootCandidate`,
   `SimpleConcurrentIndex`; `ReownDomainIndexOutputs`.
 - **Partitioned indexes** (`partition_attach.go`, `partition_drop.go`,
   `partition_unique.go`, `partition_replay.go`, `row_history.go`):
@@ -78,6 +78,12 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   predicates (`PartitionReplay*`, `PartitionPreservedReplayLocal`,
   `PartitionHashReplayTarget`, `PartitionDumpIndexBacking`), and
   `PartitionRowHistory`.
+- **DDL decisions** (23d.1; `host.go`, `create.go`, `bind.go`,
+  `maintenance.go`, `unique_stage.go`, `exclusion_stage.go`, and the
+  staging functions in `alter_type.go`, `exclusion_type.go`,
+  `using_index.go`, `using_index_prepare.go`, `partition_unique.go`,
+  `partition_attach.go`, `partition_drop.go`, `property.go`): see
+  "The DDL host" below.
 
 Names settled in 23b: types and functions lost a leading `index` prefix
 (`indexOrdering` is `Ordering`, `indexJournal` is `Journal`,
@@ -89,6 +95,78 @@ name is capitalized (`exclusionRegistry` is `ExclusionRegistry`,
 `rowPublication` is `RowPublication`, `journalIndexes` is
 `JournalIndexes`). Helpers only the package uses keep their lower-case
 names.
+
+## The DDL host
+
+`Host` is what CREATE INDEX, ALTER/DROP INDEX, REINDEX and the
+constraint-index staging need for one statement: `ddl.Host` plus
+`AddDomainBase`, `RemoveObject`, `TrustedRestoreDestination`,
+`RelationDiagnostic`, the stage's index slot (`IndexStage`), the stage
+itself (`DescriptorStage`), `ACLOutput`, `DefinitionReader`,
+`ValidityTarget` (the stage's drop provider) and the two binding methods
+`BindIndexExpression` and `BindIndexPredicate`: the engine builds binders,
+this package never does. The engine's one staging adapter, `ddlHost`,
+implements it (`index_host.go`). Every method runs with `Engine.mu` held,
+never takes or releases it, and never waits. Narrower contracts:
+
+- `KeyHost` (`AccessView`, `SearchNamespaces`, `LookupCollation`) for key
+  binding and operator class lookup, which read no stage; the analysis
+  host and partition key binding pass a stage-less `ddlHost`.
+- `DropStage` (`DescriptorStage` plus `StageRead` and `RemoveRelation`,
+  implemented by `*CatalogStage`) for DROP INDEX staging, which runs
+  without `Engine.mu`; the removal takes it.
+- `ValidityTarget` (`CoverageReader` plus `DescriptorCount` and
+  `ReplacePartitionDescriptor`, implemented by the engine's drop provider)
+  for the partitioned-index validity pass.
+- `UsingIndexStage` (`DescriptorStage` and `EmitNotice`) for attaching a
+  prepared USING INDEX, which needs no lock; `PrepareUsingIndex` takes only
+  a `ddl.Allocator` and runs under `Engine.mu`.
+
+Entry points:
+
+- CREATE INDEX: `PrepareCreate` (Restore authority, limits, relation kind,
+  CREATE privilege, method and clauses, predicate and attributes, name,
+  unique providers, coverage, identities; `CreatePlan.Skip` for IF NOT
+  EXISTS) and `StageCreate` (the descriptor and partition children).
+- ALTER INDEX ATTACH PARTITION and REINDEX: `StageMaintenance`;
+  `ValidateMaintenance` checks the stage's observations at validation.
+- Binding: `LookupClass`, `BindKey`, `BindAttributes`, `MethodOf`,
+  `RejectVirtualUses`.
+- Constraint indexes, called by table code: `StageUniqueDefinitions`,
+  `StageCreateUniques`, `StageExclusion`, `StageCreateExclusions`,
+  `RebuildAlterUniques`, `RebuildAlterExclusions` (ALTER COLUMN TYPE),
+  `CaptureUsingIndexes`, `PrepareUsingIndex`, `StageUsingIndex`,
+  `IncompatibleNotValid`. The callers own the table edges: they record LIKE
+  sources before unique staging, rebuild NOT NULL between the unique and
+  exclusion rebuilds, and prepare the primary key's NOT NULL constraints
+  before `PrepareUsingIndex`.
+- Partitioned indexes: `StagePartitionIndexChild`,
+  `StagePartitionIndexChildren`, `StagePartitionIndexAttach`,
+  `PartitionIndexValidity`, `PartitionIndexPromotionPath`,
+  `StagePartitionIndexDrop`, `StagePartitionConstraintDrop`.
+- `Property` answers `pg_index_has_property` and
+  `pg_index_column_has_property`.
+
+Names settled in 23d.1 (engine name → `index` name):
+`executeCreateIndex`'s decisions → `PrepareCreate`/`StageCreate`;
+`executeIndexMaintenance`'s staging → `StageMaintenance`;
+`CatalogStage.validateIndexMaintenance` → `ValidateMaintenance` (the method
+stays as a forwarder); `lookupIndexClass` → `LookupClass`; `bindIndexKey`
+→ `BindKey`; `validateSystemIndexKey` → `validateSystemKey`;
+`bindIndexAttributes` → `BindAttributes`; `stageUniqueDefinitions`,
+`stageCreateUniques`, `stageExclusion`, `stageCreateExclusions` →
+`StageUniqueDefinitions`, `StageCreateUniques`, `StageExclusion`,
+`StageCreateExclusions`; `rebuildAlterUniquesLocked`,
+`rebuildAlterExclusionsLocked` → `RebuildAlterUniques`,
+`RebuildAlterExclusions`; `captureUsingIndexes` → `CaptureUsingIndexes`;
+`prepareUsingIndexMetadata` → `PrepareUsingIndex`;
+`StagePreparedUsingIndex` → `StageUsingIndex`; `stagePartitionIndex*` and
+`stagePartitionConstraintDrop` → `StagePartitionIndex*` and
+`StagePartitionConstraintDrop`; `dropProvider.partitionIndexValidity` →
+`PartitionIndexValidity`; `rejectVirtualIndexUses` → `RejectVirtualUses`;
+`incompatibleNotValid` → `IncompatibleNotValid`; the `IndexProperty`
+decision → `Property`. `generatedRelationName` went to `ddl` as
+`GeneratedRelationName`.
 
 ## State slots and registries
 
@@ -119,13 +197,21 @@ The orchestration: the `Engine.mu` windows, the CONCURRENTLY phases and
 their waits, lock admission (`acquireIndexMaintenance`), unique key pins,
 the registry instances, savepoint marks (`exclusionMark`), the Finish
 order, and publication and Restore storage (`prepareIndexCatalog`,
-`catalog_overlay_indexes.go`). The handlers on `Engine` (CREATE INDEX,
-ALTER/DROP INDEX, REINDEX, the constraint-index staging, partitioned-index
-child propagation, `InspectIndex`) and the write-time enforcement on
-`StatementScope` (unique probe and claim, the exclusion probe and
-projection) stay until 23d moves their decisions behind `index.Host` and
-`index.WriteHost`. `exclusionScan` and `uniqueConflict` keep their
-`AuthorizationView` (one allocation per probe otherwise; 23d settles them).
+`catalog_overlay_indexes.go`). `executeCreateIndex` and
+`executeIndexMaintenance` stay as orchestration: the retry loop and lock,
+authorization and identity capture, the stage lifecycle, RENAME, the
+unlocked DROP path with its dependency recording, validation, the
+partitioned-index transaction overlay, publication and the conflict
+recheck. So do `executePartitionConstraintDropLocked`,
+`partitionIndexTransaction`, `stageDomainIndexGenerationsLocked`, SET
+CONSTRAINTS, `InspectIndex`, the `IndexProperty` snapshot read, and thin
+wrappers that build a `ddlHost` for callers outside the moved set
+(`stageUsingIndex`, `prepareUsingIndexMetadata`, `bindIndexKey`,
+`stagePartitionIndexChild`, ...) until table 24d and partition 25d move
+them. The write-time enforcement on `StatementScope` (unique probe and
+claim, the exclusion probe and projection) stays until 23d.2 moves its
+decisions behind `index.WriteHost`. `exclusionScan` and `uniqueConflict`
+keep their `AuthorizationView` (one allocation per probe otherwise).
 
 ## Testing
 
@@ -133,7 +219,7 @@ Package tests: `go test ./internal/engine/index` (the column capability
 matrix). Most index tests build an engine and stay in the root package:
 
 ```sh
-make check RUN='^Test(Index|Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex|PartitionDetach(Unique|UsingIndex)Replay|PartitionAttachIndex)'
+make check RUN='^Test(Index|Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex|PartitionDetach(Unique|UsingIndex)Replay|PartitionAttachIndex|PartitionConstraint|PrimaryKey)'
 make check RACE=1 RUN='^Test(ConcurrentIndex|Exclusion|UniqueClaim|HashIndexMergeCancellation)'
 ```
 

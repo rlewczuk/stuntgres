@@ -921,7 +921,12 @@ listed above. The checks in §8.3 pass.
   CONSTRAINTS stays; `IndexProperty`'s decision becomes `index.Property`.
   23d split into 23d.1 (85a) and 23d.2 (85b); move sets and commit
   sequences written.
-- [ ] 23d.1 — DDL decisions moved (linear item 85a)
+- [x] 23d.1 — DDL decisions moved (linear item 85a; `5e230528b`, `e46899fe6`,
+  `506da64a4`, `a92895430`, then the docs commit). CREATE INDEX, ALTER/DROP INDEX,
+  REINDEX, key binding, UNIQUE/EXCLUDE staging, the ALTER TYPE backing
+  rebuilds, USING INDEX, the partitioned-index staging and `Property` are
+  `index` functions over `index.Host` on `ddlHost`; no aliases. See the
+  23d.1 record.
 - [ ] 23d.2 — Write-time decisions moved (linear item 85b)
 
 Outstanding aliases: none (23b added none).
@@ -1087,6 +1092,95 @@ role 28b). No aliases. Each code commit is rebuilt by a script in
   racecheck, finalcheck and bench skipped at user request (no startup
   change).
 
+### 23d.1 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-INDEX-DDL-DECISIONS`, started
+after table 24b merged (`bdba4968a`; the user chose to wait for it). The
+re-measure found the 23c findings unchanged; 24b had moved
+`incompatibleNotValid`, `rejectVirtualIndexUses` and
+`usingIndexNotNullCandidate` into `table`. Scripts in
+`.cswd/tmp/PG18-ENGINE-SPLIT-INDEX-DDL-DECISIONS/` (`c1.py`, `c4.py`,
+`docs-index.py`).
+
+| Commit | Change |
+|---|---|
+| `5e230528b` | `ddl.GeneratedRelationName`; `table.IncompatibleNotValid` and `table.RejectVirtualIndexUses` down to `index.IncompatibleNotValid` and `index.RejectVirtualUses`; `index.MethodOf`; the dead free `partitionIndexPromotionPath` deleted |
+| `e46899fe6` | Seam, test first: `index.Host`, `KeyHost`, `DropStage`, `ValidityTarget`; `index_host.go`; `CatalogStage.StageRead`/`RemoveRelation`; `dropProvider.DescriptorCount`/`ReplacePartitionDescriptor` |
+| `506da64a4` | Port in place: the decisions as root functions over the host (staging files `idxmv_*.go`), table edges hoisted, lock windows of decision 2 |
+| `a92895430` | Move into `index` (`c4.py`: new `bind.go`, `create.go`, `maintenance.go`, `unique_stage.go`, `exclusion_stage.go`; the rest appended to the existing files) and qualify the root callers |
+
+- **Deviations from the 23c sketch.** (1) `KeyHost` (`AccessView`,
+  `SearchNamespaces`, `LookupCollation`), embedded in `Host`, types
+  `LookupClass` and `BindKey`, so the analysis host and partition key
+  binding pass a stage-less `ddlHost` that cannot reach a nil stage.
+  (2) `DropStage` also has `StageRead`: drop staging reads the candidate
+  catalog. (3) `Host` also has `ValidityTarget()` (the stage's drop
+  provider): `StagePartitionIndexAttach` ends with the validity pass.
+  (4) `StageUsingIndex` (the old `StagePreparedUsingIndex`) takes the
+  narrow `UsingIndexStage` (`DescriptorStage`, `EmitNotice`), not `Host`:
+  attaching needs no lock, and ALTER TABLE and the inheritance consumer
+  keep calling it unlocked as before. (5) `PrepareUsingIndex(a
+  ddl.Allocator, reader, parent, effective, captured)`: the view was only
+  for the hoisted NOT NULL preparation, and `effective` is the prepared
+  parent while `Parent` keeps the original for the attach check.
+  (6) `StageUniqueDefinitions`/`StageCreateUniques` and `StageMaintenance`
+  take no authority (none was used). (7) `ValidateMaintenance` takes the
+  `Stage` slot by value, so a nil slot reads as zero as before.
+- **Table edges.** CREATE TABLE and PARTITION OF record each declaration's
+  LIKE source before `StageCreateUniques`. ALTER TABLE and typed mutation
+  run `rebuildAlterNotNullsLocked` between `RebuildAlterUniques` and
+  `RebuildAlterExclusions`; it now returns its parent for no changes, which
+  keeps the old order (no NOT NULL pass without transformations).
+  `prepareUsingIndexMetadata` runs `table.UsingIndexNotNullCandidate`
+  first unless the capture prepared it.
+- **Lock windows.** ALTER TABLE captures USING INDEX inside the
+  `evolveStageIndexesLocked` window (two windows merge).
+  `prepareUsingIndexMetadata` holds `Engine.mu` across `PrepareUsingIndex`
+  (it only held it around the OID): the stage reader and the inheritance
+  definition reader with its prepared-drop deltas take no lock. DROP INDEX
+  staging stays unlocked; `RemoveRelation` locks through `Remove`. No wait
+  runs under the lock.
+- **CREATE INDEX.** The stage, its authorization and output environment
+  now begin before `PrepareCreate` (no side effects) and are discarded on
+  every early exit, the IF NOT EXISTS skip included; the NOTICE still
+  follows the unlock. The CREATE check is `CheckCreateIn`, whose Restore
+  42501 exception re-checks the trusted Restore authority
+  `TrustedRestoreDestination(auth, "index")` already proved, so the result
+  and the "invalid trusted restore index authority" text are unchanged.
+  `CreatePlan.Namespace` feeds the relocked IF NOT EXISTS recheck.
+- **REINDEX.** The root now discards the stage on every `StageMaintenance`
+  error; the two REINDEX error paths used to skip it, with no effect.
+- **Stays in the root** as thin wrappers over a `ddlHost`:
+  `lookupIndexClass` (analysis host), `bindIndexKey` (partition key
+  binding), `bindIndexAttributes` (unit tests), `stagePartitionIndexChild`
+  and `stagePartitionIndexChildren` (partition ATTACH, PARTITION OF,
+  replay), `stagePartitionIndexAttach` (unit tests),
+  `stagePartitionIndexValidity` (the one-line provider builder),
+  `stagePartitionIndexDrop`/`stagePartitionConstraintDrop` (ALTER TABLE,
+  `executePartitionConstraintDropLocked`, unit tests),
+  `prepareUsingIndexMetadata`/`stageUsingIndex` (ALTER TABLE, inheritance)
+  and the `validateIndexMaintenance` forwarder. The other old entry points
+  are gone; their callers call `index` directly.
+- **Tests.** New `index_host_test.go` (the seam test, observed failing
+  first: host and engine predicate binding agree; `LookupCollation` keeps
+  the 0A000 "collation is unsupported" error). `primary_key_lifecycle_test.go`
+  rebuilds through a helper that calls `index.RebuildAlterUniques` then
+  `rebuildAlterNotNullsLocked`, as ALTER TABLE does;
+  `partition_constraints_test.go` passes `op.Context()` to
+  `PartitionIndexAttachCheck`. None moved or deleted.
+- **Checks.** `frontier` OUT of the ported set was `sqlError` alone;
+  `index` imports nothing above it (`go list`); the string-literal multiset
+  changed only by the shared CREATE check (`"42501"` and one copy of the
+  Restore text) and import paths. Targeted units (293) passed per commit,
+  also with `RACE=1`, as did the concurrent-index, exclusion,
+  `unique_lifetime` and `index_hash_cancellation` units; the reference
+  selection passed in quick mode and quickcheck passed. With `REFERENCE=1`
+  the prompt's selection passed except three `/postgres` leaves of
+  `TestReferenceAlterAddConstraintDiagnostics` (55000 "cannot create
+  not-null constraint"), which fail the same way on a clean `bdba4968a`
+  snapshot (NOT NULL oracle drift). racecheck, finalcheck and bench skipped
+  at user request (no startup change).
+
 ### Notes for later steps
 
 - 23b layering (done in 23b): `index_partition_replay.go` still calls
@@ -1097,6 +1191,14 @@ role 28b). No aliases. Each code commit is rebuilt by a script in
   table prompt sends to `table` (24b), above `index`. 23b must move that
   chain into `index` (it is clean catalog reading) or leave these
   predicates in the root.
+- 23d.2 (85b): 23d.1 did not touch the write path. `index.Host` and the
+  23d.1 functions are DDL-only; `WriteHost` is separate (decision 8).
+- 24d (89): the table handlers already call the `index` staging directly
+  with a `ddlHost`; the wrappers `stageUsingIndex`,
+  `prepareUsingIndexMetadata` and `stagePartitionConstraintDrop` go with
+  their callers. 25d: `stagePartitionIndexChild`/`Children`,
+  `stagePartitionIndexValidity` and `bindIndexKey` (partition keys) go with
+  theirs.
 - 23d: `exclusionScan` and `uniqueConflict` still hold `AuthorizationView`
   (see the 23a record). Settled in 23c (decision 8): they stay root with
   the probe loops, `index` returns the hit, and the root keeps the

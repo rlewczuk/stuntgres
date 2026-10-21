@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -151,7 +152,7 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 	}
 	next := *parent
 	e.mu.Lock()
-	err = e.stageUniqueDefinitions(op, stage, &next, []analyze.UniqueConstraint{{UniqueConstraint: definition}}, true)
+	err = index.StageUniqueDefinitions(ddlHost{e: e, op: op, stage: stage}, &next, []analyze.UniqueConstraint{{UniqueConstraint: definition}}, true)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, err

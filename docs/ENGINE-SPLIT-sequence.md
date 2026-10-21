@@ -499,7 +499,8 @@ set referenced only `sqlError` and `commentLiteral` in the engine.
 - **Inventory corrections (not moved).** `tableKind` and
   `relationDiagnosticKind` are generic relation diagnostics (17 and 11
   non-sequence callers); `generatedRelationName` is the relation-name chooser
-  that index naming shares, so `ownedSequenceName` stays with it;
+  that index naming shares (index 23d.1 moved it to `ddl` as
+  `ddl.GeneratedRelationName`), so `ownedSequenceName` stays with it;
   `regclassNumeric`, `regclassQualifiedName` and `sequenceInputError` are
   regclass input, which stays with the regclass presentation owner like
   `sequence_output.go`; `closedRegclassDefault`/`closedSequenceDefault` name

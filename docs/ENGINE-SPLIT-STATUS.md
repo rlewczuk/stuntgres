@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `9528f845f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86, 87, 90, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
+Last verified against `master` at `bdba4968a` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 90, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -19,7 +19,7 @@ as another broad item (§8); 100 is the only broad item ready.
 - **Upper features, packages:** 91 (partition 25b), 100 (view 27b,
   **broad**).
 - **Upper features, refined:** 88 (table 24c, docs only).
-- **Upper features, decisions:** 85a (index 23d.1).
+- **Upper features, decisions:** 85b (index 23d.2).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -92,6 +92,8 @@ review (item 114) needs it, and that still waits for 98, 110 and 113.
 Item 87 (table 24b) is done, so table 24c (item 88, docs only),
 partition 25b (item 91) and view 27b (item 100, broad) are ready; DML
 29b (item 108) and control 30b (item 112) still wait for 91 and 100.
+Item 85a (index 23d.1) is done, so index 23d.2 (item 85b) is ready; table
+24d (item 89) still waits for 24c (item 88).
 
 ## Task tree
 
@@ -507,8 +509,9 @@ partition 25b (item 91) and view 27b (item 100, broad) are ready; DML
   - [x] 23b — `index` created and clean set moved (`5d34f151d`,
     `b372d8d83`, `0f4efc1d7`, `ef8ed94f9`, docs)
   - [x] 23c — Host refined (docs only) (the docs commit)
-  - [ ] 23d.1 — DDL decisions moved (CREATE INDEX, ALTER/DROP INDEX,
-    REINDEX, constraint and partitioned indexes)
+  - [x] 23d.1 — DDL decisions moved (CREATE INDEX, ALTER/DROP INDEX,
+    REINDEX, constraint and partitioned indexes) (`5e230528b`, `e46899fe6`,
+    `506da64a4`, `a92895430`, docs)
   - [ ] 23d.2 — Write-time decisions moved (unique and exclusion
     enforcement)
 - [ ] **Step 24 — `table`**, with inheritance ([prompt](ENGINE-SPLIT-table.md);
@@ -1155,8 +1158,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     primitives root-only, probe loops root until `dml`; SET CONSTRAINTS
     stays; 23d split into 85a/85b with move sets and commit sequences ·
     docs only, no checks needed
-85a. [ ] Index 23d.1: DDL decisions moved — [index](ENGINE-SPLIT-index.md)
-    23d · needs 84
+85a. [x] Index 23d.1: DDL decisions moved — [index](ENGINE-SPLIT-index.md)
+    23d · needs 84 (`5e230528b`, `e46899fe6`, `506da64a4`, `a92895430`, then the docs commit) ·
+    `index.Host` (with `KeyHost`) on `ddlHost`, `DropStage`,
+    `ValidityTarget`, `UsingIndexStage`; CREATE INDEX, ALTER/DROP INDEX,
+    REINDEX, key binding, UNIQUE/EXCLUDE staging, ALTER TYPE rebuilds,
+    USING INDEX, partitioned-index staging and `Property` in `index`;
+    `ddl.GeneratedRelationName`; table edges hoisted to the callers; no
+    aliases · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 85b. [ ] Index 23d.2: write-time decisions moved —
     [index](ENGINE-SPLIT-index.md) 23d · needs 84, 85a's seam commit
 86. [x] Table 24a: in place — [table](ENGINE-SPLIT-table.md) 24a · needs 72

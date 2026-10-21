@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -61,7 +61,7 @@ func CoverageComplete(r CoverageReader, index *catalog.Relation) bool {
 	return true
 }
 
-func PartitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent, child *catalog.Relation) error {
+func PartitionIndexAttachCheck(ctx context.Context, view catalog.Read, parent, child *catalog.Relation) error {
 	diagnostic := func(code, detail string) error {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(`cannot attach index "%s" as a partition of index "%s"`, child.Name(), parent.Name()), Detail: detail}
 	}
@@ -85,11 +85,11 @@ func PartitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent,
 	if parent.SQLIndex.IsExclusion() || child.SQLIndex.IsExclusion() {
 		return diagnostic("42P17", "The index definitions do not match.")
 	}
-	mapped, err := MapPartitionIndex(op.Context(), view, table, childTable, parent.SQLIndex)
+	mapped, err := MapPartitionIndex(ctx, view, table, childTable, parent.SQLIndex)
 	if err != nil {
 		return err
 	}
-	match, err := PartitionIndexEquivalent(op.Context(), view, childTable, mapped, child.SQLIndex)
+	match, err := PartitionIndexEquivalent(ctx, view, childTable, mapped, child.SQLIndex)
 	if err != nil {
 		return err
 	}
@@ -190,4 +190,103 @@ func ValidatePartitionIndex(view catalog.Read, index, table *catalog.Relation) e
 		}
 	}
 	return nil
+}
+
+// PartitionIndexValidity recomputes the validity of every partitioned index
+// in t. Only explicit ATTACH INDEX can promote that index (promote) and its
+// ancestors; table edge changes preserve invalidity even when coverage
+// becomes complete. Each pass resolves another level; the catalog validator
+// rejects cycles.
+func PartitionIndexValidity(t ValidityTarget, promote ids.ObjectAddress) error {
+	for range t.DescriptorCount() {
+		changed := false
+		for address := range t.Descriptors() {
+			if t.Removed(address) {
+				continue
+			}
+			descriptor := t.LiveDescriptor(address)
+			idx, ok := descriptor.(*catalog.Relation)
+			if !ok || idx.SQLIndex == nil {
+				continue
+			}
+			table, ok := t.LiveDescriptor(idx.SQLIndex.Parent).(*catalog.Relation)
+			if !ok || table.Partition == nil {
+				continue
+			}
+			valid := CoverageComplete(t, idx)
+			if valid && !idx.SQLIndex.Valid && !PartitionIndexPromotionPath(t, promote, idx.Address()) {
+				continue
+			}
+			if idx.SQLIndex.Valid == valid {
+				continue
+			}
+			if idx.Revision() == ids.DefinitionRevision(^uint64(0)) {
+				return fmt.Errorf("stuntgres: definition revision exhausted")
+			}
+			next, definition := *idx, *idx.SQLIndex
+			definition.Valid = valid
+			next.SQLIndex = &definition
+			next.ObjectRevision++
+			if err := t.ReplacePartitionDescriptor(&next); err != nil {
+				return err
+			}
+			changed = true
+		}
+		if !changed {
+			return nil
+		}
+	}
+	return fmt.Errorf("stuntgres: cyclic partition index hierarchy")
+}
+
+// PartitionIndexPromotionPath reports whether target is start or one of its
+// partitioned-index ancestors.
+func PartitionIndexPromotionPath(t ValidityTarget, start, target ids.ObjectAddress) bool {
+	for remaining := t.DescriptorCount(); start != (ids.ObjectAddress{}) && remaining > 0; remaining-- {
+		if start == target {
+			return true
+		}
+		idx, ok := t.LiveDescriptor(start).(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil {
+			return false
+		}
+		start = idx.SQLIndex.PartitionParent
+	}
+	return false
+}
+
+// StagePartitionIndexAttach stages ALTER INDEX parent ATTACH PARTITION child:
+// the partition link, the inherited backing constraint, then the validity
+// pass that may promote parent.
+func StagePartitionIndexAttach(h Host, parent, child *catalog.Relation) error {
+	view := h.StageRead()
+	if err := PartitionIndexAttachCheck(h.Context(), view, parent, child); err != nil {
+		return err
+	}
+	if child.SQLIndex.PartitionParent != parent.Address() {
+		next, definition := *child, *child.SQLIndex
+		definition.PartitionParent = parent.Address()
+		next.SQLIndex = &definition
+		next.ObjectRevision++
+		if err := h.Stage().Replace(&next); err != nil {
+			return err
+		}
+		if parent.SQLIndex.Constraint != nil {
+			table := view.MustRelation(child.SQLIndex.Parent)
+			changed := *table
+			changed.Constraints.Unique = slices.Clone(table.Constraints.Unique)
+			changed.ObjectRevision++
+			for i := range changed.Constraints.Unique {
+				c := &changed.Constraints.Unique[i]
+				if c.Index == child.Address() {
+					c.Parent = parent.SQLIndex.Constraint.OID
+					c.IsLocal = false
+				}
+			}
+			if err := h.Stage().Replace(&changed); err != nil {
+				return err
+			}
+		}
+	}
+	return PartitionIndexValidity(h.ValidityTarget(), parent.Address())
 }

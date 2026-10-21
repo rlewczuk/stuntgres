@@ -6,11 +6,11 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +26,7 @@ func (e *Engine) bindIndexPredicate(op *session.Operation, input sqltype.InputEn
 	if err != nil {
 		return nil, err
 	}
-	if err := table.RejectVirtualIndexUses(parent, binder.Query.Sources[0].Uses); err != nil {
+	if err := index.RejectVirtualUses(parent, binder.Query.Sources[0].Uses); err != nil {
 		return nil, err
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}

@@ -2,10 +2,10 @@ package engine
 
 import (
 	"fmt"
-	"strconv"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -13,38 +13,10 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"unicode/utf8"
 )
 
 func ownedSequenceName(table, column string, used func(string) bool) string {
-	return generatedRelationName(table, column, "seq", used)
-}
-
-func generatedRelationName(table, column, baseLabel string, used func(string) bool) string {
-	for suffix := 0; ; suffix++ {
-		label := baseLabel
-		if suffix != 0 {
-			label += strconv.Itoa(suffix)
-		}
-		left, right := len(table), len(column)
-		for left+right > 63-len(label)-2 {
-			if left > right {
-				left--
-			} else {
-				right--
-			}
-		}
-		for left > 0 && left < len(table) && !utf8.RuneStart(table[left]) {
-			left--
-		}
-		for right > 0 && right < len(column) && !utf8.RuneStart(column[right]) {
-			right--
-		}
-		name := table[:left] + "_" + column[:right] + "_" + label
-		if !used(name) {
-			return name
-		}
-	}
+	return ddl.GeneratedRelationName(table, column, "seq", used)
 }
 
 // Both reciprocal descriptors and initial generator belong to one CREATE stage.

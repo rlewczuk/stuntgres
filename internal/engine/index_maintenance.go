@@ -57,52 +57,16 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
 	stage.indexes().Output = scope.output
-	stage.indexes().Parents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.Parents))
-	for _, ref := range g.Parents {
-		stage.indexes().Parents[ref.Address] = g.Descriptors[ref.Address]
-		stage.domainBases = append(stage.domainBases, g.Descriptors[ref.Address])
-	}
-	stage.indexes().Sets = g.IndexSets
-	for address, observed := range g.Descriptors {
-		if observed.SQLIndex != nil {
-			stage.domainBases = append(stage.domainBases, g.Descriptors[address])
-		}
-	}
-	if _, reindex := stmt.(*parser.Reindex); reindex {
-		stage.indexes().Rebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(g.Indexes))
-		for _, ref := range g.Indexes {
-			stage.indexes().Rebuilds[ref.Address] = g.Descriptors[ref.Address]
-			original := g.Descriptors[ref.Address]
-			if !original.SQLIndex.Ready || !original.SQLIndex.Valid || !original.SQLIndex.Live {
-				next, definition := *original, *original.SQLIndex
-				definition.Ready, definition.Valid, definition.Live = true, true, true
-				next.SQLIndex = &definition
-				if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
-					e.mu.Unlock()
-					return Result{}, fmt.Errorf("stuntgres: index revision exhausted")
-				}
-				next.ObjectRevision++
-				if err := stage.Replace(&next); err != nil {
-					e.mu.Unlock()
-					return Result{}, err
-				}
-			}
-		}
-	}
-	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "attach" {
-		parent := g.Descriptors[g.Targets[0].Address]
-		child := g.Descriptors[g.Attach.Address]
-		if err := e.stagePartitionIndexAttach(scope.op, stage, parent, child); err != nil {
-			e.mu.Unlock()
-			e.DiscardCatalogStage(stage)
-			return Result{}, err
-		}
+	if err := index.StageMaintenance(ddlHost{e: e, op: scope.op, stage: stage}, g, stmt); err != nil {
+		e.mu.Unlock()
+		e.DiscardCatalogStage(stage)
+		return Result{}, err
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, ref := range g.Indexes {
-			if err := e.stagePartitionIndexDrop(stage, g.Descriptors[ref.Address]); err != nil {
+			if err := index.StagePartitionIndexDrop(stage, g.Descriptors[ref.Address]); err != nil {
 				return Result{}, err
 			}
 		}
@@ -139,43 +103,14 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	return Result{}, nil
 }
 
-// Stage observations are checked against the exact current catalog before any
-// work is prepared. The publication loop also fences that catalog at install.
+// validateIndexMaintenance forwards the stage's index observations and the
+// original of a replaced materialized view to index.ValidateMaintenance.
 func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
-	indexes := s.indexesOrZero()
-	if (len(indexes.Parents) > 0 || len(indexes.Rebuilds) > 0 || len(indexes.Sets) > 0) && current.Epoch() != s.Base.Epoch() {
-		return ids.ErrCatalogReplaced
+	var replacedParent ids.ObjectAddress
+	if replacement := s.materializedOrZero().replacement; replacement != nil {
+		replacedParent = replacement.original.Address()
 	}
-	for address, observed := range indexes.Parents {
-		if current.Get(address) != observed {
-			return catalog.Conflict{}
-		}
-	}
-	for address, observed := range indexes.Rebuilds {
-		if observed == nil || observed.SQLIndex == nil || current.Get(address) != observed || s.Base.Get(address) != observed {
-			return catalog.Conflict{}
-		}
-	}
-	for parent, count := range indexes.Sets {
-		actual := 0
-		for address, descriptor := range current.Descriptors() {
-			d, ok := descriptor.(*catalog.Relation)
-			if !ok || d.SQLIndex == nil || d.SQLIndex.Parent != parent {
-				continue
-			}
-			// Replacement observes the existing complete index set; it does
-			// not request REINDEX or replace any index descriptor.
-			replacement := s.materializedOrZero().replacement
-			if indexes.Rebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.Base.Get(address) != d) {
-				return catalog.Conflict{}
-			}
-			actual++
-		}
-		if actual != count {
-			return catalog.Conflict{}
-		}
-	}
-	return nil
+	return index.ValidateMaintenance(s.indexesOrZero(), s.Base, current, replacedParent)
 }
 
 // indexes returns the statement's indexes slot, allocating it on first use.

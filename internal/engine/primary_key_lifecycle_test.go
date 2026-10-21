@@ -6,12 +6,23 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
+
+// rebuildPrimaryKeyTypeLocked rebuilds the unique backings and then the NOT
+// NULL constraints of an ALTER COLUMN TYPE, in the ALTER TABLE order.
+func rebuildPrimaryKeyTypeLocked(e *Engine, stage *CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
+	next, err := index.RebuildAlterUniques(ddlHost{e: e, stage: stage}, parent, transformations)
+	if err != nil {
+		return nil, err
+	}
+	return e.rebuildAlterNotNullsLocked(stage, next, transformations)
+}
 
 func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	e, _, parent, idx := primaryKeyUnitFixture(t)
@@ -21,7 +32,7 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	candidate.Columns = slices.Clone(parent.Columns)
 	candidate.Columns[0].Usage = indexClausesTypes()[sqltype.Int8].Usage()
 	e.mu.Lock()
-	next, err := e.rebuildAlterUniquesLocked(stage, &candidate, []index.ColumnTransformation{{Attribute: parent.Attributes[0]}})
+	next, err := rebuildPrimaryKeyTypeLocked(e, stage, &candidate, []index.ColumnTransformation{{Attribute: parent.Attributes[0]}})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +54,7 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	}
 	for _, transformations := range [][]index.ColumnTransformation{nil, {{Attribute: parent.Attributes[2]}}} {
 		e.mu.Lock()
-		unchanged, err := e.rebuildAlterUniquesLocked(e.BeginCatalogStage(base), parent, transformations)
+		unchanged, err := rebuildPrimaryKeyTypeLocked(e, e.BeginCatalogStage(base), parent, transformations)
 		e.mu.Unlock()
 		if err != nil || unchanged != parent {
 			t.Fatal("unaffected candidate must not remint", unchanged, err)

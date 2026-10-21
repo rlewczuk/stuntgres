@@ -190,7 +190,7 @@ concurrent index creation cannot be missed.
 
 Only unnamed definitions construct a name addition. Its unique internal
 attribute labels are appended whole, with underscores, until the byte length
-first reaches 64; generatedRelationName then performs the release's balanced
+first reaches 64; `ddl.GeneratedRelationName` then performs the release's balanced
 UTF8 clipping. No preliminary 63-byte clipping or spare-byte redistribution is
 performed. Repeated-key labels remain separate from stable parent attributes.
 

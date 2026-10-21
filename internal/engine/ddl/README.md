@@ -34,6 +34,10 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
 - **Helpers**: `Check(h, auth, req)` pairs a view with its own authority as
   the environment, `ObjectRef(h, auth, a)` stamps a reference with the
   view's catalog epoch, and `Notice(h, code, message)` emits a NOTICE.
+  `GeneratedRelationName` (`naming.go`) chooses PostgreSQL's name for an
+  implicit relation (index, owned sequence, LIKE index): table and column
+  clipped to 63 bytes on rune boundaries, then the label with the first
+  free numeric suffix.
 - **`SchemaHost`**: `Host` plus what CREATE and DROP SCHEMA need:
   `StageSchemaTable` (one `CREATE TABLE` element, analyzed as the schema
   owner with the new namespace first in the path, on the host's own copy of

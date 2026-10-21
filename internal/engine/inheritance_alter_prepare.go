@@ -268,7 +268,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		return next, step.added, true, err
 	}
 	if step.using != nil {
-		next, err := index.StagePreparedUsingIndex(scope.op, stage, old, step.using)
+		next, err := index.StageUsingIndex(ddlHost{e: scope.engine(), op: scope.op, stage: stage}, old, step.using)
 		return next, step.added, true, err
 	}
 	return step.next, step.added, true, nil

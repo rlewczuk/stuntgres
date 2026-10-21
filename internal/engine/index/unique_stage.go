@@ -1,26 +1,22 @@
-package engine
+package index
 
 import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) stageCreateUniques(op *session.Operation, stage *CatalogStage, d *catalog.Relation, declarations []analyze.UniqueConstraint) error {
-	return e.stageUniqueDefinitions(op, stage, d, declarations, false)
-}
-
 // CREATE and ALTER share index/provider/ownership construction. ALTER appends
 // only new groups and replaces the existing parent instead of creating it.
-func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogStage, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
+//
+// The caller records each declaration's LIKE source first.
+func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
 			if definition, ok := d.ColumnMeta.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {
@@ -39,9 +35,6 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 	for i := range declarations {
 		d.Constraints.Unique[start+i] = declarations[i].UniqueConstraint
 		d.Constraints.Unique[start+i].IsLocal = true
-		if source := declarations[i].Source; source != nil {
-			stage.captureLikeSource(source)
-		}
 	}
 	local := make(map[string]bool)
 	for _, c := range d.Constraints.NotNull {
@@ -59,7 +52,7 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 	for _, c := range d.Constraints.ForeignKeys {
 		local[c.Name] = true
 	}
-	view := e.stageRead(stage)
+	view := h.StageRead()
 	used := catalog.ConstraintNames(view, d.Namespace(), nil)
 	for name := range local {
 		used[name] = true
@@ -91,7 +84,7 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 		// for PK. Ordinary UNIQUE retains its existing collision precedence.
 		if c.Primary || altering {
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: c.Name}
-			if stage.LookupName(key) != (ids.ObjectAddress{}) {
+			if h.Stage().LookupName(key) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
 		}
@@ -100,36 +93,36 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 		}
 		// Two distinct UNIQUE definitions with the same name collide as relations.
 		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: c.Name}
-		if stage.LookupName(key) != (ids.ObjectAddress{}) {
+		if h.Stage().LookupName(key) != (ids.ObjectAddress{}) {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
-		for _, index := range indices {
-			if index.Name() == c.Name {
+		for _, staged := range indices {
+			if staged.Name() == c.Name {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
 		}
 		used[c.Name] = true
 		var err error
-		c.OID, err = e.catalog.allocateOIDLocked()
+		c.OID, err = h.AllocateOID()
 		if err != nil {
 			return err
 		}
-		id, err := e.catalog.allocateOIDLocked()
+		id, err := h.AllocateOID()
 		if err != nil {
 			return err
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		revision, err := e.catalog.revisionLocked()
+		revision, err := h.Revision()
 		if err != nil {
 			return err
 		}
-		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: index.UniqueBacking(c), Ready: true, Valid: true, Live: true}
+		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: UniqueBacking(c), Ready: true, Valid: true, Live: true}
 		idx := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 		if source := declarations[i-start].Source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.SQLIndex
-			definition.Parent, definition.Constraint = d.Address(), index.UniqueBacking(c)
+			definition.Parent, definition.Constraint = d.Address(), UniqueBacking(c)
 			definition.PartitionParent = ids.ObjectAddress{}
 			definition.Ready, definition.Valid, definition.Live = true, true, true
 			definition.Keys = slices.Clone(source.SQLIndex.Keys)
@@ -138,16 +131,16 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 				if key.Derived == nil {
 					key.Attribute = c.Attributes[j]
 				} else {
-					node, err := stored.RemapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, stage.Base)
+					node, err := stored.RemapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, h.StageBase())
 					if err != nil {
 						return err
 					}
-					execution, err := stored.RemapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, stage.Base)
+					execution, err := stored.RemapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, h.StageBase())
 					if err != nil {
 						return err
 					}
 					derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: d.Attributes}
-					if _, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), stage.Base, e.operationRolesLocked(op))}, Owner: d, Dependencies: &derived.Dependencies}).SQL(op.Context(), stage.Base, node); err != nil {
+					if _, err := (stored.ScalarRenderer{ACLOutput: h.ACLOutput(h.StageBase()), Owner: d, Dependencies: &derived.Dependencies}).SQL(h.Context(), h.StageBase(), node); err != nil {
 						return err
 					}
 					key.Derived = derived
@@ -175,7 +168,7 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
 				if !ok {
-					return index.DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
+					return DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
 				definition.Keys[j] = catalog.IndexKey{Attribute: a, Class: class}
 				column.Nullable, column.NullabilityKnown = true, true
@@ -194,17 +187,23 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 	}
 	var err error
 	if altering {
-		err = stage.Replace(d)
+		err = h.Stage().Replace(d)
 	} else {
-		err = stage.Create(d)
+		err = h.Stage().Create(d)
 	}
 	if err != nil {
 		return err
 	}
-	for _, index := range indices {
-		if err := stage.Create(index); err != nil {
+	for _, staged := range indices {
+		if err := h.Stage().Create(staged); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// StageCreateUniques stages the UNIQUE and PRIMARY KEY constraints of a new
+// table d with their backing indexes.
+func StageCreateUniques(h Host, d *catalog.Relation, declarations []analyze.UniqueConstraint) error {
+	return StageUniqueDefinitions(h, d, declarations, false)
 }

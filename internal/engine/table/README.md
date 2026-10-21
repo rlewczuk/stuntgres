@@ -52,7 +52,8 @@ admission and DML expansion goes to `dml`.
   `DropDependencyReader`), `DefaultReplayDeferrable`,
   `EvaluateGenerations`, `PrepareGenerationProgram`, `GenerationDepends`,
   the virtual-generation rules (`VirtualDestination`,
-  `AdmitColumnVirtualGeneration`, `RejectVirtualIndexUses`), and
+  `AdmitColumnVirtualGeneration`; index uses are `index.RejectVirtualUses`),
+  and
   `DomainDependency`.
 - **Foreign keys** (`foreign_key*.go`): declarations and comparison binding
   (`ForeignKeyDeclarations`, `BindForeignKeyComparison`,
@@ -85,8 +86,8 @@ admission and DML expansion goes to `dml`.
 
 Names settled in 24b: every moved name is capitalized; `tableStage` is
 `Stage`. Helpers only the package uses keep their lower-case names. Index
-23d.1 moves `IncompatibleNotValid` and `RejectVirtualIndexUses` down into
-`index`.
+23d.1 moved `IncompatibleNotValid` and `RejectVirtualIndexUses` down into
+`index` (`index.IncompatibleNotValid`, `index.RejectVirtualUses`).
 
 ## What stays in the engine
 

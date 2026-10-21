@@ -2,8 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
-	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -11,104 +9,16 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// stagePartitionIndexValidity runs the validity pass over the stage. It
+// needs no lock.
 func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote ids.ObjectAddress) error {
-	return stageDropProvider(context.Background(), stage, nil, nil, nil).partitionIndexValidity(promote)
+	return index.PartitionIndexValidity(stageDropProvider(context.Background(), stage, nil, nil, nil), promote)
 }
 
-func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) error {
-	// Only explicit ATTACH INDEX can promote that index and its ancestors.
-	// Table edge changes preserve invalidity even when coverage becomes complete.
-	// Each pass resolves another level; the catalog validator rejects cycles.
-	for range provider.descriptorCount() {
-		changed := false
-		for address := range provider.Descriptors() {
-			if provider.Removed(address) {
-				continue
-			}
-			descriptor := provider.LiveDescriptor(address)
-			idx, ok := descriptor.(*catalog.Relation)
-			if !ok || idx.SQLIndex == nil {
-				continue
-			}
-			table, ok := provider.LiveDescriptor(idx.SQLIndex.Parent).(*catalog.Relation)
-			if !ok || table.Partition == nil {
-				continue
-			}
-			valid := index.CoverageComplete(provider, idx)
-			if valid && !idx.SQLIndex.Valid && !provider.partitionIndexPromotionPath(promote, idx.Address()) {
-				continue
-			}
-			if idx.SQLIndex.Valid == valid {
-				continue
-			}
-			if idx.Revision() == ids.DefinitionRevision(^uint64(0)) {
-				return fmt.Errorf("stuntgres: definition revision exhausted")
-			}
-			next, definition := *idx, *idx.SQLIndex
-			definition.Valid = valid
-			next.SQLIndex = &definition
-			next.ObjectRevision++
-			if err := provider.replacePartitionDescriptor(&next); err != nil {
-				return err
-			}
-			changed = true
-		}
-		if !changed {
-			return nil
-		}
-	}
-	return fmt.Errorf("stuntgres: cyclic partition index hierarchy")
-}
-
-func partitionIndexPromotionPath(view catalog.Read, start, target ids.ObjectAddress) bool {
-	return (&dropProvider{base: view}).partitionIndexPromotionPath(start, target)
-}
-
-func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.ObjectAddress) bool {
-	for remaining := provider.descriptorCount(); start != (ids.ObjectAddress{}) && remaining > 0; remaining-- {
-		if start == target {
-			return true
-		}
-		index, ok := provider.LiveDescriptor(start).(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
-			return false
-		}
-		start = index.SQLIndex.PartitionParent
-	}
-	return false
-}
-
+// stagePartitionIndexAttach serves the partition constraint tests; the caller
+// holds Engine.mu.
 func (e *Engine) stagePartitionIndexAttach(op *session.Operation, stage *CatalogStage, parent, child *catalog.Relation) error {
-	view := e.stageRead(stage)
-	if err := index.PartitionIndexAttachCheck(op, view, parent, child); err != nil {
-		return err
-	}
-	if child.SQLIndex.PartitionParent != parent.Address() {
-		next, definition := *child, *child.SQLIndex
-		definition.PartitionParent = parent.Address()
-		next.SQLIndex = &definition
-		next.ObjectRevision++
-		if err := stage.Replace(&next); err != nil {
-			return err
-		}
-		if parent.SQLIndex.Constraint != nil {
-			table := view.MustRelation(child.SQLIndex.Parent)
-			changed := *table
-			changed.Constraints.Unique = slices.Clone(table.Constraints.Unique)
-			changed.ObjectRevision++
-			for i := range changed.Constraints.Unique {
-				c := &changed.Constraints.Unique[i]
-				if c.Index == child.Address() {
-					c.Parent = parent.SQLIndex.Constraint.OID
-					c.IsLocal = false
-				}
-			}
-			if err := stage.Replace(&changed); err != nil {
-				return err
-			}
-		}
-	}
-	return e.stagePartitionIndexValidity(stage, parent.Address())
+	return index.StagePartitionIndexAttach(ddlHost{e: e, op: op, stage: stage}, parent, child)
 }
 
 func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
