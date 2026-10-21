@@ -124,7 +124,7 @@ lock wait by that frame. Keep both names.
 Query lock admission, `LOCK TABLE` statement handling and relation scopes
 (they combine locks with the catalog), the `pg_locks` projection and engine
 adapters for advisory and blocking-inquiry SQL, predicate-lock (SSI) records,
-safe-snapshot blocking, `Engine.exclusionPending`, the session advisory
+safe-snapshot blocking, the exclusion projection registry (`exclusionRegistry`), the session advisory
 delegate and its `EndReason`, unique-key hashing and comparison
 (`uniqueKeyValues`), and XID assignment. The advisory/blocking immutable nodes
 and family bind/evaluation recipes live in `functions`, not in this manager;

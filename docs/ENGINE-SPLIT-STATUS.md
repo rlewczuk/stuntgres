@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `ca2167c7c` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 86, 90 and 94). Steps 8–17 were
+Last verified against `master` at `92ce8c794` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90 and 94). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,9 +20,9 @@ after each lands.
 
 - **Seams:** 66 (regobj 21c), 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
-- **Upper features, in place:** 82 (index 23a), 99 (view 27a), 103
-  (role 28a).
+- **Upper features, in place:** 99 (view 27a), 103 (role 28a).
 - **Upper features, packages:** 95 (fdw 26b).
+- **DML, in place:** 107 (dml 29a).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -53,6 +53,8 @@ wait for their other items.
 Item 86 (table 24a) is done; table 24b (item 87) still waits for 83,
 and DML 29a (item 107) for 82. Item 94 (fdw 26a) is done, so fdw 26b
 (item 95) is ready; fdw 26c (item 96) then needs 95 and 61.
+Item 82 (index 23a) is done, so DML 29a (item 107) is ready; index 23b
+(item 83) now waits only for 68.
 Item 90 (partition 25a) is done; partition 25b (item 91) still waits
 for table 24b (item 87).
 Item 63 (ddl 20d) is done and closes step 20; only the end-state review
@@ -461,7 +463,8 @@ Item 63 (ddl 20d) is done and closes step 20; only the end-state review
   - [ ] 22d — Aliases removed *(broad)*
 - [ ] **Step 23 — `index`** ([prompt](ENGINE-SPLIT-index.md); 23b needs 22b,
   5i, 10e, 11e)
-  - [ ] 23a — In place: renames, wait and exclusion registries, cuts
+  - [x] 23a — In place: renames, wait and exclusion registries, cuts
+    (`61d7f49b6`, `36cdc6168`, `98ee18fcf`, `dec8ce2ea`, `b29db018c`, `79bc16332`, `040604526`, docs)
   - [ ] 23b — `index` created and clean set moved
   - [ ] 23c — Host refined (docs only)
   - [ ] 23d — Handler decisions moved
@@ -1050,7 +1053,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 
 ### Group J — upper features (steps 23–28)
 
-82. [ ] Index 23a: in place — [index](ENGINE-SPLIT-index.md) 23a · needs —
+82. [x] Index 23a: in place — [index](ENGINE-SPLIT-index.md) 23a · needs —
+    (`61d7f49b6`, `36cdc6168`, `98ee18fcf`, `dec8ce2ea`, `b29db018c`, `79bc16332`, `040604526`, then the docs commit) · files renamed (`index_partition_*.go`,
+    `using_index_prepare.go`, `index_alter_type.go`, `set_constraints.go`,
+    `exclusion_registry.go`, ...); `storage.RowByID`; `indexWaitRegistry`
+    and `exclusionRegistry`; validators over `access.View` and an
+    environment; `prepareIndexPublication` a function; evolution, stage
+    and layout-transport cuts; clean +1.36k (`exclusionScan` and
+    `uniqueConflict` kept for 23d) · selected unit and dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 83. [ ] Index 23b: `index` created, clean set moved —
     [index](ENGINE-SPLIT-index.md) 23b · needs 82, 68, 72, 75, 73
 84. [ ] Index 23c: host refined (docs only) — [index](ENGINE-SPLIT-index.md)
