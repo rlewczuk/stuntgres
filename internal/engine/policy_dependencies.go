@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"iter"
 	"slices"
@@ -43,9 +42,6 @@ func policyDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, p
 		}
 	}
 	return dependents
-}
-func stagePolicyDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) error {
-	return stageDropProvider(context.Background(), stage, nil, nil, nil).policyDependents(targets, mode)
 }
 
 func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode parser.DropMode) error {

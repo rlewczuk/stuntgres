@@ -214,10 +214,6 @@ func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, pat
 	return dependents
 }
 
-func stageRuleDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) error {
-	return stageDropProvider(context.Background(), stage, nil, nil, nil).ruleDependents(targets, mode)
-}
-
 func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode parser.DropMode) error {
 	if mode == parser.DropRestrict {
 		return nil

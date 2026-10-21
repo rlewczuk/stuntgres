@@ -2,7 +2,6 @@ package engine
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"slices"
 	"sort"
@@ -338,11 +337,6 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 	return ordered
 }
 
-func supportedRestrictError(catalog catalog.Read, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, foreign ...domainDependency) error {
-	dependents := supportedDependentLabels(catalog, targets, checks, views, defaults, path, foreign...)
-	return supportedRestrictErrorLabels(catalog, views, path, dependents, false)
-}
-
 func supportedRestrictErrorLabels(catalog catalog.Read, views []viewDependencyEdge, path []ids.ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
@@ -367,18 +361,6 @@ func supportedRestrictErrorLabels(catalog catalog.Read, views []viewDependencyEd
 		message = "cannot drop " + dependencyObject(catalog, target, path) + " because other objects depend on it"
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
-}
-
-func stageViewDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
-	stage.owner.mu.Lock()
-	defer stage.owner.mu.Unlock()
-	return stageViewDependentsLocked(stage, targets, mode, foreign...)
-}
-
-// stageViewDependentsLocked requires the owning engine mutex throughout the
-// coherent closure and removals; no provider callbacks or evaluation occur here.
-func stageViewDependentsLocked(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
-	return stageDropProvider(context.Background(), stage, nil, nil, nil).viewDependents(targets, mode, foreign...)
 }
 
 func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {

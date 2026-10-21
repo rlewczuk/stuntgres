@@ -110,7 +110,7 @@ func temporaryCleanupPreparedStage(t *testing.T, e *Engine, owner, sequence *cat
 			t.Fatal(err)
 		}
 	}
-	if err := stageViewDependents(stage, targets, parser.DropCascade); err != nil {
+	if err := stageDropProvider(context.Background(), stage, nil, nil, nil).applyViewDependents(targets, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	return stage

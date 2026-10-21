@@ -86,19 +86,6 @@ func ruleBindingMaxFrame(b analyze.Binding) uint32 {
 	return max
 }
 
-func rewriteRuleOccurrences(view catalog.Read, root plan.Node, expr expr.Expr, offset int) (plan.Node, expr.Expr, error) {
-	if offset == 0 {
-		return root, expr, nil
-	}
-	mapper := newRuleTreeMapper(view, nil, offset, nil)
-	mapped, err := mapper.query(root)
-	if err != nil {
-		return nil, nil, err
-	}
-	mappedExpr, _, err := mapper.expression(expr)
-	return mapped, mappedExpr, err
-}
-
 func offsetRuleSources(view catalog.Read, b analyze.Binding, offset int, retainedCTEs ...[]*plan.CTEDefinition) (analyze.Binding, error) {
 	if offset == 0 {
 		return b, nil
