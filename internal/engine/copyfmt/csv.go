@@ -1,17 +1,16 @@
-package engine
+package copyfmt
 
 import (
 	"fmt"
 	"io"
 	"strings"
-	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // A record spans arbitrary transport chunks. The raw record is kept for marker
 // classification and diagnostics; no backslash decoding or legacy terminator.
-func (r *copyLineReader) readCSVLine() (present bool, err error) {
+func (r *LineReader) readCSVLine() (present bool, err error) {
 	if r.ended {
 		return false, nil
 	}
@@ -66,9 +65,9 @@ func (r *copyLineReader) readCSVLine() (present bool, err error) {
 			}
 			if r.eol != 0 && r.eol != style {
 				if b == '\r' {
-					return false, r.lineError("unquoted carriage return found in data", "Use quoted CSV field to represent carriage return.")
+					return false, LineError("unquoted carriage return found in data", "Use quoted CSV field to represent carriage return.")
 				}
-				return false, r.lineError("unquoted newline found in data", "Use quoted CSV field to represent newline.")
+				return false, LineError("unquoted newline found in data", "Use quoted CSV field to represent newline.")
 			}
 			r.eol = style
 			present = true
@@ -83,7 +82,7 @@ func (r *copyLineReader) readCSVLine() (present bool, err error) {
 	return present, nil
 }
 
-func (r *copyLineReader) splitCSV(defaultMarkers bool) error {
+func (r *LineReader) splitCSV(defaultMarkers bool) error {
 	r.fields = r.fields[:0]
 	r.decoded = r.decoded[:0]
 	start, begin := 0, 0
@@ -115,26 +114,26 @@ func (r *copyLineReader) splitCSV(defaultMarkers bool) error {
 			}
 		}
 		if quoted {
-			return r.lineError("unterminated CSV quoted field", "")
+			return LineError("unterminated CSV quoted field", "")
 		}
 		raw := r.line[start:i]
 		isNull := !sawQuote && string(raw) == r.options.Null
 		isDefault := defaultMarkers && r.options.HasDefault && string(raw) == r.options.Default
 		if isDefault && len(r.fields) < len(r.targets) {
-			if target := r.targets[len(r.fields)]; !target.hasDefault {
-				d := r.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
-				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", target.name)
+			if target := r.targets[len(r.fields)]; !target.HasDefault {
+				d := LineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
+				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", target.Name)
 				return d
 			}
 		}
-		r.fields = append(r.fields, copyField{start: begin, end: len(r.decoded), quoted: sawQuote, isNull: isNull, isDefault: isDefault})
+		r.fields = append(r.fields, Field{start: begin, end: len(r.decoded), quoted: sawQuote, isNull: isNull, Default: isDefault})
 		start = i + 1
 		begin = len(r.decoded)
 		sawQuote = false
 	}
 	for i := range r.fields {
 		field := &r.fields[i]
-		field.decoded = r.decoded[field.start:field.end]
+		field.Decoded = r.decoded[field.start:field.end]
 	}
 	if len(r.targets) == 0 && len(r.line) == 0 {
 		r.fields = r.fields[:0]
@@ -142,7 +141,10 @@ func (r *copyLineReader) splitCSV(defaultMarkers bool) error {
 	return nil
 }
 
-func appendCopyCSV(dst []byte, text string, o copyfmt.Options, force, single bool) []byte {
+// AppendCSV appends text as a CSV field, quoting it when forced, when it
+// equals the NULL string, when it is a lone \. (single-column output) or
+// when it contains the delimiter, quote or a line break.
+func AppendCSV(dst []byte, text string, o Options, force, single bool) []byte {
 	quote := force || text == o.Null || single && text == `\.` || strings.IndexByte(text, o.Delimiter) >= 0 || strings.IndexByte(text, o.Quote) >= 0 || strings.ContainsAny(text, "\r\n")
 	if !quote {
 		return append(dst, text...)

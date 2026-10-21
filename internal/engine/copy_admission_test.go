@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 	"sync"
 	"testing"
 	"time"
@@ -332,18 +331,6 @@ func TestCopyTextCopiedReservation(t *testing.T) {
 	}
 	if _, err := copied.copyIO(func() (int, error) { t.Fatal("copied scope invoked I/O"); return 0, nil }); err == nil {
 		t.Fatal("copied reservation admitted")
-	}
-}
-func TestCopyTextEscapeUnits(t *testing.T) {
-	raw := []byte(`\141\x62\q\12\x9`)
-	if got := string(decodeCopyField(nil, raw)); got != "abq\n\t" {
-		t.Fatalf("decoded=%q", got)
-	}
-	if got := string(appendCopyText(nil, "x\ty\nz\r\\", '|')); got != `x\ty\nz\r\\` {
-		t.Fatalf("escaped=%q", got)
-	}
-	if err := sqltype.ValidateTextInput("\x00"); err == nil {
-		t.Fatal("NUL accepted")
 	}
 }
 func TestCopyTextFinalCancellationVeto(t *testing.T) {

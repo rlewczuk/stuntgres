@@ -1,49 +1,74 @@
-package engine
+package copyfmt
 
 import (
 	"bufio"
 	"fmt"
 	"io"
-	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
 )
 
-type copyField struct {
-	decoded                   []byte
-	start, end                int
-	quoted, isNull, isDefault bool
+// Field is one split field of the current record. Decoded is valid until
+// the next Split; Default marks a DEFAULT marker. Null input is read through
+// LineReader.FieldNull, which applies the CSV FORCE flags.
+type Field struct {
+	Decoded                 []byte
+	start, end              int
+	quoted, isNull, Default bool
 }
 
-// copyTarget describes one COPY input field for header checks and DEFAULT
+// Target describes one COPY input field for header checks and DEFAULT
 // markers, so the line codec does not read the statement binding.
-type copyTarget struct {
-	name       string
-	hasDefault bool
+type Target struct {
+	Name       string
+	HasDefault bool // a DEFAULT marker is allowed for this column
 }
 
-// copyLineReader is the text and CSV codec: it frames records, splits and
+// LineReader is the text and CSV codec: it frames records, splits and
 // decodes fields and checks the header line. It reuses its buffers across
 // records and knows nothing of the statement executing the COPY.
-type copyLineReader struct {
-	options                      copyfmt.Options
+type LineReader struct {
+	options                      Options
 	reader                       *bufio.Reader
 	line, decoded                []byte
-	fields                       []copyField
-	targets                      []copyTarget
+	fields                       []Field
+	targets                      []Target
 	number                       int64
 	eol                          byte
 	ended, headerDone, lineValid bool
 }
 
-func (r *copyLineReader) lineError(message string, hint string) error {
+// NewLineReader reads text or CSV records (by options.Format) from reader.
+// targets are built once per statement.
+func NewLineReader(options Options, reader *bufio.Reader, targets []Target) LineReader {
+	return LineReader{options: options, reader: reader, targets: targets}
+}
+
+// Fields returns the fields of the last Split, valid until the next Split.
+func (r *LineReader) Fields() []Field { return r.fields }
+
+// Number is the current line number, for the "COPY t, line N" context.
+func (r *LineReader) Number() int64 { return r.number }
+
+// Line returns the raw current record, valid until the next ReadLine.
+func (r *LineReader) Line() []byte { return r.line }
+
+// LineValid reports whether the current record was read whole and passed
+// text-input validation, so it may be quoted in a diagnostic.
+func (r *LineReader) LineValid() bool { return r.lineValid }
+
+// LineError is a 22P04 COPY data error with an optional hint.
+func LineError(message, hint string) error {
 	d := sqlError("22P04", message).(*sqlstate.Error)
 	d.Hint = hint
 	return d
 }
-func (r *copyLineReader) readLine() (present bool, err error) {
-	if r.options.Format == copyfmt.CSV {
+
+// ReadLine reads the next record. It returns present=false at the end of
+// data, which is the end of input or, in text format, the \. marker.
+func (r *LineReader) ReadLine() (present bool, err error) {
+	if r.options.Format == CSV {
 		return r.readCSVLine()
 	}
 	if r.ended {
@@ -88,10 +113,10 @@ func (r *copyLineReader) readLine() (present bool, err error) {
 					}
 				}
 				if len(r.line) != 0 || style == 0 {
-					return false, r.lineError("end-of-copy marker is not alone on its line", "")
+					return false, LineError("end-of-copy marker is not alone on its line", "")
 				}
 				if r.eol != 0 && style != r.eol {
-					return false, r.lineError("end-of-copy marker does not match previous newline style", "")
+					return false, LineError("end-of-copy marker does not match previous newline style", "")
 				}
 				r.ended = true
 				return false, nil
@@ -112,9 +137,9 @@ func (r *copyLineReader) readLine() (present bool, err error) {
 			}
 			if r.eol != 0 && r.eol != style {
 				if b == '\r' {
-					return false, r.lineError("literal carriage return found in data", `Use "\r" to represent carriage return.`)
+					return false, LineError("literal carriage return found in data", `Use "\r" to represent carriage return.`)
 				}
-				return false, r.lineError("literal newline found in data", `Use "\n" to represent newline.`)
+				return false, LineError("literal newline found in data", `Use "\n" to represent newline.`)
 			}
 			r.eol = style
 			present = true
@@ -128,7 +153,7 @@ func (r *copyLineReader) readLine() (present bool, err error) {
 	r.lineValid = true
 	return present, nil
 }
-func copyHex(b byte) (byte, bool) {
+func hexDigit(b byte) (byte, bool) {
 	switch {
 	case b >= '0' && b <= '9':
 		return b - '0', true
@@ -139,7 +164,9 @@ func copyHex(b byte) (byte, bool) {
 	}
 	return 0, false
 }
-func decodeCopyField(dst, raw []byte) []byte {
+
+// decodeField appends raw with text-format backslash escapes decoded.
+func decodeField(dst, raw []byte) []byte {
 	for i := 0; i < len(raw); i++ {
 		b := raw[i]
 		if b != '\\' {
@@ -166,11 +193,11 @@ func decodeCopyField(dst, raw []byte) []byte {
 			b = '\v'
 		case 'x':
 			if i+1 < len(raw) {
-				if h, ok := copyHex(raw[i+1]); ok {
+				if h, ok := hexDigit(raw[i+1]); ok {
 					i++
 					b = h
 					if i+1 < len(raw) {
-						if h, ok := copyHex(raw[i+1]); ok {
+						if h, ok := hexDigit(raw[i+1]); ok {
 							i++
 							b = b*16 + h
 						}
@@ -190,8 +217,11 @@ func decodeCopyField(dst, raw []byte) []byte {
 	}
 	return dst
 }
-func (r *copyLineReader) split(defaultMarkers bool) error {
-	if r.options.Format == copyfmt.CSV {
+
+// Split splits and decodes the current record into Fields. With
+// defaultMarkers, a field equal to the DEFAULT string is a DEFAULT marker.
+func (r *LineReader) Split(defaultMarkers bool) error {
+	if r.options.Format == CSV {
 		return r.splitCSV(defaultMarkers)
 	}
 	r.fields = r.fields[:0]
@@ -210,23 +240,23 @@ func (r *copyLineReader) split(defaultMarkers bool) error {
 		isNull := string(raw) == r.options.Null
 		isDefault := defaultMarkers && r.options.HasDefault && string(raw) == r.options.Default
 		if isDefault && len(r.fields) < len(r.targets) {
-			if target := r.targets[len(r.fields)]; !target.hasDefault {
-				d := r.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
-				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", target.name)
+			if target := r.targets[len(r.fields)]; !target.HasDefault {
+				d := LineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
+				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", target.Name)
 				return d
 			}
 		}
 		if !isNull && !isDefault {
-			r.decoded = decodeCopyField(r.decoded, raw)
+			r.decoded = decodeField(r.decoded, raw)
 		}
 		// Offsets rather than slices survive growth of the reusable decode buffer.
-		r.fields = append(r.fields, copyField{start: begin, end: len(r.decoded), isNull: isNull, isDefault: isDefault})
+		r.fields = append(r.fields, Field{start: begin, end: len(r.decoded), isNull: isNull, Default: isDefault})
 		start = i + 1
 	}
 	for i := range r.fields {
 		field := &r.fields[i]
-		field.decoded = r.decoded[field.start:field.end]
-		if err := sqltype.ValidateTextInput(string(r.fields[i].decoded)); err != nil {
+		field.Decoded = r.decoded[field.start:field.end]
+		if err := sqltype.ValidateTextInput(string(r.fields[i].Decoded)); err != nil {
 			return err
 		}
 	}
@@ -236,9 +266,9 @@ func (r *copyLineReader) split(defaultMarkers bool) error {
 	return nil
 }
 
-// header consumes the HEADER line once, before the first record, and checks
+// Header consumes the HEADER line once, before the first record, and checks
 // it against the target names under HEADER MATCH.
-func (r *copyLineReader) header() error {
+func (r *LineReader) Header() error {
 	if r.headerDone {
 		return nil
 	}
@@ -246,43 +276,45 @@ func (r *copyLineReader) header() error {
 	if r.options.Header == 0 {
 		return nil
 	}
-	_, err := r.readLine()
+	_, err := r.ReadLine()
 	if err != nil {
 		return err
 	}
 	if r.options.Header != 2 {
 		return nil
 	}
-	if err = r.split(false); err != nil {
+	if err = r.Split(false); err != nil {
 		return err
 	}
 	if len(r.fields) != len(r.targets) {
-		return r.lineError(fmt.Sprintf("wrong number of fields in header line: got %d, expected %d", len(r.fields), len(r.targets)), "")
+		return LineError(fmt.Sprintf("wrong number of fields in header line: got %d, expected %d", len(r.fields), len(r.targets)), "")
 	}
 	for i, field := range r.fields {
-		name := r.targets[i].name
+		name := r.targets[i].Name
 		if field.isNull {
-			return r.lineError(fmt.Sprintf("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"", i+1, r.options.Null, name), "")
+			return LineError(fmt.Sprintf("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"", i+1, r.options.Null, name), "")
 		}
-		if string(field.decoded) != name {
-			return r.lineError(fmt.Sprintf("column name mismatch in header line field %d: got \"%s\", expected \"%s\"", i+1, string(field.decoded), name), "")
+		if string(field.Decoded) != name {
+			return LineError(fmt.Sprintf("column name mismatch in header line field %d: got \"%s\", expected \"%s\"", i+1, string(field.Decoded), name), "")
 		}
 	}
 	return nil
 }
 
-// fieldNull applies the CSV FORCE_NOT_NULL and FORCE_NULL flags to field i.
-func (r *copyLineReader) fieldNull(i int) bool {
+// FieldNull applies the CSV FORCE_NOT_NULL and FORCE_NULL flags to field i.
+func (r *LineReader) FieldNull(i int) bool {
 	field := r.fields[i]
-	if r.options.Format != copyfmt.CSV {
+	if r.options.Format != CSV {
 		return field.isNull
 	}
 	if field.isNull {
-		return !copyfmt.Forced(r.options.NotNullFields, i)
+		return !Forced(r.options.NotNullFields, i)
 	}
-	return field.quoted && copyfmt.Forced(r.options.NullFields, i) && string(field.decoded) == r.options.Null
+	return field.quoted && Forced(r.options.NullFields, i) && string(field.Decoded) == r.options.Null
 }
-func copyContextValue(text string) string {
+
+// ContextValue truncates a value quoted in a COPY diagnostic context.
+func ContextValue(text string) string {
 	if len(text) <= 100 {
 		return text
 	}
@@ -292,7 +324,9 @@ func copyContextValue(text string) string {
 	}
 	return text[:end] + "..."
 }
-func appendCopyText(dst []byte, text string, delimiter byte) []byte {
+
+// AppendText appends text in COPY text format, escaping the delimiter.
+func AppendText(dst []byte, text string, delimiter byte) []byte {
 	for i := range len(text) {
 		b := text[i]
 		switch b {
