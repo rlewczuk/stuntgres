@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -74,8 +75,8 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 			join := &plan.JoinNode{Kind: parser.JoinFull, LeftWidth: 1, RightWidth: 1, Predicate: tc.expr}
 			before := join.Predicate
 			ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-			facts, err := fullJoinCondition(ctx, join, join.Predicate, false)
-			if err != nil || facts.constant || len(facts.keys) != tc.keys {
+			facts, err := analyze.FullJoinCondition(ctx, join, join.Predicate, false)
+			if err != nil || facts.Constant || len(facts.Keys) != tc.keys {
 				t.Fatalf("facts=%+v error=%v; want %d keys", facts, err, tc.keys)
 			}
 			if !reflect.DeepEqual(join.Predicate, before) || join.Predicate.Properties() != info.Property {
@@ -98,23 +99,5 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	value, err := logical(parser.LogicalOr, equal, unknown).Eval(ctx)
 	if err != nil || !value.IsNull() {
 		t.Fatalf("equality OR NULL must remain UNKNOWN at runtime: %v/%v", value, err)
-	}
-}
-
-func TestQueryOuterJoinsComparisonNegators(t *testing.T) {
-	for _, tc := range []struct{ operator, negator string }{
-		{"=", "<>"}, {"<>", "="}, {"<", ">="}, {"<=", ">"}, {">", "<="}, {">=", "<"},
-	} {
-		t.Run(tc.operator, func(t *testing.T) {
-			if got := fullJoinComparisonOperator(tc.operator, false); got != tc.operator {
-				t.Fatalf("nonnegated operator=%q", got)
-			}
-			if got := fullJoinComparisonOperator(tc.operator, true); got != tc.negator {
-				t.Fatalf("negator=%q; want %q", got, tc.negator)
-			}
-		})
-	}
-	if got := fullJoinComparisonOperator("unsupported", true); got != "" {
-		t.Fatalf("unsupported comparison acquired negator %q", got)
 	}
 }

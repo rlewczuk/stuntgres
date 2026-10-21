@@ -108,7 +108,7 @@ func TestStringSplitRowMarks(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			project := &plan.ProjectNode{Syntax: raw, Child: tc.node, HasTargetSet: true}
-			err := queryRowLockLegality(project, lock.ForUpdate)
+			err := analyze.QueryRowLockLegality(project, lock.ForUpdate)
 			if tc.marked != (err != nil) || err != nil && !strings.Contains(err.Error(), "set-returning functions in the target list") {
 				t.Fatal(tc.name, err)
 			}

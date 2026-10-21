@@ -118,6 +118,47 @@ func ClosedSequenceDefault(node expr.Expr) bool {
 	return false
 }
 
+// ClosedRegclassDefault reports whether node is a closed regclass default:
+// literals under coercion, row, field, array and subscript wrappers only.
+func ClosedRegclassDefault(node expr.Expr) bool {
+	if node == nil || node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().StageDependent {
+		return false
+	}
+	switch n := node.(type) {
+	case plan.LiteralExpr:
+		return true
+	case plan.CoercionExpr:
+		return ClosedRegclassDefault(n.Child)
+	case plan.RowExpr:
+		for _, field := range n.Fields {
+			if !ClosedRegclassDefault(field) {
+				return false
+			}
+		}
+		return true
+	case plan.FieldExpr:
+		return ClosedRegclassDefault(n.Base)
+	case plan.ArrayExpr:
+		for _, element := range n.Elements {
+			if !ClosedRegclassDefault(element) {
+				return false
+			}
+		}
+		return true
+	case plan.SubscriptExpr:
+		if !ClosedRegclassDefault(n.Base) {
+			return false
+		}
+		for _, s := range n.Subscripts {
+			if s.Lower != nil && !ClosedRegclassDefault(s.Lower) || s.Upper != nil && !ClosedRegclassDefault(s.Upper) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 // Only selected time leaves may introduce volatility into this closed default.
 // Other volatile producers retain their separately owned admission rules.
 func ClosedTransactionTimeDefault(node expr.Expr) bool {

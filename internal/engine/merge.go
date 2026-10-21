@@ -81,7 +81,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 		}
 	}
 	if merge.HasBySource && merge.HasByTarget {
-		var facts fullJoinFacts
+		var facts analyze.FullJoinFacts
 		var err error
 		properties := merge.On.Properties()
 		_, literal := merge.On.(plan.LiteralExpr)
@@ -92,16 +92,16 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 			var value sqltype.Value
 			value, err = merge.On.Eval(&owner)
 			if err == nil {
-				facts.truth, err = mergeOnTruth(value)
-				facts.constant = true
+				facts.Truth, err = mergeOnTruth(value)
+				facts.Constant = true
 			}
 		} else {
-			facts, err = fullJoinCondition(&owner, &plan.JoinNode{LeftWidth: merge.TargetWidth, RightWidth: merge.SourceWidth}, merge.On, false)
+			facts, err = analyze.FullJoinCondition(&owner, &plan.JoinNode{LeftWidth: merge.TargetWidth, RightWidth: merge.SourceWidth}, merge.On, false)
 		}
 		if err != nil {
 			return err
 		}
-		if !facts.constant && len(facts.keys) == 0 {
+		if !facts.Constant && len(facts.Keys) == 0 {
 			return sqlError("0A000", "FULL JOIN is only supported with merge-joinable or hash-joinable join conditions")
 		}
 	}

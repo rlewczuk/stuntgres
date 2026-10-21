@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // Planning-only restrictions run on execution-owned parameters, never Prepare.
@@ -22,47 +21,6 @@ func validateQueryJoinExecution(c *exec.Context, node plan.Node, catalog catalog
 		reads[source.Occurrence] = nil
 	}
 	return validateMarkedQueryJoin(c, node, catalog, nil, plan.RowMark{Mode: inherited}, false, nil, reads)
-}
-
-func firstNullableQueryMark(a, b plan.RowMark) plan.RowMark {
-	if a.Mode == 0 {
-		return b
-	}
-	if b.Mode != 0 && b.Order < a.Order {
-		return b
-	}
-	return a
-}
-
-func nullableQueryRowMark(node plan.Node, marks []plan.RowMark, inherited plan.RowMark) plan.RowMark {
-	switch n := node.(type) {
-	case *plan.SourceNode:
-		return queryOccurrenceMark(marks, n.Occurrence, inherited)
-	case *plan.DerivedNode:
-		if n.CTE != nil {
-			return plan.RowMark{}
-		}
-		return nullableQueryRowMark(n.Query.Root, marks, inherited)
-	case *plan.JoinNode:
-		return firstNullableQueryMark(nullableQueryRowMark(n.Left, marks, inherited), nullableQueryRowMark(n.Right, marks, inherited))
-	case *plan.RowLockNode:
-		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *plan.LimitNode:
-		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *plan.EvaluationNode:
-		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *plan.FilterNode:
-		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *plan.ProjectNode:
-		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *plan.SortNode:
-		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *plan.AggregateNode:
-		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *plan.SetProjectNode:
-		return nullableQueryRowMark(n.Child, marks, inherited)
-	}
-	return plan.RowMark{}
 }
 
 // Mutation targets and RETURNING are planned even when their input selects no
@@ -310,7 +268,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	case *plan.WorktableScanNode:
 		return nil
 	case *plan.SourceNode:
-		mark := queryOccurrenceMark(marks, n.Occurrence, inherited)
+		mark := analyze.QueryOccurrenceMark(marks, n.Occurrence, inherited)
 		if d, ok := view.Relation(n.Ref.Address); ok && d.RelationKind == catalog.ViewRelation {
 			if err := viewRowLockLegality(viewOf(d), analyze.RowLockDiagnostic(mark)); err != nil {
 				return err
@@ -353,20 +311,20 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	case *plan.JoinNode:
 		mark := plan.RowMark{}
 		if n.Kind == parser.JoinLeft || n.Kind == parser.JoinFull {
-			mark = nullableQueryRowMark(n.Right, marks, inherited)
+			mark = analyze.NullableQueryRowMark(n.Right, marks, inherited)
 		}
 		if n.Kind == parser.JoinRight || n.Kind == parser.JoinFull {
-			mark = firstNullableQueryMark(mark, nullableQueryRowMark(n.Left, marks, inherited))
+			mark = analyze.FirstNullableQueryMark(mark, analyze.NullableQueryRowMark(n.Left, marks, inherited))
 		}
 		if mark.Mode != 0 {
 			return sqlError("0A000", analyze.RowLockClause(mark.Mode)+" cannot be applied to the nullable side of an outer join")
 		}
 		if n.Kind == parser.JoinFull && !emptyInput {
-			facts, err := fullJoinCondition(c, n, n.Predicate, false)
+			facts, err := analyze.FullJoinCondition(c, n, n.Predicate, false)
 			if err != nil {
 				return err
 			}
-			if !facts.constant && len(facts.keys) == 0 {
+			if !facts.Constant && len(facts.Keys) == 0 {
 				return sqlError("0A000", "FULL JOIN is only supported with merge-joinable or hash-joinable join conditions")
 			}
 		}
@@ -419,218 +377,6 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 		return err
 	}
 	return validateMarkedQueryJoin(c, right, view, marks, inherited, emptyInput, ignoredProject, reads)
-}
-
-// Every key is an effective equality. Keep only its ordered, bound operands:
-// the original predicate/provider remains untouched, including under NOT.
-type fullJoinKey struct {
-	left, right expr.Expr
-}
-
-type fullJoinFacts struct {
-	constant bool
-	truth    plan.Truth
-	keys     []fullJoinKey
-}
-
-// Keys are actual conjuncts, not merely equality syntax somewhere in the tree.
-// OR retains only structurally common keys in the same operand order. NOT is
-// pushed through Boolean nodes with SQL three-valued truth. At the resulting
-// match boundary, FALSE and UNKNOWN both reject a pair.
-func fullJoinCondition(c *exec.Context, join *plan.JoinNode, bound expr.Expr, negate bool) (fullJoinFacts, error) {
-	if bound == nil {
-		return fullJoinFacts{constant: true, truth: plan.True}, nil
-	}
-	p := bound.Properties()
-	// Pruning preserves analyzed dependencies even on a physical literal.
-	// Those properties still govern metadata/ACLs, not its planning truth.
-	_, literal := bound.(plan.LiteralExpr)
-	if literal || p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion {
-		value, err := bound.Eval(c)
-		if err != nil {
-			return fullJoinFacts{}, err
-		}
-		truth, err := plan.TruthOf(value)
-		if negate && truth != plan.Unknown {
-			if truth == plan.True {
-				truth = plan.False
-			} else {
-				truth = plan.True
-			}
-		}
-		return fullJoinFacts{constant: true, truth: truth}, err
-	}
-	if e, ok := bound.(plan.LogicalExpr); ok {
-		if e.Op == parser.LogicalNot {
-			return fullJoinCondition(c, join, e.Left, !negate)
-		}
-		a, err := fullJoinCondition(c, join, e.Left, negate)
-		if err != nil {
-			return fullJoinFacts{}, err
-		}
-		b, err := fullJoinCondition(c, join, e.Right, negate)
-		if err != nil {
-			return fullJoinFacts{}, err
-		}
-		and := e.Op == parser.LogicalAnd
-		if negate {
-			and = !and
-		}
-		if a.constant && b.constant {
-			truth := plan.Unknown
-			if and {
-				if a.truth == plan.False || b.truth == plan.False {
-					truth = plan.False
-				} else if a.truth == plan.True && b.truth == plan.True {
-					truth = plan.True
-				}
-			} else {
-				if a.truth == plan.True || b.truth == plan.True {
-					truth = plan.True
-				} else if a.truth == plan.False && b.truth == plan.False {
-					truth = plan.False
-				}
-			}
-			return fullJoinFacts{constant: true, truth: truth}, nil
-		}
-		if and {
-			if a.constant && a.truth == plan.False || b.constant && b.truth == plan.False {
-				return fullJoinFacts{constant: true, truth: plan.False}, nil
-			}
-			if a.constant && a.truth == plan.True {
-				return b, nil
-			}
-			if b.constant && b.truth == plan.True {
-				return a, nil
-			}
-			return fullJoinFacts{keys: append(a.keys, b.keys...)}, nil
-		}
-		if a.constant && a.truth == plan.True || b.constant && b.truth == plan.True {
-			return fullJoinFacts{constant: true, truth: plan.True}, nil
-		}
-		if a.constant && a.truth != plan.True {
-			return b, nil
-		}
-		if b.constant && b.truth != plan.True {
-			return a, nil
-		}
-		var common []fullJoinKey
-		binder := analyze.Binder{}
-		for _, left := range a.keys {
-			for _, right := range b.keys {
-				if binder.SameGroupExpression(left.left, right.left) && binder.SameGroupExpression(left.right, right.right) {
-					common = append(common, left)
-					break
-				}
-			}
-		}
-		return fullJoinFacts{keys: common}, nil
-	}
-	if e, ok := bound.(plan.CaseExpr); ok {
-		var test sqltype.Value
-		if e.Test != nil {
-			p := e.Test.Properties()
-			if p.Volatility != expr.Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
-				return fullJoinFacts{}, nil
-			}
-			var err error
-			test, err = e.Test.Eval(c)
-			if err != nil {
-				return fullJoinFacts{}, err
-			}
-		}
-		for _, arm := range e.Arms {
-			p := arm.Condition.Properties()
-			if p.Volatility != expr.Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
-				return fullJoinFacts{}, nil
-			}
-			condition, err := arm.Condition.Eval(c)
-			if err != nil {
-				return fullJoinFacts{}, err
-			}
-			match := false
-			if e.Test == nil {
-				truth, err := plan.TruthOf(condition)
-				if err != nil {
-					return fullJoinFacts{}, err
-				}
-				match = truth == plan.True
-			} else {
-				if arm.TestPlan.ChecksDomain() {
-					return fullJoinFacts{}, nil
-				}
-				view, err := arm.TestPlan.Apply(c.Context, test, c.Input, c.Output)
-				if err != nil {
-					return fullJoinFacts{}, err
-				}
-				if !view.IsNull() && !condition.IsNull() {
-					equal, err := arm.Equality.EqualValues(c.Context, view, condition, c.Input)
-					if err != nil {
-						return fullJoinFacts{}, err
-					}
-					match = equal
-				}
-			}
-			if match {
-				return fullJoinCondition(c, join, arm.Result, negate)
-			}
-		}
-		return fullJoinCondition(c, join, e.Otherwise, negate)
-	}
-	if e, ok := bound.(plan.ConditionalExpr); ok && e.Kind == parser.Coalesce {
-		for _, arg := range e.Args {
-			p := arg.Properties()
-			if p.Volatility != expr.Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
-				// Dropping preceding constant NULLs still leaves COALESCE,
-				// not a bare equality key, even with one remaining argument.
-				break
-			}
-			value, err := arg.Eval(c)
-			if err != nil {
-				return fullJoinFacts{}, err
-			}
-			if !value.IsNull() {
-				return fullJoinCondition(c, join, arg, negate)
-			}
-		}
-	}
-	if e, ok := bound.(plan.ComparisonExpr); ok && fullJoinComparisonOperator(e.Operator, negate) == "=" {
-		left, err := plan.JoinExpressionSides(e.Left, join.LeftWidth, join.RightWidth)
-		if err != nil {
-			return fullJoinFacts{}, err
-		}
-		right, err := plan.JoinExpressionSides(e.Right, join.LeftWidth, join.RightWidth)
-		if err != nil {
-			return fullJoinFacts{}, err
-		}
-		if e.Left.Properties().Volatility != expr.Volatile && e.Right.Properties().Volatility != expr.Volatile && (left == 1 && right == 2 || left == 2 && right == 1) {
-			return fullJoinFacts{keys: []fullJoinKey{{left: e.Left, right: e.Right}}}, nil
-		}
-	}
-	return fullJoinFacts{}, nil
-}
-
-// Bound ordinary comparisons have these SQL negators. This is a planning
-// summary only: never replace the runtime comparison or its analyzed metadata.
-func fullJoinComparisonOperator(operator string, negate bool) string {
-	if !negate {
-		return operator
-	}
-	switch operator {
-	case "=":
-		return "<>"
-	case "<>":
-		return "="
-	case "<":
-		return ">="
-	case "<=":
-		return ">"
-	case ">":
-		return "<="
-	case ">=":
-		return "<"
-	}
-	return ""
 }
 
 // Query equality is caller-checked; index/hash support and native semantic-tree

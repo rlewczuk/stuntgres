@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -247,7 +248,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		&plan.ProjectNode{Child: &plan.DistinctNode{Child: setRoot()}},
 		&plan.ProjectNode{Child: &plan.AggregateNode{Child: setRoot()}},
 	} {
-		if queryHasSetOutput(root) {
+		if analyze.QueryHasSetOutput(root) {
 			t.Fatal("ordinary output acquired a set-entry kind exemption")
 		}
 	}

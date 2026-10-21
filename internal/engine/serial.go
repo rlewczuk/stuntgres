@@ -4,9 +4,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 )
 
@@ -48,43 +46,4 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		declarations[slot].DefaultExpr = sequence.SerialDefault(namespace.Name(), name)
 	}
 	return nil
-}
-
-func closedRegclassDefault(node expr.Expr) bool {
-	if node == nil || node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().StageDependent {
-		return false
-	}
-	switch n := node.(type) {
-	case plan.LiteralExpr:
-		return true
-	case plan.CoercionExpr:
-		return closedRegclassDefault(n.Child)
-	case plan.RowExpr:
-		for _, field := range n.Fields {
-			if !closedRegclassDefault(field) {
-				return false
-			}
-		}
-		return true
-	case plan.FieldExpr:
-		return closedRegclassDefault(n.Base)
-	case plan.ArrayExpr:
-		for _, element := range n.Elements {
-			if !closedRegclassDefault(element) {
-				return false
-			}
-		}
-		return true
-	case plan.SubscriptExpr:
-		if !closedRegclassDefault(n.Base) {
-			return false
-		}
-		for _, s := range n.Subscripts {
-			if s.Lower != nil && !closedRegclassDefault(s.Lower) || s.Upper != nil && !closedRegclassDefault(s.Upper) {
-				return false
-			}
-		}
-		return true
-	}
-	return false
 }
