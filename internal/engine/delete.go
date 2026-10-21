@@ -244,7 +244,8 @@ func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.So
 		if err := s.acquireRow(candidate); err != nil {
 			return Result{}, err
 		}
-		current, live, err := s.latestDeleteRow(candidate)
+		latest, err := s.writeHost().LatestRow(dml.DeleteRowRequest(candidate))
+		current, live := latest.Version, latest.Live
 		if err != nil {
 			return Result{}, err
 		}
@@ -308,30 +309,4 @@ func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.So
 		return Result{Count: count, Rows: rows}, nil
 	}
 	return Result{Count: count}, nil
-}
-
-// Row arbitration freezes identity, not a stale ordinal or pre-wait predicate.
-func (s *StatementScope) latestDeleteRow(candidate visibility.DeleteCandidate) (storage.RowVersion, bool, error) {
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	store := e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address)
-	if store == nil || store != candidate.Storage {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	rows := store.Versions
-	if candidate.Own {
-		rows = s.ownWrites[candidate.Ref.Address]
-	}
-	row, _, found := storage.RowByID(rows, candidate.Row, candidate.Ordinal)
-	if !found {
-		return storage.RowVersion{}, false, errors.New("stuntgres: invalid deletion predecessor")
-	}
-	if err := s.repeatableConflict(row, store.Ends); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[candidate.Ref.Address]), nil
 }

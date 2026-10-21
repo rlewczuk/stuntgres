@@ -240,7 +240,8 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			if err != nil {
 				return nil, err
 			}
-			latest, live, err := e.latestMergeRow(scope, b.Ref, candidate.UpdateCandidate)
+			current, err := scope.writeHost().LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
+			latest, live := current.Version, current.Live
 			if err != nil {
 				return nil, err
 			}
@@ -253,7 +254,8 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 					if err := scope.acquireUpdateRowMode(b.Ref, old.Row, lock.ForUpdate); err != nil {
 						return nil, err
 					}
-					latest, live, err = e.latestMergeRow(scope, b.Ref, candidate.UpdateCandidate)
+					current, err = scope.writeHost().LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
+					latest, live = current.Version, current.Live
 					if err != nil {
 						return nil, err
 					}
@@ -448,36 +450,4 @@ func (s *StatementScope) mergeFollowChainStrong(b analyze.Binding) (bool, error)
 		return false, err
 	}
 	return dml.MergeFollowStrong(b.Merge, unique.KeySlots), nil
-}
-
-// MERGE follows a committed update even with a retained RR frontier. Deletion
-// still conflicts; query visibility, not this fetch, owns old+own occurrences.
-func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate dml.UpdateCandidate) (storage.RowVersion, bool, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if store == nil {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	current, hint := store.Versions, candidate.Slot
-	if own, _, found := storage.RowByID(s.ownWrites[ref.Address], candidate.Row, -1); found {
-		return own, visibility.LiveVersion(own, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
-	}
-	row, _, found := storage.RowByID(current, candidate.Row, hint)
-	if !found {
-		return storage.RowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
-	}
-	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address])
-	if !live && stableIsolation(s.owner.Isolation) && store.Ends != nil {
-		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.Frontier {
-			return storage.RowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent delete")
-		}
-	}
-	return row, live, nil
 }

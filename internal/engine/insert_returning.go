@@ -8,10 +8,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -110,69 +106,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 		return false, false, err
 	}
 	*candidate = batch.Candidate(0)
-	s.owner.Mu.Lock()
-	defer s.owner.Mu.Unlock()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
-		return false, false, errors.New("stuntgres: inactive write stage")
-	}
-	if ref.Domain() != e.catalog.Domain {
-		return false, false, errors.New("stuntgres: foreign catalog reference")
-	}
-	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
-		return false, false, ids.ErrCatalogReplaced
-	}
-	catalog := e.privateCatalogLocked(s.owner.Catalog)
-	if s.UniqueBinding == nil || s.UniqueBinding.Catalog != catalog.State() {
-		return false, true, nil
-	}
-	parent, ok := catalog.Relation(ref.Address)
-	if !ok || !index.SameRelationRowShape(s.UniqueBinding.Parent, parent) {
-		return false, false, ids.ErrCatalogReplaced
-	}
-	if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
-		return false, false, errors.New("stuntgres: relation storage is missing")
-	}
-	if len(row) != len(parent.Columns) {
-		return false, false, errors.New("stuntgres: invalid staged row width")
-	}
-	auth, err := e.authorizationLocked(s.op)
-	if err != nil {
-		return false, false, err
-	}
-	auth.Catalog = catalog
-	auth.Recapture(auth.Catalog)
-	b := s.InsertReturning.Binding
-	if b.ViewWrite == nil && s.PartitionInsert == nil {
-		b.Ref, b.Relation = ref, parent
-	}
-	if err = analyze.CheckBinding(auth, b, &parser.Insert{}); err != nil {
-		return false, false, err
-	}
-	var version storage.RowVersion
-	if candidate.Exclusion != nil {
-		version = *candidate.Exclusion
-	} else {
-		if e.storage.RowFrontier() == ^uint64(0) || e.storage.VersionFrontier() == ^uint64(0) {
-			return false, false, errors.New("stuntgres: row or version identity exhausted")
-		}
-		version = storage.RowVersion{Row: e.storage.AllocateRowLocked(), Version: e.storage.AllocateVersionLocked(), Values: row}
-	}
-	version.IndexAdmission = catalog.State()
-	version.IndexOutputs = candidate.Indexes
-	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {
-		events := [1]visibility.SerializableWrite{{Row: version.Row, Version: version.Version}}
-		if err = e.serializableWriteLocked(s, ref, events[:]); err != nil {
-			return false, false, err
-		}
-	}
-	if w.rows == nil {
-		w.rows = make(map[ids.ObjectAddress][]storage.RowVersion)
-	}
-	w.rows[ref.Address] = append(w.rows[ref.Address], version)
-	return true, false, nil
+	return s.writeHost().AppendAcceptedInsert(ref, candidate)
 }
 func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partition.InsertGroup {
 	state := s.PartitionInsert

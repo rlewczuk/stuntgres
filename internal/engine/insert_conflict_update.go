@@ -2,8 +2,6 @@ package engine
 
 import (
 	"errors"
-	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -11,8 +9,6 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
-	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -95,7 +91,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.acquireUpdateRowMode(ref, hit.row.Row, mode); err != nil {
 			return err
 		}
-		old, parent, schema, live, err := e.latestConflictUpdateRow(s, ref, hit)
+		latest, err := s.writeHost().LatestRow(conflictRowRequest(ref, hit))
+		old, parent, schema, live := latest.Version, latest.Parent, latest.Schema, latest.Live
 		if err != nil {
 			return err
 		}
@@ -155,7 +152,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			if err := s.acquireUpdateRowMode(ref, old.Row, lock.ForUpdate); err != nil {
 				return err
 			}
-			current, _, _, live, err := e.latestConflictUpdateRow(s, ref, checked)
+			latest, err := s.writeHost().LatestRow(conflictRowRequest(ref, checked))
+			current, live := latest.Version, latest.Live
 			if err != nil {
 				return err
 			}
@@ -193,58 +191,6 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 	}
 }
 
-// Committed hits retain their provider's exact physical hint. Private overlays
-// are keyed by RowID, with this command's replacement ahead of prior writes.
-func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate uniqueConflict) (storage.RowVersion, *catalog.Relation, string, bool, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
-		return storage.RowVersion{}, nil, "", false, err
-	}
-	if ref.Epoch != e.catalog.state.Epoch() {
-		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
-	}
-	catalog := e.privateCatalogLocked(s.owner.Catalog)
-	parent, ok := catalog.Relation(ref.Address)
-	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if !ok || store == nil || !index.SameRelationRowShape(candidate.parent, parent) {
-		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
-	}
-	auth, err := s.writeAuthorizationLocked(e)
-	if err != nil {
-		return storage.RowVersion{}, nil, "", false, err
-	}
-	auth.Catalog = catalog
-	auth.Recapture(auth.Catalog)
-	if err := analyze.CheckBinding(auth, dml.BindingForConflict(ref, parent, s.InsertConflict), &parser.Insert{}); err != nil {
-		return storage.RowVersion{}, nil, "", false, err
-	}
-	namespace, ok := catalog.Namespace(parent.Namespace())
-	if !ok {
-		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
-	}
-	var row storage.RowVersion
-	var found bool
-	if candidate.committed {
-		row, _, found = storage.RowByID(store.Versions, candidate.row.Row, candidate.position)
-	} else {
-		if slot, ok := s.InsertConflict.AffectedRows[candidate.row.Row]; ok {
-			row, found = s.stage.rows[ref.Address][slot], true
-		}
-		if !found {
-			row, found = s.insertOwnRow(ref, candidate.row.Row)
-		}
-	}
-	if !found {
-		return storage.RowVersion{}, nil, "", false, errors.New("stuntgres: invalid conflict update predecessor")
-	}
-	if err := s.repeatableConflict(row, store.Ends); err != nil {
-		return storage.RowVersion{}, nil, "", false, err
-	}
-	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]) && !index.UniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
-	return row, parent, namespace.Name(), live, nil
-}
-
 func preflightConflictUpdate(c *dml.InsertConflictState, evaluation *exec.Context) error {
 	if c.Update == nil {
 		return nil
@@ -255,4 +201,9 @@ func preflightConflictUpdate(c *dml.InsertConflictState, evaluation *exec.Contex
 	}
 	c.Update = action
 	return nil
+}
+
+// conflictRowRequest is the RowConflictUpdate request of a unique conflict.
+func conflictRowRequest(ref ids.ObjectRef, c uniqueConflict) dml.RowRequest {
+	return dml.RowRequest{Kind: dml.RowConflictUpdate, Ref: ref, Row: c.row.Row, Own: !c.committed, Hint: c.position, Parent: c.parent}
 }

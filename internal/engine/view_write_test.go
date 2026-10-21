@@ -316,7 +316,8 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, dml.UpdateCandidate{RowVersion: old, Slot: 0})
+	latest, err := waiter.writeHost().LatestRow(dml.UpdateRowRequest(f.baseRef, dml.UpdateCandidate{RowVersion: old, Slot: 0}))
+	current, live := latest.Version, latest.Live
 	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
 	}

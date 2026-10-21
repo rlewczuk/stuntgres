@@ -16,7 +16,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -129,34 +128,6 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 		return ids.ErrCatalogReplaced
 	}
 	return nil
-}
-
-func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate dml.UpdateCandidate) (storage.RowVersion, bool, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if store == nil {
-		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
-	}
-	current := store.Versions
-	hint := candidate.Slot
-	if candidate.Born == 0 {
-		current = s.ownWrites[ref.Address]
-	}
-	row, _, found := storage.RowByID(current, candidate.Row, hint)
-	if !found {
-		return storage.RowVersion{}, false, errors.New("stuntgres: invalid update predecessor")
-	}
-	if err := s.repeatableConflict(row, store.Ends); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
 }
 
 func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
@@ -315,7 +286,8 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := s.acquireUpdateRow(ref, candidate.Row); err != nil {
 			return Result{}, err
 		}
-		old, live, err := e.latestUpdateRow(s, ref, candidate)
+		latest, err := s.writeHost().LatestRow(dml.UpdateRowRequest(ref, candidate))
+		old, live := latest.Version, latest.Live
 		if err != nil {
 			return Result{}, err
 		}
@@ -366,9 +338,9 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 			if err := s.acquireUpdateRowMode(ref, old.Row, lock.ForUpdate); err != nil {
 				return Result{}, err
 			}
-			if _, live, err := e.latestUpdateRow(s, ref, candidate); err != nil {
+			if latest, err := s.writeHost().LatestRow(dml.UpdateRowRequest(ref, candidate)); err != nil {
 				return Result{}, err
-			} else if !live {
+			} else if !latest.Live {
 				continue
 			}
 		}

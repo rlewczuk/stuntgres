@@ -121,11 +121,9 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 			return err
 		}
 		physicalSchema := schema
-		e.mu.Lock()
-		if ns := e.privateCatalogLocked(s.owner.Catalog).Get(relation.Namespace()); ns != nil {
-			physicalSchema = ns.Name()
+		if name, ok := s.writeHost().SchemaName(relation.Namespace()); ok {
+			physicalSchema = name
 		}
-		e.mu.Unlock()
 		if check != "" {
 			return table.CheckDetailError(physicalSchema, relation.Name(), check, detail)
 		}

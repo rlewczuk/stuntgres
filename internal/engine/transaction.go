@@ -483,26 +483,21 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 // SQL producers validate each accepted prefix before demanding the next row;
 // only this canonical staging method transfers the completed immutable batch.
 func (w *WriteStage) applyValidated(ref ids.ObjectRef, batch index.WriteBatch) error {
-	rows := batch.Values
 	s := w.scope
 	if err := s.active(); err != nil {
 		return err
 	}
-retry:
-	if err := s.validateIndexCandidates(ref, &batch); err != nil {
-		return err
-	}
-	s.owner.Mu.Lock()
-	e := s.engine()
-	e.mu.Lock()
-	admission := e.privateCatalogLocked(s.owner.Catalog).State()
-	if binding := s.UniqueBinding; binding != nil && binding.Catalog != admission {
-		e.mu.Unlock()
-		s.owner.Mu.Unlock()
+	h := s.writeHost()
+	for {
+		if err := s.validateIndexCandidates(ref, &batch); err != nil {
+			return err
+		}
+		stale, err := h.StageInsert(ref, batch)
+		if err != nil || !stale {
+			return err
+		}
 		if s.InsertConflict != nil && s.InsertConflict.Update == nil {
-			var err error
 			batch, err = s.revalidateConflictRows(ref, batch)
-			rows = batch.Values
 			if err != nil {
 				return err
 			}
@@ -511,80 +506,7 @@ retry:
 				return err
 			}
 		}
-		goto retry
 	}
-	defer s.owner.Mu.Unlock()
-	defer e.mu.Unlock()
-	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
-		return errors.New("stuntgres: inactive write stage")
-	}
-	if ref.Domain() != e.catalog.Domain {
-		return errors.New("stuntgres: foreign catalog reference")
-	}
-	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
-		return ids.ErrCatalogReplaced
-	}
-	if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
-		return errors.New("stuntgres: relation storage is missing")
-	}
-	relation, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-	if !ok {
-		return errors.New("stuntgres: invalid relation descriptor")
-	}
-	for _, row := range rows {
-		if len(row) != len(relation.Columns) {
-			return errors.New("stuntgres: invalid staged row width")
-		}
-	}
-	if s.InsertConflict != nil && s.InsertConflict.Update == nil {
-		s.InsertConflict.Affected = len(rows)
-	}
-	if len(rows) == 0 {
-		return nil
-	}
-	if err := e.assignTransactionXIDLocked(s.txRef); err != nil {
-		return err
-	}
-	var versions []storage.RowVersion
-	var err error
-	if len(relation.Constraints.Exclusion) != 0 {
-		versions = make([]storage.RowVersion, len(rows))
-		for i := range rows {
-			reserved := batch.Candidate(i).Exclusion
-			if reserved == nil {
-				return errors.New("stuntgres: exclusion row lost its admission identity")
-			}
-			versions[i] = *reserved
-			versions[i].IndexAdmission = admission
-		}
-	} else {
-		versions, err = e.storage.AllocateRowVersionsLocked(rows, admission)
-	}
-	if err != nil {
-		return err
-	}
-	if batch.States != nil {
-		for i := range versions {
-			versions[i].IndexOutputs = batch.States[i].Indexes
-		}
-	}
-	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {
-		for _, row := range versions {
-			event := [1]visibility.SerializableWrite{{Row: row.Row, Version: row.Version}}
-			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
-				return err
-			}
-		}
-	}
-	if w.rows == nil {
-		w.rows = make(map[ids.ObjectAddress][]storage.RowVersion)
-	}
-	if len(w.rows[ref.Address]) == 0 {
-		w.rows[ref.Address] = versions
-	} else {
-		w.rows[ref.Address] = append(w.rows[ref.Address], versions...)
-	}
-	return nil
 }
 
 func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, error) {
