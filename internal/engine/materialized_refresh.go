@@ -144,18 +144,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	if concurrent {
 		var err error
 		if len(ownRows) != 0 || ownDeletes != nil {
-			versions := make([]storage.RowVersion, 0, len(previous.Versions)+len(ownRows))
-			for _, row := range previous.Versions {
-				if visibility.LiveVersion(row, frontier, previous.Ends, ownDeletes) {
-					versions = append(versions, row)
-				}
-			}
-			for _, row := range ownRows {
-				if visibility.LiveVersion(row, frontier, nil, ownDeletes) {
-					versions = append(versions, row)
-				}
-			}
-			previous.Versions, previous.Ends = versions, nil
+			previous = view.ConcurrentPrevious(previous, ownRows, ownDeletes, frontier)
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.Base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			oldEntries, err = index.BuildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
 			if err != nil {
@@ -285,69 +274,15 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	return nil
 }
 
+// validateMaterializedReplacement checks the stage's REFRESH replacement.
 func (s *CatalogStage) validateMaterializedReplacement() error {
-	r := s.materializedOrZero().Replacement
-	if r == nil {
-		return nil
-	}
-	if r.Original == nil || r.Descriptor == nil {
-		return fmt.Errorf("stuntgres: invalid materialized replacement")
-	}
-	d, ok := s.Get(r.Original.Address()).(*catalog.Relation)
-	if !ok || r.Original.RelationKind != catalog.MaterializedViewRelation || s.Base.Get(r.Original.Address()) != r.Original || r.Storage == nil || r.Predecessor == nil || r.Storage == r.Predecessor || r.Storage.Ends != nil || r.Storage.Generation != r.Generation+1 || r.Generation == ^uint64(0) {
-		return fmt.Errorf("stuntgres: invalid materialized replacement")
-	}
-	// This private constructor owns the shallow descriptor copy. No general
-	// Replace/ALTER caller may attach arbitrary metadata to its storage authority.
-	old := r.Original
-	if d != r.Descriptor || d.Address() != old.Address() || d.Namespace() != old.Namespace() || d.Name() != old.Name() || d.Owner != old.Owner || d.RowType != old.RowType || d.View != old.View || d.RelationKind != catalog.MaterializedViewRelation || d.Revision() != old.Revision()+1 || len(d.Columns) != len(old.Columns) || len(d.Attributes) != len(old.Attributes) || len(d.Columns) != 0 && &d.Columns[0] != &old.Columns[0] || len(d.Attributes) != 0 && &d.Attributes[0] != &old.Attributes[0] || !d.Populated && len(r.Storage.Versions) != 0 {
-		return fmt.Errorf("stuntgres: invalid materialized replacement definition")
-	}
-	if r.Concurrent && !d.Populated {
-		return fmt.Errorf("stuntgres: concurrent replacement is unpopulated")
-	}
-	for _, row := range r.Storage.Versions {
-		if row.Row == 0 || row.Version == 0 || row.Born != 0 || len(row.Values) != len(d.Columns) {
-			return fmt.Errorf("stuntgres: invalid materialized replacement row")
-		}
-		for i, v := range row.Values {
-			if v.Type() != d.Columns[i].Usage.Type {
-				return fmt.Errorf("stuntgres: invalid materialized replacement value")
-			}
-		}
-	}
-	return nil
+	return view.ValidateMaterializedReplacement(s.materializedOrZero().Replacement, &s.Candidate)
 }
 
+// materializedReplacementCurrent checks that the stage's REFRESH replacement
+// still applies to snapshot and stored.
 func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, stored *storage.Relation) error {
-	r := s.materializedOrZero().Replacement
-	if r == nil {
-		return nil
-	}
-	if s.Get(r.Original.Address()) != r.Descriptor {
-		return catalog.Conflict{}
-	}
-	if snapshot.Epoch() != s.Base.Epoch() || snapshot.Get(r.Original.Address()) != r.Original || stored != r.Predecessor || r.Predecessor.Generation != r.Generation || len(r.Predecessor.Versions) != r.Length || r.Predecessor.Ends != r.Ends {
-		return catalog.Conflict{}
-	}
-	// The effective diff depends on every eligible key; root publication also
-	// depends on ineligible indexes. Fence the exact original complete set,
-	// without turning a replacement into a REINDEX maintenance intent.
-	count := 0
-	for address, descriptor := range snapshot.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != r.Original.Address() {
-			continue
-		}
-		if s.Base.Get(address) != descriptor {
-			return catalog.Conflict{}
-		}
-		count++
-	}
-	if count != r.IndexCount {
-		return catalog.Conflict{}
-	}
-	return nil
+	return s.materializedOrZero().Replacement.Current(&s.Candidate, snapshot, stored)
 }
 
 // materialized returns the statement's materialized slot, allocating it on first use.
