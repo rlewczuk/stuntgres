@@ -29,7 +29,7 @@ func AdmitInsertConflictRow(h Host, ref ids.ObjectRef, candidate *index.WriteCan
 				return false, err
 			}
 			journal.Restore(action.Checkpoint)
-			h.DiscardExclusion(candidate)
+			DiscardExclusion(h, candidate)
 			return false, nil
 		}
 		other, err := ProbeUniqueRow(h, ref, candidate, nil, prefix, nil, purpose)

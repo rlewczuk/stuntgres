@@ -21,6 +21,29 @@ type WriteCandidate struct {
 	SharedIndexes, SharedPrecheck bool
 }
 
+// RecordExclusion records row, reserved by WriteHost.PublishExclusion, as
+// c's exclusion identity; the index outputs it carries are now shared with
+// the precheck outputs when precheck is set, else with Indexes.
+func (c *WriteCandidate) RecordExclusion(row storage.RowVersion, precheck bool) {
+	if precheck {
+		c.SharedPrecheck = true
+	} else {
+		c.SharedIndexes = true
+	}
+	c.Exclusion = &row
+}
+
+// TakeExclusion clears c's exclusion identity and returns its version for
+// WriteHost.DiscardExclusion; zero when there is nothing to discard.
+func (c *WriteCandidate) TakeExclusion() ids.VersionID {
+	if c.Exclusion == nil {
+		return 0
+	}
+	version := c.Exclusion.Version
+	c.Exclusion = nil
+	return version
+}
+
 // The physical vector is also the existing SQL producer/RETURNING payload. The
 // optional parallel vector preserves occurrence identity (including zero-width
 // rows) without allocating index metadata on the plain-column fast path.

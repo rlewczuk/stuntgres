@@ -41,7 +41,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			}
 			if c.Catalog != s.UniqueBinding.Catalog {
 				journal.RestoreDelta()
-				s.writeHost().DiscardExclusion(candidate)
+				dml.DiscardExclusion(s.writeHost(), candidate)
 				continue
 			}
 			if other.Index != nil {
@@ -62,7 +62,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				}
 				if retry {
 					journal.RestoreDelta()
-					s.writeHost().DiscardExclusion(candidate)
+					dml.DiscardExclusion(s.writeHost(), candidate)
 					continue
 				}
 			} else {
@@ -79,7 +79,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		// A speculative key must never be held while queuing for the selected row.
 		// Restore only this candidate's newly granted keys, preserving prior claims.
 		journal.RestoreDelta()
-		s.writeHost().DiscardExclusion(candidate)
+		dml.DiscardExclusion(s.writeHost(), candidate)
 		mode := lock.ForNoKeyUpdate
 		for _, target := range c.UpdateTargets {
 			for _, key := range s.UniqueBinding.KeySlots {
@@ -106,7 +106,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		}
 		if checked.Index == nil || checked.Row.Row != old.Row || checked.Row.Version != old.Version {
 			journal.RestoreDelta()
-			s.writeHost().DiscardExclusion(candidate)
+			dml.DiscardExclusion(s.writeHost(), candidate)
 			continue
 		}
 		if _, duplicate := c.AffectedRows[old.Row]; duplicate {
@@ -131,7 +131,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		}
 		if !matches {
 			journal.RestoreDelta()
-			s.writeHost().DiscardExclusion(candidate)
+			dml.DiscardExclusion(s.writeHost(), candidate)
 			return nil
 		}
 		row, err := evaluateUpdateAssignments(&evaluation, c.Update, c.UpdateTargets, old.Values)

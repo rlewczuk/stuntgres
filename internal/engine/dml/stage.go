@@ -95,13 +95,11 @@ func ReplaceRows(h Host, ref ids.ObjectRef, old []storage.RowVersion, batch inde
 	if len(old) != len(rows) {
 		return errors.New("stuntgres: invalid replacement shape")
 	}
-	var smallModes [1]lock.MultiMode
+	// Production callers always give an ActionMode; only the per-row
+	// fallback allocates, because modes escapes through the host.
 	var modes []lock.MultiMode
 	if batch.ActionMode == 0 {
-		modes = smallModes[:min(len(old), 1)]
-		if len(old) > 1 {
-			modes = make([]lock.MultiMode, len(old))
-		}
+		modes = make([]lock.MultiMode, len(old))
 	}
 	for i, predecessor := range old {
 		mode := batch.ActionMode

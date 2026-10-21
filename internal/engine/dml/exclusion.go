@@ -29,7 +29,20 @@ func publishExclusionCandidate(h Host, ref ids.ObjectRef, binding *index.UniqueW
 	if purpose == index.ProbeRevalidation && proposal.Exclusion == nil {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
-	return h.PublishExclusion(ref, binding.Catalog, proposal, index.ExclusionEdit{Index: definition.Index, Keys: keys, Member: member, Admitted: definition.Deferrable, Precheck: precheck, Excluded: excluded})
+	row, err := h.PublishExclusion(ref, binding.Catalog, *proposal, index.ExclusionEdit{Index: definition.Index, Keys: keys, Member: member, Admitted: definition.Deferrable, Precheck: precheck, Excluded: excluded})
+	if err != nil {
+		return storage.RowVersion{}, err
+	}
+	proposal.RecordExclusion(row, precheck)
+	return row, nil
+}
+
+// DiscardExclusion drops c's reserved exclusion identity and its projected
+// entries, when it has one.
+func DiscardExclusion(h Host, c *index.WriteCandidate) {
+	if version := c.TakeExclusion(); version != 0 {
+		h.DiscardExclusion(version)
+	}
 }
 
 // ProbeExclusion compares candidate's own published exclusion entry on
