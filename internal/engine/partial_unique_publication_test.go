@@ -76,7 +76,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if index.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 || index.SQLIndex.Predicate == nil {
 		t.Fatal("not real standalone partial")
 	}
-	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
+	if err := ValidateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
 	if len(root.Entries) != 2 || !maps.Equal(root.Membership, map[ids.RowID]ids.VersionID{e.storage.Relations[ref.Address].Versions[0].Row: e.storage.Relations[ref.Address].Versions[0].Version, e.storage.Relations[ref.Address].Versions[1].Row: e.storage.Relations[ref.Address].Versions[1].Version}) {
@@ -294,7 +294,7 @@ func TestPartialIndexUniquePredicateIdentityFence(t *testing.T) {
 	f := newPartialUniquePublication(t, true, false, "table")
 	same := *f.index
 	same.ObjectName = "renamed"
-	if !sameIndexKeySemantics(f.index, &same) {
+	if !SameIndexKeySemantics(f.index, &same) {
 		t.Fatal("retained predicate rename lost reuse")
 	}
 	next := *f.index
@@ -302,7 +302,7 @@ func TestPartialIndexUniquePredicateIdentityFence(t *testing.T) {
 	predicate := *definition.Predicate
 	definition.Predicate = &predicate
 	next.SQLIndex = &definition
-	if sameIndexKeySemantics(f.index, &next) {
+	if SameIndexKeySemantics(f.index, &next) {
 		t.Fatal("new predicate identity passed root/admission reuse fence")
 	}
 	// Independently verify that the retained expression and root were untouched.
@@ -324,7 +324,7 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 			definition.Predicate = &predicate
 			index.SQLIndex = &definition
 			next.SetDescriptor(index.Address(), &index)
-			roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.catalog, &next, captureIndexStores(f.e.storage.Relations, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
+			roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.catalog, &next, CaptureIndexStores(f.e.storage.Relations, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

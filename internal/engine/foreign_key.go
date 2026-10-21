@@ -80,7 +80,7 @@ func foreignKeyIndexEligible(parent, index *catalog.Relation, attributes []int32
 	for _, attribute := range attributes {
 		matches := 0
 		for _, key := range d.Keys {
-			a, node, err := indexCatalogKey(parent, key)
+			a, node, err := CatalogKey(parent, key)
 			if err != nil {
 				return false, err
 			}
@@ -110,12 +110,12 @@ func bindForeignKeyComparison(view catalog.Read, child, parent, index *catalog.R
 		bound := foreignKeyComparison{child: c, parent: p}
 		matchedAt := -1
 		for at, key := range index.SQLIndex.Keys {
-			a, node, keyErr := indexCatalogKey(parent, key)
+			a, node, keyErr := CatalogKey(parent, key)
 			if keyErr != nil {
 				return nil, keyErr
 			}
 			if node == nil && a == f.Referenced[i] {
-				pu = indexKeyCollation(pu, key)
+				pu = KeyCollation(pu, key)
 				bound.comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.Class, view.LookupType)
 				matchedAt = at
 				break
@@ -409,7 +409,7 @@ func foreignKeyDiagnostic(ctx context.Context, view access.View, env access.Envi
 	for i, a := range attributes {
 		keys[i].Attribute = a
 	}
-	allowed, err := uniqueKeyDetailAllowed(view, env, view.Ref(violating.Address()), keys)
+	allowed, err := UniqueKeyDetailAllowed(view, env, view.Ref(violating.Address()), keys)
 	if err != nil {
 		return err
 	}

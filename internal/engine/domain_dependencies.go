@@ -47,7 +47,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 	}
 	for changed := true; changed; {
 		changed = false
-		for a, d := range provider.inputDescriptors() {
+		for a, d := range provider.InputDescriptors() {
 			if t, ok := d.(*catalog.Type); ok && !domains[a] && (t.SQLType.IsDomain() && (domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Type.ID())}] || domains[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Collation.ID)}]) || t.SQLType.IsArray() && domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.Element().ID())}]) {
 				domains[a] = true
 				changed = true
@@ -55,7 +55,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 		}
 	}
 	droppedColumns := make(map[ids.ObjectAddress]bool)
-	for a, d := range provider.inputDescriptors() {
+	for a, d := range provider.InputDescriptors() {
 		r, ok := d.(*catalog.Relation)
 		if !ok || r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.CompositeRelation && r.RelationKind != catalog.ForeignRelation {
 			continue
@@ -110,7 +110,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 		}
 		if relation, ok := provider.retirementDescriptor(target).(*catalog.Relation); ok && relation.Partition != nil {
 			for _, child := range relation.Partition.Children {
-				if provider.removed(child) {
+				if provider.Removed(child) {
 					if err := visit(child, root); err != nil {
 						return err
 					}
@@ -118,9 +118,9 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 			}
 		}
 		var direct []domainDependency
-		for a, descriptor := range provider.descriptors() {
+		for a, descriptor := range provider.Descriptors() {
 			if mergedDescriptors {
-				if replacement := provider.replacement(a); replacement != nil {
+				if replacement := provider.Replacement(a); replacement != nil {
 					descriptor = replacement
 				}
 			}
@@ -131,7 +131,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true, relation: index})
 				continue
 			}
-			if provider.removed(a) {
+			if provider.Removed(a) {
 				continue
 			}
 			if target.ClassID == ids.NamespaceClassID && descriptor.Namespace() == target && access.OwnershipRoot(provider.base, descriptor, routine.OperatorSeeded) {
@@ -181,7 +181,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
 			case *catalog.Type:
-				if replacement, ok := provider.replacement(a).(*catalog.Type); ok {
+				if replacement, ok := provider.Replacement(a).(*catalog.Type); ok {
 					d = replacement
 				}
 				if !domains[a] {
@@ -221,7 +221,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
 			case *catalog.Relation:
-				if replacement, ok := provider.replacement(a).(*catalog.Relation); ok {
+				if replacement, ok := provider.Replacement(a).(*catalog.Relation); ok {
 					d = replacement
 				}
 				if d.Foreign != nil && d.Foreign.Server == target {
@@ -451,7 +451,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 					owner.SubID = 0
 				}
 			}
-			if owner != (ids.ObjectAddress{}) && provider.removed(owner) {
+			if owner != (ids.ObjectAddress{}) && provider.Removed(owner) {
 				target = owner
 			}
 			// Explicit roots remain distinct; only automatically retired members
@@ -463,7 +463,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 						break
 					}
 					parent := relation.Membership.Parent
-					if !provider.removed(parent) {
+					if !provider.Removed(parent) {
 						break
 					}
 					target = parent
@@ -666,7 +666,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		return err
 	}
 	for _, old := range relations {
-		if provider.removed(old.Address()) {
+		if provider.Removed(old.Address()) {
 			continue
 		}
 		// Whole-relation targets need no standalone shape projection or
@@ -681,10 +681,10 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 			if edge.column == "" || edge.relation.Address() != old.Address() {
 				continue
 			}
-			if provider.removed(old.Address()) {
+			if provider.Removed(old.Address()) {
 				break
 			}
-			if replacement, ok := provider.replacement(old.Address()).(*catalog.Relation); ok {
+			if replacement, ok := provider.Replacement(old.Address()).(*catalog.Relation); ok {
 				next = replacement
 			}
 			// The closure captured a live stable attribute. A nested cascade
@@ -705,7 +705,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		if !consumed {
 			continue
 		}
-		if provider.removed(old.Address()) {
+		if provider.Removed(old.Address()) {
 			continue
 		}
 		revision, er := provider.revision(old.Revision())
@@ -721,7 +721,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		if edge.domain == nil {
 			continue
 		}
-		if provider.removed(edge.domain.Address()) {
+		if provider.Removed(edge.domain.Address()) {
 			continue
 		}
 		if err := provider.removeDomainCheck(edge.domain, edge.address.ObjectID); err != nil {
@@ -822,7 +822,7 @@ func (stage *CatalogStage) removeDomainCheck(d *catalog.Type, oid ids.OID) error
 }
 
 func (provider *dropProvider) removeDomainCheck(d *catalog.Type, oid ids.OID) error {
-	if replacement, ok := provider.replacement(d.Address()).(*catalog.Type); ok {
+	if replacement, ok := provider.Replacement(d.Address()).(*catalog.Type); ok {
 		d = replacement
 	}
 	next := *d
@@ -841,5 +841,5 @@ func (provider *dropProvider) removeDomainCheck(d *catalog.Type, oid ids.OID) er
 	if err != nil {
 		return err
 	}
-	return provider.replace(&next)
+	return provider.Replace(&next)
 }

@@ -11,22 +11,22 @@ import (
 // roots, produced index candidates and REINDEX intents. Index DDL and TEMP
 // table creation write it; DML only reads it.
 type indexJournal struct {
-	uniqueRoots map[ids.ObjectAddress]*storage.IndexRoot
-	candidates  map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
-	rebuilds    map[ids.ObjectAddress]*catalog.Relation
+	UniqueRoots map[ids.ObjectAddress]*storage.IndexRoot
+	Candidates  map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
+	Rebuilds    map[ids.ObjectAddress]*catalog.Relation
 }
 
 // journalIndexes returns c's index slot, allocating it on first use.
-func journalIndexes(c *session.Journal) *indexJournal {
+func JournalIndexes(c *session.Journal) *indexJournal {
 	if c.Indexes == nil {
 		c.Indexes = indexSlotOf(new(indexJournal))
 	}
-	return indexJournalOf(c.Indexes)
+	return JournalOf(c.Indexes)
 }
 
 // journalIndexesOrZero reads c's index slot; a nil slot reads as zero.
-func journalIndexesOrZero(c *session.Journal) indexJournal {
-	if j := indexJournalOf(c.Indexes); j != nil {
+func JournalIndexesOrZero(c *session.Journal) indexJournal {
+	if j := JournalOf(c.Indexes); j != nil {
 		return *j
 	}
 	return indexJournal{}
@@ -40,39 +40,39 @@ func (j *indexJournal) clone() *indexJournal {
 		return nil
 	}
 	n := &indexJournal{}
-	if j.uniqueRoots != nil {
-		n.uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(j.uniqueRoots))
-		for a, root := range j.uniqueRoots {
-			n.uniqueRoots[a] = root
+	if j.UniqueRoots != nil {
+		n.UniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(j.UniqueRoots))
+		for a, root := range j.UniqueRoots {
+			n.UniqueRoots[a] = root
 		}
 	}
-	if j.candidates != nil {
-		n.candidates = make(map[ids.ObjectAddress]indexRootCandidate, len(j.candidates))
-		for a, candidate := range j.candidates {
-			n.candidates[a] = candidate
+	if j.Candidates != nil {
+		n.Candidates = make(map[ids.ObjectAddress]indexRootCandidate, len(j.Candidates))
+		for a, candidate := range j.Candidates {
+			n.Candidates[a] = candidate
 		}
 	}
-	if j.rebuilds != nil {
-		n.rebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(j.rebuilds))
-		for a, d := range j.rebuilds {
-			n.rebuilds[a] = d
+	if j.Rebuilds != nil {
+		n.Rebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(j.Rebuilds))
+		for a, d := range j.Rebuilds {
+			n.Rebuilds[a] = d
 		}
 	}
 	return n
 }
 
 // forget drops the private unique root and produced candidate of address.
-func (j *indexJournal) forget(address ids.ObjectAddress) {
+func (j *indexJournal) Forget(address ids.ObjectAddress) {
 	if j == nil {
 		return
 	}
-	delete(j.uniqueRoots, address)
-	delete(j.candidates, address)
+	delete(j.UniqueRoots, address)
+	delete(j.Candidates, address)
 }
 
 // pending reports whether the slot holds index work to publish.
-func (j *indexJournal) pending() bool {
-	return j != nil && (len(j.uniqueRoots) != 0 || len(j.candidates) != 0 || len(j.rebuilds) != 0)
+func (j *indexJournal) Pending() bool {
+	return j != nil && (len(j.UniqueRoots) != 0 || len(j.Candidates) != 0 || len(j.Rebuilds) != 0)
 }
 
 var _ session.IndexSlot = (*indexJournal)(nil)
@@ -83,7 +83,7 @@ func (*indexJournal) IndexSlot() {}
 func (j *indexJournal) Clone() session.IndexSlot { return indexSlotOf(j.clone()) }
 
 // indexJournalOf returns the index journal in s, or nil.
-func indexJournalOf(s session.IndexSlot) *indexJournal {
+func JournalOf(s session.IndexSlot) *indexJournal {
 	j, _ := s.(*indexJournal)
 	return j
 }

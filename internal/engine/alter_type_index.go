@@ -89,7 +89,7 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 			pending.keys = append(pending.keys, i)
 		}
 		if len(pending.keys) > 0 || pending.predicate {
-			text, err := indexDefinitionSQL(op.Context(), view, index, indexPresentation{reconstruct: true, path: scope.inquiry.deparsePath, output: scope.output})
+			text, err := DefinitionSQL(op.Context(), view, index, indexPresentation{Reconstruct: true, Path: scope.inquiry.deparsePath, Output: scope.output})
 			if err != nil {
 				return nil, err
 			}
@@ -134,19 +134,19 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 		}
 		oldParent := stage.Base.MustRelation(parent.Address())
 		for i, key := range definition.Keys {
-			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.SQLIndex.Keys[i])
+			oldUsage, err := KeyBaseUsage(oldParent, pending.index.SQLIndex.Keys[i])
 			if err != nil {
 				return err
 			}
-			newUsage, err := indexKeyBaseUsage(parent, key)
+			newUsage, err := KeyBaseUsage(parent, key)
 			if err != nil {
 				return err
 			}
-			definition.Keys[i] = reconstructIndexKey(key, oldUsage, newUsage, definition.Method)
+			definition.Keys[i] = ReconstructIndexKey(key, oldUsage, newUsage, definition.Method)
 		}
 		// The captured TYPE queue already normalized every key against its
 		// original Usage while retaining the newly rebound expression trees.
-		next, err := evolveIndex(&copy, oldParent, parent, nil)
+		next, err := EvolveIndex(&copy, oldParent, parent, nil)
 		if err != nil {
 			return err
 		}

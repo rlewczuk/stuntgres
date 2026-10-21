@@ -383,15 +383,15 @@ func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode
 
 func checkDependents(provider dropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
 	var relations []*catalog.Relation
-	for address, descriptor := range provider.inputDescriptors() {
+	for address, descriptor := range provider.InputDescriptors() {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(d.Constraints.Check) == 0 {
 			continue
 		}
-		if staged, ok := provider.replacement(address).(*catalog.Relation); ok {
+		if staged, ok := provider.Replacement(address).(*catalog.Relation); ok {
 			d = staged
 		}
-		if provider.removed(address) {
+		if provider.Removed(address) {
 			continue
 		}
 		dropped := false
@@ -453,7 +453,7 @@ func checkDependents(provider dropDependencyReader, targets []ids.ObjectAddress,
 			}
 			copy.ObjectRevision = revision
 			copy.Constraints.Check = kept
-			if err := provider.replace(&copy); err != nil {
+			if err := provider.Replace(&copy); err != nil {
 				return nil, err
 			}
 		}

@@ -17,7 +17,7 @@ import (
 // after repair; later container writes must use that store's locked methods.
 // When no repair is needed, it returns nil and leaves the containers detached.
 func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *session.Operation, indexes *indexSnapshot) (installedStage *Engine, result error) {
-	needed := indexes.needsOwnerRepair() || hasHashPartition(next)
+	needed := indexes.NeedsOwnerRepair() || hasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -97,7 +97,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		stage.mu.Unlock()
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.catalog.read(candidate)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	changed := indexes.trackedGenerations(candidate)
+	changed := indexes.TrackedGenerations(candidate)
 	if err == nil {
 		err = recomputeRemappedGenerations(ctx, candidate, relations, mapping, evaluation, changed)
 	}
@@ -106,7 +106,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		moved, err = stage.repairRemappedHashPartitions(ctx, &evaluation, auth, indexes)
 	}
 	if err == nil {
-		err = indexes.repair(ctx, &evaluation, relations, changed, moved, auth.View, disclosureEnv(&auth))
+		err = indexes.Repair(ctx, &evaluation, relations, changed, moved, auth.View, disclosureEnv(&auth))
 	}
 	if err == nil {
 		scope.completed = true

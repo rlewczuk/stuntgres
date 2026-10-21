@@ -22,14 +22,14 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catal
 		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: invalid TYPE exclusion index")
 		}
-		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {
+		if !UniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			continue
 		}
 		if replacement, ok := stage.Get(old.Index).(*catalog.Relation); ok {
 			index = replacement
 		}
 		oldParent := stage.Base.MustRelation(parent.Address())
-		evolved, err := evolveIndex(index, oldParent, parent, transformations)
+		evolved, err := EvolveIndex(index, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
 		}
@@ -61,12 +61,12 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catal
 			return nil, err
 		}
 		definition := *evolved.SQLIndex
-		definition.Exclusion, err = rebindExclusionOperators(parent, &definition)
+		definition.Exclusion, err = RebindExclusionOperators(parent, &definition)
 		if err != nil {
 			return nil, err
 		}
 		c.Operators = definition.Exclusion
-		definition.Constraint = exclusionBacking(c)
+		definition.Constraint = ExclusionBacking(c)
 		definition.Ready, definition.Valid, definition.Live = true, true, true
 		copy.SQLIndex = &definition
 		copy.Columns = slices.Clone(evolved.Columns)

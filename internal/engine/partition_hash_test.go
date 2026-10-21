@@ -167,28 +167,28 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		source.Address():      {},
 		destination.Address(): {Versions: []storage.RowVersion{movedRow}},
 	}
-	snapshot := &indexSnapshot{sources: map[ids.ObjectAddress]indexSnapshotSource{
-		sourceIndex.Address():      {index: sourceIndex, parent: source, frontier: 1},
-		destinationIndex.Address(): {index: destinationIndex, parent: &destination, frontier: 1},
+	snapshot := &indexSnapshot{Sources: map[ids.ObjectAddress]indexSnapshotSource{
+		sourceIndex.Address():      {Index: sourceIndex, Parent: source, Frontier: 1},
+		destinationIndex.Address(): {Index: destinationIndex, Parent: &destination, Frontier: 1},
 	}}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	dirty := map[ids.ObjectAddress]bool{source.Address(): true, destination.Address(): true}
-	if err := snapshot.repair(evaluation.Context, &evaluation, relations, nil, dirty, access.View{}, nil); err != nil {
+	if err := snapshot.Repair(evaluation.Context, &evaluation, relations, nil, dirty, access.View{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	// The existing storage remint mutates candidate row identities in place.
 	// Repaired snapshot versions must remain the pre-remint transport authority.
 	relations[destination.Address()].Versions[0].Row = 99
 	relations[destination.Address()].Versions[0].Version = 100
-	captured := snapshot.sources[destinationIndex.Address()].store.Versions[0]
+	captured := snapshot.Sources[destinationIndex.Address()].Store.Versions[0]
 	if captured.Row != 7 || captured.Version != 11 {
 		t.Fatal("repaired snapshot aliases reminted candidate identities", captured.Row, captured.Version)
 	}
 	positions := map[ids.ObjectAddress]map[indexRowIdentity]int{
 		source.Address():      {},
-		destination.Address(): {{row: 7, version: 11}: 0},
+		destination.Address(): {{Row: 7, Version: 11}: 0},
 	}
-	roots, err := snapshot.transport(evaluation.Context, view.State(), relations, positions)
+	roots, err := snapshot.Transport(evaluation.Context, view.State(), relations, positions)
 	if err != nil {
 		t.Fatal(err)
 	}

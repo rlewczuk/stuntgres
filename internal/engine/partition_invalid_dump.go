@@ -23,11 +23,11 @@ func partitionPreservedReplayBacking(view catalog.Read, index *catalog.Relation)
 		return false
 	}
 	parent := view.MustRelation(index.SQLIndex.PartitionParent)
-	if !partitionIndexPreservedInvalid(view, parent) {
+	if !PartitionIndexPreservedInvalid(view, parent) {
 		return false
 	}
 	table := view.MustRelation(parent.SQLIndex.Parent)
-	child := partitionPreservedReplayChild(view, table)
+	child := PartitionPreservedReplayChild(view, table)
 	return child != nil && child.Address() == index.SQLIndex.Parent
 }
 
@@ -35,7 +35,7 @@ func partitionPreservedReplayBacking(view catalog.Read, index *catalog.Relation)
 // reattachment. Deferred local origins and their data consumers follow it.
 func partitionReplayIndexReady(view catalog.Read, graph dump.Graph, event dump.Event, index *catalog.Relation) {
 	table := view.MustRelation(index.SQLIndex.Parent)
-	if index.SQLIndex.Constraint != nil && !partitionReplayUsingIndex(view, index) {
+	if index.SQLIndex.Constraint != nil && !PartitionReplayUsingIndex(view, index) {
 		graph.Add(event, dump.Event{OID: table.Address().ObjectID})
 	} else {
 		graph.Add(event, dump.Event{OID: index.Address().ObjectID})
@@ -51,7 +51,7 @@ func partitionReplayIndexReady(view catalog.Read, graph dump.Graph, event dump.E
 		return
 	}
 	for _, address := range table.Partition.Children {
-		child := partitionDumpIndexBacking(view, index.Address(), address)
+		child := PartitionDumpIndexBacking(view, index.Address(), address)
 		partitionReplayIndexReady(view, graph, event, child)
 		if index.SQLIndex.Constraint == nil {
 			graph.Add(event, dump.Event{OID: child.Address().ObjectID, Phase: dump.IndexAttachment})
@@ -66,7 +66,7 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 	groups := make(map[ids.ObjectAddress][]*catalog.Relation)
 	for oid := range indexIndices {
 		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-		if partitionIndexPreservedInvalid(view, index) {
+		if PartitionIndexPreservedInvalid(view, index) {
 			groups[index.SQLIndex.Parent] = append(groups[index.SQLIndex.Parent], index)
 		}
 	}
@@ -77,7 +77,7 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 	for address := range groups {
 		tables = append(tables, view.MustRelation(address))
 	}
-	slices.SortFunc(tables, func(a, b *catalog.Relation) int { return partitionReplayNameCompare(view, a, b) })
+	slices.SortFunc(tables, func(a, b *catalog.Relation) int { return PartitionReplayNameCompare(view, a, b) })
 	reserved := make(map[ids.NameKey]bool, view.NameCount())
 	for key := range view.Names() {
 		reserved[key] = true
@@ -88,9 +88,9 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 		oid := table.Address().ObjectID
 		prepare := dump.Event{OID: oid, Phase: dump.InvalidIndexPreparation}
 		finish := dump.Event{OID: oid, Phase: dump.InvalidIndexCompletion}
-		item := partitionInvalidReplay{table: table, child: partitionPreservedReplayChild(view, table)}
+		item := partitionInvalidReplay{table: table, child: PartitionPreservedReplayChild(view, table)}
 		for _, index := range groups[table.Address()] {
-			if partitionReplayOnlyExclusion(index) {
+			if PartitionReplayOnlyExclusion(index) {
 				// Never detach a captured EXCLUDE child: reattachment clones
 				// fresh providers instead of adopting its independent locals.
 				item.child = nil
@@ -136,12 +136,12 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 			graph[prepare] = []dump.Event{membership}
 			graph[finish] = []dump.Event{prepare}
 			var previousBacking dump.Event
-			for _, index := range partitionIndexDeclarationOrder(view, table) {
-				if !partitionIndexPreservedInvalid(view, index) {
+			for _, index := range PartitionIndexDeclarationOrder(view, table) {
+				if !PartitionIndexPreservedInvalid(view, index) {
 					continue
 				}
 				graph.Add(prepare, dump.Event{OID: index.Address().ObjectID})
-				backing := partitionDumpIndexBacking(view, index.Address(), item.child.Address())
+				backing := PartitionDumpIndexBacking(view, index.Address(), item.child.Address())
 				attachment := dump.Event{OID: backing.Address().ObjectID, Phase: dump.IndexAttachment}
 				if partitionPreservedReplayBacking(view, backing) {
 					declaration := dump.Event{OID: backing.Address().ObjectID}
@@ -162,7 +162,7 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 					if address == item.child.Address() {
 						continue
 					}
-					other := partitionDumpIndexBacking(view, index.Address(), address)
+					other := PartitionDumpIndexBacking(view, index.Address(), address)
 					graph.Add(prepare, dump.Event{OID: other.Address().ObjectID, Phase: dump.IndexAttachment})
 				}
 			}
@@ -170,10 +170,10 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 			// otherwise ATTACH would generate unwanted backings for their gaps.
 			for indexOID := range indexIndices {
 				index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID})
-				if index.SQLIndex.Parent == table.Address() && !index.SQLIndex.Valid && !partitionIndexPreservedInvalid(view, index) {
+				if index.SQLIndex.Parent == table.Address() && !index.SQLIndex.Valid && !PartitionIndexPreservedInvalid(view, index) {
 					graph.Add(dump.Event{OID: indexOID}, finish)
 				}
-				if index.SQLIndex.Parent == item.child.Address() && partitionPreservedReplayLocal(view, index) {
+				if index.SQLIndex.Parent == item.child.Address() && PartitionPreservedReplayLocal(view, index) {
 					graph.Add(dump.Event{OID: indexOID}, finish)
 				}
 			}

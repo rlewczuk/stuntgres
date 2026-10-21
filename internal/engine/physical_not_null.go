@@ -38,7 +38,7 @@ func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotN
 func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinary map[int32]bool) error {
 	var validated *catalog.PhysicalPrimarySupport
 	for attribute, proof := range table.Constraints.PhysicalNotNull {
-		if ordinary[attribute] || !physicalNotNullOriginValid(view, table, attribute, proof) {
+		if ordinary[attribute] || !PhysicalNotNullOriginValid(view, table, attribute, proof) {
 			return fmt.Errorf("stuntgres: invalid physical not-null origin")
 		}
 		primary := catalog.PhysicalPrimaryForAttribute(table, attribute)
@@ -59,7 +59,7 @@ func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinar
 			return fmt.Errorf("stuntgres: missing physical not-null primary support")
 		}
 		if proof.Support != validated {
-			if !physicalPrimarySupportValid(view, table, primary, proof.Support) {
+			if !PhysicalPrimarySupportValid(view, table, primary, proof.Support) {
 				return fmt.Errorf("stuntgres: invalid physical not-null primary support")
 			}
 			validated = proof.Support
@@ -111,7 +111,7 @@ func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, ch
 		// without changing a key's Usage. Follow that actual group replacement.
 		touches := primary != nil && proof.Support != nil && (primary.OID != proof.Support.Constraint || primary.Index != proof.Support.Index)
 		for _, change := range changes {
-			if primary != nil && slices.Contains(primary.Attributes, change.attribute) || primary == nil && change.attribute == attribute {
+			if primary != nil && slices.Contains(primary.Attributes, change.Attribute) || primary == nil && change.Attribute == attribute {
 				touches = true
 				break
 			}

@@ -340,13 +340,13 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		predecessor := [1]storage.RowVersion{old}
-		proposal := indexWriteCandidate{values: row}
+		proposal := indexWriteCandidate{Values: row}
 		if err = s.checkUniqueRow(ref, &proposal, predecessor[:], indexWriteBatch{}); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		replacement := [1][]sqltype.Value{row}
-		batch := indexWriteBatch{values: replacement[:], actionMode: actionMode}
-		batch.set(0, proposal)
+		batch := indexWriteBatch{Values: replacement[:], ActionMode: actionMode}
+		batch.Set(0, proposal)
 		if err = s.stage.replace(ref, predecessor[:], batch); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}

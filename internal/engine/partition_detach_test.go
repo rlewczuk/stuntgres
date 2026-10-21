@@ -116,8 +116,8 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			childKey := catalog.UniqueConstraint{OID: 46601, Name: f.child.Name(), Index: f.child.Address(), Attributes: []int32{22, 11}, Parent: rootKey.OID}
 			f.root.Constraints.Unique = []catalog.UniqueConstraint{rootKey}
 			f.leaf.Constraints.Unique = []catalog.UniqueConstraint{childKey}
-			f.parent.SQLIndex.Constraint = uniqueBacking(&rootKey)
-			f.child.SQLIndex.Constraint = uniqueBacking(&childKey)
+			f.parent.SQLIndex.Constraint = UniqueBacking(&rootKey)
+			f.child.SQLIndex.Constraint = UniqueBacking(&childKey)
 			f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
 			stage := f.e.BeginCatalogStage(f.view)
 			defer f.e.DiscardCatalogStage(stage)
@@ -136,13 +136,13 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			if view.Get(f.parent.Address()) != f.parent || f.parent.SQLIndex.Valid != valid {
 				t.Fatal("detach promoted or replaced former parent index")
 			}
-			if err := validatePartitionIndex(view, f.parent, view.MustRelation(f.root.Address())); err != nil {
+			if err := ValidatePartitionIndex(view, f.parent, view.MustRelation(f.root.Address())); err != nil {
 				t.Fatal("invalid-complete must be admitted", err)
 			}
-			if err := validateIndexDefinition(view, index); err != nil {
+			if err := ValidateIndexDefinition(view, index); err != nil {
 				t.Fatal(err)
 			}
-			if !sameIndexKeySemantics(f.child, index) {
+			if !SameIndexKeySemantics(f.child, index) {
 				t.Fatal("metadata-only detach would rebuild physical keys")
 			}
 		})

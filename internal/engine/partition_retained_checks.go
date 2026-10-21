@@ -15,22 +15,22 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	oldSlot, newSlot := h.relation.IndexForAttribute(attribute), d.IndexForAttribute(attribute)
+	oldSlot, newSlot := h.Relation.IndexForAttribute(attribute), d.IndexForAttribute(attribute)
 	if oldSlot < 0 || newSlot < 0 {
 		return false, ids.ErrCatalogReplaced
 	}
-	if generation, ok := h.relation.ColumnMeta.Generations[attribute]; ok && generation.Kind == catalog.GenerationVirtual {
+	if generation, ok := h.Relation.ColumnMeta.Generations[attribute]; ok && generation.Kind == catalog.GenerationVirtual {
 		// Virtual cells have no stored value. Follow the already-certified
 		// generation dependency graph to its actual stored input cells.
 		for _, dependency := range generation.Dependencies {
 			address := dependency.Address
 			whole := address
 			whole.SubID = 0
-			if whole != h.relation.Address() {
+			if whole != h.Relation.Address() {
 				continue
 			}
 			if address.SubID == 0 {
-				for _, input := range h.relation.Attributes {
+				for _, input := range h.Relation.Attributes {
 					if input == attribute {
 						continue
 					}
@@ -56,9 +56,9 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 // relevant. Descriptor ownership alone does not change its old-row authority.
 func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, d *catalog.Relation, check catalog.CheckConstraint, before, after []sqltype.Value) (bool, error) {
 	var original *catalog.CheckConstraint
-	for i := range h.relation.Constraints.Check {
-		if h.relation.Constraints.Check[i].Name == check.Name {
-			original = &h.relation.Constraints.Check[i]
+	for i := range h.Relation.Constraints.Check {
+		if h.Relation.Constraints.Check[i].Name == check.Name {
+			original = &h.Relation.Constraints.Check[i]
 			break
 		}
 	}
@@ -69,9 +69,9 @@ func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, 
 		address := dependency.Ref.Address
 		whole := address
 		whole.SubID = 0
-		if whole == h.relation.Address() {
+		if whole == h.Relation.Address() {
 			if address.SubID == 0 {
-				for _, attribute := range h.relation.Attributes {
+				for _, attribute := range h.Relation.Attributes {
 					changed, err := partitionRetainedAttributeChanged(ctx, h, d, attribute, before, after)
 					if err != nil || changed {
 						return changed, err
@@ -152,15 +152,15 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 		p.descriptor = *d
 		p.descriptor.Constraints.Check = slices.Clone(d.Constraints.Check)
 		p.initialized = true
-		ownerChanged := snapshot.destination(h.relation.Address()) != h.relation.Address()
+		ownerChanged := snapshot.Destination(h.Relation.Address()) != h.Relation.Address()
 		for i, check := range d.Constraints.Check {
 			if !check.NotValid {
 				continue
 			}
 			var original *catalog.CheckConstraint
-			for j := range h.relation.Constraints.Check {
-				if h.relation.Constraints.Check[j].Name == check.Name {
-					original = &h.relation.Constraints.Check[j]
+			for j := range h.Relation.Constraints.Check {
+				if h.Relation.Constraints.Check[j].Name == check.Name {
+					original = &h.Relation.Constraints.Check[j]
 					break
 				}
 			}
@@ -177,10 +177,10 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 				address := dependency.Ref.Address
 				whole := address
 				whole.SubID = 0
-				if whole != h.relation.Address() {
+				if whole != h.Relation.Address() {
 					continue
 				}
-				for attribute, generation := range h.relation.ColumnMeta.Generations {
+				for attribute, generation := range h.Relation.ColumnMeta.Generations {
 					if generation.Kind != catalog.GenerationVirtual || address.SubID != 0 && address.SubID != attribute {
 						continue
 					}

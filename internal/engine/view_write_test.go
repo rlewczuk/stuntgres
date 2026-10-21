@@ -304,7 +304,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	}
 	row := append([]sqltype.Value(nil), old.Values...)
 	row[1], _ = sqltype.Integer(f.integer, 0)
-	if err := holder.Writes().replace(f.baseRef, []storage.RowVersion{old}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
+	if err := holder.Writes().replace(f.baseRef, []storage.RowVersion{old}, indexWriteBatch{Values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := holder.Finish(nil); err != nil {
@@ -343,7 +343,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	}
 	row := append([]sqltype.Value(nil), originals[1].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[1]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
+	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[1]}, indexWriteBatch{Values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(scope.op.Context())

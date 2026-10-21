@@ -17,7 +17,7 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *catalog.Rel
 		next.ObjectRevision++
 		next.Constraints.Unique = slices.DeleteFunc(next.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Index == index.Address() })
 		next.Constraints.Exclusion = slices.DeleteFunc(slices.Clone(table.Constraints.Exclusion), func(c catalog.ExclusionConstraint) bool { return c.Index == index.Address() })
-		if err := stagePartitionDescriptor(stage, &next); err != nil {
+		if err := StagePartitionDescriptor(stage, &next); err != nil {
 			return err
 		}
 	}
@@ -62,7 +62,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, table *catalog.Relation, syntax *parser.AlterTable) (Result, error) {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
-	stage.indexes().output = scope.output
+	stage.indexes().Output = scope.output
 	for _, observed := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, observed)
 	}
@@ -81,7 +81,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, table.Name()))
 			}
 			index := view.MustRelation(c.Index)
-			if err := partitionIndexDropDependency(view, index); err != nil {
+			if err := PartitionIndexDropDependency(view, index); err != nil {
 				return Result{}, err
 			}
 			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
@@ -100,7 +100,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, table.Name()))
 			}
 			index := view.MustRelation(c.Index)
-			if err := partitionIndexDropDependency(view, index); err != nil {
+			if err := PartitionIndexDropDependency(view, index); err != nil {
 				return Result{}, err
 			}
 			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {

@@ -60,7 +60,7 @@ func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *session.Jou
 	current, ok := view.Relation(source.Ref.Address)
 	if !ok || source.Relation == nil || source.Ref.Domain() != e.catalog.Domain || source.Ref.Epoch != e.catalog.state.Epoch() || source.Ref.Address.SubID != 0 ||
 		current.Address() != source.Relation.Address() || current.Namespace() != source.Relation.Namespace() || current.Name() != source.Relation.Name() || current.RelationKind != source.Relation.RelationKind ||
-		!sameRelationRowShape(current, source.Relation) {
+		!SameRelationRowShape(current, source.Relation) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if current.RelationKind == catalog.SequenceRelation {
@@ -441,14 +441,14 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf,
 			continue
 		}
 		live, ok := e.catalog.state.Relation(address)
-		if !ok || !sameIndexKeySemantics(index, live) {
+		if !ok || !SameIndexKeySemantics(index, live) {
 			continue
 		}
 		root := carrier.Hash
 		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.Committed) || root.Ends != data.Ends[a] {
 			continue
 		}
-		usage, err := indexKeyUsage(leaf.Relation, index.SQLIndex.Keys[0])
+		usage, err := KeyUsage(leaf.Relation, index.SQLIndex.Keys[0])
 		if err != nil {
 			return err
 		}

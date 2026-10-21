@@ -248,10 +248,10 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	constraint := catalog.ExclusionConstraint{OID: parent.Address().ObjectID, Name: index.Name(), Index: index.Address(), Operators: []sqltype.ExclusionOperator{operator}}
 	tempChild.Constraints.Exclusion = []catalog.ExclusionConstraint{constraint}
 	tempChild.History.HasIndexes = true
-	index.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: tempChild.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Constraint: exclusionBacking(&constraint), Exclusion: constraint.Operators, Ready: true, Valid: true, Live: true}
+	index.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: tempChild.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Constraint: ExclusionBacking(&constraint), Exclusion: constraint.Operators, Ready: true, Valid: true, Live: true}
 	inheritanceLifecycleInstall(e, index)
 	inheritanceLifecycleInstall(source, parent, child)
-	if err := validateExclusions(e.CatalogRead(), tempChild, map[string]bool{}); err != nil {
+	if err := ValidateExclusions(e.CatalogRead(), tempChild, map[string]bool{}); err != nil {
 		t.Fatal("invalid real exclusion fixture", err)
 	}
 	before := e.catalog.state
@@ -278,7 +278,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if mappedParent.Columns[0].OriginTable != uint32(mapped.ObjectID) || mappedParent.Columns[1].OriginTable != uint32(mapped.ObjectID) || imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.Constraints.NotNull[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.Constraints.Check[0].OID {
 		t.Fatal("imported row/constraint origins did not follow mapping")
 	}
-	if e.catalog.state != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(index.Address()) != index || relations[temp.Address()] != retainedParentStorage || relations[tempChild.Address()] != retainedChildStorage || index.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.Constraints.Exclusion[0], constraint) || !backingConstraintPresent(tempChild, index) {
+	if e.catalog.state != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(index.Address()) != index || relations[temp.Address()] != retainedParentStorage || relations[tempChild.Address()] != retainedChildStorage || index.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.Constraints.Exclusion[0], constraint) || !BackingConstraintPresent(tempChild, index) {
 		t.Fatal("retained TEMP descriptors, exclusion attachment, storage or source authority changed")
 	}
 	if source.catalog.state.Get(parent.Address()) != parent || source.catalog.state.Get(child.Address()) != child || child.Inheritance.Parents[0] != parent.Address() || child.Inheritance.Columns[1].Origins[0].Parent != parent.Address() || parent.Columns[0].OriginTable != uint32(parent.Address().ObjectID) || child.Inheritance.NotNull[1].Origins[0].Constraint != 23000 {

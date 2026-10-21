@@ -219,7 +219,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 				frozen := *generator
 				catalogue.Generators[address] = &frozen
 			}
-			journalIndexes(&catalogue).uniqueRoots = maps.Clone(journalIndexesOrZero(prepared.catalog).uniqueRoots)
+			JournalIndexes(&catalogue).UniqueRoots = maps.Clone(JournalIndexesOrZero(prepared.catalog).UniqueRoots)
 			catalogue.Dependencies = slices.Clone(prepared.catalog.Dependencies)
 			value.catalog = &catalogue
 		}
@@ -687,24 +687,24 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	original := e.storage.Relations[parent]
 	store := e.privateStorageLocked(entry.catalog, parent)
 	publication := rowPublication{
-		address: parent, store: store, original: original,
-		originalRelation: e.catalog.state.MustRelation(parent),
-		relation:         entry.catalog.Cached.MustRelation(parent),
-		root:             store.Versions, writes: entry.writes[parent], ends: store.Ends,
-		deletion: entry.deletes[parent], generation: store.Generation, singleSlot: -1,
+		Address: parent, Store: store, Original: original,
+		OriginalRelation: e.catalog.state.MustRelation(parent),
+		Relation:         entry.catalog.Cached.MustRelation(parent),
+		Root:             store.Versions, Writes: entry.writes[parent], Ends: store.Ends,
+		Deletion: entry.deletes[parent], Generation: store.Generation, SingleSlot: -1,
 	}
 	updatePosition, update := preparedBoundaryUpdate(t, entry, parent)
-	predecessor, predecessorSlot, found := storage.RowByID(publication.root, update.Row, -1)
-	if !found || predecessor.Version != update.Base || !visibility.LiveVersion(predecessor, entry.frontier, publication.ends, nil) {
+	predecessor, predecessorSlot, found := storage.RowByID(publication.Root, update.Row, -1)
+	if !found || predecessor.Version != update.Base || !visibility.LiveVersion(predecessor, entry.frontier, publication.Ends, nil) {
 		t.Fatal("structural fixture omitted a live genuine UPDATE predecessor")
 	}
 	if err := e.prepareRowPublication(&publication, entry.ref, false); err != nil {
 		t.Fatal(err)
 	}
-	if publication.next != nil || publication.nextEnds != nil || publication.slots != nil || publication.singleSlot != -1 {
+	if publication.Next != nil || publication.NextEnds != nil || publication.Slots != nil || publication.SingleSlot != -1 {
 		t.Fatal("validation-only PREPARE materialized installable row/deletion/slot roots")
 	}
-	stores := captureIndexStores(e.storage.Relations, e.catalog.state)
+	stores := CaptureIndexStores(e.storage.Relations, e.catalog.state)
 	rebuild := map[ids.ObjectAddress]bool{}
 	for address, change := range entry.catalog.Storage {
 		stores[address], rebuild[address] = change.Replacement, true
@@ -718,7 +718,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if err := e.prepareRowPublication(&materialized, entry.ref, true); err != nil {
 		t.Fatal(err)
 	}
-	if materialized.next == nil || materialized.nextEnds == nil || len(materialized.slots) != len(publication.writes) || materialized.slots[updatePosition] != predecessorSlot || &materialized.next[0] == &publication.root[0] {
+	if materialized.Next == nil || materialized.NextEnds == nil || len(materialized.Slots) != len(publication.Writes) || materialized.Slots[updatePosition] != predecessorSlot || &materialized.Next[0] == &publication.Root[0] {
 		t.Fatal("completion omitted separate UPDATE replacement heads/deletion/slot installation roots")
 	}
 	roots, err = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []rowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
@@ -726,8 +726,8 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 		t.Fatal("completion omitted substantive index installation roots", err)
 	}
 	invalid := publication
-	invalid.writes = slices.Clone(publication.writes)
-	invalid.writes[0].Born = 1
+	invalid.Writes = slices.Clone(publication.Writes)
+	invalid.Writes[0].Born = 1
 	validationError := e.prepareRowPublication(&invalid, entry.ref, false)
 	installationError := e.prepareRowPublication(&invalid, entry.ref, true)
 	if validationError == nil || validationError.Error() != "stuntgres: invalid private row version" || installationError == nil || installationError.Error() != "stuntgres: invalid private row version" {
@@ -736,17 +736,17 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	for _, staleKind := range []string{"wrong_base_version", "ended_predecessor"} {
 		for _, materialize := range []bool{false, true} {
 			stale := publication
-			stale.writes = slices.Clone(publication.writes)
+			stale.Writes = slices.Clone(publication.Writes)
 			if staleKind == "wrong_base_version" {
-				stale.writes[updatePosition].Base = ids.VersionID(^uint64(0))
+				stale.Writes[updatePosition].Base = ids.VersionID(^uint64(0))
 			} else {
-				stale.ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{update.Row: {Version: update.Base, End: entry.frontier}}}
+				stale.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{update.Row: {Version: update.Base, End: entry.frontier}}}
 			}
 			err := e.prepareRowPublication(&stale, entry.ref, materialize)
 			if err == nil || err.Error() != "stuntgres: stale update predecessor" {
 				t.Fatal("phase switch failed to reject stale UPDATE predecessor", staleKind, materialize, err)
 			}
-			if !materialize && (stale.next != nil || stale.nextEnds != nil || stale.slots != nil || stale.singleSlot != -1) {
+			if !materialize && (stale.Next != nil || stale.NextEnds != nil || stale.Slots != nil || stale.SingleSlot != -1) {
 				t.Fatal("rejected validation-only UPDATE allocated replacement heads or slots", staleKind)
 			}
 			preparedBoundaryUnchanged(t, e, entry, before)

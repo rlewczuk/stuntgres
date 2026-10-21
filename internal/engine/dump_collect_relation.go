@@ -87,11 +87,11 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	// Key declarations and their table constraints must use the same
 	// captured private-name projection, including deferred local keys.
 	r = c.catalogView.MustRelation(r.Address())
-	virtual := partitionReplayVirtualUniqueRoot(c.catalogView, r)
+	virtual := PartitionReplayVirtualUniqueRoot(c.catalogView, r)
 	if virtual != nil && virtual.Address() != r.Address() {
 		return nil
 	}
-	if r.SQLIndex.Constraint != nil && !partitionReplaySeparateConstraint(c.catalogView, r) {
+	if r.SQLIndex.Constraint != nil && !PartitionReplaySeparateConstraint(c.catalogView, r) {
 		return nil
 	}
 	var sql string
@@ -99,13 +99,13 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	if virtual != nil {
 		sql, err = partitionVirtualUniqueDefinitionSQL(c.catalogView, r)
 	} else {
-		sql, err = indexDefinitionSQL(ctx, c.catalogView, r, indexPresentation{dump: true})
+		sql, err = DefinitionSQL(ctx, c.catalogView, r, indexPresentation{Dump: true})
 	}
 	if err != nil {
 		return err
 	}
 	oid := r.Address().ObjectID
-	if partitionReplayUsingIndex(c.catalogView, r) {
+	if PartitionReplayUsingIndex(c.catalogView, r) {
 		parent := c.catalogView.MustRelation(r.SQLIndex.Parent)
 		kind := "UNIQUE"
 		if r.SQLIndex.Constraint.Primary {

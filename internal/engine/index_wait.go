@@ -15,13 +15,13 @@ func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner ids.Tx
 	if owner.Domain() != domainOf(e) || owner.Epoch() != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	e.indexWaits.admitLocked(index, owner, kind)
+	e.indexWaits.AdmitLocked(index, owner, kind)
 	return nil
 }
 
 func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, kind indexBuildWaitKind) {
 	e.mu.Lock()
-	e.indexWaits.clearLocked(index, owner, kind)
+	e.indexWaits.ClearLocked(index, owner, kind)
 	e.mu.Unlock()
 }
 
@@ -50,12 +50,12 @@ func (s *StatementScope) waitIndexWriters(index ids.ObjectAddress) error {
 	}
 	// The complete granted cohort is frozen before admission is observable.
 	e.mu.Lock()
-	err = e.admitIndexBuildWaitLocked(index, s.txRef, indexWaitWriters)
+	err = e.admitIndexBuildWaitLocked(index, s.txRef, WaitWriters)
 	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	defer e.clearIndexBuildWait(index, s.txRef, indexWaitWriters)
+	defer e.clearIndexBuildWait(index, s.txRef, WaitWriters)
 	for _, owner := range owners {
 		if err := s.waitCompletion(owner, lock.CompletionVirtual); err != nil {
 			return err

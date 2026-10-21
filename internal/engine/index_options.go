@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func indexCapability(message string, pos parser.Position) error {
+func Capability(message string, pos parser.Position) error {
 	d := sqlError("0A000", message).(*sqlstate.Error)
 	if pos.Character > 0 {
 		d.Position = strconv.Itoa(pos.Character)
@@ -22,24 +22,24 @@ func indexCapability(message string, pos parser.Position) error {
 
 // Validate reloptions in input order. A first malformed value wins over a later
 // duplicate; RESET has a different contract and accepts unknown/repeated names.
-func validateIndexOptions(s *parser.AlterIndex, method catalog.IndexMethod) error {
+func ValidateIndexOptions(s *parser.AlterIndex, method catalog.IndexMethod) error {
 	if s.Action == "reset" {
 		for _, o := range s.Options {
 			if o.HasValue {
 				return sqlError("42601", "RESET must not include values for parameters")
 			}
 		}
-		return indexCapability("index storage parameters are unsupported", parser.Position{})
+		return Capability("index storage parameters are unsupported", parser.Position{})
 	}
-	if err := validateIndexReloptions(s.Options, method, true); err != nil {
+	if err := ValidateIndexReloptions(s.Options, method, true); err != nil {
 		return err
 	}
-	return indexCapability("index storage parameters are unsupported", parser.Position{})
+	return Capability("index storage parameters are unsupported", parser.Position{})
 }
 
 // CREATE rejects namespaces; ALTER retains PostgreSQL's toast-ignore policy.
 // This validates the complete list, without accepting physical options as no-ops.
-func validateIndexReloptions(options []parser.IndexOption, method catalog.IndexMethod, alter bool) error {
+func ValidateIndexReloptions(options []parser.IndexOption, method catalog.IndexMethod, alter bool) error {
 	seen := make(map[string]bool, len(options))
 	for _, o := range options {
 		if alter && o.Namespace == "toast" {
@@ -89,7 +89,7 @@ func validateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 
 // Validate malformed controls in input order before target/schema/ACL admission.
 // Earlier valid controls must not mask a later unknown or malformed option.
-func validateReindexOptions(s *parser.Reindex) error {
+func ValidateReindexOptions(s *parser.Reindex) error {
 	for _, o := range s.Options {
 		switch o.Name.Text {
 		case "verbose", "concurrently":
@@ -111,23 +111,23 @@ func validateReindexOptions(s *parser.Reindex) error {
 
 // Admission already validated the complete list. Keep valid capability rejection
 // at its established target phase, separately from malformed-control precedence.
-func reindexControlError(s *parser.Reindex) error {
+func ReindexControlError(s *parser.Reindex) error {
 	if s.Kind.Text != "index" && s.Kind.Text != "table" {
-		return indexCapability("REINDEX target is unsupported", s.Kind.Pos)
+		return Capability("REINDEX target is unsupported", s.Kind.Pos)
 	}
 	for _, o := range s.Options {
 		switch o.Name.Text {
 		case "tablespace":
-			return indexCapability("index tablespaces are unsupported", o.Name.Pos)
+			return Capability("index tablespaces are unsupported", o.Name.Pos)
 		case "concurrently":
 			if enabled, _ := reindexBoolean(o.Value); enabled {
-				return indexCapability("concurrent index operations are unsupported", o.Name.Pos)
+				return Capability("concurrent index operations are unsupported", o.Name.Pos)
 			}
 		}
-		return indexCapability("REINDEX options are unsupported", o.Name.Pos)
+		return Capability("REINDEX options are unsupported", o.Name.Pos)
 	}
 	if s.Concurrent.Character > 0 {
-		return indexCapability("concurrent index operations are unsupported", s.Concurrent)
+		return Capability("concurrent index operations are unsupported", s.Concurrent)
 	}
 	return nil
 }

@@ -119,10 +119,10 @@ func (provider *dropProvider) synchronizeRowType(relation *catalog.Relation) err
 	if !ok {
 		return nil
 	}
-	if staged, ok := provider.replacement(address).(*catalog.Type); ok {
+	if staged, ok := provider.Replacement(address).(*catalog.Type); ok {
 		row = staged
 	}
-	return synchronizeRowTypeMetadata(relation, row, provider.descriptor, provider.associatedArrayName, provider.replace)
+	return synchronizeRowTypeMetadata(relation, row, provider.descriptor, provider.associatedArrayName, provider.Replace)
 }
 
 // synchronizeRowTypeMetadata is the shared metadata-only cooking core. replace

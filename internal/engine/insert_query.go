@@ -28,7 +28,7 @@ func evaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 		if err != nil {
 			return indexWriteBatch{}, err
 		}
-		unique = len(bound.keys) != 0 || bound.checked
+		unique = len(bound.Keys) != 0 || bound.Checked
 	}
 	state := &exec.State{Source: source, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
 	defer state.ReleaseMemberships()
@@ -56,9 +56,9 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	}()
 	if scope == nil || scope.insertReturning == nil {
 		if count >= 0 {
-			rows.values = make([][]sqltype.Value, 0, count)
+			rows.Values = make([][]sqltype.Value, 0, count)
 		} else {
-			rows.values = make([][]sqltype.Value, 0)
+			rows.Values = make([][]sqltype.Value, 0)
 		}
 	}
 	scratch := make([]sqltype.Value, len(b.Targets))
@@ -114,14 +114,14 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				}
 			}
 		}
-		candidate := indexWriteCandidate{values: row}
+		candidate := indexWriteCandidate{Values: row}
 		if scope != nil && scope.partitionInsert != nil {
 			if err := scope.engine().validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return indexWriteBatch{}, err
 			}
 			if copyInsert != nil {
-				copyInsert.record(scope, b, &candidate, len(rows.values))
-				rows.append(candidate)
+				copyInsert.record(scope, b, &candidate, len(rows.Values))
+				rows.Append(candidate)
 				if copyInsert.full() {
 					if err := copyInsert.flush(scope, b, &rows, &evaluation); err != nil {
 						return indexWriteBatch{}, err
@@ -138,14 +138,14 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			if err := scope.checkInsertUniqueRow(b.Ref, &candidate, rows); err != nil {
 				return indexWriteBatch{}, err
 			}
-			rows.append(candidate)
+			rows.Append(candidate)
 			continue
 		}
 		if err := evaluateGenerations(ctx, b.Relation, row, &evaluation); err != nil {
 			return indexWriteBatch{}, err
 		}
 		if b.Relation.RelationKind == catalog.ForeignRelation {
-			rows.append(candidate)
+			rows.Append(candidate)
 			continue
 		}
 		if scope != nil {
@@ -201,9 +201,9 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 		if copyInsert != nil {
-			copyInsert.record(scope, b, &candidate, len(rows.values))
+			copyInsert.record(scope, b, &candidate, len(rows.Values))
 		}
-		rows.append(candidate)
+		rows.Append(candidate)
 		if copyInsert != nil && copyInsert.full() {
 			if err := copyInsert.flush(scope, b, &rows, &evaluation); err != nil {
 				return indexWriteBatch{}, err

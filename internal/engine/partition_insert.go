@@ -303,12 +303,12 @@ func (s *StatementScope) checkInsertUniqueRow(ref ids.ObjectRef, candidate *inde
 	}
 	group := s.partitionInsertionGroup(ref)
 	s.uniqueBinding = group.unique
-	candidate.values = s.partitionStoredRow(candidate.values)
+	candidate.Values = s.partitionStoredRow(candidate.Values)
 	if err := s.checkUniqueRow(group.ref, candidate, nil, group.rows); err != nil {
 		return err
 	}
 	group.unique = s.uniqueBinding
-	group.rows.append(*candidate)
+	group.rows.Append(*candidate)
 	return nil
 }
 
@@ -322,7 +322,7 @@ func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows indexWrite
 		if err := s.Writes().applyValidated(group.ref, group.rows); err != nil {
 			return 0, err
 		}
-		count += len(group.rows.values)
+		count += len(group.rows.Values)
 	}
 	return count, nil
 }

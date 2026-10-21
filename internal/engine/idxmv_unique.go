@@ -16,7 +16,7 @@ import (
 	"unicode/utf8"
 )
 
-func physicalNotNullOriginValid(view catalog.Read, table *catalog.Relation, attribute int32, proof catalog.PhysicalNotNullProof) bool {
+func PhysicalNotNullOriginValid(view catalog.Read, table *catalog.Relation, attribute int32, proof catalog.PhysicalNotNullProof) bool {
 	cause := proof.Cause
 	if cause == nil || cause.Self != cause || cause.Kind != catalog.PhysicalNotNullTypeCleanup && cause.Kind != catalog.PhysicalNotNullImportCleanup && cause.Kind != catalog.PhysicalNotNullImportFlag || cause.Ref.Address != table.Address() || cause.Ref.Address.SubID != 0 || cause.Attribute != attribute || cause.RemovedNN == 0 || cause.Usage.Type == nil || !stored.ReferenceEpochValid(view, table, cause.Ref) {
 		return false
@@ -35,7 +35,7 @@ func physicalNotNullOriginValid(view catalog.Read, table *catalog.Relation, attr
 	return table.RelationKind == catalog.TableRelation && table.Partition == nil && table.Membership == nil && slot >= 0 && table.Columns[slot].NullabilityKnown && !table.Columns[slot].Nullable && proof.Usage == table.Columns[slot].Usage
 }
 
-func physicalPrimarySupportValid(view catalog.Read, table *catalog.Relation, primary *catalog.UniqueConstraint, support *catalog.PhysicalPrimarySupport) bool {
+func PhysicalPrimarySupportValid(view catalog.Read, table *catalog.Relation, primary *catalog.UniqueConstraint, support *catalog.PhysicalPrimarySupport) bool {
 	if support == nil || primary == nil || !primary.Primary || support.Constraint != primary.OID || support.Index != primary.Index || len(support.Keys) != len(primary.Attributes) {
 		return false
 	}
@@ -45,7 +45,7 @@ func physicalPrimarySupportValid(view catalog.Read, table *catalog.Relation, pri
 	}
 	for i, key := range support.Keys {
 		slot := table.IndexForAttribute(key.Attribute)
-		attribute, expression, err := indexCatalogKey(table, index.SQLIndex.Keys[i])
+		attribute, expression, err := CatalogKey(table, index.SQLIndex.Keys[i])
 		if slot < 0 || key.Attribute != primary.Attributes[i] || key.Usage != table.Columns[slot].Usage || key.Usage != index.Columns[i].Usage || err != nil || expression != nil || attribute != key.Attribute {
 			return false
 		}
@@ -53,7 +53,7 @@ func physicalPrimarySupportValid(view catalog.Read, table *catalog.Relation, pri
 	return true
 }
 
-func validateUniques(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
+func ValidateUniques(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
 	primary := false
 	var physicalSupport *catalog.PhysicalPrimarySupport
 	for _, c := range parent.Constraints.Unique {
@@ -76,7 +76,7 @@ func validateUniques(view catalog.Read, parent *catalog.Relation, names map[stri
 		}
 		used := make(map[int32]bool, len(c.Attributes))
 		for i, a := range c.Attributes {
-			attribute, expression, err := indexCatalogKey(parent, index.SQLIndex.Keys[i])
+			attribute, expression, err := CatalogKey(parent, index.SQLIndex.Keys[i])
 			if err != nil || expression != nil || used[a] || !parent.HasAttribute(a) || attribute != a || index.SQLIndex.Keys[i].Desc || index.SQLIndex.Keys[i].NullsFirst {
 				return fmt.Errorf("stuntgres: invalid unique key")
 			}
@@ -95,11 +95,11 @@ func validateUniques(view catalog.Read, parent *catalog.Relation, names map[stri
 				}
 				if !found {
 					proof, exists := parent.Constraints.PhysicalNotNull[a]
-					if !exists || !physicalNotNullOriginValid(view, parent, a, proof) || proof.Support == nil {
+					if !exists || !PhysicalNotNullOriginValid(view, parent, a, proof) || proof.Support == nil {
 						return fmt.Errorf("stuntgres: missing primary not-null identity")
 					}
 					if physicalSupport != proof.Support {
-						if !physicalPrimarySupportValid(view, parent, &c, proof.Support) {
+						if !PhysicalPrimarySupportValid(view, parent, &c, proof.Support) {
 							return fmt.Errorf("stuntgres: invalid physical primary not-null support")
 						}
 						physicalSupport = proof.Support
@@ -111,7 +111,7 @@ func validateUniques(view catalog.Read, parent *catalog.Relation, names map[stri
 	return nil
 }
 
-func uniqueHasNull(key []sqltype.Value) bool {
+func UniqueHasNull(key []sqltype.Value) bool {
 	for _, v := range key {
 		if v.IsNull() {
 			return true
@@ -121,7 +121,7 @@ func uniqueHasNull(key []sqltype.Value) bool {
 }
 
 // DDL ownership is independent of ordinary key SELECT disclosure rights.
-func uniqueKeyDetailAllowed(view access.View, env access.Environment, ref ids.ObjectRef, keys []catalog.IndexKey) (bool, error) {
+func UniqueKeyDetailAllowed(view access.View, env access.Environment, ref ids.ObjectRef, keys []catalog.IndexKey) (bool, error) {
 	// RLS applicability is captured metadata/role authority, not a policy-row
 	// evaluation. Table SELECT alone cannot reveal a hidden physical key.
 	descriptor, ok := view.Catalog.Descriptor(ref.Address)
@@ -141,7 +141,7 @@ func uniqueKeyDetailAllowed(view access.View, env access.Environment, ref ids.Ob
 		return true, nil
 	}
 	for _, key := range keys {
-		attribute, expression, err := indexCatalogKey(parent, key)
+		attribute, expression, err := CatalogKey(parent, key)
 		if err != nil {
 			return false, err
 		}
@@ -166,7 +166,7 @@ func uniqueKeyDetailAllowed(view access.View, env access.Environment, ref ids.Ob
 // A domain's index attribute uses the physical oid_ops descriptor for output.
 // Produced keys retain their logical alias type for identity remapping; only
 // diagnostic formatting normalizes that datum, without checking it again.
-func uniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.IndexClass, catalog catalog.Read, output sqltype.OutputEnvironment) (string, error) {
+func UniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.IndexClass, catalog catalog.Read, output sqltype.OutputEnvironment) (string, error) {
 	if value.Type().IsDomain() && class.Name == "oid_ops" {
 		oid, ok := catalog.LookupType(sqltype.Oid)
 		if !ok {
@@ -182,7 +182,7 @@ func uniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.Ind
 }
 
 // Formatting uses typed provider output, never SQL literals or Go formatting.
-func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog catalog.Read) error {
+func UniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog catalog.Read) error {
 	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.Name())
 	if building {
 		message = fmt.Sprintf(`could not create unique index "%s"`, index.Name())
@@ -192,7 +192,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 		labels := make([]string, len(key))
 		values := make([]string, len(key))
 		for i, value := range key {
-			attribute, node, err := indexCatalogKey(parent, index.SQLIndex.Keys[i])
+			attribute, node, err := CatalogKey(parent, index.SQLIndex.Keys[i])
 			if err != nil {
 				return err
 			}
@@ -207,7 +207,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 			if value.IsNull() {
 				values[i] = "null"
 			} else {
-				text, err := uniqueKeyOutput(ctx, value, index.SQLIndex.Keys[i].Class, catalog, output)
+				text, err := UniqueKeyOutput(ctx, value, index.SQLIndex.Keys[i].Class, catalog, output)
 				if err != nil {
 					return err
 				}
@@ -225,22 +225,22 @@ func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 	return d
 }
 
-func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
+func ValidateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
-		return validateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building)
+		return ValidateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building)
 	}
 	if !d.Unique {
 		return nil
 	}
-	ordering, err := bindIndexOrdering(parent, d)
+	ordering, err := BindIndexOrdering(parent, d)
 	if err != nil {
 		return err
 	}
-	return validateUniqueEntries(ctx, parent, index, root.Entries, schema, output, view, env, building, ordering)
+	return ValidateUniqueEntries(ctx, parent, index, root.Entries, schema, output, view, env, building, ordering)
 }
 
-func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool, ordering indexOrdering) error {
+func ValidateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool, ordering indexOrdering) error {
 	if index.SQLIndex.IsExclusion() {
 		return validateExclusionEntries(ctx, parent, index, entries, schema, output, view, env, building)
 	}
@@ -255,12 +255,12 @@ func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation,
 func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool, ordering indexOrdering) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
-		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, view, env, building)
+		return ValidateExclusionPair(ctx, parent, index, previous, current, schema, output, view, env, building)
 	}
-	if !d.Unique || !d.NullsNotDistinct && uniqueHasNull(current.Keys) {
+	if !d.Unique || !d.NullsNotDistinct && UniqueHasNull(current.Keys) {
 		return nil
 	}
-	cmp, err := ordering.compareKeys(ctx, previous, current)
+	cmp, err := ordering.CompareKeys(ctx, previous, current)
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 		allowed := env == nil // Trusted publication has no SQL principal.
 		if env != nil {
 			ref := view.Catalog.Owner().Domain.Ref(view.Catalog.Epoch(), parent.Address())
-			allowed, err = uniqueKeyDetailAllowed(*view, env, ref, d.Keys)
+			allowed, err = UniqueKeyDetailAllowed(*view, env, ref, d.Keys)
 			if err != nil {
 				return err
 			}
@@ -283,7 +283,7 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 		if view != nil {
 			catalog = view.Catalog
 		}
-		return uniqueDiagnostic(ctx, parent, index, key, schema, output, allowed, building, catalog)
+		return UniqueDiagnostic(ctx, parent, index, key, schema, output, allowed, building, catalog)
 	}
 	return nil
 }

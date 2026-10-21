@@ -70,12 +70,12 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 	refs := e.visibility.OlderSnapshotsLocked(s.txRef, xmin)
 	// Publish only after dropping validation ownership and freezing the cohort,
 	// under the same critical section used by the sole coordinator observation.
-	if err := e.admitIndexBuildWaitLocked(index, s.txRef, indexWaitOlderSnapshots); err != nil {
+	if err := e.admitIndexBuildWaitLocked(index, s.txRef, WaitOlderSnapshots); err != nil {
 		e.mu.Unlock()
 		return err
 	}
 	e.mu.Unlock()
-	defer e.clearIndexBuildWait(index, s.txRef, indexWaitOlderSnapshots)
+	defer e.clearIndexBuildWait(index, s.txRef, WaitOlderSnapshots)
 	for _, ref := range refs {
 		e.mu.Lock()
 		eligible := e.visibility.SnapshotOlderLocked(ref, xmin)

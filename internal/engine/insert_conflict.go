@@ -98,14 +98,14 @@ func (c *insertConflictState) matches(parent *catalog.Relation, index *catalog.I
 	for _, target := range c.Keys {
 		found := false
 		for _, key := range index.Keys {
-			attribute, expression, err := indexCatalogKey(parent, key)
+			attribute, expression, err := CatalogKey(parent, key)
 			if err != nil {
 				return false, err
 			}
 			if target.Attribute != attribute || !analyze.SameGroupExpression(target.Expression, expression) {
 				continue
 			}
-			usage, err := indexKeyUsage(parent, key)
+			usage, err := KeyUsage(parent, key)
 			if err != nil {
 				return false, err
 			}
@@ -123,7 +123,7 @@ func (c *insertConflictState) matches(parent *catalog.Relation, index *catalog.I
 		}
 	}
 	for _, key := range index.Keys {
-		attribute, expression, err := indexCatalogKey(parent, key)
+		attribute, expression, err := CatalogKey(parent, key)
 		if err != nil {
 			return false, err
 		}

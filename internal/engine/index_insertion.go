@@ -10,17 +10,17 @@ import (
 // manufacture a new checked insertion occurrence after the producer finished.
 func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *indexWriteBatch) error {
 	prior := s.uniqueBinding
-	if prior != nil && prior.ref != ref {
+	if prior != nil && prior.Ref != ref {
 		prior = s.indexBindings[ref.Address]
 	}
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return err
 	}
-	purpose := indexProbeRuntime
-	if binding.checked || prior != nil && prior.checked {
-		purpose = indexProbeRevalidation
-		if prior != nil && !sameRelationRowShape(prior.parent, binding.parent) {
+	purpose := ProbeRuntime
+	if binding.Checked || prior != nil && prior.Checked {
+		purpose = ProbeRevalidation
+		if prior != nil && !SameRelationRowShape(prior.Parent, binding.Parent) {
 			return ids.ErrCatalogReplaced
 		}
 	}
@@ -32,7 +32,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 			auth = s.routineAuth // Rule relation ownership is not routine authority.
 		}
 		if captureErr == nil {
-			auth.Recapture(e.catalog.read(binding.catalog))
+			auth.Recapture(e.catalog.read(binding.Catalog))
 		}
 		e.mu.Unlock()
 		if captureErr != nil {
@@ -43,26 +43,26 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 		if err := s.readmitPreparedPrograms(auth); err != nil {
 			return err
 		}
-		if s.indexBindings[prior.ref.Address] != prior {
-			if err := prior.readmitPrograms(routineAccessOf(auth)); err != nil {
+		if s.indexBindings[prior.Ref.Address] != prior {
+			if err := prior.ReadmitPrograms(routineAccessOf(auth)); err != nil {
 				return err
 			}
 		}
 	}
-	for i := range batch.values {
-		candidate := batch.candidate(i)
+	for i := range batch.Values {
+		candidate := batch.Candidate(i)
 		var excluded []storage.RowVersion
 		if old != nil {
 			excluded = old[:i+1]
 		}
-		conflict, err := s.probeUniqueRow(ref, &candidate, excluded, batch.prefix(i), nil, purpose)
+		conflict, err := s.probeUniqueRow(ref, &candidate, excluded, batch.Prefix(i), nil, purpose)
 		if err != nil {
 			return err
 		}
 		if conflict.index != nil {
 			return conflict.diagnostic(s, ref)
 		}
-		batch.set(i, candidate)
+		batch.Set(i, candidate)
 	}
 	return nil
 }
@@ -70,15 +70,15 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 // The mixed lane may need ordinary prior-own keys again after catalog drift.
 // Freeze actual probe data by immutable row/version, not CHECK truth or values.
 func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row storage.RowVersion, output storage.IndexOutput) {
-	if s.indexesOrZero().existingOutputs == nil {
-		s.indexes().existingOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput)
+	if s.indexesOrZero().ExistingOutputs == nil {
+		s.indexes().ExistingOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput)
 	}
-	outputs := s.indexesOrZero().existingOutputs[index.Address()]
+	outputs := s.indexesOrZero().ExistingOutputs[index.Address()]
 	if outputs == nil {
 		outputs = make(map[indexRowIdentity]storage.IndexOutput)
-		s.indexes().existingOutputs[index.Address()] = outputs
+		s.indexes().ExistingOutputs[index.Address()] = outputs
 	}
-	outputs[indexRowIdentity{row: row.Row, version: row.Version}] = output
+	outputs[indexRowIdentity{Row: row.Row, Version: row.Version}] = output
 }
 
 // Only actual blocking-grant continuations call this, never a row Eval or an

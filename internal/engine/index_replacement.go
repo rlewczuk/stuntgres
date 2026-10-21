@@ -10,9 +10,9 @@ import (
 )
 
 func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *indexSnapshot) (remintedIndexStorage, error) {
-	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.storage.RowFrontier(), baseVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
+	prepared := remintedIndexStorage{Catalog: next, BaseCatalog: e.catalog.state, BaseRow: e.storage.RowFrontier(), BaseVersion: e.storage.VersionFrontier(), Frontier: e.visibility.CommitSeq()}
 	var err error
-	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, relations, snapshot)
+	prepared.Roots, prepared.NextRow, prepared.NextVersion, err = e.prepareRemintedStorage(ctx, next, relations, snapshot)
 	if err == nil {
 		next.SetACLItemImport(nil)
 	}
@@ -58,7 +58,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			if err := ctx.Err(); err != nil {
 				return nil, 0, 0, err
 			}
-			identity := indexRowIdentity{row: row.Row, version: row.Version}
+			identity := indexRowIdentity{Row: row.Row, Version: row.Version}
 			if _, duplicate := selected[identity]; duplicate {
 				return nil, 0, 0, ids.ErrCatalogReplaced
 			}
@@ -70,7 +70,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			row.IndexOutputs = nil
 		}
 	}
-	roots, err := snapshot.transport(ctx, next, relations, positions)
+	roots, err := snapshot.Transport(ctx, next, relations, positions)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -106,7 +106,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			}
 			schema = namespace.Name()
 		}
-		if err := validateUniqueRoot(ctx, parent, index, root, schema, sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
+		if err := ValidateUniqueRoot(ctx, parent, index, root, schema, sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
 			return nil, 0, 0, err
 		}
 	}

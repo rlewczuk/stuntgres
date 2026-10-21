@@ -9,13 +9,13 @@ import (
 // Only actual consumed calls need migration. An untouched structural binding
 // must retain the established non-call rebind behavior.
 func (b *uniqueWriteBinding) hasConsumedPrograms() bool {
-	for i := range b.keys {
-		if len(b.keys[i].preparation.admission.Calls) != 0 {
+	for i := range b.Keys {
+		if len(b.Keys[i].Preparation.admission.Calls) != 0 {
 			return true
 		}
 	}
-	for i := range b.insertion {
-		if b.insertion[i].unique == nil && len(b.insertion[i].preparation.admission.Calls) != 0 {
+	for i := range b.Insertion {
+		if b.Insertion[i].Unique == nil && len(b.Insertion[i].preparation.admission.Calls) != 0 {
 			return true
 		}
 	}
@@ -27,28 +27,28 @@ func (b *uniqueWriteBinding) hasConsumedPrograms() bool {
 // parent/index lifetime: owner/epoch come from the unchanged original ObjectRef,
 // and each index descriptor must be the actual cell of that original snapshot.
 // No current address is promoted to a new reference or a completed recipe.
-func (b *uniqueWriteBinding) inheritConsumedPrograms(old *uniqueWriteBinding) error {
+func (b *uniqueWriteBinding) InheritConsumedPrograms(old *uniqueWriteBinding) error {
 	if old == nil || !old.hasConsumedPrograms() {
 		return nil
 	}
-	if old.ref != b.ref || old.catalog == nil || b.catalog == nil ||
-		old.ref.Epoch != old.catalog.Epoch() || b.ref.Epoch != b.catalog.Epoch() ||
-		old.catalog.Get(old.ref.Address) != old.parent || b.catalog.Get(b.ref.Address) != b.parent ||
-		old.parent.Revision() != b.parent.Revision() || !sameRelationRowShape(old.parent, b.parent) {
+	if old.Ref != b.Ref || old.Catalog == nil || b.Catalog == nil ||
+		old.Ref.Epoch != old.Catalog.Epoch() || b.Ref.Epoch != b.Catalog.Epoch() ||
+		old.Catalog.Get(old.Ref.Address) != old.Parent || b.Catalog.Get(b.Ref.Address) != b.Parent ||
+		old.Parent.Revision() != b.Parent.Revision() || !SameRelationRowShape(old.Parent, b.Parent) {
 		return ids.ErrCatalogReplaced
 	}
-	for i := range old.keys {
-		key := &old.keys[i]
-		if err := b.inheritIndexProgram(old.catalog, key.index, &key.preparation.admission); err != nil {
+	for i := range old.Keys {
+		key := &old.Keys[i]
+		if err := b.inheritIndexProgram(old.Catalog, key.Index, &key.Preparation.admission); err != nil {
 			return err
 		}
 	}
-	for i := range old.insertion {
-		insertion := &old.insertion[i]
-		if insertion.unique != nil {
+	for i := range old.Insertion {
+		insertion := &old.Insertion[i]
+		if insertion.Unique != nil {
 			continue
 		}
-		if err := b.inheritIndexProgram(old.catalog, insertion.index, &insertion.preparation.admission); err != nil {
+		if err := b.inheritIndexProgram(old.Catalog, insertion.Index, &insertion.preparation.admission); err != nil {
 			return err
 		}
 	}
@@ -62,19 +62,19 @@ func (b *uniqueWriteBinding) inheritIndexProgram(original *catalog.State, index 
 	if index == nil || original.Get(index.Address()) != index {
 		return ids.ErrCatalogReplaced
 	}
-	current, ok := b.catalog.Relation(index.Address())
-	if !ok || current.Revision() != index.Revision() || !sameIndexKeySemantics(index, current) {
+	current, ok := b.Catalog.Relation(index.Address())
+	if !ok || current.Revision() != index.Revision() || !SameIndexKeySemantics(index, current) {
 		return ids.ErrCatalogReplaced
 	}
-	for i := range b.keys {
-		if b.keys[i].index == current {
-			b.keys[i].preparation.admission.Include(programme)
+	for i := range b.Keys {
+		if b.Keys[i].Index == current {
+			b.Keys[i].Preparation.admission.Include(programme)
 			return nil
 		}
 	}
-	for i := range b.insertion {
-		if b.insertion[i].unique == nil && b.insertion[i].index == current {
-			b.insertion[i].preparation.admission.Include(programme)
+	for i := range b.Insertion {
+		if b.Insertion[i].Unique == nil && b.Insertion[i].Index == current {
+			b.Insertion[i].preparation.admission.Include(programme)
 			return nil
 		}
 	}

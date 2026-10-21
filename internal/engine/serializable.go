@@ -28,12 +28,12 @@ func (e *Engine) endSerializable(ref ids.TxRef, committed bool) {
 // waits. Caller holds Engine.mu.
 func (e *Engine) endSerializableLocked(ref ids.TxRef, committed bool) {
 	e.visibility.EndTransactionLocked(ref, committed)
-	e.indexWaits.endOwnerLocked(ref)
+	e.indexWaits.EndOwnerLocked(ref)
 }
 
 // Epoch replacement wakes every unresolved acquisition. Operation/ref epoch
 // validation supplies the ordinary fence error, not a serialization diagnostic.
 func (e *Engine) fenceSerializableLocked() {
 	e.visibility.FenceLocked()
-	e.indexWaits.clearAllLocked()
+	e.indexWaits.ClearAllLocked()
 }

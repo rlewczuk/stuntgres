@@ -146,7 +146,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	replacement := store
 	rewrite := perRowAdd
 	for _, transform := range mutation.transforms {
-		rewrite = rewrite || transform.rewrite
+		rewrite = rewrite || transform.Rewrite
 	}
 	if perRowAdd {
 		if err := typedef.RowRewriteError(auth.Catalog, old); err != nil {
@@ -232,15 +232,15 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	if rewrite || len(mutation.transforms) != 0 {
 		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		builds, err := validateAlterIndexBuilds(&indexEvaluation, auth.View, disclosureEnv(&auth), e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil, rewrite)
+		builds, err := ValidateAlterIndexBuilds(&indexEvaluation, auth.View, disclosureEnv(&auth), e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil, rewrite)
 		if err != nil {
 			return err
 		}
 		for _, build := range builds {
-			if stage.indexesOrZero().candidates == nil {
-				stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
+			if stage.indexesOrZero().Candidates == nil {
+				stage.indexes().Candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexes().candidates[build.index.Address()] = indexRootCandidate{index: build.index, root: build.root, storage: replacement.IndexIdentity(), generation: replacement.Generation, ends: replacement.Ends, length: len(replacement.Versions)}
+			stage.indexes().Candidates[build.Index.Address()] = indexRootCandidate{Index: build.Index, Root: build.Root, Storage: replacement.IndexIdentity(), Generation: replacement.Generation, Ends: replacement.Ends, Length: len(replacement.Versions)}
 		}
 	}
 	if replacement != store {
@@ -249,17 +249,17 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 		stage.rowShapes[old.Address()] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation}
 	}
-	if !rewrite && len(stage.indexesOrZero().layouts) != 0 {
+	if !rewrite && len(stage.indexesOrZero().Layouts) != 0 {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		transported := session.NewJournal()
 		if _, _, err := transportIndexLayouts(&evaluation, stage, transported, next, store, replacement, nil, nil); err != nil {
 			return err
 		}
-		for address, candidate := range journalIndexesOrZero(transported).candidates {
-			if stage.indexesOrZero().candidates == nil {
-				stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
+		for address, candidate := range JournalIndexesOrZero(transported).Candidates {
+			if stage.indexesOrZero().Candidates == nil {
+				stage.indexes().Candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexes().candidates[address] = candidate
+			stage.indexes().Candidates[address] = candidate
 		}
 	}
 	return nil

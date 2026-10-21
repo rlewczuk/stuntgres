@@ -311,7 +311,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	refreshScalarImportDestinations(next)
-	indexes.captureMapping(mapping, next.ScalarImports())
+	indexes.CaptureMapping(mapping, next.ScalarImports())
 	if typesChanged || domainsChanged || len(mapping) != 0 || len(next.ScalarImports()) != 0 || next.ACLItemImport() != nil {
 		if err := reownCatalogScalarTypes(next, relations, mapping); err != nil {
 			return err
@@ -516,7 +516,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := e.remapCatalogExpressions(next, mapping); err != nil {
 		return err
 	}
-	if err := rebindImportedExclusions(next); err != nil {
+	if err := RebindImportedExclusions(next); err != nil {
 		return err
 	}
 	installedStage, err := e.repairRemappedGenerationsLocked(ctx, next, relations, sequences, mapping, restoreOp, indexes)

@@ -65,7 +65,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 	}
 	e.mu.Unlock()
 	for _, address := range cleared {
-		if err := transportEmptyIndexStorage(op.Context(), base.State(), next, nil, address, next.Storage[address].Replacement); err != nil {
+		if err := TransportEmptyIndexStorage(op.Context(), base.State(), next, nil, address, next.Storage[address].Replacement); err != nil {
 			return nil, nil, nil, err
 		}
 	}

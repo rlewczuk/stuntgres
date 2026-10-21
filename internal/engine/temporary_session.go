@@ -234,8 +234,8 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 			return true
 		}
 	}
-	for address, candidate := range stage.indexesOrZero().candidates {
-		if index, ok := stage.Get(address).(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.matches(e.storage.Relations[index.SQLIndex.Parent]) {
+	for address, candidate := range stage.indexesOrZero().Candidates {
+		if index, ok := stage.Get(address).(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.Matches(e.storage.Relations[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
@@ -388,11 +388,11 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 				return nil, ids.ErrCatalogReplaced
 			}
 			shape, ok := stage.rowShapes[index.SQLIndex.Parent]
-			candidate, produced := journalIndexesOrZero(changes).candidates[address]
-			if !ok || !produced || !candidate.matchesIndex(index, shape.replacement) {
+			candidate, produced := JournalIndexesOrZero(changes).Candidates[address]
+			if !ok || !produced || !candidate.MatchesIndex(index, shape.replacement) {
 				return nil, ids.ErrCatalogReplaced
 			}
-			result.roots[address] = candidate.root
+			result.roots[address] = candidate.Root
 		}
 	}
 	return result, nil

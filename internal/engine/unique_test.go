@@ -82,7 +82,7 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	index, _ := btreeRoot(t, e, "u")
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), index.Address())
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	ordering, err := bindIndexOrdering(parent, index.SQLIndex)
+	ordering, err := BindIndexOrdering(parent, index.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,11 +107,11 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	// A legitimate hash-collision candidate interned first sits ahead of the
 	// real key in its bucket. Hash alone must not grant equality, and provider
 	// comparison must pass over the collision to find the real key.
-	hash, err := uniqueKeyHash(context.Background(), ordering, grouping, []sqltype.Value{one})
+	hash, err := UniqueKeyHash(context.Background(), ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
-	collision, releaseCollision, err := e.locks.PinUniqueKey(context.Background(), scope.ticket, ref, hash, &uniqueKeyValues{ordering: ordering, values: []sqltype.Value{two}})
+	collision, releaseCollision, err := e.locks.PinUniqueKey(context.Background(), scope.ticket, ref, hash, &uniqueKeyValues{Ordering: ordering, Values: []sqltype.Value{two}})
 	if err != nil {
 		t.Fatal(err)
 	}

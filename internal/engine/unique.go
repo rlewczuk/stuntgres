@@ -122,13 +122,13 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 		if err != nil {
 			return err
 		}
-		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(c), Ready: true, Valid: true, Live: true}
+		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: UniqueBacking(c), Ready: true, Valid: true, Live: true}
 		index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 		if source := declarations[i-start].Source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.SQLIndex
-			definition.Parent, definition.Constraint = d.Address(), uniqueBacking(c)
+			definition.Parent, definition.Constraint = d.Address(), UniqueBacking(c)
 			definition.PartitionParent = ids.ObjectAddress{}
 			definition.Ready, definition.Valid, definition.Live = true, true, true
 			definition.Keys = slices.Clone(source.SQLIndex.Keys)
@@ -174,7 +174,7 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
 				if !ok {
-					return indexDefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
+					return DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
 				definition.Keys[j] = catalog.IndexKey{Attribute: a, Class: class}
 				column.Nullable, column.NullabilityKnown = true, true

@@ -95,7 +95,7 @@ func TestMergeInsertPublication(t *testing.T) {
 				t.Fatal("producer published or did not close exactly once", cursor.closed, scope.stage.rows)
 			}
 			if phase == "complete" {
-				if err != nil || len(rows.values) != 2 {
+				if err != nil || len(rows.Values) != 2 {
 					t.Fatal("bag occurrences", rows, err)
 				}
 				if err := rows.stage(scope.Writes(), b.Ref); err != nil {

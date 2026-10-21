@@ -100,11 +100,11 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 	if err != nil {
 		return capture, err
 	}
-	if fresh.Catalog.Epoch() != provider.base.Epoch() || provider.removed(ref.Address) {
+	if fresh.Catalog.Epoch() != provider.base.Epoch() || provider.Removed(ref.Address) {
 		return capture, ids.ErrCatalogReplaced
 	}
 	descriptor := fresh.Catalog.Get(ref.Address)
-	if staged := provider.replacement(ref.Address); staged != nil {
+	if staged := provider.Replacement(ref.Address); staged != nil {
 		descriptor = staged
 	}
 	sequence, err := sequence.IdentityDefinition(descriptor, table, attribute)
@@ -238,6 +238,6 @@ func (prepared *preparedIdentityDrop) ProceduresNamed(namespace ids.ObjectAddres
 func (prepared *preparedIdentityDrop) HasSQLProcedureName(name string) bool {
 	return prepared.drop.HasSQLProcedureName(name)
 }
-func (prepared *preparedIdentityDrop) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
-	return prepared.drop.indexLayout(address)
+func (prepared *preparedIdentityDrop) IndexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+	return prepared.drop.IndexLayout(address)
 }

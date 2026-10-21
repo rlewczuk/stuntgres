@@ -158,7 +158,7 @@ func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
 	child, cok := view.Relation(job.child.Address())
 	parent, pok := view.Relation(job.parent.Address())
 	index, iok := view.Relation(job.index.Address())
-	if !cok || !pok || !iok || index.SQLIndex == nil || !sameRelationRowShape(child, job.child) || !sameRelationRowShape(parent, job.parent) || !sameIndexKeySemantics(index, job.index) {
+	if !cok || !pok || !iok || index.SQLIndex == nil || !SameRelationRowShape(child, job.child) || !SameRelationRowShape(parent, job.parent) || !SameIndexKeySemantics(index, job.index) {
 		return ids.ErrCatalogReplaced
 	}
 	found := false
@@ -204,7 +204,7 @@ func (s *StatementScope) settleForeignActions() error {
 			return err
 		}
 		for _, next := range rows {
-			if uniqueRowDeleted(next.Row, s.stage.deletes[a]) {
+			if UniqueRowDeleted(next.Row, s.stage.deletes[a]) {
 				continue
 			}
 			old, ok := image.previous(next.Row)

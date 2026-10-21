@@ -13,13 +13,13 @@ import (
 )
 
 type usingIndexAttachment struct {
-	syntax          *parser.UsingIndexConstraint
-	index           *catalog.Relation
-	attributes      []int32
-	notNullPrepared bool
+	Syntax          *parser.UsingIndexConstraint
+	Index           *catalog.Relation
+	Attributes      []int32
+	NotNullPrepared bool
 }
 
-func usingIndexEligibility(parent, index *catalog.Relation, raw *parser.UsingIndexConstraint) ([]int32, error) {
+func UsingIndexEligibility(parent, index *catalog.Relation, raw *parser.UsingIndexConstraint) ([]int32, error) {
 	definition := index.SQLIndex
 	fail := func(code, message string, detail bool) ([]int32, error) {
 		diagnostic := expr.ErrorAt(code, message, raw.Pos).(*sqlstate.Error)
@@ -46,7 +46,7 @@ func usingIndexEligibility(parent, index *catalog.Relation, raw *parser.UsingInd
 	}
 	var attributes [32]int32
 	for i, key := range definition.Keys {
-		attribute, expression, err := indexCatalogKey(parent, key)
+		attribute, expression, err := CatalogKey(parent, key)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +66,7 @@ func usingIndexEligibility(parent, index *catalog.Relation, raw *parser.UsingInd
 	for i, key := range definition.Keys {
 		usage := parent.Columns[slices.Index(parent.Attributes, attributes[i])].Usage
 		class, ok := sqltype.DefaultIndexClass(usage.Type)
-		keyUsage, err := indexKeyUsage(parent, key)
+		keyUsage, err := KeyUsage(parent, key)
 		if err != nil {
 			return nil, err
 		}
@@ -86,15 +86,15 @@ func usingIndexEligibility(parent, index *catalog.Relation, raw *parser.UsingInd
 	return slices.Clone(attributes[:len(definition.Keys)]), nil
 }
 
-func usingIndexCatalogDuplicate(parent *catalog.Relation, name string) error {
+func UsingIndexCatalogDuplicate(parent *catalog.Relation, name string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_constraint_conrelid_contypid_conname_index"`, Detail: fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", parent.Address().ObjectID, name), Schema: "pg_catalog", Table: "pg_constraint", Constraint: "pg_constraint_conrelid_contypid_conname_index"}
 }
 
-func stagePreparedUsingIndex(op *session.Operation, stage indexDescriptorStage, parent *catalog.Relation, prepared *usingIndexPreparation) (*catalog.Relation, error) {
-	if prepared == nil || prepared.parent != parent {
+func StagePreparedUsingIndex(op *session.Operation, stage indexDescriptorStage, parent *catalog.Relation, prepared *usingIndexPreparation) (*catalog.Relation, error) {
+	if prepared == nil || prepared.Parent != parent {
 		return nil, ids.ErrCatalogReplaced
 	}
-	index, clone := prepared.index, prepared.replacement
+	index, clone := prepared.Index, prepared.Replacement
 	current := stage.Get(index.Address())
 	if current == nil {
 		current = stage.StageBase().Get(index.Address())
@@ -102,11 +102,11 @@ func stagePreparedUsingIndex(op *session.Operation, stage indexDescriptorStage, 
 	if current != index {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if prepared.notice.Code != "" {
-		op.EmitNotice(session.LevelNotice, prepared.notice)
+	if prepared.Notice.Code != "" {
+		op.EmitNotice(session.LevelNotice, prepared.Notice)
 	}
-	if prepared.err != nil {
-		return nil, prepared.err
+	if prepared.Err != nil {
+		return nil, prepared.Err
 	}
 	if stage.StageBase().Get(index.Address()) == nil {
 		// Preserve the existing TYPE remint's original removal/name observation.
@@ -115,11 +115,11 @@ func stagePreparedUsingIndex(op *session.Operation, stage indexDescriptorStage, 
 	} else if err := stage.Replace(clone); err != nil {
 		return nil, err
 	}
-	return prepared.next, nil
+	return prepared.Next, nil
 }
 
 // CREATE's inline UNIQUE/PK surface cannot represent included attributes.
 // Emit the actual backing index and attach it through the selected ALTER path.
-func usingIndexDump(index *catalog.Relation) bool {
+func UsingIndexDump(index *catalog.Relation) bool {
 	return index.SQLIndex != nil && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Kind == catalog.UniqueBackingKind && len(index.SQLIndex.Include) != 0
 }

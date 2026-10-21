@@ -42,7 +42,7 @@ func physicalImportedIndexMatches(source *catalog.Relation, constructor *physica
 		return false
 	}
 	for i, attribute := range primary.Attributes {
-		key, expression, err := indexCatalogKey(constructor.before, source.SQLIndex.Keys[i])
+		key, expression, err := CatalogKey(constructor.before, source.SQLIndex.Keys[i])
 		slot := current.IndexForAttribute(attribute)
 		if err != nil || expression != nil || key != attribute || slot < 0 || source.Columns[i].Usage != current.Columns[slot].Usage {
 			return false

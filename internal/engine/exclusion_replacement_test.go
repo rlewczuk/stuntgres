@@ -45,7 +45,7 @@ func TestExclusionReplacement(t *testing.T) {
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			index, root := btreeRoot(t, target, "portable.ex")
 			current := parent.Constraints.Exclusion[0]
-			if current.Index != index.Address() || !backingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.Entries) != 1 {
+			if current.Index != index.Address() || !BackingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.Entries) != 1 {
 				t.Fatal("replacement broke the actual exclusion closure")
 			}
 			if root == sourceRoot || self && root.Entries[0].Row == sourceRoot.Entries[0].Row {
@@ -60,7 +60,7 @@ func TestExclusionReplacement(t *testing.T) {
 				t.Fatal("destination domain equality did not recognize its imported key")
 			}
 			sequenceScalar(t, b, "SELECT nextval('kept')", 2)
-			if len(target.exclusions.pending) != 0 {
+			if len(target.exclusions.Pending) != 0 {
 				t.Fatal("replacement retained transient exclusion state")
 			}
 			uniqueClaimsEmpty(t, target)

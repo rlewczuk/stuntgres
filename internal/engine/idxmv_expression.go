@@ -8,15 +8,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func indexKeyUsage(parent *catalog.Relation, key catalog.IndexKey) (sqltype.Usage, error) {
-	usage, err := indexKeyBaseUsage(parent, key)
+func KeyUsage(parent *catalog.Relation, key catalog.IndexKey) (sqltype.Usage, error) {
+	usage, err := KeyBaseUsage(parent, key)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	return indexKeyCollation(usage, key), nil
+	return KeyCollation(usage, key), nil
 }
 
-func indexKeyBaseUsage(parent *catalog.Relation, key catalog.IndexKey) (sqltype.Usage, error) {
+func KeyBaseUsage(parent *catalog.Relation, key catalog.IndexKey) (sqltype.Usage, error) {
 	if key.Derived != nil {
 		return key.Derived.Execution.ResultUsage(), nil
 	}
@@ -28,7 +28,7 @@ func indexKeyBaseUsage(parent *catalog.Relation, key catalog.IndexKey) (sqltype.
 	return sqltype.Usage{}, fmt.Errorf("stuntgres: index attribute is missing")
 }
 
-func indexExpressionDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
+func ExpressionDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	if d.SQLIndex == nil {
 		return false
 	}

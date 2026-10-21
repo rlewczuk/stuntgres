@@ -148,7 +148,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	e.DiscardCatalogStage(pending.stage)
 	stage = e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
-	stage.indexes().output = scope.output
+	stage.indexes().Output = scope.output
 	pending.stage, pending.auth, pending.child = stage, auth, child
 	for address := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(address))
@@ -205,7 +205,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return Result{}, err
 	}
 	e.mu.Lock()
-	for _, index := range partitionIndexDeclarationOrder(auth.Catalog, parent) {
+	for _, index := range PartitionIndexDeclarationOrder(auth.Catalog, parent) {
 		current := e.stageRead(stage).MustRelation(child.Address())
 		if _, err = e.stagePartitionIndexChild(op, stage, parent, index, current, false); err != nil {
 			break

@@ -80,7 +80,7 @@ func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 		return original.Eval(c)
 	})
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-	if rows.values != nil || err != sentinel || calls != 3 || source.View != nil || source.Anonymous != nil {
+	if rows.Values != nil || err != sentinel || calls != 3 || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, err, calls, source)
 	}
 }

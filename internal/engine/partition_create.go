@@ -148,13 +148,13 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	}
 	for _, constraint := range p.child.Constraints.Unique {
 		index := p.stage.Get(constraint.Index).(*catalog.Relation)
-		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
+		if err := PartitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
 	}
 	for _, constraint := range p.child.Constraints.Exclusion {
 		index := p.stage.Get(constraint.Index).(*catalog.Relation)
-		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
+		if err := PartitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
 	}
@@ -241,7 +241,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, index := range partitionIndexDeclarationOrder(p.stage.Base, p.parent) {
+	for _, index := range PartitionIndexDeclarationOrder(p.stage.Base, p.parent) {
 		child := e.stageRead(p.stage).MustRelation(p.child.Address())
 		if _, err := e.stagePartitionIndexChild(scope.op, p.stage, p.parent, index, child, true); err != nil {
 			return err

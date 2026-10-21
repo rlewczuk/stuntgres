@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func indexKeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
+func KeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
 	if key.Collation != 0 {
 		u.Collation = sqltype.CollationRef{ID: key.Collation, Derivation: sqltype.Default}
 		if key.CollationRef.Valid() && key.CollationRef.ID == key.Collation {
@@ -19,7 +19,7 @@ func indexKeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
 	return u
 }
 
-func reconstructIndexKey(key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, method catalog.IndexMethod) catalog.IndexKey {
+func ReconstructIndexKey(key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, method catalog.IndexMethod) catalog.IndexKey {
 	oldDefault, _ := method.DefaultClass(oldUsage.Type)
 	if key.Class.Name == "" || key.Class == oldDefault {
 		key.Class, _ = method.DefaultClass(newUsage.Type)
@@ -34,7 +34,7 @@ func reconstructIndexKey(key catalog.IndexKey, oldUsage, newUsage sqltype.Usage,
 
 // Release18 utility semantic errors have no expression/parser location. Keep
 // shared namespace lookup's authority but not its expression attribution.
-func indexSemanticError(err error) error {
+func SemanticError(err error) error {
 	if d, ok := err.(*sqlstate.Error); ok && d.Position != "" {
 		copy := *d
 		copy.Position = ""
@@ -43,13 +43,13 @@ func indexSemanticError(err error) error {
 	return err
 }
 
-func indexDefaultClassError(name string, method catalog.IndexMethod) error {
+func DefaultClassError(name string, method catalog.IndexMethod) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704",
 		Message: fmt.Sprintf("data type %s has no default operator class for access method %q", name, method.String()),
 		Hint:    "You must specify an operator class for the index or define a default operator class for the data type."}
 }
 
-func validateIndexInclude(raw parser.IndexKey) error {
+func ValidateIndexInclude(raw parser.IndexKey) error {
 	switch {
 	case raw.Collation != nil:
 		return sqlError("42P17", "including column does not support a collation")
@@ -63,7 +63,7 @@ func validateIndexInclude(raw parser.IndexKey) error {
 	return nil
 }
 
-func validateHashKeyDirection(key parser.IndexKey) error {
+func ValidateHashKeyDirection(key parser.IndexKey) error {
 	if key.DirectionExplicit {
 		return sqlError("0A000", `access method "hash" does not support ASC/DESC options`)
 	}
@@ -73,7 +73,7 @@ func validateHashKeyDirection(key parser.IndexKey) error {
 	return nil
 }
 
-func validateIndexMethod(s *parser.CreateIndex) error {
+func ValidateIndexMethod(s *parser.CreateIndex) error {
 	switch s.Method {
 	case "btree":
 		return nil

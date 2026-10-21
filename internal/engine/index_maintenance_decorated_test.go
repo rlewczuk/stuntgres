@@ -60,7 +60,7 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	if !reflect.DeepEqual(current, want) || currentNames.IndexDef != `CREATE INDEX renamed ON public.t USING btree (n oid_ops DESC NULLS LAST, s COLLATE "C" bpchar_ops NULLS FIRST) INCLUDE (payload, payload, j)` {
 		t.Fatal("current include names/stable vector lost", current, currentNames)
 	}
-	old, oldNames, err := projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), index.Address()))
+	old, oldNames, err := ProjectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), index.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) || oldNames != names {
 		t.Fatal("old decorated capture consulted current names", old, oldNames, err)
 	}
@@ -104,14 +104,14 @@ func TestIndexMaintenanceKeyEquivalenceDecorations(t *testing.T) {
 			case "collation":
 				definition.Keys[1].Collation = 951
 			}
-			if sameIndexKeySemantics(index, &next) {
+			if SameIndexKeySemantics(index, &next) {
 				t.Fatal("changed actual decoration treated as name-only metadata", change)
 			}
 		})
 	}
 	next := *index
 	next.ObjectName = "renamed"
-	if !sameIndexKeySemantics(index, &next) {
+	if !SameIndexKeySemantics(index, &next) {
 		t.Fatal("name-only metadata invalidated real key semantics")
 	}
 }

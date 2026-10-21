@@ -172,7 +172,7 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 	if err != nil {
 		return nil, nil, false, err
 	}
-	if err = prepareAlterIndexRoots(evaluation, changes, stage.Base, next, shape.Replacement, nil, false); err != nil {
+	if err = PrepareAlterIndexRoots(evaluation, changes, stage.Base, next, shape.Replacement, nil, false); err != nil {
 		return nil, nil, false, err
 	}
 	return writes, deletes, shape.Replacement != store || transported, nil

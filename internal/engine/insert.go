@@ -87,7 +87,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 	}
 	var rows indexWriteBatch
 	if scope.insertReturning == nil {
-		rows.values = make([][]sqltype.Value, 0, len(b.Insert.Rows))
+		rows.Values = make([][]sqltype.Value, 0, len(b.Insert.Rows))
 	}
 	for i, source := range b.Insert.Rows {
 		if err = ctx.Err(); err != nil {
@@ -105,7 +105,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}
-			candidate := indexWriteCandidate{values: row}
+			candidate := indexWriteCandidate{Values: row}
 			admitted, admitErr := scope.admitInsertProducer(b, &candidate, rows, &evaluation)
 			if admitErr != nil {
 				return Result{}, admitErr
@@ -114,7 +114,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 				if err := e.checkViewRow(scope, &b, row, &evaluation); err != nil {
 					return Result{}, err
 				}
-				rows.append(candidate)
+				rows.Append(candidate)
 			}
 			continue
 		}
@@ -157,7 +157,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 			return Result{}, err
 		}
-		candidate := indexWriteCandidate{values: row}
+		candidate := indexWriteCandidate{Values: row}
 		admitted, admitErr := scope.admitInsertProducer(b, &candidate, rows, &evaluation)
 		if admitErr != nil {
 			return Result{}, admitErr
@@ -166,7 +166,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			if err := e.checkViewRow(scope, &b, row, &evaluation); err != nil {
 				return Result{}, err
 			}
-			rows.append(candidate)
+			rows.Append(candidate)
 		}
 	}
 	if err := ctx.Err(); err != nil {

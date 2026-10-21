@@ -149,7 +149,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		}
 		return transformed, nil
 	}}
-	transforms := []columnTransformation{{attribute: 1, expression: transform, rewrite: true}}
+	transforms := []columnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}
 	replacement, own, deleted, err := rewriteTypeRows(scope, scope.op, old, &next, store, 2, transforms, additions, nil, newAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(own) != 2 || deleted != nil {
 		t.Fatal(replacement, own, calls, err)

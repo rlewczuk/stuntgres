@@ -16,11 +16,11 @@ import (
 type dropDependencyReader interface {
 	context() context.Context
 	baseRead() catalog.Read
-	inputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
 	descriptor(ids.ObjectAddress) catalog.Descriptor
-	replacement(ids.ObjectAddress) catalog.Descriptor
-	removed(ids.ObjectAddress) bool
-	replace(catalog.Descriptor) error
+	Replacement(ids.ObjectAddress) catalog.Descriptor
+	Removed(ids.ObjectAddress) bool
+	Replace(catalog.Descriptor) error
 	revision(ids.DefinitionRevision) (ids.DefinitionRevision, error)
 	inheritanceAlterGuard(*catalog.Relation) error
 	// baseRef names address in the domain at the base epoch.

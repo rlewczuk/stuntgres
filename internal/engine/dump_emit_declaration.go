@@ -91,7 +91,7 @@ func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, index dumpView) er
 			}
 		}
 	}
-	if partitionReplayVirtualUniqueRoot(s.originalCatalog, original) != nil {
+	if PartitionReplayVirtualUniqueRoot(s.originalCatalog, original) != nil {
 		if err := w.emit(s.constraintReplay.virtualUniqueRenames(s.originalCatalog, original)); err != nil {
 			return err
 		}
@@ -332,7 +332,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			} else if moved {
 				continue
 			}
-			if partitionReplaySeparateConstraint(s.catalogView, index) {
+			if PartitionReplaySeparateConstraint(s.catalogView, index) {
 				continue
 			}
 			text, err := (pgRenderer{View: s.catalogView}).UniqueConstraintSQL(t.descriptor, &c)
@@ -353,10 +353,10 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing exclusion dump index")
 			}
-			if partitionReplaySeparateConstraint(s.catalogView, index) {
+			if PartitionReplaySeparateConstraint(s.catalogView, index) {
 				continue
 			}
-			text, err := indexDefinitionSQL(ctx, s.catalogView, index, indexPresentation{dump: true, exclusion: true})
+			text, err := DefinitionSQL(ctx, s.catalogView, index, indexPresentation{Dump: true, Exclusion: true})
 			if err != nil {
 				return "", err
 			}

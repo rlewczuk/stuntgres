@@ -12,12 +12,12 @@ import (
 // the output environment for index expressions. Index DDL and the features
 // that build indexes write it.
 type indexStage struct {
-	rebuilds   map[ids.ObjectAddress]*catalog.Relation
-	candidates map[ids.ObjectAddress]indexRootCandidate
-	layouts    map[ids.ObjectAddress]indexLayoutLineage
-	parents    map[ids.ObjectAddress]*catalog.Relation
-	sets       map[ids.ObjectAddress]int
-	output     sqltype.OutputEnvironment
+	Rebuilds   map[ids.ObjectAddress]*catalog.Relation
+	Candidates map[ids.ObjectAddress]indexRootCandidate
+	Layouts    map[ids.ObjectAddress]indexLayoutLineage
+	Parents    map[ids.ObjectAddress]*catalog.Relation
+	Sets       map[ids.ObjectAddress]int
+	Output     sqltype.OutputEnvironment
 }
 
 // indexDescriptorStage is what staging an index descriptor writes through:

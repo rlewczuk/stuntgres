@@ -107,7 +107,7 @@ func (r inheritanceDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress
 func (r inheritanceDefinitionReader) HasSQLProcedureName(name string) bool {
 	return r.base.State().HasSQLProcedureName(name)
 }
-func (r inheritanceDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+func (r inheritanceDefinitionReader) IndexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.drop != nil {
 			if slot := effect.drop.slots[address]; slot.layout != 0 {
@@ -115,7 +115,7 @@ func (r inheritanceDefinitionReader) indexLayout(address ids.ObjectAddress) (ind
 			}
 		}
 		if effect.identity != nil {
-			if layout, present := effect.identity.indexLayout(address); present {
+			if layout, present := effect.identity.IndexLayout(address); present {
 				return layout, true
 			}
 		}

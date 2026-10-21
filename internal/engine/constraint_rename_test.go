@@ -56,7 +56,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			if after == parent || backing == index || after.Address() != parent.Address() || backing.Address() != index.Address() || e.storage.Relations[ref.Address] != store || e.storage.IndexRoots[indexAddress] != root {
 				t.Fatal("rename copied storage/root or changed group identity")
 			}
-			if backing.Name() != "new" || backing.Comment != "backing comment" || backing.SQLIndex.Constraint.Name != "new" || backing.SQLIndex.Constraint.OID != index.SQLIndex.Constraint.OID || !backingConstraintPresent(after, backing) {
+			if backing.Name() != "new" || backing.Comment != "backing comment" || backing.SQLIndex.Constraint.Name != "new" || backing.SQLIndex.Constraint.OID != index.SQLIndex.Constraint.OID || !BackingConstraintPresent(after, backing) {
 				t.Fatal("nonreciprocal renamed group")
 			}
 			if !reflect.DeepEqual(parent.Constraints.Unique, beforeUnique) || !reflect.DeepEqual(parent.Constraints.Exclusion, beforeExclusion) || index.Name() != "old" || index.SQLIndex.Constraint.Name != "old" {
@@ -75,7 +75,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			failed := e.BeginCatalogStage(e.catalog.read(exhaustedBase))
 			attempt := *backing
 			attempt.ObjectName = "again"
-			if err := stageBackingIndexRename(failed, &attempt); err == nil || failed.DescriptorCount() != 0 || backing.Name() != "new" {
+			if err := StageBackingIndexRename(failed, &attempt); err == nil || failed.DescriptorCount() != 0 || backing.Name() != "new" {
 				t.Fatal("parent revision exhaustion changed group")
 			}
 			e.DiscardCatalogStage(failed)
@@ -86,7 +86,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			}
 			// Ordinary backing-index rename still uses the same group helper.
 			sessionSQL(t, s, "ALTER INDEX new RENAME TO again")
-			if e.storage.IndexRoots[indexAddress] != root || !backingConstraintPresent(e.catalog.state.MustRelation(ref.Address), e.catalog.state.MustRelation(indexAddress)) {
+			if e.storage.IndexRoots[indexAddress] != root || !BackingConstraintPresent(e.catalog.state.MustRelation(ref.Address), e.catalog.state.MustRelation(indexAddress)) {
 				t.Fatal("ordinary helper caller changed root/group")
 			}
 		})
@@ -272,7 +272,7 @@ func TestConstraintRenameDeferredIdentity(t *testing.T) {
 	sessionSQL(t, s, "SAVEPOINT saved")
 	modes := ownerExtensionOrZero(s.Transactions).exclusionModes
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	if !ownerExtensionOrZero(s.Transactions).exclusionModes.byConstraint[oid] || len(ownerExtensionOrZero(s.Transactions).exclusionModes.events) != 1 || ownerExtensionOrZero(s.Transactions).exclusionModes.events[0].constraint != oid {
+	if !ownerExtensionOrZero(s.Transactions).exclusionModes.ByConstraint[oid] || len(ownerExtensionOrZero(s.Transactions).exclusionModes.Events) != 1 || ownerExtensionOrZero(s.Transactions).exclusionModes.Events[0].Constraint != oid {
 		t.Fatal("rename reset selected mode/event")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")
@@ -349,7 +349,7 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	earlier := s.Transactions.Catalog
 	parent := earlier.Descriptors[ref.Address].(*catalog.Relation)
 	index := parent.Constraints.Unique[0].Index
-	root := journalIndexesOrZero(earlier).uniqueRoots[index]
+	root := JournalIndexesOrZero(earlier).UniqueRoots[index]
 	storage := earlier.Storage[ref.Address].Replacement
 	if root == nil || storage == nil {
 		t.Fatal("TYPE did not establish genuine private roots")
@@ -357,7 +357,7 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	sessionSQL(t, s, "SAVEPOINT saved")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	renamed := s.Transactions.Catalog
-	if renamed == earlier || journalIndexesOrZero(renamed).uniqueRoots[index] != root || renamed.Storage[ref.Address].Replacement != storage || earlier.Descriptors[index].Name() != "old" {
+	if renamed == earlier || JournalIndexesOrZero(renamed).UniqueRoots[index] != root || renamed.Storage[ref.Address].Replacement != storage || earlier.Descriptors[index].Name() != "old" {
 		t.Fatal("rename copied/mutated prior private roots")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")

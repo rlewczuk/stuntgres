@@ -16,12 +16,12 @@ import (
 // evolveIndexRevision records this only for its explicit slot-only path, with
 // unchanged referenced Usage. Pointer equality of remapped ASTs is not a proof.
 type indexLayoutLineage struct {
-	source, target             *catalog.Relation
-	sourceParent, targetParent *catalog.Relation
-	previous                   *indexLayoutLineage
+	Source, Target             *catalog.Relation
+	SourceParent, TargetParent *catalog.Relation
+	Previous                   *indexLayoutLineage
 }
 
-func indexLayoutInputsUnchanged(index, oldParent, parent *catalog.Relation) bool {
+func LayoutInputsUnchanged(index, oldParent, parent *catalog.Relation) bool {
 	if index == nil || oldParent == nil || parent == nil || oldParent.Address() != parent.Address() {
 		return false
 	}
@@ -73,13 +73,13 @@ func indexLayoutSlotsUnchanged(index, oldParent, parent *catalog.Relation) bool 
 // indexLayoutCapture is one layout lineage of a parent and the index root it
 // transports, captured under Engine.mu.
 type indexLayoutCapture struct {
-	lineage indexLayoutLineage
-	root    *storage.IndexRoot
+	Lineage indexLayoutLineage
+	Root    *storage.IndexRoot
 }
 
 // transportCapturedIndexLayouts moves the captured roots and private row
 // outputs to the target layout. It runs without Engine.mu.
-func transportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Journal, captures []indexLayoutCapture, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
+func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Journal, captures []indexLayoutCapture, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
 	if len(captures) == 0 {
 		return writes, false, nil
 	}
@@ -96,12 +96,12 @@ func transportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 		}
 	}
 	for _, captured := range captures {
-		lineage, root := captured.lineage, captured.root
-		if sourceStore == targetStore && sameIndexKeySemantics(lineage.source, lineage.target) {
+		lineage, root := captured.Lineage, captured.Root
+		if sourceStore == targetStore && SameIndexKeySemantics(lineage.Source, lineage.Target) {
 			continue
 		}
-		if root.Hash != nil && sameIndexKeySemantics(lineage.source, lineage.target) && root.Hash.Storage == targetStore.IndexIdentity() && root.Hash.Generation == targetStore.Generation && root.Hash.Ends == targetStore.Ends && root.Hash.Prefix == len(targetStore.Versions) {
-			retainIndexBuild(changes, lineage.target, targetStore, root)
+		if root.Hash != nil && SameIndexKeySemantics(lineage.Source, lineage.Target) && root.Hash.Storage == targetStore.IndexIdentity() && root.Hash.Generation == targetStore.Generation && root.Hash.Ends == targetStore.Ends && root.Hash.Prefix == len(targetStore.Versions) {
+			RetainIndexBuild(changes, lineage.Target, targetStore, root)
 			continue
 		}
 		if root.Hash != nil {
@@ -119,14 +119,14 @@ func transportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 					}
 				}
 			}
-			binding, err := bindHashIndex(lineage.targetParent, lineage.target.SQLIndex)
+			binding, err := BindHashIndex(lineage.TargetParent, lineage.Target.SQLIndex)
 			if err != nil {
 				return nil, false, err
 			}
 			next := *root.Hash
 			next.Binding, next.Storage, next.Generation = binding, targetStore.IndexIdentity(), targetStore.Generation
 			next.Prefix, next.Ends = len(targetStore.Versions), targetStore.Ends
-			if err := next.CaptureRowEntries(evaluation.Context, lineage.target.SQLIndex); err != nil {
+			if err := next.CaptureRowEntries(evaluation.Context, lineage.Target.SQLIndex); err != nil {
 				return nil, false, err
 			}
 			root = &storage.IndexRoot{Hash: &next}
@@ -143,18 +143,18 @@ func transportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 					return nil, false, ids.ErrCatalogReplaced
 				}
 			}
-			if !indexLayoutSlotsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) {
-				root = newLogicalIndexRoot(lineage.target.SQLIndex, root.Entries)
+			if !indexLayoutSlotsUnchanged(lineage.Source, lineage.SourceParent, lineage.TargetParent) {
+				root = NewLogicalIndexRoot(lineage.Target.SQLIndex, root.Entries)
 			}
 		}
-		retainIndexBuild(changes, lineage.target, targetStore, root)
+		RetainIndexBuild(changes, lineage.Target, targetStore, root)
 	}
 	if len(writes) == 0 {
 		return writes, false, nil
 	}
 	pending := false
 	for _, captured := range captures {
-		pending = pending || captured.lineage.target.SQLIndex.HasRuntimeDomainConversion()
+		pending = pending || captured.Lineage.Target.SQLIndex.HasRuntimeDomainConversion()
 	}
 	for _, row := range sourceWrites {
 		pending = pending || len(row.IndexOutputs) != 0
@@ -164,25 +164,25 @@ func transportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 	}
 	positions := make(map[indexRowIdentity]int, len(sourceWrites))
 	for i, row := range sourceWrites {
-		positions[indexRowIdentity{row: row.Row, version: row.Version}] = i
+		positions[indexRowIdentity{Row: row.Row, Version: row.Version}] = i
 	}
 	copied := false
 	for i, row := range writes {
 		if err := evaluation.Context.Err(); err != nil {
 			return nil, false, err
 		}
-		position, ok := positions[indexRowIdentity{row: row.Row, version: row.Version}]
+		position, ok := positions[indexRowIdentity{Row: row.Row, Version: row.Version}]
 		if !ok {
 			return nil, false, ids.ErrCatalogReplaced
 		}
 		var outputs map[ids.ObjectAddress]storage.IndexOutput
 		for _, captured := range captures {
-			lineage := captured.lineage
-			output, ok := sourceWrites[position].IndexOutputs[lineage.source.Address()]
-			if !ok && !lineage.target.SQLIndex.HasRuntimeDomainConversion() {
+			lineage := captured.Lineage
+			output, ok := sourceWrites[position].IndexOutputs[lineage.Source.Address()]
+			if !ok && !lineage.Target.SQLIndex.HasRuntimeDomainConversion() {
 				continue
 			}
-			if !ok || (!indexOutputMatches(output, lineage.source) && !indexOutputMatches(output, lineage.target)) {
+			if !ok || (!OutputMatches(output, lineage.Source) && !OutputMatches(output, lineage.Target)) {
 				return nil, false, fmt.Errorf("stuntgres: layout projection is missing produced private index data")
 			}
 			if outputs == nil {
@@ -191,8 +191,8 @@ func transportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 					outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
 				}
 			}
-			output.Index = lineage.target
-			outputs[lineage.target.Address()] = output
+			output.Index = lineage.Target
+			outputs[lineage.Target.Address()] = output
 		}
 		if outputs != nil {
 			if !copied {
@@ -209,7 +209,7 @@ func transportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 // physical artifacts to the new incarnation rather than retaining old pins or
 // evaluating declarations during publication. record, when set, receives each
 // retained candidate for the catalog stage.
-func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *session.Journal, record func(ids.ObjectAddress, indexRootCandidate), address ids.ObjectAddress, store *storage.Relation) error {
+func TransportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *session.Journal, record func(ids.ObjectAddress, indexRootCandidate), address ids.ObjectAddress, store *storage.Relation) error {
 	parent, ok := snapshot.Relation(address)
 	if !ok || store == nil || len(store.Versions) != 0 {
 		return ids.ErrCatalogReplaced
@@ -223,12 +223,12 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			return err
 		}
 		if !index.SQLIndex.Ready || !index.SQLIndex.Live || parent.RelationKind == catalog.PartitionedRelation {
-			indexJournalOf(changes.Indexes).forget(index.Address())
+			JournalOf(changes.Indexes).Forget(index.Address())
 			continue
 		}
 		var root *storage.IndexRoot
 		if index.SQLIndex.Method == catalog.HashMethod {
-			binding, err := bindHashIndex(parent, index.SQLIndex)
+			binding, err := BindHashIndex(parent, index.SQLIndex)
 			if err != nil {
 				return err
 			}
@@ -237,11 +237,11 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			if err := bindIndexProvider(parent, index.SQLIndex); err != nil {
 				return err
 			}
-			root = newLogicalIndexRoot(index.SQLIndex, nil)
+			root = NewLogicalIndexRoot(index.SQLIndex, nil)
 		}
-		retainIndexBuild(changes, index, store, root)
+		RetainIndexBuild(changes, index, store, root)
 		if record != nil {
-			record(index.Address(), journalIndexesOrZero(changes).candidates[index.Address()])
+			record(index.Address(), JournalIndexesOrZero(changes).Candidates[index.Address()])
 		}
 	}
 	return ctx.Err()

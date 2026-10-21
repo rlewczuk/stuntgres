@@ -20,7 +20,7 @@ func TestIndexPropertyColumnCapabilityMatrix(t *testing.T) {
 		{0, "asc", false, false}, {-1, "asc", false, false}, {4, "asc", false, false}, {2147483647, "asc", false, false},
 		{1, "index_scan", false, false}, {1, "can_order", false, false}, {1, "bogus", false, false},
 	} {
-		got, known := indexColumnCapability(index, tc.ordinal, tc.property)
+		got, known := ColumnCapability(index, tc.ordinal, tc.property)
 		if got != tc.want || known != tc.known {
 			t.Fatal(tc, got, known)
 		}

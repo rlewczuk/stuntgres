@@ -35,7 +35,7 @@ type indexesMetadata struct {
 
 // Both projections use exactly this capture. In particular, deparsing does not
 // consult the current engine or filter records through the caller's ACL.
-func projectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.ObjectRef) (indexMetadata, indexesMetadata, error) {
+func ProjectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.ObjectRef) (indexMetadata, indexesMetadata, error) {
 	var m indexMetadata
 	var names indexesMetadata
 	if err := ctx.Err(); err != nil {
@@ -48,7 +48,7 @@ func projectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.Object
 	if !ok || index.SQLIndex == nil {
 		return m, names, fmt.Errorf("stuntgres: index metadata target is missing")
 	}
-	sql, err := indexDefinitionSQL(ctx, view, index, indexPresentation{})
+	sql, err := DefinitionSQL(ctx, view, index, indexPresentation{})
 	if err != nil {
 		return m, names, err
 	}
@@ -62,7 +62,7 @@ func projectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.Object
 	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == catalog.UniqueBackingKind && definition.Constraint.Primary
 	if definition.IsExclusion() {
 		m.IndIsExclusion = true
-		if c := exclusionDefinition(parent, index); c != nil {
+		if c := ExclusionDefinition(parent, index); c != nil {
 			m.IndImmediate = !c.Deferrable
 		}
 	}
@@ -73,7 +73,7 @@ func projectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.Object
 		if err := ctx.Err(); err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
-		attribute, node, err := indexCatalogKey(parent, key)
+		attribute, node, err := CatalogKey(parent, key)
 		if err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
@@ -88,7 +88,7 @@ func projectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.Object
 			}
 			m.IndKey[i] = int16(attribute)
 		}
-		usage, err := indexKeyUsage(parent, key)
+		usage, err := KeyUsage(parent, key)
 		if err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
@@ -122,7 +122,7 @@ func projectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.Object
 
 // ACL-neutral structural enumeration for internal metadata consumers.
 // The SQL pg_indexes source separately applies its invoker disclosure policy.
-func indexCatalogMetadata(ctx context.Context, view catalog.Read) ([]indexMetadata, []indexesMetadata, error) {
+func CatalogMetadata(ctx context.Context, view catalog.Read) ([]indexMetadata, []indexesMetadata, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
@@ -143,7 +143,7 @@ func indexCatalogMetadata(ctx context.Context, view catalog.Read) ([]indexMetada
 	names := make([]indexesMetadata, len(indexes))
 	for i, index := range indexes {
 		var err error
-		records[i], names[i], err = projectIndexMetadata(ctx, view, view.Owner().Domain.Ref(view.Epoch(), index.Address()))
+		records[i], names[i], err = ProjectIndexMetadata(ctx, view, view.Owner().Domain.Ref(view.Epoch(), index.Address()))
 		if err != nil {
 			return nil, nil, err
 		}

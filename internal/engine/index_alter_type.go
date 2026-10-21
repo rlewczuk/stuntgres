@@ -32,7 +32,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 		if current, exists := stage.Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
 			index = current
 		}
-		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {
+		if !UniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			continue
 		}
 		if next == nil {
@@ -63,11 +63,11 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 		}
 		definition := *index.SQLIndex
 		definition.Keys = slices.Clone(index.SQLIndex.Keys)
-		definition.Constraint = uniqueBacking(c)
+		definition.Constraint = UniqueBacking(c)
 		clone.SQLIndex = &definition
 		clone.Columns = slices.Clone(index.Columns)
 		for j, key := range definition.Keys {
-			attribute, expression, err := indexCatalogKey(parent, key)
+			attribute, expression, err := CatalogKey(parent, key)
 			if err != nil || expression != nil {
 				return nil, fmt.Errorf("stuntgres: invalid TYPE unique key")
 			}
@@ -76,7 +76,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 			clone.Columns[j].Usage = parent.Columns[slot].Usage
 			class, ok := sqltype.DefaultIndexClass(clone.Columns[j].Usage.Type)
 			if !ok {
-				return nil, indexDefaultClassError(clone.Columns[j].Usage.Type.DiagnosticName(), catalog.BtreeMethod)
+				return nil, DefaultClassError(clone.Columns[j].Usage.Type.DiagnosticName(), catalog.BtreeMethod)
 			}
 			definition.Keys[j].Class = class
 			clone.Columns[j].OriginTable = uint32(id)

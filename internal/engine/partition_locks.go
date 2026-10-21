@@ -43,7 +43,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 		if partitionExclusionAddActions(s) {
 			return nil
 		}
-		if partitionConstraintDropActions(d, s.Actions) {
+		if PartitionConstraintDropActions(d, s.Actions) {
 			return nil
 		}
 		if partitionCheckReplayAllowed(op, auth, s, d) || partitionUsingIndexReplayAllowed(op, auth, s, d) || partitionUniqueReplayAllowed(op, auth, s, d) {

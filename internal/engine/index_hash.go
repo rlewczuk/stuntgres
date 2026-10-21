@@ -15,10 +15,10 @@ import (
 func bindIndexProvider(parent *catalog.Relation, d *catalog.IndexDefinition) error {
 	switch d.Method {
 	case catalog.BtreeMethod:
-		_, err := bindIndexOrdering(parent, d)
+		_, err := BindIndexOrdering(parent, d)
 		return err
 	case catalog.HashMethod:
-		_, err := bindHashIndex(parent, d)
+		_, err := BindHashIndex(parent, d)
 		return err
 	case catalog.GistMethod:
 		_, err := bindLogicalExclusionKeys(parent, d)
@@ -28,7 +28,7 @@ func bindIndexProvider(parent *catalog.Relation, d *catalog.IndexDefinition) err
 	}
 }
 
-func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (storage.HashBinding, error) {
+func BindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (storage.HashBinding, error) {
 	var b storage.HashBinding
 	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
 		return b, fmt.Errorf("stuntgres: invalid hash index definition")
@@ -37,7 +37,7 @@ func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (storag
 	if key.Desc || key.NullsFirst {
 		return b, fmt.Errorf("stuntgres: ordered hash index key")
 	}
-	usage, err := indexKeyUsage(parent, key)
+	usage, err := KeyUsage(parent, key)
 	if err != nil {
 		return b, err
 	}
@@ -46,7 +46,7 @@ func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (storag
 		var exists bool
 		class, exists = d.Method.DefaultClass(usage.Type)
 		if !exists {
-			return b, indexDefaultClassError(usage.Type.DiagnosticName(), d.Method)
+			return b, DefaultClassError(usage.Type.DiagnosticName(), d.Method)
 		}
 	}
 	b.Provider, err = sqltype.BindIndexHash(usage, class)
@@ -78,9 +78,9 @@ func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, eva
 	return expression.Eval(evaluation)
 }
 
-func buildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, materialize bool, capture *indexBuildCapture) (*storage.IndexRoot, error) {
+func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, materialize bool, capture *indexBuildCapture) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
-	binding, err := bindHashIndex(parent, d) // Eager even on empty/all-NULL input.
+	binding, err := BindHashIndex(parent, d) // Eager even on empty/all-NULL input.
 	if err != nil {
 		return nil, err
 	}
@@ -99,17 +99,17 @@ func buildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 		if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			continue
 		}
-		matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, nil, &binding)
+		matches, err := preparation.PredicateMatches(evaluation, parent, d, row.Values, nil, &binding)
 		if err != nil {
 			return nil, err
 		}
 		if capture != nil {
-			capture.outputs[position] = storage.IndexOutput{Index: capture.index, Member: matches}
+			capture.Outputs[position] = storage.IndexOutput{Index: capture.Index, Member: matches}
 		}
 		if !matches {
 			continue
 		}
-		if err := preparation.prepareKeys(evaluation, parent, d, nil, &binding); err != nil {
+		if err := preparation.PrepareKeys(evaluation, parent, d, nil, &binding); err != nil {
 			return nil, err
 		}
 		key, err := extractIndexKey(binding.Slot, binding.Expression, row.Values, evaluation)
@@ -117,7 +117,7 @@ func buildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 			return nil, err
 		}
 		if capture != nil {
-			capture.outputs[position].Key = key
+			capture.Outputs[position].Key = key
 		}
 		if key.IsNull() {
 			continue
@@ -139,17 +139,17 @@ func buildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 	return &storage.IndexRoot{Hash: root}, ctx.Err()
 }
 
-func publicationSlot(p *rowPublication, i int) int {
-	if p.singleSlot >= 0 {
-		return p.singleSlot
+func PublicationSlot(p *rowPublication, i int) int {
+	if p.SingleSlot >= 0 {
+		return p.SingleSlot
 	}
-	if p.slots != nil {
-		return p.slots[i]
+	if p.Slots != nil {
+		return p.Slots[i]
 	}
-	return len(p.root) + i
+	return len(p.Root) + i
 }
 
-func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old *storage.IndexRoot, p *rowPublication, reconstruct, materialize bool) (*storage.IndexRoot, error) {
+func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old *storage.IndexRoot, p *rowPublication, reconstruct, materialize bool) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
@@ -162,14 +162,14 @@ func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			return nil, fmt.Errorf("stuntgres: missing hash root")
 		}
 		var err error
-		binding, err = bindHashIndex(parent, d)
+		binding, err = BindHashIndex(parent, d)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		binding = old.Hash.Binding
 		key := d.Keys[0]
-		usage, err := indexKeyUsage(parent, key)
+		usage, err := KeyUsage(parent, key)
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +182,7 @@ func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			slot = -1
 		}
 		if usage != binding.Usage || class != binding.Class || slot != binding.Slot || key.Derived != binding.Derived || key.Desc || key.NullsFirst {
-			binding, err = bindHashIndex(parent, d)
+			binding, err = BindHashIndex(parent, d)
 			if err != nil {
 				return nil, err
 			}
@@ -216,29 +216,29 @@ func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		}
 		return nil
 	}
-	for i, row := range p.writes {
+	for i, row := range p.Writes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		// The shared row owner validates predecessors in both phases. Ending
 		// an index version consumes stored index identity, never old-row SQL.
 		if row.Base != 0 && materialize {
-			position := publicationSlot(p, i)
-			if position < 0 || position >= len(p.root) || p.root[position].Row != row.Row || p.root[position].Version != row.Base {
+			position := PublicationSlot(p, i)
+			if position < 0 || position >= len(p.Root) || p.Root[position].Row != row.Row || p.Root[position].Version != row.Base {
 				return nil, fmt.Errorf("stuntgres: invalid hash update predecessor")
 			}
-			if err := end(p.root[position]); err != nil {
+			if err := end(p.Root[position]); err != nil {
 				return nil, err
 			}
 		}
-		if p.deletion != nil {
-			if deletion, ok := p.deletion.Rows[row.Row]; ok && deletion.Version == row.Version {
+		if p.Deletion != nil {
+			if deletion, ok := p.Deletion.Rows[row.Row]; ok && deletion.Version == row.Version {
 				continue
 			}
 		}
 		output, produced := row.IndexOutputs[index.Address()]
-		produced = produced && indexOutputMatches(output, index)
-		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
+		produced = produced && OutputMatches(output, index)
+		if !reconstruct && !produced && !RowMaintainsIndex(row, index) {
 			continue
 		}
 		var key sqltype.Value
@@ -251,14 +251,14 @@ func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			if d.HasRuntimeDomainConversion() && evaluation.LiveHost() == nil && row.Born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced hash index row")
 			}
-			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, nil, &binding)
+			matches, err := preparation.PredicateMatches(evaluation, parent, d, row.Values, nil, &binding)
 			if err != nil {
 				return nil, err
 			}
 			if !matches {
 				continue
 			}
-			if err := preparation.prepareKeys(evaluation, parent, d, nil, &binding); err != nil {
+			if err := preparation.PrepareKeys(evaluation, parent, d, nil, &binding); err != nil {
 				return nil, err
 			}
 			key, err = extractIndexKey(binding.Slot, binding.Expression, row.Values, evaluation)
@@ -278,15 +278,15 @@ func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			if added == nil {
 				added = make(map[uint64][]storage.HashEntry)
 			}
-			added[h] = append(added[h], storage.HashEntry{Key: key, Row: row.Row, Version: row.Version, Position: publicationSlot(p, i)})
+			added[h] = append(added[h], storage.HashEntry{Key: key, Row: row.Row, Version: row.Version, Position: PublicationSlot(p, i)})
 		}
 	}
-	if p.deletion != nil && materialize {
-		for id, deletion := range p.deletion.Rows {
+	if p.Deletion != nil && materialize {
+		for id, deletion := range p.Deletion.Rows {
 			if deletion.Own {
 				continue
 			}
-			row, _, found := storage.RowByID(p.root, id, deletion.Ordinal)
+			row, _, found := storage.RowByID(p.Root, id, deletion.Ordinal)
 			if !found || row.Version != deletion.Version {
 				return nil, fmt.Errorf("stuntgres: invalid hash deletion predecessor")
 			}
@@ -342,11 +342,11 @@ func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			buckets[h] = next
 		}
 	}
-	ends := p.ends
-	if p.nextEnds != nil {
-		ends = p.nextEnds
+	ends := p.Ends
+	if p.NextEnds != nil {
+		ends = p.NextEnds
 	}
-	root := &storage.HashRoot{Buckets: buckets, Binding: binding, Storage: p.store, Generation: p.generation + 1, Prefix: len(p.next), Ends: ends}
+	root := &storage.HashRoot{Buckets: buckets, Binding: binding, Storage: p.Store, Generation: p.Generation + 1, Prefix: len(p.Next), Ends: ends}
 	if err := root.CaptureRowEntries(ctx, d); err != nil {
 		return nil, err
 	}

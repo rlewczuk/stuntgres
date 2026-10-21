@@ -4,7 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func indexColumnCapability(index *catalog.IndexDefinition, ordinal int64, property string) (bool, bool) {
+func ColumnCapability(index *catalog.IndexDefinition, ordinal int64, property string) (bool, bool) {
 	if ordinal <= 0 || ordinal > int64(len(index.Keys)+len(index.Include)) {
 		return false, false
 	}

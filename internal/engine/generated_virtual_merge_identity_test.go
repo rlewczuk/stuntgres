@@ -29,14 +29,14 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	}
 	authority := inputs.Authority
 	rows, err := e.assembleMergeRows(op.Ctx, scope, b, target, &cursor, state, "public", false)
-	if err != nil || !cursor.Closed || rows == nil || len(rows.values) != 3 || len(scope.stage.rows) != 0 {
+	if err != nil || !cursor.Closed || rows == nil || len(rows.Values) != 3 || len(scope.stage.rows) != 0 {
 		t.Fatal("saved source phase or publication fence", rows, err, cursor.Closed, scope.stage.rows)
 	}
 	if inputs.Authority != authority || authority == nil || inputs.Sources == nil || scope.active() != nil {
 		t.Fatal("borrowed cursor close retired live input authority")
 	}
 	seen := [3]bool{}
-	for _, row := range rows.values {
+	for _, row := range rows.Values {
 		id, _ := row[0].Integer()
 		switch id {
 		case 1, 2:

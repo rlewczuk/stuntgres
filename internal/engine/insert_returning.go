@@ -62,7 +62,7 @@ func (s *StatementScope) finishInsertReturning() (Result, error) {
 
 // Revalidate the proposal before output, never output before possible filtering.
 func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *indexWriteCandidate, evaluation *exec.Context) (bool, error) {
-	row := candidate.values
+	row := candidate.Values
 	if s.insertConflict != nil && s.insertConflict.Update != nil {
 		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
 	}
@@ -70,7 +70,7 @@ func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *ind
 	if s.partitionInsert != nil {
 		group := s.partitionReturningGroup(ref)
 		ref = group.ref
-		proposal.values = s.partitionStoredRow(row)
+		proposal.Values = s.partitionStoredRow(row)
 		defer func() { group.unique = s.uniqueBinding }()
 	}
 	for {
@@ -98,21 +98,21 @@ func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *ind
 // The same catalog/index authority as canonical batch staging performs the
 // final gate. One immutable row is appended to amortized stage storage.
 func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWriteCandidate) (bool, bool, error) {
-	row := candidate.values
+	row := candidate.Values
 	s := w.scope
 	if err := s.active(); err != nil {
 		return false, false, err
 	}
 	values := [1][]sqltype.Value{row}
-	states := [1]indexWriteState{{indexes: candidate.indexes, precheck: candidate.precheck, exclusion: candidate.exclusion}}
-	batch := indexWriteBatch{values: values[:]}
-	if candidate.indexes != nil || candidate.precheck != nil || candidate.exclusion != nil {
-		batch.states = states[:]
+	states := [1]indexWriteState{{Indexes: candidate.Indexes, Precheck: candidate.Precheck, Exclusion: candidate.Exclusion}}
+	batch := indexWriteBatch{Values: values[:]}
+	if candidate.Indexes != nil || candidate.Precheck != nil || candidate.Exclusion != nil {
+		batch.States = states[:]
 	}
 	if err := s.validateIndexCandidates(ref, &batch); err != nil {
 		return false, false, err
 	}
-	*candidate = batch.candidate(0)
+	*candidate = batch.Candidate(0)
 	s.owner.Mu.Lock()
 	defer s.owner.Mu.Unlock()
 	e := s.engine()
@@ -128,11 +128,11 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		return false, false, ids.ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.Catalog)
-	if s.uniqueBinding == nil || s.uniqueBinding.catalog != catalog.State() {
+	if s.uniqueBinding == nil || s.uniqueBinding.Catalog != catalog.State() {
 		return false, true, nil
 	}
 	parent, ok := catalog.Relation(ref.Address)
-	if !ok || !sameRelationRowShape(s.uniqueBinding.parent, parent) {
+	if !ok || !SameRelationRowShape(s.uniqueBinding.Parent, parent) {
 		return false, false, ids.ErrCatalogReplaced
 	}
 	if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
@@ -155,8 +155,8 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		return false, false, err
 	}
 	var version storage.RowVersion
-	if candidate.exclusion != nil {
-		version = *candidate.exclusion
+	if candidate.Exclusion != nil {
+		version = *candidate.Exclusion
 	} else {
 		if e.storage.RowFrontier() == ^uint64(0) || e.storage.VersionFrontier() == ^uint64(0) {
 			return false, false, errors.New("stuntgres: row or version identity exhausted")
@@ -164,7 +164,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		version = storage.RowVersion{Row: e.storage.AllocateRowLocked(), Version: e.storage.AllocateVersionLocked(), Values: row}
 	}
 	version.IndexAdmission = catalog.State()
-	version.IndexOutputs = candidate.indexes
+	version.IndexOutputs = candidate.Indexes
 	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {
 		events := [1]visibility.SerializableWrite{{Row: version.Row, Version: version.Version}}
 		if err = e.serializableWriteLocked(s, ref, events[:]); err != nil {
@@ -196,7 +196,7 @@ func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionIn
 // Returning actions own their immutable payload in WriteStage, so callers must
 // not retain a duplicate producer prefix. Upsert projects at its action seam.
 func (s *StatementScope) admitInsertProducer(b analyze.Binding, candidate *indexWriteCandidate, prefix indexWriteBatch, c *exec.Context) (bool, error) {
-	row := candidate.values
+	row := candidate.Values
 	if s.insertReturning == nil {
 		return s.admitInsertRow(b.Ref, candidate, prefix, c)
 	}

@@ -20,7 +20,7 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	candidate.Columns = slices.Clone(parent.Columns)
 	candidate.Columns[0].Usage = indexClausesTypes()[sqltype.Int8].Usage()
 	e.mu.Lock()
-	next, err := e.rebuildAlterUniquesLocked(stage, &candidate, []columnTransformation{{attribute: parent.Attributes[0]}})
+	next, err := e.rebuildAlterUniquesLocked(stage, &candidate, []columnTransformation{{Attribute: parent.Attributes[0]}})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	if e.CatalogRead().State() != base.State() || !reflect.DeepEqual(parent.Constraints.Unique[0], old) || index.SQLIndex.Constraint.OID != old.OID || parent.Constraints.NotNull[0].OID == next.Constraints.NotNull[0].OID || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate changed retained source/savepoint state")
 	}
-	for _, transformations := range [][]columnTransformation{nil, {{attribute: parent.Attributes[2]}}} {
+	for _, transformations := range [][]columnTransformation{nil, {{Attribute: parent.Attributes[2]}}} {
 		e.mu.Lock()
 		unchanged, err := e.rebuildAlterUniquesLocked(e.BeginCatalogStage(base), parent, transformations)
 		e.mu.Unlock()

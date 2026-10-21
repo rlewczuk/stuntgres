@@ -156,7 +156,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *session.Operati
 	if err != nil {
 		return fail(err)
 	}
-	prepared.transformation = columnTransformation{attribute: original.Attributes[source], expression: node, dependencies: dependencies}
+	prepared.transformation = columnTransformation{Attribute: original.Attributes[source], Expression: node, Dependencies: dependencies}
 	return prepared, nil
 }
 
@@ -169,7 +169,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 		return prepared, nil
 	}
 	usage := prepared.usage
-	node := prepared.transformation.expression
+	node := prepared.transformation.Expression
 	input, annotations := analyze.DomainCoercionInput(node, usage)
 	info, err := analyze.StorageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 	if err != nil {
@@ -209,8 +209,8 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	}
 	source := original.Index[a.Column.Text]
 	oldUsage := original.Columns[source].Usage
-	prepared.transformation.expression = node
-	prepared.transformation.rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
+	prepared.transformation.Expression = node
+	prepared.transformation.Rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
 	return prepared, nil
 }
 
@@ -390,7 +390,7 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 	}
 	for i, transform := range transforms {
 		for slot, attribute := range next.Attributes {
-			if transform.attribute == attribute {
+			if transform.Attribute == attribute {
 				destinations[i] = slot
 				slots[slot] = -1
 				break
@@ -426,8 +426,8 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 				for i, transform := range transforms {
 					recipe := evaluation
 					recipe.RoutineRecipe, recipe.RoutineGraft = true, false
-					recipe.RoutineChecks = transform.dependencies
-					node, changed, err := exec.PreflightCoercionsWithPolicy(&recipe, transform.expression, true)
+					recipe.RoutineChecks = transform.Dependencies
+					node, changed, err := exec.PreflightCoercionsWithPolicy(&recipe, transform.Expression, true)
 					evaluation.PreparedDomainChecks = recipe.PreparedDomainChecks
 					if err != nil {
 						return nil, err
@@ -439,7 +439,7 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 						if private == nil {
 							private = append([]columnTransformation(nil), transforms...)
 						}
-						private[i].expression = node
+						private[i].Expression = node
 					}
 				}
 				if private != nil {
@@ -458,8 +458,8 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 				// manifest after preparation has returned.
 				recipe := evaluation
 				recipe.RoutineRecipe, recipe.RoutineGraft = true, false
-				recipe.RoutineChecks = transform.dependencies
-				v, err := transform.expression.Eval(&recipe)
+				recipe.RoutineChecks = transform.Dependencies
+				v, err := transform.Expression.Eval(&recipe)
 				evaluation.PreparedDomainChecks = recipe.PreparedDomainChecks
 				if err != nil {
 					return nil, err

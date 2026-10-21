@@ -15,14 +15,14 @@ func (e *Engine) stagePartitionIndexChild(op *session.Operation, stage *CatalogS
 	if stage.Base.Get(parentIndex.Address()) != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
 	}
-	mapped, err := mapPartitionIndex(ctx, view, table, child, parentIndex.SQLIndex)
+	mapped, err := MapPartitionIndex(ctx, view, table, child, parentIndex.SQLIndex)
 	if err != nil {
 		return nil, err
 	}
 	mapped.PartitionParent = parentIndex.Address()
 	mapped.Valid = true
 	mapped.Constraint = parentIndex.SQLIndex.Constraint
-	if err = partitionUniqueCoverage(child, mapped); err != nil {
+	if err = PartitionUniqueCoverage(child, mapped); err != nil {
 		return nil, err
 	}
 	mapped.Constraint = nil
@@ -56,7 +56,7 @@ func (e *Engine) stagePartitionIndexChild(op *session.Operation, stage *CatalogS
 		if parentIndex.SQLIndex.Constraint != nil && (candidate.SQLIndex.Constraint == nil || candidate.SQLIndex.Constraint.Kind != catalog.UniqueBackingKind || candidate.SQLIndex.Constraint.Primary != parentIndex.SQLIndex.Constraint.Primary) {
 			continue
 		}
-		match, err := partitionIndexEquivalent(ctx, view, child, mapped, candidate.SQLIndex)
+		match, err := PartitionIndexEquivalent(ctx, view, child, mapped, candidate.SQLIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -77,11 +77,11 @@ func (e *Engine) stagePartitionIndexChild(op *session.Operation, stage *CatalogS
 					c.IsLocal = false
 				}
 			}
-			if err = stagePartitionDescriptor(stage, &changed); err != nil {
+			if err = StagePartitionDescriptor(stage, &changed); err != nil {
 				return nil, err
 			}
 		}
-		if err = stagePartitionDescriptor(stage, &next); err != nil {
+		if err = StagePartitionDescriptor(stage, &next); err != nil {
 			return nil, err
 		}
 		return &next, nil
@@ -139,16 +139,16 @@ func (e *Engine) stagePartitionIndexChild(op *session.Operation, stage *CatalogS
 			}
 			c := catalog.ExclusionConstraint{OID: cid, Name: name, Index: index.Address(), Parent: backing.OID, Operators: mapped.Exclusion, Deferrable: source.Deferrable, InitiallyDeferred: source.InitiallyDeferred}
 			changed.Constraints.Exclusion = append(slices.Clone(child.Constraints.Exclusion), c)
-			mapped.Constraint = exclusionBacking(&c)
+			mapped.Constraint = ExclusionBacking(&c)
 		} else {
 			c := catalog.UniqueConstraint{OID: cid, Name: name, Index: index.Address(), Parent: backing.OID, Primary: backing.Primary, NullsNotDistinct: mapped.NullsNotDistinct, Attributes: make([]int32, len(mapped.Keys))}
 			for i, key := range mapped.Keys {
 				c.Attributes[i] = key.Attribute
 			}
 			changed.Constraints.Unique = append(slices.Clone(child.Constraints.Unique), c)
-			mapped.Constraint = uniqueBacking(&c)
+			mapped.Constraint = UniqueBacking(&c)
 		}
-		if err = stagePartitionDescriptor(stage, &changed); err != nil {
+		if err = StagePartitionDescriptor(stage, &changed); err != nil {
 			return nil, err
 		}
 		child = &changed
@@ -175,13 +175,13 @@ func (e *Engine) stagePartitionIndexChildren(op *session.Operation, stage *Catal
 		}
 	}
 	view := e.stageRead(stage)
-	valid := partitionIndexCoverageComplete(view, index)
+	valid := PartitionIndexCoverageComplete(view, index)
 	if index.SQLIndex.Valid != valid {
 		next, definition := *index, *index.SQLIndex
 		definition.Valid = valid
 		next.SQLIndex = &definition
 		next.ObjectRevision++
-		return stagePartitionDescriptor(stage, &next)
+		return StagePartitionDescriptor(stage, &next)
 	}
 	return nil
 }

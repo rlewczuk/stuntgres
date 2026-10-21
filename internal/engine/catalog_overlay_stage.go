@@ -129,21 +129,21 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 			changes.Storage[a] = session.StorageChange{Replacement: &storage.Relation{}, Relation: table}
 		}
 	}
-	for address, candidate := range stage.indexesOrZero().candidates {
-		if journalIndexesOrZero(changes).candidates == nil {
-			journalIndexes(changes).candidates = make(map[ids.ObjectAddress]indexRootCandidate)
+	for address, candidate := range stage.indexesOrZero().Candidates {
+		if JournalIndexesOrZero(changes).Candidates == nil {
+			JournalIndexes(changes).Candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 		}
-		if journalIndexesOrZero(changes).uniqueRoots == nil {
-			journalIndexes(changes).uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
+		if JournalIndexesOrZero(changes).UniqueRoots == nil {
+			JournalIndexes(changes).UniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
-		journalIndexes(changes).candidates[address], journalIndexes(changes).uniqueRoots[address] = candidate, candidate.root
+		JournalIndexes(changes).Candidates[address], JournalIndexes(changes).UniqueRoots[address] = candidate, candidate.Root
 	}
 	for a := range stage.Removals() {
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.Generators, a)
 		delete(changes.Storage, a)
-		indexJournalOf(changes.Indexes).forget(a)
-		delete(journalIndexesOrZero(changes).rebuilds, a)
+		JournalOf(changes.Indexes).Forget(a)
+		delete(JournalIndexesOrZero(changes).Rebuilds, a)
 	}
 	for a, g := range stage.sequence.StagedGenerators() {
 		changes.Generators[a] = g

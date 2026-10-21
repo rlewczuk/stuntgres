@@ -83,7 +83,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		t.Fatal("target/excluded slots and immutable RHS", values, old, err)
 	}
 	unique, err := scope.bindUniqueWrite(b.Ref)
-	if err != nil || !reflect.DeepEqual(unique.keySlots, []int{0}) {
+	if err != nil || !reflect.DeepEqual(unique.KeySlots, []int{0}) {
 		t.Fatal("installed simple/nonpartial FK-key bitmap", unique, err)
 	}
 	analyzeConflict := func(q string) (analyze.Binding, error) {
@@ -319,7 +319,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 			cursor.closeError = secondary
 		}
 		rows, err := assembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope, true, nil, nil)
-		if !errors.Is(err, injected) || rows.values != nil || cursor.closes != 1 || len(scope.stage.rows[b.Ref.Address]) == 0 {
+		if !errors.Is(err, injected) || rows.Values != nil || cursor.closes != 1 || len(scope.stage.rows[b.Ref.Address]) == 0 {
 			t.Fatal("cursor failure after actual mixed-stage prefix", rows, err, cursor.closes, scope.stage.rows)
 		}
 		consumed, affected := 1, 1

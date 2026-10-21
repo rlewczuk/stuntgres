@@ -17,7 +17,7 @@ import (
 // Each proposal is already projected and constrained. Only arbitration is
 // restarted after a row wait; defaults, the source and SET are never replayed.
 func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate *indexWriteCandidate, proposalEvaluation *exec.Context) error {
-	proposal := candidate.values
+	proposal := candidate.Values
 	c := s.insertConflict
 	e := s.engine()
 	manager := e.locks
@@ -32,16 +32,16 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := evaluation.Context.Err(); err != nil {
 			return err
 		}
-		hit, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, c, indexProbeRuntime)
+		hit, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, c, ProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if hit.index == nil {
-			other, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, nil, indexProbeRuntime)
+			other, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, nil, ProbeRuntime)
 			if err != nil {
 				return err
 			}
-			if c.catalog != s.uniqueBinding.catalog {
+			if c.catalog != s.uniqueBinding.Catalog {
 				manager.RestoreUniqueDelta(s.ticket)
 				s.discardExclusionCandidate(ref, candidate)
 				continue
@@ -69,7 +69,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				}
 			} else {
 				var batch indexWriteBatch
-				batch.append(*candidate)
+				batch.Append(*candidate)
 				if err := s.Writes().applyValidated(ref, batch); err != nil {
 					return err
 				}
@@ -84,7 +84,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		s.discardExclusionCandidate(ref, candidate)
 		mode := lock.ForNoKeyUpdate
 		for _, target := range c.UpdateTargets {
-			for _, key := range s.uniqueBinding.keySlots {
+			for _, key := range s.uniqueBinding.KeySlots {
 				if target == key {
 					mode = lock.ForUpdate
 				}
@@ -101,7 +101,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			continue
 		}
 		// Reacquire row -> key, and demand the same physical identity under both.
-		checked, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, c, indexProbeRuntime)
+		checked, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, c, ProbeRuntime)
 		if err != nil {
 			return err
 		}
@@ -172,7 +172,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
 			return err
 		}
-		replacement := indexWriteCandidate{values: row}
+		replacement := indexWriteCandidate{Values: row}
 		if err := s.checkUniqueRow(ref, &replacement, []storage.RowVersion{old}, indexWriteBatch{}); err != nil {
 			return err
 		}
@@ -181,8 +181,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		var batch indexWriteBatch
-		batch.actionMode = actionMode
-		batch.append(replacement)
+		batch.ActionMode = actionMode
+		batch.Append(replacement)
 		if err := s.Writes().replaceDistinct(ref, []storage.RowVersion{old}, batch); err != nil {
 			return err
 		}
@@ -218,7 +218,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	catalog := e.privateCatalogLocked(s.owner.Catalog)
 	parent, ok := catalog.Relation(ref.Address)
 	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if !ok || store == nil || !sameRelationRowShape(candidate.parent, parent) {
+	if !ok || store == nil || !SameRelationRowShape(candidate.parent, parent) {
 		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
@@ -252,7 +252,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return storage.RowVersion{}, nil, "", false, err
 	}
-	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
+	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]) && !UniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
 	return row, parent, namespace.Name(), live, nil
 }
 

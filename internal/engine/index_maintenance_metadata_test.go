@@ -20,7 +20,7 @@ func indexMaintenanceMetadataFlags(index, parent ids.OID, n int16) indexMetadata
 func indexMaintenanceMetadata(t *testing.T, e *Engine, catalog catalog.Read, name string) (indexMetadata, indexesMetadata) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
-	m, n, err := projectIndexMetadata(context.Background(), catalog, ref)
+	m, n, err := ProjectIndexMetadata(context.Background(), catalog, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	run(t, e, "ALTER INDEX ni RENAME TO renamed_ni")
 	run(t, e, "ALTER TABLE t RENAME COLUMN n TO renamed_n")
 	run(t, e, "ALTER TABLE t RENAME TO renamed_t")
-	old, oldNames, err := projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
+	old, oldNames, err := ProjectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) || oldNames.IndexName != "ni" || oldNames.TableName != "t" {
 		t.Fatal("historical capture consulted current catalog", old, oldNames, err)
 	}
@@ -98,7 +98,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 		t.Fatal("current names or stable attributes lost", current, currentNames)
 	}
 	run(t, e, "DROP INDEX renamed_ni")
-	records, _, err := indexCatalogMetadata(context.Background(), e.CatalogRead())
+	records, _, err := CatalogMetadata(context.Background(), e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 			t.Fatal("dropped metadata remained published")
 		}
 	}
-	old, _, err = projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
+	old, _, err = ProjectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) {
 		t.Fatal("drop mutated old capture", old, err)
 	}
@@ -226,7 +226,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), parent, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	records, names, err := indexCatalogMetadata(context.Background(), e.CatalogRead())
+	records, names, err := CatalogMetadata(context.Background(), e.CatalogRead())
 	if err != nil || len(records) != 1 || len(names) != 1 || !reflect.DeepEqual(records[0], want) {
 		t.Fatal("metadata enumeration filtered by ACL or mixed captures", records, names, err)
 	}
@@ -234,27 +234,27 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	records, _, err = indexCatalogMetadata(context.Background(), old)
+	records, _, err = CatalogMetadata(context.Background(), old)
 	if err != nil || len(records) != 1 || !reflect.DeepEqual(records[0], want) {
 		t.Fatal("old metadata capture became mutable after replacement", records, err)
 	}
-	empty, _, err := indexCatalogMetadata(context.Background(), e.CatalogRead())
+	empty, _, err := CatalogMetadata(context.Background(), e.CatalogRead())
 	if err != nil || len(empty) != 0 {
 		t.Fatal("replacement retained old published metadata", empty, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err := indexCatalogMetadata(canceled, old); !errors.Is(err, context.Canceled) {
+	if _, _, err := CatalogMetadata(canceled, old); !errors.Is(err, context.Canceled) {
 		t.Fatal("metadata ignored cancellation", err)
 	}
 	foreign := New()
-	if _, _, err := projectIndexMetadata(context.Background(), old, foreign.catalog.Domain.Ref(old.Epoch(), index.Address())); err == nil {
+	if _, _, err := ProjectIndexMetadata(context.Background(), old, foreign.catalog.Domain.Ref(old.Epoch(), index.Address())); err == nil {
 		t.Fatal("foreign ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123456})); err == nil {
+	if _, _, err := ProjectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123456})); err == nil {
 		t.Fatal("missing ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), parent.Address)); err == nil {
+	if _, _, err := ProjectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), parent.Address)); err == nil {
 		t.Fatal("non-index ref accepted by capture")
 	}
 	if p, err := sqltype.BindOrdering(index.Columns[2].Usage); err != nil || p.DefaultBtreeOpclass() != 10069 {

@@ -12,43 +12,43 @@ import (
 
 // indexCoverageReader is what partitioned-index coverage reads.
 type indexCoverageReader interface {
-	liveDescriptor(ids.ObjectAddress) catalog.Descriptor
-	descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
-	removed(ids.ObjectAddress) bool
+	LiveDescriptor(ids.ObjectAddress) catalog.Descriptor
+	Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	Removed(ids.ObjectAddress) bool
 }
 
 // catalogCoverage reads coverage from a published or candidate catalog with no
 // staged or prepared removals.
 type catalogCoverage struct{ view catalog.Read }
 
-func (c catalogCoverage) liveDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+func (c catalogCoverage) LiveDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	return c.view.Get(address)
 }
 
-func (c catalogCoverage) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (c catalogCoverage) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return c.view.Descriptors()
 }
 
-func (catalogCoverage) removed(ids.ObjectAddress) bool { return false }
+func (catalogCoverage) Removed(ids.ObjectAddress) bool { return false }
 
-func partitionIndexCoverageComplete(view catalog.Read, index *catalog.Relation) bool {
-	return indexCoverageComplete(catalogCoverage{view}, index)
+func PartitionIndexCoverageComplete(view catalog.Read, index *catalog.Relation) bool {
+	return CoverageComplete(catalogCoverage{view}, index)
 }
 
 // indexCoverageComplete reports whether every partition of the index's parent
 // has a valid attached child index.
-func indexCoverageComplete(r indexCoverageReader, index *catalog.Relation) bool {
-	table, ok := r.liveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
+func CoverageComplete(r indexCoverageReader, index *catalog.Relation) bool {
+	table, ok := r.LiveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
 	if !ok || table.Partition == nil {
 		return index.SQLIndex.Valid
 	}
 	for _, child := range table.Partition.Children {
 		found := false
-		for address := range r.descriptors() {
-			if r.removed(address) {
+		for address := range r.Descriptors() {
+			if r.Removed(address) {
 				continue
 			}
-			candidate, ok := r.liveDescriptor(address).(*catalog.Relation)
+			candidate, ok := r.LiveDescriptor(address).(*catalog.Relation)
 			if ok && candidate.SQLIndex != nil && candidate.SQLIndex.PartitionParent == index.Address() && candidate.SQLIndex.Parent == child && candidate.SQLIndex.Valid {
 				found = true
 				break
@@ -61,7 +61,7 @@ func indexCoverageComplete(r indexCoverageReader, index *catalog.Relation) bool 
 	return true
 }
 
-func partitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent, child *catalog.Relation) error {
+func PartitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent, child *catalog.Relation) error {
 	diagnostic := func(code, detail string) error {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(`cannot attach index "%s" as a partition of index "%s"`, child.Name(), parent.Name()), Detail: detail}
 	}
@@ -85,11 +85,11 @@ func partitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent,
 	if parent.SQLIndex.IsExclusion() || child.SQLIndex.IsExclusion() {
 		return diagnostic("42P17", "The index definitions do not match.")
 	}
-	mapped, err := mapPartitionIndex(op.Context(), view, table, childTable, parent.SQLIndex)
+	mapped, err := MapPartitionIndex(op.Context(), view, table, childTable, parent.SQLIndex)
 	if err != nil {
 		return err
 	}
-	match, err := partitionIndexEquivalent(op.Context(), view, childTable, mapped, child.SQLIndex)
+	match, err := PartitionIndexEquivalent(op.Context(), view, childTable, mapped, child.SQLIndex)
 	if err != nil {
 		return err
 	}
@@ -111,12 +111,12 @@ func partitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent,
 	return nil
 }
 
-func validatePartitionIndex(view catalog.Read, index, table *catalog.Relation) error {
+func ValidatePartitionIndex(view catalog.Read, index, table *catalog.Relation) error {
 	d := index.SQLIndex
-	if table.Partition != nil && d.Valid && !partitionIndexCoverageComplete(view, index) {
+	if table.Partition != nil && d.Valid && !PartitionIndexCoverageComplete(view, index) {
 		return fmt.Errorf("stuntgres: inconsistent virtual index validity")
 	}
-	if err := partitionUniqueCoverage(table, d); err != nil {
+	if err := PartitionUniqueCoverage(table, d); err != nil {
 		return err
 	}
 	if d.PartitionParent == (ids.ObjectAddress{}) {
@@ -143,11 +143,11 @@ func validatePartitionIndex(view catalog.Read, index, table *catalog.Relation) e
 		}
 	}
 	parentTable := view.MustRelation(parent.SQLIndex.Parent)
-	mapped, err := mapPartitionIndex(context.Background(), view, parentTable, table, parent.SQLIndex)
+	mapped, err := MapPartitionIndex(context.Background(), view, parentTable, table, parent.SQLIndex)
 	if err != nil {
 		return err
 	}
-	match, err := partitionIndexEquivalent(context.Background(), view, table, mapped, d)
+	match, err := PartitionIndexEquivalent(context.Background(), view, table, mapped, d)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func validatePartitionIndex(view catalog.Read, index, table *catalog.Relation) e
 		}
 		for _, c := range table.Constraints.Exclusion {
 			if c.Index == index.Address() && c.Parent == expected && c.IsLocal == (expected == 0) {
-				source := exclusionDefinition(parentTable, parent)
+				source := ExclusionDefinition(parentTable, parent)
 				found = source != nil && c.Deferrable == source.Deferrable && c.InitiallyDeferred == source.InitiallyDeferred
 			}
 		}

@@ -22,7 +22,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	rows := view.Data().Committed[f.parent.Address()]
 	oldRoot := f.e.storage.IndexRoots[f.index.Address()]
 	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.Address())
-	retained, _, err := projectIndexMetadata(ctx, capture, ref)
+	retained, _, err := ProjectIndexMetadata(ctx, capture, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,10 +74,10 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	next := catalog.CloneState(capture.State())
 	next.SetDescriptor(index.Address(), &index)
 	candidate := f.e.catalog.read(next)
-	if err := validateIndexDefinition(candidate, &index); err != nil {
+	if err := ValidateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
 	}
-	root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
+	root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,14 +85,14 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	f.e.catalog.state = next
 	f.e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root})
 	f.e.mu.Unlock()
-	current, _, err := projectIndexMetadata(ctx, f.e.CatalogRead(), ref)
+	current, _, err := ProjectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}
 	consume("current projection", current, []plan.Truth{plan.False, plan.True, plan.Unknown, plan.False, plan.False}, map[ids.RowID]ids.VersionID{2: 2})
 	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{2: 2})
 	consume("retained projection", retained, oldTruth, oldMembers)
-	historical, _, err := projectIndexMetadata(ctx, capture, ref)
+	historical, _, err := ProjectIndexMetadata(ctx, capture, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,10 +123,10 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	next := catalog.CloneState(capture.State())
 	next.SetDescriptor(index.Address(), &index)
 	candidate := f.e.catalog.read(next)
-	if err := validateIndexDefinition(candidate, &index); err != nil {
+	if err := ValidateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
 	}
-	metadata, _, err := projectIndexMetadata(ctx, candidate, f.e.catalog.Domain.Ref(candidate.Epoch(), index.Address()))
+	metadata, _, err := ProjectIndexMetadata(ctx, candidate, f.e.catalog.Domain.Ref(candidate.Epoch(), index.Address()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		if err != nil || truth != plan.False {
 			t.Fatalf("row %d: original FALSE AND active truth=%v error=%v", row.Row, truth, err)
 		}
-		matched, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: predicate}, row.Values, nil, nil)
+		matched, err := preparation.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: predicate}, row.Values, nil, nil)
 		if err != nil || matched {
 			t.Fatalf("row %d: simplified execution admitted a member: %v %v", row.Row, matched, err)
 		}

@@ -22,11 +22,11 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 	if mode == parser.DropRestrict {
 		return nil
 	}
-	for address, descriptor := range provider.inputDescriptors() {
-		if provider.removed(address) || slices.Contains(targets, address) {
+	for address, descriptor := range provider.InputDescriptors() {
+		if provider.Removed(address) || slices.Contains(targets, address) {
 			continue
 		}
-		if replacement := provider.replacement(address); replacement != nil {
+		if replacement := provider.Replacement(address); replacement != nil {
 			descriptor = replacement
 		}
 		d, ok := descriptor.(*catalog.Relation)
@@ -56,7 +56,7 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 			return err
 		}
 		copy.ObjectRevision = revision
-		if err = provider.replace(&copy); err != nil {
+		if err = provider.Replace(&copy); err != nil {
 			return err
 		}
 	}

@@ -75,7 +75,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		// Every retry captures snapshot ownership with the actual immutable row root.
 		e.visibility.WithdrawSnapshotLocked(scope.txRef)
-		safe, err := simpleConcurrentIndex(parent, index.SQLIndex)
+		safe, err := SimpleConcurrentIndex(parent, index.SQLIndex)
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
@@ -101,20 +101,20 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, scope.op.Session)
-		stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+		stage.indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		namespace := auth.Catalog.Get(parent.Namespace()).Name()
 		e.mu.Unlock()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
-		root, err := buildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
+		root, err := BuildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
 		if err == nil {
-			err = validateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth.View, disclosureEnv(&auth), first)
+			err = ValidateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth.View, disclosureEnv(&auth), first)
 		}
 		if err != nil {
 			e.DiscardCatalogStage(stage)
 			return 0, err
 		}
-		stage.indexes().candidates = map[ids.ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.Generation, ends: snapshot.Ends, length: len(snapshot.Versions)}}
+		stage.indexes().Candidates = map[ids.ObjectAddress]indexRootCandidate{address: {Root: root, Index: &next, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
 		err = stage.Replace(&next)
 		if err == nil {
 			var prepared *PreparedCatalogPublication
@@ -168,7 +168,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		}
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, scope.op.Session)
-		stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+		stage.indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		e.mu.Unlock()
 		err = stage.Replace(&next)
 		if err == nil {

@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func partitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefinition) error {
+func PartitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefinition) error {
 	if table.Partition == nil || !index.Unique && !index.IsExclusion() {
 		return nil
 	}
@@ -34,7 +34,7 @@ func partitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefini
 			if key.Attribute != partitionKey.Attribute || key.Derived != nil {
 				continue
 			}
-			usage := indexKeyCollation(table.Columns[table.IndexForAttribute(key.Attribute)].Usage, key)
+			usage := KeyCollation(table.Columns[table.IndexForAttribute(key.Attribute)].Usage, key)
 			if index.IsExclusion() {
 				if usage.Collation != partitionKey.Usage.Collation {
 					continue
@@ -83,7 +83,7 @@ func partitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefini
 
 // Mapping uses the same cooked-expression path as LIKE; inherited providers are
 // never resolved again by name. Sort presentation is not attachment identity.
-func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *catalog.Relation, old *catalog.IndexDefinition) (*catalog.IndexDefinition, error) {
+func MapPartitionIndex(ctx context.Context, view catalog.Read, source, child *catalog.Relation, old *catalog.IndexDefinition) (*catalog.IndexDefinition, error) {
 	in := analyze.LikeInput{Source: source, TargetSlots: make([]int, len(source.Columns))}
 	for i, column := range source.Columns {
 		slot, ok := child.Index[column.Name]
@@ -143,7 +143,7 @@ func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 	}
 	if old.IsExclusion() {
 		var err error
-		d.Exclusion, err = rebindExclusionOperators(child, &d)
+		d.Exclusion, err = RebindExclusionOperators(child, &d)
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +151,7 @@ func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 	return &d, nil
 }
 
-func partitionIndexEquivalent(ctx context.Context, view catalog.Read, table *catalog.Relation, a, b *catalog.IndexDefinition) (bool, error) {
+func PartitionIndexEquivalent(ctx context.Context, view catalog.Read, table *catalog.Relation, a, b *catalog.IndexDefinition) (bool, error) {
 	if a.Method != b.Method || a.Unique != b.Unique || a.NullsNotDistinct != b.NullsNotDistinct || len(a.Keys) != len(b.Keys) || !slices.Equal(a.Include, b.Include) {
 		return false, nil
 	}
@@ -180,15 +180,15 @@ func partitionIndexEquivalent(ctx context.Context, view catalog.Read, table *cat
 		if key.Attribute != other.Attribute || (key.Derived == nil) != (other.Derived == nil) {
 			return false, nil
 		}
-		au, err := indexKeyUsage(table, key)
+		au, err := KeyUsage(table, key)
 		if err != nil {
 			return false, err
 		}
-		bu, err := indexKeyUsage(table, other)
+		bu, err := KeyUsage(table, other)
 		if err != nil {
 			return false, err
 		}
-		if indexKeyCollation(au, key).Collation != indexKeyCollation(bu, other).Collation {
+		if KeyCollation(au, key).Collation != KeyCollation(bu, other).Collation {
 			return false, nil
 		}
 		ac, bc := key.Class, other.Class
@@ -234,7 +234,7 @@ func partitionIndexEquivalent(ctx context.Context, view catalog.Read, table *cat
 	return true, nil
 }
 
-func stagePartitionDescriptor(stage indexDescriptorStage, d *catalog.Relation) error {
+func StagePartitionDescriptor(stage indexDescriptorStage, d *catalog.Relation) error {
 	if stage.StageBase().Get(d.Address()) == nil {
 		stage.UpdateDescriptor(d)
 		return nil
@@ -272,7 +272,7 @@ func appendPartitionInlineIndexes(view catalog.Read, table *catalog.Relation, in
 	}
 	for _, constraint := range table.Constraints.Unique {
 		index := view.MustRelation(constraint.Index)
-		if constraint.Parent == 0 && !usingIndexDump(index) {
+		if constraint.Parent == 0 && !UsingIndexDump(index) {
 			indexes = append(indexes, index)
 		}
 	}
@@ -287,7 +287,7 @@ func appendPartitionInlineIndexes(view catalog.Read, table *catalog.Relation, in
 // This is the declaration order that creates automatic partition backings:
 // inherited inline keys, local inline keys, then separately emitted indexes.
 // Only the separate-index tail uses sparse collision provenance / OID ordering.
-func partitionIndexDeclarationOrder(view catalog.Read, table *catalog.Relation) []*catalog.Relation {
+func PartitionIndexDeclarationOrder(view catalog.Read, table *catalog.Relation) []*catalog.Relation {
 	indexes := appendPartitionInlineIndexes(view, table, nil)
 	inline := len(indexes)
 	for _, descriptor := range view.Descriptors() {
@@ -295,7 +295,7 @@ func partitionIndexDeclarationOrder(view catalog.Read, table *catalog.Relation) 
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != table.Address() {
 			continue
 		}
-		if backing := index.SQLIndex.Constraint; backing != nil && (backing.Kind == catalog.UniqueBackingKind && !usingIndexDump(index) || backing.Kind == catalog.ExclusionBackingKind) {
+		if backing := index.SQLIndex.Constraint; backing != nil && (backing.Kind == catalog.UniqueBackingKind && !UsingIndexDump(index) || backing.Kind == catalog.ExclusionBackingKind) {
 			continue
 		}
 		indexes = append(indexes, index)

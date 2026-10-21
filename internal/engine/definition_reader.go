@@ -140,8 +140,8 @@ func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*catal
 	return catalog.DefinitionRelationAt(a.Catalog, a.definition, address)
 }
 
-func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
-	lineage, ok := r.stage.indexesOrZero().layouts[address]
+func (r stageDefinitionReader) IndexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+	lineage, ok := r.stage.indexesOrZero().Layouts[address]
 	return lineage, ok
 }
 

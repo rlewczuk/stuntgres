@@ -19,10 +19,10 @@ func TestExclusionIndexRoots(t *testing.T) {
 			constraint := parent.Constraints.Exclusion[0]
 			index := e.catalog.state.MustRelation(constraint.Index)
 			root := e.storage.IndexRoots[constraint.Index]
-			if root == nil || index.SQLIndex.Unique || !index.SQLIndex.IsExclusion() || !backingConstraintPresent(parent, index) {
+			if root == nil || index.SQLIndex.Unique || !index.SQLIndex.IsExclusion() || !BackingConstraintPresent(parent, index) {
 				t.Fatal("exclusion does not own a real nonunique enforcement root")
 			}
-			metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), index.Address()))
+			metadata, _, err := ProjectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), index.Address()))
 			if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || !metadata.IndImmediate || !metadata.IndIsReady || !metadata.IndIsValid || !metadata.IndIsLive || len(metadata.IndKey) != 1 || metadata.IndKey[0] != 0 {
 				t.Fatal("incorrect native exclusion index metadata", metadata, err)
 			}
@@ -53,10 +53,10 @@ func TestExclusionIndexRoots(t *testing.T) {
 					t.Fatal("unminted root identity", entry)
 				}
 			}
-			if err := validateExclusions(e.CatalogRead(), parent, make(map[string]bool)); err != nil {
+			if err := ValidateExclusions(e.CatalogRead(), parent, make(map[string]bool)); err != nil {
 				t.Fatal(err)
 			}
-			if len(e.exclusions.pending) != 0 {
+			if len(e.exclusions.Pending) != 0 {
 				t.Fatal("implicit publication retained dirty rows")
 			}
 			uniqueClaimsEmpty(t, e)
@@ -73,7 +73,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	original := e.catalog.state.MustRelation(ref.Address)
 	old := original.Constraints.Exclusion[0]
 	oldRoot := e.storage.IndexRoots[old.Index]
-	metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), old.Index))
+	metadata, _, err := ProjectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), old.Index))
 	if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || metadata.IndImmediate || len(metadata.IndKey) != 2 || metadata.IndKey[0] != 0 || metadata.IndKey[1] != int16(original.Attributes[2]) {
 		t.Fatal("incorrect deferred definition/INCLUDE metadata", metadata, err)
 	}
@@ -87,7 +87,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 		t.Fatal("TYPE retained the retired physical index")
 	}
 	index := e.catalog.state.MustRelation(current.Index)
-	if !backingConstraintPresent(parent, index) {
+	if !BackingConstraintPresent(parent, index) {
 		t.Fatal("TYPE broke reciprocal ownership")
 	}
 	root := e.storage.IndexRoots[current.Index]
@@ -98,7 +98,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 		t.Fatal("rename changed constraint identity or the integrity root")
 	}
 	index = e.catalog.state.MustRelation(current.Index)
-	if index.Name() != "renamed" || !backingConstraintPresent(parent, index) {
+	if index.Name() != "renamed" || !BackingConstraintPresent(parent, index) {
 		t.Fatal("rename broke index attachment")
 	}
 	if !renamed.Deferrable || !renamed.InitiallyDeferred {
@@ -135,8 +135,8 @@ func TestExclusionStrongRowKeys(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(binding.keys) != 1 || len(binding.keySlots) != 0 {
-				t.Fatal("exclusion strengthened KEY SHARE/NO KEY UPDATE row semantics", binding.keySlots)
+			if len(binding.Keys) != 1 || len(binding.KeySlots) != 0 {
+				t.Fatal("exclusion strengthened KEY SHARE/NO KEY UPDATE row semantics", binding.KeySlots)
 			}
 		})
 	}
@@ -174,7 +174,7 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 			constraint := parent.Constraints.Exclusion[0]
 			index := e.catalog.state.MustRelation(constraint.Index)
 			root := e.storage.IndexRoots[constraint.Index]
-			if !backingConstraintPresent(parent, index) || root == nil {
+			if !BackingConstraintPresent(parent, index) || root == nil {
 				t.Fatal("missing actual first exclusion root")
 			}
 			if method == "btree" {
@@ -198,7 +198,7 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 					t.Fatal("wrong HASH first-index membership", count)
 				}
 			}
-			if len(e.exclusions.pending) != 0 {
+			if len(e.exclusions.Pending) != 0 {
 				t.Fatal("ALTER publication retained dirty ownership")
 			}
 			uniqueClaimsEmpty(t, e)

@@ -76,7 +76,7 @@ func TestExclusionDisclosure(t *testing.T) {
 						label := "(" + strings.Join([]string{key, "b"}, ", ") + ")"
 						detail = "Key " + label + "=(x, 2)" + middle + label + "=(x, 2)."
 					}
-					err := validateExclusionPair(context.Background(), parent, index, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, disclosureEnv(&auth), building)
+					err := ValidateExclusionPair(context.Background(), parent, index, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, disclosureEnv(&auth), building)
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23P01", Message: message, Detail: detail, Schema: "public", Table: "t", Constraint: "ex"})
 				}
 			})

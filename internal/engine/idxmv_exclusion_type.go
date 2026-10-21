@@ -7,10 +7,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func rebindExclusionOperators(parent *catalog.Relation, definition *catalog.IndexDefinition) ([]sqltype.ExclusionOperator, error) {
+func RebindExclusionOperators(parent *catalog.Relation, definition *catalog.IndexDefinition) ([]sqltype.ExclusionOperator, error) {
 	operators := make([]sqltype.ExclusionOperator, len(definition.Exclusion))
 	for i, operator := range definition.Exclusion {
-		usage, err := indexKeyUsage(parent, definition.Keys[i])
+		usage, err := KeyUsage(parent, definition.Keys[i])
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +24,7 @@ func rebindExclusionOperators(parent *catalog.Relation, definition *catalog.Inde
 
 // Imported values and definitions must capture the destination type descriptors.
 // The catalog replacement path invokes this after its existing expression remap.
-func rebindImportedExclusions(next *catalog.State) error {
+func RebindImportedExclusions(next *catalog.State) error {
 	for address, descriptor := range next.Descriptors() {
 		parent, ok := descriptor.(*catalog.Relation)
 		if !ok || len(parent.Constraints.Exclusion) == 0 {
@@ -39,7 +39,7 @@ func rebindImportedExclusions(next *catalog.State) error {
 			definition := index.SQLIndex
 			changed := false
 			for j, operator := range definition.Exclusion {
-				usage, err := indexKeyUsage(parent, definition.Keys[j])
+				usage, err := KeyUsage(parent, definition.Keys[j])
 				if err != nil {
 					return err
 				}
@@ -51,7 +51,7 @@ func rebindImportedExclusions(next *catalog.State) error {
 			if !changed {
 				continue
 			}
-			operators, err := rebindExclusionOperators(parent, definition)
+			operators, err := RebindExclusionOperators(parent, definition)
 			if err != nil {
 				return err
 			}

@@ -105,7 +105,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	if !columnRename && old.SQLIndex != nil && old.SQLIndex.Constraint != nil {
-		if err = stageBackingIndexRename(stage, &next); err != nil {
+		if err = StageBackingIndexRename(stage, &next); err != nil {
 			e.mu.Unlock()
 			e.DiscardCatalogStage(stage)
 			return Result{}, err

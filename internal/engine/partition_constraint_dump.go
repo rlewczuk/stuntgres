@@ -38,7 +38,7 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 		}
 	}
 	slices.SortFunc(tables, func(a, b *catalog.Relation) int {
-		return partitionReplayNameCompare(view, a, b)
+		return PartitionReplayNameCompare(view, a, b)
 	})
 	if len(tables) == 0 {
 		return view, replay
@@ -58,7 +58,7 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 			indexes = append(indexes, view.MustRelation(c.Index))
 		}
 		slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
-			return partitionReplayNameCompare(view, a, b)
+			return PartitionReplayNameCompare(view, a, b)
 		})
 		for _, index := range indexes {
 			for {
@@ -79,7 +79,7 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 			old := view.MustRelation(c.Index)
 			index, definition := *old, *old.SQLIndex
 			index.ObjectName = c.Name
-			definition.Constraint = uniqueBacking(c)
+			definition.Constraint = UniqueBacking(c)
 			index.SQLIndex = &definition
 			state.SetDescriptor(index.Address(), &index)
 		}
@@ -90,7 +90,7 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 			old := view.MustRelation(c.Index)
 			index, definition := *old, *old.SQLIndex
 			index.ObjectName = c.Name
-			definition.Constraint = exclusionBacking(c)
+			definition.Constraint = ExclusionBacking(c)
 			index.SQLIndex = &definition
 			state.SetDescriptor(index.Address(), &index)
 		}
@@ -113,8 +113,8 @@ func (r *partitionConstraintReplay) tableRenames(view catalog.Read, table *catal
 	for _, c := range table.Constraints.Check {
 		used[c.Name] = true
 	}
-	for _, index := range partitionIndexDeclarationOrder(view, table) {
-		if index.SQLIndex.Constraint != nil && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && !partitionReplaySeparateConstraint(view, index) {
+	for _, index := range PartitionIndexDeclarationOrder(view, table) {
+		if index.SQLIndex.Constraint != nil && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && !PartitionReplaySeparateConstraint(view, index) {
 			used[index.Name()] = true
 		}
 	}
@@ -134,11 +134,11 @@ func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *
 	var renames []rename
 	var reserve func(*catalog.Relation, *catalog.Relation)
 	reserve = func(child, parentIndex *catalog.Relation) {
-		index := partitionDumpIndexBacking(r.original, parentIndex.Address(), child.Address())
+		index := PartitionDumpIndexBacking(r.original, parentIndex.Address(), child.Address())
 		if index == nil || index.SQLIndex.Constraint == nil {
 			return
 		}
-		if root := partitionReplayVirtualUniqueRoot(r.original, index); root != nil && !partitionReplayOnlyExclusion(root) {
+		if root := PartitionReplayVirtualUniqueRoot(r.original, index); root != nil && !PartitionReplayOnlyExclusion(root) {
 			return
 		}
 		if partitionConstraintCreator(r.original, index) != event {
@@ -172,7 +172,7 @@ func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *
 		}
 	}
 	parent := r.original.MustRelation(table.Membership.Parent)
-	for _, index := range partitionIndexDeclarationOrder(r.original, parent) {
+	for _, index := range PartitionIndexDeclarationOrder(r.original, parent) {
 		reserve(table, index)
 	}
 	var sql strings.Builder
@@ -193,7 +193,7 @@ func (r *partitionConstraintReplay) finalRenameOrder() []*catalog.Relation {
 		indexes = append(indexes, r.original.MustRelation(address))
 	}
 	slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
-		return partitionReplayNameCompare(r.original, a, b)
+		return PartitionReplayNameCompare(r.original, a, b)
 	})
 	return indexes
 }

@@ -48,11 +48,11 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		old, existed := stage.Base.Relation(parent.Address())
 		shape, replaced := c.Storage[parent.Address()]
 		storageChanged := replaced && shape.Replacement != e.privateStorageLocked(scope.owner.Catalog, parent.Address())
-		if !storageChanged && stage.Get(a) == nil && stageIndexes.rebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
+		if !storageChanged && stage.Get(a) == nil && stageIndexes.Rebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
 			continue
 		}
 		if !index.SQLIndex.Ready {
-			indexJournalOf(c.Indexes).forget(a)
+			JournalOf(c.Indexes).Forget(a)
 			continue
 		}
 		// Virtual indexes own ancestry/validity metadata, never heap captures or
@@ -62,7 +62,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		}
 		// Unchanged key semantics permit root reuse only on the same storage
 		// incarnation; a replacement heap needs its own physical baseline.
-		if previous, ok := stage.Base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stageIndexes.rebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && sameIndexKeySemantics(previous, index) {
+		if previous, ok := stage.Base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stageIndexes.Rebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && SameIndexKeySemantics(previous, index) {
 			continue
 		}
 		store := e.privateStorageLocked(c, parent.Address())
@@ -70,16 +70,16 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			e.mu.Unlock()
 			return catalog.Conflict{}
 		}
-		if _, produced := stageIndexes.candidates[a]; produced {
-			candidate, exists := journalIndexesOrZero(c).candidates[a]
-			if !exists || !candidate.matchesIndex(index, store) {
+		if _, produced := stageIndexes.Candidates[a]; produced {
+			candidate, exists := JournalIndexesOrZero(c).Candidates[a]
+			if !exists || !candidate.MatchesIndex(index, store) {
 				e.mu.Unlock()
 				return catalog.Conflict{}
 			}
 			continue
 		}
-		if _, transported := stageIndexes.layouts[a]; transported {
-			if candidate, exists := journalIndexesOrZero(c).candidates[a]; exists && candidate.matchesIndex(index, store) && stageIndexes.rebuilds[a] == nil {
+		if _, transported := stageIndexes.Layouts[a]; transported {
+			if candidate, exists := JournalIndexesOrZero(c).Candidates[a]; exists && candidate.MatchesIndex(index, store) && stageIndexes.Rebuilds[a] == nil {
 				continue
 			}
 		}
@@ -121,42 +121,42 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if stage.initialTables[parent.Address()] != nil {
 			writes = scope.stage.rows[parent.Address()]
 		}
-		visible, err := indexBuildVisibleStore(scope.op.Context(), &capture.store, writes, deletes)
+		visible, err := BuildVisibleStore(scope.op.Context(), &capture.store, writes, deletes)
 		if err != nil {
 			return err
 		}
 		var outputs *indexBuildCapture
 		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
-			outputs = &indexBuildCapture{index: index}
+			outputs = &indexBuildCapture{Index: index}
 		}
 		if outputs != nil {
-			outputs.outputs = make([]storage.IndexOutput, len(visible.Versions))
+			outputs.Outputs = make([]storage.IndexOutput, len(visible.Versions))
 		}
-		full, err := buildIndexRoot(&evaluation, parent, index.SQLIndex, visible, outputs)
+		full, err := BuildIndexRoot(&evaluation, parent, index.SQLIndex, visible, outputs)
 		if err != nil {
 			return err
 		}
 		schema := view.Get(parent.Namespace()).Name()
-		if err := validateUniqueRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth.View, disclosureEnv(&indexAuth), building); err != nil {
+		if err := ValidateUniqueRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth.View, disclosureEnv(&indexAuth), building); err != nil {
 			return err
 		}
-		build := &alterIndexBuild{index: index, root: full, store: visible}
+		build := &alterIndexBuild{Index: index, Root: full, Store: visible}
 		if outputs != nil {
-			build.outputs = outputs.outputs
+			build.Outputs = outputs.Outputs
 		}
 		var positions map[indexRowIdentity]int
 		if visible != &capture.store {
-			positions, err = indexBuildPositions(scope.op.Context(), &capture.store)
+			positions, err = BuildPositions(scope.op.Context(), &capture.store)
 			if err != nil {
 				return err
 			}
 		}
-		baseline, err := build.baselineRoot(scope.op.Context(), index, &capture.store, positions)
+		baseline, err := build.BaselineRoot(scope.op.Context(), index, &capture.store, positions)
 		if err != nil {
 			return err
 		}
-		retainIndexBuild(c, index, &capture.store, baseline)
-		updated, changed, err := attachIndexBuildOutputs(scope.op.Context(), writes, map[string]*alterIndexBuild{index.Name(): build})
+		RetainIndexBuild(c, index, &capture.store, baseline)
+		updated, changed, err := AttachIndexBuildOutputs(scope.op.Context(), writes, map[string]*alterIndexBuild{index.Name(): build})
 		if err != nil {
 			return err
 		}

@@ -10,7 +10,7 @@ import (
 // Called under Engine.mu after namespace relation collisions have been checked.
 // Publish parent constraint and backing descriptor together, preserving all key
 // and constraint identities and sharing their immutable attribute vectors.
-func stageBackingIndexRename(stage indexDescriptorStage, index *catalog.Relation) error {
+func StageBackingIndexRename(stage indexDescriptorStage, index *catalog.Relation) error {
 	parent, ok := stage.StageBase().Relation(index.SQLIndex.Parent)
 	if !ok {
 		return ids.ErrCatalogReplaced

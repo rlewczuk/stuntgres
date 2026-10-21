@@ -32,7 +32,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		rows := concurrentUnitRows(t, d, make([]any, count)...)
 		d = concurrentUnitReplace(t, e, d, rows, false, true)
 		old := e.storage.Relations[d.Address()]
-		ordering, err := bindIndexOrdering(d, index.SQLIndex)
+		ordering, err := BindIndexOrdering(d, index.SQLIndex)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 			payloads[i] = int64(10)
 		}
 		rows := concurrentUnitRows(t, d, payloads...)
-		ordering, err := bindIndexOrdering(d, index.SQLIndex)
+		ordering, err := BindIndexOrdering(d, index.SQLIndex)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +102,7 @@ func TestMaterializedRefreshConcurrentDuplicateDiagnosticOrder(t *testing.T) {
 		}
 		rows[i][0] = value
 	}
-	ordering, err := bindIndexOrdering(d, index.SQLIndex)
+	ordering, err := BindIndexOrdering(d, index.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}

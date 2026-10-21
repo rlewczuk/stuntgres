@@ -70,14 +70,14 @@ func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, ow
 		return nil
 	}
 	primaryIndex := view.MustRelation(primary.Index)
-	if partitionReplaySeparateConstraint(view, primaryIndex) != separate {
+	if PartitionReplaySeparateConstraint(view, primaryIndex) != separate {
 		return nil
 	}
 	qualified := catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name())
 	for i := range table.Constraints.Unique {
 		constraint := &table.Constraints.Unique[i]
 		index := view.MustRelation(constraint.Index)
-		if partitionReplaySeparateConstraint(view, index) {
+		if PartitionReplaySeparateConstraint(view, index) {
 			continue
 		}
 		_, deferred, err := physicalCompetingIndexSource(view, index)

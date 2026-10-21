@@ -54,7 +54,7 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 				if !exists {
 					return nil, ids.ErrCatalogReplaced
 				}
-				if err := partitionIndexDropDependency(view, index); err != nil {
+				if err := PartitionIndexDropDependency(view, index); err != nil {
 					return nil, err
 				}
 				next := *old
@@ -225,14 +225,14 @@ func incompatibleNotValid(name, table string) error {
 // ordinary staging. Only actual eligible KEY attributes participate; INCLUDE
 // attributes and the physical index/constraint are never propagated.
 func usingIndexNotNullCandidate(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
-	if !captured.syntax.Primary {
+	if !captured.Syntax.Primary {
 		return parent, nil
 	}
 	previous := op.Definition
 	op.Definition = reader
 	defer func() { op.Definition = previous }()
 	next := parent
-	for _, attribute := range captured.attributes {
+	for _, attribute := range captured.Attributes {
 		slot := next.IndexForAttribute(attribute)
 		if slot < 0 {
 			return nil, ids.ErrCatalogReplaced

@@ -28,7 +28,7 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog
 		}
 		affected := false
 		for _, change := range changes {
-			if change.attribute == n.Attribute {
+			if change.Attribute == n.Attribute {
 				affected = true
 				break
 			}

@@ -192,7 +192,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 		if _, exists := nextDeletes[a]; exists {
 			t.Fatal("removed closure retained private deletes", a)
 		}
-		if next.Storage[a].Replacement != nil || next.Generators[a] != nil || journalIndexesOrZero(next).uniqueRoots[a] != nil {
+		if next.Storage[a].Replacement != nil || next.Generators[a] != nil || JournalIndexesOrZero(next).UniqueRoots[a] != nil {
 			t.Fatal("removed closure retained staged storage/generator/index", a)
 		}
 	}

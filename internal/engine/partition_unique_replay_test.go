@@ -185,7 +185,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	leaf = view.MustRelation(leaf.Address())
 	local := view.MustRelation(mid.Constraints.Unique[0].Index)
 	child := view.MustRelation(leaf.Constraints.Unique[0].Index)
-	if partitionReplayUsingIndex(view, local) || partitionReplayVirtualUniqueRoot(view, child) != local {
+	if PartitionReplayUsingIndex(view, local) || PartitionReplayVirtualUniqueRoot(view, child) != local {
 		t.Fatal("virtual definition assigned a physical origin")
 	}
 	provider, err := dumpPredecessor(view, child.Address(), ids.ObjectAddress{})

@@ -21,12 +21,12 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.Ob
 	// selector reads the stage itself, and a provider exists only for an
 	// affected index.
 	for address, descriptor := range stage.Base.Descriptors() {
-		index, parent, staged, affected := indexEvolutionInput(stage, address, descriptor)
+		index, parent, staged, affected := EvolutionInput(stage, address, descriptor)
 		if !affected {
 			continue
 		}
 		provider := &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
-		if err := applyIndexEvolution(provider, address, index, parent, staged, typeParent, transformations); err != nil {
+		if err := ApplyIndexEvolution(provider, address, index, parent, staged, typeParent, transformations); err != nil {
 			return err
 		}
 	}
@@ -53,7 +53,7 @@ func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *cata
 		recaptured.Recapture(recaptured.Catalog)
 		disclosure, env = recaptured.View, disclosureEnv(&recaptured)
 	}
-	return prepareIndexPublication(evaluation, current, next, view, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, disclosure, env, runtimeOwners, candidates)
+	return PrepareIndexPublication(evaluation, current, next, view, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, disclosure, env, runtimeOwners, candidates)
 }
 
 // Explicit statements must discover derived-key errors before installing private
@@ -138,9 +138,9 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 		if pending {
 			var err error
 			if index.SQLIndex.Method == catalog.HashMethod {
-				hash, err = bindHashIndex(parent, index.SQLIndex)
+				hash, err = BindHashIndex(parent, index.SQLIndex)
 			} else {
-				ordering, err = bindIndexKeys(parent, index.SQLIndex)
+				ordering, err = BindIndexKeys(parent, index.SQLIndex)
 			}
 			if err != nil {
 				return err
@@ -148,19 +148,19 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 		}
 		copied := false
 		for i, row := range rows {
-			if !rowMaintainsIndex(row, index) {
+			if !RowMaintainsIndex(row, index) {
 				continue
 			}
 			if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[index.SQLIndex.Parent]) {
 				continue
 			}
-			if output, ok := row.IndexOutputs[index.Address()]; ok && indexOutputMatches(output, index) {
+			if output, ok := row.IndexOutputs[index.Address()]; ok && OutputMatches(output, index) {
 				// The SQL producer already materialized this exact version's
 				// membership/key under the captured index semantics.
 				continue
 			}
 			if pending {
-				output, err := materializeIndexOutput(&evaluation, &preparation, parent, index, &ordering, &hash, row.Values)
+				output, err := MaterializeIndexOutput(&evaluation, &preparation, parent, index, &ordering, &hash, row.Values)
 				if err != nil {
 					return err
 				}
@@ -176,14 +176,14 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 				rows[i].IndexOutputs = outputs
 				continue
 			}
-			matches, err := preparation.predicateMatches(&evaluation, parent, index.SQLIndex, row.Values, nil, nil)
+			matches, err := preparation.PredicateMatches(&evaluation, parent, index.SQLIndex, row.Values, nil, nil)
 			if err != nil {
 				return err
 			}
 			if !matches {
 				continue
 			}
-			if err := preparation.prepareOrdinaryKeys(&evaluation, parent, index.SQLIndex); err != nil {
+			if err := preparation.PrepareOrdinaryKeys(&evaluation, parent, index.SQLIndex); err != nil {
 				return err
 			}
 			evaluation.Row = row.Values
@@ -191,7 +191,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 				if key.Derived == nil {
 					continue
 				}
-				if _, err := preparation.ordinary[keyIndex].Eval(&evaluation); err != nil {
+				if _, err := preparation.Ordinary[keyIndex].Eval(&evaluation); err != nil {
 					return err
 				}
 			}

@@ -11,50 +11,50 @@ import (
 )
 
 type uniqueBoundKey struct {
-	index        *catalog.Relation
-	parent       *catalog.Relation
-	preparation  indexExecutionPreparation
-	ordering     indexOrdering
-	grouping     []sqltype.Grouping
-	key, scratch []sqltype.Value
+	Index        *catalog.Relation
+	Parent       *catalog.Relation
+	Preparation  indexExecutionPreparation
+	Ordering     indexOrdering
+	Grouping     []sqltype.Grouping
+	Key, Scratch []sqltype.Value
 }
 
 type uniqueWriteBinding struct {
-	ref       ids.ObjectRef
-	parent    *catalog.Relation
-	catalog   *catalog.State
-	keys      []uniqueBoundKey
-	keySlots  []int
-	typeName  func(sqltype.ID) string
-	insertion []indexInsertionBinding
-	checked   bool
+	Ref       ids.ObjectRef
+	Parent    *catalog.Relation
+	Catalog   *catalog.State
+	Keys      []uniqueBoundKey
+	KeySlots  []int
+	TypeName  func(sqltype.ID) string
+	Insertion []indexInsertionBinding
+	Checked   bool
 }
 
-func (b *uniqueBoundKey) load(row []sqltype.Value, evaluation *exec.Context) ([]sqltype.Value, error) {
-	err := b.fillKeys(row, b.key, evaluation)
-	return b.key, err
+func (b *uniqueBoundKey) Load(row []sqltype.Value, evaluation *exec.Context) ([]sqltype.Value, error) {
+	err := b.FillKeys(row, b.Key, evaluation)
+	return b.Key, err
 }
 
-func (b *uniqueBoundKey) fillKeys(row, keys []sqltype.Value, evaluation *exec.Context) error {
-	if err := b.preparation.prepareKeys(evaluation, b.parent, b.index.SQLIndex, &b.ordering, nil); err != nil {
+func (b *uniqueBoundKey) FillKeys(row, keys []sqltype.Value, evaluation *exec.Context) error {
+	if err := b.Preparation.PrepareKeys(evaluation, b.Parent, b.Index.SQLIndex, &b.Ordering, nil); err != nil {
 		return err
 	}
-	return b.ordering.fillKeys(row, keys, evaluation)
+	return b.Ordering.FillKeys(row, keys, evaluation)
 }
 
-func (b *uniqueBoundKey) matches(evaluation *exec.Context, values, key []sqltype.Value) (bool, error) {
-	member, err := b.preparation.predicateMatches(evaluation, b.parent, b.index.SQLIndex, values, &b.ordering, nil)
+func (b *uniqueBoundKey) Matches(evaluation *exec.Context, values, key []sqltype.Value) (bool, error) {
+	member, err := b.Preparation.PredicateMatches(evaluation, b.Parent, b.Index.SQLIndex, values, &b.Ordering, nil)
 	if err != nil || !member {
 		return false, err
 	}
-	if err := b.fillKeys(values, b.scratch, evaluation); err != nil {
+	if err := b.FillKeys(values, b.Scratch, evaluation); err != nil {
 		return false, err
 	}
-	cmp, err := b.ordering.compareKeys(evaluation.Context, storage.IndexEntry{Keys: key}, storage.IndexEntry{Keys: b.scratch})
+	cmp, err := b.Ordering.CompareKeys(evaluation.Context, storage.IndexEntry{Keys: key}, storage.IndexEntry{Keys: b.Scratch})
 	return cmp == 0, err
 }
 
-func uniqueRowExcluded(id ids.RowID, excluded []storage.RowVersion) bool {
+func UniqueRowExcluded(id ids.RowID, excluded []storage.RowVersion) bool {
 	for _, row := range excluded {
 		if row.Row == id {
 			return true
@@ -63,7 +63,7 @@ func uniqueRowExcluded(id ids.RowID, excluded []storage.RowVersion) bool {
 	return false
 }
 
-func uniqueRowDeleted(id ids.RowID, roots ...*visibility.PrivateDeletes) bool {
+func UniqueRowDeleted(id ids.RowID, roots ...*visibility.PrivateDeletes) bool {
 	for _, root := range roots {
 		if root != nil {
 			if _, ok := root.Rows[id]; ok {
@@ -74,7 +74,7 @@ func uniqueRowDeleted(id ids.RowID, roots ...*visibility.PrivateDeletes) bool {
 	return false
 }
 
-func conflictEntryVersion(versions []storage.RowVersion, entry storage.IndexEntry) (storage.RowVersion, error) {
+func ConflictEntryVersion(versions []storage.RowVersion, entry storage.IndexEntry) (storage.RowVersion, error) {
 	if entry.Position < 0 || entry.Position >= len(versions) {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
@@ -85,7 +85,7 @@ func conflictEntryVersion(versions []storage.RowVersion, entry storage.IndexEntr
 	return head, nil
 }
 
-func sameRelationRowShape(a, b *catalog.Relation) bool {
+func SameRelationRowShape(a, b *catalog.Relation) bool {
 	if a == b {
 		return true
 	}

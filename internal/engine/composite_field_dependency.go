@@ -42,11 +42,11 @@ func (provider *dropProvider) compositeFieldDependencies(source *catalog.Relatio
 	target := source.Address()
 	target.SubID = attribute
 	defaultDependent := false
-	for address, descriptor := range provider.descriptors() {
-		if provider.removed(address) {
+	for address, descriptor := range provider.Descriptors() {
+		if provider.Removed(address) {
 			continue
 		}
-		if current := provider.replacement(address); current != nil {
+		if current := provider.Replacement(address); current != nil {
 			descriptor = current
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Constraints.Check) != 0 {
@@ -119,7 +119,7 @@ func (provider *dropProvider) compositeFieldDependencies(source *catalog.Relatio
 			}
 			next.Inheritance = &graph
 		}
-		if err := provider.replace(&next); err != nil {
+		if err := provider.Replace(&next); err != nil {
 			return err
 		}
 	}

@@ -24,15 +24,15 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		names = []parser.ObjectName{v.Name}
 		ifExists = v.IfExists
 	case *parser.Reindex:
-		if err := validateReindexOptions(v); err != nil {
+		if err := ValidateReindexOptions(v); err != nil {
 			return err
 		}
 		if v.Kind.Text != "index" && v.Kind.Text != "table" {
-			return reindexControlError(v)
+			return ReindexControlError(v)
 		}
 		names = []parser.ObjectName{v.Name}
 	}
-	g := &indexMaintenanceGrant{descriptors: make(map[ids.ObjectAddress]*catalog.Relation)}
+	g := &indexMaintenanceGrant{Descriptors: make(map[ids.ObjectAddress]*catalog.Relation)}
 	e.mu.Lock()
 	fail := func(err error) error { e.mu.Unlock(); return err }
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -59,104 +59,104 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			if !ifExists {
 				return fail(err)
 			}
-			g.notices = append(g.notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`%s "%s" does not exist, skipping`, kind, missing)})
+			g.Notices = append(g.Notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`%s "%s" does not exist, skipping`, kind, missing)})
 			continue
 		}
-		if g.descriptors[ref.Address] != nil {
+		if g.Descriptors[ref.Address] != nil {
 			continue
 		}
 		d := auth.Catalog.MustRelation(ref.Address)
-		g.targets = append(g.targets, ref)
-		g.descriptors[ref.Address] = d
+		g.Targets = append(g.Targets, ref)
+		g.Descriptors[ref.Address] = d
 	}
 	// Check the entire requested group before collecting parents or waiting.
 	// Wrong-kind targets must never reach a sqlIndex dereference.
-	if err := g.check(auth.View, auth, stmt, false); err != nil {
+	if err := g.Check(auth.View, auth, stmt, false); err != nil {
 		return fail(err)
 	}
-	for _, ref := range g.targets {
-		d := g.descriptors[ref.Address]
+	for _, ref := range g.Targets {
+		d := g.Descriptors[ref.Address]
 		switch v := stmt.(type) {
 		case *parser.DropIndex:
-			g.indexes = append(g.indexes, ref)
+			g.Indexes = append(g.Indexes, ref)
 			parent := d.SQLIndex.Parent
-			if g.descriptors[parent] == nil {
-				g.parents = append(g.parents, ref.Domain().Ref(ref.Epoch, parent))
-				g.descriptors[parent] = auth.Catalog.MustRelation(parent)
+			if g.Descriptors[parent] == nil {
+				g.Parents = append(g.Parents, ref.Domain().Ref(ref.Epoch, parent))
+				g.Descriptors[parent] = auth.Catalog.MustRelation(parent)
 			}
 		case *parser.Reindex:
 			parent := d.Address()
 			if v.Kind.Text == "index" {
 				parent = d.SQLIndex.Parent
-				g.indexes = append(g.indexes, ref)
+				g.Indexes = append(g.Indexes, ref)
 			}
-			g.parents = append(g.parents, ref.Domain().Ref(ref.Epoch, parent))
-			g.descriptors[parent] = auth.Catalog.MustRelation(parent)
+			g.Parents = append(g.Parents, ref.Domain().Ref(ref.Epoch, parent))
+			g.Descriptors[parent] = auth.Catalog.MustRelation(parent)
 			if v.Kind.Text == "table" {
-				g.indexSets = map[ids.ObjectAddress]int{parent: 0}
+				g.IndexSets = map[ids.ObjectAddress]int{parent: 0}
 				for address, descriptor := range auth.Catalog.Descriptors() {
 					index, ok := descriptor.(*catalog.Relation)
 					if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent {
 						continue
 					}
-					g.indexes = append(g.indexes, ref.Domain().Ref(ref.Epoch, address))
-					g.descriptors[address] = index
-					g.indexSets[parent]++
+					g.Indexes = append(g.Indexes, ref.Domain().Ref(ref.Epoch, address))
+					g.Descriptors[address] = index
+					g.IndexSets[parent]++
 				}
 			}
 		}
 	}
-	if v, ok := stmt.(*parser.AlterIndex); ok && v.Action == "attach" && len(g.targets) > 0 {
+	if v, ok := stmt.(*parser.AlterIndex); ok && v.Action == "attach" && len(g.Targets) > 0 {
 		ref, err := e.resolveRelationReference(auth, v.Partition, true)
 		if err != nil {
 			return fail(err)
 		}
 		child := auth.Catalog.MustRelation(ref.Address)
 		if child.SQLIndex == nil {
-			diagnostic := indexWrongKind(child, false).(*sqlstate.Error)
+			diagnostic := WrongKind(child, false).(*sqlstate.Error)
 			diagnostic.Code = "42P17"
 			return fail(diagnostic)
 		}
-		g.attach = ref
-		g.descriptors[ref.Address] = child
-		g.indexes = append(g.indexes, ref)
-		parent := g.descriptors[g.targets[0].Address]
-		if err := partitionIndexAttachCheck(s.op, auth.Catalog, parent, child); err != nil {
+		g.Attach = ref
+		g.Descriptors[ref.Address] = child
+		g.Indexes = append(g.Indexes, ref)
+		parent := g.Descriptors[g.Targets[0].Address]
+		if err := PartitionIndexAttachCheck(s.op, auth.Catalog, parent, child); err != nil {
 			return fail(err)
 		}
 	}
-	if err := g.collectPartitionIndexes(auth.View, stmt); err != nil {
+	if err := g.CollectPartitionIndexes(auth.View, stmt); err != nil {
 		return fail(err)
 	}
-	if len(g.targets) > 0 {
+	if len(g.Targets) > 0 {
 		switch v := stmt.(type) {
 		case *parser.DropIndex:
 			if v.Concurrent.Character > 0 {
-				return fail(indexCapability("concurrent index operations are unsupported", v.Concurrent))
+				return fail(Capability("concurrent index operations are unsupported", v.Concurrent))
 			}
 		case *parser.AlterIndex:
 			switch v.Action {
 			case "set", "reset":
-				return fail(validateIndexOptions(v, g.descriptors[g.targets[0].Address].SQLIndex.Method))
+				return fail(ValidateIndexOptions(v, g.Descriptors[g.Targets[0].Address].SQLIndex.Method))
 			case "tablespace":
-				return fail(indexCapability("index tablespaces are unsupported", v.ActionPos))
+				return fail(Capability("index tablespaces are unsupported", v.ActionPos))
 			case "statistics":
-				return fail(indexCapability("index statistics are unsupported", v.ActionPos))
+				return fail(Capability("index statistics are unsupported", v.ActionPos))
 			}
 		case *parser.Reindex:
-			if err := reindexControlError(v); err != nil {
+			if err := ReindexControlError(v); err != nil {
 				return fail(err)
 			}
 		}
 	}
-	s.indexes().maintenance = g
+	s.indexes().Maintenance = g
 	e.mu.Unlock()
 	if s.replacementRead {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
 	}
-	slices.SortFunc(g.parents, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
-	slices.SortFunc(g.indexes, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	slices.SortFunc(g.Parents, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	slices.SortFunc(g.Indexes, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	acquire := func(ref ids.ObjectRef, mode lock.Mode) error {
 		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
@@ -175,45 +175,45 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		if s.txRef.Epoch() != e.catalog.state.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if err := g.check(auth.View, auth, stmt, false); err != nil {
+		if err := g.Check(auth.View, auth, stmt, false); err != nil {
 			return err
 		}
-		for address, observed := range g.descriptors {
+		for address, observed := range g.Descriptors {
 			current := auth.Catalog.MustRelation(address)
-			if g.partition && current != observed {
+			if g.Partition && current != observed {
 				return ids.ErrCatalogReplaced
 			}
-			g.descriptors[address] = current
+			g.Descriptors[address] = current
 		}
 		return nil
 	}
 	parentMode := lock.Share
-	if drop || g.attach != (ids.ObjectRef{}) {
+	if drop || g.Attach != (ids.ObjectRef{}) {
 		parentMode = lock.AccessExclusive
 	}
-	for _, ref := range g.parents {
+	for _, ref := range g.Parents {
 		if err := acquire(ref, parentMode); err != nil {
 			return err
 		}
 	}
-	for _, ref := range g.indexes {
+	for _, ref := range g.Indexes {
 		if err := acquire(ref, lock.AccessExclusive); err != nil {
 			return err
 		}
 	}
-	if _, alter := stmt.(*parser.AlterIndex); alter && len(g.targets) > 0 {
-		ref := g.targets[0]
+	if _, alter := stmt.(*parser.AlterIndex); alter && len(g.Targets) > 0 {
+		ref := g.Targets[0]
 		mode := lock.AccessExclusive
-		if g.descriptors[ref.Address].RelationKind == catalog.IndexRelation {
+		if g.Descriptors[ref.Address].RelationKind == catalog.IndexRelation {
 			mode = lock.ShareUpdateExclusive
 		}
-		if !slices.Contains(g.indexes, ref) {
+		if !slices.Contains(g.Indexes, ref) {
 			if err := acquire(ref, mode); err != nil {
 				return err
 			}
 		}
 		s.lockedRef = ref
-		s.lockedDescriptor = g.descriptors[ref.Address]
+		s.lockedDescriptor = g.Descriptors[ref.Address]
 		s.lockedIdentityOnly = true
 	}
 	return nil

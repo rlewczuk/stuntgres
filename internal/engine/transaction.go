@@ -465,13 +465,13 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	batch := indexWriteBatch{values: rows}
-	for i := range batch.values {
-		candidate := batch.candidate(i)
-		if err := s.checkUniqueRow(ref, &candidate, nil, batch.prefix(i)); err != nil {
+	batch := indexWriteBatch{Values: rows}
+	for i := range batch.Values {
+		candidate := batch.Candidate(i)
+		if err := s.checkUniqueRow(ref, &candidate, nil, batch.Prefix(i)); err != nil {
 			return err
 		}
-		batch.set(i, candidate)
+		batch.Set(i, candidate)
 	}
 	return w.applyValidated(ref, batch)
 }
@@ -479,7 +479,7 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 // SQL producers validate each accepted prefix before demanding the next row;
 // only this canonical staging method transfers the completed immutable batch.
 func (w *WriteStage) applyValidated(ref ids.ObjectRef, batch indexWriteBatch) error {
-	rows := batch.values
+	rows := batch.Values
 	s := w.scope
 	if err := s.active(); err != nil {
 		return err
@@ -492,13 +492,13 @@ retry:
 	e := s.engine()
 	e.mu.Lock()
 	admission := e.privateCatalogLocked(s.owner.Catalog).State()
-	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
+	if binding := s.uniqueBinding; binding != nil && binding.Catalog != admission {
 		e.mu.Unlock()
 		s.owner.Mu.Unlock()
 		if s.insertConflict != nil && s.insertConflict.Update == nil {
 			var err error
 			batch, err = s.revalidateConflictRows(ref, batch)
-			rows = batch.values
+			rows = batch.Values
 			if err != nil {
 				return err
 			}
@@ -546,7 +546,7 @@ retry:
 	if len(relation.Constraints.Exclusion) != 0 {
 		versions = make([]storage.RowVersion, len(rows))
 		for i := range rows {
-			reserved := batch.candidate(i).exclusion
+			reserved := batch.Candidate(i).Exclusion
 			if reserved == nil {
 				return errors.New("stuntgres: exclusion row lost its admission identity")
 			}
@@ -559,9 +559,9 @@ retry:
 	if err != nil {
 		return err
 	}
-	if batch.states != nil {
+	if batch.States != nil {
 		for i := range versions {
-			versions[i].IndexOutputs = batch.states[i].indexes
+			versions[i].IndexOutputs = batch.States[i].Indexes
 		}
 	}
 	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {

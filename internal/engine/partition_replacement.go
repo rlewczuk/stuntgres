@@ -54,15 +54,15 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 		if !ok || source.Membership == nil || source.Partition != nil {
 			continue
 		}
-		root := partitionHashReplayTarget(view, source)
+		root := PartitionHashReplayTarget(view, source)
 		if root == source {
 			continue
 		}
 		var history partitionRowHistory
 		if snapshot != nil {
-			history = snapshot.partitionRows[address]
+			history = snapshot.PartitionRows[address]
 		}
-		if history.relation == nil && partitionNeedsRowHistory(view, source) {
+		if history.Relation == nil && PartitionNeedsRowHistory(view, source) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		historyPosition := 0
@@ -75,9 +75,9 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 				continue
 			}
 			var original []sqltype.Value
-			if history.relation != nil {
+			if history.Relation != nil {
 				var err error
-				original, err = history.nextRow(ctx, &historyPosition, version)
+				original, err = history.NextRow(ctx, &historyPosition, version)
 				if err != nil {
 					return nil, err
 				}
@@ -115,7 +115,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			}
 			values := partitionReplacementRow(source, destination, version.Values)
 			validation := destination
-			if destination.Address() == address && history.relation != nil {
+			if destination.Address() == address && history.Relation != nil {
 				var err error
 				validation, err = retainedChecks.forRow(ctx, history, destination, original, values, snapshot, evaluation)
 				if err != nil {

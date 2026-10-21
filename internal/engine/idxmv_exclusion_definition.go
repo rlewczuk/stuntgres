@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func validateExclusions(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
+func ValidateExclusions(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
 	for _, c := range parent.Constraints.Exclusion {
 		index, ok := view.Relation(c.Index)
 		if !ok || parent.RelationKind != catalog.TableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.IsExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
@@ -27,7 +27,7 @@ func validateExclusions(view catalog.Read, parent *catalog.Relation, names map[s
 	return nil
 }
 
-func exclusionDiagnostic(ctx context.Context, parent, index *catalog.Relation, key, existing []sqltype.Value, schema string, output sqltype.OutputEnvironment, allowed, building bool, catalog catalog.Read) error {
+func ExclusionDiagnostic(ctx context.Context, parent, index *catalog.Relation, key, existing []sqltype.Value, schema string, output sqltype.OutputEnvironment, allowed, building bool, catalog catalog.Read) error {
 	message := fmt.Sprintf(`conflicting key value violates exclusion constraint "%s"`, index.Name())
 	if building {
 		message = fmt.Sprintf(`could not create exclusion constraint "%s"`, index.Name())
@@ -43,7 +43,7 @@ func exclusionDiagnostic(ctx context.Context, parent, index *catalog.Relation, k
 	values := make([]string, len(key))
 	prior := make([]string, len(key))
 	for i, value := range key {
-		attribute, node, err := indexCatalogKey(parent, index.SQLIndex.Keys[i])
+		attribute, node, err := CatalogKey(parent, index.SQLIndex.Keys[i])
 		if err != nil {
 			return err
 		}

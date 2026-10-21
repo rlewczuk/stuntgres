@@ -132,7 +132,7 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 				if !ok {
 					return sqltype.Value{}, fmt.Errorf("stuntgres: missing exclusion backing index")
 				}
-				text, err = indexDefinitionSQL(c.Context, view, index, indexPresentation{exclusion: true, pretty: pretty, path: scope.inquiry.deparsePath, output: scope.output})
+				text, err = DefinitionSQL(c.Context, view, index, indexPresentation{Exclusion: true, Pretty: pretty, Path: scope.inquiry.deparsePath, Output: scope.output})
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -213,7 +213,7 @@ func deparseRelation(c *exec.Context, signature functions.DeparseSignature, valu
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.inquiry.deparsePath, temporary: temporaryNamespace(scope.inquiry.deparseAuth), output: scope.output})
+		text, err = DefinitionSQL(c.Context, catalog, relation, indexPresentation{Column: column, Pretty: pretty, Path: scope.inquiry.deparsePath, Temporary: temporaryNamespace(scope.inquiry.deparseAuth), Output: scope.output})
 	} else {
 		if relation.View == nil {
 			return sqltype.Null(result), nil

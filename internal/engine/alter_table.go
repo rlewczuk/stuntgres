@@ -89,7 +89,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if catalog.HierarchyRelation(old) && partitionExclusionAddActions(s) {
 		return e.executePartitionExclusionAddLocked(scope, op, auth, s, old)
 	}
-	if catalog.HierarchyRelation(old) && partitionConstraintDropActions(old, s.Actions) {
+	if catalog.HierarchyRelation(old) && PartitionConstraintDropActions(old, s.Actions) {
 		return e.executePartitionConstraintDropLocked(scope, auth, old, s)
 	}
 	if len(s.Actions) == 0 {
@@ -404,7 +404,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 						err = scope.inheritanceOnlyCreatedConstraint(before, next)
 					}
 					if err == nil {
-						attachments[index].notNullPrepared = true
+						attachments[index].NotNullPrepared = true
 					}
 				}
 				if err != nil {
@@ -515,7 +515,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	e.mu.Unlock()
 	rewrite := len(storedReplacements) != 0
 	for _, transformation := range transformations {
-		rewrite = rewrite || transformation.rewrite
+		rewrite = rewrite || transformation.Rewrite
 	}
 	if next != old {
 		next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
@@ -731,12 +731,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return Result{}, err
 	}
 	indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	indexBuilds, err := validateAlterIndexBuilds(&indexEvaluation, disclosure.View, disclosureEnv(&disclosure), e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes, rewrite)
+	indexBuilds, err := ValidateAlterIndexBuilds(&indexEvaluation, disclosure.View, disclosureEnv(&disclosure), e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes, rewrite)
 	if err != nil {
 		return Result{}, err
 	}
 	var indexOutputRows bool
-	projectedWrites, indexOutputRows, err = attachIndexBuildOutputs(op.Context(), projectedWrites, indexBuilds)
+	projectedWrites, indexOutputRows, err = AttachIndexBuildOutputs(op.Context(), projectedWrites, indexBuilds)
 	if err != nil {
 		return Result{}, err
 	}
@@ -790,7 +790,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	for _, transformation := range transformations {
 		target := ref.Address
-		target.SubID = transformation.attribute
+		target.SubID = transformation.Attribute
 		dependencyTargets = append(dependencyTargets, target)
 	}
 	for _, attribute := range replacements {
@@ -881,7 +881,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		}
 		indexOutputRows = indexOutputRows || transported
 	}
-	if err := prepareAlterIndexRoots(&indexEvaluation, changes, stage.Base, next, replacement, indexBuilds, metadataOnly); err != nil {
+	if err := PrepareAlterIndexRoots(&indexEvaluation, changes, stage.Base, next, replacement, indexBuilds, metadataOnly); err != nil {
 		return Result{}, err
 	}
 	if err := scope.prepareExclusionShape(old, next, e.stageRead(stage), projectedWrites, projectedDeletes); err != nil {

@@ -61,10 +61,10 @@ func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, ev
 	if err != nil || !member {
 		return err
 	}
-	if uniqueHasNull(keys) && !bound.index.SQLIndex.NullsNotDistinct {
+	if UniqueHasNull(keys) && !bound.Index.SQLIndex.NullsNotDistinct {
 		return nil
 	}
-	hash, err := uniqueKeyHash(evaluation.Context, bound.ordering, bound.grouping, keys)
+	hash, err := UniqueKeyHash(evaluation.Context, bound.Ordering, bound.Grouping, keys)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqu
 		}
 		o.stageCount++
 	}
-	hash, err := uniqueKeyHash(evaluation.Context, bound.ordering, bound.grouping, key)
+	hash, err := UniqueKeyHash(evaluation.Context, bound.Ordering, bound.Grouping, key)
 	if err != nil {
 		return storage.RowVersion{}, false, err
 	}
@@ -113,7 +113,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqu
 					continue
 				}
 			}
-			if uniqueRowExcluded(row.Row, excluded) || uniqueRowDeleted(row.Row, s.ownDeletes[ref.Address]) || uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address]) {
+			if UniqueRowExcluded(row.Row, excluded) || UniqueRowDeleted(row.Row, s.ownDeletes[ref.Address]) || UniqueRowDeleted(row.Row, s.stage.deletes[ref.Address]) {
 				continue
 			}
 			matches, err := s.matchesExistingUnique(bound, row, evaluation, key, purpose)

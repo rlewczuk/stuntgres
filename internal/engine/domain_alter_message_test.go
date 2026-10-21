@@ -214,7 +214,7 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			// Only actual executable conversions need frozen producer outputs;
 			// loading a plain domain-valued column is not a fresh conversion.
 			executable := definition.name != "domain_key"
-			if executable && (!ok || !output.Member || !indexOutputMatches(output, oldIndex)) {
+			if executable && (!ok || !output.Member || !OutputMatches(output, oldIndex)) {
 				t.Fatal("SQL producer lost executable key/predicate output")
 			}
 			if e.storage.Sequences[sequence].Last != 2 {
@@ -229,10 +229,10 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			}
 			if executable {
 				current, ok := pending[0].IndexOutputs[index]
-				if !ok || !indexOutputMatches(current, currentIndex) || current.Member != output.Member || current.Key != output.Key || !slices.Equal(current.Keys, output.Keys) {
+				if !ok || !OutputMatches(current, currentIndex) || current.Member != output.Member || current.Key != output.Key || !slices.Equal(current.Keys, output.Keys) {
 					t.Fatal("produced index key/membership was lost during pure generation transport")
 				}
-				if !indexOutputMatches(original.IndexOutputs[index], oldIndex) {
+				if !OutputMatches(original.IndexOutputs[index], oldIndex) {
 					t.Fatal("retained producer output mutated")
 				}
 			}

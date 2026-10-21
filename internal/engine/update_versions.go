@@ -28,7 +28,7 @@ func (w *WriteStage) appendUpdateReplacement(ref ids.ObjectRef, old []storage.Ro
 }
 
 func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, batch indexWriteBatch, conflictDistinct, appendOnly bool) (err error) {
-	rows := batch.values
+	rows := batch.Values
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")
 	}
@@ -63,14 +63,14 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, ba
 	}
 	var smallModes [1]lock.MultiMode
 	var modes []lock.MultiMode
-	if batch.actionMode == 0 {
+	if batch.ActionMode == 0 {
 		modes = smallModes[:min(len(old), 1)]
 		if len(old) > 1 {
 			modes = make([]lock.MultiMode, len(old))
 		}
 	}
 	for i, predecessor := range old {
-		mode := batch.actionMode
+		mode := batch.ActionMode
 		if mode == 0 {
 			changed, failure := s.uniqueKeyChanged(ref, predecessor.Values, rows[i])
 			if failure != nil {
@@ -101,7 +101,7 @@ retry:
 	e := s.engine()
 	e.mu.Lock()
 	admission := e.privateCatalogLocked(s.owner.Catalog).State()
-	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
+	if binding := s.uniqueBinding; binding != nil && binding.Catalog != admission {
 		e.mu.Unlock()
 		s.owner.Mu.Unlock()
 		if err := s.revalidateIndexRows(ref, old, &batch); err != nil {
@@ -160,7 +160,7 @@ retry:
 	}
 	for i, row := range rows {
 		predecessor := old[i]
-		if identity := batch.candidate(i).exclusion; identity != nil {
+		if identity := batch.Candidate(i).Exclusion; identity != nil {
 			reserved := *identity
 			reserved.KeyChangedAt, reserved.PendingKeyChange = predecessor.KeyChangedAt, predecessor.PendingKeyChange
 			reserved.IndexAdmission = admission
@@ -173,9 +173,9 @@ retry:
 		}
 		versions[i] = storage.RowVersion{Row: predecessor.Row, Version: e.storage.AllocateVersionLocked(), Base: base, Values: row, KeyChangedAt: predecessor.KeyChangedAt, PendingKeyChange: predecessor.PendingKeyChange, IndexAdmission: admission}
 	}
-	if batch.states != nil {
+	if batch.States != nil {
 		for i := range versions {
-			versions[i].IndexOutputs = batch.states[i].indexes
+			versions[i].IndexOutputs = batch.States[i].Indexes
 		}
 	}
 	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {
@@ -198,7 +198,7 @@ retry:
 		}
 		w.replacing = true
 		for i, next := range versions {
-			mode := batch.actionMode
+			mode := batch.ActionMode
 			if mode == 0 {
 				mode = modes[i]
 			}

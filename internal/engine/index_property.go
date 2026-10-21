@@ -34,7 +34,7 @@ func (h *statementHost) IndexProperty(kind functions.IndexPropertyKind, oid uint
 		if err != nil {
 			return false, false, err
 		}
-		value, known = indexColumnCapability(relation.SQLIndex, ordinal, property)
+		value, known = ColumnCapability(relation.SQLIndex, ordinal, property)
 	}
 	return value, known, nil
 }

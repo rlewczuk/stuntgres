@@ -384,7 +384,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			e.mu.Unlock()
 			return Result{}, sequence.NotSequenceError(d)
 		}
-		if er = relationDropOwner(auth.View, auth, ref, d); er != nil {
+		if er = RelationDropOwner(auth.View, auth, ref, d); er != nil {
 			e.mu.Unlock()
 			return Result{}, er
 		}
@@ -462,7 +462,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if !ok {
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		if err = relationDropOwner(auth.View, auth, ref, d); err != nil {
+		if err = RelationDropOwner(auth.View, auth, ref, d); err != nil {
 			return Result{}, err
 		}
 		if d.Sequence.Identity {

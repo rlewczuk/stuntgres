@@ -190,7 +190,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 			}
 			if pair.primary == nil {
 				pair.primary = catalog.CapturePhysicalPrimarySupport(current, primary)
-				if !physicalPrimarySupportValid(auth.Catalog, current, primary, pair.primary) {
+				if !PhysicalPrimarySupportValid(auth.Catalog, current, primary, pair.primary) {
 					return reject()
 				}
 				if constructor.indexName != "" && !physicalImportedIndexMatches(indexes[primary.Index], constructor, current, primary) {
@@ -274,7 +274,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 			e.mu.Unlock()
 			return reject()
 		}
-	} else if !physicalPrimarySupportValid(auth.Catalog, old, primary, pair.primary) {
+	} else if !PhysicalPrimarySupportValid(auth.Catalog, old, primary, pair.primary) {
 		e.mu.Unlock()
 		return reject()
 	}

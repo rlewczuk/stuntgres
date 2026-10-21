@@ -166,10 +166,10 @@ func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.R
 	return stored.ViewDefinitionSQL(ctx, view, relation, r.presentation)
 }
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
-	return indexDefinitionSQL(ctx, view, relation, indexPresentation{})
+	return DefinitionSQL(ctx, view, relation, indexPresentation{})
 }
 func (r engineCatalogRuntime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {
-	return indexCatalogKey(parent, key)
+	return CatalogKey(parent, key)
 }
 func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visit func(catalog.Descriptor) error) error {
 	for address, descriptor := range r.sequenceBase.Descriptors() {

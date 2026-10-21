@@ -129,7 +129,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	} else if index.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 {
 		t.Fatal("standalone fixture fabricated attachment")
 	}
-	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
+	if err := ValidateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
 	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
@@ -195,10 +195,10 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	if deletion != nil {
 		beforeDeletes = maps.Clone(deletion.Rows)
 	}
-	stores := captureIndexStores(f.e.storage.Relations, f.catalog)
+	stores := CaptureIndexStores(f.e.storage.Relations, f.catalog)
 	stores[f.parent.Address()] = store
 	parents := map[ids.ObjectAddress]bool{f.parent.Address(): rebuild}
-	publication := rowPublication{address: f.parent.Address(), relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.Address()], store: store, root: store.Versions, ends: store.Ends, generation: store.Generation, writes: writes, deletion: deletion, singleSlot: -1}
+	publication := rowPublication{Address: f.parent.Address(), Relation: f.parent, OriginalRelation: f.parent, Original: f.stores[f.parent.Address()], Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, Deletion: deletion, SingleSlot: -1}
 	if materialize {
 		if err := f.e.prepareRowPublication(&publication, f.e.catalog.Domain.Tx(ids.SessionToken{}, 0, f.catalog.Epoch(), nil, 0), true); err != nil {
 			t.Fatal(err)

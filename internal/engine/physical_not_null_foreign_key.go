@@ -31,7 +31,7 @@ func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, own
 			continue
 		}
 		index := view.MustRelation(foreign.Index)
-		if partitionReplaySeparateConstraint(view, index) != separate {
+		if PartitionReplaySeparateConstraint(view, index) != separate {
 			continue
 		}
 		primary := catalog.PhysicalPrimaryForAttribute(table, foreign.Referenced[0])
@@ -80,7 +80,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 		return nil, nil
 	}
 	for attribute, proof := range old.Constraints.PhysicalNotNull {
-		if !physicalNotNullOriginValid(auth.Catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
+		if !PhysicalNotNullOriginValid(auth.Catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 	}
@@ -90,7 +90,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 			continue
 		}
 		support := catalog.CapturePhysicalPrimarySupport(old, primary)
-		if !physicalPrimarySupportValid(auth.Catalog, old, primary, support) {
+		if !PhysicalPrimarySupportValid(auth.Catalog, old, primary, support) {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 		return &restoredPhysicalForeignKeyProvider{op: op, authority: auth, ref: ref, current: old, primary: support}, nil

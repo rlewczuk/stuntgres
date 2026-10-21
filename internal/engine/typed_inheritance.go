@@ -233,7 +233,7 @@ func typedTransformAttributes(transforms []columnTransformation) map[int32]bool 
 	}
 	attributes := make(map[int32]bool, len(transforms))
 	for _, transform := range transforms {
-		attributes[transform.attribute] = true
+		attributes[transform.Attribute] = true
 	}
 	return attributes
 }

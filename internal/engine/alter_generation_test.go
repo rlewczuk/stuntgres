@@ -147,7 +147,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 		return integer(31), nil
 	}}
 	additions := []addedColumn{{attribute: 4, column: &parser.Column{Name: "c"}, value: integer(5)}}
-	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []columnTransformation{{attribute: 1, expression: transform, rewrite: true}}, additions, []int32{2}, newAlterRowValidator(&next, ""))
+	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []columnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, newAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(writes) != 2 || deletes != nil || replacement.Generation != 2 {
 		t.Fatal(replacement, writes, calls, err)
 	}

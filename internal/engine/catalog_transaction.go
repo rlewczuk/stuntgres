@@ -72,7 +72,7 @@ func (e *Engine) catalogChangeLocked(c *session.Journal, a ids.ObjectAddress, d 
 	}
 	c.Descriptors[a] = d
 	if d == nil {
-		indexJournalOf(c.Indexes).forget(a)
+		JournalOf(c.Indexes).Forget(a)
 	}
 	c.CachedBase = nil
 	c.Cached = catalog.Read{}
@@ -224,7 +224,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						}
 					}
 				case *catalog.Relation:
-					if viewDepends(owner, target) || materializedExtensionDepends(owner, target) || checkDepends(owner, target) || defaultDepends(owner, target) || generationDepends(owner, target) || indexExpressionDepends(owner, target) {
+					if viewDepends(owner, target) || materializedExtensionDepends(owner, target) || checkDepends(owner, target) || defaultDepends(owner, target) || generationDepends(owner, target) || ExpressionDepends(owner, target) {
 						return catalog.Conflict{}
 					}
 					if candidate.Get(target) == nil {

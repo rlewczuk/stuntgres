@@ -49,20 +49,20 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				other.ObjectName = second.Name
 				second.Index = other.Address()
 				otherDefinition := definition
-				otherDefinition.Constraint = uniqueBacking(&second)
+				otherDefinition.Constraint = UniqueBacking(&second)
 				other.SQLIndex = &otherDefinition
 				state.SetDescriptor(other.Address(), &other)
 				next.Constraints.Unique = append(next.Constraints.Unique, second)
 			}
-			err := validateUniques(view, &next, map[string]bool{})
+			err := ValidateUniques(view, &next, map[string]bool{})
 			if (err == nil) != (mode == "valid") {
 				t.Fatal(mode, err)
 			}
 			if mode == "valid" {
-				if err := validateIndexDefinition(view, &backing); err != nil {
+				if err := ValidateIndexDefinition(view, &backing); err != nil {
 					t.Fatal(err)
 				}
-			} else if mode == "mismatched_kind" && validateIndexDefinition(view, &backing) == nil {
+			} else if mode == "mismatched_kind" && ValidateIndexDefinition(view, &backing) == nil {
 				t.Fatal("reciprocal index validation lost Primary")
 			}
 			if parent.Columns[0].Nullable || !index.SQLIndex.Constraint.Primary || !parent.Constraints.Unique[0].Primary {
@@ -76,7 +76,7 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	e, _, parent, index := primaryKeyUnitFixture(t)
 	view := e.CatalogRead()
 	ref := e.catalog.Domain.Ref(view.Epoch(), index.Address())
-	metadata, names, err := projectIndexMetadata(context.Background(), view, ref)
+	metadata, names, err := ProjectIndexMetadata(context.Background(), view, ref)
 	if err != nil || !metadata.IndIsUnique || !metadata.IndIsPrimary || !metadata.IndImmediate || !metadata.IndIsValid || !metadata.IndIsReady || !metadata.IndIsLive || metadata.IndNullsNotDistinct || metadata.IndIsExclusion || metadata.IndRelID != parent.Address().ObjectID || metadata.IndexRelID != index.Address().ObjectID || metadata.IndNKeyAtts != 2 || metadata.IndNatts != 2 || !reflect.DeepEqual(metadata.IndKey, []int16{1, 2}) {
 		t.Fatal(metadata, err)
 	}
@@ -113,7 +113,7 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err := projectIndexMetadata(ctx, view, ref); !errors.Is(err, context.Canceled) {
+	if _, _, err := ProjectIndexMetadata(ctx, view, ref); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }

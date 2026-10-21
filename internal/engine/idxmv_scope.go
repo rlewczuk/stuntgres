@@ -8,17 +8,17 @@ import (
 // indexScope is the statement's index slot: the index maintenance grant,
 // index outputs retained for probes and the exclusion-constraint projection.
 type indexScope struct {
-	maintenance      *indexMaintenanceGrant
-	existingOutputs  map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
+	Maintenance      *indexMaintenanceGrant
+	ExistingOutputs  map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
 	exclusionModes   exclusionModes
-	exclusionStarted bool
+	ExclusionStarted bool
 }
 
 // endStatement drops the index outputs retained for probes and the index
 // maintenance grant. Exclusion modes stay as the statement left them.
-func (x *indexScope) endStatement() {
+func (x *indexScope) EndStatement() {
 	if x == nil {
 		return
 	}
-	x.existingOutputs, x.maintenance = nil, nil
+	x.ExistingOutputs, x.Maintenance = nil, nil
 }

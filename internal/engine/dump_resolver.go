@@ -94,7 +94,7 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation) || parent.Namespace() != source.Namespace() || parent.Owner != source.Owner || unique.Index != source.Address() {
 			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
 		}
-		if !backingConstraintPresent(parent, source) {
+		if !BackingConstraintPresent(parent, source) {
 			return 0, fmt.Errorf("stuntgres: orphan unique index dump dependency")
 		}
 		if producer, moved, err := physicalCompetingIndexSource(view, source); err != nil {
@@ -102,9 +102,9 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		} else if moved {
 			source = producer
 		}
-		if root := partitionReplayVirtualUniqueRoot(view, source); root != nil {
+		if root := PartitionReplayVirtualUniqueRoot(view, source); root != nil {
 			source = root
-		} else if !partitionReplayUsingIndex(view, source) {
+		} else if !PartitionReplayUsingIndex(view, source) {
 			source = parent
 		}
 	}

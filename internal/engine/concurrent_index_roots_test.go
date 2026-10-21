@@ -80,7 +80,7 @@ func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, index *catalog.Re
 	snapshot := *e.storage.Relations[parent.Address()]
 	root := e.storage.IndexRoots[index.Address()]
 	e.mu.Unlock()
-	expected, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, &snapshot, nil)
+	expected, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, &snapshot, nil)
 	if err != nil || !reflect.DeepEqual(root, expected) {
 		t.Fatalf("installed logical root differs from actual live row-version build: %v", err)
 	}

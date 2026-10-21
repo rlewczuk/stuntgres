@@ -251,7 +251,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err := s.startProtocolCopy(hooks, true, options, len(b.Targets)); err != nil {
 			return indexWriteBatch{}, err
 		}
-		rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0 || unique.checked, nil, nil)
+		rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.Keys) != 0 || unique.Checked, nil, nil)
 		if err == nil {
 			err = s.op.PendingCopyInputError()
 		}
@@ -274,7 +274,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err := foreign.Begin(s.op.Context(), s.foreignWrites()); err != nil {
 			return 0, err
 		}
-		n, err := foreign.InsertRows(s.op.Context(), s.foreignWrites(), rows.values, false, nil)
+		n, err := foreign.InsertRows(s.op.Context(), s.foreignWrites(), rows.Values, false, nil)
 		if err != nil {
 			return 0, cursor.diagnostic(err)
 		}

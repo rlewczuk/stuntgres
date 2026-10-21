@@ -20,7 +20,7 @@ func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *storag
 	if index.RelationKind != catalog.IndexRelation || index.SQLIndex == nil || root == nil || e.storage.Relations[ref.Address] != nil {
 		t.Fatal("not a substantive index", index, root)
 	}
-	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
+	if err := ValidateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
 	return index, root

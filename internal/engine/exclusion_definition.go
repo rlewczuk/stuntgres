@@ -28,7 +28,7 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 	}
 	methodCheck := s
 	methodCheck.Predicate = nil // Constraint-local HASH predicate admission only.
-	if err := validateIndexMethod(&methodCheck); err != nil {
+	if err := ValidateIndexMethod(&methodCheck); err != nil {
 		return err
 	}
 	auth.Catalog = e.stageRead(stage)
@@ -46,7 +46,7 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 	for i, name := range raw.Operators {
 		path, err := e.lookupNamespaces(auth, name, analyze.OperatorLookup)
 		if err != nil {
-			return indexSemanticError(err)
+			return SemanticError(err)
 		}
 		visible := false
 		for j := range path.Count() {
@@ -55,7 +55,7 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 				break
 			}
 		}
-		usage, err := indexKeyUsage(parent, definition.Keys[i])
+		usage, err := KeyUsage(parent, definition.Keys[i])
 		if err != nil {
 			return err
 		}
@@ -72,10 +72,10 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 		}
 	}
 	if len(s.Options) != 0 {
-		if err := validateIndexReloptions(s.Options, definition.Method, false); err != nil {
+		if err := ValidateIndexReloptions(s.Options, definition.Method, false); err != nil {
 			return err
 		}
-		return indexCapability("index storage parameters are unsupported", s.WithPos)
+		return Capability("index storage parameters are unsupported", s.WithPos)
 	}
 	name := raw.Name.Text
 	used := catalog.ConstraintNames(auth.Catalog, parent.Namespace(), parent)
@@ -138,9 +138,9 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 		return err
 	}
 	c := catalog.ExclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
-	definition.Constraint = exclusionBacking(&c)
+	definition.Constraint = ExclusionBacking(&c)
 	definition.Exclusion = operators
-	if err := partitionUniqueCoverage(parent, definition); err != nil {
+	if err := PartitionUniqueCoverage(parent, definition); err != nil {
 		return err
 	}
 	index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}}

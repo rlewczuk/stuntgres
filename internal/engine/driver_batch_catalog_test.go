@@ -55,7 +55,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if !ok {
 				t.Fatal("pending index")
 			}
-			if changes.Storage[table].Original != nil || len(journalIndexesOrZero(changes).uniqueRoots[index].Entries) != 0 || len(a.Transactions.Writes[table]) != 2 {
+			if changes.Storage[table].Original != nil || len(JournalIndexesOrZero(changes).UniqueRoots[index].Entries) != 0 || len(a.Transactions.Writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
 			if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {

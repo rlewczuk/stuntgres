@@ -520,7 +520,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		err = s.observePartitionRelationLocked(e, ref)
 		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
 			d, exists := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-			partitionDrop = exists && catalog.HierarchyRelation(d) && partitionConstraintDropActions(d, action.Actions)
+			partitionDrop = exists && catalog.HierarchyRelation(d) && PartitionConstraintDropActions(d, action.Actions)
 		}
 	}
 	e.mu.Unlock()
@@ -733,7 +733,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	} else if s.lockedStorage != nil {
 		relation, ok := current.(*catalog.Relation)
 		captured, capturedOK := s.lockedDescriptor.(*catalog.Relation)
-		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.Catalog, s.lockedRef.Address) != s.lockedStorage || !sameRelationRowShape(captured, relation) {
+		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.Catalog, s.lockedRef.Address) != s.lockedStorage || !SameRelationRowShape(captured, relation) {
 			return ids.ErrCatalogReplaced
 		}
 	} else if current != s.lockedDescriptor {
@@ -753,7 +753,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	if s.viewWrite != nil {
 		for _, layer := range s.viewWrite.layers {
 			current, ok := view.Relation(layer.ref.Address)
-			if !ok || current.View != layer.relation.View || !sameRelationRowShape(current, layer.relation) {
+			if !ok || current.View != layer.relation.View || !SameRelationRowShape(current, layer.relation) {
 				return ids.ErrCatalogReplaced
 			}
 		}

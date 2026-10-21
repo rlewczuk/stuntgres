@@ -164,24 +164,24 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	if e.storage.Relations[ref.Address] == nil || e.storage.IndexRoots[index] == nil || len(e.storage.IndexRoots[index].Entries) != 0 {
 		t.Fatal("co-created parent and empty backing root did not publish together")
 	}
-	captured := captureIndexStores(e.storage.Relations, e.catalog.state)
-	if !indexStoresUnchanged(e.storage.Relations, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
+	captured := CaptureIndexStores(e.storage.Relations, e.catalog.state)
+	if !StoresUnchanged(e.storage.Relations, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("unchanged existing parent failed its storage fence")
 	}
-	if indexStoresUnchanged(nil, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
+	if StoresUnchanged(nil, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("existing parent disappearance passed its storage fence")
 	}
 	absent := &catalog.State{}
-	if !indexStoresUnchanged(nil, nil, absent, e.catalog.state, e.storage.IndexRoots, nil) {
+	if !StoresUnchanged(nil, nil, absent, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("new parent must fence committed absence, not its candidate store")
 	}
-	if indexStoresUnchanged(e.storage.Relations, nil, absent, e.catalog.state, e.storage.IndexRoots, nil) ||
-		indexStoresUnchanged(nil, captured, absent, e.catalog.state, e.storage.IndexRoots, nil) {
+	if StoresUnchanged(e.storage.Relations, nil, absent, e.catalog.state, e.storage.IndexRoots, nil) ||
+		StoresUnchanged(nil, captured, absent, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("new-parent fence accepted committed or captured incumbent storage")
 	}
 	changed := *e.storage.Relations[ref.Address]
 	changed.Generation++
-	if indexStoresUnchanged(map[ids.ObjectAddress]*storage.Relation{ref.Address: &changed}, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
+	if StoresUnchanged(map[ids.ObjectAddress]*storage.Relation{ref.Address: &changed}, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("existing parent generation change passed its storage fence")
 	}
 	before, root, stores := e.catalog.state, e.storage.IndexRoots[index], len(e.storage.Relations)

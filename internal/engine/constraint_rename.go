@@ -97,7 +97,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 		next := *index
 		next.ObjectName = raw.NewName.Text
 		next.ObjectRevision++
-		err = stageBackingIndexRename(stage, &next)
+		err = StageBackingIndexRename(stage, &next)
 		if err == nil {
 			err = stage.Replace(&next)
 		}

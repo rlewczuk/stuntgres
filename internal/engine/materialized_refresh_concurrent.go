@@ -80,14 +80,14 @@ func materializedNewEntries(ctx context.Context, ordering indexOrdering, rows []
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		entry, err := ordering.entry(storage.RowVersion{Values: values, Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1)}, &evaluation)
+		entry, err := ordering.Entry(storage.RowVersion{Values: values, Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1)}, &evaluation)
 		if err != nil {
 			return nil, err
 		}
 		entry.Position = i
 		entries[i] = entry
 	}
-	if err := ordering.sort(ctx, entries); err != nil {
+	if err := ordering.Sort(ctx, entries); err != nil {
 		return nil, err
 	}
 	return entries, nil
@@ -96,7 +96,7 @@ func materializedNewEntries(ctx context.Context, ordering indexOrdering, rows []
 func materializedGroupEnd(ctx context.Context, ordering indexOrdering, entries []storage.IndexEntry, start int) (int, error) {
 	end := start + 1
 	for end < len(entries) {
-		cmp, err := ordering.compareKeys(ctx, entries[start], entries[end])
+		cmp, err := ordering.CompareKeys(ctx, entries[start], entries[end])
 		if err != nil {
 			return 0, err
 		}
@@ -117,7 +117,7 @@ func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, pare
 		}
 		for i := start; i < end && duplicate != 0; i++ {
 			a := entries[i].Position
-			if uniqueHasNull(rows[a]) {
+			if UniqueHasNull(rows[a]) {
 				continue
 			}
 			for j := i + 1; j < end && duplicate != 0; j++ {
@@ -153,12 +153,12 @@ func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, pare
 
 func materializedRowsMatch(ctx context.Context, orderings []indexOrdering, old, new []sqltype.Value) (bool, error) {
 	for _, ordering := range orderings {
-		for i, slot := range ordering.slots {
+		for i, slot := range ordering.Slots {
 			a, b := old[slot], new[slot]
 			if a.IsNull() || b.IsNull() {
 				return false, nil
 			}
-			cmp, err := ordering.comparisons[i].Compare(ctx, a, b, sqltype.InputEnvironment{})
+			cmp, err := ordering.Comparisons[i].Compare(ctx, a, b, sqltype.InputEnvironment{})
 			if err != nil {
 				return false, err
 			}
@@ -184,7 +184,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	orderings := make([]indexOrdering, len(indices))
 	for i, index := range indices {
 		var err error
-		orderings[i], err = bindIndexOrdering(parent, index.SQLIndex)
+		orderings[i], err = BindIndexOrdering(parent, index.SQLIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +203,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	var matched []bool
 	var effective [][]sqltype.Value
 	for oldAt, newAt := 0, 0; oldAt < len(oldEntries) && newAt < len(entries); {
-		cmp, err := ordering.compareKeys(ctx, oldEntries[oldAt], entries[newAt])
+		cmp, err := ordering.CompareKeys(ctx, oldEntries[oldAt], entries[newAt])
 		if err != nil {
 			return nil, err
 		}
@@ -226,7 +226,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 		// SQL key equality never matches NULL, even for NULLS NOT DISTINCT.
 		// Equal selected-key groups share their NULL positions, so every old
 		// occurrence is deleted and every producer occurrence stays unmatched.
-		if uniqueHasNull(entries[newAt].Keys) {
+		if UniqueHasNull(entries[newAt].Keys) {
 			oldAt, newAt = oldEnd, newEnd
 			continue
 		}

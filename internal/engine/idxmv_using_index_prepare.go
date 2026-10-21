@@ -12,7 +12,7 @@ import (
 
 // Eligibility is captured once from the actual ordered provider input. TYPE
 // reminting remains the existing stage owner's separate metadata effect.
-func captureUsingIndexDefinition(reader catalog.DefinitionReader, parent *catalog.Relation, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
+func CaptureUsingIndexDefinition(reader catalog.DefinitionReader, parent *catalog.Relation, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
 	address := reader.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.Index.Text})
 	descriptor, _ := reader.Descriptor(address)
 	if descriptor == nil {
@@ -22,18 +22,18 @@ func captureUsingIndexDefinition(reader catalog.DefinitionReader, parent *catalo
 	if !ok || index.SQLIndex == nil {
 		return usingIndexAttachment{}, sqlError("42809", fmt.Sprintf(`"%s" is not an index`, raw.Index.Text))
 	}
-	attributes, err := usingIndexEligibility(parent, index, raw)
+	attributes, err := UsingIndexEligibility(parent, index, raw)
 	if err != nil {
 		return usingIndexAttachment{}, err
 	}
-	return usingIndexAttachment{syntax: raw, index: index, attributes: attributes}, nil
+	return usingIndexAttachment{Syntax: raw, Index: index, Attributes: attributes}, nil
 }
 
-func captureUsingIndexDefinitions(reader catalog.DefinitionReader, parent *catalog.Relation, actions []parser.AlterTableAction) ([]usingIndexAttachment, error) {
+func CaptureUsingIndexDefinitions(reader catalog.DefinitionReader, parent *catalog.Relation, actions []parser.AlterTableAction) ([]usingIndexAttachment, error) {
 	var captured []usingIndexAttachment
 	for _, action := range actions {
 		if action.Action == parser.AddUsingIndex {
-			attachment, err := captureUsingIndexDefinition(reader, parent, action.UsingIndex)
+			attachment, err := CaptureUsingIndexDefinition(reader, parent, action.UsingIndex)
 			if err != nil {
 				return nil, err
 			}
@@ -44,8 +44,8 @@ func captureUsingIndexDefinitions(reader catalog.DefinitionReader, parent *catal
 }
 
 type usingIndexPreparation struct {
-	parent, next       *catalog.Relation
-	index, replacement *catalog.Relation
-	notice             sqlstate.Error
-	err                error
+	Parent, Next       *catalog.Relation
+	Index, Replacement *catalog.Relation
+	Notice             sqlstate.Error
+	Err                error
 }

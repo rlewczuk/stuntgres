@@ -66,12 +66,12 @@ phases:
 				if err != nil {
 					return nil, err
 				}
-				prepared.steps[index] = inheritancePreparedAction{old: next, next: actual.next, using: actual}
-				if actual.err != nil {
+				prepared.steps[index] = inheritancePreparedAction{old: next, next: actual.Next, using: actual}
+				if actual.Err != nil {
 					break phases
 				}
-				next = actual.next
-				reader.appendDescriptor(actual.replacement)
+				next = actual.Next
+				reader.appendDescriptor(actual.Replacement)
 				reader.appendDescriptor(next)
 				continue
 			}
@@ -151,7 +151,7 @@ phases:
 		if phase == 1 {
 			var err error
 			prepared.usingCaptureOld = next
-			prepared.usingIndexes, err = captureUsingIndexDefinitions(reader, next, actions)
+			prepared.usingIndexes, err = CaptureUsingIndexDefinitions(reader, next, actions)
 			if err != nil {
 				prepared.usingCaptureError = err
 				break phases
@@ -186,7 +186,7 @@ phases:
 					next = before
 					break phases
 				}
-				prepared.usingIndexes[i].notNullPrepared = true
+				prepared.usingIndexes[i].NotNullPrepared = true
 				reader.appendDescriptor(next)
 				scope.recordInheritanceAlterAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
 			}
@@ -292,7 +292,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		return next, step.added, true, err
 	}
 	if step.using != nil {
-		next, err := stagePreparedUsingIndex(scope.op, stage, old, step.using)
+		next, err := StagePreparedUsingIndex(scope.op, stage, old, step.using)
 		return next, step.added, true, err
 	}
 	return step.next, step.added, true, nil

@@ -56,7 +56,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return fail(err)
 			}
 		}
-		if err = validateIndexMethod(s); err != nil {
+		if err = ValidateIndexMethod(s); err != nil {
 			return fail(err)
 		}
 		if s.Concurrent.Character != 0 && s.Predicate != nil {
@@ -70,7 +70,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			if s.Method == "gist" {
 				method = catalog.GistMethod
 			}
-			if err := validateIndexReloptions(s.Options, method, false); err != nil {
+			if err := ValidateIndexReloptions(s.Options, method, false); err != nil {
 				return fail(err)
 			}
 		}
@@ -118,15 +118,15 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		definition.Unique, definition.NullsNotDistinct = s.Unique, s.NullsNotDistinct
 		if s.Unique && s.Concurrent.Character == 0 && !operationReplayOrZero(scope.op).tableDestination {
-			if err := validateUniqueProviders(parent, definition, s.Keys); err != nil {
+			if err := ValidateUniqueProviders(parent, definition, s.Keys); err != nil {
 				return fail(err)
 			}
 		}
-		if err := partitionUniqueCoverage(parent, definition); err != nil {
+		if err := PartitionUniqueCoverage(parent, definition); err != nil {
 			return fail(err)
 		}
 		if len(s.Options) != 0 {
-			return fail(indexCapability("index storage parameters are unsupported", s.WithPos))
+			return fail(Capability("index storage parameters are unsupported", s.WithPos))
 		}
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
@@ -151,7 +151,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		base := auth.Catalog
 		stage := e.BeginCatalogStage(base)
 		stage.authorizeLocked(auth, scope.op.Session)
-		stage.indexes().output = scope.output
+		stage.indexes().Output = scope.output
 		err = stage.Create(d)
 		if err == nil && parent.Partition != nil {
 			if s.Only {

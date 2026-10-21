@@ -20,20 +20,20 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 	// Each pass resolves another level; the catalog validator rejects cycles.
 	for range provider.descriptorCount() {
 		changed := false
-		for address := range provider.descriptors() {
-			if provider.removed(address) {
+		for address := range provider.Descriptors() {
+			if provider.Removed(address) {
 				continue
 			}
-			descriptor := provider.liveDescriptor(address)
+			descriptor := provider.LiveDescriptor(address)
 			index, ok := descriptor.(*catalog.Relation)
 			if !ok || index.SQLIndex == nil {
 				continue
 			}
-			table, ok := provider.liveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
+			table, ok := provider.LiveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
 			if !ok || table.Partition == nil {
 				continue
 			}
-			valid := indexCoverageComplete(provider, index)
+			valid := CoverageComplete(provider, index)
 			if valid && !index.SQLIndex.Valid && !provider.partitionIndexPromotionPath(promote, index.Address()) {
 				continue
 			}
@@ -68,7 +68,7 @@ func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.Obje
 		if start == target {
 			return true
 		}
-		index, ok := provider.liveDescriptor(start).(*catalog.Relation)
+		index, ok := provider.LiveDescriptor(start).(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			return false
 		}
@@ -79,7 +79,7 @@ func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.Obje
 
 func (e *Engine) stagePartitionIndexAttach(op *session.Operation, stage *CatalogStage, parent, child *catalog.Relation) error {
 	view := e.stageRead(stage)
-	if err := partitionIndexAttachCheck(op, view, parent, child); err != nil {
+	if err := PartitionIndexAttachCheck(op, view, parent, child); err != nil {
 		return err
 	}
 	if child.SQLIndex.PartitionParent != parent.Address() {

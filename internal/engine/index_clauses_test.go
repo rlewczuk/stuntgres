@@ -34,7 +34,7 @@ func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *c
 	def := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: c}, {Attribute: 20, Class: c, Desc: true, NullsFirst: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "cover", ObjectRevision: 1, RelationKind: catalog.IndexRelation, SQLIndex: def, Columns: append([]catalog.Column(nil), parent.Columns...), Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	catalogSnapshot := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, index.Address(): index}, nil)
-	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
+	if err := ValidateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
 	return parent, index, catalogSnapshot, types
@@ -55,7 +55,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 		{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{integer(1), sqltype.Null(types[sqltype.Int4]), sqltype.String(types[sqltype.Text], "z")}},
 		{Row: 3, Version: 3, Born: 1, Values: []sqltype.Value{integer(1), integer(2), sqltype.Null(types[sqltype.Text])}},
 	}}
-	root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil)
+	root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,18 +67,18 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 			t.Fatal("INCLUDE entered logical key", entry)
 		}
 	}
-	ordering, err := bindIndexOrdering(parent, index.SQLIndex)
+	ordering, err := BindIndexOrdering(parent, index.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cmp, err := ordering.compareKeys(ctx, root.Entries[1], root.Entries[2]); err != nil || cmp != 0 {
+	if cmp, err := ordering.CompareKeys(ctx, root.Entries[1], root.Entries[2]); err != nil || cmp != 0 {
 		t.Fatal("payload affected equality", cmp, err)
 	}
 	successor := store.Versions[0]
 	successor.Base = 1
 	successor.Version = 4
 	successor.Values = []sqltype.Value{integer(1), integer(2), sqltype.String(types[sqltype.Text], "changed")}
-	merged, err := mergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index, root.Entries, &rowPublication{writes: []storage.RowVersion{successor}}, false, true, false, "", sqltype.OutputEnvironment{}, nil, nil)
+	merged, err := MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index, root.Entries, &rowPublication{Writes: []storage.RowVersion{successor}}, false, true, false, "", sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 	next := *parent
 	next.Columns = append([]catalog.Column(nil), parent.Columns...)
 	next.Columns[2].Usage = domain.Usage()
-	evolved, err := evolveIndex(index, parent, &next, []columnTransformation{{attribute: 30}})
+	evolved, err := EvolveIndex(index, parent, &next, []columnTransformation{{Attribute: 30}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,10 +102,10 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := ordering.compareKeys(canceled, root.Entries[1], root.Entries[2]); !errors.Is(err, context.Canceled) {
+	if _, err := ordering.CompareKeys(canceled, root.Entries[1], root.Entries[2]); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil); !errors.Is(err, context.Canceled) {
+	if _, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -118,13 +118,13 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	index.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}
 	index.Attributes = []int32{1, 2}
 	index.ColumnMeta.HighWater = 2
-	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
+	if err := ValidateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
 	negative, _ := sqltype.Integer(types[sqltype.Int4], -1)
 	store := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{negative, one, sqltype.Null(types[sqltype.Text])}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "p")}}}}
-	root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil)
+	root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,13 +133,13 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	}
 	bpchar, _ := sqltype.LookupIndexClass("bpchar_ops")
 	def := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 30, Class: bpchar, ExplicitClass: true, Collation: 950}}, Ready: true, Valid: true, Live: true}
-	ordering, err := bindIndexOrdering(parent, def)
+	ordering, err := BindIndexOrdering(parent, def)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a := storage.IndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a")}}
 	b := storage.IndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a ")}}
-	if cmp, err := ordering.compareKeys(ctx, a, b); err != nil || cmp != 0 {
+	if cmp, err := ordering.CompareKeys(ctx, a, b); err != nil || cmp != 0 {
 		t.Fatal("bpchar class lost padding semantics", cmp, err)
 	}
 }
@@ -150,27 +150,27 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	c := catalog.UniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: index.Address()}
 	parent.Constraints.Unique = []catalog.UniqueConstraint{c}
 	class, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	index.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Include: []int32{30}, Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(&c), Ready: true, Valid: true, Live: true}
+	index.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Include: []int32{30}, Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: UniqueBacking(&c), Ready: true, Valid: true, Live: true}
 	index.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}
 	index.Attributes = []int32{1, 2}
 	index.ColumnMeta.HighWater = 2
-	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
+	if err := ValidateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateUniques(catalog.NewRead(nil, catalogSnapshot), parent, map[string]bool{}); err != nil {
+	if err := ValidateUniques(catalog.NewRead(nil, catalogSnapshot), parent, map[string]bool{}); err != nil {
 		t.Fatal(err)
 	}
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
 	for _, payload := range []sqltype.Value{sqltype.String(types[sqltype.Text], "different"), sqltype.Null(types[sqltype.Text])} {
 		store := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "first")}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one, one, payload}}}}
-		root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil)
+		root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, store, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(root.Entries) != 2 || len(root.Entries[0].Keys) != 1 {
 			t.Fatal(root)
 		}
-		err = validateUniqueRoot(ctx, parent, index, root, "public", sqltype.OutputEnvironment{}, nil, nil, false)
+		err = ValidateUniqueRoot(ctx, parent, index, root, "public", sqltype.OutputEnvironment{}, nil, nil, false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Detail != "Key (a)=(1) already exists." {
 			t.Fatal("INCLUDE weakened actual unique root", err)
@@ -185,15 +185,15 @@ func TestIndexClausesEvolution(t *testing.T) {
 	index.SQLIndex.Keys[1] = catalog.IndexKey{Attribute: 30, Class: textPattern, ExplicitClass: true, Collation: 951}
 	index.SQLIndex.Include = []int32{20}
 	index.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2], parent.Columns[1]}
-	index.Columns[1].Usage = indexKeyCollation(parent.Columns[2].Usage, index.SQLIndex.Keys[1])
-	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
+	index.Columns[1].Usage = KeyCollation(parent.Columns[2].Usage, index.SQLIndex.Keys[1])
+	if err := ValidateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
 	// Included TYPE normalizes every OLD default, not only the changed key.
 	next := *parent
 	next.Columns = append([]catalog.Column(nil), parent.Columns...)
 	next.Columns[1].Usage = types[sqltype.Text].Usage()
-	evolved, err := evolveIndex(index, parent, &next, []columnTransformation{{attribute: 20}})
+	evolved, err := EvolveIndex(index, parent, &next, []columnTransformation{{Attribute: 20}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestIndexClausesEvolution(t *testing.T) {
 	newer := next
 	newer.Columns = append([]catalog.Column(nil), next.Columns...)
 	newer.Columns[0].Usage = types[sqltype.Text].Usage()
-	rebuilt, err := evolveIndex(evolved, &next, &newer, []columnTransformation{{attribute: 10}})
+	rebuilt, err := EvolveIndex(evolved, &next, &newer, []columnTransformation{{Attribute: 10}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestIndexClausesEvolution(t *testing.T) {
 	def.Keys = append([]catalog.IndexKey(nil), def.Keys...)
 	def.Keys[0].Class = oid
 	retained.SQLIndex = &def
-	_, err = evolveIndex(&retained, parent, &newer, []columnTransformation{{attribute: 10}})
+	_, err = EvolveIndex(&retained, parent, &newer, []columnTransformation{{Attribute: 10}})
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "42804" || retained.SQLIndex.Keys[0].Class != oid {
 		t.Fatal("nondefault class was replaced", err)
@@ -224,12 +224,12 @@ func TestIndexClausesEvolution(t *testing.T) {
 	dropped := *parent
 	dropped.Attributes = []int32{10, 30}
 	dropped.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}
-	if removed, err := evolveIndex(index, parent, &dropped, nil); err != nil || removed != nil {
+	if removed, err := EvolveIndex(index, parent, &dropped, nil); err != nil || removed != nil {
 		t.Fatal("included DROP retained dependency", removed, err)
 	}
 	moved := *parent
 	moved.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 23000}
-	movedIndex, err := evolveIndex(index, parent, &moved, nil)
+	movedIndex, err := EvolveIndex(index, parent, &moved, nil)
 	if err != nil || movedIndex.SQLIndex != index.SQLIndex {
 		t.Fatal("schema move reconstructed options", err)
 	}
@@ -254,8 +254,8 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			index.SQLIndex.Keys[1].Class = textClass
 			index.SQLIndex.Keys[1].ExplicitClass = true
 			index.SQLIndex.Keys[1].Collation = parent.Columns[1].Usage.Collation.ID
-			index.Columns[1].Usage = indexKeyCollation(parent.Columns[1].Usage, index.SQLIndex.Keys[1])
-			if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
+			index.Columns[1].Usage = KeyCollation(parent.Columns[1].Usage, index.SQLIndex.Keys[1])
+			if err := ValidateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 				t.Fatal(err)
 			}
 			definition := index.SQLIndex
@@ -267,7 +267,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			if err := stage.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
-			transforms := []columnTransformation{{attribute: tc.attribute, rewrite: tc.rewrite}}
+			transforms := []columnTransformation{{Attribute: tc.attribute, Rewrite: tc.rewrite}}
 			if err := e.evolveStageIndexesLocked(stage, parent.Address(), transforms); err != nil {
 				t.Fatal(err)
 			}
@@ -283,11 +283,11 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			if index.SQLIndex != definition || !reflect.DeepEqual(definition.Keys, keys) || !reflect.DeepEqual(index.Columns, columns) || !reflect.DeepEqual(parent.Columns, parentColumns) {
 				t.Fatal("TYPE evolution mutated original descriptor")
 			}
-			if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), evolved); err != nil {
+			if err := ValidateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), evolved); err != nil {
 				t.Fatal(err)
 			}
-			for _, changes := range [][]columnTransformation{nil, {{attribute: 99}}} {
-				unchanged, err := evolveIndex(index, parent, parent, changes)
+			for _, changes := range [][]columnTransformation{nil, {{Attribute: 99}}} {
+				unchanged, err := EvolveIndex(index, parent, parent, changes)
 				if err != nil || unchanged != index {
 					t.Fatal("nondependent operation normalized defaults", unchanged, err)
 				}
@@ -309,7 +309,7 @@ func TestIndexClausesUntouchedStage(t *testing.T) {
 	parent, index, catalog, _ := indexClausesFixture(t)
 	e := New()
 	stage := e.BeginCatalogStage(e.catalog.read(catalog))
-	transforms := []columnTransformation{{attribute: parent.Attributes[0]}}
+	transforms := []columnTransformation{{Attribute: parent.Attributes[0]}}
 	var err error
 	allocations := testing.AllocsPerRun(100, func() {
 		err = e.evolveStageIndexesLocked(stage, parent.Address(), transforms)
@@ -324,7 +324,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	ctx := context.Background()
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
 	source := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "payload")}}}}
-	original, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, source, nil)
+	original, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,21 +411,21 @@ func TestIndexClausesDerivedProviders(t *testing.T) {
 		}
 		store.Versions = append(store.Versions, storage.RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{payload, payload, sqltype.String(typ, text)}})
 	}
-	root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, definition, store, nil)
+	root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, definition, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(root.Entries) != 2 || root.Entries[0].Row != 1 || root.Entries[1].Row != 2 {
 		t.Fatal("derived key used default TEXT ordering instead of padding semantics", root)
 	}
-	ordering, err := bindIndexOrdering(parent, definition)
+	ordering, err := BindIndexOrdering(parent, definition)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cmp, err := ordering.compareKeys(context.Background(), root.Entries[0], root.Entries[1]); err != nil || cmp != 0 {
+	if cmp, err := ordering.CompareKeys(context.Background(), root.Entries[0], root.Entries[1]); err != nil || cmp != 0 {
 		t.Fatal("derived explicit class did not own equality", cmp, err)
 	}
-	effective, err := indexKeyUsage(parent, definition.Keys[0])
+	effective, err := KeyUsage(parent, definition.Keys[0])
 	if err != nil || effective.Type != typ || effective.Collation.ID != 950 || parent.Columns[2].Usage != usage {
 		t.Fatal("derived effective Usage mutated result or parent identity", effective, err)
 	}
@@ -488,7 +488,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			auth.Catalog = view
 			auth.Recapture(auth.Catalog)
 			for _, index := range []*catalog.Relation{unsigned, cover} {
-				if err := validateIndexDefinition(view, index); err != nil {
+				if err := ValidateIndexDefinition(view, index); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -504,7 +504,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				{Row: 2, Version: 2, Values: []sqltype.Value{value(0), value(1), sqltype.String(text.Type, "a"), sqltype.String(text.Type, "plain")}},
 			}}
 			root := func(owner, index *catalog.Relation, stored *storage.Relation) *storage.IndexRoot {
-				r, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, owner, index.SQLIndex, stored, nil)
+				r, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, owner, index.SQLIndex, stored, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -514,14 +514,14 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if unsignedRoot.Entries[0].Row != 2 || unsignedRoot.Entries[1].Row != 1 || len(unsignedRoot.Entries[0].Keys) != 1 || unsignedRoot.Entries[0].Keys[0].Type() != integer.Type {
 				t.Fatal("actual bound derived key lost unsigned semantics or original typing", unsignedRoot)
 			}
-			padding, err := bindIndexOrdering(parent, cover.SQLIndex)
+			padding, err := BindIndexOrdering(parent, cover.SQLIndex)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if cmp, err := padding.comparisons[0].Compare(ctx, coverRoot.Entries[0].Keys[0], coverRoot.Entries[1].Keys[0], scope.input); err != nil || cmp != 0 {
+			if cmp, err := padding.Comparisons[0].Compare(ctx, coverRoot.Entries[0].Keys[0], coverRoot.Entries[1].Keys[0], scope.input); err != nil || cmp != 0 {
 				t.Fatal("actual bound lower(TEXT) lost padding peers", cmp, err)
 			}
-			if cmp, err := padding.comparisons[1].Compare(ctx, coverRoot.Entries[0].Keys[1], coverRoot.Entries[1].Keys[1], scope.input); err != nil || cmp >= 0 {
+			if cmp, err := padding.Comparisons[1].Compare(ctx, coverRoot.Entries[0].Keys[1], coverRoot.Entries[1].Keys[1], scope.input); err != nil || cmp >= 0 {
 				t.Fatal("ordinary TEXT distinction was lost", cmp, err)
 			}
 			snapshot := func(index *catalog.Relation) []string {
@@ -592,7 +592,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err := e.rebindAlterTypeIndexes(scope, auth, &final, stage, queue); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.evolveStageIndexesLocked(stage, parent.Address(), []columnTransformation{{attribute: attribute}}); err != nil {
+			if err := e.evolveStageIndexesLocked(stage, parent.Address(), []columnTransformation{{Attribute: attribute}}); err != nil {
 				t.Fatal(err)
 			}
 			finalView := e.stageRead(stage)
@@ -617,7 +617,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 					t.Fatal("TYPE lost actual stable source dependency", key.Derived.Dependencies)
 				}
 			}
-			if err := validateIndexDefinition(finalView, next); err != nil {
+			if err := ValidateIndexDefinition(finalView, next); err != nil {
 				t.Fatal(err)
 			}
 			finalStore := &storage.Relation{}

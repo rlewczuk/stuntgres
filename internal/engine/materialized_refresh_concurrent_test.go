@@ -216,7 +216,7 @@ func TestMaterializedRefreshConcurrentDuplicatePreflight(t *testing.T) {
 	d := concurrentUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.catalog.state.MustRelation(d.Address())
-	ordering, err := bindIndexOrdering(d, index.SQLIndex)
+	ordering, err := BindIndexOrdering(d, index.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +321,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if expected == 1 && &effective[0][0] != &old.Versions[0].Values[0] {
 				t.Fatal("old matched datum buffer copied or replaced")
 			}
-			ordering, err := bindIndexOrdering(d, first.SQLIndex)
+			ordering, err := BindIndexOrdering(d, first.SQLIndex)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -329,7 +329,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = validateUniqueEntries(context.Background(), d, first, entries, "public", sqltype.OutputEnvironment{}, nil, nil, false, ordering)
+			err = ValidateUniqueEntries(context.Background(), d, first, entries, "public", sqltype.OutputEnvironment{}, nil, nil, false, ordering)
 			violation := phase == "unmatched_null" || phase == "all_keys" || phase == "not_distinct_null_key"
 			if violation {
 				materializedConcurrentUnitError(t, err, "23505", `duplicate key value violates unique constraint "unit_u"`)
@@ -497,7 +497,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage.materialized().replacement.concurrent = true
-	if len(stage.indexesOrZero().rebuilds) != 0 {
+	if len(stage.indexesOrZero().Rebuilds) != 0 {
 		t.Fatal("replacement forged REINDEX intent")
 	}
 	if err := stage.validateIndexMaintenance(e.catalog.state); err != nil {
@@ -505,7 +505,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	}
 	maintenance := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(maintenance)
-	maintenance.indexes().sets = map[ids.ObjectAddress]int{d.Address(): 1}
+	maintenance.indexes().Sets = map[ids.ObjectAddress]int{d.Address(): 1}
 	if err := maintenance.validateIndexMaintenance(e.catalog.state); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}

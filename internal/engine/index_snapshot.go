@@ -27,13 +27,13 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 	}
 	actualRoot := func(address ids.ObjectAddress) *storage.IndexRoot {
 		if private != nil {
-			if root := journalIndexesOrZero(private).uniqueRoots[address]; root != nil {
+			if root := JournalIndexesOrZero(private).UniqueRoots[address]; root != nil {
 				return root
 			}
 		}
 		return e.storage.IndexRoots[address]
 	}
-	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
+	snapshot := &indexSnapshot{Sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
 	for address, descriptor := range view.Descriptors() {
 		if parents != nil {
 			index, ok := descriptor.(*catalog.Relation)
@@ -44,15 +44,15 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*catalog.Relation); ok && partitionNeedsRowHistory(view, relation) {
+		if relation, ok := descriptor.(*catalog.Relation); ok && PartitionNeedsRowHistory(view, relation) {
 			store := relations[address]
 			if store == nil || store != e.privateStorageLocked(private, address) {
 				return nil, ids.ErrCatalogReplaced
 			}
-			if snapshot.partitionRows == nil {
-				snapshot.partitionRows = make(map[ids.ObjectAddress]partitionRowHistory)
+			if snapshot.PartitionRows == nil {
+				snapshot.PartitionRows = make(map[ids.ObjectAddress]partitionRowHistory)
 			}
-			snapshot.partitionRows[address] = partitionRowHistory{relation: relation, store: *store, frontier: frontier}
+			snapshot.PartitionRows[address] = partitionRowHistory{Relation: relation, Store: *store, Frontier: frontier}
 		}
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
@@ -64,7 +64,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 		}
 		actual, exists := authority.Relation(address)
 		actualParent, parentExists := authority.Relation(parent.Address())
-		if !exists || !parentExists || !sameIndexKeySemantics(actual, index) || !indexLayoutInputsUnchanged(index, actualParent, parent) {
+		if !exists || !parentExists || !SameIndexKeySemantics(actual, index) || !LayoutInputsUnchanged(index, actualParent, parent) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if parent.Partition != nil {
@@ -114,7 +114,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 				}
 			}
 		}
-		snapshot.sources[address] = indexSnapshotSource{index: index, parent: parent, store: *store, root: root, frontier: frontier}
+		snapshot.Sources[address] = indexSnapshotSource{Index: index, Parent: parent, Store: *store, Root: root, Frontier: frontier}
 	}
 	return snapshot, nil
 }

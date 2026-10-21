@@ -11,27 +11,27 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (g *indexMaintenanceGrant) collectPartitionIndexes(view access.View, stmt parser.Statement) error {
+func (g *indexMaintenanceGrant) CollectPartitionIndexes(view access.View, stmt parser.Statement) error {
 	add := func(index *catalog.Relation) {
 		ref := view.Ref(index.Address())
-		if !slices.Contains(g.indexes, ref) {
-			g.indexes = append(g.indexes, ref)
+		if !slices.Contains(g.Indexes, ref) {
+			g.Indexes = append(g.Indexes, ref)
 		}
-		g.descriptors[index.Address()] = index
+		g.Descriptors[index.Address()] = index
 		address := index.SQLIndex.Parent
 		parentRef := ref.Domain().Ref(ref.Epoch, address)
-		if !slices.Contains(g.parents, parentRef) {
-			g.parents = append(g.parents, parentRef)
+		if !slices.Contains(g.Parents, parentRef) {
+			g.Parents = append(g.Parents, parentRef)
 		}
 		if table := view.Catalog.MustRelation(address); table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
-			g.partition = true
+			g.Partition = true
 		}
-		g.descriptors[address] = view.Catalog.MustRelation(address)
+		g.Descriptors[address] = view.Catalog.MustRelation(address)
 	}
 	if _, drop := stmt.(*parser.DropIndex); drop {
 		selected := false
-		for _, target := range g.targets {
-			index := g.descriptors[target.Address]
+		for _, target := range g.Targets {
+			index := g.Descriptors[target.Address]
 			table := view.Catalog.MustRelation(index.SQLIndex.Parent)
 			if table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 				selected = true
@@ -44,7 +44,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(view access.View, stmt p
 	} else if alter, ok := stmt.(*parser.AlterIndex); !ok || alter.Action != "attach" {
 		return nil
 	}
-	indexes := make([]*catalog.Relation, 0, len(g.indexes))
+	indexes := make([]*catalog.Relation, 0, len(g.Indexes))
 	for _, descriptor := range view.Catalog.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 			indexes = append(indexes, index)
@@ -53,7 +53,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(view access.View, stmt p
 	slices.SortFunc(indexes, func(a, b *catalog.Relation) int { return cmp.Compare(a.Address().ObjectID, b.Address().ObjectID) })
 	roots := make(map[ids.ObjectAddress]bool)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
-		for _, target := range g.targets {
+		for _, target := range g.Targets {
 			roots[target.Address] = true
 		}
 		for {
@@ -66,7 +66,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(view access.View, stmt p
 				grew = true
 				if index.SQLIndex.Constraint != nil && drop.Mode != parser.DropCascade {
 					root := index
-					for !slices.ContainsFunc(g.targets, func(target ids.ObjectRef) bool { return target.Address == root.Address() }) {
+					for !slices.ContainsFunc(g.Targets, func(target ids.ObjectRef) bool { return target.Address == root.Address() }) {
 						root = view.Catalog.MustRelation(root.SQLIndex.PartitionParent)
 					}
 					table := view.Catalog.Get(index.SQLIndex.Parent)
@@ -77,10 +77,10 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(view access.View, stmt p
 				break
 			}
 		}
-	} else if v, ok := stmt.(*parser.AlterIndex); ok && v.Action == "attach" && len(g.targets) > 0 {
+	} else if v, ok := stmt.(*parser.AlterIndex); ok && v.Action == "attach" && len(g.Targets) > 0 {
 		// Capture the parent tree's validity frontier and each sibling descriptor
 		// before taking any lock. No names are resolved after a wait.
-		root := g.descriptors[g.targets[0].Address]
+		root := g.Descriptors[g.Targets[0].Address]
 		for root.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 			root = view.Catalog.MustRelation(root.SQLIndex.PartitionParent)
 		}
@@ -97,8 +97,8 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(view access.View, stmt p
 				break
 			}
 		}
-		if g.attach != (ids.ObjectRef{}) {
-			roots[g.attach.Address] = true
+		if g.Attach != (ids.ObjectRef{}) {
+			roots[g.Attach.Address] = true
 		}
 	} else {
 		return nil
@@ -109,7 +109,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(view access.View, stmt p
 	return nil
 }
 
-func partitionIndexDropDependency(view catalog.Read, index *catalog.Relation) error {
+func PartitionIndexDropDependency(view catalog.Read, index *catalog.Relation) error {
 	if index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -120,7 +120,7 @@ func partitionIndexDropDependency(view catalog.Read, index *catalog.Relation) er
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because index %s requires it", index.Name(), parent.Name()), Hint: "You can drop index " + parent.Name() + " instead."}
 }
 
-func partitionConstraintDropActions(table *catalog.Relation, actions []parser.AlterTableAction) bool {
+func PartitionConstraintDropActions(table *catalog.Relation, actions []parser.AlterTableAction) bool {
 	if len(actions) == 0 {
 		return false
 	}

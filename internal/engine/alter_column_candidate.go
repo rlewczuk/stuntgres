@@ -82,7 +82,7 @@ func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, re
 		return ordinaryColumnDrop(provider, remaining, ref, a)
 	}
 	// Dependency passes must see preceding actions in this same ALTER list.
-	if err := provider.replace(old); err != nil {
+	if err := provider.Replace(old); err != nil {
 		return nil, err
 	}
 	if old.RelationKind == catalog.CompositeRelation {
@@ -107,7 +107,7 @@ func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, re
 
 	// Publish the private shape to dependency passes before removing its AUTO
 	// sequences: CHECKs on the dropped column are already gone.
-	if err := provider.replace(next); err != nil {
+	if err := provider.Replace(next); err != nil {
 		return nil, err
 	}
 	if err := provider.ownedExpressionDependencies([]ids.ObjectAddress{target}, a.Mode); err != nil {
@@ -176,7 +176,7 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
 		}
-		if !uniqueIndexTypeAffected(index.SQLIndex, []columnTransformation{{attribute: old.Attributes[slot]}}) {
+		if !UniqueIndexTypeAffected(index.SQLIndex, []columnTransformation{{Attribute: old.Attributes[slot]}}) {
 			next.Constraints.Exclusion = append(next.Constraints.Exclusion, constraint)
 		}
 	}

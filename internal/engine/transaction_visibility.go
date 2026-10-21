@@ -114,7 +114,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			if exists {
 				current, ok := e.catalog.state.Relation(ref.Address)
 				live := e.storage.Relations[ref.Address]
-				if !ok || !sameRelationRowShape(root.Relation, current) {
+				if !ok || !SameRelationRowShape(root.Relation, current) {
 					return nil, ids.ErrCatalogReplaced
 				}
 				if root.Storage == live {

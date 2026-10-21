@@ -17,14 +17,14 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *catalog.Relati
 			continue
 		}
 		raw := action.UsingIndex
-		attachment, err := captureUsingIndexDefinition(stageDefinitionReader{stage}, parent, raw)
+		attachment, err := CaptureUsingIndexDefinition(stageDefinitionReader{stage}, parent, raw)
 		if err != nil {
 			return nil, err
 		}
-		index, attributes := attachment.index, attachment.attributes
+		index, attributes := attachment.Index, attachment.Attributes
 		// A real TYPE reconstruction precedes attachment and gets a new backing
 		// identity. A previous capture of the same index may already have reminted it.
-		if stage.Base.Get(index.Address()) != nil && uniqueIndexTypeAffected(index.SQLIndex, transformations) {
+		if stage.Base.Get(index.Address()) != nil && UniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			e.mu.Lock()
 			id, allocateErr := e.catalog.allocateOIDLocked()
 			var revision ids.DefinitionRevision
@@ -67,7 +67,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *catalog.Relati
 			}
 			index = &clone
 		}
-		captured = append(captured, usingIndexAttachment{syntax: raw, index: index, attributes: attributes})
+		captured = append(captured, usingIndexAttachment{Syntax: raw, Index: index, Attributes: attributes})
 	}
 	return captured, nil
 }
@@ -79,5 +79,5 @@ func (e *Engine) stageUsingIndex(op *session.Operation, stage *CatalogStage, par
 	if err != nil {
 		return nil, err
 	}
-	return stagePreparedUsingIndex(op, stage, parent, prepared)
+	return StagePreparedUsingIndex(op, stage, parent, prepared)
 }

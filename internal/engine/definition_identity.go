@@ -276,7 +276,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			clone := *index
 			definition := *index.SQLIndex
 			constraint := d.Constraints.Unique[i]
-			definition.Constraint = uniqueBacking(&constraint)
+			definition.Constraint = UniqueBacking(&constraint)
 			clone.SQLIndex = &definition
 			next.SetDescriptor(clone.Address(), &clone)
 			changed = true
@@ -300,7 +300,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			}
 			clone := *index
 			definition := *index.SQLIndex
-			definition.Constraint = exclusionBacking(&d.Constraints.Exclusion[i])
+			definition.Constraint = ExclusionBacking(&d.Constraints.Exclusion[i])
 			clone.SQLIndex = &definition
 			next.SetDescriptor(clone.Address(), &clone)
 			changed = true

@@ -102,7 +102,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				if candidate.Name() != index.Name() || candidate.Owner != index.Owner || candidate.Namespace() != index.Namespace() || candidate.SQLIndex.Ready != index.SQLIndex.Ready || candidate.SQLIndex.Valid != index.SQLIndex.Valid || candidate.SQLIndex.Live != index.SQLIndex.Live {
 					t.Fatal("index identity or flags changed")
 				}
-				if err := validateIndexDefinition(e.stageRead(stage), candidate); err != nil {
+				if err := ValidateIndexDefinition(e.stageRead(stage), candidate); err != nil {
 					t.Fatal(err)
 				}
 				if len(parent.Columns) != len(wantLayout) {
@@ -189,7 +189,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if changes.Originals[index.Address()] != index || changes.Storage[survivor.Address()].Original != before || !sameVersionRoot(changes.Storage[survivor.Address()].Root, oldRows) || changes.Storage[survivor.Address()].Ends != before.Ends || changes.Storage[survivor.Address()].Generation != before.Generation {
 				t.Fatal("original publication predecessor lost")
 			}
-			root := journalIndexesOrZero(changes).uniqueRoots[index.Address()]
+			root := JournalIndexesOrZero(changes).UniqueRoots[index.Address()]
 			if root == nil || root == oldRoot || len(root.Entries) != 1 {
 				t.Fatal("missing actual rebuilt index root")
 			}
@@ -229,18 +229,18 @@ func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 	if own == nil || foreign == nil {
 		t.Fatal("missing actual physical-owner indexes")
 	}
-	presentation := indexPresentation{temporary: own.Namespace()}
-	actual, err := indexDefinitionSQL(context.Background(), view, own, presentation)
+	presentation := indexPresentation{Temporary: own.Namespace()}
+	actual, err := DefinitionSQL(context.Background(), view, own, presentation)
 	if err != nil || actual != "CREATE INDEX deparse_owner_index ON pg_temp.deparse_owner_table USING btree (v)" {
 		t.Fatal("own namespace alias", actual, err)
 	}
 	foreignNamespace := view.Get(foreign.Namespace()).Name()
-	actual, err = indexDefinitionSQL(context.Background(), view, foreign, presentation)
+	actual, err = DefinitionSQL(context.Background(), view, foreign, presentation)
 	if err != nil || actual != "CREATE INDEX deparse_owner_index ON "+foreignNamespace+".deparse_owner_table USING btree (v)" {
 		t.Fatal("foreign owner acquired own namespace alias", actual, err)
 	}
-	presentation.dump = true
-	actual, err = indexDefinitionSQL(context.Background(), view, own, presentation)
+	presentation.Dump = true
+	actual, err = DefinitionSQL(context.Background(), view, own, presentation)
 	physicalNamespace := view.Get(own.Namespace()).Name()
 	expectedPrefix := "CREATE INDEX " + catalog.QuoteIdentifier("deparse_owner_index") + " ON " + catalog.QuoteIdentifier(physicalNamespace) + "." + catalog.QuoteIdentifier("deparse_owner_table") + " USING "
 	if err != nil || !strings.HasPrefix(actual, expectedPrefix) {
@@ -336,7 +336,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	if err != nil || definitionAfter != definitionBefore || executionAfter != executionBefore || !slices.Equal(predicate.Dependencies, manifest) || !slices.Equal(predicate.Attributes, attributes) {
 		t.Fatal("replacement mutated predicate trees/manifests/layout", err)
 	}
-	if err := validateIndexDefinition(after, index); err != nil {
+	if err := ValidateIndexDefinition(after, index); err != nil {
 		t.Fatal("retained predicate rejected by ordinary exact validation", err)
 	}
 }

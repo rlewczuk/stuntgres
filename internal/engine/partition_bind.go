@@ -100,7 +100,7 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 			}
 			return nil, err
 		}
-		key.Usage = indexKeyCollation(usage, bound)
+		key.Usage = KeyCollation(usage, bound)
 		key.Class, key.Collation, key.ExplicitClass = bound.Class, bound.Collation, bound.ExplicitClass
 		if raw.Strategy == parser.PartitionHash {
 			key.Hash, err = sqltype.BindPartitionHash(key.Usage, key.Class)

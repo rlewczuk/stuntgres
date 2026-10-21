@@ -336,17 +336,17 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			definition.Ready = true
 			next.SQLIndex = &definition
 			next.ObjectRevision++
-			root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &definition, &snapshot, nil)
+			root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &definition, &snapshot, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := validateUniqueRoot(context.Background(), parent, &next, root, "public", sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
+			if err := ValidateUniqueRoot(context.Background(), parent, &next, root, "public", sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
 				t.Fatal(err)
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
-			stage.indexes().candidates = map[ids.ObjectAddress]indexRootCandidate{next.Address(): {index: &next, root: root, storage: store, generation: snapshot.Generation, ends: snapshot.Ends, length: len(snapshot.Versions)}}
+			stage.indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+			stage.indexes().Candidates = map[ids.ObjectAddress]indexRootCandidate{next.Address(): {Index: &next, Root: root, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}
@@ -398,7 +398,7 @@ func TestConcurrentIndexU7OlderAdmissionEpochFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	fenced := len(e.indexWaits.waits) == 0
+	fenced := len(e.indexWaits.Waits) == 0
 	e.mu.Unlock()
 	if !fenced {
 		t.Fatal("replacement retained an older-cohort observation")

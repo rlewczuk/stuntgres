@@ -41,7 +41,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 			authority.State.CurrentUser = invoker
 		}
 		source, ok := v.Catalog.Relation(layer.sourceRef.Address)
-		if !ok || !sameRelationRowShape(source, layer.source) {
+		if !ok || !SameRelationRowShape(source, layer.source) {
 			return ids.ErrCatalogReplaced
 		}
 		if mask == authorization.DeletePrivilege {
@@ -132,12 +132,12 @@ func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	defer e.mu.Unlock()
 	read := e.privateCatalogLocked(s.owner.Catalog)
 	current, ok := read.Relation(w.ref.Address)
-	if !ok || w.ref.Domain() != e.catalog.Domain || w.ref.Epoch != e.catalog.state.Epoch() || !sameRelationRowShape(current, w.base) {
+	if !ok || w.ref.Domain() != e.catalog.Domain || w.ref.Epoch != e.catalog.state.Epoch() || !SameRelationRowShape(current, w.base) {
 		return ids.ErrCatalogReplaced
 	}
 	for _, layer := range w.layers {
 		d, ok := read.Relation(layer.ref.Address)
-		if !ok || d.View != layer.relation.View || !sameRelationRowShape(d, layer.relation) {
+		if !ok || d.View != layer.relation.View || !SameRelationRowShape(d, layer.relation) {
 			return ids.ErrCatalogReplaced
 		}
 	}

@@ -22,19 +22,19 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 		if !ok {
 			return fmt.Errorf("stuntgres: missing private exclusion index")
 		}
-		ordering, err := bindExclusionOrdering(parent, index.SQLIndex)
+		ordering, err := BindExclusionOrdering(parent, index.SQLIndex)
 		if err != nil {
 			return err
 		}
 		var preparation indexExecutionPreparation
 		for _, row := range writes {
-			if uniqueRowDeleted(row.Row, deletes) {
+			if UniqueRowDeleted(row.Row, deletes) {
 				continue
 			}
 			var keys []sqltype.Value
 			if index.SQLIndex.RequiresInsertionOutput() {
 				output, ok := row.IndexOutputs[index.Address()]
-				if !ok || !indexOutputMatches(output, index) {
+				if !ok || !OutputMatches(output, index) {
 					return fmt.Errorf("stuntgres: exclusion shape lost produced index output")
 				}
 				if !output.Member {
@@ -49,25 +49,25 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 					keys = output.Keys
 				}
 			} else {
-				matches, err := preparation.predicateMatches(&evaluation, parent, index.SQLIndex, row.Values, &ordering, nil)
+				matches, err := preparation.PredicateMatches(&evaluation, parent, index.SQLIndex, row.Values, &ordering, nil)
 				if err != nil {
 					return err
 				}
 				if !matches {
 					continue
 				}
-				if err := preparation.prepareKeys(&evaluation, parent, index.SQLIndex, &ordering, nil); err != nil {
+				if err := preparation.PrepareKeys(&evaluation, parent, index.SQLIndex, &ordering, nil); err != nil {
 					return err
 				}
 				keys = make([]sqltype.Value, len(index.SQLIndex.Keys))
-				if err := ordering.fillKeys(row.Values, keys, &evaluation); err != nil {
+				if err := ordering.FillKeys(row.Values, keys, &evaluation); err != nil {
 					return err
 				}
 			}
-			if uniqueHasNull(keys) {
+			if UniqueHasNull(keys) {
 				continue
 			}
-			entries[index.Address()] = append(entries[index.Address()], exclusionEntry{row: row, keys: keys, admitted: true})
+			entries[index.Address()] = append(entries[index.Address()], exclusionEntry{Row: row, Keys: keys, Admitted: true})
 		}
 	}
 	e := s.engine()
@@ -77,14 +77,14 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 		return ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
-	p := e.exclusions.projectionLocked(s.ticket)
+	p := e.exclusions.ProjectionLocked(s.ticket)
 	for _, c := range original.Constraints.Exclusion {
-		delete(p.entries, c.Index)
+		delete(p.Entries, c.Index)
 	}
 	for index, rows := range entries {
-		p.entries[index] = rows
+		p.Entries[index] = rows
 	}
-	ends := maps.Clone(p.ended[parent.Address()])
+	ends := maps.Clone(p.Ended[parent.Address()])
 	if ends == nil {
 		ends = make(map[ids.RowID]ids.VersionID)
 	}
@@ -98,7 +98,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 			ends[id] = candidate.Version
 		}
 	}
-	p.ended[parent.Address()] = ends
+	p.Ended[parent.Address()] = ends
 	s.installExclusionProjectionLocked(e, p)
 	return nil
 }

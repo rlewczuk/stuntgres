@@ -116,7 +116,7 @@ func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparis
 	err := probeForeignKeyIndex(rows.root, func(entry storage.IndexEntry) (int, error) {
 		return foreignKeyIndexOrder(ctx, index, comparisons, entry, child, input)
 	}, func(entry storage.IndexEntry) (bool, error) {
-		parent, err := conflictEntryVersion(rows.committed, entry)
+		parent, err := ConflictEntryVersion(rows.committed, entry)
 		if err != nil {
 			return false, err
 		}

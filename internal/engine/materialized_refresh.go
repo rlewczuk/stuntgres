@@ -138,8 +138,8 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		var root *storage.IndexRoot
 		if len(indices) != 0 {
 			root = e.storage.IndexRoots[indices[0].Address()]
-			if scope.owner.Catalog != nil && journalIndexesOrZero(scope.owner.Catalog).uniqueRoots[indices[0].Address()] != nil {
-				root = journalIndexesOrZero(scope.owner.Catalog).uniqueRoots[indices[0].Address()]
+			if scope.owner.Catalog != nil && JournalIndexesOrZero(scope.owner.Catalog).UniqueRoots[indices[0].Address()] != nil {
+				root = JournalIndexesOrZero(scope.owner.Catalog).UniqueRoots[indices[0].Address()]
 			}
 		}
 		if root == nil {
@@ -153,7 +153,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	stage.authorizeLocked(caller, scope.op.Session)
 	stage.querySources = scope.materializedOrZero().sources
 	stage.materialized().sourceView = scope.materializedOrZero().sourceView
-	stage.indexes().output = scope.output
+	stage.indexes().Output = scope.output
 	defer e.DiscardCatalogStage(stage)
 	var rows [][]sqltype.Value
 	if stmt.NoData {
@@ -181,7 +181,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 			}
 			previous.Versions, previous.Ends = versions, nil
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.Base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			oldEntries, err = buildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
+			oldEntries, err = BuildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
 			if err != nil {
 				return Result{}, err
 			}
@@ -313,10 +313,10 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 			s.materialized().replacement.indexCount++
 		}
 	}
-	if s.indexesOrZero().sets == nil {
-		s.indexes().sets = make(map[ids.ObjectAddress]int)
+	if s.indexesOrZero().Sets == nil {
+		s.indexes().Sets = make(map[ids.ObjectAddress]int)
 	}
-	s.indexes().sets[d.Address()] = s.materializedOrZero().replacement.indexCount
+	s.indexes().Sets[d.Address()] = s.materializedOrZero().replacement.indexCount
 	s.initialTx = tx
 	return nil
 }

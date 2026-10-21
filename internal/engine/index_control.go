@@ -16,31 +16,31 @@ import (
 )
 
 type indexPresentation struct {
-	dump      bool
-	column    int64
-	pretty    bool
-	path      []ids.ObjectAddress
-	temporary ids.ObjectAddress
+	Dump      bool
+	Column    int64
+	Pretty    bool
+	Path      []ids.ObjectAddress
+	Temporary ids.ObjectAddress
 	// TYPE buffers retain original expression trees and old-Usage decoration.
-	reconstruct bool
-	output      sqltype.OutputEnvironment
-	exclusion   bool
+	Reconstruct bool
+	Output      sqltype.OutputEnvironment
+	Exclusion   bool
 }
 
-func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relation, presentation indexPresentation) (string, error) {
-	if err := validateIndexDefinition(view, index); err != nil {
+func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relation, presentation indexPresentation) (string, error) {
+	if err := ValidateIndexDefinition(view, index); err != nil {
 		return "", err
 	}
 	parent := view.MustRelation(index.SQLIndex.Parent)
-	if presentation.column != 0 {
-		if presentation.column < 1 || presentation.column > int64(len(index.Columns)) {
+	if presentation.Column != 0 {
+		if presentation.Column < 1 || presentation.Column > int64(len(index.Columns)) {
 			return "", nil
 		}
-		if presentation.column > int64(len(index.SQLIndex.Keys)) {
-			return (stored.Deparser{Output: presentation.output}).Attribute(parent, index.SQLIndex.Include[presentation.column-int64(len(index.SQLIndex.Keys))-1])
+		if presentation.Column > int64(len(index.SQLIndex.Keys)) {
+			return (stored.Deparser{Output: presentation.Output}).Attribute(parent, index.SQLIndex.Include[presentation.Column-int64(len(index.SQLIndex.Keys))-1])
 		}
-		key := index.SQLIndex.Keys[presentation.column-1]
-		if !presentation.dump {
+		key := index.SQLIndex.Keys[presentation.Column-1]
+		if !presentation.Dump {
 			text, wrapped, _, err := compactIndexKeySQL(ctx, view, parent, key, presentation)
 			if err != nil {
 				return "", err
@@ -55,26 +55,26 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		}
 		return stored.DeparseAttribute(parent, key.Attribute)
 	}
-	identifier := (stored.Deparser{Output: presentation.output}).Identifier
-	if presentation.dump {
+	identifier := (stored.Deparser{Output: presentation.Output}).Identifier
+	if presentation.Dump {
 		identifier = catalog.QuoteIdentifier
 	}
 	schema := view.Get(parent.Namespace()).Name()
-	if !presentation.dump && parent.Namespace() == presentation.temporary {
+	if !presentation.Dump && parent.Namespace() == presentation.Temporary {
 		schema = "pg_temp"
 	}
 	parentName := identifier(schema) + "." + identifier(parent.Name())
-	if presentation.pretty && !presentation.output.QuoteAllIdentifiers {
-		parentName = stored.RelationDiagnosticNameAt(view, parent, presentation.path)
+	if presentation.Pretty && !presentation.Output.QuoteAllIdentifiers {
+		parentName = stored.RelationDiagnosticNameAt(view, parent, presentation.Path)
 	}
 	// Canonical replay spells the supported access methods as SQL tokens.
 	// Session inquiry alone follows quote_all_identifiers.
 	method := index.SQLIndex.Method.String()
-	if !presentation.dump {
+	if !presentation.Dump {
 		method = identifier(method)
 	}
 	var sql strings.Builder
-	if presentation.exclusion {
+	if presentation.Exclusion {
 		sql.WriteString("EXCLUDE USING " + method + " (")
 	} else {
 		sql.WriteString("CREATE ")
@@ -92,7 +92,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 			sql.WriteString(", ")
 		}
 		presented := key
-		if !presentation.dump {
+		if !presentation.Dump {
 			text, wrapped, usage, err := compactIndexKeySQL(ctx, view, parent, key, presentation)
 			if err != nil {
 				return "", err
@@ -104,9 +104,9 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 			if wrapped {
 				sql.WriteByte(')')
 			}
-			presented = reconstructIndexKey(key, usage, usage, index.SQLIndex.Method)
-			if !presentation.reconstruct {
-				actual, err := indexKeyUsage(parent, key)
+			presented = ReconstructIndexKey(key, usage, usage, index.SQLIndex.Method)
+			if !presentation.Reconstruct {
+				actual, err := KeyUsage(parent, key)
 				if err != nil {
 					return "", err
 				}
@@ -136,15 +136,15 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		}
 		if presented.Collation != 0 {
 			sql.WriteString(" COLLATE ")
-			if presentation.dump {
+			if presentation.Dump {
 				sql.WriteString(typedef.CollationSQLName(view, presented.Collation))
 			} else {
-				sql.WriteString(stored.CollationDisplayName(view, presented.Collation, presentation.path))
+				sql.WriteString(stored.CollationDisplayName(view, presented.Collation, presentation.Path))
 			}
 		}
 		if presented.ExplicitClass {
 			sql.WriteByte(' ')
-			if presentation.dump {
+			if presentation.Dump {
 				sql.WriteString(catalog.QuoteIdentifier("pg_catalog") + ".")
 			}
 			sql.WriteString(identifier(presented.Class.Name))
@@ -152,10 +152,10 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		if index.SQLIndex.Method == catalog.BtreeMethod {
 			if key.Desc {
 				sql.WriteString(" DESC")
-			} else if presentation.dump {
+			} else if presentation.Dump {
 				sql.WriteString(" ASC")
 			}
-			if presentation.dump || key.NullsFirst != key.Desc {
+			if presentation.Dump || key.NullsFirst != key.Desc {
 				if key.NullsFirst {
 					sql.WriteString(" NULLS FIRST")
 				} else {
@@ -163,7 +163,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 				}
 			}
 		}
-		if presentation.exclusion {
+		if presentation.Exclusion {
 			sql.WriteString(" WITH " + index.SQLIndex.Exclusion[i].Name)
 		}
 	}
@@ -188,22 +188,22 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 	if predicate := index.SQLIndex.Predicate; predicate != nil {
 		var text string
 		var err error
-		if presentation.dump {
+		if presentation.Dump {
 			text, err = (stored.ScalarRenderer{Owner: parent}).SQL(ctx, view, predicate.Definition)
 		} else {
-			text, err = (stored.Deparser{View: view, Relation: parent, Pretty: presentation.pretty, Path: presentation.path, Output: presentation.output}).SQL(ctx, predicate.Definition, stored.DeparseParent{})
+			text, err = (stored.Deparser{View: view, Relation: parent, Pretty: presentation.Pretty, Path: presentation.Path, Output: presentation.Output}).SQL(ctx, predicate.Definition, stored.DeparseParent{})
 		}
 		if err != nil {
 			return "", err
 		}
-		if presentation.exclusion {
+		if presentation.Exclusion {
 			sql.WriteString(" WHERE (" + text + ")")
 		} else {
 			sql.WriteString(" WHERE " + text)
 		}
 	}
-	if presentation.exclusion {
-		c := exclusionDefinition(parent, index)
+	if presentation.Exclusion {
+		c := ExclusionDefinition(parent, index)
 		if c == nil {
 			return "", fmt.Errorf("stuntgres: missing exclusion renderer owner")
 		}
@@ -215,7 +215,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		}
 		return sql.String(), nil
 	}
-	if presentation.dump {
+	if presentation.Dump {
 		sql.WriteString(";\n")
 	}
 	return sql.String(), nil
@@ -224,7 +224,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 // PostgreSQL looks_like_function accepts func_expr_windowless, including its
 // SQL-special COALESCE/NULLIF/MinMax and SQL-value forms, not only FuncExpr.
 // Inquiry and original TYPE buffers share this rule; canonical Dump does not.
-func pgIndexFunctionExpression(node expr.Expr) bool {
+func PGIndexFunctionExpression(node expr.Expr) bool {
 	switch n := node.(type) {
 	case plan.InstalledUUIDOsspExpr:
 		return true
@@ -246,26 +246,26 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 // owner. Return the classified column/expression usage, not its type default:
 // PostgreSQL compares full-key collation with that usage. Dump stays canonical.
 func compactIndexKeySQL(ctx context.Context, view catalog.Read, parent *catalog.Relation, key catalog.IndexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
-	if presentation.reconstruct && key.Derived != nil {
+	if presentation.Reconstruct && key.Derived != nil {
 		node := key.Derived.Definition
-		text, err := (stored.Deparser{View: view, Relation: parent, Path: presentation.path, Output: presentation.output}).SQL(ctx, node, stored.DeparseParent{})
-		return text, !pgIndexFunctionExpression(node), node.ResultUsage(), err
+		text, err := (stored.Deparser{View: view, Relation: parent, Path: presentation.Path, Output: presentation.Output}).SQL(ctx, node, stored.DeparseParent{})
+		return text, !PGIndexFunctionExpression(node), node.ResultUsage(), err
 	}
-	attribute, node, err := indexCatalogKey(parent, key)
+	attribute, node, err := CatalogKey(parent, key)
 	if err != nil {
 		return "", false, sqltype.Usage{}, err
 	}
 	if node == nil {
-		usage, err := indexKeyBaseUsage(parent, catalog.IndexKey{Attribute: attribute})
+		usage, err := KeyBaseUsage(parent, catalog.IndexKey{Attribute: attribute})
 		if err != nil {
 			return "", false, sqltype.Usage{}, err
 		}
-		text, err := (stored.Deparser{Output: presentation.output}).Attribute(parent, attribute)
+		text, err := (stored.Deparser{Output: presentation.Output}).Attribute(parent, attribute)
 		return text, false, usage, err
 	}
-	text, err := (stored.Deparser{View: view, Relation: parent, Pretty: presentation.pretty, Path: presentation.path, Output: presentation.output}).SQL(ctx, node, stored.DeparseParent{})
+	text, err := (stored.Deparser{View: view, Relation: parent, Pretty: presentation.Pretty, Path: presentation.Path, Output: presentation.Output}).SQL(ctx, node, stored.DeparseParent{})
 	if err != nil {
 		return "", false, sqltype.Usage{}, err
 	}
-	return text, !pgIndexFunctionExpression(node), node.ResultUsage(), nil
+	return text, !PGIndexFunctionExpression(node), node.ResultUsage(), nil
 }

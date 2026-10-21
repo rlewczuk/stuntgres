@@ -51,7 +51,7 @@ func TestJSONBExistsBinding(t *testing.T) {
 			if err != nil || next.Plan != node.Plan || next.Syntax != node.Syntax || next.Property != node.Property {
 				t.Fatal(next, err)
 			}
-			if pgIndexFunctionExpression(node) {
+			if PGIndexFunctionExpression(node) {
 				t.Fatal("operator classified as function")
 			}
 		})

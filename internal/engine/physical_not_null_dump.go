@@ -77,7 +77,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 		if !ok {
 			return fmt.Errorf("stuntgres: missing physical primary dump index")
 		}
-		if partitionReplaySeparateConstraint(view, index) {
+		if PartitionReplaySeparateConstraint(view, index) {
 			continue
 		}
 		text, err := (pgRenderer{View: view}).UniqueConstraintSQL(t.descriptor, primary)
@@ -153,7 +153,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 		if relation.Inheritance != nil {
 			for _, parent := range relation.Inheritance.Parents {
 				index := deferred[parent]
-				if index == nil || !partitionReplaySeparateConstraint(view, index) {
+				if index == nil || !PartitionReplaySeparateConstraint(view, index) {
 					continue
 				}
 				table := view.MustRelation(parent)

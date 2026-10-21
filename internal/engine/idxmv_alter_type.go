@@ -17,21 +17,21 @@ import (
 // Capture accompanies one genuine DDL build. It includes evaluated exclusions
 // and NULL hash keys that intentionally have no physical index entry.
 type indexBuildCapture struct {
-	index   *catalog.Relation
-	outputs []storage.IndexOutput
+	Index   *catalog.Relation
+	Outputs []storage.IndexOutput
 }
 
 type alterIndexBuild struct {
-	root    *storage.IndexRoot
-	index   *catalog.Relation
-	store   *storage.Relation
-	outputs []storage.IndexOutput
+	Root    *storage.IndexRoot
+	Index   *catalog.Relation
+	Store   *storage.Relation
+	Outputs []storage.IndexOutput
 }
 
 // TYPE reconstruction and changed-value validation share stable dependency keys.
-func uniqueIndexTypeAffected(definition *catalog.IndexDefinition, transformations []columnTransformation) bool {
+func UniqueIndexTypeAffected(definition *catalog.IndexDefinition, transformations []columnTransformation) bool {
 	for _, change := range transformations {
-		if indexAttributeAffected(definition, change.attribute) {
+		if indexAttributeAffected(definition, change.Attribute) {
 			return true
 		}
 	}
@@ -39,7 +39,7 @@ func uniqueIndexTypeAffected(definition *catalog.IndexDefinition, transformation
 }
 
 func uniqueIndexValuesAffected(definition *catalog.IndexDefinition, transformations []columnTransformation, generations []int32) bool {
-	if uniqueIndexTypeAffected(definition, transformations) {
+	if UniqueIndexTypeAffected(definition, transformations) {
 		return true
 	}
 	for _, attribute := range generations {
@@ -82,7 +82,7 @@ func indexAttributeAffected(definition *catalog.IndexDefinition, attribute int32
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterIndexBuilds(evaluation *exec.Context, view access.View, env indexDisclosureEnv, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
+func ValidateAlterIndexBuilds(evaluation *exec.Context, view access.View, env indexDisclosureEnv, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
 	ctx := evaluation.Context
 	if parent.Partition != nil {
 		return nil, nil
@@ -119,7 +119,7 @@ func validateAlterIndexBuilds(evaluation *exec.Context, view access.View, env in
 		return 0
 	})
 	builds := make(map[string]*alterIndexBuild, len(indexes))
-	validationStore, err := indexBuildVisibleStore(ctx, store, writes, deletes)
+	validationStore, err := BuildVisibleStore(ctx, store, writes, deletes)
 	if err != nil {
 		return nil, err
 	}
@@ -137,20 +137,20 @@ func validateAlterIndexBuilds(evaluation *exec.Context, view access.View, env in
 			named = true
 		}
 		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
-			capture = &indexBuildCapture{index: index, outputs: make([]storage.IndexOutput, len(validationStore.Versions))}
+			capture = &indexBuildCapture{Index: index, Outputs: make([]storage.IndexOutput, len(validationStore.Versions))}
 		}
-		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, validationStore, capture)
+		root, err := BuildIndexRoot(evaluation, parent, index.SQLIndex, validationStore, capture)
 		if err != nil {
 			return nil, err
 		}
 		if index.SQLIndex.Valid || index.SQLIndex.Constraint != nil {
-			if err := validateUniqueRoot(ctx, parent, index, root, schema, output, &view, env, true); err != nil {
+			if err := ValidateUniqueRoot(ctx, parent, index, root, schema, output, &view, env, true); err != nil {
 				return nil, err
 			}
 		}
-		build := &alterIndexBuild{index: index, root: root, store: validationStore}
+		build := &alterIndexBuild{Index: index, Root: root, Store: validationStore}
 		if capture != nil {
-			build.outputs = capture.outputs
+			build.Outputs = capture.Outputs
 		}
 		builds[index.Name()] = build
 	}
@@ -159,15 +159,15 @@ func validateAlterIndexBuilds(evaluation *exec.Context, view access.View, env in
 
 // A genuine DDL build is reusable even with an own overlay: derive the baseline
 // from produced entries, and carry exact private pins rather than invoking SQL.
-func prepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, source catalog.Read, parent *catalog.Relation, baseline *storage.Relation, validated map[string]*alterIndexBuild, metadataOnly bool) error {
+func PrepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, source catalog.Read, parent *catalog.Relation, baseline *storage.Relation, validated map[string]*alterIndexBuild, metadataOnly bool) error {
 	if parent.Partition != nil {
 		return nil
 	}
 	var positions map[indexRowIdentity]int
 	for _, build := range validated {
-		if build.store != baseline {
+		if build.Store != baseline {
 			var err error
-			positions, err = indexBuildPositions(evaluation.Context, baseline)
+			positions, err = BuildPositions(evaluation.Context, baseline)
 			if err != nil {
 				return err
 			}
@@ -175,51 +175,51 @@ func prepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, 
 		}
 	}
 	for _, build := range validated {
-		descriptor, changed := changes.Descriptors[build.index.Address()]
+		descriptor, changed := changes.Descriptors[build.Index.Address()]
 		if !changed {
-			descriptor = evaluation.Catalog.Get(build.index.Address())
+			descriptor = evaluation.Catalog.Get(build.Index.Address())
 		}
 		index, ok := descriptor.(*catalog.Relation)
-		if !ok || !sameIndexKeySemantics(build.index, index) {
+		if !ok || !SameIndexKeySemantics(build.Index, index) {
 			return ids.ErrCatalogReplaced
 		}
-		root, err := build.baselineRoot(evaluation.Context, index, baseline, positions)
+		root, err := build.BaselineRoot(evaluation.Context, index, baseline, positions)
 		if err != nil {
 			return err
 		}
-		retainIndexBuild(changes, index, baseline, root)
+		RetainIndexBuild(changes, index, baseline, root)
 	}
 	for address, descriptor := range changes.Descriptors {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.Valid {
 			continue
 		}
-		if build := validated[index.Name()]; build != nil && build.index.Address() == address && sameIndexKeySemantics(build.index, index) {
+		if build := validated[index.Name()]; build != nil && build.Index.Address() == address && SameIndexKeySemantics(build.Index, index) {
 			continue
 		}
-		if candidate, produced := journalIndexesOrZero(changes).candidates[address]; produced && candidate.matchesIndex(index, baseline) {
+		if candidate, produced := JournalIndexesOrZero(changes).Candidates[address]; produced && candidate.MatchesIndex(index, baseline) {
 			continue
 		}
 		if original := changes.Originals[address]; original == descriptor {
 			continue
 		}
 		if metadataOnly {
-			if previous, ok := source.Relation(address); ok && sameIndexKeySemantics(previous, index) {
+			if previous, ok := source.Relation(address); ok && SameIndexKeySemantics(previous, index) {
 				continue
 			}
 		}
-		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, baseline, nil)
+		root, err := BuildIndexRoot(evaluation, parent, index.SQLIndex, baseline, nil)
 		if err != nil {
 			return err
 		}
-		retainIndexBuild(changes, index, baseline, root)
+		RetainIndexBuild(changes, index, baseline, root)
 	}
 	return evaluation.Context.Err()
 }
 
 type columnTransformation struct {
-	attribute    int32
-	expression   expr.Expr
-	dependencies []catalog.ExpressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
-	rewrite      bool
+	Attribute    int32
+	Expression   expr.Expr
+	Dependencies []catalog.ExpressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
+	Rewrite      bool
 }

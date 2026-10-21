@@ -9,10 +9,10 @@ import (
 // The final installer consumes completed private data. It owns only the final
 // cancellation observation, authority check and indivisible publication.
 type remintedIndexStorage struct {
-	catalog              *catalog.State
-	baseCatalog          *catalog.State
-	roots                map[ids.ObjectAddress]*storage.IndexRoot
-	nextRow, nextVersion uint64
-	baseRow, baseVersion uint64
-	frontier             ids.CommitSeq
+	Catalog              *catalog.State
+	BaseCatalog          *catalog.State
+	Roots                map[ids.ObjectAddress]*storage.IndexRoot
+	NextRow, NextVersion uint64
+	BaseRow, BaseVersion uint64
+	Frontier             ids.CommitSeq
 }

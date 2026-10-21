@@ -15,12 +15,12 @@ import (
 // These bits describe executable preparation, not a retained rights decision.
 type indexExecutionPreparation struct {
 	predicate                                          expr.Expr
-	ordinary                                           []expr.Expr // Only ordinary validation without an existing ordering/hash programme.
+	Ordinary                                           []expr.Expr // Only ordinary validation without an existing ordering/hash programme.
 	admission                                          exec.RoutineProgram
 	constantsPrepared, predicatePrepared, keysPrepared bool
 }
 
-func indexRecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRef, parent *catalog.Relation) exec.Context {
+func RecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRef, parent *catalog.Relation) exec.Context {
 	local := *evaluation
 	local.RoutineGraft = false
 	local.RoutineRecipe = true
@@ -29,8 +29,8 @@ func indexRecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRe
 	return local
 }
 
-func prepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *exec.RoutineProgram, executable bool) (expr.Expr, error) {
-	local := indexRecipeEvaluation(evaluation, dependencies, parent)
+func PrepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *exec.RoutineProgram, executable bool) (expr.Expr, error) {
+	local := RecipeEvaluation(evaluation, dependencies, parent)
 	local.RoutineProgram = admission
 	prepared, _, err := exec.PreflightCoercionsWithPolicy(&local, expression, true)
 	evaluation.PreparedDomainChecks = local.PreparedDomainChecks
@@ -59,19 +59,19 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *exec.Context, p
 			// Retain the established body-free cooked programme fast path.
 			source = key.Derived.Execution
 		}
-		prepared, err := prepareIndexRecipe(evaluation, source, key.Derived.Dependencies, parent, &p.admission, false)
+		prepared, err := PrepareIndexRecipe(evaluation, source, key.Derived.Dependencies, parent, &p.admission, false)
 		if err != nil {
 			return err
 		}
 		if hash != nil {
 			hash.Expression = prepared
 		} else if ordering != nil {
-			ordering.derived[i] = prepared
+			ordering.Derived[i] = prepared
 		} else {
-			if p.ordinary == nil {
-				p.ordinary = make([]expr.Expr, len(definition.Keys))
+			if p.Ordinary == nil {
+				p.Ordinary = make([]expr.Expr, len(definition.Keys))
 			}
-			p.ordinary[i] = prepared
+			p.Ordinary[i] = prepared
 		}
 	}
 	p.constantsPrepared = true
@@ -83,12 +83,12 @@ func (p *indexExecutionPreparation) keyProgram(i int, ordering *indexOrdering, h
 		return hash.Expression
 	}
 	if ordering != nil {
-		return ordering.derived[i]
+		return ordering.Derived[i]
 	}
-	return p.ordinary[i]
+	return p.Ordinary[i]
 }
 
-func (p *indexExecutionPreparation) prepareKeys(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *storage.HashBinding) error {
+func (p *indexExecutionPreparation) PrepareKeys(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *storage.HashBinding) error {
 	if p.keysPrepared {
 		return nil
 	}
@@ -99,7 +99,7 @@ func (p *indexExecutionPreparation) prepareKeys(evaluation *exec.Context, parent
 		if key.Derived == nil {
 			continue
 		}
-		local := indexRecipeEvaluation(evaluation, key.Derived.Dependencies, parent)
+		local := RecipeEvaluation(evaluation, key.Derived.Dependencies, parent)
 		local.RoutineProgram = &p.admission
 		if err := exec.AdmitExpression(&local, p.keyProgram(i, ordering, hash), local.Catalog); err != nil {
 			return err
@@ -109,14 +109,14 @@ func (p *indexExecutionPreparation) prepareKeys(evaluation *exec.Context, parent
 	return nil
 }
 
-func (p *indexExecutionPreparation) prepareOrdinaryKeys(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition) error {
-	return p.prepareKeys(evaluation, parent, definition, nil, nil)
+func (p *indexExecutionPreparation) PrepareOrdinaryKeys(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition) error {
+	return p.PrepareKeys(evaluation, parent, definition, nil, nil)
 }
 
 // Shared build/maintenance/private-admission contract:
 // absent includes; only TRUE includes; errors and cancellation veto publication.
 // The caller owns the evaluation frame and row, with no per-row allocation.
-func (p *indexExecutionPreparation) predicateMatches(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, row []sqltype.Value, ordering *indexOrdering, hash *storage.HashBinding) (bool, error) {
+func (p *indexExecutionPreparation) PredicateMatches(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, row []sqltype.Value, ordering *indexOrdering, hash *storage.HashBinding) (bool, error) {
 	if err := exec.EvaluationContext(evaluation); err != nil {
 		return false, err
 	}
@@ -131,7 +131,7 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *exec.Context, p
 		if !definition.RequiresInsertionOutput() {
 			source = definition.Predicate.Execution
 		}
-		prepared, err := prepareIndexRecipe(evaluation, source, definition.Predicate.Dependencies, parent, &p.admission, true)
+		prepared, err := PrepareIndexRecipe(evaluation, source, definition.Predicate.Dependencies, parent, &p.admission, true)
 		if err != nil {
 			return false, err
 		}
@@ -146,7 +146,7 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *exec.Context, p
 	return truth == plan.True, err
 }
 
-func newLogicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntry) *storage.IndexRoot {
+func NewLogicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntry) *storage.IndexRoot {
 	root := &storage.IndexRoot{Entries: entries}
 	if d.Predicate != nil {
 		root.Membership = make(map[ids.RowID]ids.VersionID, len(entries))

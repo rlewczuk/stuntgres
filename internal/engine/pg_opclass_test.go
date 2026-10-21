@@ -189,12 +189,12 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		root, err := buildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, index.SQLIndex, &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}, nil)
+		root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, index.SQLIndex, &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}, nil)
 		if err != nil || root == nil || (root.Hash != nil) != (tc.method == catalog.HashMethod) {
 			t.Fatal("real root", tc, root, err)
 		}
 		view := e.CatalogRead()
-		m, _, err := projectIndexMetadata(context.Background(), view, e.catalog.Domain.Ref(view.Epoch(), index.Address()))
+		m, _, err := ProjectIndexMetadata(context.Background(), view, e.catalog.Domain.Ref(view.Epoch(), index.Address()))
 		if err != nil || !reflect.DeepEqual(m.IndClass, []ids.OID{tc.oid}) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}

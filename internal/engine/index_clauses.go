@@ -16,7 +16,7 @@ import (
 func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
 	path, err := e.lookupNamespaces(auth, raw, analyze.OperatorLookup)
 	if err != nil {
-		return sqltype.IndexClass{}, indexSemanticError(err)
+		return sqltype.IndexClass{}, SemanticError(err)
 	}
 	for i := range path.Count() {
 		if path.At(i) == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
@@ -33,7 +33,7 @@ func (e *Engine) bindIndexKey(op *session.Operation, auth AuthorizationView, u s
 	if raw.Collation != nil {
 		id, err := e.lookupCollation(*raw.Collation, op)
 		if err != nil {
-			return key, indexSemanticError(err)
+			return key, SemanticError(err)
 		}
 		if u.Type.Usage().Collation.ID == 0 {
 			return key, sqlError("42804", "collations are not supported by type "+u.Type.DiagnosticName())
@@ -59,7 +59,7 @@ func (e *Engine) bindIndexKey(op *session.Operation, auth AuthorizationView, u s
 		exists = true
 	}
 	if !exists {
-		return key, indexDefaultClassError(u.Type.DiagnosticName(), method)
+		return key, DefaultClassError(u.Type.DiagnosticName(), method)
 	}
 	key.Class = c
 	if method == catalog.GistMethod {
@@ -69,13 +69,13 @@ func (e *Engine) bindIndexKey(op *session.Operation, auth AuthorizationView, u s
 		return key, nil
 	}
 	if method == catalog.HashMethod {
-		if err := validateHashKeyDirection(raw); err != nil {
+		if err := ValidateHashKeyDirection(raw); err != nil {
 			return key, err
 		}
-		_, err := sqltype.BindIndexHash(indexKeyCollation(u, key), c)
+		_, err := sqltype.BindIndexHash(KeyCollation(u, key), c)
 		return key, err
 	}
-	_, err := sqltype.BindIndexOrdering(indexKeyCollation(u, key), c)
+	_, err := sqltype.BindIndexOrdering(KeyCollation(u, key), c)
 	return key, err
 }
 
@@ -88,7 +88,7 @@ func (e *Engine) validateSystemIndexKey(op *session.Operation, auth Authorizatio
 		_, err := e.lookupCollation(*raw.Collation, op)
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); !ok || d.Code != "0A000" {
-				return indexSemanticError(err)
+				return SemanticError(err)
 			}
 		}
 		return sqlError("42804", "collations are not supported by type "+name)
@@ -102,7 +102,7 @@ func (e *Engine) validateSystemIndexKey(op *session.Operation, auth Authorizatio
 			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), name))
 		}
 	} else if _, exists := method.DefaultClassID(id); !exists {
-		return indexDefaultClassError(name, method)
+		return DefaultClassError(name, method)
 	}
 	return nil
 }
@@ -152,19 +152,19 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 				key.Derived = derived
 			}
 			d.Keys[i] = key
-			columns[i].Usage = indexKeyCollation(derived.Execution.ResultUsage(), key)
+			columns[i].Usage = KeyCollation(derived.Execution.ResultUsage(), key)
 		} else {
 			if catalog.IsSystemColumn(raw.Column.Text) {
 				system = true
 				if included {
-					if err := validateIndexInclude(raw); err != nil {
+					if err := ValidateIndexInclude(raw); err != nil {
 						return fail(err)
 					}
 				} else if err := e.validateSystemIndexKey(op, auth, raw, d.Method); err != nil {
 					return fail(err)
 				}
 				if !included && d.Method == catalog.HashMethod {
-					if err := validateHashKeyDirection(raw); err != nil {
+					if err := ValidateHashKeyDirection(raw); err != nil {
 						return fail(err)
 					}
 				}
@@ -179,7 +179,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 			}
 			columns[i] = parent.Columns[slot]
 			if included {
-				if err := validateIndexInclude(raw); err != nil {
+				if err := ValidateIndexInclude(raw); err != nil {
 					return fail(err)
 				}
 				d.Include[i-len(s.Keys)] = parent.Attributes[slot]
@@ -190,7 +190,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 				}
 				key.Attribute = parent.Attributes[slot]
 				d.Keys[i] = key
-				columns[i].Usage = indexKeyCollation(columns[i].Usage, key)
+				columns[i].Usage = KeyCollation(columns[i].Usage, key)
 			}
 		}
 		baseLabel := label
@@ -198,7 +198,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 			if _, exists := lookup[label]; !exists {
 				break
 			}
-			label = indexColumnLabel(baseLabel, suffix)
+			label = ColumnLabel(baseLabel, suffix)
 		}
 		columns[i].Name = label
 		lookup[label] = i

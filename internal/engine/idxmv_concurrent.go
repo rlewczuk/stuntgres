@@ -8,25 +8,25 @@ import (
 // A supplied phase root is a detached candidate fenced against its exact source.
 // Catalog publication alone owns installation, revision and root-map authority.
 type indexRootCandidate struct {
-	root       *storage.IndexRoot
-	index      *catalog.Relation
-	storage    *storage.Relation
-	generation uint64
-	ends       *storage.DeletionRoot
-	length     int
+	Root       *storage.IndexRoot
+	Index      *catalog.Relation
+	Storage    *storage.Relation
+	Generation uint64
+	Ends       *storage.DeletionRoot
+	Length     int
 }
 
-func (c indexRootCandidate) matches(store *storage.Relation) bool {
-	return store == c.storage && store != nil && store.Generation == c.generation && store.Ends == c.ends && len(store.Versions) == c.length
+func (c indexRootCandidate) Matches(store *storage.Relation) bool {
+	return store == c.Storage && store != nil && store.Generation == c.Generation && store.Ends == c.Ends && len(store.Versions) == c.Length
 }
 
-func (c indexRootCandidate) matchesIndex(index *catalog.Relation, store *storage.Relation) bool {
-	return store != nil && c.index != nil && sameIndexKeySemantics(c.index, index) && c.matches(store.IndexIdentity())
+func (c indexRootCandidate) MatchesIndex(index *catalog.Relation, store *storage.Relation) bool {
+	return store != nil && c.Index != nil && SameIndexKeySemantics(c.Index, index) && c.Matches(store.IndexIdentity())
 }
 
-func simpleConcurrentIndex(parent *catalog.Relation, definition *catalog.IndexDefinition) (bool, error) {
+func SimpleConcurrentIndex(parent *catalog.Relation, definition *catalog.IndexDefinition) (bool, error) {
 	for _, key := range definition.Keys {
-		_, node, err := indexCatalogKey(parent, key)
+		_, node, err := CatalogKey(parent, key)
 		if err != nil {
 			return false, err
 		}

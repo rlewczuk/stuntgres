@@ -95,7 +95,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				if err != nil || before != after {
 					t.Fatal("index scalar payload changed", before, after, err)
 				}
-				usage, err := indexKeyUsage(currentParent, currentIndex.SQLIndex.Keys[position])
+				usage, err := KeyUsage(currentParent, currentIndex.SQLIndex.Keys[position])
 				if err != nil || current.Type() != usage.Type {
 					t.Fatal("index key retained stale logical conversion authority", err)
 				}
@@ -121,13 +121,13 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				entries := make(map[indexRowIdentity]storage.HashEntry)
 				for _, bucket := range newRoot.Hash.Buckets {
 					for _, entry := range bucket {
-						entries[indexRowIdentity{row: entry.Row, version: entry.Version}] = entry
+						entries[indexRowIdentity{Row: entry.Row, Version: entry.Version}] = entry
 					}
 				}
 				count := 0
 				for _, bucket := range root.Hash.Buckets {
 					for _, entry := range bucket {
-						next, ok := entries[indexRowIdentity{row: entry.Row, version: entry.Version}]
+						next, ok := entries[indexRowIdentity{Row: entry.Row, Version: entry.Version}]
 						if !ok || next.Position != entry.Position {
 							t.Fatal("hash row membership changed")
 						}

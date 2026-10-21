@@ -85,13 +85,13 @@ func TestDomainCheckIndexSnapshotAliasRecursive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			snapshot := &indexSnapshot{mapping: map[ids.ObjectAddress]ids.ObjectAddress{
+			snapshot := &indexSnapshot{Mapping: map[ids.ObjectAddress]ids.ObjectAddress{
 				{ClassID: ids.ProcedureClassID, ObjectID: 41000}:    {ClassID: ids.ProcedureClassID, ObjectID: 42000},
 				{ClassID: ids.TSDictionaryClassID, ObjectID: 41000}: {ClassID: ids.TSDictionaryClassID, ObjectID: 43000},
 				{ClassID: ids.RelationClassID, ObjectID: 41000}:     {ClassID: ids.RelationClassID, ObjectID: 44000},
 				{ClassID: ids.TypeClassID, ObjectID: 1397}:          {ClassID: ids.TypeClassID, ObjectID: 45005},
 			}}
-			mapped, err := snapshot.datum(original, toComposite, nil, nil)
+			mapped, err := snapshot.Datum(original, toComposite, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -126,7 +126,7 @@ func TestDomainCheckIndexSnapshotAliasRecursive(t *testing.T) {
 			if err != nil || originalDictionary != 41000 || original.Type() != fromComposite || original.CompositeField(0).Type() != fromArrayDomain || array.Type() != fromArray {
 				t.Fatal("transport mutated source container or dictionary", originalDictionary, err)
 			}
-			null, err := snapshot.datum(sqltype.Null(fromComposite), toComposite, nil, nil)
+			null, err := snapshot.Datum(sqltype.Null(fromComposite), toComposite, nil, nil)
 			if err != nil || !null.IsNull() || null.Type() != toComposite {
 				t.Fatal("transport lost outer NULL destination identity", err)
 			}
@@ -173,7 +173,7 @@ func TestDomainCheckIndexSnapshotAliasKeyOutput(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			text, err := uniqueKeyOutput(context.Background(), wrapped, class, catalog, sqltype.OutputEnvironment{})
+			text, err := UniqueKeyOutput(context.Background(), wrapped, class, catalog, sqltype.OutputEnvironment{})
 			if err != nil || text != test.want {
 				t.Fatal("physical OID key output", text, err)
 			}

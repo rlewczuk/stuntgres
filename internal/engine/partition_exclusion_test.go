@@ -17,11 +17,11 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 	d := *f.parent.SQLIndex
 	d.Unique = false
 	c := catalog.ExclusionConstraint{OID: 30000, Name: f.parent.Name(), Index: f.parent.Address(), IsLocal: true}
-	d.Constraint = exclusionBacking(&c)
+	d.Constraint = ExclusionBacking(&c)
 	d.Keys = slices.Clone(d.Keys)
 	d.Exclusion = make([]sqltype.ExclusionOperator, len(d.Keys))
 	for i, key := range d.Keys {
-		usage, err := indexKeyUsage(f.root, key)
+		usage, err := KeyUsage(f.root, key)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -35,10 +35,10 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := partitionUniqueCoverage(f.root, &d); err != nil {
+	if err := PartitionUniqueCoverage(f.root, &d); err != nil {
 		t.Fatal(err)
 	}
-	mapped, err := mapPartitionIndex(context.Background(), f.view, f.root, f.leaf, &d)
+	mapped, err := MapPartitionIndex(context.Background(), f.view, f.root, f.leaf, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 		t.Fatal("child must own rebound operators")
 	}
 	for i, key := range mapped.Keys {
-		usage, err := indexKeyUsage(f.leaf, key)
+		usage, err := KeyUsage(f.leaf, key)
 		if err != nil || !mapped.Exclusion[i].MatchesUsage(usage) {
 			t.Fatal("child usage", err)
 		}
@@ -56,11 +56,11 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 	missing.Exclusion = missing.Exclusion[1:]
 	missing.Include = []int32{10}
 	var diagnostic *sqlstate.Error
-	if err := partitionUniqueCoverage(f.root, &missing); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Detail != `EXCLUDE constraint on table "unit_root" lacks column "a" which is part of the partition key.` {
+	if err := PartitionUniqueCoverage(f.root, &missing); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Detail != `EXCLUDE constraint on table "unit_root" lacks column "a" which is part of the partition key.` {
 		t.Fatal("INCLUDE cannot cover exclusion key", err)
 	}
 	// A genuinely independent leaf declaration is not widened to ancestor scope.
-	if err := partitionUniqueCoverage(f.leaf, &missing); err != nil {
+	if err := PartitionUniqueCoverage(f.leaf, &missing); err != nil {
 		t.Fatal("local scope", err)
 	}
 	if len(d.Keys) != len(f.parent.SQLIndex.Keys) || len(d.Exclusion) != len(mapped.Exclusion) {

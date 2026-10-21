@@ -32,7 +32,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf exec.Leaf,
 		return nil
 	}
 	current, ok := e.catalog.state.Relation(parent)
-	if !ok || !sameRelationRowShape(current, leaf.Relation) {
+	if !ok || !SameRelationRowShape(current, leaf.Relation) {
 		return nil
 	}
 	if e.catalog.state.Get(candidate.Address()) != candidate || candidate.SQLIndex.Parent != parent {

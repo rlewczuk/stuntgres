@@ -60,17 +60,17 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 		return err
 	}
 	parent := auth.Catalog.MustRelation(table.Membership.Parent)
-	chosen := partitionPreservedReplayChild(auth.Catalog, parent)
+	chosen := PartitionPreservedReplayChild(auth.Catalog, parent)
 	if chosen == nil || chosen.Address() != table.Address() {
 		return nil
 	}
 	var selected *catalog.Relation
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !partitionIndexPreservedInvalid(auth.Catalog, index) {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !PartitionIndexPreservedInvalid(auth.Catalog, index) {
 			continue
 		}
-		child := partitionDumpIndexBacking(auth.Catalog, index.Address(), table.Address())
+		child := PartitionDumpIndexBacking(auth.Catalog, index.Address(), table.Address())
 		if child == nil || child.SQLIndex.Constraint != nil || child.SQLIndex.Predicate != nil || len(child.SQLIndex.Include) != 0 || child.SQLIndex.NullsNotDistinct != bound.NullsNotDistinct || len(child.SQLIndex.Keys) != len(bound.Attributes) {
 			continue
 		}
@@ -167,7 +167,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
-	stage.indexes().output = scope.output
+	stage.indexes().Output = scope.output
 	for _, descriptor := range origin.descriptors {
 		stage.domainBases = append(stage.domainBases, descriptor)
 	}
@@ -178,7 +178,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 		return Result{}, err
 	}
 	index := e.stageRead(stage).MustRelation(next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
-	if err = partitionUniqueCoverage(next, index.SQLIndex); err != nil {
+	if err = PartitionUniqueCoverage(next, index.SQLIndex); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()

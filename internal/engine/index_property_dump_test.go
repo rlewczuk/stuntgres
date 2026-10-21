@@ -25,7 +25,7 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 		t.Fatal("ordinary index lost exact predecessor", got, err)
 	}
 	constraint := catalog.UniqueConstraint{OID: 100020, Index: indexAddress}
-	index.SQLIndex.Unique, index.SQLIndex.Constraint = true, uniqueBacking(&constraint)
+	index.SQLIndex.Unique, index.SQLIndex.Constraint = true, UniqueBacking(&constraint)
 	parent.Constraints.Unique = []catalog.UniqueConstraint{constraint}
 	got, err = dumpPredecessor(view, indexAddress, consumer)
 	if err != nil || got != parentAddress.ObjectID {

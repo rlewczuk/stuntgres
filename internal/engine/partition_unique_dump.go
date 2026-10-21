@@ -11,14 +11,14 @@ import (
 )
 
 func partitionConstraintCreator(view catalog.Read, index *catalog.Relation) dump.Event {
-	root := partitionReplayVirtualUniqueRoot(view, index)
-	if root != nil && (!partitionReplayOnlyExclusion(root) || root.Address() == index.Address()) {
+	root := PartitionReplayVirtualUniqueRoot(view, index)
+	if root != nil && (!PartitionReplayOnlyExclusion(root) || root.Address() == index.Address()) {
 		return dump.Event{OID: root.Address().ObjectID}
 	}
 	// UNIQUE can adopt a provider declared on the standalone child before
 	// ATTACH. Its name is an attachment prerequisite, not an attachment output.
 	// Only EXCLUDE's mandatory fresh clones use membership creator readiness.
-	if !index.SQLIndex.IsExclusion() || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || partitionReplayUsingIndex(view, index) {
+	if !index.SQLIndex.IsExclusion() || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || PartitionReplayUsingIndex(view, index) {
 		oid, _ := dumpPredecessor(view, index.Address(), ids.ObjectAddress{})
 		return dump.Event{OID: oid}
 	}
@@ -41,8 +41,8 @@ func partitionExclusionDefaultBefore(view catalog.Read, gap, sibling *catalog.Re
 		return false
 	}
 	parent := view.MustRelation(gap.Membership.Parent)
-	for _, index := range partitionIndexDeclarationOrder(view, parent) {
-		if partitionReplayOnlyExclusion(index) && partitionDumpIndexBacking(view, index.Address(), gap.Address()) == nil && partitionDumpIndexBacking(view, index.Address(), sibling.Address()) != nil {
+	for _, index := range PartitionIndexDeclarationOrder(view, parent) {
+		if PartitionReplayOnlyExclusion(index) && PartitionDumpIndexBacking(view, index.Address(), gap.Address()) == nil && PartitionDumpIndexBacking(view, index.Address(), sibling.Address()) != nil {
 			return true
 		}
 	}
@@ -52,12 +52,12 @@ func partitionExclusionDefaultBefore(view catalog.Read, gap, sibling *catalog.Re
 func partitionVirtualUniqueDefinitionSQL(view catalog.Read, index *catalog.Relation) (string, error) {
 	table := view.MustRelation(index.SQLIndex.Parent)
 	if index.SQLIndex.IsExclusion() {
-		text, err := indexDefinitionSQL(context.Background(), view, index, indexPresentation{dump: true, exclusion: true})
+		text, err := DefinitionSQL(context.Background(), view, index, indexPresentation{Dump: true, Exclusion: true})
 		if err != nil {
 			return "", err
 		}
 		only := ""
-		if partitionReplayOnlyExclusion(index) {
+		if PartitionReplayOnlyExclusion(index) {
 			only = "ONLY "
 		}
 		return "ALTER TABLE " + only + catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(index.Name()) + " " + text + ";\n", nil
@@ -79,7 +79,7 @@ func partitionVirtualUniqueDefinitionSQL(view catalog.Read, index *catalog.Relat
 // exactly like existing inline partition constraint replay. Final names remain
 // owned by the scheduler's existing terminal rename barriers.
 func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, index *catalog.Relation) string {
-	if partitionReplayOnlyExclusion(index) {
+	if PartitionReplayOnlyExclusion(index) {
 		return ""
 	}
 	type rename struct {
@@ -94,7 +94,7 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, inde
 			return
 		}
 		for _, address := range table.Partition.Children {
-			childIndex := partitionDumpIndexBacking(view, parentIndex.Address(), address)
+			childIndex := PartitionDumpIndexBacking(view, parentIndex.Address(), address)
 			child := view.MustRelation(address)
 			used := r.occupied[child.Namespace()]
 			if used == nil {
@@ -148,7 +148,7 @@ func partitionVirtualUniqueMembershipReady(view catalog.Read, graph dump.Graph, 
 func partitionReplayTopologyReady(view catalog.Read, table *catalog.Relation) bool {
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
-		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == table.Address() && (partitionPreservedReplayBacking(view, index) || partitionReplayVirtualUniqueRoot(view, index) != nil) {
+		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == table.Address() && (partitionPreservedReplayBacking(view, index) || PartitionReplayVirtualUniqueRoot(view, index) != nil) {
 			return true
 		}
 	}

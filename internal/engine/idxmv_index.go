@@ -18,13 +18,13 @@ import (
 )
 
 type indexOrdering struct {
-	slots       []int
-	comparisons []sqltype.IndexComparison
-	keys        []catalog.IndexKey
-	derived     []expr.Expr
+	Slots       []int
+	Comparisons []sqltype.IndexComparison
+	Keys        []catalog.IndexKey
+	Derived     []expr.Expr
 }
 
-func indexColumnLabel(name string, suffix int) string {
+func ColumnLabel(name string, suffix int) string {
 	tail := strconv.Itoa(suffix)
 	length := min(len(name), 63-len(tail))
 	for length > 0 && length < len(name) && !utf8.RuneStart(name[length]) {
@@ -33,15 +33,15 @@ func indexColumnLabel(name string, suffix int) string {
 	return name[:length] + tail
 }
 
-func bindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefinition) (indexOrdering, error) {
+func BindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefinition) (indexOrdering, error) {
 	if definition.Method != catalog.BtreeMethod {
 		return indexOrdering{}, fmt.Errorf("stuntgres: non-btree ordering definition")
 	}
-	o := indexOrdering{slots: make([]int, len(definition.Keys)), comparisons: make([]sqltype.IndexComparison, len(definition.Keys)), keys: definition.Keys}
+	o := indexOrdering{Slots: make([]int, len(definition.Keys)), Comparisons: make([]sqltype.IndexComparison, len(definition.Keys)), Keys: definition.Keys}
 	for i, key := range definition.Keys {
 		if key.Derived != nil {
 			if definition.Constraint != nil && definition.Constraint.Kind == catalog.UniqueBackingKind {
-				attribute, expression, err := indexCatalogKey(parent, key)
+				attribute, expression, err := CatalogKey(parent, key)
 				if err != nil {
 					return o, err
 				}
@@ -52,11 +52,11 @@ func bindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefini
 			if key.Derived.Definition == nil || key.Derived.Execution == nil {
 				return o, fmt.Errorf("stuntgres: missing derived index expression")
 			}
-			if o.derived == nil {
-				o.derived = make([]expr.Expr, len(definition.Keys))
+			if o.Derived == nil {
+				o.Derived = make([]expr.Expr, len(definition.Keys))
 			}
-			o.slots[i], o.derived[i] = -1, key.Derived.Execution
-			usage, err := indexKeyUsage(parent, key)
+			o.Slots[i], o.Derived[i] = -1, key.Derived.Execution
+			usage, err := KeyUsage(parent, key)
 			if err != nil {
 				return o, err
 			}
@@ -65,10 +65,10 @@ func bindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefini
 				var exists bool
 				class, exists = sqltype.DefaultIndexClass(usage.Type)
 				if !exists {
-					return o, indexDefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
+					return o, DefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
 			}
-			o.comparisons[i], err = sqltype.BindIndexOrdering(usage, class)
+			o.Comparisons[i], err = sqltype.BindIndexOrdering(usage, class)
 			if err != nil {
 				return o, err
 			}
@@ -87,25 +87,25 @@ func bindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefini
 		if key.Collation != 0 && parent.Columns[slot].Usage.Type.Usage().Collation.ID == 0 {
 			return o, sqlError("42804", "collations are not supported by type "+parent.Columns[slot].Usage.Type.DiagnosticName())
 		}
-		usage := indexKeyCollation(parent.Columns[slot].Usage, key)
+		usage := KeyCollation(parent.Columns[slot].Usage, key)
 		class := key.Class
 		if class.Name == "" {
 			var exists bool
 			class, exists = sqltype.DefaultIndexClass(usage.Type)
 			if !exists {
-				return o, indexDefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
+				return o, DefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
 			}
 		}
 		comparison, err := sqltype.BindIndexOrdering(usage, class)
 		if err != nil {
 			return o, err
 		}
-		o.slots[i], o.comparisons[i] = slot, comparison
+		o.Slots[i], o.Comparisons[i] = slot, comparison
 	}
 	return o, nil
 }
 
-func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
+func ValidateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 	d := index.SQLIndex
 	if d == nil || len(d.Keys) == 0 || len(d.Keys)+len(d.Include) > 32 || len(index.Columns) != len(d.Keys)+len(d.Include) || d.Parent.SubID != 0 || index.Sequence != nil || index.View != nil {
 		return fmt.Errorf("stuntgres: invalid index definition")
@@ -118,11 +118,11 @@ func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
 	if d.Constraint != nil {
-		if !backingConstraintPresent(parent, index) || d.Unique != (d.Constraint.Kind == catalog.UniqueBackingKind) {
+		if !BackingConstraintPresent(parent, index) || d.Unique != (d.Constraint.Kind == catalog.UniqueBackingKind) {
 			return fmt.Errorf("stuntgres: orphan constraint backing index")
 		}
 	}
-	if err := validatePartitionIndex(view, index, parent); err != nil {
+	if err := ValidatePartitionIndex(view, index, parent); err != nil {
 		return err
 	}
 	err := bindIndexProvider(parent, d)
@@ -147,7 +147,7 @@ func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 				return err
 			}
 		}
-		usage, err := indexKeyUsage(parent, key)
+		usage, err := KeyUsage(parent, key)
 		if err != nil {
 			return err
 		}
@@ -164,11 +164,11 @@ func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 	return nil
 }
 
-func (o indexOrdering) compareKeys(ctx context.Context, a, b storage.IndexEntry) (int, error) {
+func (o indexOrdering) CompareKeys(ctx context.Context, a, b storage.IndexEntry) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	for i, key := range o.keys {
+	for i, key := range o.Keys {
 		av, bv := a.Keys[i], b.Keys[i]
 		if av.IsNull() || bv.IsNull() {
 			if av.IsNull() == bv.IsNull() {
@@ -179,7 +179,7 @@ func (o indexOrdering) compareKeys(ctx context.Context, a, b storage.IndexEntry)
 			}
 			return 1, nil
 		}
-		c, err := o.comparisons[i].Compare(ctx, av, bv, sqltype.InputEnvironment{})
+		c, err := o.Comparisons[i].Compare(ctx, av, bv, sqltype.InputEnvironment{})
 		if err != nil {
 			return 0, err
 		}
@@ -194,7 +194,7 @@ func (o indexOrdering) compareKeys(ctx context.Context, a, b storage.IndexEntry)
 }
 
 func (o indexOrdering) compare(ctx context.Context, a, b storage.IndexEntry) (int, error) {
-	c, err := o.compareKeys(ctx, a, b)
+	c, err := o.CompareKeys(ctx, a, b)
 	if err != nil || c != 0 {
 		return c, err
 	}
@@ -213,11 +213,11 @@ func (o indexOrdering) compare(ctx context.Context, a, b storage.IndexEntry) (in
 	return 0, nil
 }
 
-func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, evaluation *exec.Context) error {
-	for i, slot := range o.slots {
+func (o indexOrdering) FillKeys(values []sqltype.Value, keys []sqltype.Value, evaluation *exec.Context) error {
+	for i, slot := range o.Slots {
 		var expression expr.Expr
 		if slot < 0 {
-			expression = o.derived[i]
+			expression = o.Derived[i]
 		}
 		value, err := extractIndexKey(slot, expression, values, evaluation)
 		if err != nil {
@@ -228,9 +228,9 @@ func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, ev
 	return nil
 }
 
-func (o indexOrdering) entry(row storage.RowVersion, evaluation *exec.Context) (storage.IndexEntry, error) {
-	keys := make([]sqltype.Value, len(o.slots))
-	if err := o.fillKeys(row.Values, keys, evaluation); err != nil {
+func (o indexOrdering) Entry(row storage.RowVersion, evaluation *exec.Context) (storage.IndexEntry, error) {
+	keys := make([]sqltype.Value, len(o.Slots))
+	if err := o.FillKeys(row.Values, keys, evaluation); err != nil {
 		return storage.IndexEntry{}, err
 	}
 	return storage.IndexEntry{Keys: keys, Row: row.Row, Version: row.Version}, nil
@@ -238,7 +238,7 @@ func (o indexOrdering) entry(row storage.RowVersion, evaluation *exec.Context) (
 
 // Bottom-up merge sort propagates comparison/cancellation failures. No callback
 // is allowed to fail after publication, and published vectors are never sorted.
-func (o indexOrdering) sort(ctx context.Context, entries []storage.IndexEntry) error {
+func (o indexOrdering) Sort(ctx context.Context, entries []storage.IndexEntry) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -278,20 +278,20 @@ func (o indexOrdering) sort(ctx context.Context, entries []storage.IndexEntry) e
 	return nil
 }
 
-func buildIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) (*storage.IndexRoot, error) {
+func BuildIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) (*storage.IndexRoot, error) {
 	if d.Method == catalog.HashMethod {
-		return buildHashIndexRoot(evaluation, parent, d, store, true, capture)
+		return BuildHashIndexRoot(evaluation, parent, d, store, true, capture)
 	}
-	entries, err := buildIndexEntries(evaluation, parent, d, store, capture)
+	entries, err := BuildIndexEntries(evaluation, parent, d, store, capture)
 	if err != nil {
 		return nil, err
 	}
-	return newLogicalIndexRoot(d, entries), nil
+	return NewLogicalIndexRoot(d, entries), nil
 }
 
-func buildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) ([]storage.IndexEntry, error) {
+func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) ([]storage.IndexEntry, error) {
 	ctx := evaluation.Context
-	o, err := bindIndexKeys(parent, d)
+	o, err := BindIndexKeys(parent, d)
 	if err != nil {
 		return nil, err
 	}
@@ -305,68 +305,68 @@ func buildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 			return nil, err
 		}
 		if visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
-			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, &o, nil)
+			matches, err := preparation.PredicateMatches(evaluation, parent, d, row.Values, &o, nil)
 			if err != nil {
 				return nil, err
 			}
 			if capture != nil {
-				capture.outputs[position] = storage.IndexOutput{Index: capture.index, Member: matches}
+				capture.Outputs[position] = storage.IndexOutput{Index: capture.Index, Member: matches}
 			}
 			if !matches {
 				continue
 			}
-			if err := preparation.prepareKeys(evaluation, parent, d, &o, nil); err != nil {
+			if err := preparation.PrepareKeys(evaluation, parent, d, &o, nil); err != nil {
 				return nil, err
 			}
-			entry, err := o.entry(row, evaluation)
+			entry, err := o.Entry(row, evaluation)
 			if err != nil {
 				return nil, err
 			}
 			entry.Position = position
 			if capture != nil {
-				capture.outputs[position].Keys = entry.Keys
+				capture.Outputs[position].Keys = entry.Keys
 			}
 			entries = append(entries, entry)
 		}
 	}
 	if d.Method == catalog.BtreeMethod {
-		if err := o.sort(ctx, entries); err != nil {
+		if err := o.Sort(ctx, entries); err != nil {
 			return nil, err
 		}
 	}
 	return entries, nil
 }
 
-func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old []storage.IndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment) (*storage.IndexRoot, error) {
+func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old []storage.IndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
-	o, err := bindIndexKeys(parent, d)
+	o, err := BindIndexKeys(parent, d)
 	if err != nil {
 		return nil, err
 	}
-	endedCount := len(p.writes)
-	if p.deletion != nil {
-		endedCount += len(p.deletion.Rows)
+	endedCount := len(p.Writes)
+	if p.Deletion != nil {
+		endedCount += len(p.Deletion.Rows)
 	}
 	ended := make(map[ids.RowID]ids.VersionID, endedCount)
-	added := make([]storage.IndexEntry, 0, len(p.writes))
+	added := make([]storage.IndexEntry, 0, len(p.Writes))
 	var preparation indexExecutionPreparation
-	for i, row := range p.writes {
+	for i, row := range p.Writes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if row.Base != 0 {
 			ended[row.Row] = row.Base
 		}
-		if p.deletion != nil {
-			if end, ok := p.deletion.Rows[row.Row]; ok && end.Version == row.Version {
+		if p.Deletion != nil {
+			if end, ok := p.Deletion.Rows[row.Row]; ok && end.Version == row.Version {
 				continue
 			}
 		}
 		output, produced := row.IndexOutputs[index.Address()]
-		produced = produced && indexOutputMatches(output, index)
-		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
+		produced = produced && OutputMatches(output, index)
+		if !reconstruct && !produced && !RowMaintainsIndex(row, index) {
 			continue
 		}
 		var entry storage.IndexEntry
@@ -379,26 +379,26 @@ func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 			if d.HasRuntimeDomainConversion() && evaluation.LiveHost() == nil && row.Born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced index row")
 			}
-			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, &o, nil)
+			matches, err := preparation.PredicateMatches(evaluation, parent, d, row.Values, &o, nil)
 			if err != nil {
 				return nil, err
 			}
 			if !matches {
 				continue
 			}
-			if err := preparation.prepareKeys(evaluation, parent, d, &o, nil); err != nil {
+			if err := preparation.PrepareKeys(evaluation, parent, d, &o, nil); err != nil {
 				return nil, err
 			}
-			entry, err = o.entry(row, evaluation)
+			entry, err = o.Entry(row, evaluation)
 			if err != nil {
 				return nil, err
 			}
 		}
-		entry.Position = publicationSlot(p, i)
+		entry.Position = PublicationSlot(p, i)
 		added = append(added, entry)
 	}
-	if p.deletion != nil {
-		for id, end := range p.deletion.Rows {
+	if p.Deletion != nil {
+		for id, end := range p.Deletion.Rows {
 			if !end.Own {
 				ended[id] = end.Version
 			}
@@ -406,7 +406,7 @@ func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 	}
 	if len(added) == 0 && len(ended) == 0 {
 		if validate {
-			if err := validateUniqueEntries(ctx, parent, index, old, schema, output, view, env, building, o); err != nil {
+			if err := ValidateUniqueEntries(ctx, parent, index, old, schema, output, view, env, building, o); err != nil {
 				return nil, err
 			}
 		}
@@ -426,9 +426,9 @@ func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 			}
 		}
 		entries = append(entries, added...)
-		root := newLogicalIndexRoot(d, entries)
+		root := NewLogicalIndexRoot(d, entries)
 		if validate {
-			if err := validateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building); err != nil {
+			if err := ValidateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building); err != nil {
 				return nil, err
 			}
 		}
@@ -437,7 +437,7 @@ func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 		}
 		return root, ctx.Err()
 	}
-	if err := o.sort(ctx, added); err != nil {
+	if err := o.Sort(ctx, added); err != nil {
 		return nil, err
 	}
 	var entries []storage.IndexEntry
@@ -491,5 +491,5 @@ func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 	if !materialize {
 		return nil, ctx.Err()
 	}
-	return newLogicalIndexRoot(d, entries), ctx.Err()
+	return NewLogicalIndexRoot(d, entries), ctx.Err()
 }

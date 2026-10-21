@@ -24,6 +24,6 @@ func (e *Engine) endLockOwner(ticket *lock.Ticket) {
 
 func (e *Engine) removeExclusionOwner(ticket *lock.Ticket) {
 	e.mu.Lock()
-	e.exclusions.removeLocked(ticket)
+	e.exclusions.RemoveLocked(ticket)
 	e.mu.Unlock()
 }

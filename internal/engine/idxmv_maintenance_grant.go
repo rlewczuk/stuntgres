@@ -13,24 +13,24 @@ import (
 // Resolved identities survive waits. The descriptor observations are refreshed
 // at grant time, then fenced during execution/publication; names are not retried.
 type indexMaintenanceGrant struct {
-	targets     []ids.ObjectRef
-	parents     []ids.ObjectRef
-	indexes     []ids.ObjectRef
-	descriptors map[ids.ObjectAddress]*catalog.Relation
-	indexSets   map[ids.ObjectAddress]int
-	notices     []sqlstate.Error
-	attach      ids.ObjectRef
-	partition   bool
+	Targets     []ids.ObjectRef
+	Parents     []ids.ObjectRef
+	Indexes     []ids.ObjectRef
+	Descriptors map[ids.ObjectAddress]*catalog.Relation
+	IndexSets   map[ids.ObjectAddress]int
+	Notices     []sqlstate.Error
+	Attach      ids.ObjectRef
+	Partition   bool
 }
 
-func (g *indexMaintenanceGrant) check(view access.View, env access.Environment, stmt parser.Statement, strict bool) error {
-	for address, observed := range g.descriptors {
+func (g *indexMaintenanceGrant) Check(view access.View, env access.Environment, stmt parser.Statement, strict bool) error {
+	for address, observed := range g.Descriptors {
 		current, ok := view.Catalog.Relation(address)
 		if !ok || strict && current != observed {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	for _, ref := range g.targets {
+	for _, ref := range g.Targets {
 		if ref.Domain() != view.Owner.Domain || ref.Epoch != view.Catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
@@ -38,12 +38,12 @@ func (g *indexMaintenanceGrant) check(view access.View, env access.Environment, 
 		switch s := stmt.(type) {
 		case *parser.DropIndex:
 			if d.RelationKind != catalog.IndexRelation {
-				return indexWrongKind(d, true)
+				return WrongKind(d, true)
 			}
-			if err := relationDropOwner(view, env, ref, d); err != nil {
+			if err := RelationDropOwner(view, env, ref, d); err != nil {
 				return err
 			}
-			if err := partitionIndexDropDependency(view.Catalog, d); err != nil {
+			if err := PartitionIndexDropDependency(view.Catalog, d); err != nil {
 				return err
 			}
 			if d.SQLIndex.Constraint != nil {
@@ -51,7 +51,7 @@ func (g *indexMaintenanceGrant) check(view access.View, env access.Environment, 
 			}
 		case *parser.AlterIndex:
 			if s.Action != "rename" && d.RelationKind != catalog.IndexRelation {
-				return indexWrongKind(d, false)
+				return WrongKind(d, false)
 			}
 			if err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 				return err
@@ -65,7 +65,7 @@ func (g *indexMaintenanceGrant) check(view access.View, env access.Environment, 
 			parent := d
 			if s.Kind.Text == "index" {
 				if d.RelationKind != catalog.IndexRelation {
-					return indexWrongKind(d, false)
+					return WrongKind(d, false)
 				}
 				parent = view.Catalog.MustRelation(d.SQLIndex.Parent)
 			} else if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
@@ -83,20 +83,20 @@ func (g *indexMaintenanceGrant) check(view access.View, env access.Environment, 
 			}
 		}
 	}
-	for _, ref := range g.indexes {
+	for _, ref := range g.Indexes {
 		d := view.Catalog.MustRelation(ref.Address)
-		if d.SQLIndex == nil || g.descriptors[d.SQLIndex.Parent] == nil {
+		if d.SQLIndex == nil || g.Descriptors[d.SQLIndex.Parent] == nil {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	for parent, count := range g.indexSets {
+	for parent, count := range g.IndexSets {
 		actual := 0
 		for address, descriptor := range view.Catalog.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
 			if !ok || d.SQLIndex == nil || d.SQLIndex.Parent != parent {
 				continue
 			}
-			if g.descriptors[address] == nil {
+			if g.Descriptors[address] == nil {
 				return ids.ErrCatalogReplaced
 			}
 			actual++
@@ -108,7 +108,7 @@ func (g *indexMaintenanceGrant) check(view access.View, env access.Environment, 
 	return nil
 }
 
-func indexWrongKind(d *catalog.Relation, drop bool) error {
+func WrongKind(d *catalog.Relation, drop bool) error {
 	diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is not an index`, d.Name())).(*sqlstate.Error)
 	if drop {
 		switch d.RelationKind {
@@ -123,7 +123,7 @@ func indexWrongKind(d *catalog.Relation, drop bool) error {
 	return diagnostic
 }
 
-func relationDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
+func RelationDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
 	err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
 	if err == nil {
 		return nil
