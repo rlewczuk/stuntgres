@@ -79,7 +79,7 @@ func (c *InsertConflictState) SelectArbiters(ctx *exec.Context, parent *catalog.
 		if def.Predicate != nil {
 			predicate = def.Predicate.Definition
 		}
-		implied, err := ConflictPredicateImpliedBy(ctx, c.Predicate, predicate)
+		implied, err := conflictPredicateImpliedBy(ctx, c.Predicate, predicate)
 		if err != nil {
 			return err
 		}

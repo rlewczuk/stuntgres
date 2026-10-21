@@ -11,7 +11,7 @@ import (
 
 // This consumer deliberately does not change SELECT's exact-conjunction mask.
 // It proves SQL TRUE => TRUE with the owned immutable comparison providers.
-func ConflictPredicateImpliedBy(ctx *exec.Context, a, b expr.Expr) (bool, error) {
+func conflictPredicateImpliedBy(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	if b == nil {
 		return true, nil
 	}

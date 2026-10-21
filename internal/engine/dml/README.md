@@ -19,7 +19,8 @@ it, it never imports the engine, and it never builds a binder. See
   `InsertConflictState` (`NewInsertConflictState`, `SelectArbiters`,
   `Matches`, `MarkAffected`), `BindingForConflict`,
   `ConflictUpdateCardinalityError`, and the partial-index predicate proofs
-  `NormalizeConflictPredicate` and `ConflictPredicateImpliedBy`.
+  `NormalizeConflictPredicate` (the proof `conflictPredicateImpliedBy` is
+  package-internal).
 - **INSERT write overlay** (`insert_write_overlay.go`): `InsertWriteOverlay`
   and `InsertWriteKeyOverlay`, the per-statement key buckets that unique
   probing consults for the command's own rows.
