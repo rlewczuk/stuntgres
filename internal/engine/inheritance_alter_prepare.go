@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -193,22 +192,7 @@ phases:
 			}
 		}
 		if phase == 6 {
-			var raw []*parser.CheckConstraint
-			for _, action := range actions {
-				if action.Action == parser.AddCheck {
-					raw = append(raw, action.Check)
-				}
-			}
-			for _, added := range additions {
-				for _, constraint := range added.Column.Constraints {
-					if constraint.Check != nil {
-						raw = append(raw, constraint.Check)
-					}
-				}
-			}
-			if len(raw) > 1 {
-				slices.SortFunc(raw, func(a, b *parser.CheckConstraint) int { return a.Pos.Offset - b.Pos.Offset })
-			}
+			raw := table.AddedCheckSyntax(actions, additions)
 			op.Definition = reader
 			auth.definition = reader
 			var err error

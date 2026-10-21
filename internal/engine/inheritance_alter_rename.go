@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -14,14 +13,10 @@ import (
 // Metadata-only graph evolution shares the same one-stage atomic publication
 // contract as shape ALTER, without running a physical row rewrite.
 func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
-	candidate, err := table.RenameColumnCandidate(root, column, destination)
+	candidate, err := table.RenameInheritanceColumnPrecheck(auth.Catalog, root, column, destination, only)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
-	}
-	if only && catalog.InheritanceHasChildren(auth.Catalog, root.Address()) {
-		e.mu.Unlock()
-		return Result{}, sqlError("42P16", fmt.Sprintf(`inherited column "%s" must be renamed in child tables too`, column))
 	}
 	targets, auth, err := scope.acquireInheritanceDefinitions(root, !only)
 	if err != nil {
@@ -44,26 +39,10 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *sessio
 		selected[old.Address()] = true
 	}
 	for _, old := range targets {
-		next := candidate
-		if old != root {
-			slot, exists := old.Index[column]
-			if !exists {
-				return Result{}, ids.ErrCatalogReplaced
-			}
-			for _, origin := range old.Inheritance.Columns[old.Attributes[slot]].Origins {
-				if !selected[origin.Parent] {
-					return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited column "%s"`, column))
-				}
-			}
-			next, err = table.RenameColumnCandidate(old, column, destination)
-			if err != nil {
-				return Result{}, err
-			}
+		next, err := table.RenameInheritanceColumn(selected, root, candidate, old, column, destination)
+		if err != nil {
+			return Result{}, err
 		}
-		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
-			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
-		}
-		next.ObjectRevision = old.Revision() + 1
 		if err := stage.Replace(next); err != nil {
 			return Result{}, err
 		}
@@ -83,41 +62,12 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *sessio
 
 func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, root *catalog.Relation, kind byte) (Result, error) {
 	name := raw.Constraint.Text
-	inherited := false
-	noInherit := false
-	if root.Inheritance != nil {
-		if kind == 'c' {
-			inherited = root.Inheritance.Checks[name].Count() != 0
-		} else {
-			for _, c := range root.Constraints.NotNull {
-				if c.Name == name {
-					inherited = root.Inheritance.NotNull[c.Attribute].Count() != 0
-				}
-			}
-		}
-	}
-	if inherited {
+	recurse, err := table.RenameInheritanceConstraintPrecheck(auth.Catalog, root, name, kind, raw.Only)
+	if err != nil {
 		e.mu.Unlock()
-		return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited constraint "%s"`, name))
+		return Result{}, err
 	}
-	if kind == 'c' {
-		for _, c := range root.Constraints.Check {
-			if c.Name == name {
-				noInherit = c.NoInherit
-			}
-		}
-	} else {
-		for _, c := range root.Constraints.NotNull {
-			if c.Name == name {
-				noInherit = c.NoInherit
-			}
-		}
-	}
-	if raw.Only && !noInherit && catalog.InheritanceHasChildren(auth.Catalog, root.Address()) {
-		e.mu.Unlock()
-		return Result{}, sqlError("42P16", fmt.Sprintf(`inherited constraint "%s" must be renamed in child tables too`, name))
-	}
-	targets, auth, err := scope.acquireInheritanceDefinitions(root, !raw.Only && !noInherit)
+	targets, auth, err := scope.acquireInheritanceDefinitions(root, recurse)
 	if err != nil {
 		return Result{}, err
 	}
@@ -131,34 +81,9 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 		selected[old.Address()] = true
 	}
 	for _, old := range targets {
-		if old != root {
-			provenance := old.Inheritance.Checks[name]
-			if kind == 'n' {
-				for _, c := range old.Constraints.NotNull {
-					if c.Name == name {
-						provenance = old.Inheritance.NotNull[c.Attribute]
-					}
-				}
-			}
-			if len(provenance.Retired) != 0 {
-				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited constraint "%s"`, name))
-			}
-			for _, origin := range provenance.Origins {
-				if !selected[origin.Parent] {
-					return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited constraint "%s"`, name))
-				}
-			}
-		}
-		next, err := table.RenameLocalConstraint(old, name, raw.NewName.Text, kind)
+		next, err := table.RenameInheritanceConstraint(selected, root, old, name, raw.NewName.Text, kind)
 		if err != nil {
 			return Result{}, err
-		}
-		if next.Inheritance != nil {
-			next.Inheritance = catalog.CloneInheritance(next.Inheritance)
-			if kind == 'c' {
-				next.Inheritance.Checks[raw.NewName.Text] = next.Inheritance.Checks[name]
-				delete(next.Inheritance.Checks, name)
-			}
 		}
 		if err := stage.Replace(next); err != nil {
 			return Result{}, err

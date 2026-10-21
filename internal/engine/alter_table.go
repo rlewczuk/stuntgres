@@ -54,23 +54,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*catalog.Relation)
-	if s.Only && scope.inheritance.alter == nil && slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.SetNotNull }) {
-		command := *s
-		command.Actions = slices.Clone(s.Actions)
-		for i := range command.Actions {
-			if command.Actions[i].Action == parser.SetNotNull {
-				a := &command.Actions[i]
-				a.NoInherit = len(catalog.InheritanceChildren(auth.Catalog, old.Address())) != 0
-				if slot, ok := old.Index[a.Column.Text]; ok {
-					for _, c := range old.Constraints.NotNull {
-						if c.Attribute == old.Attributes[slot] && c.NoInherit {
-							a.NoInherit = true
-						}
-					}
-				}
-			}
-		}
-		s = &command
+	if s.Only && scope.inheritance.alter == nil {
+		s = table.OnlySetNotNull(auth.Catalog, old, s)
 	}
 	if partitionUniqueReplayAllowed(op, auth, s, old) {
 		return e.executePartitionUniqueReplayLocked(scope, op, auth, s, old)
@@ -403,22 +388,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			}
 		}
 		if err == nil && pass == 6 {
-			var raw []*parser.CheckConstraint
-			for _, action := range s.Actions {
-				if action.Action == parser.AddCheck {
-					raw = append(raw, action.Check)
-				}
-			}
-			for _, added := range additions {
-				for _, constraint := range added.Column.Constraints {
-					if constraint.Check != nil {
-						raw = append(raw, constraint.Check)
-					}
-				}
-			}
-			if len(raw) > 1 {
-				slices.SortFunc(raw, func(a, b *parser.CheckConstraint) int { return a.Pos.Offset - b.Pos.Offset })
-			}
+			raw := table.AddedCheckSyntax(s.Actions, additions)
 			if len(raw) != 0 && stage == nil {
 				stage = e.BeginCatalogStage(auth.Catalog)
 				stage.authSession, stage.authRevision, stage.roleRevision = op.Session, auth.Revision, auth.RoleRecord.Revision
@@ -434,12 +404,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if definition != nil && next != old {
 		next = table.DetachPreparedInheritanceDefinition(next)
 	}
-	var storedReplacements []int32
-	for _, attribute := range replacements {
-		if next.ColumnMeta.Generations[attribute].Kind == catalog.GenerationStored {
-			storedReplacements = append(storedReplacements, attribute)
-		}
-	}
+	storedReplacements := table.StoredReplacements(next, replacements)
 	changedValues := len(transformations) != 0 || len(storedReplacements) != 0
 	next = access.RowSecurityFlags(next, s.Actions)
 	next, err = scope.finishInheritanceAlterCandidate(old, next)
@@ -773,24 +738,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if err := validateAlterTablespaceMove(destination); err != nil {
 		return Result{}, err
 	}
-	var dependencyTargets []ids.ObjectAddress
-	for _, attribute := range old.Attributes {
-		if !next.HasAttribute(attribute) {
-			target := ref.Address
-			target.SubID = attribute
-			dependencyTargets = append(dependencyTargets, target)
-		}
-	}
-	for _, transformation := range transformations {
-		target := ref.Address
-		target.SubID = transformation.Attribute
-		dependencyTargets = append(dependencyTargets, target)
-	}
-	for _, attribute := range replacements {
-		target := ref.Address
-		target.SubID = attribute
-		dependencyTargets = append(dependencyTargets, target)
-	}
+	dependencyTargets := table.DependencyTargets(ref.Address, old, next, transformations, replacements)
 	for a := range stage.Removals() {
 		if _, identity := stage.sequence.IdentityOriginal(a); identity {
 			continue

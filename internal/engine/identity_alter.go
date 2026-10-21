@@ -16,8 +16,7 @@ import (
 func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, error) {
 	switch action.Action {
 	case parser.DropIdentity:
-		next, _, err := e.dropIdentityDefinition(stageDropProvider(scope.op.Context(), stage, scope, nil, nil), old, action)
-		return next, err
+		return table.DropIdentity(stageDropProvider(scope.op.Context(), stage, scope, nil, nil), old, action)
 	case parser.AddIdentity:
 		h := ddlHost{e: e, stage: stage}
 		if scope != nil {
