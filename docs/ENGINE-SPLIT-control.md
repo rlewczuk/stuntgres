@@ -649,7 +649,9 @@ Outstanding aliases: none (30a and 30c added none).
   archive high water) and `Publish`; every entry still runs on the stage.
 - Table 24d.3 (item 89c) changes the types of `restoreRun` fields
   (`restoredPhysicalNotNull`, `restoredPhysicalForeignKeyProvider` become
-  `table` records) without touching `control`, which never names them.
+  `table` records) without touching `control`, which never names them
+  (done: `table.RestoredPhysicalNotNull`,
+  `table.RestoredPhysicalForeignKeyProvider`).
   30c landed first and moved `physicalNotNullDumpDependencies`
   (`table.PhysicalNotNullDumpDependencies`); 89c skips it.
 - The hook bodies stay root `Engine` methods for good, reached through the

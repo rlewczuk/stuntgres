@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `2f96d483d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
+Last verified against `master` at `9156a1120` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89c, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,7 +16,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **Upper features, decisions:** 89b (table 24d.2), 89c (table 24d.3).
+- **Upper features, decisions:** 89b (table 24d.2).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -123,6 +123,8 @@ Item 113 (control 30c) is done and closes step 30; the end-state review
 (item 114) still waits for 89c, 98 and 110. 30c moved
 `physicalNotNullDumpDependencies` into `table`, so table 24d.3 (item 89c)
 skips it.
+Item 89c (table 24d.3) is done; the end-state review (item 114) still
+waits for 98 and 110, and table 24d.2 (item 89b) stays ready.
 
 ## Task tree
 
@@ -555,7 +557,7 @@ skips it.
     `3c0c77d50`, `7f9263745`, docs)
   - [ ] 24d.2 — ALTER and inheritance decisions moved (candidates,
     rebuilds, recursion decisions, removal reader)
-  - [ ] 24d.3 — Restore and dump cores moved
+  - [x] 24d.3 — Restore and dump cores moved (`a6936164a`, `44f1ae9bf`, docs)
 - [ ] **Step 25 — `partition`** ([prompt](ENGINE-SPLIT-partition.md); 25b
   needs 24b)
   - [x] 25a — In place: proof inputs, storage-read fences, renames
@@ -1268,8 +1270,18 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     quickcheck passed; racecheck/finalcheck skipped at user request
 89b. [ ] Table 24d.2: ALTER and inheritance decisions moved —
     [table](ENGINE-SPLIT-table.md) 24d · needs 89a
-89c. [ ] Table 24d.3: Restore and dump cores moved —
-    [table](ENGINE-SPLIT-table.md) 24d · needs 89a
+89c. [x] Table 24d.3: Restore and dump cores moved —
+    [table](ENGINE-SPLIT-table.md) 24d · needs 89a (`a6936164a`, `44f1ae9bf`, then
+    the docs commit) · the Restore hooks keep their root bodies; the
+    captures, high water and remap, `ValidateForeignKeyData`, the shape
+    and decision cores and the stage candidates (`NoInheritNotNullCandidate`,
+    `AttributeRankCandidate`, `PhysicalNotNullCleanup`,
+    `RetiredConstraintCandidate`) in `table`; receipts
+    `table.RestoredPhysicalNotNull`/`RestoredPhysicalForeignKeyProvider`;
+    `table.RestoreResolver` in `Host`; root `publishRestoreRepairLocked`;
+    `physicalNotNullDumpDependencies` skipped (30c moved it); no aliases ·
+    selected unit, `RACE=1` and dual-mode proof, dump smoke and quickcheck
+    passed; racecheck/finalcheck skipped at user request
 90. [x] Partition 25a: in place — [partition](ENGINE-SPLIT-partition.md) 25a ·
     needs — (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit) ·
     `partitionProof` takes the context and input environment;

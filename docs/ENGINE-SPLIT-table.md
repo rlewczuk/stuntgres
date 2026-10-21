@@ -943,7 +943,10 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   quickcheck passed; racecheck/finalcheck skipped at user request; see the
   24d.1 record below
 - [ ] 24d.2 — ALTER and inheritance decisions moved — linear item 89b
-- [ ] 24d.3 — Restore and dump cores moved — linear item 89c
+- [x] 24d.3 — Restore and dump cores moved — linear item 89c (`a6936164a`,
+  `44f1ae9bf`, then the docs commit) · selected unit (also `RACE=1`) and
+  dual-mode proof, Dump→Restore→Dump smoke and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 24d.3 record below
 
 Outstanding aliases: none (24a and 24b added none).
 
@@ -1128,6 +1131,78 @@ was `sqlError` alone.
   no anonymous-interface assertion in the root names an unexported moved
   method.
 
+### 24d.3 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-TABLE-RESTORE-CORES` from
+`9156a1120` (control 30c merged). 30c had already moved
+`physicalNotNullDumpDependencies` (`table.PhysicalNotNullDumpDependencies`),
+so this step skipped it. After the port the staged set's `frontier` OUT
+was `sqlError` alone.
+
+| Commit | Change |
+|---|---|
+| `a6936164a` | Port in place into `tblrs_*.go` over `catalog.Read`/`access.View`; root wrappers keep the context check, authorization, superuser 42501, `Engine.mu` window, trust checks and resolution; shared stage tail `publishRestoreRepairLocked` |
+| `44f1ae9bf` | Move into `table` (script `.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-RESTORE-CORES/c2.py`); three staged receiver-first functions become methods; `RestoreResolver` embedded in `Host`; root callers qualified; no aliases |
+
+- **Moved.** Group A whole: `CaptureRestoredPlaceholders`,
+  `CaptureRestoredNotNulls`, `CaptureHistoricalFacts`,
+  `RetiredArchiveHighWater` and `RemapRetiredConstraints` (one high-water
+  helper; the domain is an argument), `CapturePhysicalImportIndex` (both
+  reads and the domain are arguments), `ValidateForeignKeyData` (over
+  `access.View` and `access.Environment`), and the receipts
+  `RestoredPhysicalNotNull` and `RestoredPhysicalForeignKeyProvider` with
+  exported fields and a `RoleRecord` in place of the authorization view
+  (methods `Admits`, `Holds`, `Pairs`, `Advance`). Group B, split into a
+  shape check before authorization and a decision after resolution:
+  `RestoredGenerationShape`/`PairRestoredGeneration`,
+  `CaptureRestoredGeneration`, `RestoredInheritedCheckShape`/`InheritedCheckRecipe`,
+  `CloseRestoredRecipes`, `RestoredNotNullShape`/`PairRestoredNotNull`,
+  `CaptureInheritedOwner`, `InheritedOwnerShape`/`InheritedOwnerDirective`/`InheritedOwnerTarget`,
+  `InheritedForeignKeyShape`/`CaptureInheritedForeignKey`,
+  `(*RestoredInheritedForeignKey).Unchanged`,
+  `PhysicalNotNullConstructorShape`/`PreparePhysicalNotNullConstructor`,
+  `CapturePhysicalNotNullConstructor`,
+  `DeferredPhysicalPrimaryShape`/`PrepareDeferredPhysicalPrimary`,
+  `CompetingUniqueShape`/`PreparePhysicalCompetingUnique`,
+  `CapturePhysicalForeignKeyProvider`,
+  `PhysicalSelfForeignKeyShape`/`PhysicalSelfForeignKeyColumns`/`PinPhysicalSelfForeignKey`,
+  `ValidateRestoredDefault`. Group C: `NoInheritNotNullCandidate`,
+  `AttributeRankCandidate`, `PhysicalNotNullCleanup`,
+  `RetiredConstraintCandidate` (with `RetiredRepairCommit`,
+  `(*RestoredHistoryAuthority).Complete` and `CommitRetiredRepair`). Two
+  root reject texts became `RestoreGenerationBoundary` and
+  `RestoreInheritedCheckBoundary`. New files `inheritance_recipe_restore.go`
+  and `inheritance_retired_remap.go`; the rest joined the existing Restore
+  files.
+- **Root left.** Every hook wrapper (same names, same error order),
+  `publishRestoreRepairLocked` (`restore_repair_publish.go`; called with
+  `Engine.mu` held, releases it), and group D: `captureRestoredForeignKeys`,
+  `resolveRestoredForeignKeyTargets`, `bindRestoredForeignKeys`,
+  `validateRestoredInheritedForeignKey` (its domain, epoch, role and trust
+  checks and the owner check; the observation check is `Unchanged`),
+  `restore_replay.go`. Root-only validators come in as arguments:
+  `relationProvider{}` as a `catalog.Provider`, `e.catalog.Domain`.
+- **Deviations.** (1) Group B needed two- and three-part splits where the
+  root interleaves work (owner: directive before resolution, target after;
+  self FK: columns before the root's pending binder, pin after). (2)
+  `RestoreResolver` is a separate interface embedded in `Host` (the 24d.1
+  `Resolver` precedent): `RetiredConstraintCandidate` runs before any stage
+  and gets a stage-less `ddlHost`. (3) The one-line group A wrappers were
+  deleted; callers pass `CatalogRead()`.
+- **Tests.** None moved or deleted: every Restore unit needs an engine.
+  Adapted: `inheritance_recipe_restore_test.go` and
+  `inheritance_retired_restore_test.go` call the `table` captures.
+  The 24b dump smoke gained a Restore-repair scenario (retired origins,
+  attribute rank, inherited recipes and foreign key).
+- **Checks.** String-literal multiset unchanged apart from import paths and
+  the extra `"0A000"` codes of split cores; the dump smoke byte-identical;
+  106 selected engine units passed, also with `RACE=1`;
+  `^TestReference(Inheritance|NotNull|ForeignKey|PGAttributeRank|DumpRound|AlterDefault|Control)`
+  passed in quick mode and in `REFERENCE=1` mode apart from the known
+  `NotNull(FormsAndAlter|CurrentCommandNamesAndCompatibleReuse)` drift,
+  which fails on master too; `table` imports no root,
+  `partition`, `view`, `dml` or `control` package.
+
 ### Notes for later steps
 
 - 24b: the dependency passes need `dropDependencyReader` and
@@ -1169,8 +1244,13 @@ was `sqlError` alone.
   `StageForeignKey` (`stageAddedForeignKey`), which use op-less hosts now.
   `table.Resolver` already holds `ResolveReference`. `identity.go` in the
   root now holds only `evaluateInsertValuesRow` (DML; 29b left it in the root).
-- 24d.1 for 24d.3: `ResolveRestoredRelation` is implemented on `ddlHost`
-  and unused until the Restore cores move.
+- 24d.1 for 24d.3 (done): `ResolveRestoredRelation` now sits in
+  `table.RestoreResolver`, which `Host` embeds; `RetiredConstraintCandidate`
+  uses it.
+- 24d.3 for 24d.2 and partition 25d: a Restore or replay repair that
+  replaces one relation can reuse the root `publishRestoreRepairLocked`
+  tail; the receipts' `Holds` checks keep the role record and current
+  relation identity without an authorization view.
 - 24d.1 for partition 25d: `schemaPartitionChildLocked` already calls
   `table.StageCreateIdentities`, `table.NewRelation`,
   `table.AssignDefinitionOIDs` and `(*table.Stage).CaptureLikeSource`; its

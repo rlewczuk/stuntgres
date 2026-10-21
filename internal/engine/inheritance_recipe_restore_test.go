@@ -40,7 +40,7 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[str
 			t.Fatal(err)
 		}
 		refs[raw.Name.Parts[len(raw.Name.Parts)-1].Text] = ref
-		e.captureRestoredPlaceholders(ref, raw, origins)
+		table.CaptureRestoredPlaceholders(e.CatalogRead(), ref, raw, origins)
 	}
 	return e, op, refs, origins
 }

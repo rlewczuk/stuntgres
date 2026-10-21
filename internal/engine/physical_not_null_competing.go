@@ -1,24 +1,15 @@
 package engine
 
 import (
-	"slices"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
-	if len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique {
-		return nil, nil
-	}
-	definition := raw.Actions[0].Unique
-	reject := func() (*table.PhysicalNotNullConstructor, error) {
-		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
-	}
-	if provider == nil || !provider.permuted || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || definition.Primary || definition.Name.Text == "" || len(definition.Columns) != len(provider.primary.Keys) {
-		return reject()
+func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *parser.AlterTable, provider *table.RestoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
+	if handled, err := table.CompetingUniqueShape(op, raw, provider); !handled || err != nil {
+		return nil, err
 	}
 	auth, err := operationAuthorization(op)
 	if err != nil {
@@ -26,28 +17,8 @@ func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *pars
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.RoleRecord != provider.authority.RoleRecord || created[provider.ref.Address] != provider.ref || auth.Catalog.Get(provider.ref.Address) != provider.current {
-		return reject()
+	if !partitionConstraintReplayImport(e, op, auth) || !provider.Holds(auth.RoleRecord, auth.Catalog) || created[provider.Ref.Address] != provider.Ref {
+		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	old := provider.current
-	namespace := auth.Catalog.Get(old.Namespace())
-	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.Name() != raw.Name.Parts[1].Text {
-		return reject()
-	}
-	for i, column := range definition.Columns {
-		slot, exists := old.Index[column.Text]
-		if !exists {
-			return reject()
-		}
-		attribute := old.Attributes[slot]
-		if !slices.ContainsFunc(provider.primary.Keys, func(key catalog.PhysicalPrimaryKeyUsage) bool { return key.Attribute == attribute }) {
-			return reject()
-		}
-		for _, prior := range definition.Columns[:i] {
-			if prior.Text == column.Text {
-				return reject()
-			}
-		}
-	}
-	return &table.PhysicalNotNullConstructor{Before: old, Ref: provider.ref, Deferred: definition, Competing: true}, nil
+	return table.PreparePhysicalCompetingUnique(auth.Catalog, raw, provider)
 }

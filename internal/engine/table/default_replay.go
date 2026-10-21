@@ -2,13 +2,13 @@ package table
 
 import (
 	"slices"
-
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -56,4 +56,19 @@ func DefaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 		}
 	})
 	return captured
+}
+
+// ValidateRestoredDefault admits the replayed DEFAULT s on ref only when it
+// is inherited replay, or the column's bound default is one Dump defers: a
+// validated captured reference or a selected regclass.
+func ValidateRestoredDefault(view catalog.Read, ref ids.ObjectRef, s *parser.AlterTableDefault) error {
+	d := view.MustRelation(ref.Address)
+	if InheritedDefaultReplay(s, d) {
+		return nil
+	}
+	slot, ok := d.Index[s.Column.Text]
+	if !ok || !DefaultReplayDeferrable(d.ColumnMeta.Defaults[d.Attributes[slot]]) {
+		return sqlError("0A000", "restore accepts only deferred captured-reference or regclass defaults")
+	}
+	return nil
 }

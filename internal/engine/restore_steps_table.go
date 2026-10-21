@@ -17,7 +17,7 @@ import (
 // beforeRestorePhysicalBoundary rejects a statement that interrupts a
 // physical NOT NULL repair sequence.
 func beforeRestorePhysicalBoundary(r *restoreRun, _ *session.Operation, stmt parser.Statement) (bool, error) {
-	if r.pairedPhysical != nil && !r.pairedPhysical.admits(stmt) {
+	if r.pairedPhysical != nil && !r.pairedPhysical.Admits(stmt) {
 		return false, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return false, nil
@@ -43,8 +43,8 @@ func beforeRestorePhysicalConstructor(r *restoreRun, op *session.Operation, stmt
 // beforeRestoreDeferredPhysicalOwner keeps a deferred physical primary key
 // across one owner directive and drops it at any other statement.
 func beforeRestoreDeferredPhysicalOwner(r *restoreRun, _ *session.Operation, stmt parser.Statement) (bool, error) {
-	if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && r.deferredPhysical != nil && !r.deferredPhysical.ownerDirective {
-		r.deferredPhysical.ownerDirective = true
+	if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && r.deferredPhysical != nil && !r.deferredPhysical.OwnerDirective {
+		r.deferredPhysical.OwnerDirective = true
 	} else {
 		r.deferredPhysical = nil
 	}
@@ -68,8 +68,8 @@ func beforeRestorePhysicalSelfForeignKey(r *restoreRun, op *session.Operation, s
 	if r.physicalForeignProvider == nil {
 		return false, nil
 	}
-	if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && !r.physicalForeignProvider.ownerDirective {
-		r.physicalForeignProvider.ownerDirective = true
+	if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && !r.physicalForeignProvider.OwnerDirective {
+		r.physicalForeignProvider.OwnerDirective = true
 		return false, nil
 	}
 	alteration, ok := stmt.(*parser.AlterTable)
@@ -140,7 +140,7 @@ func afterRestorePhysicalForeignKeyProvider(r *restoreRun, op *session.Operation
 		return err
 	}
 	if r.physicalForeignProvider != nil && r.cur.physicalConstructor != nil && r.cur.physicalConstructor.Competing {
-		r.physicalForeignProvider.permuted = true
+		r.physicalForeignProvider.Permuted = true
 	}
 	return nil
 }
@@ -151,7 +151,7 @@ func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt p
 	if !ok {
 		return nil
 	}
-	if index := r.stage.capturePhysicalImportIndex(r.cur.physicalIndexBase, creation, r.historicalRefs); index != nil {
+	if index := table.CapturePhysicalImportIndex(r.cur.physicalIndexBase, r.stage.CatalogRead(), r.stage.catalog.Domain, creation, r.historicalRefs); index != nil {
 		r.physicalIndexes[index.Address()] = index
 	}
 	return nil
@@ -161,7 +161,7 @@ func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt p
 // made, for pairing with later repairs.
 func afterRestoreNotNullOrigins(r *restoreRun, _ *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
 	if creation, ok := stmt.(*parser.CreateTable); ok && outcome.Created != (ids.ObjectRef{}) {
-		r.stage.captureRestoredNotNulls(outcome.Created, creation, r.notNullOrigins)
+		table.CaptureRestoredNotNulls(r.stage.CatalogRead(), outcome.Created, creation, r.notNullOrigins)
 	}
 	return nil
 }
