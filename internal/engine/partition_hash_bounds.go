@@ -13,7 +13,7 @@ import (
 func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) error {
 	var preceding, following *catalog.Relation
 	greatest := int32(0)
-	for _, address := range p.parent.Partition.Children {
+	for _, address := range p.Parent.Partition.Children {
 		if err := scope.op.Context().Err(); err != nil {
 			return err
 		}
@@ -22,7 +22,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		if b.Modulus > greatest {
 			greatest = b.Modulus
 		}
-		if partition.CompareHashBound(b, p.bound) <= 0 {
+		if partition.CompareHashBound(b, p.Bound) <= 0 {
 			if preceding == nil || partition.CompareHashBound(preceding.Membership, b) < 0 {
 				preceding = child
 			}
@@ -35,26 +35,26 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		d.Detail = detail
 		return d
 	}
-	if preceding != nil && p.bound.Modulus%preceding.Membership.Modulus != 0 {
-		return factorError(fmt.Sprintf(`The new modulus %d is not divisible by %d, the modulus of existing partition "%s".`, p.bound.Modulus, preceding.Membership.Modulus, preceding.Name()))
+	if preceding != nil && p.Bound.Modulus%preceding.Membership.Modulus != 0 {
+		return factorError(fmt.Sprintf(`The new modulus %d is not divisible by %d, the modulus of existing partition "%s".`, p.Bound.Modulus, preceding.Membership.Modulus, preceding.Name()))
 	}
-	if following != nil && following.Membership.Modulus%p.bound.Modulus != 0 {
-		return factorError(fmt.Sprintf(`The new modulus %d is not a factor of %d, the modulus of existing partition "%s".`, p.bound.Modulus, following.Membership.Modulus, following.Name()))
+	if following != nil && following.Membership.Modulus%p.Bound.Modulus != 0 {
+		return factorError(fmt.Sprintf(`The new modulus %d is not a factor of %d, the modulus of existing partition "%s".`, p.Bound.Modulus, following.Membership.Modulus, following.Name()))
 	}
 	var conflict *catalog.Relation
 	var first int32
-	for _, address := range p.parent.Partition.Children {
+	for _, address := range p.Parent.Partition.Children {
 		if err := scope.op.Context().Err(); err != nil {
 			return err
 		}
 		child := p.stage.Base.MustRelation(address)
-		if !partition.HashOverlap(p.bound, child.Membership) {
+		if !partition.HashOverlap(p.Bound, child.Membership) {
 			continue
 		}
-		slot := p.bound.Remainder
-		if p.bound.Modulus >= greatest {
+		slot := p.Bound.Remainder
+		if p.Bound.Modulus >= greatest {
 			slot %= greatest
-		} else if child.Membership.Modulus > p.bound.Modulus {
+		} else if child.Membership.Modulus > p.Bound.Modulus {
 			slot = child.Membership.Remainder
 		}
 		if conflict == nil || slot < first {
@@ -62,7 +62,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		}
 	}
 	if conflict != nil {
-		return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.Name(), conflict.Name()), p.rawBounds.Pos)
+		return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.Child.Name(), conflict.Name()), p.Raw.Pos)
 	}
 	return nil
 }

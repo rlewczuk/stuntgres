@@ -135,13 +135,10 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *catalo
 	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) || child.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
-	nextParent, definition := *parent, *parent.Partition
-	definition.Children = slices.DeleteFunc(slices.Clone(definition.Children), func(a ids.ObjectAddress) bool { return a == child.Address() })
-	if definition.DefaultChild == child.Address() {
-		definition.DefaultChild = ids.ObjectAddress{}
+	nextParent, err := partition.WithoutChild(parent, child.Address())
+	if err != nil {
+		return err
 	}
-	nextParent.Partition = &definition
-	nextParent.ObjectRevision++
 	nextChild := *child
 	nextChild.Membership = nil
 	nextChild.ObjectRevision++
@@ -166,7 +163,7 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *catalo
 			nextChild.Constraints.Exclusion[i].IsLocal = true
 		}
 	}
-	if err := stage.Replace(&nextParent); err != nil {
+	if err := stage.Replace(nextParent); err != nil {
 		return err
 	}
 	if err := stage.Replace(&nextChild); err != nil {

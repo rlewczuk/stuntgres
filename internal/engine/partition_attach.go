@@ -2,12 +2,10 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -57,7 +55,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		e.DiscardCatalogStage(stage)
 		return fail(err)
 	}
-	pending := &pendingPartitionDefinition{stage: stage, parent: parent, bound: bound, rawBounds: raw.Bound, auth: auth}
+	pending := &pendingPartitionDefinition{Definition: partition.Definition{Parent: parent, Bound: bound, Raw: raw.Bound}, stage: stage, auth: auth}
 	e.mu.Unlock()
 	defer func() { e.DiscardCatalogStage(pending.stage) }()
 	if !bound.DefaultBound {
@@ -151,7 +149,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	stage = e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	stage.indexes().Output = scope.output
-	pending.stage, pending.auth, pending.child = stage, auth, child
+	pending.stage, pending.auth, pending.Child = stage, auth, child
 	for address := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(address))
 	}
@@ -164,13 +162,12 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err != nil {
 		return Result{}, err
 	}
-	pending.child = next
+	pending.Child = next
 	if err = pending.validateBounds(scope); err != nil {
 		return Result{}, err
 	}
-	if bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
-		old := auth.Catalog.MustRelation(parent.Partition.DefaultChild)
-		return Result{}, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.Name(), old.Name()), raw.Bound.Pos)
+	if err = partition.CheckDefaultConflict(auth.Catalog, parent, bound, child.Name(), raw.Bound.Pos); err != nil {
+		return Result{}, err
 	}
 	if !bound.DefaultBound {
 		if err = pending.checkOverlap(scope); err != nil {
@@ -193,14 +190,11 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	next.Membership = bound
 	next.ObjectRevision++
-	changed, definition := *parent, *parent.Partition
-	definition.Children = append(slices.Clone(definition.Children), child.Address())
-	if bound.DefaultBound {
-		definition.DefaultChild = child.Address()
+	changed, err := partition.WithChild(parent, child.Address(), bound.DefaultBound)
+	if err != nil {
+		return Result{}, err
 	}
-	changed.Partition = &definition
-	changed.ObjectRevision++
-	if err = stage.Replace(&changed); err != nil {
+	if err = stage.Replace(changed); err != nil {
 		return Result{}, err
 	}
 	if err = stage.Replace(next); err != nil {

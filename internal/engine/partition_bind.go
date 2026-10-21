@@ -154,13 +154,13 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 }
 
 func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evaluation *exec.Context) error {
-	if p.bound.Strategy == parser.PartitionHash {
+	if p.Bound.Strategy == parser.PartitionHash {
 		return scope.op.Context().Err()
 	}
-	for side, raw := range [2][]parser.PartitionDatum{p.rawBounds.Lower, p.rawBounds.Upper} {
-		tuple := p.bound.Lower
+	for side, raw := range [2][]parser.PartitionDatum{p.Raw.Lower, p.Raw.Upper} {
+		tuple := p.Bound.Lower
 		if side == 1 {
-			tuple = p.bound.Upper
+			tuple = p.Bound.Upper
 		}
 		finite := 0
 		for i, datum := range raw {
@@ -173,7 +173,7 @@ func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evalu
 			}
 			// PostgreSQL advances the key type cursor only for finite datums,
 			// including malformed finite entries after an infinite datum.
-			node, err := p.bindPartitionDatum(scope, datum, p.parent.Partition.Keys[finite])
+			node, err := p.bindPartitionDatum(scope, datum, p.Parent.Partition.Keys[finite])
 			if err != nil {
 				return err
 			}

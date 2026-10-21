@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 )
 
 func (stage *CatalogStage) removePartitionHierarchyLocked(relation *catalog.Relation) error {
@@ -37,18 +38,11 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *catalog.R
 	if staged, ok := provider.Replacement(address).(*catalog.Relation); ok {
 		parent = staged
 	}
-	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
-		return fmt.Errorf("stuntgres: definition revision exhausted")
+	next, err := partition.WithoutChild(parent, relation.Address())
+	if err != nil {
+		return err
 	}
-	next := *parent
-	definition := *parent.Partition
-	definition.Children = slices.DeleteFunc(slices.Clone(definition.Children), func(child ids.ObjectAddress) bool { return child == relation.Address() })
-	if definition.DefaultChild == relation.Address() {
-		definition.DefaultChild = ids.ObjectAddress{}
-	}
-	next.Partition = &definition
-	next.ObjectRevision++
-	if err := provider.Replace(&next); err != nil {
+	if err := provider.Replace(next); err != nil {
 		return err
 	}
 	return index.PartitionIndexValidity(provider, ids.ObjectAddress{})
